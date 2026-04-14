@@ -1,0 +1,400 @@
+{
+  "697763966650417193": {
+    "username": "peaceminuswan",
+    "berries": 16500,
+    "gems": 195,
+    "currentIsland": "Shells Town",
+    "dailyLastClaim": 1776155547930,
+    "cards": [
+      {
+        "instanceId": "17761538796577905",
+        "displayName": "Koby",
+        "cardRole": "battle",
+        "boostType": null,
+        "boostValue": 0,
+        "boostTarget": null,
+        "boostDescription": "",
+        "image": "https://dummyimage.com/512x768/1e1e1e/ffffff.png&text=Koby",
+        "id": 6,
+        "code": "koby_aspiring_marine",
+        "name": "Koby",
+        "title": "Aspiring Marine",
+        "rarity": "C",
+        "arc": "East Blue",
+        "faction": "Marines",
+        "variant": "Early Days",
+        "type": "Support",
+        "atk": 52,
+        "hp": 520,
+        "speed": 70,
+        "weapon": "None",
+        "devilFruit": "None",
+        "equipType": "None",
+        "level": 1,
+        "kills": 0,
+        "fragments": 0,
+        "equippedWeapon": null,
+        "equippedDevilFruit": null
+      },
+      {
+        "instanceId": "17761538942835889",
+        "displayName": "Gan Fall",
+        "cardRole": "battle",
+        "boostType": null,
+        "boostValue": 0,
+        "boostTarget": null,
+        "boostDescription": "",
+        "image": "https://dummyimage.com/512x768/1e1e1e/ffffff.png&text=Gan%20Fall",
+        "id": 46,
+        "code": "gan_fall",
+        "name": "Gan Fall",
+        "title": "Sky Knight",
+        "rarity": "B",
+        "arc": "Skypiea",
+        "faction": "Skypiea",
+        "variant": "Knight",
+        "type": "Tank",
+        "atk": 95,
+        "hp": 860,
+        "speed": 58,
+        "weapon": "Lance",
+        "devilFruit": "None",
+        "equipType": "Weapon",
+        "level": 1,
+        "kills": 0,
+        "fragments": 0,
+        "equippedWeapon": null,
+        "equippedDevilFruit": null
+      },
+      {
+        "instanceId": "17761538942837329",
+        "displayName": "Baccarat",
+        "cardRole": "boost",
+        "type": "Passive",
+        "atk": 0,
+        "hp": 0,
+        "speed": 0,
+        "weapon": "None",
+        "devilFruit": "None",
+        "equipType": "Passive",
+        "image": "https://dummyimage.com/512x768/1e1e1e/ffffff.png&text=Baccarat",
+        "id": 34,
+        "code": "baccarat_lucky_draw",
+        "name": "Baccarat",
+        "title": "Lucky Draw",
+        "rarity": "S",
+        "arc": "Film Gold",
+        "faction": "Gran Tesoro",
+        "variant": "Fortune Support",
+        "boostType": "pullChance",
+        "boostValue": 2,
+        "boostTarget": "account",
+        "boostDescription": "Increase pull chance by 2 steps passively. Only the highest pull chance boost applies.",
+        "level": 1,
+        "kills": 0,
+        "fragments": 0,
+        "equippedWeapon": null,
+        "equippedDevilFruit": null
+      },
+      {
+        "instanceId": "1776153894283210",
+        "displayName": "Morgan",
+        "cardRole": "battle",
+        "boostType": null,
+        "boostValue": 0,
+        "boostTarget": null,
+        "boostDescription": "",
+        "image": "https://dummyimage.com/512x768/1e1e1e/ffffff.png&text=Morgan",
+        "id": 8,
+        "code": "morgan_axe_hand",
+        "name": "Morgan",
+        "title": "Axe-Hand",
+        "rarity": "C",
+        "arc": "East Blue",
+        "faction": "Marines",
+        "variant": "Captain",
+        "type": "Bruiser",
+        "atk": 72,
+        "hp": 760,
+        "speed": 45,
+        "weapon": "Basic Marine Saber",
+        "devilFruit": "None",
+        "equipType": "Weapon",
+        "level": 1,
+        "kills": 0,
+        "fragments": 0,
+        "equippedWeapon": null,
+        "equippedDevilFruit": null
+      },
+      {
+        "instanceId": "17761538942838221",
+        "displayName": "Saint Topman Warcury",
+        "cardRole": "battle",
+        "boostType": null,
+        "boostValue": 0,
+        "boostTarget": null,
+        "boostDescription": "",
+        "image": "https://dummyimage.com/512x768/1e1e1e/ffffff.png&text=Saint%20Topman%20Warcury",
+        "id": 89,
+        "code": "warcury",
+        "name": "Saint Topman Warcury",
+        "title": "Warrior God of Justice",
+        "rarity": "UR",
+        "arc": "Egghead",
+        "faction": "World Government",
+        "variant": "Elder Form",
+        "type": "Final Saga",
+        "atk": 240,
+        "hp": 1580,
+        "speed": 80,
+        "weapon": "None",
+        "devilFruit": "Unknown Mythical Ability",
+        "equipType": "None",
+        "level": 1,
+        "kills": 0,
+        "fragments": 0,
+        "equippedWeapon": null,
+        "equippedDevilFruit": null
+      },
+      {
+        "instanceId": "17761538942832729",
+        "displayName": "Kozuki Hiyori",
+        "cardRole": "boost",
+        "type": "Passive",
+        "atk": 0,
+        "hp": 0,
+        "speed": 0,
+        "weapon": "None",
+        "devilFruit": "None",
+        "equipType": "Passive",
+        "image": "https://dummyimage.com/512x768/1e1e1e/ffffff.png&text=Kozuki%20Hiyori",
+        "id": 31,
+        "code": "hiyori_festival_support",
+        "name": "Kozuki Hiyori",
+        "title": "Festival Support",
+        "rarity": "B",
+        "arc": "Wano",
+        "faction": "Wano",
+        "variant": "Resource Blessing",
+        "boostType": "daily",
+        "boostValue": 1,
+        "boostTarget": "account",
+        "boostDescription": "Increase daily reward quality by 1 tier passively.",
+        "level": 1,
+        "kills": 0,
+        "fragments": 0,
+        "equippedWeapon": null,
+        "equippedDevilFruit": null
+      },
+      {
+        "instanceId": "17761538942836271",
+        "displayName": "Usopp",
+        "cardRole": "battle",
+        "boostType": null,
+        "boostValue": 0,
+        "boostTarget": null,
+        "boostDescription": "",
+        "image": "https://dummyimage.com/512x768/1e1e1e/ffffff.png&text=Usopp",
+        "id": 4,
+        "code": "usopp_sniper",
+        "name": "Usopp",
+        "title": "Sniper",
+        "rarity": "B",
+        "arc": "East Blue",
+        "faction": "Straw Hat Pirates",
+        "variant": "Base",
+        "type": "Ranged",
+        "atk": 85,
+        "hp": 620,
+        "speed": 88,
+        "weapon": "Basic Slingshot",
+        "devilFruit": "None",
+        "equipType": "Weapon",
+        "level": 1,
+        "kills": 0,
+        "fragments": 0,
+        "equippedWeapon": null,
+        "equippedDevilFruit": null
+      },
+      {
+        "instanceId": "17761538942832482",
+        "displayName": "S-Hawk",
+        "cardRole": "battle",
+        "boostType": null,
+        "boostValue": 0,
+        "boostTarget": null,
+        "boostDescription": "",
+        "image": "https://dummyimage.com/512x768/1e1e1e/ffffff.png&text=S-Hawk",
+        "id": 101,
+        "code": "mihawk_seraphim",
+        "name": "S-Hawk",
+        "title": "Seraphim",
+        "rarity": "S",
+        "arc": "Egghead",
+        "faction": "World Government",
+        "variant": "Seraphim",
+        "type": "Attacker",
+        "atk": 198,
+        "hp": 1220,
+        "speed": 90,
+        "weapon": "Black Blade Replica",
+        "devilFruit": "Supa Supa no Mi",
+        "equipType": "Devil Fruit",
+        "level": 1,
+        "kills": 0,
+        "fragments": 0,
+        "equippedWeapon": null,
+        "equippedDevilFruit": null
+      }
+    ],
+    "fragments": [
+      {
+        "name": "Morgan",
+        "amount": 1,
+        "rarity": "C",
+        "category": "battle",
+        "code": "morgan_axe_hand",
+        "image": "https://dummyimage.com/512x768/1e1e1e/ffffff.png&text=Morgan"
+      }
+    ],
+    "items": [],
+    "weapons": [],
+    "devilFruits": [
+      {
+        "name": "Mori Mori no Mi",
+        "amount": 1,
+        "rarity": "S",
+        "code": "mori_mori_no_mi",
+        "image": "",
+        "type": "Logia Fruit",
+        "statBonus": {
+          "atk": 10,
+          "hp": 4,
+          "speed": 0
+        },
+        "owners": [
+          "greenbull"
+        ],
+        "description": "The power of forest growth."
+      },
+      {
+        "name": "Sube Sube no Mi",
+        "amount": 1,
+        "rarity": "C",
+        "code": "sube_sube_no_mi",
+        "image": "",
+        "type": "Devil Fruit",
+        "statBonus": {
+          "atk": 3,
+          "hp": 4,
+          "speed": 1
+        },
+        "owners": [
+          "alvida_iron_club"
+        ],
+        "description": "Makes the body smooth and slippery."
+      },
+      {
+        "name": "Baku Baku no Mi",
+        "amount": 1,
+        "rarity": "B",
+        "code": "baku_baku_no_mi",
+        "image": "",
+        "type": "Devil Fruit",
+        "statBonus": {
+          "atk": 5,
+          "hp": 5,
+          "speed": 0
+        },
+        "owners": [
+          "wapol"
+        ],
+        "description": "Allows eating and fusion of objects."
+      }
+    ],
+    "boxes": [
+      {
+        "name": "Mother Flame Treasure Box",
+        "amount": 1,
+        "rarity": "S",
+        "code": "mother_flame_treasure_box",
+        "image": "",
+        "type": "Box",
+        "description": "A premium treasure box for Mother Flame users."
+      }
+    ],
+    "tickets": [],
+    "materials": [
+      {
+        "name": "Treasure Material Pack",
+        "amount": 2,
+        "rarity": "B",
+        "code": "treasure_material_pack",
+        "image": "",
+        "type": "Material",
+        "description": "A set of useful treasure materials."
+      }
+    ],
+    "pity": {
+      "normalSPity": 0,
+      "premiumSPity": 12
+    },
+    "pulls": {
+      "base": {
+        "used": 6,
+        "max": 6
+      },
+      "supportMember": {
+        "used": 1,
+        "max": 1
+      },
+      "booster": {
+        "used": 1,
+        "max": 1
+      },
+      "owner": {
+        "used": 1,
+        "max": 1
+      },
+      "patreon": {
+        "used": 3,
+        "max": 3
+      },
+      "lastResetBucket": 61672
+    },
+    "boosts": {
+      "pullSlot": 0,
+      "daily": 0,
+      "atk": 0,
+      "hp": 0,
+      "spd": 0,
+      "exp": 0,
+      "dmg": 0
+    },
+    "quests": {
+      "daily": {
+        "total": 5,
+        "completed": 0
+      },
+      "totalClears": 0
+    },
+    "cooldowns": {
+      "daily": null,
+      "fight": null,
+      "boss": null,
+      "pullReset": null,
+      "ship": null,
+      "vote": 1776203499514,
+      "treasure": 1776241950394
+    },
+    "vote": {
+      "streak": 1,
+      "totalVotes": 1,
+      "lastVoteAt": 1776160299514
+    },
+    "clan": {
+      "name": null,
+      "role": "member"
+    }
+  }
+}
