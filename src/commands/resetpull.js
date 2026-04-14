@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
+const { resetAllPullSlots } = require("../utils/pullSlots");
 
 function findTicket(tickets, code) {
   return (tickets || []).findIndex((item) => item.code === code);
@@ -35,18 +36,11 @@ module.exports = {
     }
 
     const updatedTickets = consumeTicket(tickets, ticketIndex);
+    const updatedPulls = resetAllPullSlots(player);
 
     updatePlayer(message.author.id, {
       tickets: updatedTickets,
-      pulls: {
-        ...(player.pulls || {}),
-        base: { used: 0, max: 6 },
-        supportMember: { used: 0, max: 1 },
-        booster: { used: 0, max: 1 },
-        owner: { used: 0, max: 1 },
-        patreon: { used: 0, max: 3 },
-        lastResetBucket: player?.pulls?.lastResetBucket ?? null
-      }
+      pulls: updatedPulls
     });
 
     const embed = new EmbedBuilder()
@@ -56,8 +50,9 @@ module.exports = {
         [
           "Your pull usage has been reset.",
           "",
-          "↪ Base Pulls reset to `0/6`",
-          "↪ Bonus pull slots also reset",
+          "↪ Base Pulls reset",
+          "↪ Bonus pull slots reset",
+          "↪ Baccarat slots reset",
           "↪ 1 Pull Reset Ticket consumed"
         ].join("\n")
       )

@@ -1,6 +1,7 @@
 const express = require("express");
 const crypto = require("crypto");
 const { getPlayer, updatePlayer } = require("./playerStore");
+const { ITEMS, cloneItem } = require("./data/items");
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
@@ -15,13 +16,8 @@ function addOrIncrease(list, item) {
   }
 
   arr.push({
-    name: item.name,
-    amount: Number(item.amount || 1),
-    rarity: item.rarity || "C",
-    code: item.code,
-    image: item.image || "",
-    type: item.type || "Item",
-    description: item.description || ""
+    ...item,
+    amount: Number(item.amount || 1)
   });
 
   return arr;
@@ -32,14 +28,7 @@ function getVoteReward(streak) {
     berries: 4000,
     gems: 15,
     materials: [
-      {
-        name: "Treasure Material Pack",
-        amount: 2,
-        rarity: "B",
-        code: "treasure_material_pack",
-        type: "Material",
-        description: "A set of useful treasure materials."
-      }
+      cloneItem(ITEMS.treasureMaterialPack, 2)
     ],
     boxes: [],
     tickets: []
@@ -51,35 +40,14 @@ function getVoteReward(streak) {
   }
 
   if (streak >= 10) {
-    reward.materials.push({
-      name: "Enhancement Stone",
-      amount: 3,
-      rarity: "B",
-      code: "enhancement_stone",
-      type: "Material",
-      description: "A stone used to strengthen growth systems."
-    });
+    reward.materials.push(cloneItem(ITEMS.enhancementStone, 3));
   }
 
   if (streak % 20 === 0 && streak > 0) {
     reward.berries += 5000;
     reward.gems += 20;
-    reward.tickets.push({
-      name: "Pull Reset Ticket",
-      amount: 1,
-      rarity: "A",
-      code: "pull_reset_ticket",
-      type: "Ticket",
-      description: "Resets your pull usage manually."
-    });
-    reward.boxes.push({
-      name: "Rare Resource Box",
-      amount: 1,
-      rarity: "B",
-      code: "rare_resource_box",
-      type: "Box",
-      description: "A better box with improved rewards."
-    });
+    reward.tickets.push(cloneItem(ITEMS.pullResetTicket, 1));
+    reward.boxes.push(cloneItem(ITEMS.rareResourceBox, 1));
   }
 
   return reward;
@@ -106,10 +74,7 @@ function verifyTopggSignature(rawBody, signatureHeader, secret) {
     .digest("hex");
 
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(expected),
-      Buffer.from(signature)
-    );
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
   } catch {
     return false;
   }
@@ -169,17 +134,17 @@ function startTopggWebhookServer(client) {
       let updatedTickets = [...(player.tickets || [])];
       let updatedBoxes = [...(player.boxes || [])];
 
-      for (const item of reward.materials) {
+      reward.materials.forEach((item) => {
         updatedMaterials = addOrIncrease(updatedMaterials, item);
-      }
+      });
 
-      for (const item of reward.tickets) {
+      reward.tickets.forEach((item) => {
         updatedTickets = addOrIncrease(updatedTickets, item);
-      }
+      });
 
-      for (const item of reward.boxes) {
+      reward.boxes.forEach((item) => {
         updatedBoxes = addOrIncrease(updatedBoxes, item);
-      }
+      });
 
       updatePlayer(String(userId), {
         username,
@@ -201,17 +166,9 @@ function startTopggWebhookServer(client) {
           `Gems: +${reward.gems.toLocaleString("en-US")}`
         ];
 
-        reward.materials.forEach((item) => {
-          rewardLines.push(`${item.name} x${item.amount}`);
-        });
-
-        reward.tickets.forEach((item) => {
-          rewardLines.push(`${item.name} x${item.amount}`);
-        });
-
-        reward.boxes.forEach((item) => {
-          rewardLines.push(`${item.name} x${item.amount}`);
-        });
+        reward.materials.forEach((item) => rewardLines.push(`${item.name} x${item.amount}`));
+        reward.tickets.forEach((item) => rewardLines.push(`${item.name} x${item.amount}`));
+        reward.boxes.forEach((item) => rewardLines.push(`${item.name} x${item.amount}`));
 
         await user.send(
           [

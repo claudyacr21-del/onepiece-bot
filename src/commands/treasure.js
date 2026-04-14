@@ -1,8 +1,14 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { hasRole, PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
+const { PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
+const { ITEMS, cloneItem } = require("../data/items");
 
 const TREASURE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+function hasRole(message, roleName) {
+  if (!message.member?.roles?.cache || !roleName) return false;
+  return message.member.roles.cache.some((role) => role.name === roleName);
+}
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
@@ -17,13 +23,8 @@ function addOrIncrease(list, item) {
   }
 
   arr.push({
-    name: item.name,
-    amount: Number(item.amount || 1),
-    rarity: item.rarity || "C",
-    code: item.code,
-    image: item.image || "",
-    type: item.type || "Item",
-    description: item.description || ""
+    ...item,
+    amount: Number(item.amount || 1)
   });
 
   return arr;
@@ -36,14 +37,8 @@ function formatRemaining(ms) {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
 
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-
-  if (minutes > 0) {
-    return `${minutes}m`;
-  }
-
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
   return "Now";
 }
 
@@ -51,59 +46,19 @@ function rollTreasureRewards() {
   const berries = 12000 + Math.floor(Math.random() * 4000);
   const gems = 35 + Math.floor(Math.random() * 16);
 
-  const boxes = [
-    {
-      name: "Rare Resource Box",
-      amount: 1,
-      rarity: "B",
-      code: "rare_resource_box",
-      type: "Box",
-      description: "A better box with improved rewards."
-    }
-  ];
-
-  const materials = [
-    {
-      name: "Treasure Material Pack",
-      amount: 5,
-      rarity: "A",
-      code: "treasure_material_pack",
-      type: "Material",
-      description: "A set of premium treasure materials."
-    }
-  ];
-
+  const boxes = [cloneItem(ITEMS.rareResourceBox, 1)];
+  const materials = [cloneItem(ITEMS.treasureMaterialPack, 5)];
   const tickets = [];
 
   if (Math.random() < 0.5) {
-    tickets.push({
-      name: "Pull Reset Ticket",
-      amount: 1,
-      rarity: "A",
-      code: "pull_reset_ticket",
-      type: "Ticket",
-      description: "Resets your pull usage manually."
-    });
+    tickets.push(cloneItem(ITEMS.pullResetTicket, 1));
   }
 
   if (Math.random() < 0.35) {
-    materials.push({
-      name: "Enhancement Stone",
-      amount: 4,
-      rarity: "B",
-      code: "enhancement_stone",
-      type: "Material",
-      description: "A stone used to strengthen growth systems."
-    });
+    materials.push(cloneItem(ITEMS.enhancementStone, 4));
   }
 
-  return {
-    berries,
-    gems,
-    boxes,
-    materials,
-    tickets
-  };
+  return { berries, gems, boxes, materials, tickets };
 }
 
 module.exports = {

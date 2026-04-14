@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const { ITEMS, cloneItem } = require("../data/items");
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
@@ -15,13 +16,8 @@ function addOrIncrease(list, item) {
   }
 
   arr.push({
-    name: item.name,
-    amount: Number(item.amount || 1),
-    rarity: item.rarity || "C",
-    code: item.code,
-    image: item.image || "",
-    type: item.type || "Item",
-    description: item.description || ""
+    ...item,
+    amount: Number(item.amount || 1)
   });
 
   return arr;
@@ -48,24 +44,12 @@ function getDailyTierRewards(dailyTier) {
     gems = 30;
 
     if (Math.random() < 0.35) {
-      rewards.push(randomPick([
-        {
-          name: "Basic Resource Box",
-          amount: 1,
-          rarity: "C",
-          code: "basic_resource_box",
-          type: "Box",
-          description: "A small box containing basic resources."
-        },
-        {
-          name: "Enhancement Stone",
-          amount: 2,
-          rarity: "C",
-          code: "enhancement_stone",
-          type: "Material",
-          description: "A stone used to strengthen growth systems."
-        }
-      ]));
+      rewards.push(
+        randomPick([
+          cloneItem(ITEMS.basicResourceBox, 1),
+          cloneItem(ITEMS.enhancementStone, 2)
+        ])
+      );
     }
 
     return { berries, gems, rewards };
@@ -75,32 +59,13 @@ function getDailyTierRewards(dailyTier) {
     berries = 8500;
     gems = 40;
 
-    rewards.push(randomPick([
-      {
-        name: "Basic Resource Box",
-        amount: 1,
-        rarity: "C",
-        code: "basic_resource_box",
-        type: "Box",
-        description: "A small box containing basic resources."
-      },
-      {
-        name: "Treasure Material Pack",
-        amount: 3,
-        rarity: "B",
-        code: "treasure_material_pack",
-        type: "Material",
-        description: "A set of useful treasure materials."
-      },
-      {
-        name: "Pull Reset Ticket",
-        amount: 1,
-        rarity: "A",
-        code: "pull_reset_ticket",
-        type: "Ticket",
-        description: "Resets your pull usage manually."
-      }
-    ]));
+    rewards.push(
+      randomPick([
+        cloneItem(ITEMS.basicResourceBox, 1),
+        cloneItem(ITEMS.treasureMaterialPack, 3),
+        cloneItem(ITEMS.pullResetTicket, 1)
+      ])
+    );
 
     return { berries, gems, rewards };
   }
@@ -111,42 +76,14 @@ function getDailyTierRewards(dailyTier) {
 
     rewards.push(
       randomPick([
-        {
-          name: "Rare Resource Box",
-          amount: 1,
-          rarity: "B",
-          code: "rare_resource_box",
-          type: "Box",
-          description: "A better box with improved rewards."
-        },
-        {
-          name: "Treasure Material Pack",
-          amount: 5,
-          rarity: "B",
-          code: "treasure_material_pack",
-          type: "Material",
-          description: "A set of useful treasure materials."
-        },
-        {
-          name: "Pull Reset Ticket",
-          amount: 1,
-          rarity: "A",
-          code: "pull_reset_ticket",
-          type: "Ticket",
-          description: "Resets your pull usage manually."
-        }
+        cloneItem(ITEMS.rareResourceBox, 1),
+        cloneItem(ITEMS.treasureMaterialPack, 5),
+        cloneItem(ITEMS.pullResetTicket, 1)
       ])
     );
 
     if (Math.random() < 0.4) {
-      rewards.push({
-        name: "Basic Resource Box",
-        amount: 1,
-        rarity: "C",
-        code: "basic_resource_box",
-        type: "Box",
-        description: "A small box containing basic resources."
-      });
+      rewards.push(cloneItem(ITEMS.basicResourceBox, 1));
     }
 
     return { berries, gems, rewards };
@@ -157,51 +94,16 @@ function getDailyTierRewards(dailyTier) {
 
   rewards.push(
     randomPick([
-      {
-        name: "Rare Resource Box",
-        amount: 1,
-        rarity: "B",
-        code: "rare_resource_box",
-        type: "Box",
-        description: "A better box with improved rewards."
-      },
-      {
-        name: "Treasure Material Pack",
-        amount: 6,
-        rarity: "A",
-        code: "treasure_material_pack",
-        type: "Material",
-        description: "A set of premium treasure materials."
-      },
-      {
-        name: "Pull Reset Ticket",
-        amount: 2,
-        rarity: "A",
-        code: "pull_reset_ticket",
-        type: "Ticket",
-        description: "Resets your pull usage manually."
-      }
+      cloneItem(ITEMS.rareResourceBox, 1),
+      cloneItem(ITEMS.treasureMaterialPack, 6),
+      cloneItem(ITEMS.pullResetTicket, 2)
     ])
   );
 
   rewards.push(
     randomPick([
-      {
-        name: "Basic Resource Box",
-        amount: 1,
-        rarity: "C",
-        code: "basic_resource_box",
-        type: "Box",
-        description: "A small box containing basic resources."
-      },
-      {
-        name: "Enhancement Stone",
-        amount: 4,
-        rarity: "B",
-        code: "enhancement_stone",
-        type: "Material",
-        description: "A stone used to strengthen growth systems."
-      }
+      cloneItem(ITEMS.basicResourceBox, 1),
+      cloneItem(ITEMS.enhancementStone, 4)
     ])
   );
 
@@ -210,20 +112,14 @@ function getDailyTierRewards(dailyTier) {
 
 function applyRewardToInventory(player, reward) {
   if (reward.type === "Box") {
-    return {
-      boxes: addOrIncrease(player.boxes, reward)
-    };
+    return { boxes: addOrIncrease(player.boxes, reward) };
   }
 
   if (reward.type === "Ticket") {
-    return {
-      tickets: addOrIncrease(player.tickets, reward)
-    };
+    return { tickets: addOrIncrease(player.tickets, reward) };
   }
 
-  return {
-    materials: addOrIncrease(player.materials, reward)
-  };
+  return { materials: addOrIncrease(player.materials, reward) };
 }
 
 module.exports = {
@@ -239,9 +135,7 @@ module.exports = {
       const hours = Math.floor(totalSeconds / 3600);
       const minutes = Math.floor((totalSeconds % 3600) / 60);
 
-      return message.reply(
-        `You already claimed your daily reward. Come back in ${hours}h ${minutes}m.`
-      );
+      return message.reply(`You already claimed your daily reward. Come back in ${hours}h ${minutes}m.`);
     }
 
     const boosts = getPassiveBoostSummary(player);

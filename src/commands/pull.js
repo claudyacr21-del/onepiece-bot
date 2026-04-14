@@ -1,18 +1,17 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { getPassiveBoostSummary, getBoostCards } = require("../utils/passiveBoosts");
-const { hasRole, PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
+const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const { PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 const { addFragment, getDuplicateFragmentAmount, hasOwnedCardByCode } = require("../utils/fragmentUtils");
+const { getNextAvailablePullKey, consumePullSlot } = require("../utils/pullSlots");
 const cards = require("../data/cards");
 const weapons = require("../data/weapons");
 const devilFruits = require("../data/devilFruits");
 
-const SUPPORT_SERVER_ROLE = "Nakama";
-const BOOSTER_ROLE = "New World";
-
 const CONTENT_RATES = {
-  card: 70,
+  battleCard: 60,
+  boostCard: 10,
   weapon: 15,
   devilFruit: 15
 };
@@ -20,27 +19,9 @@ const CONTENT_RATES = {
 const NORMAL_PITY_TARGET = 150;
 const PREMIUM_PITY_TARGET = 80;
 
-function hasNamedRole(message, roleName) {
-  if (!message.member?.roles?.cache) return false;
+function hasRole(message, roleName) {
+  if (!message.member?.roles?.cache || !roleName) return false;
   return message.member.roles.cache.some((role) => role.name === roleName);
-}
-
-function isServerOwner(message) {
-  return Boolean(message.guild && message.author.id === message.guild.ownerId);
-}
-
-function hasBaccaratCard(player) {
-  const ownedCards = Array.isArray(player?.cards) ? player.cards : [];
-  return ownedCards.some((card) => card.code === "baccarat_lucky_draw");
-}
-
-function hasBaccaratFruitEquipped(player) {
-  const boostCards = getBoostCards(player);
-  return boostCards.some(
-    (card) =>
-      card.code === "baccarat_lucky_draw" &&
-      String(card.equippedDevilFruit || "") === "unknown_fortune_fruit"
-  );
 }
 
 function getPlaceholderImage(name = "Reward") {
@@ -62,10 +43,8 @@ function getRarityBadgeUrl(rarity) {
 
 function getNormalRarity(pullChanceBoost = 0) {
   const roll = Math.random() * 100;
-
   const sRate = 8 + pullChanceBoost;
   const urRate = 3 + Math.floor(pullChanceBoost / 2);
-
   const cCut = 45 - pullChanceBoost;
   const bCut = cCut + 28;
   const aCut = bCut + (100 - (45 - pullChanceBoost) - 28 - sRate - urRate);
@@ -79,10 +58,8 @@ function getNormalRarity(pullChanceBoost = 0) {
 
 function getPremiumRarity(pullChanceBoost = 0) {
   const roll = Math.random() * 100;
-
   const sRate = 10 + pullChanceBoost;
   const urRate = 4 + Math.floor(pullChanceBoost / 2);
-
   const cCut = 42 - pullChanceBoost;
   const bCut = cCut + 27;
   const aCut = bCut + (100 - (42 - pullChanceBoost) - 27 - sRate - urRate);
@@ -100,21 +77,23 @@ function getGuaranteedSRarity() {
 
 function getContentType() {
   const roll = Math.random() * 100;
-  if (roll < CONTENT_RATES.card) return "card";
-  if (roll < CONTENT_RATES.card + CONTENT_RATES.weapon) return "weapon";
+  if (roll < CONTENT_RATES.battleCard) return "battleCard";
+  if (roll < CONTENT_RATES.battleCard + CONTENT_RATES.boostCard) return "boostCard";
+  if (roll < CONTENT_RATES.battleCard + CONTENT_RATES.boostCard + CONTENT_RATES.weapon) return "weapon";
   return "devilFruit";
+}
+
+function getRewardPool(contentType) {
+  if (contentType === "battleCard") return cards.filter((c) => c.cardRole !== "boost");
+  if (contentType === "boostCard") return cards.filter((c) => c.cardRole === "boost");
+  if (contentType === "weapon") return weapons;
+  return devilFruits;
 }
 
 function pickRandomByRarity(pool, rarity) {
   const filtered = pool.filter((entry) => entry.rarity === rarity);
   if (!filtered.length) return null;
   return filtered[Math.floor(Math.random() * filtered.length)];
-}
-
-function getRewardPool(contentType) {
-  if (contentType === "card") return cards;
-  if (contentType === "weapon") return weapons;
-  return devilFruits;
 }
 
 function buildCardReward(baseReward) {
@@ -157,7 +136,7 @@ function addNamedItem(list, reward) {
 }
 
 function getRewardResult(contentType, baseReward) {
-  if (contentType === "card") {
+  if (contentType === "battleCard" || contentType === "boostCard") {
     return {
       storageKey: "cards",
       storedReward: buildCardReward(baseReward)
@@ -175,40 +154,6 @@ function getRewardResult(contentType, baseReward) {
     storageKey: "devilFruits",
     storedReward: baseReward
   };
-}
-
-function getPullState(player, message) {
-  const pulls = player.pulls || {};
-
-  const poolOrder = [
-    { key: "base", enabled: true, max: 6, used: Number(pulls.base?.used || 0) },
-    { key: "supportMember", enabled: hasNamedRole(message, SUPPORT_SERVER_ROLE), max: 1, used: Number(pulls.supportMember?.used || 0) },
-    { key: "booster", enabled: hasNamedRole(message, BOOSTER_ROLE), max: 1, used: Number(pulls.booster?.used || 0) },
-    { key: "owner", enabled: isServerOwner(message), max: 1, used: Number(pulls.owner?.used || 0) },
-    { key: "patreon", enabled: hasRole(message, PREMIUM_ROLE_NAME), max: 3, used: Number(pulls.patreon?.used || 0) },
-    { key: "baccaratCard", enabled: hasBaccaratCard(player), max: 1, used: Number(pulls.baccaratCard?.used || 0) },
-    { key: "baccaratFruit", enabled: hasBaccaratFruitEquipped(player), max: 1, used: Number(pulls.baccaratFruit?.used || 0) }
-  ];
-
-  for (const entry of poolOrder) {
-    const remaining = Math.max(0, entry.max - entry.used);
-    if (entry.enabled && remaining > 0) {
-      return { usedKey: entry.key };
-    }
-  }
-
-  return null;
-}
-
-function consumePull(player, usedKey) {
-  const pulls = { ...(player.pulls || {}) };
-
-  pulls[usedKey] = {
-    ...(pulls[usedKey] || { used: 0, max: 1 }),
-    used: Number(pulls[usedKey]?.used || 0) + 1
-  };
-
-  return pulls;
 }
 
 function getPityData(player, premiumActive) {
@@ -232,9 +177,13 @@ function createRewardEmbed(result) {
 
   const displayName = reward.displayName || reward.name || "Unknown Reward";
   const categoryName =
-    contentType === "devilFruit" ? "Devil Fruit" :
-    contentType === "weapon" ? "Weapon" :
-    "Card";
+    contentType === "devilFruit"
+      ? "Devil Fruit"
+      : contentType === "weapon"
+        ? "Weapon"
+        : reward.cardRole === "boost"
+          ? "Boost Card"
+          : "Battle Card";
 
   const description = [
     `**Reward:** ${displayName}`,
@@ -243,7 +192,7 @@ function createRewardEmbed(result) {
     reward.arc ? `**Arc:** \`${reward.arc}\`` : null,
     reward.type ? `**Type:** \`${reward.type}\`` : null,
     reward.faction ? `**Faction:** \`${reward.faction}\`` : null,
-    contentType === "card" && reward.cardRole !== "boost"
+    contentType !== "weapon" && contentType !== "devilFruit" && reward.cardRole !== "boost"
       ? `**Stats:** \`ATK ${reward.atk || 0}\` • \`HP ${reward.hp || 0}\` • \`SPD ${reward.speed || 0}\``
       : null,
     reward.cardRole === "boost"
@@ -281,9 +230,9 @@ module.exports = {
 
     const premiumActive = hasRole(message, PREMIUM_ROLE_NAME);
     const passiveBoosts = getPassiveBoostSummary(player);
-    const availablePull = getPullState(player, message);
+    const availablePullKey = getNextAvailablePullKey(player, message);
 
-    if (!availablePull) {
+    if (!availablePullKey) {
       return message.reply("You do not have any available pulls right now.");
     }
 
@@ -329,7 +278,7 @@ module.exports = {
       updatedDevilFruits = addNamedItem(updatedDevilFruits, rewardResult.storedReward);
     }
 
-    const updatedPulls = consumePull(player, availablePull.usedKey);
+    const updatedPulls = consumePullSlot(player, availablePullKey);
 
     const updatedPity = {
       ...(player.pity || { normalSPity: 0, premiumSPity: 0 })

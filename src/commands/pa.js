@@ -1,45 +1,26 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { getPassiveBoostSummary, getBoostCards } = require("../utils/passiveBoosts");
-const { hasRole, PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
+const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const { PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 const { addFragment, getDuplicateFragmentAmount, hasOwnedCardByCode } = require("../utils/fragmentUtils");
+const { getTotalPullUsage, consumeAllActivePullSlots } = require("../utils/pullSlots");
 const cards = require("../data/cards");
 const weapons = require("../data/weapons");
 const devilFruits = require("../data/devilFruits");
 
-const SUPPORT_SERVER_ROLE = "Nakama";
-const BOOSTER_ROLE = "New World";
-
 const CONTENT_RATES = {
-  card: 70,
+  battleCard: 60,
+  boostCard: 10,
   weapon: 15,
   devilFruit: 15
 };
 
 const PREMIUM_PITY_TARGET = 80;
 
-function hasNamedRole(message, roleName) {
-  if (!message.member?.roles?.cache) return false;
+function hasRole(message, roleName) {
+  if (!message.member?.roles?.cache || !roleName) return false;
   return message.member.roles.cache.some((role) => role.name === roleName);
-}
-
-function isServerOwner(message) {
-  return Boolean(message.guild && message.author.id === message.guild.ownerId);
-}
-
-function hasBaccaratCard(player) {
-  const ownedCards = Array.isArray(player?.cards) ? player.cards : [];
-  return ownedCards.some((card) => card.code === "baccarat_lucky_draw");
-}
-
-function hasBaccaratFruitEquipped(player) {
-  const boostCards = getBoostCards(player);
-  return boostCards.some(
-    (card) =>
-      card.code === "baccarat_lucky_draw" &&
-      String(card.equippedDevilFruit || "") === "unknown_fortune_fruit"
-  );
 }
 
 function getPlaceholderImage(name = "Reward") {
@@ -49,10 +30,8 @@ function getPlaceholderImage(name = "Reward") {
 
 function getPremiumRarity(pullChanceBoost = 0) {
   const roll = Math.random() * 100;
-
   const sRate = 10 + pullChanceBoost;
   const urRate = 4 + Math.floor(pullChanceBoost / 2);
-
   const cCut = 42 - pullChanceBoost;
   const bCut = cCut + 27;
   const aCut = bCut + (100 - (42 - pullChanceBoost) - 27 - sRate - urRate);
@@ -70,21 +49,23 @@ function getGuaranteedSRarity() {
 
 function getContentType() {
   const roll = Math.random() * 100;
-  if (roll < CONTENT_RATES.card) return "card";
-  if (roll < CONTENT_RATES.card + CONTENT_RATES.weapon) return "weapon";
+  if (roll < CONTENT_RATES.battleCard) return "battleCard";
+  if (roll < CONTENT_RATES.battleCard + CONTENT_RATES.boostCard) return "boostCard";
+  if (roll < CONTENT_RATES.battleCard + CONTENT_RATES.boostCard + CONTENT_RATES.weapon) return "weapon";
   return "devilFruit";
+}
+
+function getRewardPool(contentType) {
+  if (contentType === "battleCard") return cards.filter((c) => c.cardRole !== "boost");
+  if (contentType === "boostCard") return cards.filter((c) => c.cardRole === "boost");
+  if (contentType === "weapon") return weapons;
+  return devilFruits;
 }
 
 function pickRandomByRarity(pool, rarity) {
   const filtered = pool.filter((entry) => entry.rarity === rarity);
   if (!filtered.length) return null;
   return filtered[Math.floor(Math.random() * filtered.length)];
-}
-
-function getRewardPool(contentType) {
-  if (contentType === "card") return cards;
-  if (contentType === "weapon") return weapons;
-  return devilFruits;
 }
 
 function buildCardReward(baseReward) {
@@ -127,7 +108,7 @@ function addNamedItem(list, reward) {
 }
 
 function getRewardResult(contentType, baseReward) {
-  if (contentType === "card") {
+  if (contentType === "battleCard" || contentType === "boostCard") {
     return {
       storageKey: "cards",
       storedReward: buildCardReward(baseReward)
@@ -147,46 +128,11 @@ function getRewardResult(contentType, baseReward) {
   };
 }
 
-function getAvailablePullCount(player, message) {
-  const pulls = player.pulls || {};
-
-  const base = Math.max(0, 6 - Number(pulls.base?.used || 0));
-  const support = hasNamedRole(message, SUPPORT_SERVER_ROLE)
-    ? Math.max(0, 1 - Number(pulls.supportMember?.used || 0))
-    : 0;
-  const booster = hasNamedRole(message, BOOSTER_ROLE)
-    ? Math.max(0, 1 - Number(pulls.booster?.used || 0))
-    : 0;
-  const owner = isServerOwner(message)
-    ? Math.max(0, 1 - Number(pulls.owner?.used || 0))
-    : 0;
-  const motherFlame = hasRole(message, PREMIUM_ROLE_NAME)
-    ? Math.max(0, 3 - Number(pulls.patreon?.used || 0))
-    : 0;
-  const baccaratCard = hasBaccaratCard(player)
-    ? Math.max(0, 1 - Number(pulls.baccaratCard?.used || 0))
-    : 0;
-  const baccaratFruit = hasBaccaratFruitEquipped(player)
-    ? Math.max(0, 1 - Number(pulls.baccaratFruit?.used || 0))
-    : 0;
-
-  return {
-    total: base + support + booster + owner + motherFlame + baccaratCard + baccaratFruit
-  };
-}
-
-function consumeAllPulls(player, message) {
-  const pulls = { ...(player.pulls || {}) };
-
-  pulls.base = { ...(pulls.base || { used: 0, max: 6 }), used: 6 };
-  pulls.supportMember = { ...(pulls.supportMember || { used: 0, max: 1 }), used: hasNamedRole(message, SUPPORT_SERVER_ROLE) ? 1 : Number(pulls.supportMember?.used || 0) };
-  pulls.booster = { ...(pulls.booster || { used: 0, max: 1 }), used: hasNamedRole(message, BOOSTER_ROLE) ? 1 : Number(pulls.booster?.used || 0) };
-  pulls.owner = { ...(pulls.owner || { used: 0, max: 1 }), used: isServerOwner(message) ? 1 : Number(pulls.owner?.used || 0) };
-  pulls.patreon = { ...(pulls.patreon || { used: 0, max: 3 }), used: hasRole(message, PREMIUM_ROLE_NAME) ? 3 : Number(pulls.patreon?.used || 0) };
-  pulls.baccaratCard = { ...(pulls.baccaratCard || { used: 0, max: 1 }), used: hasBaccaratCard(player) ? 1 : Number(pulls.baccaratCard?.used || 0) };
-  pulls.baccaratFruit = { ...(pulls.baccaratFruit || { used: 0, max: 1 }), used: hasBaccaratFruitEquipped(player) ? 1 : Number(pulls.baccaratFruit?.used || 0) };
-
-  return pulls;
+function getTypeLabel(contentType, reward) {
+  if (contentType === "battleCard") return "Battle Card";
+  if (contentType === "boostCard") return "Boost Card";
+  if (contentType === "weapon") return "Weapon";
+  return "Devil Fruit";
 }
 
 module.exports = {
@@ -206,9 +152,10 @@ module.exports = {
     }
 
     const passiveBoosts = getPassiveBoostSummary(player);
-    const available = getAvailablePullCount(player, message);
+    const { totalUsed, totalMax } = getTotalPullUsage(player, message);
+    const availableTotal = Math.max(0, totalMax - totalUsed);
 
-    if (available.total <= 0) {
+    if (availableTotal <= 0) {
       return message.reply("You do not have any available pulls right now.");
     }
 
@@ -231,9 +178,9 @@ module.exports = {
       fragments: 0
     };
 
-    const highlights = [];
+    const pullLines = [];
 
-    for (let i = 0; i < available.total; i++) {
+    for (let i = 0; i < availableTotal; i++) {
       pityCounter += 1;
       const triggeredPity = pityCounter >= PREMIUM_PITY_TARGET;
 
@@ -248,6 +195,7 @@ module.exports = {
       if (!reward) reward = pool[Math.floor(Math.random() * pool.length)];
 
       const rewardResult = getRewardResult(contentType, reward);
+      let duplicateNote = "";
 
       if (rewardResult.storageKey === "cards") {
         const alreadyOwned = hasOwnedCardByCode(updatedCards, rewardResult.storedReward.code);
@@ -256,6 +204,7 @@ module.exports = {
           const fragmentAmount = getDuplicateFragmentAmount(rewardResult.storedReward);
           updatedFragments = addFragment(updatedFragments, rewardResult.storedReward, fragmentAmount);
           summary.fragments += fragmentAmount;
+          duplicateNote = ` → Duplicate (+${fragmentAmount} fragments)`;
         } else {
           updatedCards.push(rewardResult.storedReward);
         }
@@ -265,12 +214,21 @@ module.exports = {
         updatedDevilFruits = addNamedItem(updatedDevilFruits, rewardResult.storedReward);
       }
 
-      summary[contentType] += 1;
+      if (contentType === "battleCard" || contentType === "boostCard") {
+        summary.card += 1;
+      } else {
+        summary[contentType] += 1;
+      }
+
       summary[reward.rarity] += 1;
 
-      if (reward.rarity === "S" || reward.rarity === "UR") {
-        highlights.push(`${reward.displayName || reward.name} [${reward.rarity}]`);
-      }
+      const rewardName = reward.displayName || reward.name || "Unknown";
+      const typeLabel = getTypeLabel(contentType, reward);
+      const pityLabel = triggeredPity ? " [PITY]" : "";
+
+      pullLines.push(
+        `${i + 1}. [${reward.rarity}] ${rewardName} (${typeLabel})${pityLabel}${duplicateNote}`
+      );
 
       if (triggeredPity) pityCounter = 0;
     }
@@ -280,7 +238,7 @@ module.exports = {
       premiumSPity: pityCounter
     };
 
-    const updatedPulls = consumeAllPulls(player, message);
+    const updatedPulls = consumeAllActivePullSlots(player, message);
 
     updatePlayer(message.author.id, {
       cards: updatedCards,
@@ -291,30 +249,47 @@ module.exports = {
       pity: updatedPity
     });
 
-    const embed = new EmbedBuilder()
-      .setColor(0xf39c12)
-      .setTitle("Pull All Result")
-      .setDescription(
-        [
-          `**Pulled By:** ${player.username}`,
-          `**Banner:** \`Mother Flame\``,
-          `**Total Pulls Used:** \`${available.total}\``,
-          "",
-          `**Cards:** \`${summary.card}\``,
-          `**Weapons:** \`${summary.weapon}\``,
-          `**Devil Fruits:** \`${summary.devilFruit}\``,
-          `**Fragments Gained:** \`${summary.fragments}\``,
-          "",
-          `**C:** \`${summary.C}\` • **B:** \`${summary.B}\` • **A:** \`${summary.A}\` • **S:** \`${summary.S}\` • **UR:** \`${summary.UR}\``,
-          "",
-          "**Highlights**",
-          highlights.length ? highlights.slice(0, 10).join("\n") : "No S/UR rewards this time."
-        ].join("\n")
-      )
-      .setFooter({
-        text: `S Pity: ${updatedPity.premiumSPity}/${PREMIUM_PITY_TARGET} | Mother Flame Pull All`
-      });
+    const chunkSize = 25;
+    const chunks = [];
+    for (let i = 0; i < pullLines.length; i += chunkSize) {
+      chunks.push(pullLines.slice(i, i + chunkSize).join("\n"));
+    }
 
-    return message.reply({ embeds: [embed] });
+    const embeds = [];
+
+    embeds.push(
+      new EmbedBuilder()
+        .setColor(0xf39c12)
+        .setTitle("🔥 Pull All Result")
+        .setDescription(
+          [
+            `**Pulled By:** ${player.username}`,
+            `**Banner:** \`Mother Flame\``,
+            `**Total Pulls Used:** \`${availableTotal}\``,
+            "",
+            `**Battle/Boost Cards:** \`${summary.card}\``,
+            `**Weapons:** \`${summary.weapon}\``,
+            `**Devil Fruits:** \`${summary.devilFruit}\``,
+            `**Fragments Gained:** \`${summary.fragments}\``,
+            "",
+            `**C:** \`${summary.C}\` • **B:** \`${summary.B}\` • **A:** \`${summary.A}\` • **S:** \`${summary.S}\` • **UR:** \`${summary.UR}\``,
+            "",
+            `**S Pity Now:** \`${updatedPity.premiumSPity}/${PREMIUM_PITY_TARGET}\``
+          ].join("\n")
+        )
+        .setFooter({ text: "One Piece Bot • Pull All Summary" })
+    );
+
+    chunks.forEach((chunk, index) => {
+      embeds.push(
+        new EmbedBuilder()
+          .setColor(0x8e44ad)
+          .setTitle(`📜 Pull Results ${index + 1}/${chunks.length}`)
+          .setDescription(chunk)
+          .setFooter({ text: "One Piece Bot • Detailed Pull List" })
+      );
+    });
+
+    return message.reply({ embeds });
   }
 };

@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
+const { ITEMS, cloneItem } = require("../data/items");
 
 function normalize(text) {
   return String(text || "").toLowerCase().trim().replace(/\s+/g, " ");
@@ -44,13 +45,8 @@ function addOrIncrease(list, item) {
   }
 
   arr.push({
-    name: item.name,
-    amount: Number(item.amount || 1),
-    rarity: item.rarity || "C",
-    code: item.code,
-    image: item.image || "",
-    type: item.type || "Item",
-    description: item.description || ""
+    ...item,
+    amount: Number(item.amount || 1)
   });
 
   return arr;
@@ -65,14 +61,7 @@ function openBasicResourceBox() {
     berries: randomBetween(1500, 3000),
     gems: randomBetween(5, 12),
     materials: [
-      {
-        name: "Enhancement Stone",
-        amount: randomBetween(1, 2),
-        rarity: "C",
-        code: "enhancement_stone",
-        type: "Material",
-        description: "A stone used to strengthen growth systems."
-      }
+      cloneItem(ITEMS.enhancementStone, randomBetween(1, 2))
     ],
     tickets: [],
     boxes: []
@@ -84,28 +73,14 @@ function openRareResourceBox() {
     berries: randomBetween(4000, 7000),
     gems: randomBetween(12, 25),
     materials: [
-      {
-        name: "Treasure Material Pack",
-        amount: randomBetween(2, 4),
-        rarity: "B",
-        code: "treasure_material_pack",
-        type: "Material",
-        description: "A set of useful treasure materials."
-      }
+      cloneItem(ITEMS.treasureMaterialPack, randomBetween(2, 4))
     ],
     tickets: [],
     boxes: []
   };
 
   if (Math.random() < 0.35) {
-    rewards.tickets.push({
-      name: "Pull Reset Ticket",
-      amount: 1,
-      rarity: "A",
-      code: "pull_reset_ticket",
-      type: "Ticket",
-      description: "Resets your pull usage manually."
-    });
+    rewards.tickets.push(cloneItem(ITEMS.pullResetTicket, 1));
   }
 
   return rewards;
@@ -177,17 +152,9 @@ module.exports = {
       `↪ Gems: +${Number(rewards.gems || 0).toLocaleString("en-US")}`
     ];
 
-    rewards.materials.forEach((item) => {
-      lines.push(`↪ ${item.name} x${item.amount}`);
-    });
-
-    rewards.tickets.forEach((item) => {
-      lines.push(`↪ ${item.name} x${item.amount}`);
-    });
-
-    rewards.boxes.forEach((item) => {
-      lines.push(`↪ ${item.name} x${item.amount}`);
-    });
+    rewards.materials.forEach((item) => lines.push(`↪ ${item.name} x${item.amount}`));
+    rewards.tickets.forEach((item) => lines.push(`↪ ${item.name} x${item.amount}`));
+    rewards.boxes.forEach((item) => lines.push(`↪ ${item.name} x${item.amount}`));
 
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
