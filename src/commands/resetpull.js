@@ -1,6 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { resetAllPullSlots } = require("../utils/pullSlots");
+const { applyManualPullReset } = require("../utils/pullReset");
 
 function findTicket(tickets, code) {
   return (tickets || []).findIndex((item) => item.code === code);
@@ -22,6 +22,18 @@ function consumeTicket(tickets, index) {
   return updated;
 }
 
+function formatRemaining(ms) {
+  if (ms <= 0) return "Now";
+
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return "Now";
+}
+
 module.exports = {
   name: "resetpull",
   aliases: ["rpull", "pr"],
@@ -36,11 +48,12 @@ module.exports = {
     }
 
     const updatedTickets = consumeTicket(tickets, ticketIndex);
-    const updatedPulls = resetAllPullSlots(player);
+    const resetResult = applyManualPullReset(player.pulls || {});
+    const now = Date.now();
 
     updatePlayer(message.author.id, {
       tickets: updatedTickets,
-      pulls: updatedPulls
+      pulls: resetResult.pulls
     });
 
     const embed = new EmbedBuilder()
@@ -48,11 +61,13 @@ module.exports = {
       .setTitle("🎟️ Pull Reset Used")
       .setDescription(
         [
-          "Your pull usage has been reset.",
+          "Your pull usage has been reset manually.",
           "",
           "↪ Base Pulls reset",
           "↪ Bonus pull slots reset",
           "↪ Baccarat slots reset",
+          "↪ Global 8-hour reset timer is unchanged",
+          `↪ Next Global Reset: ${formatRemaining(resetResult.nextResetAt - now)}`,
           "↪ 1 Pull Reset Ticket consumed"
         ].join("\n")
       )

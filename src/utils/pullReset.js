@@ -30,7 +30,59 @@ function buildResetPullState(existingPulls = {}) {
       used: 0,
       max: Number(existingPulls?.patreon?.max || 3)
     },
+    baccaratCard: {
+      used: 0,
+      max: Number(existingPulls?.baccaratCard?.max || 1)
+    },
+    baccaratFruit: {
+      used: 0,
+      max: Number(existingPulls?.baccaratFruit?.max || 1)
+    },
     lastResetBucket: getCurrentResetBucket()
+  };
+}
+
+function buildManualTicketResetPullState(existingPulls = {}) {
+  return {
+    ...existingPulls,
+    base: {
+      ...(existingPulls?.base || {}),
+      used: 0,
+      max: Number(existingPulls?.base?.max || 6)
+    },
+    supportMember: {
+      ...(existingPulls?.supportMember || {}),
+      used: 0,
+      max: Number(existingPulls?.supportMember?.max || 1)
+    },
+    booster: {
+      ...(existingPulls?.booster || {}),
+      used: 0,
+      max: Number(existingPulls?.booster?.max || 1)
+    },
+    owner: {
+      ...(existingPulls?.owner || {}),
+      used: 0,
+      max: Number(existingPulls?.owner?.max || 1)
+    },
+    patreon: {
+      ...(existingPulls?.patreon || {}),
+      used: 0,
+      max: Number(existingPulls?.patreon?.max || 3)
+    },
+    baccaratCard: {
+      ...(existingPulls?.baccaratCard || {}),
+      used: 0,
+      max: Number(existingPulls?.baccaratCard?.max || 1)
+    },
+    baccaratFruit: {
+      ...(existingPulls?.baccaratFruit || {}),
+      used: 0,
+      max: Number(existingPulls?.baccaratFruit?.max || 1)
+    },
+    lastResetBucket: Number.isInteger(existingPulls?.lastResetBucket)
+      ? existingPulls.lastResetBucket
+      : getCurrentResetBucket()
   };
 }
 
@@ -56,10 +108,19 @@ function applyGlobalPullReset(player) {
   };
 }
 
+function applyManualPullReset(existingPulls = {}) {
+  return {
+    pulls: buildManualTicketResetPullState(existingPulls),
+    nextResetAt: getNextResetTime()
+  };
+}
+
 module.exports = {
   RESET_INTERVAL_MS,
   getCurrentResetBucket,
   getNextResetTime,
   buildResetPullState,
-  applyGlobalPullReset
+  buildManualTicketResetPullState,
+  applyGlobalPullReset,
+  applyManualPullReset
 };
