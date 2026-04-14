@@ -1,71 +1,97 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
-const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-const { isMotherFlame, getPullAccess } = require("../utils/pullAccess");
-const { applyGlobalPullReset } = require("../utils/pullReset");
+const { getPlayer } = require("../playerStore");
+const { getPassiveBoostSummary, getBoostCards } = require("../utils/passiveBoosts");
+const { hasRole, PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
 
-function getPityInfo(player, isPremium) {
-  const current = isPremium
-    ? Number(player.pity?.premiumSPity || 0)
-    : Number(player.pity?.normalSPity || 0);
+const SUPPORT_SERVER_ROLE = "Nakama";
+const BOOSTER_ROLE = "New World";
 
-  const target = isPremium ? 80 : 150;
+function formatValue(value, suffix = "") {
+  const number = Number(value || 0);
+  return number > 0 ? `+${number}${suffix}` : "None";
+}
 
-  return { current, target };
+function hasNamedRole(message, roleName) {
+  if (!message.member?.roles?.cache) return false;
+  return message.member.roles.cache.some((role) => role.name === roleName);
+}
+
+function isServerOwner(message) {
+  return Boolean(message.guild && message.author.id === message.guild.ownerId);
+}
+
+function hasBaccaratCard(player) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+  return cards.some((card) => card.code === "baccarat_lucky_draw");
+}
+
+function hasBaccaratFruitEquipped(player) {
+  const boostCards = getBoostCards(player);
+  return boostCards.some(
+    (card) =>
+      card.code === "baccarat_lucky_draw" &&
+      String(card.equippedDevilFruit || "") === "unknown_fortune_fruit"
+  );
+}
+
+function getTotalPullSlots(player, message) {
+  let total = 6;
+
+  if (hasNamedRole(message, SUPPORT_SERVER_ROLE)) total += 1;
+  if (hasNamedRole(message, BOOSTER_ROLE)) total += 1;
+  if (isServerOwner(message)) total += 1;
+  if (hasRole(message, PREMIUM_ROLE_NAME)) total += 3;
+  if (hasBaccaratCard(player)) total += 1;
+  if (hasBaccaratFruitEquipped(player)) total += 1;
+
+  return total;
 }
 
 module.exports = {
   name: "effect",
-  aliases: ["effects"],
+  aliases: ["effects", "status"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-    const resetState = applyGlobalPullReset(player);
-
-    if (resetState.wasReset) {
-      updatePlayer(message.author.id, { pulls: resetState.pulls });
-      player.pulls = resetState.pulls;
-    }
-
-    const premiumActive = isMotherFlame(message);
     const boosts = getPassiveBoostSummary(player);
+
     const pulls = player.pulls || {};
-    const access = getPullAccess(message);
+    const totalUsed =
+      Number(pulls.base?.used || 0) +
+      Number(pulls.supportMember?.used || 0) +
+      Number(pulls.booster?.used || 0) +
+      Number(pulls.owner?.used || 0) +
+      Number(pulls.patreon?.used || 0) +
+      Number(pulls.baccaratCard?.used || 0) +
+      Number(pulls.baccaratFruit?.used || 0);
 
-    const baseUsed = Math.min(Number(pulls.base?.used || 0), access.base);
-    const supportUsed = access.supportMember > 0 ? Math.min(Number(pulls.supportMember?.used || 0), access.supportMember) : 0;
-    const boosterUsed = access.booster > 0 ? Math.min(Number(pulls.booster?.used || 0), access.booster) : 0;
-    const ownerUsed = access.owner > 0 ? Math.min(Number(pulls.owner?.used || 0), access.owner) : 0;
-    const motherFlameUsed = access.motherFlame > 0 ? Math.min(Number(pulls.patreon?.used || 0), access.motherFlame) : 0;
+    const totalMaxPulls = getTotalPullSlots(player, message);
 
-    const totalMax = access.base + access.supportMember + access.booster + access.owner + access.motherFlame;
-    const totalUsed = baseUsed + supportUsed + boosterUsed + ownerUsed + motherFlameUsed;
+    const questTotal = Number(player?.quests?.daily?.total || 5);
+    const questCompleted = Number(player?.quests?.daily?.completed || 0);
+    const questLeft = Math.max(0, questTotal - questCompleted);
 
-    const pity = getPityInfo(player, premiumActive);
-
-    const totalQuests = Number(player.quests?.daily?.total || 5);
-    const completedQuests = Number(player.quests?.daily?.completed || 0);
-    const questLeft = Math.max(0, totalQuests - completedQuests);
+    const pityDrop =
+      Number(player?.pity?.premiumSPity || 0) > 0
+        ? `${Number(player.pity.premiumSPity)}/80`
+        : `${Number(player?.pity?.normalSPity || 0)}/150`;
 
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
+      .setColor(0x8e44ad)
       .setTitle("🧪 Here are your current effects")
       .setDescription(
         [
-          `↪ Pulls Done: ${totalUsed}/${totalMax}`,
-          `↪ Pity Drop: ${pity.current}/${pity.target}`,
-          `↪ Quest Left: ${questLeft}/${totalQuests}`,
-          `↪ Pull Slot Boost: None`,
-          `↪ Pull Chance Boost: ${boosts.pullChance > 0 ? `+${boosts.pullChance}` : "None"}`,
-          `↪ Daily Boost: ${boosts.daily > 0 ? `+${boosts.daily}` : "None"}`,
-          `↪ ATK Boost: ${boosts.atk > 0 ? `+${boosts.atk}%` : "None"}`,
-          `↪ HP Boost: ${boosts.hp > 0 ? `+${boosts.hp}%` : "None"}`,
-          `↪ SPD Boost: ${boosts.spd > 0 ? `+${boosts.spd}%` : "None"}`,
-          `↪ EXP Boost: ${boosts.exp > 0 ? `+${boosts.exp}%` : "None"}`,
-          `↪ DMG Boost: ${boosts.dmg > 0 ? `+${boosts.dmg}%` : "None"}`
+          `↪ Pulls Done: ${totalUsed}/${totalMaxPulls}`,
+          `↪ Pity Drop: ${pityDrop}`,
+          `↪ Quest Left: ${questLeft}/${questTotal}`,
+          `↪ ATK Boost: ${formatValue(boosts.atk, "%")}`,
+          `↪ HP Boost: ${formatValue(boosts.hp, "%")}`,
+          `↪ SPD Boost: ${formatValue(boosts.spd, "%")}`,
+          `↪ EXP Boost: ${formatValue(boosts.exp, "%")}`,
+          `↪ DMG Boost: ${formatValue(boosts.dmg, "%")}`
         ].join("\n")
       )
       .setFooter({ text: "One Piece Bot • Current Effects" });
 
-    return message.reply({ embeds: [embed] });
+    await message.reply({ embeds: [embed] });
   }
 };
