@@ -1,12 +1,15 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-const { isMotherFlame, PREMIUM_ROLE_NAME, getPullAccess } = require("../utils/pullAccess");
+const { getPassiveBoostSummary, getBoostCards } = require("../utils/passiveBoosts");
+const { hasRole, PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 const { addFragment, getDuplicateFragmentAmount, hasOwnedCardByCode } = require("../utils/fragmentUtils");
 const cards = require("../data/cards");
 const weapons = require("../data/weapons");
 const devilFruits = require("../data/devilFruits");
+
+const SUPPORT_SERVER_ROLE = "Nakama";
+const BOOSTER_ROLE = "New World";
 
 const CONTENT_RATES = {
   card: 70,
@@ -16,6 +19,29 @@ const CONTENT_RATES = {
 
 const NORMAL_PITY_TARGET = 150;
 const PREMIUM_PITY_TARGET = 80;
+
+function hasNamedRole(message, roleName) {
+  if (!message.member?.roles?.cache) return false;
+  return message.member.roles.cache.some((role) => role.name === roleName);
+}
+
+function isServerOwner(message) {
+  return Boolean(message.guild && message.author.id === message.guild.ownerId);
+}
+
+function hasBaccaratCard(player) {
+  const ownedCards = Array.isArray(player?.cards) ? player.cards : [];
+  return ownedCards.some((card) => card.code === "baccarat_lucky_draw");
+}
+
+function hasBaccaratFruitEquipped(player) {
+  const boostCards = getBoostCards(player);
+  return boostCards.some(
+    (card) =>
+      card.code === "baccarat_lucky_draw" &&
+      String(card.equippedDevilFruit || "") === "unknown_fortune_fruit"
+  );
+}
 
 function getPlaceholderImage(name = "Reward") {
   const text = encodeURIComponent(name);
@@ -123,6 +149,7 @@ function addNamedItem(list, reward) {
     type: reward.type,
     statBonus: reward.statBonus,
     owners: reward.owners,
+    boostBonus: reward.boostBonus,
     description: reward.description
   });
 
@@ -152,14 +179,15 @@ function getRewardResult(contentType, baseReward) {
 
 function getPullState(player, message) {
   const pulls = player.pulls || {};
-  const access = getPullAccess(message);
 
   const poolOrder = [
-    { key: "base", enabled: true, max: access.base, used: Number(pulls.base?.used || 0) },
-    { key: "supportMember", enabled: access.supportMember > 0, max: access.supportMember, used: Number(pulls.supportMember?.used || 0) },
-    { key: "booster", enabled: access.booster > 0, max: access.booster, used: Number(pulls.booster?.used || 0) },
-    { key: "owner", enabled: access.owner > 0, max: access.owner, used: Number(pulls.owner?.used || 0) },
-    { key: "patreon", enabled: access.motherFlame > 0, max: access.motherFlame, used: Number(pulls.patreon?.used || 0) }
+    { key: "base", enabled: true, max: 6, used: Number(pulls.base?.used || 0) },
+    { key: "supportMember", enabled: hasNamedRole(message, SUPPORT_SERVER_ROLE), max: 1, used: Number(pulls.supportMember?.used || 0) },
+    { key: "booster", enabled: hasNamedRole(message, BOOSTER_ROLE), max: 1, used: Number(pulls.booster?.used || 0) },
+    { key: "owner", enabled: isServerOwner(message), max: 1, used: Number(pulls.owner?.used || 0) },
+    { key: "patreon", enabled: hasRole(message, PREMIUM_ROLE_NAME), max: 3, used: Number(pulls.patreon?.used || 0) },
+    { key: "baccaratCard", enabled: hasBaccaratCard(player), max: 1, used: Number(pulls.baccaratCard?.used || 0) },
+    { key: "baccaratFruit", enabled: hasBaccaratFruitEquipped(player), max: 1, used: Number(pulls.baccaratFruit?.used || 0) }
   ];
 
   for (const entry of poolOrder) {
@@ -175,18 +203,9 @@ function getPullState(player, message) {
 function consumePull(player, usedKey) {
   const pulls = { ...(player.pulls || {}) };
 
-  const map = {
-    base: "base",
-    supportMember: "supportMember",
-    booster: "booster",
-    owner: "owner",
-    patreon: "patreon"
-  };
-
-  const key = map[usedKey];
-  pulls[key] = {
-    ...(pulls[key] || { used: 0 }),
-    used: Number(pulls[key]?.used || 0) + 1
+  pulls[usedKey] = {
+    ...(pulls[usedKey] || { used: 0, max: 1 }),
+    used: Number(pulls[usedKey]?.used || 0) + 1
   };
 
   return pulls;
@@ -228,7 +247,7 @@ function createRewardEmbed(result) {
       ? `**Stats:** \`ATK ${reward.atk || 0}\` • \`HP ${reward.hp || 0}\` • \`SPD ${reward.speed || 0}\``
       : null,
     reward.cardRole === "boost"
-      ? `**Passive Boost:** \`${reward.boostType}\` • \`${reward.boostValue}\`${["atk","hp","spd","exp","dmg"].includes(reward.boostType) ? "%" : ""}`
+      ? `**Passive Boost:** \`${reward.boostType}\` • \`${reward.boostValue}\`${["atk", "hp", "spd", "exp", "dmg"].includes(reward.boostType) ? "%" : ""}`
       : null,
     reward.weapon ? `**Weapon:** \`${reward.weapon}\`` : null,
     reward.devilFruit ? `**Devil Fruit:** \`${reward.devilFruit}\`` : null,
@@ -260,7 +279,7 @@ module.exports = {
       player.pulls = resetState.pulls;
     }
 
-    const premiumActive = isMotherFlame(message);
+    const premiumActive = hasRole(message, PREMIUM_ROLE_NAME);
     const passiveBoosts = getPassiveBoostSummary(player);
     const availablePull = getPullState(player, message);
 

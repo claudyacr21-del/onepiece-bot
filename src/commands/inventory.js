@@ -1,60 +1,59 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 
-function formatCategory(list) {
-  if (!list || list.length === 0) {
-    return "None";
+function formatItemList(items, emptyText) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return emptyText;
   }
 
-  return list
-    .map((entry) => `• ${entry.name} (${entry.amount})`)
-    .join("\n")
-    .slice(0, 1024);
+  return items
+    .map((item) => {
+      const rarity = item.rarity ? ` (${item.rarity})` : "";
+      const amount = Number(item.amount || 0);
+      return `• ${item.name} x${amount}${rarity}`;
+    })
+    .join("\n");
 }
 
 module.exports = {
-  name: "inventory",
-  aliases: ["inv"],
+  name: "inv",
+  aliases: ["inventory", "bag"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
 
     const embed = new EmbedBuilder()
-      .setTitle(`${message.author.username}'s Inventory`)
+      .setColor(0x3498db)
+      .setTitle(`🎒 ${player.username}'s Inventory`)
+      .setDescription("Here is everything currently stored in your inventory.")
       .addFields(
         {
-          name: "<:box:1493143416425549824> Boxes",
-          value: formatCategory(player.boxes),
+          name: "📦 Boxes",
+          value: formatItemList(player.boxes, "No boxes owned."),
           inline: false
         },
         {
-          name: "<:item:1493155207838826526> Items",
-          value: formatCategory(player.items),
+          name: "🎟️ Tickets",
+          value: formatItemList(player.tickets, "No tickets owned."),
           inline: false
         },
         {
-          name: "<:material:1493157840783675395> Materials",
-          value: formatCategory(player.materials),
+          name: "🧱 Materials",
+          value: formatItemList(player.materials, "No materials owned."),
           inline: false
         },
         {
-          name: "<:weapon:1493157793782304809> Weapons",
-          value: formatCategory(player.weapons),
+          name: "🗡️ Weapons",
+          value: formatItemList(player.weapons, "No weapons owned."),
           inline: false
         },
         {
-          name: "<:fruit:1493157817367007363> Devil Fruits",
-          value: formatCategory(player.devilFruits),
-          inline: false
-        },
-        {
-          name: "<:ticket:1493157873427939430> Tickets",
-          value: formatCategory(player.tickets),
+          name: "🍎 Devil Fruits",
+          value: formatItemList(player.devilFruits, "No devil fruits owned."),
           inline: false
         }
       )
-      .setThumbnail(message.author.displayAvatarURL())
-      .setFooter({ text: "One Piece Bot • Resource Inventory" });
+      .setFooter({ text: "One Piece Bot • Inventory" });
 
-    return message.reply({ embeds: [embed] });
+    await message.reply({ embeds: [embed] });
   }
 };

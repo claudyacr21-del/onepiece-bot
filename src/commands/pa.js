@@ -1,12 +1,15 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-const { isMotherFlame, getPullAccess } = require("../utils/pullAccess");
+const { getPassiveBoostSummary, getBoostCards } = require("../utils/passiveBoosts");
+const { hasRole, PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 const { addFragment, getDuplicateFragmentAmount, hasOwnedCardByCode } = require("../utils/fragmentUtils");
 const cards = require("../data/cards");
 const weapons = require("../data/weapons");
 const devilFruits = require("../data/devilFruits");
+
+const SUPPORT_SERVER_ROLE = "Nakama";
+const BOOSTER_ROLE = "New World";
 
 const CONTENT_RATES = {
   card: 70,
@@ -15,6 +18,29 @@ const CONTENT_RATES = {
 };
 
 const PREMIUM_PITY_TARGET = 80;
+
+function hasNamedRole(message, roleName) {
+  if (!message.member?.roles?.cache) return false;
+  return message.member.roles.cache.some((role) => role.name === roleName);
+}
+
+function isServerOwner(message) {
+  return Boolean(message.guild && message.author.id === message.guild.ownerId);
+}
+
+function hasBaccaratCard(player) {
+  const ownedCards = Array.isArray(player?.cards) ? player.cards : [];
+  return ownedCards.some((card) => card.code === "baccarat_lucky_draw");
+}
+
+function hasBaccaratFruitEquipped(player) {
+  const boostCards = getBoostCards(player);
+  return boostCards.some(
+    (card) =>
+      card.code === "baccarat_lucky_draw" &&
+      String(card.equippedDevilFruit || "") === "unknown_fortune_fruit"
+  );
+}
 
 function getPlaceholderImage(name = "Reward") {
   const text = encodeURIComponent(name);
@@ -93,6 +119,7 @@ function addNamedItem(list, reward) {
     type: reward.type,
     statBonus: reward.statBonus,
     owners: reward.owners,
+    boostBonus: reward.boostBonus,
     description: reward.description
   });
 
@@ -122,29 +149,42 @@ function getRewardResult(contentType, baseReward) {
 
 function getAvailablePullCount(player, message) {
   const pulls = player.pulls || {};
-  const access = getPullAccess(message);
 
-  const base = Math.max(0, access.base - Number(pulls.base?.used || 0));
-  const support = Math.max(0, access.supportMember - Number(pulls.supportMember?.used || 0));
-  const booster = Math.max(0, access.booster - Number(pulls.booster?.used || 0));
-  const owner = Math.max(0, access.owner - Number(pulls.owner?.used || 0));
-  const motherFlame = Math.max(0, access.motherFlame - Number(pulls.patreon?.used || 0));
+  const base = Math.max(0, 6 - Number(pulls.base?.used || 0));
+  const support = hasNamedRole(message, SUPPORT_SERVER_ROLE)
+    ? Math.max(0, 1 - Number(pulls.supportMember?.used || 0))
+    : 0;
+  const booster = hasNamedRole(message, BOOSTER_ROLE)
+    ? Math.max(0, 1 - Number(pulls.booster?.used || 0))
+    : 0;
+  const owner = isServerOwner(message)
+    ? Math.max(0, 1 - Number(pulls.owner?.used || 0))
+    : 0;
+  const motherFlame = hasRole(message, PREMIUM_ROLE_NAME)
+    ? Math.max(0, 3 - Number(pulls.patreon?.used || 0))
+    : 0;
+  const baccaratCard = hasBaccaratCard(player)
+    ? Math.max(0, 1 - Number(pulls.baccaratCard?.used || 0))
+    : 0;
+  const baccaratFruit = hasBaccaratFruitEquipped(player)
+    ? Math.max(0, 1 - Number(pulls.baccaratFruit?.used || 0))
+    : 0;
 
   return {
-    total: base + support + booster + owner + motherFlame,
-    access
+    total: base + support + booster + owner + motherFlame + baccaratCard + baccaratFruit
   };
 }
 
 function consumeAllPulls(player, message) {
   const pulls = { ...(player.pulls || {}) };
-  const access = getPullAccess(message);
 
-  pulls.base = { ...(pulls.base || { used: 0, max: 6 }), used: access.base };
-  if (access.supportMember > 0) pulls.supportMember = { ...(pulls.supportMember || { used: 0, max: 1 }), used: access.supportMember };
-  if (access.booster > 0) pulls.booster = { ...(pulls.booster || { used: 0, max: 1 }), used: access.booster };
-  if (access.owner > 0) pulls.owner = { ...(pulls.owner || { used: 0, max: 1 }), used: access.owner };
-  if (access.motherFlame > 0) pulls.patreon = { ...(pulls.patreon || { used: 0, max: 3 }), used: access.motherFlame };
+  pulls.base = { ...(pulls.base || { used: 0, max: 6 }), used: 6 };
+  pulls.supportMember = { ...(pulls.supportMember || { used: 0, max: 1 }), used: hasNamedRole(message, SUPPORT_SERVER_ROLE) ? 1 : Number(pulls.supportMember?.used || 0) };
+  pulls.booster = { ...(pulls.booster || { used: 0, max: 1 }), used: hasNamedRole(message, BOOSTER_ROLE) ? 1 : Number(pulls.booster?.used || 0) };
+  pulls.owner = { ...(pulls.owner || { used: 0, max: 1 }), used: isServerOwner(message) ? 1 : Number(pulls.owner?.used || 0) };
+  pulls.patreon = { ...(pulls.patreon || { used: 0, max: 3 }), used: hasRole(message, PREMIUM_ROLE_NAME) ? 3 : Number(pulls.patreon?.used || 0) };
+  pulls.baccaratCard = { ...(pulls.baccaratCard || { used: 0, max: 1 }), used: hasBaccaratCard(player) ? 1 : Number(pulls.baccaratCard?.used || 0) };
+  pulls.baccaratFruit = { ...(pulls.baccaratFruit || { used: 0, max: 1 }), used: hasBaccaratFruitEquipped(player) ? 1 : Number(pulls.baccaratFruit?.used || 0) };
 
   return pulls;
 }
@@ -153,7 +193,7 @@ module.exports = {
   name: "pa",
   aliases: ["pullall"],
   async execute(message) {
-    if (!isMotherFlame(message)) {
+    if (!hasRole(message, PREMIUM_ROLE_NAME)) {
       return message.reply("Only Mother Flame users can use `op pa`.");
     }
 

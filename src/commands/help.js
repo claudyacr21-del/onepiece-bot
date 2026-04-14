@@ -1,70 +1,72 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require("discord.js");
 
 module.exports = {
   name: "help",
+  aliases: ["commands", "cmd", "menu"],
   async execute(message) {
     const embed = new EmbedBuilder()
-      .setColor(0xe74c3c)
-      .setTitle("Command List")
-      .setDescription("Here are the main commands available in **One Piece Bot**.")
+      .setColor(0x8e44ad)
+      .setTitle("📚 One Piece Bot Command List")
+      .setDescription("Here are the current commands available in One Piece Bot.")
       .addFields(
         {
-          name: "🃏 Card & Pull",
+          name: "👤 Profile & Economy",
           value: [
-            "`op pull` — Pull once using your available pull charges.",
-            "`op pa` / `op pullall` — Pull all available charges at once. *(Mother Flame only)*",
-            "`op pullinfo` / `op pulli` — Show your available pull charges.",
-            "`op effect` — Show your current pull/effect status.",
-            "`op mc` — Show your owned battle cards.",
-            "`op mc boost` — Show your owned boost cards.",
-            "`op mci <card name>` — Show one owned card in detail.",
-            "`op all` — Show all battle cards available in the game.",
-            "`op all boost` — Show all boost cards available in the game.",
-            "`op finv` — Show all fragments you own.",
-            "`op quest` — Show your quest progress."
-          ].join("\n"),
-          inline: false
+            "`op profile` — View your One Piece profile",
+            "`op balance` — Check your berries and gems"
+          ].join("\n")
         },
         {
-          name: "🎁 Premium & Vote",
+          name: "🎴 Collection",
           value: [
-            "`op vote` — Check vote info and rewards.",
-            "`op treasure` — Claim Mother Flame treasure."
-          ].join("\n"),
-          inline: false
+            "`op pull` — Pull 1 reward from the current banner",
+            "`op pa` — Pull all available pulls at once (Mother Flame only)",
+            "`op mc` — View your battle cards one by one",
+            "`op mc text` — View all your cards in text mode",
+            "`op mc boost` — View your boost cards one by one",
+            "`op mci <card name>` — View one specific card you own",
+            "`op ci <card name>` — View card info from the game database",
+            "`op all` — View all battle cards in the game",
+            "`op all boost` — View all boost cards in the game",
+            "`op finv [name]` — View your fragments or search a fragment"
+          ].join("\n")
         },
         {
-          name: "⏳ Utility",
+          name: "🎒 Inventory & Equipment",
           value: [
-            "`op cd` — Check all current cooldowns."
-          ].join("\n"),
-          inline: false
+            "`op inv` — View your inventory",
+            "`op open <box name>` — Open a box from your inventory",
+            "`op resetpull` — Use a Pull Reset Ticket",
+            "`op equipfruit <card name> <fruit name>` — Equip a Devil Fruit to a card",
+            "`op boost` — View your passive boost cards"
+          ].join("\n")
         },
         {
-          name: "💰 Economy",
+          name: "📈 Progress & Status",
           value: [
-            "`op bal` / `op balance` — Show your berries and gems.",
-            "`op daily` — Claim your daily reward."
-          ].join("\n"),
-          inline: false
+            "`op effect` — View your active effects and boosts",
+            "`op pullinfo` — View how to increase your pull slots",
+            "`op cd` — Check important cooldowns and timers",
+            "`op daily` — Claim your daily reward",
+            "`op quest` — View your current quest progress",
+            "`op vote` — View vote information",
+            "`op treasure` — Claim Mother Flame treasure reward"
+          ].join("\n")
         },
         {
-          name: "🎒 Inventory",
+          name: "ℹ️ Notes",
           value: [
-            "`op inv` / `op inventory` — Show your boxes, items, materials, weapons, devil fruits, and tickets."
-          ].join("\n"),
-          inline: false
-        },
-        {
-          name: "👤 Profile",
-          value: [
-            "`op profile` — Show your captain profile and general stats.",
-            "`op ci <card name>` — Show global card info. *(Coming next)*"
-          ].join("\n"),
-          inline: false
+            "• `op pa` is only available for users with the **Mother Flame** role",
+            "• Boost cards are passive cards and are not used for battle",
+            "• `op ping` is an internal/basic command and is not shown here"
+          ].join("\n")
         }
       )
-      .setThumbnail(message.client.user.displayAvatarURL({ dynamic: true }))
       .setFooter({ text: "One Piece Bot • Help Menu" });
 
     const row = new ActionRowBuilder().addComponents(
@@ -78,7 +80,7 @@ module.exports = {
         .setURL("https://discord.com")
     );
 
-    return message.reply({
+    await message.reply({
       embeds: [embed],
       components: [row]
     });
