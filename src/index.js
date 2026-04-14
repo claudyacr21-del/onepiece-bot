@@ -32,7 +32,7 @@ for (const file of commandFiles) {
   }
 }
 
-client.once("ready", () => {
+client.once("clientReady", () => {
   console.log(`${client.user.tag} is online!`);
 });
 
