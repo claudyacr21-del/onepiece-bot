@@ -232,15 +232,15 @@ function normalizeStats(stats) {
 function normalizeShip(ship, currentIsland) {
   const unlocked = Array.isArray(ship?.unlockedIslands) && ship.unlockedIslands.length
     ? ship.unlockedIslands
-    : ["shells_town"];
+    : ["foosha_village"];
 
   return {
-    name: ship?.name || "Going Merry",
+    shipCode: ship?.shipCode || "going_merry",
     tier: Number(ship?.tier || 1),
     sea: ship?.sea || "East Blue",
     nextTravelAt: Number(ship?.nextTravelAt || 0),
     unlockedIslands: unlocked,
-    currentPort: ship?.currentPort || currentIsland || "Shells Town"
+    currentPort: ship?.currentPort || currentIsland || "Foosha Village"
   };
 }
 
@@ -253,7 +253,7 @@ function normalizeStory(story) {
 }
 
 function normalizePlayer(player, username = "Unknown") {
-  const currentIsland = player.currentIsland || "Shells Town";
+  const currentIsland = player.currentIsland || "Foosha Village";
 
   return {
     username: player.username || username,
@@ -294,7 +294,7 @@ function getDefaultPlayer(username) {
     username,
     berries: 1000,
     gems: 100,
-    currentIsland: "Shells Town",
+    currentIsland: "Foosha Village",
     dailyLastClaim: null,
     cards: [],
     fragments: [],
@@ -374,12 +374,12 @@ function getDefaultPlayer(username) {
       bestWinStreak: 0
     },
     ship: {
-      name: "Going Merry",
+      shipCode: "going_merry",
       tier: 1,
       sea: "East Blue",
       nextTravelAt: 0,
-      unlockedIslands: ["shells_town"],
-      currentPort: "Shells Town"
+      unlockedIslands: ["foosha_village"],
+      currentPort: "Foosha Village"
     },
     story: {
       clearedIslandBosses: []
