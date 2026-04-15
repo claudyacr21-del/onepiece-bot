@@ -30,7 +30,7 @@ module.exports = {
             "`op mc text` — View all your cards in text mode",
             "`op mc boost` — View your boost cards one by one",
             "`op mci <card name>` — View one specific card you own",
-            "`op ci <card name>` — View card info from the game database",
+            "`op ci <name>` — View card, devil fruit, or weapon info from the database",
             "`op all` — View all battle cards in the game",
             "`op all boost` — View all boost cards in the game",
             "`op finv [name]` — View your fragments or search a fragment"
@@ -43,6 +43,16 @@ module.exports = {
             "`op open <box name>` — Open a box from your inventory",
             "`op resetpull` — Use a Pull Reset Ticket",
             "`op df <card name> <fruit name>` — Equip a Devil Fruit to a card"
+          ].join("\n")
+        },
+        {
+          name: "⚔️ Team & Battle",
+          value: [
+            "`op add <card name>` — Add a battle card to your team",
+            "`op remove <card name>` — Remove a battle card from your team",
+            "`op swap <from> <to>` — Swap team positions",
+            "`op team` — View your active team",
+            "`op fight` — Start a manual fight using your team"
           ].join("\n")
         },
         {
@@ -70,7 +80,7 @@ module.exports = {
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setLabel("Support Sedrver")
+        .setLabel("Support Server")
         .setStyle(ButtonStyle.Link)
         .setURL("https://discord.gg/KcaRbeBqGf"),
       new ButtonBuilder()
