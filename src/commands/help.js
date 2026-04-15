@@ -42,8 +42,7 @@ module.exports = {
             "`op inv` — View your inventory",
             "`op open <box name>` — Open a box from your inventory",
             "`op resetpull` — Use a Pull Reset Ticket",
-            "`op equipfruit <card name> <fruit name>` — Equip a Devil Fruit to a card",
-            "`op boost` — View your passive boost cards"
+            "`op df <card name> <fruit name>` — Equip a Devil Fruit to a card"
           ].join("\n")
         },
         {
@@ -63,7 +62,7 @@ module.exports = {
           value: [
             "• `op pa` is only available for users with the **Mother Flame** role",
             "• Boost cards are passive cards and are not used for battle",
-            "• `op ping` is an internal/basic command and is not shown here"
+            "• `op ping` is a basic internal command and is not shown here"
           ].join("\n")
         }
       )
