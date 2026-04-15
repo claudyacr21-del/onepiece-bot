@@ -121,6 +121,7 @@ function normalizeCards(value) {
     ...card,
     instanceId: String(card.instanceId || `${Date.now()}-${Math.floor(Math.random() * 10000)}`),
     level: Number(card.level) > 0 ? Number(card.level) : 1,
+    exp: Number(card.exp) >= 0 ? Number(card.exp) : 0,
     kills: Number(card.kills) >= 0 ? Number(card.kills) : 0,
     fragments: Number(card.fragments) >= 0 ? Number(card.fragments) : 0,
     image: card.image || "",
@@ -230,12 +231,29 @@ function normalizeStats(stats) {
   };
 }
 
+function normalizeShip(ship, currentIsland) {
+  const unlocked = Array.isArray(ship?.unlockedIslands) && ship.unlockedIslands.length
+    ? ship.unlockedIslands
+    : ["shells_town"];
+
+  return {
+    name: ship?.name || "Going Merry",
+    tier: Number(ship?.tier || 1),
+    sea: ship?.sea || "East Blue",
+    nextTravelAt: Number(ship?.nextTravelAt || 0),
+    unlockedIslands: unlocked,
+    currentPort: ship?.currentPort || currentIsland || "Shells Town"
+  };
+}
+
 function normalizePlayer(player, username = "Unknown") {
+  const currentIsland = player.currentIsland || "Shells Town";
+
   return {
     username: player.username || username,
     berries: typeof player.berries === "number" ? player.berries : 1000,
     gems: typeof player.gems === "number" ? player.gems : 100,
-    currentIsland: player.currentIsland || "Shells Town",
+    currentIsland,
     dailyLastClaim: player.dailyLastClaim || null,
     cards: normalizeCards(player.cards),
     fragments: normalizeFragmentList(player.fragments),
@@ -256,6 +274,7 @@ function normalizePlayer(player, username = "Unknown") {
     vote: normalizeVote(player.vote),
     team: normalizeTeam(player.team),
     stats: normalizeStats(player.stats),
+    ship: normalizeShip(player.ship, currentIsland),
     clan: {
       name: player?.clan?.name || null,
       role: player?.clan?.role || "member"
@@ -346,6 +365,14 @@ function getDefaultPlayer(username) {
       losses: 0,
       winStreak: 0,
       bestWinStreak: 0
+    },
+    ship: {
+      name: "Going Merry",
+      tier: 1,
+      sea: "East Blue",
+      nextTravelAt: 0,
+      unlockedIslands: ["shells_town"],
+      currentPort: "Shells Town"
     },
     clan: {
       name: null,

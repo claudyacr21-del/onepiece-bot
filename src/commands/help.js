@@ -58,8 +58,9 @@ module.exports = {
         {
           name: "🗺️ Voyage & Progress",
           value: [
-            "`op ship` — View your ship and current route",
-            "`op sail` — Travel to the next island",
+            "`op ship` — View your ship and unlocked route",
+            "`op sail` — Unlock and sail to the next island",
+            "`op travel <island name>` — Travel back to an unlocked island",
             "`op quest` — View your current quest progress",
             "`op effect` — View your active effects and boosts",
             "`op pullinfo` — View how to increase your pull slots",

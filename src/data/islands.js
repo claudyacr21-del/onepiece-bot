@@ -6,6 +6,7 @@ const ISLANDS = [
     sea: "East Blue",
     saga: "East Blue",
     order: 1,
+    requiredShipTier: 1,
     nextIslandCode: "orange_town",
     boss: "Morgan",
     description: "A Marine-controlled town where many journeys begin."
@@ -17,6 +18,7 @@ const ISLANDS = [
     sea: "East Blue",
     saga: "East Blue",
     order: 2,
+    requiredShipTier: 1,
     nextIslandCode: "syrup_village",
     boss: "Buggy",
     description: "A town once terrorized by Buggy the Clown."
@@ -28,6 +30,7 @@ const ISLANDS = [
     sea: "East Blue",
     saga: "East Blue",
     order: 3,
+    requiredShipTier: 1,
     nextIslandCode: "baratie",
     boss: "Kuro",
     description: "A peaceful village tied to Usopp's story."
@@ -39,6 +42,7 @@ const ISLANDS = [
     sea: "East Blue",
     saga: "East Blue",
     order: 4,
+    requiredShipTier: 1,
     nextIslandCode: "arlong_park",
     boss: "Don Krieg",
     description: "The famous floating restaurant in East Blue."
@@ -50,6 +54,7 @@ const ISLANDS = [
     sea: "East Blue",
     saga: "East Blue",
     order: 5,
+    requiredShipTier: 1,
     nextIslandCode: "loguetown",
     boss: "Arlong",
     description: "A key island in Nami's past and East Blue's climax."
@@ -61,6 +66,7 @@ const ISLANDS = [
     sea: "East Blue",
     saga: "East Blue",
     order: 6,
+    requiredShipTier: 1,
     nextIslandCode: "reverse_mountain",
     boss: "Smoker",
     description: "The town of the beginning and the end."
@@ -72,8 +78,9 @@ const ISLANDS = [
     sea: "Grand Line Entrance",
     saga: "Alabasta Saga",
     order: 7,
+    requiredShipTier: 2,
     nextIslandCode: "whiskey_peak",
-    boss: "Laboon Route",
+    boss: "Grand Line Gate",
     description: "The gateway into the Grand Line."
   },
   {
@@ -83,6 +90,7 @@ const ISLANDS = [
     sea: "Grand Line",
     saga: "Alabasta Saga",
     order: 8,
+    requiredShipTier: 2,
     nextIslandCode: "little_garden",
     boss: "Baroque Works",
     description: "A town that hides danger behind hospitality."
@@ -94,6 +102,7 @@ const ISLANDS = [
     sea: "Grand Line",
     saga: "Alabasta Saga",
     order: 9,
+    requiredShipTier: 2,
     nextIslandCode: "drum_island",
     boss: "Mr. 3",
     description: "A prehistoric island of giants and ancient beasts."
@@ -105,6 +114,7 @@ const ISLANDS = [
     sea: "Grand Line",
     saga: "Alabasta Saga",
     order: 10,
+    requiredShipTier: 2,
     nextIslandCode: "alabasta",
     boss: "Wapol",
     description: "A winter island tied to Chopper's story."
@@ -116,21 +126,26 @@ const ISLANDS = [
     sea: "Grand Line",
     saga: "Alabasta Saga",
     order: 11,
+    requiredShipTier: 2,
     nextIslandCode: null,
     boss: "Crocodile",
     description: "A desert kingdom in the middle of civil war."
   }
 ];
 
+function normalize(text) {
+  return String(text || "").toLowerCase().trim();
+}
+
 function getIslandByCode(code) {
   return ISLANDS.find((island) => island.code === code) || null;
 }
 
 function getIslandByName(name) {
-  const q = String(name || "").toLowerCase().trim();
+  const q = normalize(name);
   return (
-    ISLANDS.find((island) => island.name.toLowerCase() === q) ||
-    ISLANDS.find((island) => island.name.toLowerCase().includes(q)) ||
+    ISLANDS.find((island) => normalize(island.name) === q) ||
+    ISLANDS.find((island) => normalize(island.name).includes(q)) ||
     null
   );
 }
@@ -145,10 +160,22 @@ function getNextIsland(currentIsland) {
   return getIslandByCode(currentIsland.nextIslandCode);
 }
 
+function getUnlockedIslandObjects(player) {
+  const codes = Array.isArray(player?.ship?.unlockedIslands) && player.ship.unlockedIslands.length
+    ? player.ship.unlockedIslands
+    : ["shells_town"];
+
+  return codes
+    .map((code) => getIslandByCode(code))
+    .filter(Boolean)
+    .sort((a, b) => a.order - b.order);
+}
+
 module.exports = {
   ISLANDS,
   getIslandByCode,
   getIslandByName,
   getCurrentIsland,
-  getNextIsland
+  getNextIsland,
+  getUnlockedIslandObjects
 };

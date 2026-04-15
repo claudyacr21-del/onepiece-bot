@@ -2,7 +2,7 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { getCurrentIsland, getNextIsland } = require("../data/islands");
 
-const SAIL_COOLDOWN_MS = 60 * 60 * 1000;
+const TRAVEL_COOLDOWN_MS = 60 * 60 * 1000;
 
 function formatRemaining(ms) {
   if (ms <= 0) return "Now";
@@ -21,13 +21,16 @@ function getShipState(player) {
     name: player?.ship?.name || "Going Merry",
     tier: Number(player?.ship?.tier || 1),
     sea: player?.ship?.sea || "East Blue",
-    nextSailAt: Number(player?.ship?.nextSailAt || 0)
+    nextTravelAt: Number(player?.ship?.nextTravelAt || 0),
+    unlockedIslands: Array.isArray(player?.ship?.unlockedIslands) && player.ship.unlockedIslands.length
+      ? player.ship.unlockedIslands
+      : ["shells_town"]
   };
 }
 
 module.exports = {
   name: "sail",
-  aliases: ["travel"],
+  aliases: ["nextisland"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
     const currentIsland = getCurrentIsland(player);
@@ -42,8 +45,14 @@ module.exports = {
       return message.reply("There is no next island available on your current route yet.");
     }
 
-    if (ship.nextSailAt > now) {
-      return message.reply(`Your ship is not ready yet. Next sail: ${formatRemaining(ship.nextSailAt - now)}`);
+    if (ship.nextTravelAt > now) {
+      return message.reply(`Your ship is not ready yet. Next travel: ${formatRemaining(ship.nextTravelAt - now)}`);
+    }
+
+    if (ship.tier < Number(nextIsland.requiredShipTier || 1)) {
+      return message.reply(
+        `Your ship tier is too low. You need Ship Tier ${nextIsland.requiredShipTier} to reach ${nextIsland.name}.`
+      );
     }
 
     if (teamCount < 3) {
@@ -54,6 +63,11 @@ module.exports = {
       return message.reply("You need at least 3 battle cards before sailing.");
     }
 
+    const unlocked = Array.isArray(ship.unlockedIslands) ? [...ship.unlockedIslands] : ["shells_town"];
+    if (!unlocked.includes(nextIsland.code)) {
+      unlocked.push(nextIsland.code);
+    }
+
     updatePlayer(message.author.id, {
       currentIsland: nextIsland.name,
       ship: {
@@ -61,7 +75,8 @@ module.exports = {
         name: ship.name,
         tier: ship.tier,
         sea: nextIsland.sea,
-        nextSailAt: now + SAIL_COOLDOWN_MS
+        nextTravelAt: now + TRAVEL_COOLDOWN_MS,
+        unlockedIslands: unlocked
       }
     });
 
@@ -73,11 +88,12 @@ module.exports = {
           `**Departed From:** \`${currentIsland.name}\``,
           `**Arrived At:** \`${nextIsland.name}\``,
           `**Sea:** \`${nextIsland.sea}\``,
+          `**Ship Tier Check:** \`${ship.tier}/${nextIsland.requiredShipTier}\``,
           `**Boss Route Ahead:** \`${nextIsland.boss || "Unknown"}\``,
           "",
           nextIsland.description || "",
           "",
-          `**Next Sail:** \`${formatRemaining(SAIL_COOLDOWN_MS)}\``
+          `**Next Travel:** \`${formatRemaining(TRAVEL_COOLDOWN_MS)}\``
         ].filter(Boolean).join("\n")
       )
       .setFooter({ text: "One Piece Bot • Sailing" });

@@ -1,8 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
-const { getCurrentIsland, getNextIsland } = require("../data/islands");
-
-const SAIL_COOLDOWN_MS = 60 * 60 * 1000;
+const { getCurrentIsland, getNextIsland, getUnlockedIslandObjects } = require("../data/islands");
 
 function formatRemaining(ms) {
   if (ms <= 0) return "Now";
@@ -20,9 +18,12 @@ function getShipInfo(player) {
   const ship = player?.ship || {};
   return {
     name: ship.name || "Going Merry",
-    tier: ship.tier || 1,
+    tier: Number(ship.tier || 1),
     sea: ship.sea || "East Blue",
-    nextSailAt: Number(ship.nextSailAt || 0)
+    nextTravelAt: Number(ship.nextTravelAt || 0),
+    unlockedIslands: Array.isArray(ship.unlockedIslands) && ship.unlockedIslands.length
+      ? ship.unlockedIslands
+      : ["shells_town"]
   };
 }
 
@@ -31,9 +32,10 @@ module.exports = {
   aliases: ["boat", "voyage"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
+    const ship = getShipInfo(player);
     const currentIsland = getCurrentIsland(player);
     const nextIsland = getNextIsland(currentIsland);
-    const ship = getShipInfo(player);
+    const unlocked = getUnlockedIslandObjects(player);
     const now = Date.now();
 
     const embed = new EmbedBuilder()
@@ -45,17 +47,20 @@ module.exports = {
           `**Ship Tier:** \`${ship.tier}\``,
           `**Current Sea:** \`${currentIsland?.sea || ship.sea}\``,
           "",
-          "## Current Route",
+          "## Route",
           `**Current Island:** \`${currentIsland?.name || "Unknown"}\``,
           `**Next Island:** \`${nextIsland?.name || "None"}\``,
-          nextIsland ? `**Next Boss Route:** \`${nextIsland.boss || "Unknown"}\`` : null,
+          nextIsland ? `**Required Ship Tier:** \`${nextIsland.requiredShipTier}\`` : null,
+          nextIsland ? `**Boss Route Ahead:** \`${nextIsland.boss || "Unknown"}\`` : null,
           "",
-          "## Sailing Status",
-          `**Next Sail:** \`${formatRemaining(ship.nextSailAt - now)}\``,
+          "## Travel Status",
+          `**Next Travel:** \`${formatRemaining(ship.nextTravelAt - now)}\``,
           "",
-          nextIsland
-            ? "Use `op sail` to travel to the next island."
-            : "You have reached the end of the current route."
+          "## Unlocked Islands",
+          unlocked.map((island) => `• ${island.name}`).join("\n") || "• Shells Town",
+          "",
+          "Use `op sail` to unlock the next island.",
+          "Use `op travel <island name>` to return to an unlocked island."
         ].filter(Boolean).join("\n")
       )
       .setFooter({ text: "One Piece Bot • Ship" });
