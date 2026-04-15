@@ -86,11 +86,35 @@ function openRareResourceBox() {
   return rewards;
 }
 
+function openMotherFlameTreasureBox() {
+  const rewards = {
+    berries: randomBetween(12000, 18000),
+    gems: randomBetween(35, 60),
+    materials: [
+      cloneItem(ITEMS.treasureMaterialPack, randomBetween(4, 7)),
+      cloneItem(ITEMS.enhancementStone, randomBetween(2, 5))
+    ],
+    tickets: [],
+    boxes: []
+  };
+
+  if (Math.random() < 0.7) {
+    rewards.tickets.push(cloneItem(ITEMS.pullResetTicket, 1));
+  }
+
+  if (Math.random() < 0.35) {
+    rewards.boxes.push(cloneItem(ITEMS.rareResourceBox, 1));
+  }
+
+  return rewards;
+}
+
 function getBoxRewards(box) {
   const code = String(box.code || "").toLowerCase();
 
   if (code === "basic_resource_box") return openBasicResourceBox();
   if (code === "rare_resource_box") return openRareResourceBox();
+  if (code === "mother_flame_treasure_box") return openMotherFlameTreasureBox();
 
   return {
     berries: randomBetween(1000, 2000),
