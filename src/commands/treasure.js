@@ -71,9 +71,10 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
     const cooldowns = player.cooldowns || {};
     const now = Date.now();
+    const nextTreasureAt = Number(cooldowns.treasure || 0);
 
-    if (cooldowns.treasure && Number(cooldowns.treasure) > now) {
-      return message.reply(`You already claimed your treasure. Next treasure: ${formatRemaining(Number(cooldowns.treasure) - now)}`);
+    if (nextTreasureAt > now) {
+      return message.reply(`You already claimed your treasure. Next treasure: ${formatRemaining(nextTreasureAt - now)}`);
     }
 
     const reward = rollTreasureRewards();

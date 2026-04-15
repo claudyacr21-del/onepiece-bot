@@ -3,6 +3,8 @@ const { getPlayer, updatePlayer } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { ITEMS, cloneItem } = require("../data/items");
 
+const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
   const index = arr.findIndex((entry) => entry.code === item.code);
@@ -25,6 +27,18 @@ function addOrIncrease(list, item) {
 
 function randomPick(items) {
   return items[Math.floor(Math.random() * items.length)];
+}
+
+function formatRemaining(ms) {
+  if (ms <= 0) return "Now";
+
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return "Now";
 }
 
 function getDailyTierRewards(dailyTier) {
@@ -126,20 +140,16 @@ module.exports = {
   name: "daily",
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-    const now = Date.now();
-    const oneDay = 24 * 60 * 60 * 1000;
-
-    if (player.dailyLastClaim && now - Number(player.dailyLastClaim) < oneDay) {
-      const remaining = oneDay - (now - Number(player.dailyLastClaim));
-      const totalSeconds = Math.floor(remaining / 1000);
-      const hours = Math.floor(totalSeconds / 3600);
-      const minutes = Math.floor((totalSeconds % 3600) / 60);
-
-      return message.reply(`You already claimed your daily reward. Come back in ${hours}h ${minutes}m.`);
-    }
-
     const boosts = getPassiveBoostSummary(player);
     const dailyTier = Number(boosts.daily || 0);
+
+    const cooldowns = player.cooldowns || {};
+    const now = Date.now();
+    const nextDailyAt = Number(cooldowns.daily || 0);
+
+    if (nextDailyAt > now) {
+      return message.reply(`You already claimed your daily reward. Next daily: ${formatRemaining(nextDailyAt - now)}`);
+    }
 
     const rewardBundle = getDailyTierRewards(dailyTier);
 
@@ -168,7 +178,11 @@ module.exports = {
       boxes: updatedBoxes,
       tickets: updatedTickets,
       materials: updatedMaterials,
-      dailyLastClaim: now
+      dailyLastClaim: now,
+      cooldowns: {
+        ...cooldowns,
+        daily: now + DAILY_COOLDOWN_MS
+      }
     });
 
     const extraLines = rewardBundle.rewards.length
@@ -185,7 +199,9 @@ module.exports = {
           `↪ Gems: +${Number(rewardBundle.gems).toLocaleString("en-US")}`,
           "",
           "**Extra Rewards**",
-          ...extraLines
+          ...extraLines,
+          "",
+          `↪ Next Daily: ${formatRemaining(DAILY_COOLDOWN_MS)}`
         ].join("\n")
       )
       .setFooter({ text: "One Piece Bot • Daily Reward" });

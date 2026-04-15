@@ -92,7 +92,7 @@ function normalizeCards(value) {
 
   return value.map((card) => ({
     ...card,
-    instanceId: String(card.instanceId || Date.now()),
+    instanceId: String(card.instanceId || `${Date.now()}-${Math.floor(Math.random() * 10000)}`),
     level: Number(card.level) > 0 ? Number(card.level) : 1,
     kills: Number(card.kills) >= 0 ? Number(card.kills) : 0,
     fragments: Number(card.fragments) >= 0 ? Number(card.fragments) : 0,
@@ -102,28 +102,22 @@ function normalizeCards(value) {
   }));
 }
 
+function normalizePullSlot(slot, fallbackMax) {
+  return {
+    used: Number(slot?.used) >= 0 ? Number(slot.used) : 0,
+    max: Number(slot?.max) >= 0 ? Number(slot.max) : fallbackMax
+  };
+}
+
 function normalizePulls(pulls) {
   return {
-    base: {
-      used: Number(pulls?.base?.used) >= 0 ? Number(pulls.base.used) : 0,
-      max: Number(pulls?.base?.max) > 0 ? Number(pulls.base.max) : 6
-    },
-    supportMember: {
-      used: Number(pulls?.supportMember?.used) >= 0 ? Number(pulls.supportMember.used) : 0,
-      max: Number(pulls?.supportMember?.max) >= 0 ? Number(pulls.supportMember.max) : 1
-    },
-    booster: {
-      used: Number(pulls?.booster?.used) >= 0 ? Number(pulls.booster.used) : 0,
-      max: Number(pulls?.booster?.max) >= 0 ? Number(pulls.booster.max) : 1
-    },
-    owner: {
-      used: Number(pulls?.owner?.used) >= 0 ? Number(pulls.owner.used) : 0,
-      max: Number(pulls?.owner?.max) >= 0 ? Number(pulls.owner.max) : 1
-    },
-    patreon: {
-      used: Number(pulls?.patreon?.used) >= 0 ? Number(pulls.patreon.used) : 0,
-      max: Number(pulls?.patreon?.max) >= 0 ? Number(pulls.patreon.max) : 3
-    },
+    base: normalizePullSlot(pulls?.base, 6),
+    supportMember: normalizePullSlot(pulls?.supportMember, 1),
+    booster: normalizePullSlot(pulls?.booster, 1),
+    owner: normalizePullSlot(pulls?.owner, 1),
+    patreon: normalizePullSlot(pulls?.patreon, 3),
+    baccaratCard: normalizePullSlot(pulls?.baccaratCard, 1),
+    baccaratFruit: normalizePullSlot(pulls?.baccaratFruit, 1),
     lastResetBucket: Number.isInteger(pulls?.lastResetBucket)
       ? pulls.lastResetBucket
       : null
@@ -228,6 +222,8 @@ function getDefaultPlayer(username) {
       booster: { used: 0, max: 1 },
       owner: { used: 0, max: 1 },
       patreon: { used: 0, max: 3 },
+      baccaratCard: { used: 0, max: 1 },
+      baccaratFruit: { used: 0, max: 1 },
       lastResetBucket: null
     },
     boosts: {
