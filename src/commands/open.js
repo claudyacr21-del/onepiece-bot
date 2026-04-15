@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
+const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
 
 function normalize(text) {
@@ -161,12 +162,18 @@ module.exports = {
       updatedBoxes = addOrIncrease(updatedBoxes, item);
     });
 
+    const updatedDailyState = incrementQuestCounter(player, "boxesOpened", 1);
+
     updatePlayer(message.author.id, {
       berries: Number(player.berries || 0) + Number(rewards.berries || 0),
       gems: Number(player.gems || 0) + Number(rewards.gems || 0),
       boxes: updatedBoxes,
       materials: updatedMaterials,
-      tickets: updatedTickets
+      tickets: updatedTickets,
+      quests: {
+        ...(player.quests || {}),
+        dailyState: updatedDailyState
+      }
     });
 
     const lines = [

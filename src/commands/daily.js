@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
 
 const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -172,6 +173,8 @@ module.exports = {
       if (result.materials) updatedMaterials = result.materials;
     }
 
+    const updatedDailyState = incrementQuestCounter(player, "dailyClaims", 1);
+
     updatePlayer(message.author.id, {
       berries: Number(player.berries || 0) + rewardBundle.berries,
       gems: Number(player.gems || 0) + rewardBundle.gems,
@@ -179,6 +182,10 @@ module.exports = {
       tickets: updatedTickets,
       materials: updatedMaterials,
       dailyLastClaim: now,
+      quests: {
+        ...(player.quests || {}),
+        dailyState: updatedDailyState
+      },
       cooldowns: {
         ...cooldowns,
         daily: now + DAILY_COOLDOWN_MS

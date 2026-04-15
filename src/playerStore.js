@@ -3,7 +3,6 @@ const path = require("path");
 
 const persistentDir = process.env.PLAYER_DATA_DIR || "/data";
 const fallbackDir = path.join(__dirname, "data");
-const legacyFilePath = path.join(__dirname, "data", "players.json");
 
 function resolveFilePath() {
   try {
@@ -30,41 +29,8 @@ function ensureFile() {
   }
 }
 
-function tryMigrateLegacyData() {
-  try {
-    ensureFile();
-
-    const currentRaw = fs.readFileSync(filePath, "utf8").trim();
-    const currentData = currentRaw ? JSON.parse(currentRaw) : {};
-
-    if (Object.keys(currentData).length > 0) {
-      return;
-    }
-
-    if (!fs.existsSync(legacyFilePath)) {
-      return;
-    }
-
-    const legacyRaw = fs.readFileSync(legacyFilePath, "utf8").trim();
-    if (!legacyRaw) {
-      return;
-    }
-
-    const legacyData = JSON.parse(legacyRaw);
-    if (!legacyData || typeof legacyData !== "object" || Object.keys(legacyData).length === 0) {
-      return;
-    }
-
-    fs.writeFileSync(filePath, JSON.stringify(legacyData, null, 2), "utf8");
-    console.log("Migrated legacy player data to persistent storage.");
-  } catch (error) {
-    console.error("Legacy migration failed:", error);
-  }
-}
-
 function readPlayers() {
   ensureFile();
-  tryMigrateLegacyData();
 
   try {
     const raw = fs.readFileSync(filePath, "utf8").trim();
@@ -203,6 +169,17 @@ function normalizeQuests(quests) {
       total: Number(quests?.daily?.total) > 0 ? Number(quests.daily.total) : 5,
       completed: Number(quests?.daily?.completed) >= 0 ? Number(quests.daily.completed) : 0
     },
+    dailyState: {
+      dateKey: quests?.dailyState?.dateKey || null,
+      rewardClaimed: Boolean(quests?.dailyState?.rewardClaimed),
+      quests: Array.isArray(quests?.dailyState?.quests) ? quests.dailyState.quests : [],
+      counters: {
+        dailyClaims: Number(quests?.dailyState?.counters?.dailyClaims || 0),
+        pullsUsed: Number(quests?.dailyState?.counters?.pullsUsed || 0),
+        boxesOpened: Number(quests?.dailyState?.counters?.boxesOpened || 0),
+        resetTicketsUsed: Number(quests?.dailyState?.counters?.resetTicketsUsed || 0)
+      }
+    },
     totalClears: Number(quests?.totalClears) >= 0 ? Number(quests.totalClears) : 0
   };
 }
@@ -323,6 +300,17 @@ function getDefaultPlayer(username) {
       daily: {
         total: 5,
         completed: 0
+      },
+      dailyState: {
+        dateKey: null,
+        rewardClaimed: false,
+        quests: [],
+        counters: {
+          dailyClaims: 0,
+          pullsUsed: 0,
+          boxesOpened: 0,
+          resetTicketsUsed: 0
+        }
       },
       totalClears: 0
     },

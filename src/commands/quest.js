@@ -1,65 +1,41 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { applyGlobalPullReset } = require("../utils/pullReset");
+const { ITEMS, cloneItem } = require("../data/items");
+const {
+  ensureDailyQuestState,
+  getQuestProgress,
+  isQuestDone,
+  getQuestCompletionSummary
+} = require("../utils/questProgress");
 
-function countTotalAmount(list) {
-  if (!Array.isArray(list)) return 0;
-  return list.reduce((sum, item) => sum + Number(item?.amount || 0), 0);
+function addOrIncrease(list, item) {
+  const arr = Array.isArray(list) ? [...list] : [];
+  const index = arr.findIndex((entry) => entry.code === item.code);
+
+  if (index !== -1) {
+    arr[index] = {
+      ...arr[index],
+      amount: Number(arr[index].amount || 1) + Number(item.amount || 1)
+    };
+    return arr;
+  }
+
+  arr.push({
+    ...item,
+    amount: Number(item.amount || 1)
+  });
+
+  return arr;
 }
 
-function hasClaimedDailyToday(player) {
-  const cooldown = Number(player?.cooldowns?.daily || 0);
-  return cooldown > Date.now();
-}
-
-function getTotalPullsUsed(player) {
-  return (
-    Number(player?.pulls?.base?.used || 0) +
-    Number(player?.pulls?.supportMember?.used || 0) +
-    Number(player?.pulls?.booster?.used || 0) +
-    Number(player?.pulls?.owner?.used || 0) +
-    Number(player?.pulls?.patreon?.used || 0) +
-    Number(player?.pulls?.baccaratCard?.used || 0) +
-    Number(player?.pulls?.baccaratFruit?.used || 0)
-  );
-}
-
-function buildQuestList(player) {
-  const cards = Array.isArray(player.cards) ? player.cards : [];
-  const battleCards = cards.filter((card) => card.cardRole !== "boost");
-  const boostCards = cards.filter((card) => card.cardRole === "boost");
-
-  const totalPullsUsed = getTotalPullsUsed(player);
-  const totalFruits = countTotalAmount(player.devilFruits);
-  const totalWeapons = countTotalAmount(player.weapons);
-
-  return [
-    {
-      title: "Claim Daily Reward",
-      done: hasClaimedDailyToday(player),
-      progress: hasClaimedDailyToday(player) ? "1/1" : "0/1"
-    },
-    {
-      title: "Use 3 Pulls",
-      done: totalPullsUsed >= 3,
-      progress: `${Math.min(totalPullsUsed, 3)}/3`
-    },
-    {
-      title: "Own 3 Battle Cards",
-      done: battleCards.length >= 3,
-      progress: `${Math.min(battleCards.length, 3)}/3`
-    },
-    {
-      title: "Own 1 Boost Card",
-      done: boostCards.length >= 1,
-      progress: `${Math.min(boostCards.length, 1)}/1`
-    },
-    {
-      title: "Own 1 Weapon or 1 Devil Fruit",
-      done: totalWeapons >= 1 || totalFruits >= 1,
-      progress: totalWeapons >= 1 || totalFruits >= 1 ? "1/1" : "0/1"
-    }
-  ];
+function getQuestClearReward() {
+  return {
+    berries: 7000,
+    gems: 20,
+    boxes: [cloneItem(ITEMS.basicResourceBox, 1)],
+    tickets: Math.random() < 0.35 ? [cloneItem(ITEMS.pullResetTicket, 1)] : [],
+    materials: Math.random() < 0.5 ? [cloneItem(ITEMS.enhancementStone, 3)] : []
+  };
 }
 
 module.exports = {
@@ -67,46 +43,108 @@ module.exports = {
   aliases: ["quests"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
+    let dailyState = ensureDailyQuestState(player);
 
-    const resetState = applyGlobalPullReset(player);
-    if (resetState.wasReset) {
-      updatePlayer(message.author.id, { pulls: resetState.pulls });
-      player.pulls = resetState.pulls;
+    const summary = getQuestCompletionSummary(dailyState);
+    const allComplete = summary.total > 0 && summary.completed === summary.total;
+
+    const rewardLines = [];
+    let updatedBoxes = [...(player.boxes || [])];
+    let updatedTickets = [...(player.tickets || [])];
+    let updatedMaterials = [...(player.materials || [])];
+    let berriesToAdd = 0;
+    let gemsToAdd = 0;
+    let totalClears = Number(player?.quests?.totalClears || 0);
+
+    if (allComplete && !dailyState.rewardClaimed) {
+      const reward = getQuestClearReward();
+
+      berriesToAdd = reward.berries;
+      gemsToAdd = reward.gems;
+      totalClears += 1;
+
+      reward.boxes.forEach((item) => {
+        updatedBoxes = addOrIncrease(updatedBoxes, item);
+        rewardLines.push(`↪ ${item.name} x${item.amount}`);
+      });
+
+      reward.tickets.forEach((item) => {
+        updatedTickets = addOrIncrease(updatedTickets, item);
+        rewardLines.push(`↪ ${item.name} x${item.amount}`);
+      });
+
+      reward.materials.forEach((item) => {
+        updatedMaterials = addOrIncrease(updatedMaterials, item);
+        rewardLines.push(`↪ ${item.name} x${item.amount}`);
+      });
+
+      dailyState = {
+        ...dailyState,
+        rewardClaimed: true
+      };
+
+      updatePlayer(message.author.id, {
+        berries: Number(player.berries || 0) + berriesToAdd,
+        gems: Number(player.gems || 0) + gemsToAdd,
+        boxes: updatedBoxes,
+        tickets: updatedTickets,
+        materials: updatedMaterials,
+        quests: {
+          ...(player.quests || {}),
+          daily: {
+            total: summary.total,
+            completed: summary.completed
+          },
+          dailyState,
+          totalClears
+        }
+      });
+    } else {
+      updatePlayer(message.author.id, {
+        quests: {
+          ...(player.quests || {}),
+          daily: {
+            total: summary.total,
+            completed: summary.completed
+          },
+          dailyState,
+          totalClears
+        }
+      });
     }
 
-    const questList = buildQuestList(player);
-
-    const completed = questList.filter((quest) => quest.done).length;
-    const total = questList.length;
-    const left = Math.max(0, total - completed);
-
-    updatePlayer(message.author.id, {
-      quests: {
-        ...(player.quests || {}),
-        daily: {
-          total,
-          completed
-        },
-        totalClears: Number(player?.quests?.totalClears || 0)
-      }
+    const questLines = dailyState.quests.map((quest, index) => {
+      const done = isQuestDone(dailyState, quest);
+      const progress = getQuestProgress(dailyState, quest);
+      const status = done ? "✅" : "⬜";
+      return `${status} ${index + 1}. ${quest.title} — \`${progress}/${quest.target}\``;
     });
 
-    const lines = questList.map((quest, index) => {
-      const status = quest.done ? "✅" : "⬜";
-      return `${status} ${index + 1}. ${quest.title} — \`${quest.progress}\``;
-    });
+    const description = [
+      `**Completed:** \`${summary.completed}/${summary.total}\``,
+      `**Quest Left:** \`${summary.left}/${summary.total}\``,
+      `**Daily Clears:** \`${totalClears}\``,
+      "",
+      ...questLines
+    ];
+
+    if (allComplete) {
+      description.push("");
+      description.push(dailyState.rewardClaimed ? "🎁 **Daily Quest Reward:** `Claimed`" : "🎁 **Daily Quest Reward:** `Ready`");
+    }
+
+    if (berriesToAdd > 0 || gemsToAdd > 0 || rewardLines.length > 0) {
+      description.push("");
+      description.push("## Quest Clear Reward");
+      description.push(`↪ Berries: +${berriesToAdd.toLocaleString("en-US")}`);
+      description.push(`↪ Gems: +${gemsToAdd.toLocaleString("en-US")}`);
+      description.push(...rewardLines);
+    }
 
     const embed = new EmbedBuilder()
       .setColor(0x9b59b6)
       .setTitle("📜 Daily Quest List")
-      .setDescription(
-        [
-          `**Completed:** \`${completed}/${total}\``,
-          `**Quest Left:** \`${left}/${total}\``,
-          "",
-          ...lines
-        ].join("\n")
-      )
+      .setDescription(description.join("\n"))
       .setFooter({ text: "One Piece Bot • Quests" });
 
     return message.reply({ embeds: [embed] });

@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const { incrementQuestCounter } = require("../utils/questProgress");
 const { PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 const { addFragment, getDuplicateFragmentAmount, hasOwnedCardByCode } = require("../utils/fragmentUtils");
@@ -217,6 +218,7 @@ module.exports = {
     };
 
     const updatedPulls = consumeAllActivePullSlots(player, message);
+    const updatedDailyState = incrementQuestCounter(player, "pullsUsed", availableTotal);
 
     updatePlayer(message.author.id, {
       cards: updatedCards,
@@ -224,7 +226,11 @@ module.exports = {
       devilFruits: updatedDevilFruits,
       fragments: updatedFragments,
       pulls: updatedPulls,
-      pity: updatedPity
+      pity: updatedPity,
+      quests: {
+        ...(player.quests || {}),
+        dailyState: updatedDailyState
+      }
     });
 
     const chunkSize = 25;

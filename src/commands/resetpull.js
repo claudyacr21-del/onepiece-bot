@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
+const { incrementQuestCounter } = require("../utils/questProgress");
 const { applyManualPullReset } = require("../utils/pullReset");
 
 function findTicket(tickets, code) {
@@ -49,11 +50,16 @@ module.exports = {
 
     const updatedTickets = consumeTicket(tickets, ticketIndex);
     const resetResult = applyManualPullReset(player.pulls || {});
+    const updatedDailyState = incrementQuestCounter(player, "resetTicketsUsed", 1);
     const now = Date.now();
 
     updatePlayer(message.author.id, {
       tickets: updatedTickets,
-      pulls: resetResult.pulls
+      pulls: resetResult.pulls,
+      quests: {
+        ...(player.quests || {}),
+        dailyState: updatedDailyState
+      }
     });
 
     const embed = new EmbedBuilder()
