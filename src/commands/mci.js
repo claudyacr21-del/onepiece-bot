@@ -1,19 +1,8 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 
-function formatNumber(value) {
-  return Number(value || 0).toLocaleString("en-US");
-}
-
-function getCardPower(card) {
-  if (card.cardRole === "boost") return 0;
-
-  const atk = Number(card.atk || 0);
-  const hp = Number(card.hp || 0);
-  const speed = Number(card.speed || 0);
-  const level = Number(card.level || 1);
-
-  return Math.floor((atk * 1.4) + (hp * 0.22) + (speed * 9) + (level * 12));
+function normalize(text) {
+  return String(text || "").toLowerCase().trim().replace(/\s+/g, " ");
 }
 
 function getRarityBadgeUrl(rarity) {
@@ -28,106 +17,86 @@ function getRarityBadgeUrl(rarity) {
   return badges[rarity] || badges.C;
 }
 
-function getPlaceholderImage(name = "Card") {
-  const text = encodeURIComponent(name);
-  return `https://dummyimage.com/512x768/1e1e1e/ffffff.png&text=${text}`;
-}
+function findOwnedCards(cards, query) {
+  const q = normalize(query);
 
-function findOwnedCardByName(cards, query) {
-  const lowerQuery = query.toLowerCase();
+  return cards.filter((card) => {
+    const fields = [
+      card.displayName,
+      card.name,
+      card.title,
+      card.code,
+      card.variant,
+      card.arc
+    ]
+      .filter(Boolean)
+      .map((value) => normalize(value));
 
-  return cards.find((card) => {
-    const displayName = String(card.displayName || "").toLowerCase();
-    const name = String(card.name || "").toLowerCase();
-    const title = String(card.title || "").toLowerCase();
-    const code = String(card.code || "").toLowerCase();
-
-    return (
-      displayName.includes(lowerQuery) ||
-      name.includes(lowerQuery) ||
-      title.includes(lowerQuery) ||
-      code.includes(lowerQuery)
-    );
+    return fields.some((value) => value.includes(q));
   });
 }
 
-function buildUsageEmbed(username) {
-  return new EmbedBuilder()
-    .setColor(0x8e44ad)
-    .setTitle(`${username}'s Card`)
-    .setDescription("Use this command to inspect one card that you own.")
-    .addFields({
-      name: "Usage",
-      value: "`op mci <card name>`",
-      inline: false
-    })
-    .setFooter({ text: "One Piece Bot • My Card Information" });
-}
-
-function buildOwnedCardEmbed(ownerName, card) {
-  const displayName = card.displayName || card.name || "Unknown Card";
-  const isBoost = card.cardRole === "boost";
-
-  const description = isBoost
-    ? [
-        `## ${displayName}`,
-        `${card.title || card.variant || "Passive Card"}`,
-        "",
-        `**Role:** \`Passive Boost\``,
-        `**Boost Type:** \`${card.boostType || "Unknown"}\``,
-        `**Boost Value:** \`${formatNumber(card.boostValue || 0)}\``,
-        `**Target:** \`${card.boostTarget || "account"}\``,
-        `**Description:** ${card.boostDescription || "No description"}`
-      ].join("\n")
-    : [
-        `## ${displayName}`,
-        `${card.title || card.variant || "No Title"}`,
-        "",
-        `**Level:** \`${card.level || 1}\``,
-        `**Power:** \`${formatNumber(getCardPower(card))}\``,
-        `**Health:** \`${formatNumber(card.hp || 0)}\``,
-        `**Speed:** \`${formatNumber(card.speed || 0)}\``,
-        `**Attack:** \`${formatNumber(card.atk || 0)}\``,
-        `**Weapon:** \`${card.weapon || "None"}\``,
-        `**Devil Fruit:** \`${card.devilFruit || "None"}\``,
-        `**Type:** \`${card.type || "Combat"}\``,
-        `**Kills:** \`${formatNumber(card.kills || 0)}\``,
-        `**Fragments:** \`${formatNumber(card.fragments || 0)}\``
-      ].join("\n");
-
-  return new EmbedBuilder()
-    .setColor(isBoost ? 0x9b59b6 : 0xc0392b)
-    .setTitle(`${ownerName}'s Card`)
-    .setDescription(description)
-    .setThumbnail(getRarityBadgeUrl(card.rarity || "C"))
-    .setImage(card.image || getPlaceholderImage(displayName))
-    .setFooter({ text: `This card belongs to ${ownerName}` });
+function getPower(card) {
+  return Number(card.atk || 0) + Number(card.hp || 0) + Number(card.speed || 0);
 }
 
 module.exports = {
   name: "mci",
-  aliases: ["mycardinfo"],
+  aliases: ["mycardinfo", "myci"],
   async execute(message, args) {
-    const player = getPlayer(message.author.id, message.author.username);
-    const cards = player.cards || [];
-
-    if (cards.length === 0) {
-      return message.reply("You do not own any cards yet.");
-    }
-
     if (!args.length) {
-      return message.reply({ embeds: [buildUsageEmbed(player.username)] });
+      return message.reply("Usage: `op mci <card name>`");
     }
 
+    const player = getPlayer(message.author.id, message.author.username);
+    const ownedCards = Array.isArray(player.cards) ? player.cards : [];
     const query = args.join(" ");
-    const card = findOwnedCardByName(cards, query);
 
-    if (!card) {
-      return message.reply(`You do not own a card matching \`${query}\`.`);
+    const matches = findOwnedCards(ownedCards, query);
+
+    if (!matches.length) {
+      return message.reply(`You do not own any card matching \`${query}\`.`);
     }
 
-    return message.reply({
-      embeds: [buildOwnedCardEmbed(player.username, card)]
-    });
+    const card = matches[0];
+    const isBoost = card.cardRole === "boost";
+    const valueSuffix = ["atk", "hp", "spd", "exp", "dmg"].includes(card.boostType) ? "%" : "";
+
+    const embed = new EmbedBuilder()
+      .setColor(isBoost ? 0xf39c12 : 0x8e44ad)
+      .setTitle(`🃏 ${card.displayName || card.name}`)
+      .setDescription(
+        [
+          `**Rarity:** \`${card.rarity || "C"}\``,
+          card.title ? `**Title:** \`${card.title}\`` : null,
+          card.arc ? `**Arc:** \`${card.arc}\`` : null,
+          card.faction ? `**Faction:** \`${card.faction}\`` : null,
+          card.variant ? `**Variant:** \`${card.variant}\`` : null,
+          `**Role:** \`${isBoost ? "Boost Card" : "Battle Card"}\``,
+          "",
+          !isBoost ? `**ATK:** \`${card.atk || 0}\`` : null,
+          !isBoost ? `**HP:** \`${card.hp || 0}\`` : null,
+          !isBoost ? `**SPD:** \`${card.speed || 0}\`` : null,
+          !isBoost ? `**Power:** \`${getPower(card)}\`` : null,
+          !isBoost ? `**Kills:** \`${Number(card.kills || 0)}\`` : null,
+          "",
+          isBoost ? `**Boost Type:** \`${card.boostType || "None"}\`` : null,
+          isBoost ? `**Boost Value:** \`${card.boostValue || 0}${valueSuffix}\`` : null,
+          isBoost ? `**Boost Target:** \`${card.boostTarget || "account"}\`` : null,
+          isBoost && card.boostDescription ? `**Description:** ${card.boostDescription}` : null,
+          "",
+          `**Weapon:** \`${card.equippedWeapon || card.weapon || "None"}\``,
+          `**Devil Fruit:** \`${card.equippedDevilFruit || card.devilFruit || "None"}\``,
+          `**Equip Type:** \`${card.equipType || "None"}\``
+        ].filter(Boolean).join("\n")
+      )
+      .setThumbnail(getRarityBadgeUrl(card.rarity))
+      .setFooter({ text: "One Piece Bot • My Card Info" });
+
+    if (card.image) {
+      embed.setImage(card.image);
+    }
+
+    return message.reply({ embeds: [embed] });
   }
 };
