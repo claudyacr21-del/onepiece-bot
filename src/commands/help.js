@@ -56,13 +56,20 @@ module.exports = {
           ].join("\n")
         },
         {
-          name: "📈 Progress & Status",
+          name: "🗺️ Voyage & Progress",
           value: [
+            "`op ship` — View your ship and current route",
+            "`op sail` — Travel to the next island",
+            "`op quest` — View your current quest progress",
             "`op effect` — View your active effects and boosts",
             "`op pullinfo` — View how to increase your pull slots",
-            "`op cd` — Check important cooldowns and timers",
+            "`op cd` — Check important cooldowns and timers"
+          ].join("\n")
+        },
+        {
+          name: "🎁 Rewards & Premium",
+          value: [
             "`op daily` — Claim your daily reward",
-            "`op quest` — View your current quest progress",
             "`op vote` — View vote information",
             "`op treasure` — Claim Mother Flame treasure reward"
           ].join("\n")
