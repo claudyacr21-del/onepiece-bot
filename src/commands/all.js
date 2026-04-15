@@ -26,6 +26,11 @@ function getRarityBadgeUrl(rarity) {
   return badges[rarity] || badges.C;
 }
 
+function getPlaceholderImage(name = "Card") {
+  const text = encodeURIComponent(name);
+  return `https://dummyimage.com/512x768/1e1e1e/ffffff.png&text=${text}`;
+}
+
 function getPower(card) {
   return Number(card.atk || 0) + Number(card.hp || 0) + Number(card.speed || 0);
 }
@@ -45,7 +50,7 @@ function sortCards(list) {
 function buildBattleEmbed(card, index, total) {
   const embed = new EmbedBuilder()
     .setColor(0x8e44ad)
-    .setTitle(`🃏 All Battle Cards`)
+    .setTitle("🃏 All Battle Cards")
     .setDescription(
       [
         `**Name:** ${card.displayName || card.name}`,
@@ -67,11 +72,8 @@ function buildBattleEmbed(card, index, total) {
       ].filter(Boolean).join("\n")
     )
     .setThumbnail(getRarityBadgeUrl(card.rarity))
+    .setImage(card.image || getPlaceholderImage(card.displayName || card.name || "Battle Card"))
     .setFooter({ text: `Battle Card ${index + 1}/${total}` });
-
-  if (card.image) {
-    embed.setImage(card.image);
-  }
 
   return embed;
 }
@@ -81,7 +83,7 @@ function buildBoostEmbed(card, index, total) {
 
   const embed = new EmbedBuilder()
     .setColor(0xf39c12)
-    .setTitle(`✨ All Boost Cards`)
+    .setTitle("✨ All Boost Cards")
     .setDescription(
       [
         `**Name:** ${card.displayName || card.name}`,
@@ -101,11 +103,8 @@ function buildBoostEmbed(card, index, total) {
       ].filter(Boolean).join("\n")
     )
     .setThumbnail(getRarityBadgeUrl(card.rarity))
+    .setImage(card.image || getPlaceholderImage(card.displayName || card.name || "Boost Card"))
     .setFooter({ text: `Boost Card ${index + 1}/${total}` });
-
-  if (card.image) {
-    embed.setImage(card.image);
-  }
 
   return embed;
 }
@@ -187,7 +186,7 @@ module.exports = {
           components: []
         });
       } catch (error) {
-        // ignore edit errors after message is gone
+        // ignore
       }
     });
   }

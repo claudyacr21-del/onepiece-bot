@@ -513,5 +513,15 @@ module.exports = [
     boostBonus: { fragmentStorage: 40 },
     image: "",
     description: "Improves passive fragment storage support."
+  },
+  {
+    name: "Akuma no Mi",
+    code: "akuma_no_mi",
+    rarity: "UR",
+    type: "Mythical Zoan Fruit",
+    statBonus: { atk: 15, hp: 8, speed: 2 },
+    owners: ["imu"],
+    image: "",
+    description: "A mysterious and unknown Devil Fruit power associated with the sovereign of the world."
   }
 ];

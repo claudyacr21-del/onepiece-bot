@@ -1669,7 +1669,7 @@ module.exports = [
     hp: 1750,
     speed: 108,
     weapon: "Unknown",
-    devilFruit: "Unknown",
+    devilFruit: "Akuma no Mi",
     equipType: "None",
     image: ""
   }),
