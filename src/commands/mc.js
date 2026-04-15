@@ -1,26 +1,18 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require("discord.js");
 const { getPlayer } = require("../playerStore");
-const { getBoostCards } = require("../utils/passiveBoosts");
 
-function formatNumber(value) {
-  return Number(value || 0).toLocaleString("en-US");
-}
-
-function getCardPower(card) {
-  if (card.cardRole === "boost") return 0;
-
-  const atk = Number(card.atk || 0);
-  const hp = Number(card.hp || 0);
-  const speed = Number(card.speed || 0);
-  const level = Number(card.level || 1);
-
-  return Math.floor((atk * 1.4) + (hp * 0.22) + (speed * 9) + (level * 12));
-}
-
-function getRarityOrder(rarity) {
-  const map = { UR: 5, S: 4, A: 3, B: 2, C: 1, EV: 6, M: 5, SS: 4 };
-  return map[String(rarity || "").toUpperCase()] || 0;
-}
+const RARITY_ORDER = {
+  UR: 5,
+  S: 4,
+  A: 3,
+  B: 2,
+  C: 1
+};
 
 function getRarityBadgeUrl(rarity) {
   const badges = {
@@ -39,224 +31,178 @@ function getPlaceholderImage(name = "Card") {
   return `https://dummyimage.com/512x768/1e1e1e/ffffff.png&text=${text}`;
 }
 
-function sortAllCards(cards) {
-  return [...cards].sort((a, b) => {
-    const powerDiff = getCardPower(b) - getCardPower(a);
-    if (powerDiff !== 0) return powerDiff;
+function getPower(card) {
+  return Number(card.atk || 0) + Number(card.hp || 0) + Number(card.speed || 0);
+}
 
-    const rarityDiff = getRarityOrder(b.rarity) - getRarityOrder(a.rarity);
+function sortCards(list) {
+  return [...list].sort((a, b) => {
+    const rarityDiff = (RARITY_ORDER[b.rarity] || 0) - (RARITY_ORDER[a.rarity] || 0);
     if (rarityDiff !== 0) return rarityDiff;
+
+    const powerDiff = getPower(b) - getPower(a);
+    if (powerDiff !== 0) return powerDiff;
 
     return String(a.displayName || a.name || "").localeCompare(String(b.displayName || b.name || ""));
   });
 }
 
-function buildOwnedCardEmbed(ownerName, card, index, total) {
-  const displayName = card.displayName || card.name || "Unknown Card";
-
-  return new EmbedBuilder()
+function buildBattleEmbed(card, ownerName, index, total) {
+  const embed = new EmbedBuilder()
     .setColor(0x8e44ad)
-    .setTitle(`${ownerName}'s Card`)
+    .setTitle(`🃏 ${ownerName}'s Battle Cards`)
     .setDescription(
       [
-        `## ${displayName}`,
-        `${card.title || card.variant || "No Title"}`,
+        `**Name:** ${card.displayName || card.name}`,
+        `**Rarity:** \`${card.rarity || "C"}\``,
+        card.title ? `**Title:** \`${card.title}\`` : null,
+        card.arc ? `**Arc:** \`${card.arc}\`` : null,
+        card.faction ? `**Faction:** \`${card.faction}\`` : null,
+        card.variant ? `**Variant:** \`${card.variant}\`` : null,
+        card.type ? `**Type:** \`${card.type}\`` : null,
         "",
-        `**Power:** \`${formatNumber(getCardPower(card))}\``,
-        `**Health:** \`${formatNumber(card.hp || 0)}\``,
-        `**Speed:** \`${formatNumber(card.speed || 0)}\``,
-        `**Attack:** \`${formatNumber(card.atk || 0)}\``,
-        `**Type:** \`${card.type || "Combat"}\``,
-        `**Source:** \`${card.source || card.arc || "Unknown"}\``,
-        `**Level:** \`${card.level || 1}\``,
-        `**Kills:** \`${formatNumber(card.kills || 0)}\``
-      ].join("\n")
+        `**ATK:** \`${card.atk || 0}\``,
+        `**HP:** \`${card.hp || 0}\``,
+        `**SPD:** \`${card.speed || 0}\``,
+        `**Power:** \`${getPower(card)}\``,
+        `**Level:** \`${Number(card.level || 1)}\``,
+        `**Kills:** \`${Number(card.kills || 0)}\``,
+        "",
+        `**Weapon:** \`${card.equippedWeapon || card.weapon || "None"}\``,
+        `**Devil Fruit:** \`${card.equippedDevilFruit || card.devilFruit || "None"}\``,
+        `**Equip Type:** \`${card.equipType || "None"}\``
+      ].filter(Boolean).join("\n")
     )
-    .setThumbnail(getRarityBadgeUrl(card.rarity || "C"))
-    .setImage(card.image || getPlaceholderImage(displayName))
-    .setFooter({ text: `Owned by ${ownerName} • Card ${index + 1} of ${total}` });
+    .setThumbnail(getRarityBadgeUrl(card.rarity))
+    .setImage(card.image || getPlaceholderImage(card.displayName || card.name || "Battle Card"))
+    .setFooter({ text: `Battle Card ${index + 1}/${total}` });
+
+  return embed;
 }
 
-function buildBoostCardEmbed(ownerName, card, index, total) {
-  const displayName = card.displayName || card.name || "Unknown Boost Card";
+function buildBoostEmbed(card, ownerName, index, total) {
+  const valueSuffix = ["atk", "hp", "spd", "exp", "dmg"].includes(card.boostType) ? "%" : "";
 
-  return new EmbedBuilder()
-    .setColor(0x9b59b6)
-    .setTitle(`${ownerName}'s Boost Card`)
+  const embed = new EmbedBuilder()
+    .setColor(0xf39c12)
+    .setTitle(`✨ ${ownerName}'s Boost Cards`)
     .setDescription(
       [
-        `## ${displayName}`,
-        `${card.title || card.variant || "Passive Card"}`,
+        `**Name:** ${card.displayName || card.name}`,
+        `**Rarity:** \`${card.rarity || "C"}\``,
+        card.title ? `**Title:** \`${card.title}\`` : null,
+        card.arc ? `**Arc:** \`${card.arc}\`` : null,
+        card.faction ? `**Faction:** \`${card.faction}\`` : null,
+        card.variant ? `**Variant:** \`${card.variant}\`` : null,
         "",
-        `**Role:** \`Passive Boost\``,
-        `**Boost Type:** \`${card.boostType || "Unknown"}\``,
-        `**Boost Value:** \`${formatNumber(card.boostValue || 0)}\`${["atk","hp","spd","exp","dmg"].includes(card.boostType) ? "%" : ""}`,
-        `**Target:** \`${card.boostTarget || "account"}\``,
-        `**Description:** ${card.boostDescription || "No description"}`
-      ].join("\n")
+        `**Boost Type:** \`${card.boostType || "None"}\``,
+        `**Boost Value:** \`${card.boostValue || 0}${valueSuffix}\``,
+        `**Boost Target:** \`${card.boostTarget || "account"}\``,
+        card.boostDescription ? `**Description:** ${card.boostDescription}` : null,
+        `**Level:** \`${Number(card.level || 1)}\``,
+        "",
+        `**Devil Fruit:** \`${card.equippedDevilFruit || card.devilFruit || "None"}\``,
+        `**Equip Type:** \`${card.equipType || "Passive"}\``
+      ].filter(Boolean).join("\n")
     )
-    .setThumbnail(getRarityBadgeUrl(card.rarity || "C"))
-    .setImage(card.image || getPlaceholderImage(displayName))
-    .setFooter({ text: `Owned by ${ownerName} • Boost Card ${index + 1} of ${total}` });
+    .setThumbnail(getRarityBadgeUrl(card.rarity))
+    .setImage(card.image || getPlaceholderImage(card.displayName || card.name || "Boost Card"))
+    .setFooter({ text: `Boost Card ${index + 1}/${total}` });
+
+  return embed;
 }
 
-function buildTextModeEmbed(ownerName, cards, page) {
-  const PAGE_SIZE = 6;
-  const totalPages = Math.max(1, Math.ceil(cards.length / PAGE_SIZE));
-  const safePage = Math.max(0, Math.min(page, totalPages - 1));
-  const start = safePage * PAGE_SIZE;
-  const pageCards = cards.slice(start, start + PAGE_SIZE);
-
-  const lines = pageCards.map((card) => {
-    const rarity = card.rarity || "C";
-    const name = card.displayName || card.name || "Unknown";
-    const level = Number(card.level || 1);
-    const power = getCardPower(card);
-
-    if (card.cardRole === "boost") {
-      const suffix = ["atk","hp","spd","exp","dmg"].includes(card.boostType)
-        ? `%`
-        : "";
-      return [
-        `**${rarity} ${name}** | Passive | ${card.boostType}:${card.boostValue || 0}${suffix}`,
-        `↪ ${card.boostDescription || "No description"}`
-      ].join("\n");
-    }
-
-    return [
-      `**${rarity} ${name}** | Pow ${power} | HP ${card.hp || 0} | SPD ${card.speed || 0}`,
-      `↪ ATK ${card.atk || 0} | Lv ${level} | Kills ${card.kills || 0}`
-    ].join("\n");
-  });
-
-  return new EmbedBuilder()
-    .setColor(0x7f8c8d)
-    .setTitle(`${ownerName}'s Card Collection`)
-    .setDescription(
-      [
-        "You are viewing your collection in text mode!",
-        "",
-        lines.join("\n\n")
-      ].join("\n")
-    )
-    .setFooter({ text: `This card collection belongs to ${ownerName} • Page ${safePage + 1}/${totalPages}` });
-}
-
-function buildButtons(index, total, mode) {
+function buildButtons(page, total, isBoostMode) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`mc_prev_${mode}`)
+      .setCustomId(`mc_prev_${isBoostMode ? "boost" : "battle"}`)
       .setLabel("Previous")
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(index === 0),
+      .setDisabled(page <= 0),
     new ButtonBuilder()
-      .setCustomId(`mc_next_${mode}`)
+      .setCustomId(`mc_next_${isBoostMode ? "boost" : "battle"}`)
       .setLabel("Next")
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(index === total - 1)
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page >= total - 1)
   );
 }
 
 module.exports = {
   name: "mc",
-  aliases: ["mycards", "mycollection"],
+  aliases: ["mycards"],
   async execute(message, args) {
+    const isBoostMode = String(args[0] || "").toLowerCase() === "boost";
     const player = getPlayer(message.author.id, message.author.username);
-    const sub = args[0]?.toLowerCase() || "";
+    const ownerName = player.username || message.author.username;
 
-    if (sub === "text") {
-      const cards = sortAllCards(player.cards || []);
+    const ownedCards = Array.isArray(player.cards) ? player.cards : [];
+    const filteredCards = sortCards(
+      ownedCards.filter((card) =>
+        isBoostMode ? card.cardRole === "boost" : card.cardRole !== "boost"
+      )
+    );
 
-      if (!cards.length) {
-        return message.reply("You do not own any cards yet.");
-      }
-
-      let currentPage = 0;
-      const PAGE_SIZE = 6;
-      const totalPages = Math.max(1, Math.ceil(cards.length / PAGE_SIZE));
-
-      const sentMessage = await message.reply({
-        embeds: [buildTextModeEmbed(player.username, cards, currentPage)],
-        components: [buildButtons(currentPage, totalPages, "text")]
-      });
-
-      const collector = sentMessage.createMessageComponentCollector({ time: 120000 });
-
-      collector.on("collect", async (interaction) => {
-        if (interaction.user.id !== message.author.id) {
-          return interaction.reply({
-            content: "This card menu belongs to someone else.",
-            ephemeral: true
-          });
-        }
-
-        if (interaction.customId === "mc_prev_text") {
-          currentPage = Math.max(0, currentPage - 1);
-        }
-
-        if (interaction.customId === "mc_next_text") {
-          currentPage = Math.min(totalPages - 1, currentPage + 1);
-        }
-
-        await interaction.update({
-          embeds: [buildTextModeEmbed(player.username, cards, currentPage)],
-          components: [buildButtons(currentPage, totalPages, "text")]
-        });
-      });
-
-      return;
+    if (!filteredCards.length) {
+      return message.reply(
+        isBoostMode
+          ? "You do not own any boost cards yet."
+          : "You do not own any battle cards yet."
+      );
     }
 
-    const mode = sub === "boost" ? "boost" : "battle";
+    let page = 0;
 
-    const list = mode === "boost"
-      ? getBoostCards(player)
-      : (player.cards || []).filter((card) => card.cardRole !== "boost");
+    const buildEmbed = () => {
+      const card = filteredCards[page];
+      return isBoostMode
+        ? buildBoostEmbed(card, ownerName, page, filteredCards.length)
+        : buildBattleEmbed(card, ownerName, page, filteredCards.length);
+    };
 
-    if (list.length === 0) {
-      return message.reply(mode === "boost"
-        ? "You do not own any boost cards yet."
-        : "You do not own any battle cards yet. Use `op pull` first.");
-    }
-
-    const sortedCards = sortAllCards(list);
-    let currentIndex = 0;
-
-    const sentMessage = await message.reply({
-      embeds: [
-        mode === "boost"
-          ? buildBoostCardEmbed(player.username, sortedCards[currentIndex], currentIndex, sortedCards.length)
-          : buildOwnedCardEmbed(player.username, sortedCards[currentIndex], currentIndex, sortedCards.length)
-      ],
-      components: [buildButtons(currentIndex, sortedCards.length, mode)]
+    const reply = await message.reply({
+      embeds: [buildEmbed()],
+      components: [buildButtons(page, filteredCards.length, isBoostMode)]
     });
 
-    const collector = sentMessage.createMessageComponentCollector({ time: 120000 });
+    const collector = reply.createMessageComponentCollector({
+      time: 10 * 60 * 1000
+    });
 
     collector.on("collect", async (interaction) => {
       if (interaction.user.id !== message.author.id) {
         return interaction.reply({
-          content: "This card menu belongs to someone else.",
+          content: "Only the command user can use these buttons.",
           ephemeral: true
         });
       }
 
-      if (interaction.customId === `mc_prev_${mode}`) {
-        currentIndex = Math.max(0, currentIndex - 1);
+      if (
+        interaction.customId !== `mc_prev_${isBoostMode ? "boost" : "battle"}` &&
+        interaction.customId !== `mc_next_${isBoostMode ? "boost" : "battle"}`
+      ) {
+        return;
       }
 
-      if (interaction.customId === `mc_next_${mode}`) {
-        currentIndex = Math.min(sortedCards.length - 1, currentIndex + 1);
+      if (interaction.customId.startsWith("mc_prev_")) {
+        page = Math.max(0, page - 1);
+      }
+
+      if (interaction.customId.startsWith("mc_next_")) {
+        page = Math.min(filteredCards.length - 1, page + 1);
       }
 
       await interaction.update({
-        embeds: [
-          mode === "boost"
-            ? buildBoostCardEmbed(player.username, sortedCards[currentIndex], currentIndex, sortedCards.length)
-            : buildOwnedCardEmbed(player.username, sortedCards[currentIndex], currentIndex, sortedCards.length)
-        ],
-        components: [buildButtons(currentIndex, sortedCards.length, mode)]
+        embeds: [buildEmbed()],
+        components: [buildButtons(page, filteredCards.length, isBoostMode)]
       });
+    });
+
+    collector.on("end", async () => {
+      try {
+        await reply.edit({ components: [] });
+      } catch (error) {
+        // ignore
+      }
     });
   }
 };
