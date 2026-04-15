@@ -70,7 +70,7 @@ module.exports = {
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setLabel("Support Server")
+        .setLabel("Support Sedrver")
         .setStyle(ButtonStyle.Link)
         .setURL("https://discord.gg/KcaRbeBqGf"),
       new ButtonBuilder()

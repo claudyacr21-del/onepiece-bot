@@ -4,12 +4,10 @@ function getTodayDateKey() {
 
 const QUEST_POOL = [
   { id: "claim_daily", title: "Claim Daily Reward", type: "counter", key: "dailyClaims", target: 1 },
-  { id: "use_pulls_5", title: "Use 5 Pulls", type: "counter", key: "pullsUsed", target: 5 },
   { id: "use_pulls_10", title: "Use 10 Pulls", type: "counter", key: "pullsUsed", target: 10 },
-  { id: "open_boxes_1", title: "Open 1 Box", type: "counter", key: "boxesOpened", target: 1 },
-  { id: "open_boxes_3", title: "Open 3 Boxes", type: "counter", key: "boxesOpened", target: 3 },
   { id: "open_boxes_5", title: "Open 5 Boxes", type: "counter", key: "boxesOpened", target: 5 },
-  { id: "use_reset_ticket_1", title: "Use 1 Pull Reset Ticket", type: "counter", key: "resetTicketsUsed", target: 1 }
+  { id: "fight_5_times", title: "Fight 5 Times", type: "counter", key: "fightsPlayed", target: 5 },
+  { id: "win_3_fights", title: "Win 3 Fights", type: "counter", key: "fightsWon", target: 3 }
 ];
 
 function shuffle(array) {
@@ -38,7 +36,12 @@ function createDailyQuestState() {
       dailyClaims: 0,
       pullsUsed: 0,
       boxesOpened: 0,
-      resetTicketsUsed: 0
+      resetTicketsUsed: 0,
+      fightsPlayed: 0,
+      fightsWon: 0,
+      bossFights: 0,
+      bossesDefeated: 0,
+      craftsDone: 0
     }
   };
 }
@@ -59,16 +62,25 @@ function ensureDailyQuestState(player) {
       dailyClaims: Number(existing?.counters?.dailyClaims || 0),
       pullsUsed: Number(existing?.counters?.pullsUsed || 0),
       boxesOpened: Number(existing?.counters?.boxesOpened || 0),
-      resetTicketsUsed: Number(existing?.counters?.resetTicketsUsed || 0)
+      resetTicketsUsed: Number(existing?.counters?.resetTicketsUsed || 0),
+      fightsPlayed: Number(existing?.counters?.fightsPlayed || 0),
+      fightsWon: Number(existing?.counters?.fightsWon || 0),
+      bossFights: Number(existing?.counters?.bossFights || 0),
+      bossesDefeated: Number(existing?.counters?.bossesDefeated || 0),
+      craftsDone: Number(existing?.counters?.craftsDone || 0)
     }
   };
 }
 
 function incrementQuestCounter(player, key, amount = 1) {
   const dailyState = ensureDailyQuestState(player);
-
   dailyState.counters[key] = Number(dailyState.counters[key] || 0) + Number(amount || 0);
+  return dailyState;
+}
 
+function setQuestCounter(player, key, value) {
+  const dailyState = ensureDailyQuestState(player);
+  dailyState.counters[key] = Number(value || 0);
   return dailyState;
 }
 
@@ -99,6 +111,7 @@ module.exports = {
   createDailyQuestState,
   ensureDailyQuestState,
   incrementQuestCounter,
+  setQuestCounter,
   getQuestProgress,
   isQuestDone,
   getQuestCompletionSummary

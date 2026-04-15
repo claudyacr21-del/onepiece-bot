@@ -5,6 +5,7 @@ const {
   ButtonStyle
 } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
+const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
 
 function addOrIncrease(list, item) {
@@ -27,10 +28,6 @@ function addOrIncrease(list, item) {
   return arr;
 }
 
-function getPower(card) {
-  return Number(card.atk || 0) + Number(card.hp || 0) + Number(card.speed || 0);
-}
-
 function toBattleUnit(card, slotIndex) {
   return {
     slot: slotIndex + 1,
@@ -43,8 +40,7 @@ function toBattleUnit(card, slotIndex) {
     speed: Number(card.speed || 0),
     level: Number(card.level || 1),
     kills: Number(card.kills || 0),
-    image: card.image || "",
-    sourceCard: card
+    image: card.image || ""
   };
 }
 
@@ -95,7 +91,6 @@ function clampHp(value) {
 function performAttack(attacker, defender) {
   const rawDamage = Math.max(1, Number(attacker.atk || 0) - Math.floor(Number(defender.speed || 0) * 0.15));
   defender.hp = clampHp(Number(defender.hp || 0) - rawDamage);
-
   return rawDamage;
 }
 
@@ -136,8 +131,6 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak) {
 }
 
 function buildActionRows(playerTeam, battleEnded) {
-  const alivePlayers = getAliveUnits(playerTeam);
-
   const attackButtons = new ActionRowBuilder();
 
   for (let i = 0; i < 3; i++) {
@@ -148,11 +141,7 @@ function buildActionRows(playerTeam, battleEnded) {
         .setCustomId(`fight_attack_${i}`)
         .setLabel(unit ? unit.name.slice(0, 20) : `Slot ${i + 1}`)
         .setStyle(ButtonStyle.Primary)
-        .setDisabled(
-          battleEnded ||
-          !unit ||
-          unit.hp <= 0
-        )
+        .setDisabled(battleEnded || !unit || unit.hp <= 0)
     );
   }
 
@@ -246,6 +235,8 @@ module.exports = {
       if (interaction.customId === "fight_run") {
         battleEnded = true;
 
+        const playedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
+
         const updatedStats = {
           ...(player.stats || {}),
           wins: Number(player?.stats?.wins || 0),
@@ -255,7 +246,11 @@ module.exports = {
         };
 
         updatePlayer(message.author.id, {
-          stats: updatedStats
+          stats: updatedStats,
+          quests: {
+            ...(player.quests || {}),
+            dailyState: playedDailyState
+          }
         });
 
         logs.push("🏃 You ran away from the fight.");
@@ -324,6 +319,13 @@ module.exports = {
           };
         });
 
+        let updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
+        updatedDailyState = incrementQuestCounter(
+          { ...player, quests: { ...(player.quests || {}), dailyState: updatedDailyState } },
+          "fightsWon",
+          1
+        );
+
         const updatedStats = {
           ...(player.stats || {}),
           wins: Number(player?.stats?.wins || 0) + 1,
@@ -337,10 +339,14 @@ module.exports = {
           boxes: updatedBoxes,
           berries: Number(player.berries || 0) + reward.berries,
           gems: Number(player.gems || 0) + reward.gems,
-          stats: updatedStats
+          stats: updatedStats,
+          quests: {
+            ...(player.quests || {}),
+            dailyState: updatedDailyState
+          }
         });
 
-        logs.push(`🏆 You won the fight!`);
+        logs.push("🏆 You won the fight!");
         logs.push(`🍇 +${reward.berries.toLocaleString("en-US")} berries`);
         logs.push(`💎 +${reward.gems} gems`);
 
@@ -384,6 +390,8 @@ module.exports = {
           };
         });
 
+        const updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
+
         const updatedStats = {
           ...(player.stats || {}),
           wins: Number(player?.stats?.wins || 0),
@@ -394,7 +402,11 @@ module.exports = {
 
         updatePlayer(message.author.id, {
           cards: updatedCards,
-          stats: updatedStats
+          stats: updatedStats,
+          quests: {
+            ...(player.quests || {}),
+            dailyState: updatedDailyState
+          }
         });
 
         logs.push("💀 You lost the fight.");

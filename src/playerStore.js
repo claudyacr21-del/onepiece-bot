@@ -177,7 +177,12 @@ function normalizeQuests(quests) {
         dailyClaims: Number(quests?.dailyState?.counters?.dailyClaims || 0),
         pullsUsed: Number(quests?.dailyState?.counters?.pullsUsed || 0),
         boxesOpened: Number(quests?.dailyState?.counters?.boxesOpened || 0),
-        resetTicketsUsed: Number(quests?.dailyState?.counters?.resetTicketsUsed || 0)
+        resetTicketsUsed: Number(quests?.dailyState?.counters?.resetTicketsUsed || 0),
+        fightsPlayed: Number(quests?.dailyState?.counters?.fightsPlayed || 0),
+        fightsWon: Number(quests?.dailyState?.counters?.fightsWon || 0),
+        bossFights: Number(quests?.dailyState?.counters?.bossFights || 0),
+        bossesDefeated: Number(quests?.dailyState?.counters?.bossesDefeated || 0),
+        craftsDone: Number(quests?.dailyState?.counters?.craftsDone || 0)
       }
     },
     totalClears: Number(quests?.totalClears) >= 0 ? Number(quests.totalClears) : 0
@@ -309,7 +314,12 @@ function getDefaultPlayer(username) {
           dailyClaims: 0,
           pullsUsed: 0,
           boxesOpened: 0,
-          resetTicketsUsed: 0
+          resetTicketsUsed: 0,
+          fightsPlayed: 0,
+          fightsWon: 0,
+          bossFights: 0,
+          bossesDefeated: 0,
+          craftsDone: 0
         }
       },
       totalClears: 0
