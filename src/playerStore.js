@@ -166,6 +166,27 @@ function normalizeVote(vote) {
   };
 }
 
+function normalizeTeam(team) {
+  const slots = Array.isArray(team?.slots) ? team.slots.slice(0, 3) : [];
+
+  while (slots.length < 3) {
+    slots.push(null);
+  }
+
+  return {
+    slots: slots.map((slot) => (slot ? String(slot) : null))
+  };
+}
+
+function normalizeStats(stats) {
+  return {
+    wins: Number(stats?.wins) >= 0 ? Number(stats.wins) : 0,
+    losses: Number(stats?.losses) >= 0 ? Number(stats.losses) : 0,
+    winStreak: Number(stats?.winStreak) >= 0 ? Number(stats.winStreak) : 0,
+    bestWinStreak: Number(stats?.bestWinStreak) >= 0 ? Number(stats.bestWinStreak) : 0
+  };
+}
+
 function normalizePlayer(player, username = "Unknown") {
   return {
     username: player.username || username,
@@ -190,6 +211,8 @@ function normalizePlayer(player, username = "Unknown") {
     quests: normalizeQuests(player.quests),
     cooldowns: normalizeCooldowns(player.cooldowns),
     vote: normalizeVote(player.vote),
+    team: normalizeTeam(player.team),
+    stats: normalizeStats(player.stats),
     clan: {
       name: player?.clan?.name || null,
       role: player?.clan?.role || "member"
@@ -255,6 +278,15 @@ function getDefaultPlayer(username) {
       streak: 0,
       totalVotes: 0,
       lastVoteAt: null
+    },
+    team: {
+      slots: [null, null, null]
+    },
+    stats: {
+      wins: 0,
+      losses: 0,
+      winStreak: 0,
+      bestWinStreak: 0
     },
     clan: {
       name: null,
