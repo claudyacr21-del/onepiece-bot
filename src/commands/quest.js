@@ -1,62 +1,101 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer } = require("../playerStore");
+const { getPlayer, updatePlayer } = require("../playerStore");
+
+function countTotalAmount(list) {
+  if (!Array.isArray(list)) return 0;
+  return list.reduce((sum, item) => sum + Number(item?.amount || 0), 0);
+}
+
+function hasClaimedDailyToday(player) {
+  const cooldown = Number(player?.cooldowns?.daily || 0);
+  return cooldown > Date.now();
+}
+
+function buildQuestList(player) {
+  const cards = Array.isArray(player.cards) ? player.cards : [];
+  const battleCards = cards.filter((card) => card.cardRole !== "boost");
+  const boostCards = cards.filter((card) => card.cardRole === "boost");
+
+  const totalPullsUsed =
+    Number(player?.pulls?.base?.used || 0) +
+    Number(player?.pulls?.supportMember?.used || 0) +
+    Number(player?.pulls?.booster?.used || 0) +
+    Number(player?.pulls?.owner?.used || 0) +
+    Number(player?.pulls?.patreon?.used || 0) +
+    Number(player?.pulls?.baccaratCard?.used || 0) +
+    Number(player?.pulls?.baccaratFruit?.used || 0);
+
+  const totalFruits = countTotalAmount(player.devilFruits);
+  const totalWeapons = countTotalAmount(player.weapons);
+
+  return [
+    {
+      title: "Claim Daily Reward",
+      done: hasClaimedDailyToday(player),
+      progress: hasClaimedDailyToday(player) ? "1/1" : "0/1"
+    },
+    {
+      title: "Use 3 Pulls",
+      done: totalPullsUsed >= 3,
+      progress: `${Math.min(totalPullsUsed, 3)}/3`
+    },
+    {
+      title: "Own 3 Battle Cards",
+      done: battleCards.length >= 3,
+      progress: `${Math.min(battleCards.length, 3)}/3`
+    },
+    {
+      title: "Own 1 Boost Card",
+      done: boostCards.length >= 1,
+      progress: `${Math.min(boostCards.length, 1)}/1`
+    },
+    {
+      title: "Own 1 Weapon or 1 Devil Fruit",
+      done: totalWeapons >= 1 || totalFruits >= 1,
+      progress: totalWeapons >= 1 || totalFruits >= 1 ? "1/1" : "0/1"
+    }
+  ];
+}
 
 module.exports = {
   name: "quest",
   aliases: ["quests"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
+    const questList = buildQuestList(player);
 
-    const total = Number(player.quests?.daily?.total || 5);
-    const completed = Number(player.quests?.daily?.completed || 0);
+    const completed = questList.filter((quest) => quest.done).length;
+    const total = questList.length;
+    const left = Math.max(0, total - completed);
 
-    const questList = [
-      {
-        name: "Win 3 side fights",
-        progress: Math.min(completed, 3),
-        target: 3,
-        reward: "Berries x2,000"
-      },
-      {
-        name: "Pull 1 time",
-        progress: completed >= 1 ? 1 : 0,
-        target: 1,
-        reward: "Basic Box x1"
-      },
-      {
-        name: "Claim daily reward",
-        progress: completed >= 2 ? 1 : 0,
-        target: 1,
-        reward: "Gems x25"
-      },
-      {
-        name: "Use 1 material",
-        progress: completed >= 3 ? 1 : 0,
-        target: 1,
-        reward: "Enhancement Stone x2"
-      },
-      {
-        name: "Defeat 1 boss or mini boss",
-        progress: completed >= 4 ? 1 : 0,
-        target: 1,
-        reward: "Pull Reset Ticket Fragment x1"
+    updatePlayer(message.author.id, {
+      quests: {
+        ...(player.quests || {}),
+        daily: {
+          total,
+          completed
+        },
+        totalClears: Number(player?.quests?.totalClears || 0)
       }
-    ].slice(0, total);
+    });
 
     const lines = questList.map((quest, index) => {
-      const done = quest.progress >= quest.target ? "✅" : "⬜";
-      return [
-        `${done} **${index + 1}. ${quest.name}**`,
-        `Progress: \`${quest.progress}/${quest.target}\``,
-        `Reward: \`${quest.reward}\``
-      ].join("\n");
+      const status = quest.done ? "✅" : "⬜";
+      return `${status} ${index + 1}. ${quest.title} — \`${quest.progress}\``;
     });
 
     const embed = new EmbedBuilder()
-      .setColor(0x2ecc71)
-      .setTitle("📜 Quest Information")
-      .setDescription(lines.join("\n\n"))
-      .setFooter({ text: "One Piece Bot • Quest List" });
+      .setColor(0x9b59b6)
+      .setTitle("📜 Daily Quest List")
+      .setDescription(
+        [
+          `**Completed:** \`${completed}/${total}\``,
+          `**Quest Left:** \`${left}/${total}\``,
+          "",
+          ...lines
+        ].join("\n")
+      )
+      .setFooter({ text: "One Piece Bot • Quests" });
 
     return message.reply({ embeds: [embed] });
   }
