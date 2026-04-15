@@ -11,7 +11,7 @@ const ISLANDS = [
     boss: null,
     bossCode: null,
     image: "https://your-image-url.com/foosha_village.png",
-    description: "Starter island and first harbor before real story progression begins."
+    description: "Starter island and first harbor before real story progression begins.",
   },
   {
     id: 1,
@@ -25,7 +25,7 @@ const ISLANDS = [
     boss: "Morgan",
     bossCode: "morgan_axe_hand",
     image: "https://your-image-url.com/shells_town.png",
-    description: "First real story island. Defeat Morgan to begin your true journey."
+    description: "First real story island. Defeat Morgan to begin your true journey.",
   },
   {
     id: 2,
@@ -39,7 +39,7 @@ const ISLANDS = [
     boss: "Buggy",
     bossCode: "buggy_clown",
     image: "https://your-image-url.com/orange_town.png",
-    description: "A town once terrorized by Buggy the Clown."
+    description: "A town once terrorized by Buggy the Clown.",
   },
   {
     id: 3,
@@ -53,7 +53,7 @@ const ISLANDS = [
     boss: "Kuro",
     bossCode: "kuro_hundred_plans",
     image: "https://your-image-url.com/syrup_village.png",
-    description: "Usopp's home village and the stage of Captain Kuro's betrayal."
+    description: "Usopp's home village and the stage of Captain Kuro's betrayal.",
   },
   {
     id: 4,
@@ -67,7 +67,7 @@ const ISLANDS = [
     boss: "Don Krieg",
     bossCode: "don_krieg",
     image: "https://your-image-url.com/baratie.png",
-    description: "Floating restaurant where the crew meets Sanji."
+    description: "Floating restaurant where the crew meets Sanji.",
   },
   {
     id: 5,
@@ -81,7 +81,7 @@ const ISLANDS = [
     boss: "Arlong",
     bossCode: "arlong",
     image: "https://your-image-url.com/arlong_park.png",
-    description: "Nami's tragedy and the battle against Arlong."
+    description: "Nami's tragedy and the battle against Arlong.",
   },
   {
     id: 6,
@@ -95,7 +95,7 @@ const ISLANDS = [
     boss: "Smoker",
     bossCode: "smoker_white_hunter",
     image: "https://your-image-url.com/loguetown.png",
-    description: "The town of the beginning and the end."
+    description: "The town of the beginning and the end.",
   },
   {
     id: 7,
@@ -109,7 +109,7 @@ const ISLANDS = [
     boss: "Grand Line Gate",
     bossCode: null,
     image: "https://your-image-url.com/reverse_mountain.png",
-    description: "The dangerous entry point into the Grand Line."
+    description: "The dangerous entry point into the Grand Line.",
   },
   {
     id: 8,
@@ -123,7 +123,7 @@ const ISLANDS = [
     boss: "Baroque Works Agents",
     bossCode: null,
     image: "https://your-image-url.com/whiskey_peak.png",
-    description: "A suspicious welcome town filled with hidden enemies."
+    description: "A suspicious welcome town filled with hidden enemies.",
   },
   {
     id: 9,
@@ -137,7 +137,7 @@ const ISLANDS = [
     boss: "Mr. 3",
     bossCode: null,
     image: "https://your-image-url.com/little_garden.png",
-    description: "Island of giants and prehistoric creatures."
+    description: "Island of giants and prehistoric creatures.",
   },
   {
     id: 10,
@@ -151,7 +151,7 @@ const ISLANDS = [
     boss: "Wapol",
     bossCode: "wapol",
     image: "https://your-image-url.com/drum_island.png",
-    description: "Snowy kingdom and Chopper's homeland."
+    description: "Snowy kingdom and Chopper's homeland.",
   },
   {
     id: 11,
@@ -165,8 +165,260 @@ const ISLANDS = [
     boss: "Crocodile",
     bossCode: "crocodile_desert_king",
     image: "https://your-image-url.com/alabasta.png",
-    description: "Desert kingdom torn by civil war and Crocodile's scheme."
-  }
+    description: "Desert kingdom torn by civil war and Crocodile's scheme.",
+  },
+  {
+    id: 12,
+    code: "jaya",
+    name: "Jaya",
+    sea: "Grand Line",
+    saga: "Skypiea Saga",
+    order: 12,
+    requiredShipTier: 2,
+    nextIslandCode: "skypiea",
+    boss: "Bellamy",
+    bossCode: null,
+    image: "https://your-image-url.com/jaya.png",
+    description: "A rough pirate haven and the prelude to the sky island adventure.",
+  },
+  {
+    id: 13,
+    code: "skypiea",
+    name: "Skypiea",
+    sea: "Sky Sea",
+    saga: "Skypiea Saga",
+    order: 13,
+    requiredShipTier: 2,
+    nextIslandCode: "long_ring_long_land",
+    boss: "Enel",
+    bossCode: "enel",
+    image: "https://your-image-url.com/skypiea.png",
+    description: "Island in the sky ruled by the god Enel.",
+  },
+  {
+    id: 14,
+    code: "long_ring_long_land",
+    name: "Long Ring Long Land",
+    sea: "Grand Line",
+    saga: "Water 7 Saga",
+    order: 14,
+    requiredShipTier: 2,
+    nextIslandCode: "water_7",
+    boss: "Foxy",
+    bossCode: null,
+    image: "https://your-image-url.com/long_ring_long_land.png",
+    description: "A bizarre island where the Davy Back Fight unfolds.",
+  },
+  {
+    id: 15,
+    code: "water_7",
+    name: "Water 7",
+    sea: "Grand Line",
+    saga: "Water 7 Saga",
+    order: 15,
+    requiredShipTier: 3,
+    nextIslandCode: "enies_lobby",
+    boss: "CP9 Lead Fight",
+    bossCode: null,
+    image: "https://your-image-url.com/water_7.png",
+    description: "City of water and shipwrights where the crew faces betrayal and pursuit.",
+  },
+  {
+    id: 16,
+    code: "enies_lobby",
+    name: "Enies Lobby",
+    sea: "Grand Line",
+    saga: "Water 7 Saga",
+    order: 16,
+    requiredShipTier: 3,
+    nextIslandCode: "thriller_bark",
+    boss: "Rob Lucci",
+    bossCode: "rob_lucci",
+    image: "https://your-image-url.com/enies_lobby.png",
+    description: "Government stronghold where the Straw Hats declare war to save Robin.",
+  },
+  {
+    id: 17,
+    code: "thriller_bark",
+    name: "Thriller Bark",
+    sea: "Grand Line",
+    saga: "Thriller Bark Saga",
+    order: 17,
+    requiredShipTier: 3,
+    nextIslandCode: "sabaody",
+    boss: "Gecko Moria",
+    bossCode: "gecko_moria",
+    image: "https://your-image-url.com/thriller_bark.png",
+    description: "Ghost island of shadows and zombies.",
+  },
+  {
+    id: 18,
+    code: "sabaody",
+    name: "Sabaody Archipelago",
+    sea: "Grand Line",
+    saga: "Summit War Saga",
+    order: 18,
+    requiredShipTier: 3,
+    nextIslandCode: "amazon_lily",
+    boss: "Pacifista Survival",
+    bossCode: null,
+    image: "https://your-image-url.com/sabaody.png",
+    description: "Archipelago of bubbles where the crew meets overwhelming power.",
+  },
+  {
+    id: 19,
+    code: "amazon_lily",
+    name: "Amazon Lily",
+    sea: "Calm Belt",
+    saga: "Summit War Saga",
+    order: 19,
+    requiredShipTier: 3,
+    nextIslandCode: "impel_down",
+    boss: "Trial Event",
+    bossCode: null,
+    image: "https://your-image-url.com/amazon_lily.png",
+    description: "Island of women and the homeland of Boa Hancock.",
+  },
+  {
+    id: 20,
+    code: "impel_down",
+    name: "Impel Down",
+    sea: "Grand Line",
+    saga: "Summit War Saga",
+    order: 20,
+    requiredShipTier: 3,
+    nextIslandCode: "marineford",
+    boss: "Magellan",
+    bossCode: "magellan",
+    image: "https://your-image-url.com/impel_down.png",
+    description: "The underwater prison break toward the greatest war.",
+  },
+  {
+    id: 21,
+    code: "marineford",
+    name: "Marineford",
+    sea: "Grand Line",
+    saga: "Summit War Saga",
+    order: 21,
+    requiredShipTier: 3,
+    nextIslandCode: "fishman_island",
+    boss: "War Event Stage",
+    bossCode: null,
+    image: "https://your-image-url.com/marineford.png",
+    description: "The Summit War that changes the era.",
+  },
+  {
+    id: 22,
+    code: "fishman_island",
+    name: "Fish-Man Island",
+    sea: "New World Entrance",
+    saga: "Fish-Man Island Saga",
+    order: 22,
+    requiredShipTier: 4,
+    nextIslandCode: "punk_hazard",
+    boss: "Hody Jones",
+    bossCode: "hody_jones",
+    image: "https://your-image-url.com/fishman_island.png",
+    description: "Undersea kingdom and the crew's return after the timeskip.",
+  },
+  {
+    id: 23,
+    code: "punk_hazard",
+    name: "Punk Hazard",
+    sea: "New World",
+    saga: "Dressrosa Saga",
+    order: 23,
+    requiredShipTier: 4,
+    nextIslandCode: "dressrosa",
+    boss: "Caesar Clown",
+    bossCode: "caesar_clown",
+    image: "https://your-image-url.com/punk_hazard.png",
+    description: "Burning and frozen island of chemical horrors.",
+  },
+  {
+    id: 24,
+    code: "dressrosa",
+    name: "Dressrosa",
+    sea: "New World",
+    saga: "Dressrosa Saga",
+    order: 24,
+    requiredShipTier: 4,
+    nextIslandCode: "zou",
+    boss: "Doflamingo",
+    bossCode: "donquixote_doflamingo",
+    image: "https://your-image-url.com/dressrosa.png",
+    description: "The kingdom ruled from the shadows by Doflamingo.",
+  },
+  {
+    id: 25,
+    code: "zou",
+    name: "Zou",
+    sea: "New World",
+    saga: "Whole Cake Island Saga",
+    order: 25,
+    requiredShipTier: 4,
+    nextIslandCode: "whole_cake_island",
+    boss: "Event Route",
+    bossCode: null,
+    image: "https://your-image-url.com/zou.png",
+    description: "The moving island on the back of Zunesha.",
+  },
+  {
+    id: 26,
+    code: "whole_cake_island",
+    name: "Whole Cake Island",
+    sea: "New World",
+    saga: "Whole Cake Island Saga",
+    order: 26,
+    requiredShipTier: 4,
+    nextIslandCode: "wano",
+    boss: "Katakuri",
+    bossCode: "charlotte_katakuri",
+    image: "https://your-image-url.com/whole_cake_island.png",
+    description: "Big Mom's territory filled with sweets and deadly family politics.",
+  },
+  {
+    id: 27,
+    code: "wano",
+    name: "Wano",
+    sea: "New World",
+    saga: "Wano Country Saga",
+    order: 27,
+    requiredShipTier: 5,
+    nextIslandCode: "egghead",
+    boss: "Kaido",
+    bossCode: "kaido",
+    image: "https://your-image-url.com/wano.png",
+    description: "Closed nation where the raid against Kaido decides a new era.",
+  },
+  {
+    id: 28,
+    code: "egghead",
+    name: "Egghead",
+    sea: "New World",
+    saga: "Final Saga",
+    order: 28,
+    requiredShipTier: 5,
+    nextIslandCode: "elbaf",
+    boss: "Future Event Route",
+    bossCode: null,
+    image: "https://your-image-url.com/egghead.png",
+    description: "Island of the future and a major Final Saga expansion route.",
+  },
+  {
+    id: 29,
+    code: "elbaf",
+    name: "Elbaf",
+    sea: "New World",
+    saga: "Final Saga",
+    order: 29,
+    requiredShipTier: 5,
+    nextIslandCode: null,
+    boss: "Future Event Route",
+    bossCode: null,
+    image: "https://your-image-url.com/elbaf.png",
+    description: "Land of the giants and future endgame story expansion.",
+  },
 ];
 
 function normalize(text) {
@@ -179,6 +431,7 @@ function getIslandByCode(code) {
 
 function getIslandByName(name) {
   const q = normalize(name);
+
   return (
     ISLANDS.find((island) => normalize(island.name) === q) ||
     ISLANDS.find((island) => normalize(island.name).includes(q)) ||
@@ -197,9 +450,10 @@ function getNextIsland(currentIsland) {
 }
 
 function getUnlockedIslandObjects(player) {
-  const codes = Array.isArray(player?.ship?.unlockedIslands) && player.ship.unlockedIslands.length
-    ? player.ship.unlockedIslands
-    : ["foosha_village"];
+  const codes =
+    Array.isArray(player?.ship?.unlockedIslands) && player.ship.unlockedIslands.length
+      ? player.ship.unlockedIslands
+      : ["foosha_village"];
 
   return codes
     .map((code) => getIslandByCode(code))
@@ -213,5 +467,5 @@ module.exports = {
   getIslandByName,
   getCurrentIsland,
   getNextIsland,
-  getUnlockedIslandObjects
+  getUnlockedIslandObjects,
 };

@@ -19,7 +19,6 @@ const filePath = resolveFilePath();
 
 function ensureFile() {
   const dir = path.dirname(filePath);
-
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -34,12 +33,10 @@ function readPlayers() {
 
   try {
     const raw = fs.readFileSync(filePath, "utf8").trim();
-
     if (!raw) {
       fs.writeFileSync(filePath, "{}", "utf8");
       return {};
     }
-
     return JSON.parse(raw);
   } catch (error) {
     console.error("players.json is invalid. Creating backup and resetting file...", error);
@@ -84,7 +81,7 @@ function normalizeNamedList(value) {
           statBonus: entry.statBonus || undefined,
           owners: Array.isArray(entry.owners) ? entry.owners : undefined,
           description: entry.description || undefined,
-          boostBonus: entry.boostBonus || undefined
+          boostBonus: entry.boostBonus || undefined,
         };
       }
 
@@ -106,7 +103,7 @@ function normalizeFragmentList(value) {
         rarity: entry.rarity || "C",
         category: entry.category || "battle",
         code: entry.code || undefined,
-        image: entry.image || ""
+        image: entry.image || "",
       };
     })
     .filter(Boolean);
@@ -124,14 +121,14 @@ function normalizeCards(value) {
     fragments: Number(card.fragments) >= 0 ? Number(card.fragments) : 0,
     image: card.image || "",
     equippedWeapon: card.equippedWeapon || null,
-    equippedDevilFruit: card.equippedDevilFruit || null
+    equippedDevilFruit: card.equippedDevilFruit || null,
   }));
 }
 
 function normalizePullSlot(slot, fallbackMax) {
   return {
     used: Number(slot?.used) >= 0 ? Number(slot.used) : 0,
-    max: Number(slot?.max) >= 0 ? Number(slot.max) : fallbackMax
+    max: Number(slot?.max) >= 0 ? Number(slot.max) : fallbackMax,
   };
 }
 
@@ -144,9 +141,7 @@ function normalizePulls(pulls) {
     patreon: normalizePullSlot(pulls?.patreon, 3),
     baccaratCard: normalizePullSlot(pulls?.baccaratCard, 1),
     baccaratFruit: normalizePullSlot(pulls?.baccaratFruit, 1),
-    lastResetBucket: Number.isInteger(pulls?.lastResetBucket)
-      ? pulls.lastResetBucket
-      : null
+    lastResetBucket: Number.isInteger(pulls?.lastResetBucket) ? pulls.lastResetBucket : null,
   };
 }
 
@@ -158,7 +153,8 @@ function normalizeBoosts(boosts) {
     hp: Number(boosts?.hp) || 0,
     spd: Number(boosts?.spd) || 0,
     exp: Number(boosts?.exp) || 0,
-    dmg: Number(boosts?.dmg) || 0
+    dmg: Number(boosts?.dmg) || 0,
+    motherFlameFight: Number(boosts?.motherFlameFight) || 0,
   };
 }
 
@@ -166,7 +162,7 @@ function normalizeQuests(quests) {
   return {
     daily: {
       total: Number(quests?.daily?.total) > 0 ? Number(quests.daily.total) : 5,
-      completed: Number(quests?.daily?.completed) >= 0 ? Number(quests.daily.completed) : 0
+      completed: Number(quests?.daily?.completed) >= 0 ? Number(quests.daily.completed) : 0,
     },
     dailyState: {
       dateKey: quests?.dailyState?.dateKey || null,
@@ -181,22 +177,23 @@ function normalizeQuests(quests) {
         fightsWon: Number(quests?.dailyState?.counters?.fightsWon || 0),
         bossFights: Number(quests?.dailyState?.counters?.bossFights || 0),
         bossesDefeated: Number(quests?.dailyState?.counters?.bossesDefeated || 0),
-        craftsDone: Number(quests?.dailyState?.counters?.craftsDone || 0)
-      }
+        craftsDone: Number(quests?.dailyState?.counters?.craftsDone || 0),
+      },
     },
-    totalClears: Number(quests?.totalClears) >= 0 ? Number(quests.totalClears) : 0
+    totalClears: Number(quests?.totalClears) >= 0 ? Number(quests.totalClears) : 0,
   };
 }
 
 function normalizeCooldowns(cooldowns) {
   return {
-    daily: cooldowns?.daily || null,
-    fight: cooldowns?.fight || null,
-    boss: cooldowns?.boss || null,
-    pullReset: cooldowns?.pullReset || null,
-    ship: cooldowns?.ship || null,
-    vote: cooldowns?.vote || null,
-    treasure: cooldowns?.treasure || null
+    daily: cooldowns?.daily ?? null,
+    fight: cooldowns?.fight ?? null,
+    fightMotherFlame: cooldowns?.fightMotherFlame ?? null,
+    boss: cooldowns?.boss ?? null,
+    pullReset: cooldowns?.pullReset ?? null,
+    ship: cooldowns?.ship ?? null,
+    vote: cooldowns?.vote ?? null,
+    treasure: cooldowns?.treasure ?? null,
   };
 }
 
@@ -204,19 +201,18 @@ function normalizeVote(vote) {
   return {
     streak: Number(vote?.streak) >= 0 ? Number(vote.streak) : 0,
     totalVotes: Number(vote?.totalVotes) >= 0 ? Number(vote.totalVotes) : 0,
-    lastVoteAt: vote?.lastVoteAt || null
+    lastVoteAt: vote?.lastVoteAt || null,
   };
 }
 
 function normalizeTeam(team) {
   const slots = Array.isArray(team?.slots) ? team.slots.slice(0, 3) : [];
-
   while (slots.length < 3) {
     slots.push(null);
   }
 
   return {
-    slots: slots.map((slot) => (slot ? String(slot) : null))
+    slots: slots.map((slot) => (slot ? String(slot) : null)),
   };
 }
 
@@ -225,14 +221,15 @@ function normalizeStats(stats) {
     wins: Number(stats?.wins) >= 0 ? Number(stats.wins) : 0,
     losses: Number(stats?.losses) >= 0 ? Number(stats.losses) : 0,
     winStreak: Number(stats?.winStreak) >= 0 ? Number(stats.winStreak) : 0,
-    bestWinStreak: Number(stats?.bestWinStreak) >= 0 ? Number(stats.bestWinStreak) : 0
+    bestWinStreak: Number(stats?.bestWinStreak) >= 0 ? Number(stats.bestWinStreak) : 0,
   };
 }
 
 function normalizeShip(ship, currentIsland) {
-  const unlocked = Array.isArray(ship?.unlockedIslands) && ship.unlockedIslands.length
-    ? ship.unlockedIslands
-    : ["foosha_village"];
+  const unlocked =
+    Array.isArray(ship?.unlockedIslands) && ship.unlockedIslands.length
+      ? ship.unlockedIslands
+      : ["foosha_village"];
 
   return {
     shipCode: ship?.shipCode || "going_merry",
@@ -240,7 +237,7 @@ function normalizeShip(ship, currentIsland) {
     sea: ship?.sea || "East Blue",
     nextTravelAt: Number(ship?.nextTravelAt || 0),
     unlockedIslands: unlocked,
-    currentPort: ship?.currentPort || currentIsland || "Foosha Village"
+    currentPort: ship?.currentPort || currentIsland || "Foosha Village",
   };
 }
 
@@ -248,7 +245,7 @@ function normalizeStory(story) {
   return {
     clearedIslandBosses: Array.isArray(story?.clearedIslandBosses)
       ? story.clearedIslandBosses
-      : []
+      : [],
   };
 }
 
@@ -271,7 +268,7 @@ function normalizePlayer(player, username = "Unknown") {
     materials: normalizeNamedList(player.materials),
     pity: {
       normalSPity: Number(player?.pity?.normalSPity) >= 0 ? Number(player.pity.normalSPity) : 0,
-      premiumSPity: Number(player?.pity?.premiumSPity) >= 0 ? Number(player.pity.premiumSPity) : 0
+      premiumSPity: Number(player?.pity?.premiumSPity) >= 0 ? Number(player.pity.premiumSPity) : 0,
     },
     pulls: normalizePulls(player.pulls),
     boosts: normalizeBoosts(player.boosts),
@@ -284,8 +281,8 @@ function normalizePlayer(player, username = "Unknown") {
     story: normalizeStory(player.story),
     clan: {
       name: player?.clan?.name || null,
-      role: player?.clan?.role || "member"
-    }
+      role: player?.clan?.role || "member",
+    },
   };
 }
 
@@ -306,7 +303,7 @@ function getDefaultPlayer(username) {
     materials: [],
     pity: {
       normalSPity: 0,
-      premiumSPity: 0
+      premiumSPity: 0,
     },
     pulls: {
       base: { used: 0, max: 6 },
@@ -316,7 +313,7 @@ function getDefaultPlayer(username) {
       patreon: { used: 0, max: 3 },
       baccaratCard: { used: 0, max: 1 },
       baccaratFruit: { used: 0, max: 1 },
-      lastResetBucket: null
+      lastResetBucket: null,
     },
     boosts: {
       pullSlot: 0,
@@ -325,13 +322,11 @@ function getDefaultPlayer(username) {
       hp: 0,
       spd: 0,
       exp: 0,
-      dmg: 0
+      dmg: 0,
+      motherFlameFight: 0,
     },
     quests: {
-      daily: {
-        total: 5,
-        completed: 0
-      },
+      daily: { total: 5, completed: 0 },
       dailyState: {
         dateKey: null,
         rewardClaimed: false,
@@ -345,33 +340,34 @@ function getDefaultPlayer(username) {
           fightsWon: 0,
           bossFights: 0,
           bossesDefeated: 0,
-          craftsDone: 0
-        }
+          craftsDone: 0,
+        },
       },
-      totalClears: 0
+      totalClears: 0,
     },
     cooldowns: {
       daily: null,
       fight: null,
+      fightMotherFlame: null,
       boss: null,
       pullReset: null,
       ship: null,
       vote: null,
-      treasure: null
+      treasure: null,
     },
     vote: {
       streak: 0,
       totalVotes: 0,
-      lastVoteAt: null
+      lastVoteAt: null,
     },
     team: {
-      slots: [null, null, null]
+      slots: [null, null, null],
     },
     stats: {
       wins: 0,
       losses: 0,
       winStreak: 0,
-      bestWinStreak: 0
+      bestWinStreak: 0,
     },
     ship: {
       shipCode: "going_merry",
@@ -379,15 +375,15 @@ function getDefaultPlayer(username) {
       sea: "East Blue",
       nextTravelAt: 0,
       unlockedIslands: ["foosha_village"],
-      currentPort: "Foosha Village"
+      currentPort: "Foosha Village",
     },
     story: {
-      clearedIslandBosses: []
+      clearedIslandBosses: [],
     },
     clan: {
       name: null,
-      role: "member"
-    }
+      role: "member",
+    },
   };
 }
 
@@ -407,13 +403,15 @@ function getPlayer(userId, username) {
 
 function updatePlayer(userId, newData) {
   const players = readPlayers();
-
   const currentPlayer = players[userId]
     ? normalizePlayer(players[userId])
     : getDefaultPlayer("Unknown");
 
   players[userId] = normalizePlayer(
-    { ...currentPlayer, ...newData },
+    {
+      ...currentPlayer,
+      ...newData,
+    },
     currentPlayer.username
   );
 
@@ -424,5 +422,5 @@ module.exports = {
   readPlayers,
   writePlayers,
   getPlayer,
-  updatePlayer
+  updatePlayer,
 };

@@ -1,14 +1,12 @@
-const {
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle
-} = require("discord.js");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { getCurrentIsland } = require("../data/islands");
 const cardsDb = require("../data/cards");
+
+const BOSS_COOLDOWN_MS = 10 * 60 * 1000;
+const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
@@ -17,14 +15,14 @@ function addOrIncrease(list, item) {
   if (index !== -1) {
     arr[index] = {
       ...arr[index],
-      amount: Number(arr[index].amount || 1) + Number(item.amount || 1)
+      amount: Number(arr[index].amount || 1) + Number(item.amount || 1),
     };
     return arr;
   }
 
   arr.push({
     ...item,
-    amount: Number(item.amount || 1)
+    amount: Number(item.amount || 1),
   });
 
   return arr;
@@ -54,7 +52,7 @@ function applyExpToCard(card, gainedExp) {
     ...card,
     level,
     exp,
-    leveledUp
+    leveledUp,
   };
 }
 
@@ -70,7 +68,7 @@ function toBattleUnit(card, slotIndex) {
     speed: Number(card.speed || 0),
     level: Number(card.level || 1),
     exp: Number(card.exp || 0),
-    kills: Number(card.kills || 0)
+    kills: Number(card.kills || 0),
   };
 }
 
@@ -87,7 +85,7 @@ function getBossTemplate(currentIsland) {
       hp: Math.floor(Number(fromDb.hp || 1000) * 1.6),
       maxHp: Math.floor(Number(fromDb.hp || 1000) * 1.6),
       speed: Math.floor(Number(fromDb.speed || 50) * 1.15),
-      image: currentIsland.image || fromDb.image || ""
+      image: currentIsland.image || fromDb.image || "",
     };
   }
 
@@ -98,7 +96,7 @@ function getBossTemplate(currentIsland) {
     hp: 2200,
     maxHp: 2200,
     speed: 80,
-    image: currentIsland?.image || ""
+    image: currentIsland?.image || "",
   };
 }
 
@@ -106,12 +104,20 @@ function getAliveUnits(units) {
   return units.filter((unit) => Number(unit.hp) > 0);
 }
 
+function getFirstAlive(units) {
+  return units.find((unit) => Number(unit.hp) > 0) || null;
+}
+
 function clampHp(value) {
   return Math.max(0, Math.floor(value));
 }
 
 function performAttack(attacker, defender) {
-  const rawDamage = Math.max(1, Number(attacker.atk || 0) - Math.floor(Number(defender.speed || 0) * 0.15));
+  const rawDamage = Math.max(
+    1,
+    Number(attacker.atk || 0) - Math.floor(Number(defender.speed || 0) * 0.15)
+  );
+
   defender.hp = clampHp(Number(defender.hp || 0) - rawDamage);
   return rawDamage;
 }
@@ -121,13 +127,13 @@ function renderHpBar(hp, maxHp, size = 12) {
   const max = Math.max(1, Number(maxHp || 1));
   const filled = Math.round((current / max) * size);
   const safeFilled = Math.max(0, Math.min(size, filled));
+
   return `${"█".repeat(safeFilled)}${"░".repeat(size - safeFilled)} ${current}/${max}`;
 }
 
 function buildBossEmbed(playerName, island, playerTeam, boss, logs, ended) {
   const teamLines = playerTeam.map((unit) => {
-    const status = unit.hp > 0 ? "🟢" : "🔴";
-    return `${status} **${unit.slot}. ${unit.name}** [${unit.rarity}] • LV \`${unit.level}\`\n${renderHpBar(unit.hp, unit.maxHp)}`;
+    return `**${unit.slot}. ${unit.name}** [${unit.rarity}] • LV \`${unit.level}\`\n${renderHpBar(unit.hp, unit.maxHp)}`;
   });
 
   const recentLogs = logs.slice(-6);
@@ -146,7 +152,7 @@ function buildBossEmbed(playerName, island, playerTeam, boss, logs, ended) {
         ...teamLines,
         "",
         "## Battle Log",
-        ...(recentLogs.length ? recentLogs : ["Choose a card to attack the island boss."])
+        ...(recentLogs.length ? recentLogs : ["Choose a card to attack the island boss."]),
       ].join("\n")
     )
     .setImage(boss.image || null)
@@ -178,18 +184,38 @@ function buildButtons(playerTeam, ended) {
   return [row1, row2];
 }
 
+function formatRemaining(ms) {
+  const safeMs = Math.max(0, Number(ms || 0));
+  const totalSeconds = Math.ceil(safeMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes <= 0) return `${seconds}s`;
+  return `${minutes}m ${seconds}s`;
+}
+
 module.exports = {
   name: "boss",
   aliases: ["islandboss"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
+    const bossCooldownUntil = Number(player?.cooldowns?.boss || 0);
+
+    if (bossCooldownUntil > Date.now()) {
+      return message.reply(
+        `You must wait **${formatRemaining(bossCooldownUntil - Date.now())}** before using \`op boss\` again.`
+      );
+    }
+
     const currentIsland = getCurrentIsland(player);
     const clearedBosses = Array.isArray(player?.story?.clearedIslandBosses)
       ? player.story.clearedIslandBosses
       : [];
 
     if (clearedBosses.includes(currentIsland.code)) {
-      return message.reply(`You already cleared the boss of \`${currentIsland.name}\`. Use \`op sail\` to continue.`);
+      return message.reply(
+        `You already cleared the boss of \`${currentIsland.name}\`. Use \`op sail\` to continue.`
+      );
     }
 
     const cards = Array.isArray(player.cards) ? player.cards : [];
@@ -198,7 +224,9 @@ module.exports = {
     const teamCards = teamSlots
       .map((instanceId, index) => {
         if (!instanceId) return null;
-        const found = cards.find((card) => card.instanceId === instanceId && card.cardRole !== "boost");
+        const found = cards.find(
+          (card) => card.instanceId === instanceId && card.cardRole !== "boost"
+        );
         return found ? toBattleUnit(found, index) : null;
       })
       .filter(Boolean);
@@ -207,32 +235,39 @@ module.exports = {
       return message.reply("You need a full battle team of 3 cards to challenge the island boss.");
     }
 
+    updatePlayer(message.author.id, {
+      cooldowns: {
+        ...(player.cooldowns || {}),
+        boss: Date.now() + BOSS_COOLDOWN_MS,
+      },
+    });
+
     const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
     const boss = getBossTemplate(currentIsland);
     const logs = [];
     let ended = false;
 
     const reply = await message.reply({
-      embeds: [buildBossEmbed(player.username, currentIsland, playerTeam, boss, logs, ended)],
-      components: buildButtons(playerTeam, ended)
+      embeds: [buildBossEmbed(player.username || message.author.username, currentIsland, playerTeam, boss, logs, ended)],
+      components: buildButtons(playerTeam, ended),
     });
 
     const collector = reply.createMessageComponentCollector({
-      time: 10 * 60 * 1000
+      time: SESSION_TIMEOUT_MS,
     });
 
     collector.on("collect", async (interaction) => {
       if (interaction.user.id !== message.author.id) {
         return interaction.reply({
           content: "Only the command user can control this boss battle.",
-          ephemeral: true
+          ephemeral: true,
         });
       }
 
       if (ended) {
         return interaction.reply({
           content: "This boss battle has already ended.",
-          ephemeral: true
+          ephemeral: true,
         });
       }
 
@@ -250,14 +285,14 @@ module.exports = {
               ...card,
               kills: Number(unit.kills || 0),
               level: Number(card.level || 1),
-              exp: getCardExp(card)
+              exp: getCardExp(card),
             },
             15
           );
 
           return {
             ...nextCard,
-            kills: Number(unit.kills || 0)
+            kills: Number(unit.kills || 0),
           };
         });
 
@@ -265,15 +300,24 @@ module.exports = {
           cards: updatedCards,
           quests: {
             ...(player.quests || {}),
-            dailyState: updatedDailyState
-          }
+            dailyState: updatedDailyState,
+          },
         });
 
-        logs.push("🏃 You ran away from the boss battle.");
+        logs.push("🏳️ You ran away from the boss battle.");
 
         await interaction.update({
-          embeds: [buildBossEmbed(player.username, currentIsland, playerTeam, boss, logs, true)],
-          components: buildButtons(playerTeam, true)
+          embeds: [
+            buildBossEmbed(
+              player.username || message.author.username,
+              currentIsland,
+              playerTeam,
+              boss,
+              logs,
+              true
+            ),
+          ],
+          components: buildButtons(playerTeam, true),
         });
 
         collector.stop("run");
@@ -286,7 +330,7 @@ module.exports = {
       if (!attacker || attacker.hp <= 0) {
         return interaction.reply({
           content: "That card cannot attack right now.",
-          ephemeral: true
+          ephemeral: true,
         });
       }
 
@@ -299,7 +343,13 @@ module.exports = {
 
         let updatedDailyState = incrementQuestCounter(player, "bossFights", 1);
         updatedDailyState = incrementQuestCounter(
-          { ...player, quests: { ...(player.quests || {}), dailyState: updatedDailyState } },
+          {
+            ...player,
+            quests: {
+              ...(player.quests || {}),
+              dailyState: updatedDailyState,
+            },
+          },
           "bossesDefeated",
           1
         );
@@ -307,7 +357,7 @@ module.exports = {
         const reward = {
           berries: 12000,
           gems: 30,
-          boxes: [cloneItem(ITEMS.rareResourceBox, 1)]
+          boxes: [cloneItem(ITEMS.rareResourceBox, 1)],
         };
 
         let updatedBoxes = [...(player.boxes || [])];
@@ -325,14 +375,14 @@ module.exports = {
               ...card,
               kills: Number(unit.kills || 0),
               level: Number(card.level || 1),
-              exp: getCardExp(card)
+              exp: getCardExp(card),
             },
             gainedExp
           );
 
           return {
             ...nextCard,
-            kills: Number(unit.kills || 0)
+            kills: Number(unit.kills || 0),
           };
         });
 
@@ -345,38 +395,46 @@ module.exports = {
           gems: Number(player.gems || 0) + reward.gems,
           story: {
             ...(player.story || {}),
-            clearedIslandBosses: updatedCleared
+            clearedIslandBosses: updatedCleared,
           },
           quests: {
             ...(player.quests || {}),
-            dailyState: updatedDailyState
-          }
+            dailyState: updatedDailyState,
+          },
         });
 
         logs.push(`👑 ${boss.name} was defeated!`);
-        logs.push(`🍇 +${reward.berries.toLocaleString("en-US")} berries`);
+        logs.push(`💰 +${reward.berries.toLocaleString("en-US")} berries`);
         logs.push(`💎 +${reward.gems} gems`);
-        logs.push(`📦 Rare Resource Box x1`);
-        logs.push(`🗺️ ${currentIsland.name} boss route is now cleared. You can use \`op sail\`.`);
+        logs.push("📦 Rare Resource Box x1");
+        logs.push(`🧭 ${currentIsland.name} boss route is now cleared. You can use \`op sail\`.`);
 
         await interaction.update({
-          embeds: [buildBossEmbed(player.username, currentIsland, playerTeam, boss, logs, true)],
-          components: buildButtons(playerTeam, true)
+          embeds: [
+            buildBossEmbed(
+              player.username || message.author.username,
+              currentIsland,
+              playerTeam,
+              boss,
+              logs,
+              true
+            ),
+          ],
+          components: buildButtons(playerTeam, true),
         });
 
         collector.stop("win");
         return;
       }
 
-      const alivePlayers = getAliveUnits(playerTeam);
-      const bossTarget = alivePlayers.sort((a, b) => a.slot - b.slot)[0];
+      const retaliationTarget = attacker && attacker.hp > 0 ? attacker : getFirstAlive(playerTeam);
 
-      if (bossTarget) {
-        const bossDamage = performAttack(boss, bossTarget);
-        logs.push(`🩸 ${boss.name} dealt **${bossDamage}** damage to ${bossTarget.name}.`);
+      if (retaliationTarget) {
+        const bossDamage = performAttack(boss, retaliationTarget);
+        logs.push(`💥 ${boss.name} dealt **${bossDamage}** damage to ${retaliationTarget.name}.`);
 
-        if (bossTarget.hp <= 0) {
-          logs.push(`☠️ ${bossTarget.name} was defeated.`);
+        if (retaliationTarget.hp <= 0) {
+          logs.push(`☠️ ${retaliationTarget.name} was defeated.`);
         }
       }
 
@@ -394,14 +452,14 @@ module.exports = {
               ...card,
               kills: Number(unit.kills || 0),
               level: Number(card.level || 1),
-              exp: getCardExp(card)
+              exp: getCardExp(card),
             },
             20 + unit.kills * 5
           );
 
           return {
             ...nextCard,
-            kills: Number(unit.kills || 0)
+            kills: Number(unit.kills || 0),
           };
         });
 
@@ -409,15 +467,24 @@ module.exports = {
           cards: updatedCards,
           quests: {
             ...(player.quests || {}),
-            dailyState: updatedDailyState
-          }
+            dailyState: updatedDailyState,
+          },
         });
 
         logs.push("💀 You lost the boss battle.");
 
         await interaction.update({
-          embeds: [buildBossEmbed(player.username, currentIsland, playerTeam, boss, logs, true)],
-          components: buildButtons(playerTeam, true)
+          embeds: [
+            buildBossEmbed(
+              player.username || message.author.username,
+              currentIsland,
+              playerTeam,
+              boss,
+              logs,
+              true
+            ),
+          ],
+          components: buildButtons(playerTeam, true),
         });
 
         collector.stop("lose");
@@ -425,8 +492,17 @@ module.exports = {
       }
 
       await interaction.update({
-        embeds: [buildBossEmbed(player.username, currentIsland, playerTeam, boss, logs, false)],
-        components: buildButtons(playerTeam, false)
+        embeds: [
+          buildBossEmbed(
+            player.username || message.author.username,
+            currentIsland,
+            playerTeam,
+            boss,
+            logs,
+            false
+          ),
+        ],
+        components: buildButtons(playerTeam, false),
       });
     });
 
@@ -435,13 +511,22 @@ module.exports = {
         try {
           logs.push("⌛ Boss battle expired.");
           await reply.edit({
-            embeds: [buildBossEmbed(player.username, currentIsland, playerTeam, boss, logs, true)],
-            components: buildButtons(playerTeam, true)
+            embeds: [
+              buildBossEmbed(
+                player.username || message.author.username,
+                currentIsland,
+                playerTeam,
+                boss,
+                logs,
+                true
+              ),
+            ],
+            components: buildButtons(playerTeam, true),
           });
         } catch (error) {
           // ignore
         }
       }
     });
-  }
+  },
 };
