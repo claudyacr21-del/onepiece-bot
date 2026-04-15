@@ -28,6 +28,34 @@ function addOrIncrease(list, item) {
   return arr;
 }
 
+function getCardExp(card) {
+  return Number(card.exp || 0);
+}
+
+function getExpToNextLevel(level) {
+  const safeLevel = Math.max(1, Number(level || 1));
+  return 100 + (safeLevel - 1) * 50;
+}
+
+function applyExpToCard(card, gainedExp) {
+  let level = Number(card.level || 1);
+  let exp = Number(card.exp || 0) + Number(gainedExp || 0);
+  let leveledUp = 0;
+
+  while (exp >= getExpToNextLevel(level)) {
+    exp -= getExpToNextLevel(level);
+    level += 1;
+    leveledUp += 1;
+  }
+
+  return {
+    ...card,
+    level,
+    exp,
+    leveledUp
+  };
+}
+
 function toBattleUnit(card, slotIndex) {
   return {
     slot: slotIndex + 1,
@@ -39,6 +67,7 @@ function toBattleUnit(card, slotIndex) {
     maxHp: Number(card.hp || 0),
     speed: Number(card.speed || 0),
     level: Number(card.level || 1),
+    exp: Number(card.exp || 0),
     kills: Number(card.kills || 0),
     image: card.image || ""
   };
@@ -106,7 +135,7 @@ function renderHpBar(hp, maxHp, size = 10) {
 function buildFightDescription(playerTeam, enemyTeam, logs, streak) {
   const playerLines = playerTeam.map((unit) => {
     const status = unit.hp > 0 ? "🟢" : "🔴";
-    return `${status} **${unit.slot}. ${unit.name}** [${unit.rarity}] • ATK \`${unit.atk}\` • SPD \`${unit.speed}\`\n${renderHpBar(unit.hp, unit.maxHp)}`;
+    return `${status} **${unit.slot}. ${unit.name}** [${unit.rarity}] • ATK \`${unit.atk}\` • SPD \`${unit.speed}\` • LV \`${unit.level}\`\n${renderHpBar(unit.hp, unit.maxHp)}`;
   });
 
   const enemyLines = enemyTeam.map((unit, index) => {
@@ -181,6 +210,21 @@ function calculateWinReward(streakAfterWin) {
   return reward;
 }
 
+function calculateFightExp(playerTeam, won) {
+  return playerTeam.map((unit) => {
+    let expGain = 10;
+
+    if (won) expGain += 15;
+    if (unit.hp > 0) expGain += 5;
+    expGain += Number(unit.kills || 0) * 5;
+
+    return {
+      instanceId: unit.instanceId,
+      expGain
+    };
+  });
+}
+
 module.exports = {
   name: "fight",
   aliases: ["battle"],
@@ -237,6 +281,28 @@ module.exports = {
 
         const playedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
 
+        const expRewards = calculateFightExp(playerTeam, false);
+        const updatedCards = [...cards].map((card) => {
+          const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
+          if (!unit) return card;
+
+          const expInfo = expRewards.find((entry) => entry.instanceId === card.instanceId);
+          const nextCard = applyExpToCard(
+            {
+              ...card,
+              kills: Number(unit.kills || 0),
+              level: Number(card.level || 1),
+              exp: getCardExp(card)
+            },
+            Number(expInfo?.expGain || 0)
+          );
+
+          return {
+            ...nextCard,
+            kills: Number(unit.kills || 0)
+          };
+        });
+
         const updatedStats = {
           ...(player.stats || {}),
           wins: Number(player?.stats?.wins || 0),
@@ -246,6 +312,7 @@ module.exports = {
         };
 
         updatePlayer(message.author.id, {
+          cards: updatedCards,
           stats: updatedStats,
           quests: {
             ...(player.quests || {}),
@@ -254,6 +321,10 @@ module.exports = {
         });
 
         logs.push("🏃 You ran away from the fight.");
+        expRewards.forEach((entry) => {
+          const unit = playerTeam.find((u) => u.instanceId === entry.instanceId);
+          if (unit) logs.push(`✨ ${unit.name} gained ${entry.expGain} EXP.`);
+        });
 
         await interaction.update({
           embeds: [buildFightEmbed(player.username, playerTeam, enemyTeam, logs, 0, true)],
@@ -309,22 +380,40 @@ module.exports = {
           updatedBoxes = addOrIncrease(updatedBoxes, item);
         });
 
-        const updatedCards = [...cards].map((card) => {
-          const changed = playerTeam.find((unit) => unit.instanceId === card.instanceId);
-          if (!changed) return card;
-
-          return {
-            ...card,
-            kills: Number(changed.kills || 0)
-          };
-        });
-
         let updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
         updatedDailyState = incrementQuestCounter(
           { ...player, quests: { ...(player.quests || {}), dailyState: updatedDailyState } },
           "fightsWon",
           1
         );
+
+        const expRewards = calculateFightExp(playerTeam, true);
+        const levelUpLines = [];
+
+        const updatedCards = [...cards].map((card) => {
+          const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
+          if (!unit) return card;
+
+          const expInfo = expRewards.find((entry) => entry.instanceId === card.instanceId);
+          const nextCard = applyExpToCard(
+            {
+              ...card,
+              kills: Number(unit.kills || 0),
+              level: Number(card.level || 1),
+              exp: getCardExp(card)
+            },
+            Number(expInfo?.expGain || 0)
+          );
+
+          if (nextCard.leveledUp > 0) {
+            levelUpLines.push(`⬆️ ${nextCard.displayName || nextCard.name} reached Lv ${nextCard.level}`);
+          }
+
+          return {
+            ...nextCard,
+            kills: Number(unit.kills || 0)
+          };
+        });
 
         const updatedStats = {
           ...(player.stats || {}),
@@ -354,6 +443,13 @@ module.exports = {
           reward.boxes.forEach((item) => logs.push(`📦 ${item.name} x${item.amount}`));
         }
 
+        expRewards.forEach((entry) => {
+          const unit = playerTeam.find((u) => u.instanceId === entry.instanceId);
+          if (unit) logs.push(`✨ ${unit.name} gained ${entry.expGain} EXP.`);
+        });
+
+        levelUpLines.forEach((line) => logs.push(line));
+
         await interaction.update({
           embeds: [buildFightEmbed(player.username, playerTeam, enemyTeam, logs, streakAfterWin, true)],
           components: buildActionRows(playerTeam, true)
@@ -380,17 +476,34 @@ module.exports = {
       if (stillAlivePlayers.length === 0) {
         battleEnded = true;
 
+        const updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
+        const expRewards = calculateFightExp(playerTeam, false);
+        const levelUpLines = [];
+
         const updatedCards = [...cards].map((card) => {
-          const changed = playerTeam.find((unit) => unit.instanceId === card.instanceId);
-          if (!changed) return card;
+          const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
+          if (!unit) return card;
+
+          const expInfo = expRewards.find((entry) => entry.instanceId === card.instanceId);
+          const nextCard = applyExpToCard(
+            {
+              ...card,
+              kills: Number(unit.kills || 0),
+              level: Number(card.level || 1),
+              exp: getCardExp(card)
+            },
+            Number(expInfo?.expGain || 0)
+          );
+
+          if (nextCard.leveledUp > 0) {
+            levelUpLines.push(`⬆️ ${nextCard.displayName || nextCard.name} reached Lv ${nextCard.level}`);
+          }
 
           return {
-            ...card,
-            kills: Number(changed.kills || 0)
+            ...nextCard,
+            kills: Number(unit.kills || 0)
           };
         });
-
-        const updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
 
         const updatedStats = {
           ...(player.stats || {}),
@@ -410,6 +523,13 @@ module.exports = {
         });
 
         logs.push("💀 You lost the fight.");
+
+        expRewards.forEach((entry) => {
+          const unit = playerTeam.find((u) => u.instanceId === entry.instanceId);
+          if (unit) logs.push(`✨ ${unit.name} gained ${entry.expGain} EXP.`);
+        });
+
+        levelUpLines.forEach((line) => logs.push(line));
 
         await interaction.update({
           embeds: [buildFightEmbed(player.username, playerTeam, enemyTeam, logs, 0, true)],

@@ -24,18 +24,8 @@ function addFragment(fragments, card, amount = 1) {
   return list;
 }
 
-function getDuplicateFragmentAmount(card) {
-  const rarity = String(card.rarity || "C").toUpperCase();
-
-  const map = {
-    C: 1,
-    B: 2,
-    A: 4,
-    S: 8,
-    UR: 15
-  };
-
-  return map[rarity] || 1;
+function getDuplicateFragmentAmount() {
+  return 1;
 }
 
 function hasOwnedCardByCode(cards, code) {
