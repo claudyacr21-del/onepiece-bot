@@ -1,28 +1,22 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 
-function formatNumber(value) {
-  return Number(value || 0).toLocaleString("en-US");
-}
-
 module.exports = {
   name: "balance",
-  aliases: ["bal"],
+  aliases: ["bal", "money", "wallet"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
 
     const embed = new EmbedBuilder()
-      .setColor(0xf1c40f)
-      .setTitle(`${message.author.username}'s Wallet`)
+      .setColor(0x2ecc71)
+      .setTitle("💰 Your Balance")
       .setDescription(
         [
-          "💰 **Wallet**",
-          `• Berries: \`${formatNumber(player.berries)}\` 🍇`,
-          `• Gems: \`${formatNumber(player.gems)}\` 💎`
+          `**Berries:** \`${Number(player.berries || 0).toLocaleString("en-US")}\``,
+          `**Gems:** \`${Number(player.gems || 0).toLocaleString("en-US")}\``
         ].join("\n")
       )
-      .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
-      .setFooter({ text: "One Piece Bot" });
+      .setFooter({ text: "One Piece Bot • Balance" });
 
     return message.reply({ embeds: [embed] });
   }

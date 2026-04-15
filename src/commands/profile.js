@@ -1,73 +1,57 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
+const { PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
 
-function formatNumber(value) {
-  return Number(value || 0).toLocaleString("en-US");
+function hasRole(message, roleName) {
+  if (!message.member?.roles?.cache || !roleName) return false;
+  return message.member.roles.cache.some((role) => role.name === roleName);
 }
 
-function countAmount(list) {
+function countTotalAmount(list) {
   if (!Array.isArray(list)) return 0;
-
-  return list.reduce((total, entry) => {
-    if (!entry) return total;
-    return total + (Number(entry.amount) > 0 ? Number(entry.amount) : 1);
-  }, 0);
+  return list.reduce((sum, item) => sum + Number(item?.amount || 0), 0);
 }
 
 module.exports = {
   name: "profile",
+  aliases: ["pf", "me"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
 
-    const totalCards = Array.isArray(player.cards) ? player.cards.length : 0;
-    const totalItems = countAmount(player.items);
-    const totalBoxes = countAmount(player.boxes);
-    const totalWeapons = countAmount(player.weapons);
-    const totalDevilFruits = countAmount(player.devilFruits);
-    const totalTickets = countAmount(player.tickets);
-    const totalMaterials = countAmount(player.materials);
+    const cards = Array.isArray(player.cards) ? player.cards : [];
+    const battleCards = cards.filter((card) => card.cardRole !== "boost");
+    const boostCards = cards.filter((card) => card.cardRole === "boost");
 
-    const totalResources =
-      totalItems +
-      totalBoxes +
-      totalWeapons +
-      totalDevilFruits +
-      totalTickets +
-      totalMaterials;
+    const totalFragments = countTotalAmount(player.fragments);
+    const totalBoxes = countTotalAmount(player.boxes);
+    const totalTickets = countTotalAmount(player.tickets);
+    const totalMaterials = countTotalAmount(player.materials);
 
-    const profileText = [
-      "🧭 **Captain Info**",
-      `• Current Island: \`${player.currentIsland || "Shells Town"}\``,
-      `• Username: \`${message.author.username}\``,
-      "",
-      "💰 **Wallet**",
-      `• Berries: \`${formatNumber(player.berries)}\` 🍇`,
-      `• Gems: \`${formatNumber(player.gems)}\` 💎`,
-      "",
-      "🃏 **Card Statistics**",
-      `• Cards Owned: \`${formatNumber(totalCards)}\``,
-      `• Total Resources: \`${formatNumber(totalResources)}\``,
-      `• Boxes: \`${formatNumber(totalBoxes)}\``,
-      `• Weapons: \`${formatNumber(totalWeapons)}\``,
-      `• Devil Fruits: \`${formatNumber(totalDevilFruits)}\``,
-      "",
-      "🎒 **Inventory Stats**",
-      `• Items: \`${formatNumber(totalItems)}\``,
-      `• Materials: \`${formatNumber(totalMaterials)}\``,
-      `• Tickets: \`${formatNumber(totalTickets)}\``,
-      "",
-      "⚔️ **Game Stats**",
-      "• Team Power: `Coming Soon`",
-      "• Story Progress: `Coming Soon`",
-      "• Win Streak: `Coming Soon`"
-    ].join("\n");
+    const isMotherFlame = hasRole(message, PREMIUM_ROLE_NAME);
 
     const embed = new EmbedBuilder()
       .setColor(0x3498db)
-      .setTitle(`${message.author.username}'s One Piece Profile`)
-      .setDescription(profileText)
-      .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
-      .setFooter({ text: "One Piece Bot" });
+      .setTitle(`🏴‍☠️ ${player.username}'s Profile`)
+      .setDescription(
+        [
+          `**Current Island:** \`${player.currentIsland || "Shells Town"}\``,
+          `**Premium Status:** \`${isMotherFlame ? "Mother Flame" : "Normal"}\``,
+          `**Clan:** \`${player?.clan?.name || "None"}\``,
+          `**Clan Role:** \`${player?.clan?.role || "member"}\``,
+          "",
+          `**Berries:** \`${Number(player.berries || 0).toLocaleString("en-US")}\``,
+          `**Gems:** \`${Number(player.gems || 0).toLocaleString("en-US")}\``,
+          "",
+          `**Battle Cards:** \`${battleCards.length}\``,
+          `**Boost Cards:** \`${boostCards.length}\``,
+          `**Fragments:** \`${totalFragments}\``,
+          "",
+          `**Boxes:** \`${totalBoxes}\``,
+          `**Tickets:** \`${totalTickets}\``,
+          `**Materials:** \`${totalMaterials}\``
+        ].join("\n")
+      )
+      .setFooter({ text: "One Piece Bot • Profile" });
 
     return message.reply({ embeds: [embed] });
   }
