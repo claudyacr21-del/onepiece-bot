@@ -1,29 +1,18 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require("discord.js");
 const cards = require("../data/cards");
 
-function formatNumber(value) {
-  return Number(value || 0).toLocaleString("en-US");
-}
-
-function getCardPower(card) {
-  const atk = Number(card.atk || 0);
-  const hp = Number(card.hp || 0);
-  const speed = Number(card.speed || 0);
-
-  return Math.floor((atk * 1.4) + (hp * 0.22) + (speed * 9));
-}
-
-function getRarityOrder(rarity) {
-  const map = {
-    UR: 5,
-    S: 4,
-    A: 3,
-    B: 2,
-    C: 1
-  };
-
-  return map[rarity] || 0;
-}
+const RARITY_ORDER = {
+  UR: 5,
+  S: 4,
+  A: 3,
+  B: 2,
+  C: 1
+};
 
 function getRarityBadgeUrl(rarity) {
   const badges = {
@@ -37,133 +26,169 @@ function getRarityBadgeUrl(rarity) {
   return badges[rarity] || badges.C;
 }
 
-function getPlaceholderImage(name = "Card") {
-  const text = encodeURIComponent(name);
-  return `https://dummyimage.com/512x768/1e1e1e/ffffff.png&text=${text}`;
+function getPower(card) {
+  return Number(card.atk || 0) + Number(card.hp || 0) + Number(card.speed || 0);
 }
 
-function buildBattleCardEmbed(card, index, total) {
-  const displayName = card.displayName || card.name || "Unknown Card";
+function sortCards(list) {
+  return [...list].sort((a, b) => {
+    const rarityDiff = (RARITY_ORDER[b.rarity] || 0) - (RARITY_ORDER[a.rarity] || 0);
+    if (rarityDiff !== 0) return rarityDiff;
 
-  return new EmbedBuilder()
-    .setColor(0x16a085)
-    .setTitle(displayName)
+    const powerDiff = getPower(b) - getPower(a);
+    if (powerDiff !== 0) return powerDiff;
+
+    return String(a.displayName || a.name || "").localeCompare(String(b.displayName || b.name || ""));
+  });
+}
+
+function buildBattleEmbed(card, index, total) {
+  const embed = new EmbedBuilder()
+    .setColor(0x8e44ad)
+    .setTitle(`🃏 All Battle Cards`)
     .setDescription(
       [
-        `${card.title || card.variant || "No Title"}`,
+        `**Name:** ${card.displayName || card.name}`,
+        `**Rarity:** \`${card.rarity}\``,
+        card.title ? `**Title:** \`${card.title}\`` : null,
+        card.arc ? `**Arc:** \`${card.arc}\`` : null,
+        card.faction ? `**Faction:** \`${card.faction}\`` : null,
+        card.type ? `**Type:** \`${card.type}\`` : null,
+        card.variant ? `**Variant:** \`${card.variant}\`` : null,
         "",
-        `**Power:** \`${formatNumber(getCardPower(card))}\``,
-        `**Health:** \`${formatNumber(card.hp || 0)}\``,
-        `**Speed:** \`${formatNumber(card.speed || 0)}\``,
-        `**Attack:** \`${formatNumber(card.atk || 0)}\``,
-        `**Type:** \`${card.type || "Combat"}\``,
-        `**Source:** \`${card.source || card.arc || "Unknown"}\``
-      ].join("\n")
+        `**ATK:** \`${card.atk || 0}\``,
+        `**HP:** \`${card.hp || 0}\``,
+        `**SPD:** \`${card.speed || 0}\``,
+        `**Power:** \`${getPower(card)}\``,
+        "",
+        `**Weapon:** \`${card.weapon || "None"}\``,
+        `**Devil Fruit:** \`${card.devilFruit || "None"}\``,
+        `**Equip Type:** \`${card.equipType || "None"}\``
+      ].filter(Boolean).join("\n")
     )
-    .setThumbnail(getRarityBadgeUrl(card.rarity || "C"))
-    .setImage(card.image || getPlaceholderImage(displayName))
-    .setFooter({ text: `Battle Card ${index + 1} of ${total}` });
+    .setThumbnail(getRarityBadgeUrl(card.rarity))
+    .setFooter({ text: `Battle Card ${index + 1}/${total}` });
+
+  if (card.image) {
+    embed.setImage(card.image);
+  }
+
+  return embed;
 }
 
-function buildBoostCardEmbed(card, index, total) {
-  const displayName = card.displayName || card.name || "Unknown Boost Card";
+function buildBoostEmbed(card, index, total) {
+  const valueSuffix = ["atk", "hp", "spd", "exp", "dmg"].includes(card.boostType) ? "%" : "";
 
-  return new EmbedBuilder()
-    .setColor(0x9b59b6)
-    .setTitle(displayName)
+  const embed = new EmbedBuilder()
+    .setColor(0xf39c12)
+    .setTitle(`✨ All Boost Cards`)
     .setDescription(
       [
-        `${card.title || card.variant || "Passive Card"}`,
+        `**Name:** ${card.displayName || card.name}`,
+        `**Rarity:** \`${card.rarity}\``,
+        card.title ? `**Title:** \`${card.title}\`` : null,
+        card.arc ? `**Arc:** \`${card.arc}\`` : null,
+        card.faction ? `**Faction:** \`${card.faction}\`` : null,
+        card.variant ? `**Variant:** \`${card.variant}\`` : null,
         "",
-        `**Role:** \`Passive Boost\``,
-        `**Boost Type:** \`${card.boostType || "Unknown"}\``,
-        `**Boost Value:** \`${formatNumber(card.boostValue || 0)}\``,
-        `**Target:** \`${card.boostTarget || "account"}\``,
-        `**Source:** \`${card.source || card.arc || "Unknown"}\``
-      ].join("\n")
+        `**Boost Type:** \`${card.boostType || "None"}\``,
+        `**Boost Value:** \`${card.boostValue || 0}${valueSuffix}\``,
+        `**Boost Target:** \`${card.boostTarget || "account"}\``,
+        card.boostDescription ? `**Description:** ${card.boostDescription}` : null,
+        "",
+        `**Devil Fruit:** \`${card.devilFruit || "None"}\``,
+        `**Equip Type:** \`${card.equipType || "Passive"}\``
+      ].filter(Boolean).join("\n")
     )
-    .setThumbnail(getRarityBadgeUrl(card.rarity || "C"))
-    .setImage(card.image || getPlaceholderImage(displayName))
-    .setFooter({ text: `Boost Card ${index + 1} of ${total}` });
+    .setThumbnail(getRarityBadgeUrl(card.rarity))
+    .setFooter({ text: `Boost Card ${index + 1}/${total}` });
+
+  if (card.image) {
+    embed.setImage(card.image);
+  }
+
+  return embed;
 }
 
-function buildButtons(index, total, mode) {
+function buildButtons(page, total, isBoostMode) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`all_prev_${mode}`)
+      .setCustomId(`all_prev_${isBoostMode ? "boost" : "battle"}`)
       .setLabel("Previous")
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(index === 0),
+      .setDisabled(page <= 0),
     new ButtonBuilder()
-      .setCustomId(`all_next_${mode}`)
+      .setCustomId(`all_next_${isBoostMode ? "boost" : "battle"}`)
       .setLabel("Next")
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(index === total - 1)
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page >= total - 1)
   );
 }
 
 module.exports = {
   name: "all",
-  aliases: ["allcards", "cardlist"],
+  aliases: ["cardsall"],
   async execute(message, args) {
-    const mode = args[0]?.toLowerCase() === "boost" ? "boost" : "battle";
+    const isBoostMode = String(args[0] || "").toLowerCase() === "boost";
 
-    const filteredCards = mode === "boost"
-      ? cards.filter((card) => card.cardRole === "boost")
-      : cards.filter((card) => card.cardRole !== "boost");
+    const filteredCards = sortCards(
+      cards.filter((card) =>
+        isBoostMode ? card.cardRole === "boost" : card.cardRole !== "boost"
+      )
+    );
 
     if (!filteredCards.length) {
-      return message.reply(mode === "boost"
-        ? "No boost cards are registered in the game yet."
-        : "No battle cards are registered in the game yet.");
+      return message.reply(isBoostMode ? "No boost cards found." : "No battle cards found.");
     }
 
-    const sortedCards = [...filteredCards].sort((a, b) => {
-      const rarityDiff = getRarityOrder(b.rarity) - getRarityOrder(a.rarity);
-      if (rarityDiff !== 0) return rarityDiff;
+    let page = 0;
 
-      return getCardPower(b) - getCardPower(a);
+    const buildEmbed = () => {
+      const card = filteredCards[page];
+      return isBoostMode
+        ? buildBoostEmbed(card, page, filteredCards.length)
+        : buildBattleEmbed(card, page, filteredCards.length);
+    };
+
+    const reply = await message.reply({
+      embeds: [buildEmbed()],
+      components: [buildButtons(page, filteredCards.length, isBoostMode)]
     });
 
-    let currentIndex = 0;
-
-    const sentMessage = await message.reply({
-      embeds: [
-        mode === "boost"
-          ? buildBoostCardEmbed(sortedCards[currentIndex], currentIndex, sortedCards.length)
-          : buildBattleCardEmbed(sortedCards[currentIndex], currentIndex, sortedCards.length)
-      ],
-      components: [buildButtons(currentIndex, sortedCards.length, mode)]
-    });
-
-    const collector = sentMessage.createMessageComponentCollector({
-      time: 120000
+    const collector = reply.createMessageComponentCollector({
+      time: 10 * 60 * 1000
     });
 
     collector.on("collect", async (interaction) => {
-      if (interaction.user.id !== message.author.id) {
-        return interaction.reply({
-          content: "This card menu belongs to someone else.",
-          ephemeral: true
-        });
+      if (
+        interaction.customId !== `all_prev_${isBoostMode ? "boost" : "battle"}` &&
+        interaction.customId !== `all_next_${isBoostMode ? "boost" : "battle"}`
+      ) {
+        return;
       }
 
-      if (interaction.customId === `all_prev_${mode}`) {
-        currentIndex = Math.max(0, currentIndex - 1);
+      if (interaction.customId.startsWith("all_prev_")) {
+        page = Math.max(0, page - 1);
       }
 
-      if (interaction.customId === `all_next_${mode}`) {
-        currentIndex = Math.min(sortedCards.length - 1, currentIndex + 1);
+      if (interaction.customId.startsWith("all_next_")) {
+        page = Math.min(filteredCards.length - 1, page + 1);
       }
 
       await interaction.update({
-        embeds: [
-          mode === "boost"
-            ? buildBoostCardEmbed(sortedCards[currentIndex], currentIndex, sortedCards.length)
-            : buildBattleCardEmbed(sortedCards[currentIndex], currentIndex, sortedCards.length)
-        ],
-        components: [buildButtons(currentIndex, sortedCards.length, mode)]
+        embeds: [buildEmbed()],
+        components: [buildButtons(page, filteredCards.length, isBoostMode)]
       });
+    });
+
+    collector.on("end", async () => {
+      try {
+        await reply.edit({
+          components: []
+        });
+      } catch (error) {
+        // ignore edit errors after message is gone
+      }
     });
   }
 };
