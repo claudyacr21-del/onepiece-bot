@@ -127,15 +127,59 @@ function buildButtons(page, total, isBoostMode) {
   );
 }
 
+function buildTextLines(cards) {
+  return cards.map((card, index) => {
+    const isBoost = card.cardRole === "boost";
+    const name = card.displayName || card.name || "Unknown";
+    const rarity = card.rarity || "C";
+
+    if (isBoost) {
+      const valueSuffix = ["atk", "hp", "spd", "exp", "dmg"].includes(card.boostType) ? "%" : "";
+      return `${index + 1}. [${rarity}] ${name} (Boost) • ${card.boostType || "none"} ${card.boostValue || 0}${valueSuffix}`;
+    }
+
+    return `${index + 1}. [${rarity}] ${name} (Battle) • Power ${getPower(card)} • Kills ${Number(card.kills || 0)}`;
+  });
+}
+
 module.exports = {
   name: "mc",
   aliases: ["mycards"],
   async execute(message, args) {
-    const isBoostMode = String(args[0] || "").toLowerCase() === "boost";
+    const mode = String(args[0] || "").toLowerCase();
+    const isBoostMode = mode === "boost";
+    const isTextMode = mode === "text";
+
     const player = getPlayer(message.author.id, message.author.username);
     const ownerName = player.username || message.author.username;
-
     const ownedCards = Array.isArray(player.cards) ? player.cards : [];
+
+    if (isTextMode) {
+      const sortedCards = sortCards(ownedCards);
+
+      if (!sortedCards.length) {
+        return message.reply("You do not own any cards yet.");
+      }
+
+      const lines = buildTextLines(sortedCards);
+      const chunkSize = 25;
+      const chunks = [];
+
+      for (let i = 0; i < lines.length; i += chunkSize) {
+        chunks.push(lines.slice(i, i + chunkSize).join("\n"));
+      }
+
+      const embeds = chunks.map((chunk, index) =>
+        new EmbedBuilder()
+          .setColor(0x3498db)
+          .setTitle(`📜 ${ownerName}'s Card List ${index + 1}/${chunks.length}`)
+          .setDescription(chunk)
+          .setFooter({ text: "One Piece Bot • My Cards Text Mode" })
+      );
+
+      return message.reply({ embeds });
+    }
+
     const filteredCards = sortCards(
       ownedCards.filter((card) =>
         isBoostMode ? card.cardRole === "boost" : card.cardRole !== "boost"
