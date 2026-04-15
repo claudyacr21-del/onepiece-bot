@@ -519,7 +519,7 @@ module.exports = [
     code: "akuma_no_mi",
     rarity: "UR",
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 15, hp: 8, speed: 2 },
+    statBonus: { atk: 15, hp: 5, speed: 3 },
     owners: ["imu"],
     image: "",
     description: "A mysterious and unknown Devil Fruit power associated with the sovereign of the world."

@@ -1135,7 +1135,7 @@ module.exports = [
   }),
   battleCard({
     id: 63,
-    code: "luffy_gear_fourth",
+    code: "luffy_gear4",
     name: "Monkey D. Luffy",
     title: "Gear Fourth",
     rarity: "S",
