@@ -72,7 +72,8 @@ module.exports = {
         tier: ship.tier,
         sea: targetIsland.sea,
         nextTravelAt: now + TRAVEL_COOLDOWN_MS,
-        unlockedIslands: unlockedCodes
+        unlockedIslands: unlockedCodes,
+        currentPort: targetIsland.name
       }
     });
 
@@ -90,6 +91,7 @@ module.exports = {
           `**Next Travel:** \`${formatRemaining(TRAVEL_COOLDOWN_MS)}\``
         ].filter(Boolean).join("\n")
       )
+      .setImage(targetIsland.image || null)
       .setFooter({ text: "One Piece Bot • Travel" });
 
     return message.reply({ embeds: [embed] });

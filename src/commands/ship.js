@@ -37,6 +37,9 @@ module.exports = {
     const nextIsland = getNextIsland(currentIsland);
     const unlocked = getUnlockedIslandObjects(player);
     const now = Date.now();
+    const bossCleared = Array.isArray(player?.story?.clearedIslandBosses)
+      ? player.story.clearedIslandBosses.includes(currentIsland.code)
+      : false;
 
     const embed = new EmbedBuilder()
       .setColor(0x3498db)
@@ -49,9 +52,10 @@ module.exports = {
           "",
           "## Route",
           `**Current Island:** \`${currentIsland?.name || "Unknown"}\``,
+          `**Current Boss:** \`${currentIsland?.boss || "Unknown"}\``,
+          `**Boss Cleared:** \`${bossCleared ? "Yes" : "No"}\``,
           `**Next Island:** \`${nextIsland?.name || "None"}\``,
           nextIsland ? `**Required Ship Tier:** \`${nextIsland.requiredShipTier}\`` : null,
-          nextIsland ? `**Boss Route Ahead:** \`${nextIsland.boss || "Unknown"}\`` : null,
           "",
           "## Travel Status",
           `**Next Travel:** \`${formatRemaining(ship.nextTravelAt - now)}\``,
@@ -59,10 +63,12 @@ module.exports = {
           "## Unlocked Islands",
           unlocked.map((island) => `• ${island.name}`).join("\n") || "• Shells Town",
           "",
-          "Use `op sail` to unlock the next island.",
+          "Use `op boss` to clear the current island boss.",
+          "Use `op sail` to unlock the next island after clearing the boss.",
           "Use `op travel <island name>` to return to an unlocked island."
         ].filter(Boolean).join("\n")
       )
+      .setImage(currentIsland?.image || null)
       .setFooter({ text: "One Piece Bot • Ship" });
 
     return message.reply({ embeds: [embed] });

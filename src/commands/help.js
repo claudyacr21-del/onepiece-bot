@@ -43,7 +43,7 @@ module.exports = {
             "`op open <box name>` — Open a box from your inventory",
             "`op resetpull` — Use a Pull Reset Ticket",
             "`op df <card name> | <fruit name>` — Equip a Devil Fruit to a card",
-            "`op wp <card name> | <weapon name>` — Equip a Weapon to a card"
+            "`op wp <card name> <weapon name>` — Equip a Weapon to a card"
           ].join("\n")
         },
         {
@@ -53,14 +53,15 @@ module.exports = {
             "`op remove <card name>` — Remove a battle card from your team",
             "`op swap <from> <to>` — Swap team positions",
             "`op team` — View your active team",
-            "`op fight` — Start a manual fight using your team"
+            "`op fight` — Start a manual fight using your team",
+            "`op boss` — Fight the current island boss"
           ].join("\n")
         },
         {
           name: "🗺️ Voyage & Progress",
           value: [
             "`op ship` — View your ship and unlocked route",
-            "`op sail` — Unlock and sail to the next island",
+            "`op sail` — Unlock and sail to the next island after clearing the boss",
             "`op travel <island name>` — Travel back to an unlocked island",
             "`op quest` — View your current quest progress",
             "`op effect` — View your active effects and boosts",
@@ -81,7 +82,7 @@ module.exports = {
           value: [
             "• `op pa` is only available for users with the **Mother Flame** role",
             "• Boost cards are passive cards and are not used for battle",
-            "• Use `|` to separate card and equipment names for `op df` and `op wp`",
+            "• Clear the island boss first before using `op sail`",
             "• `op ping` is a basic internal command and is not shown here"
           ].join("\n")
         }

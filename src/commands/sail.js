@@ -40,9 +40,16 @@ module.exports = {
     const teamSlots = Array.isArray(player?.team?.slots) ? player.team.slots : [];
     const teamCount = teamSlots.filter(Boolean).length;
     const now = Date.now();
+    const clearedBosses = Array.isArray(player?.story?.clearedIslandBosses)
+      ? player.story.clearedIslandBosses
+      : [];
 
     if (!nextIsland) {
       return message.reply("There is no next island available on your current route yet.");
+    }
+
+    if (!clearedBosses.includes(currentIsland.code)) {
+      return message.reply(`You must defeat the boss of \`${currentIsland.name}\` first using \`op boss\`.`);
     }
 
     if (ship.nextTravelAt > now) {
@@ -50,9 +57,7 @@ module.exports = {
     }
 
     if (ship.tier < Number(nextIsland.requiredShipTier || 1)) {
-      return message.reply(
-        `Your ship tier is too low. You need Ship Tier ${nextIsland.requiredShipTier} to reach ${nextIsland.name}.`
-      );
+      return message.reply(`Your ship tier is too low. You need Ship Tier ${nextIsland.requiredShipTier} to reach ${nextIsland.name}.`);
     }
 
     if (teamCount < 3) {
@@ -76,7 +81,8 @@ module.exports = {
         tier: ship.tier,
         sea: nextIsland.sea,
         nextTravelAt: now + TRAVEL_COOLDOWN_MS,
-        unlockedIslands: unlocked
+        unlockedIslands: unlocked,
+        currentPort: nextIsland.name
       }
     });
 
@@ -89,13 +95,14 @@ module.exports = {
           `**Arrived At:** \`${nextIsland.name}\``,
           `**Sea:** \`${nextIsland.sea}\``,
           `**Ship Tier Check:** \`${ship.tier}/${nextIsland.requiredShipTier}\``,
-          `**Boss Route Ahead:** \`${nextIsland.boss || "Unknown"}\``,
+          `**Next Boss Route:** \`${nextIsland.boss || "Unknown"}\``,
           "",
           nextIsland.description || "",
           "",
           `**Next Travel:** \`${formatRemaining(TRAVEL_COOLDOWN_MS)}\``
         ].filter(Boolean).join("\n")
       )
+      .setImage(nextIsland.image || null)
       .setFooter({ text: "One Piece Bot • Sailing" });
 
     return message.reply({ embeds: [embed] });

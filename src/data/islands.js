@@ -1,3 +1,8 @@
+function getPlaceholderIslandImage(name = "Island") {
+  const text = encodeURIComponent(name);
+  return `https://dummyimage.com/1280x720/0f172a/ffffff.png&text=${text}`;
+}
+
 const ISLANDS = [
   {
     id: 1,
@@ -9,6 +14,8 @@ const ISLANDS = [
     requiredShipTier: 1,
     nextIslandCode: "orange_town",
     boss: "Morgan",
+    bossCode: "morgan_axe_hand",
+    image: getPlaceholderIslandImage("Shells Town"),
     description: "A Marine-controlled town where many journeys begin."
   },
   {
@@ -21,6 +28,8 @@ const ISLANDS = [
     requiredShipTier: 1,
     nextIslandCode: "syrup_village",
     boss: "Buggy",
+    bossCode: "buggy_clown",
+    image: getPlaceholderIslandImage("Orange Town"),
     description: "A town once terrorized by Buggy the Clown."
   },
   {
@@ -33,6 +42,8 @@ const ISLANDS = [
     requiredShipTier: 1,
     nextIslandCode: "baratie",
     boss: "Kuro",
+    bossCode: "kuro_hundred_plans",
+    image: getPlaceholderIslandImage("Syrup Village"),
     description: "A peaceful village tied to Usopp's story."
   },
   {
@@ -45,6 +56,8 @@ const ISLANDS = [
     requiredShipTier: 1,
     nextIslandCode: "arlong_park",
     boss: "Don Krieg",
+    bossCode: "don_krieg",
+    image: getPlaceholderIslandImage("Baratie"),
     description: "The famous floating restaurant in East Blue."
   },
   {
@@ -57,6 +70,8 @@ const ISLANDS = [
     requiredShipTier: 1,
     nextIslandCode: "loguetown",
     boss: "Arlong",
+    bossCode: "arlong",
+    image: getPlaceholderIslandImage("Arlong Park"),
     description: "A key island in Nami's past and East Blue's climax."
   },
   {
@@ -69,6 +84,8 @@ const ISLANDS = [
     requiredShipTier: 1,
     nextIslandCode: "reverse_mountain",
     boss: "Smoker",
+    bossCode: "smoker_white_hunter",
+    image: getPlaceholderIslandImage("Loguetown"),
     description: "The town of the beginning and the end."
   },
   {
@@ -81,6 +98,8 @@ const ISLANDS = [
     requiredShipTier: 2,
     nextIslandCode: "whiskey_peak",
     boss: "Grand Line Gate",
+    bossCode: null,
+    image: getPlaceholderIslandImage("Reverse Mountain"),
     description: "The gateway into the Grand Line."
   },
   {
@@ -93,6 +112,8 @@ const ISLANDS = [
     requiredShipTier: 2,
     nextIslandCode: "little_garden",
     boss: "Baroque Works",
+    bossCode: null,
+    image: getPlaceholderIslandImage("Whiskey Peak"),
     description: "A town that hides danger behind hospitality."
   },
   {
@@ -105,6 +126,8 @@ const ISLANDS = [
     requiredShipTier: 2,
     nextIslandCode: "drum_island",
     boss: "Mr. 3",
+    bossCode: null,
+    image: getPlaceholderIslandImage("Little Garden"),
     description: "A prehistoric island of giants and ancient beasts."
   },
   {
@@ -117,6 +140,8 @@ const ISLANDS = [
     requiredShipTier: 2,
     nextIslandCode: "alabasta",
     boss: "Wapol",
+    bossCode: "wapol",
+    image: getPlaceholderIslandImage("Drum Island"),
     description: "A winter island tied to Chopper's story."
   },
   {
@@ -129,6 +154,8 @@ const ISLANDS = [
     requiredShipTier: 2,
     nextIslandCode: null,
     boss: "Crocodile",
+    bossCode: "crocodile_desert_king",
+    image: getPlaceholderIslandImage("Alabasta"),
     description: "A desert kingdom in the middle of civil war."
   }
 ];
@@ -177,5 +204,6 @@ module.exports = {
   getIslandByName,
   getCurrentIsland,
   getNextIsland,
-  getUnlockedIslandObjects
+  getUnlockedIslandObjects,
+  getPlaceholderIslandImage
 };

@@ -9,24 +9,41 @@ function normalize(text) {
 function findMatchingCard(cards, query) {
   const q = normalize(query);
 
-  const matches = cards.filter((card) => {
-    if (card.cardRole === "boost") return false;
+  return (
+    cards.find((card) => {
+      if (card.cardRole === "boost") return false;
 
-    const fields = [
-      card.displayName,
-      card.name,
-      card.title,
-      card.code,
-      card.variant,
-      card.arc
-    ]
-      .filter(Boolean)
-      .map((value) => normalize(value));
+      const fields = [
+        card.displayName,
+        card.name,
+        card.title,
+        card.code,
+        card.variant,
+        card.arc
+      ]
+        .filter(Boolean)
+        .map((value) => normalize(value));
 
-    return fields.some((value) => value.includes(q));
-  });
+      return fields.some((value) => value === q);
+    }) ||
+    cards.find((card) => {
+      if (card.cardRole === "boost") return false;
 
-  return matches[0] || null;
+      const fields = [
+        card.displayName,
+        card.name,
+        card.title,
+        card.code,
+        card.variant,
+        card.arc
+      ]
+        .filter(Boolean)
+        .map((value) => normalize(value));
+
+      return fields.some((value) => value.includes(q));
+    }) ||
+    null
+  );
 }
 
 function findMatchingWeapon(query) {
@@ -54,19 +71,28 @@ function findMatchingWeapon(query) {
 }
 
 function splitCardAndWeaponInput(rawArgs) {
-  const joined = rawArgs.join(" ").trim();
+  if (!rawArgs.length) return null;
 
-  const separators = [" | ", " - ", " / "];
-  for (const separator of separators) {
-    if (joined.includes(separator)) {
-      const [cardName, weaponName] = joined.split(separator);
-      if (cardName?.trim() && weaponName?.trim()) {
-        return {
-          cardName: cardName.trim(),
-          weaponName: weaponName.trim()
-        };
-      }
-    }
+  const joined = rawArgs.join(" ").trim();
+  const normalizedJoined = normalize(joined);
+
+  const weaponCandidates = [...weapons].sort((a, b) => {
+    const aLen = normalize(a.name || "").length;
+    const bLen = normalize(b.name || "").length;
+    return bLen - aLen;
+  });
+
+  for (const weapon of weaponCandidates) {
+    const weaponName = normalize(weapon.name);
+    if (!normalizedJoined.endsWith(weaponName)) continue;
+
+    const cardPart = joined.slice(0, joined.length - weapon.name.length).trim();
+    if (!cardPart) continue;
+
+    return {
+      cardName: cardPart,
+      weaponName: weapon.name
+    };
   }
 
   return null;
@@ -77,13 +103,13 @@ module.exports = {
   aliases: ["weapon", "equipweapon"],
   async execute(message, args) {
     if (!args.length) {
-      return message.reply("Usage: `op wp <card name> | <weapon name>`");
+      return message.reply("Usage: `op wp <card name> <weapon name>`");
     }
 
     const split = splitCardAndWeaponInput(args);
 
     if (!split) {
-      return message.reply("Use this format: `op wp <card name> | <weapon name>`");
+      return message.reply("Usage: `op wp <card name> <weapon name>`");
     }
 
     const player = getPlayer(message.author.id, message.author.username);
@@ -107,14 +133,11 @@ module.exports = {
 
     const allowedOwners = Array.isArray(weaponData.owners) ? weaponData.owners : [];
     if (allowedOwners.length && !allowedOwners.includes(card.code)) {
-      return message.reply(
-        `\`${weaponData.name}\` cannot be equipped to \`${card.displayName || card.name}\`.`
-      );
+      return message.reply(`\`${weaponData.name}\` cannot be equipped to \`${card.displayName || card.name}\`.`);
     }
 
     const updatedCards = ownedCards.map((entry) => {
       if (entry.instanceId !== card.instanceId) return entry;
-
       return {
         ...entry,
         equippedWeapon: weaponData.name

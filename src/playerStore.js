@@ -48,7 +48,6 @@ function readPlayers() {
       const brokenRaw = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
       const backupPath = `${filePath}.broken.${Date.now()}.bak`;
       fs.writeFileSync(backupPath, brokenRaw, "utf8");
-      console.error(`Broken players.json backed up to ${backupPath}`);
     } catch (backupError) {
       console.error("Failed to back up broken players.json", backupError);
     }
@@ -60,7 +59,6 @@ function readPlayers() {
 
 function writePlayers(data) {
   ensureFile();
-
   const tempPath = `${filePath}.tmp`;
   fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), "utf8");
   fs.renameSync(tempPath, filePath);
@@ -246,6 +244,14 @@ function normalizeShip(ship, currentIsland) {
   };
 }
 
+function normalizeStory(story) {
+  return {
+    clearedIslandBosses: Array.isArray(story?.clearedIslandBosses)
+      ? story.clearedIslandBosses
+      : []
+  };
+}
+
 function normalizePlayer(player, username = "Unknown") {
   const currentIsland = player.currentIsland || "Shells Town";
 
@@ -275,6 +281,7 @@ function normalizePlayer(player, username = "Unknown") {
     team: normalizeTeam(player.team),
     stats: normalizeStats(player.stats),
     ship: normalizeShip(player.ship, currentIsland),
+    story: normalizeStory(player.story),
     clan: {
       name: player?.clan?.name || null,
       role: player?.clan?.role || "member"
@@ -373,6 +380,9 @@ function getDefaultPlayer(username) {
       nextTravelAt: 0,
       unlockedIslands: ["shells_town"],
       currentPort: "Shells Town"
+    },
+    story: {
+      clearedIslandBosses: []
     },
     clan: {
       name: null,
