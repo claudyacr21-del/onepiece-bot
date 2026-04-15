@@ -12,6 +12,10 @@ function countTotalAmount(list) {
   return list.reduce((sum, item) => sum + Number(item?.amount || 0), 0);
 }
 
+function getProfileImage(message) {
+  return message.author.displayAvatarURL({ extension: "png", size: 512 });
+}
+
 module.exports = {
   name: "profile",
   aliases: ["pf", "me"],
@@ -26,32 +30,52 @@ module.exports = {
     const totalBoxes = countTotalAmount(player.boxes);
     const totalTickets = countTotalAmount(player.tickets);
     const totalMaterials = countTotalAmount(player.materials);
+    const totalWeapons = countTotalAmount(player.weapons);
+    const totalFruits = countTotalAmount(player.devilFruits);
+    const totalResources = totalBoxes + totalTickets + totalMaterials + totalWeapons + totalFruits;
 
     const isMotherFlame = hasRole(message, PREMIUM_ROLE_NAME);
 
     const embed = new EmbedBuilder()
       .setColor(0x3498db)
-      .setTitle(`🏴‍☠️ ${player.username}'s Profile`)
+      .setAuthor({
+        name: `${player.username}'s One Piece Profile`,
+        iconURL: getProfileImage(message)
+      })
       .setDescription(
         [
-          `**Current Island:** \`${player.currentIsland || "Shells Town"}\``,
-          `**Premium Status:** \`${isMotherFlame ? "Mother Flame" : "Normal"}\``,
-          `**Clan:** \`${player?.clan?.name || "None"}\``,
-          `**Clan Role:** \`${player?.clan?.role || "member"}\``,
+          "🧭 **Captain Info**",
+          `- Current Island: \`${player.currentIsland || "Shells Town"}\``,
+          `- Username: \`${player.username}\``,
+          `- Premium: \`${isMotherFlame ? "Mother Flame" : "Normal"}\``,
+          `- Clan: \`${player?.clan?.name || "None"}\``,
           "",
-          `**Berries:** \`${Number(player.berries || 0).toLocaleString("en-US")}\``,
-          `**Gems:** \`${Number(player.gems || 0).toLocaleString("en-US")}\``,
+          "💰 **Wallet**",
+          `- Berries: \`${Number(player.berries || 0).toLocaleString("en-US")}\` 🍇`,
+          `- Gems: \`${Number(player.gems || 0).toLocaleString("en-US")}\` 💎`,
           "",
-          `**Battle Cards:** \`${battleCards.length}\``,
-          `**Boost Cards:** \`${boostCards.length}\``,
-          `**Fragments:** \`${totalFragments}\``,
+          "🃏 **Card Statistics**",
+          `- Battle Cards: \`${battleCards.length}\``,
+          `- Boost Cards: \`${boostCards.length}\``,
+          `- Total Cards Owned: \`${cards.length}\``,
+          `- Total Fragments: \`${totalFragments}\``,
           "",
-          `**Boxes:** \`${totalBoxes}\``,
-          `**Tickets:** \`${totalTickets}\``,
-          `**Materials:** \`${totalMaterials}\``
+          "🎒 **Inventory Stats**",
+          `- Total Resources: \`${totalResources}\``,
+          `- Boxes: \`${totalBoxes}\``,
+          `- Weapons: \`${totalWeapons}\``,
+          `- Devil Fruits: \`${totalFruits}\``,
+          `- Materials: \`${totalMaterials}\``,
+          `- Tickets: \`${totalTickets}\``,
+          "",
+          "⚔️ **Game Stats**",
+          "- Team Power: `Coming Soon`",
+          "- Story Progress: `Coming Soon`",
+          "- Win Streak: `Coming Soon`"
         ].join("\n")
       )
-      .setFooter({ text: "One Piece Bot • Profile" });
+      .setThumbnail(getProfileImage(message))
+      .setFooter({ text: "One Piece Bot" });
 
     return message.reply({ embeds: [embed] });
   }

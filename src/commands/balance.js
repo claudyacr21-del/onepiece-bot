@@ -1,6 +1,10 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 
+function getProfileImage(message) {
+  return message.author.displayAvatarURL({ extension: "png", size: 512 });
+}
+
 module.exports = {
   name: "balance",
   aliases: ["bal", "money", "wallet"],
@@ -9,14 +13,19 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
-      .setTitle("💰 Your Balance")
+      .setAuthor({
+        name: `${player.username}'s Wallet`,
+        iconURL: getProfileImage(message)
+      })
       .setDescription(
         [
-          `**Berries:** \`${Number(player.berries || 0).toLocaleString("en-US")}\``,
-          `**Gems:** \`${Number(player.gems || 0).toLocaleString("en-US")}\``
+          "💰 **Wallet**",
+          `- Berries: \`${Number(player.berries || 0).toLocaleString("en-US")}\` 🍇`,
+          `- Gems: \`${Number(player.gems || 0).toLocaleString("en-US")}\` 💎`
         ].join("\n")
       )
-      .setFooter({ text: "One Piece Bot • Balance" });
+      .setThumbnail(getProfileImage(message))
+      .setFooter({ text: "One Piece Bot" });
 
     return message.reply({ embeds: [embed] });
   }
