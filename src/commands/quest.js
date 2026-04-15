@@ -38,6 +38,14 @@ function getQuestClearReward() {
   };
 }
 
+function buildProgressBar(progress, target, size = 10) {
+  const safeTarget = Math.max(1, Number(target || 1));
+  const safeProgress = Math.max(0, Math.min(Number(progress || 0), safeTarget));
+  const filled = Math.round((safeProgress / safeTarget) * size);
+  const safeFilled = Math.max(0, Math.min(size, filled));
+  return `${"█".repeat(safeFilled)}${"░".repeat(size - safeFilled)} ${safeProgress}/${safeTarget}`;
+}
+
 module.exports = {
   name: "quest",
   aliases: ["quests"],
@@ -48,13 +56,13 @@ module.exports = {
     const summary = getQuestCompletionSummary(dailyState);
     const allComplete = summary.total > 0 && summary.completed === summary.total;
 
-    const rewardLines = [];
     let updatedBoxes = [...(player.boxes || [])];
     let updatedTickets = [...(player.tickets || [])];
     let updatedMaterials = [...(player.materials || [])];
     let berriesToAdd = 0;
     let gemsToAdd = 0;
     let totalClears = Number(player?.quests?.totalClears || 0);
+    const rewardLines = [];
 
     if (allComplete && !dailyState.rewardClaimed) {
       const reward = getQuestClearReward();
@@ -65,17 +73,17 @@ module.exports = {
 
       reward.boxes.forEach((item) => {
         updatedBoxes = addOrIncrease(updatedBoxes, item);
-        rewardLines.push(`↪ ${item.name} x${item.amount}`);
+        rewardLines.push(`📦 ${item.name} x${item.amount}`);
       });
 
       reward.tickets.forEach((item) => {
         updatedTickets = addOrIncrease(updatedTickets, item);
-        rewardLines.push(`↪ ${item.name} x${item.amount}`);
+        rewardLines.push(`🎟️ ${item.name} x${item.amount}`);
       });
 
       reward.materials.forEach((item) => {
         updatedMaterials = addOrIncrease(updatedMaterials, item);
-        rewardLines.push(`↪ ${item.name} x${item.amount}`);
+        rewardLines.push(`🧱 ${item.name} x${item.amount}`);
       });
 
       dailyState = {
@@ -117,35 +125,49 @@ module.exports = {
       const done = isQuestDone(dailyState, quest);
       const progress = getQuestProgress(dailyState, quest);
       const status = done ? "✅" : "⬜";
-      return `${status} ${index + 1}. ${quest.title} — \`${progress}/${quest.target}\``;
+      const bar = buildProgressBar(progress, quest.target, 8);
+
+      return [
+        `${status} **${index + 1}. ${quest.title}**`,
+        `↪ ${bar}`
+      ].join("\n");
     });
 
-    const description = [
+    const topSummary = [
       `**Completed:** \`${summary.completed}/${summary.total}\``,
       `**Quest Left:** \`${summary.left}/${summary.total}\``,
-      `**Daily Clears:** \`${totalClears}\``,
+      `**Daily Clears:** \`${totalClears}\``
+    ];
+
+    if (allComplete) {
+      topSummary.push(`**Reward Status:** \`${dailyState.rewardClaimed ? "Claimed" : "Ready"}\``);
+    }
+
+    const description = [
+      ...topSummary,
       "",
+      "## Daily Missions",
       ...questLines
     ];
 
     if (allComplete) {
       description.push("");
-      description.push(dailyState.rewardClaimed ? "🎁 **Daily Quest Reward:** `Claimed`" : "🎁 **Daily Quest Reward:** `Ready`");
-    }
-
-    if (berriesToAdd > 0 || gemsToAdd > 0 || rewardLines.length > 0) {
-      description.push("");
       description.push("## Quest Clear Reward");
-      description.push(`↪ Berries: +${berriesToAdd.toLocaleString("en-US")}`);
-      description.push(`↪ Gems: +${gemsToAdd.toLocaleString("en-US")}`);
-      description.push(...rewardLines);
+      description.push(`🍇 Berries: +${berriesToAdd > 0 ? berriesToAdd.toLocaleString("en-US") : "9000"}`);
+      description.push(`💎 Gems: +${gemsToAdd > 0 ? gemsToAdd : "25"}`);
+
+      if (rewardLines.length) {
+        description.push(...rewardLines);
+      } else if (dailyState.rewardClaimed) {
+        description.push("✅ Reward already claimed automatically.");
+      }
     }
 
     const embed = new EmbedBuilder()
-      .setColor(0x9b59b6)
-      .setTitle("📜 Daily Quest List")
+      .setColor(summary.left === 0 ? 0x2ecc71 : 0x9b59b6)
+      .setTitle("📜 Daily Quest Board")
       .setDescription(description.join("\n"))
-      .setFooter({ text: "One Piece Bot • Quests" });
+      .setFooter({ text: "One Piece Bot • Daily Quests" });
 
     return message.reply({ embeds: [embed] });
   }
