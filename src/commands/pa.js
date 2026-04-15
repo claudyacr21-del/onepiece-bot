@@ -128,7 +128,7 @@ function getRewardResult(contentType, baseReward) {
   };
 }
 
-function getTypeLabel(contentType, reward) {
+function getTypeLabel(contentType) {
   if (contentType === "battleCard") return "Battle Card";
   if (contentType === "boostCard") return "Boost Card";
   if (contentType === "weapon") return "Weapon";
@@ -165,19 +165,6 @@ module.exports = {
     let updatedFragments = [...(player.fragments || [])];
 
     let pityCounter = Number(player.pity?.premiumSPity || 0);
-
-    const summary = {
-      card: 0,
-      weapon: 0,
-      devilFruit: 0,
-      C: 0,
-      B: 0,
-      A: 0,
-      S: 0,
-      UR: 0,
-      fragments: 0
-    };
-
     const pullLines = [];
 
     for (let i = 0; i < availableTotal; i++) {
@@ -203,7 +190,6 @@ module.exports = {
         if (alreadyOwned) {
           const fragmentAmount = getDuplicateFragmentAmount(rewardResult.storedReward);
           updatedFragments = addFragment(updatedFragments, rewardResult.storedReward, fragmentAmount);
-          summary.fragments += fragmentAmount;
           duplicateNote = ` → Duplicate (+${fragmentAmount} fragments)`;
         } else {
           updatedCards.push(rewardResult.storedReward);
@@ -214,16 +200,8 @@ module.exports = {
         updatedDevilFruits = addNamedItem(updatedDevilFruits, rewardResult.storedReward);
       }
 
-      if (contentType === "battleCard" || contentType === "boostCard") {
-        summary.card += 1;
-      } else {
-        summary[contentType] += 1;
-      }
-
-      summary[reward.rarity] += 1;
-
       const rewardName = reward.displayName || reward.name || "Unknown";
-      const typeLabel = getTypeLabel(contentType, reward);
+      const typeLabel = getTypeLabel(contentType);
       const pityLabel = triggeredPity ? " [PITY]" : "";
 
       pullLines.push(
@@ -255,40 +233,15 @@ module.exports = {
       chunks.push(pullLines.slice(i, i + chunkSize).join("\n"));
     }
 
-    const embeds = [];
-
-    embeds.push(
+    const embeds = chunks.map((chunk, index) =>
       new EmbedBuilder()
-        .setColor(0xf39c12)
-        .setTitle("🔥 Pull All Result")
-        .setDescription(
-          [
-            `**Pulled By:** ${player.username}`,
-            `**Banner:** \`Mother Flame\``,
-            `**Total Pulls Used:** \`${availableTotal}\``,
-            "",
-            `**Battle/Boost Cards:** \`${summary.card}\``,
-            `**Weapons:** \`${summary.weapon}\``,
-            `**Devil Fruits:** \`${summary.devilFruit}\``,
-            `**Fragments Gained:** \`${summary.fragments}\``,
-            "",
-            `**C:** \`${summary.C}\` • **B:** \`${summary.B}\` • **A:** \`${summary.A}\` • **S:** \`${summary.S}\` • **UR:** \`${summary.UR}\``,
-            "",
-            `**S Pity Now:** \`${updatedPity.premiumSPity}/${PREMIUM_PITY_TARGET}\``
-          ].join("\n")
-        )
-        .setFooter({ text: "One Piece Bot • Pull All Summary" })
+        .setColor(0x8e44ad)
+        .setTitle(`📜 Pull Results ${index + 1}/${chunks.length}`)
+        .setDescription(chunk)
+        .setFooter({
+          text: `One Piece Bot • Mother Flame Pull All • S Pity ${updatedPity.premiumSPity}/${PREMIUM_PITY_TARGET}`
+        })
     );
-
-    chunks.forEach((chunk, index) => {
-      embeds.push(
-        new EmbedBuilder()
-          .setColor(0x8e44ad)
-          .setTitle(`📜 Pull Results ${index + 1}/${chunks.length}`)
-          .setDescription(chunk)
-          .setFooter({ text: "One Piece Bot • Detailed Pull List" })
-      );
-    });
 
     return message.reply({ embeds });
   }

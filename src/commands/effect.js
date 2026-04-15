@@ -1,7 +1,8 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer } = require("../playerStore");
+const { getPlayer, updatePlayer } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { getTotalPullUsage } = require("../utils/pullSlots");
+const { applyGlobalPullReset } = require("../utils/pullReset");
 
 function formatValue(value, suffix = "") {
   const number = Number(value || 0);
@@ -13,6 +14,13 @@ module.exports = {
   aliases: ["effects", "status"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
+
+    const resetState = applyGlobalPullReset(player);
+    if (resetState.wasReset) {
+      updatePlayer(message.author.id, { pulls: resetState.pulls });
+      player.pulls = resetState.pulls;
+    }
+
     const boosts = getPassiveBoostSummary(player);
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
 
