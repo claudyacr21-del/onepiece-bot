@@ -367,7 +367,6 @@ module.exports = {
       }
 
       const aliveEnemies = getAliveUnits(enemyTeam);
-      const alivePlayers = getAliveUnits(playerTeam);
 
       if (aliveEnemies.length === 0) {
         battleEnded = true;
@@ -460,7 +459,13 @@ module.exports = {
       }
 
       const enemyAttacker = aliveEnemies.sort((a, b) => Number(b.speed || 0) - Number(a.speed || 0))[0];
-      const playerTarget = alivePlayers.sort((a, b) => a.slot - b.slot)[0];
+
+      // Musuh membalas ke card yang barusan menyerang.
+      // Kalau attacker tadi sudah tumbang karena efek lain di masa depan, baru fallback ke ally hidup pertama.
+      let playerTarget = attacker;
+      if (!playerTarget || playerTarget.hp <= 0) {
+        playerTarget = getFirstAlive(playerTeam);
+      }
 
       if (enemyAttacker && playerTarget) {
         const enemyDamage = performAttack(enemyAttacker, playerTarget);
