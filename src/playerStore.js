@@ -1,7 +1,21 @@
 const fs = require("fs");
 const path = require("path");
 
-const filePath = path.join(__dirname, "data", "players.json");
+const persistentDir = process.env.PLAYER_DATA_DIR || "/data";
+const fallbackDir = path.join(__dirname, "data");
+
+function resolveFilePath() {
+  try {
+    fs.mkdirSync(persistentDir, { recursive: true });
+    return path.join(persistentDir, "players.json");
+  } catch (error) {
+    console.warn("Could not use persistent player data dir, falling back to local data dir.", error);
+    fs.mkdirSync(fallbackDir, { recursive: true });
+    return path.join(fallbackDir, "players.json");
+  }
+}
+
+const filePath = resolveFilePath();
 
 function ensureFile() {
   const dir = path.dirname(filePath);
@@ -28,7 +42,17 @@ function readPlayers() {
 
     return JSON.parse(raw);
   } catch (error) {
-    console.error("players.json is invalid. Resetting file...", error);
+    console.error("players.json is invalid. Creating backup and resetting file...", error);
+
+    try {
+      const brokenRaw = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
+      const backupPath = `${filePath}.broken.${Date.now()}.bak`;
+      fs.writeFileSync(backupPath, brokenRaw, "utf8");
+      console.error(`Broken players.json backed up to ${backupPath}`);
+    } catch (backupError) {
+      console.error("Failed to back up broken players.json", backupError);
+    }
+
     fs.writeFileSync(filePath, "{}", "utf8");
     return {};
   }
@@ -36,7 +60,10 @@ function readPlayers() {
 
 function writePlayers(data) {
   ensureFile();
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+
+  const tempPath = `${filePath}.tmp`;
+  fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), "utf8");
+  fs.renameSync(tempPath, filePath);
 }
 
 function normalizeNamedList(value) {
