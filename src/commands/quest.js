@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
+const { applyGlobalPullReset } = require("../utils/pullReset");
 
 function countTotalAmount(list) {
   if (!Array.isArray(list)) return 0;
@@ -11,20 +12,24 @@ function hasClaimedDailyToday(player) {
   return cooldown > Date.now();
 }
 
-function buildQuestList(player) {
-  const cards = Array.isArray(player.cards) ? player.cards : [];
-  const battleCards = cards.filter((card) => card.cardRole !== "boost");
-  const boostCards = cards.filter((card) => card.cardRole === "boost");
-
-  const totalPullsUsed =
+function getTotalPullsUsed(player) {
+  return (
     Number(player?.pulls?.base?.used || 0) +
     Number(player?.pulls?.supportMember?.used || 0) +
     Number(player?.pulls?.booster?.used || 0) +
     Number(player?.pulls?.owner?.used || 0) +
     Number(player?.pulls?.patreon?.used || 0) +
     Number(player?.pulls?.baccaratCard?.used || 0) +
-    Number(player?.pulls?.baccaratFruit?.used || 0);
+    Number(player?.pulls?.baccaratFruit?.used || 0)
+  );
+}
 
+function buildQuestList(player) {
+  const cards = Array.isArray(player.cards) ? player.cards : [];
+  const battleCards = cards.filter((card) => card.cardRole !== "boost");
+  const boostCards = cards.filter((card) => card.cardRole === "boost");
+
+  const totalPullsUsed = getTotalPullsUsed(player);
   const totalFruits = countTotalAmount(player.devilFruits);
   const totalWeapons = countTotalAmount(player.weapons);
 
@@ -62,6 +67,13 @@ module.exports = {
   aliases: ["quests"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
+
+    const resetState = applyGlobalPullReset(player);
+    if (resetState.wasReset) {
+      updatePlayer(message.author.id, { pulls: resetState.pulls });
+      player.pulls = resetState.pulls;
+    }
+
     const questList = buildQuestList(player);
 
     const completed = questList.filter((quest) => quest.done).length;
