@@ -50,6 +50,18 @@ function minReqCounts(baseTier, stage) {
   return stage === 2 ? { cards: 2, boosts: 1 } : { cards: 4, boosts: 2 };
 }
 
+function getLuffySpecialPath(card) {
+  if (card.code !== "luffy_straw_hat") return null;
+  return {
+    forms: [
+      { stage: 1, key: "M1", tier: "A", name: "The Beginning" },
+      { stage: 2, key: "M2", tier: "SS", name: "Revival Arc" },
+      { stage: 3, key: "M3", tier: "UR", name: "Gear 5" },
+    ],
+    mults: { 1: 1, 2: 1.75, 3: 2.35 },
+  };
+}
+
 function normalizeRequirementPair(card) {
   const next = clone(card);
   const m2 = next?.awakenRequirements?.M2 || null;
@@ -58,16 +70,8 @@ function normalizeRequirementPair(card) {
 
   const baseTier = String(next.baseTier || next.rarity || "C").toUpperCase();
   const links = next.canonLinks || {};
-  const poolCards = uniq([
-    ...(next.relatedCards || []),
-    ...(next.awakenPool?.cards || []),
-    ...(links.cards || []),
-  ]);
-  const poolBoosts = uniq([
-    ...(next.relatedBoosts || []),
-    ...(next.awakenPool?.boosts || []),
-    ...(links.boosts || []),
-  ]);
+  const poolCards = uniq([...(next.relatedCards || []), ...(next.awakenPool?.cards || []), ...(links.cards || [])]);
+  const poolBoosts = uniq([...(next.relatedBoosts || []), ...(next.awakenPool?.boosts || []), ...(links.boosts || [])]);
 
   const reqM2 = {
     ...m2,
@@ -87,37 +91,25 @@ function normalizeRequirementPair(card) {
   let reqM3 = {
     ...m3,
     berries: Math.max(Number(m3.berries || 0), getBerryScale(baseTier, 3)),
-    cards: withoutOverlap(reqM2.cards, uniq(m3.cards || [])),
-    boosts: withoutOverlap(reqM2.boosts, uniq(m3.boosts || [])),
+    cards: withoutOverlap(reqM2.cards, m3.cards || []),
+    boosts: withoutOverlap(reqM2.boosts, m3.boosts || []),
   };
 
   const targetM3Counts = minReqCounts(baseTier, 3);
   if (reqM3.cards.length < targetM3Counts.cards) {
-    reqM3.cards = uniq([
-      ...reqM3.cards,
-      ...pickExtra(poolCards, [...reqM2.cards, ...reqM3.cards], targetM3Counts.cards - reqM3.cards.length),
-    ]);
+    reqM3.cards = uniq([...reqM3.cards, ...pickExtra(poolCards, [...reqM2.cards, ...reqM3.cards], targetM3Counts.cards - reqM3.cards.length)]);
   }
   if (reqM3.boosts.length < targetM3Counts.boosts) {
-    reqM3.boosts = uniq([
-      ...reqM3.boosts,
-      ...pickExtra(poolBoosts, [...reqM2.boosts, ...reqM3.boosts], targetM3Counts.boosts - reqM3.boosts.length),
-    ]);
+    reqM3.boosts = uniq([...reqM3.boosts, ...pickExtra(poolBoosts, [...reqM2.boosts, ...reqM3.boosts], targetM3Counts.boosts - reqM3.boosts.length)]);
   }
 
   if (baseTier !== "C") {
     reqM3.berries = Math.max(reqM3.berries, reqM2.berries + Math.ceil(reqM2.berries * 0.5));
     if (reqM3.cards.length <= reqM2.cards.length) {
-      reqM3.cards = uniq([
-        ...reqM3.cards,
-        ...pickExtra(poolCards, [...reqM2.cards, ...reqM3.cards], reqM2.cards.length + 1 - reqM3.cards.length),
-      ]);
+      reqM3.cards = uniq([...reqM3.cards, ...pickExtra(poolCards, [...reqM2.cards, ...reqM3.cards], reqM2.cards.length + 1 - reqM3.cards.length)]);
     }
     if (reqM3.boosts.length < reqM2.boosts.length) {
-      reqM3.boosts = uniq([
-        ...reqM3.boosts,
-        ...pickExtra(poolBoosts, [...reqM2.boosts, ...reqM3.boosts], reqM2.boosts.length - reqM3.boosts.length),
-      ]);
+      reqM3.boosts = uniq([...reqM3.boosts, ...pickExtra(poolBoosts, [...reqM2.boosts, ...reqM3.boosts], reqM2.boosts.length - reqM3.boosts.length)]);
     }
   }
 
@@ -127,18 +119,45 @@ function normalizeRequirementPair(card) {
   next.awakenRequirements.M2 = reqM2;
   next.awakenRequirements.M3 = reqM3;
 
-  if (Array.isArray(next.evolutionForms)) {
-    if (next.evolutionForms[1]) next.evolutionForms[1] = { ...next.evolutionForms[1], require: reqM2 };
-    if (next.evolutionForms[2]) next.evolutionForms[2] = { ...next.evolutionForms[2], require: reqM3 };
-  }
-
   return next;
 }
 
 function hydrateCard(card) {
   if (!card) return null;
-  const next = normalizeRequirementPair(clone(card));
+
+  let next = normalizeRequirementPair(clone(card));
   next.image = getCardImage(next.code, next.image || "");
+
+  const special = getLuffySpecialPath(next);
+  const stage = Math.max(1, Math.min(3, Number(next.evolutionStage || 1)));
+  const weaponBonus = {
+    atk: Number(next?.weaponBonus?.atk || 0),
+    hp: Number(next?.weaponBonus?.hp || 0),
+    speed: Number(next?.weaponBonus?.speed || 0),
+  };
+
+  if (special) {
+    const mult = special.mults[stage];
+    next.evolutionForms = [
+      { ...special.forms[0], require: null, badgeImage: getRarityBadge(special.forms[0].tier) },
+      { ...special.forms[1], require: next.awakenRequirements?.M2 || null, badgeImage: getRarityBadge(special.forms[1].tier) },
+      { ...special.forms[2], require: next.awakenRequirements?.M3 || null, badgeImage: getRarityBadge(special.forms[2].tier) },
+    ];
+    next.baseTier = "A";
+    next.evolutionStage = stage;
+    next.evolutionKey = `M${stage}`;
+    next.currentTier = special.forms[stage - 1].tier;
+    next.rarity = special.forms[stage - 1].tier;
+    next.baseAtk = Number(next.baseAtk ?? next.atk ?? 0);
+    next.baseHp = Number(next.baseHp ?? next.hp ?? 0);
+    next.baseSpeed = Number(next.baseSpeed ?? next.speed ?? 0);
+    next.atk = Math.floor(next.baseAtk * mult) + weaponBonus.atk;
+    next.hp = Math.floor(next.baseHp * mult) + weaponBonus.hp;
+    next.speed = Math.floor(next.baseSpeed * mult) + weaponBonus.speed;
+    next.badgeImage = getRarityBadge(next.currentTier);
+    return next;
+  }
+
   next.badgeImage = getRarityBadge(next.currentTier || next.rarity || "");
   next.evolutionForms = (next.evolutionForms || []).map((form) => ({
     ...form,
@@ -199,9 +218,7 @@ function verifyRequirementOwnership(player, targetInstanceId, req) {
     const hit = ownedCards.find((c) => c.instanceId !== targetInstanceId && slug(c.code) === slug(code));
     if (!hit) return { ok: false, reason: `Missing required card/boost: ${code}` };
   }
-  if (Number(player.berries || 0) < Number(req.berries || 0)) {
-    return { ok: false, reason: "Not enough berries." };
-  }
+  if (Number(player.berries || 0) < Number(req.berries || 0)) return { ok: false, reason: "Not enough berries." };
   return { ok: true };
 }
 
@@ -230,18 +247,7 @@ function awakenOwnedCard(player, query) {
 
   const cardsAfterConsume = consumeReqCards(player, target.instanceId, req);
   const updatedCards = cardsAfterConsume.map((c) =>
-    c.instanceId === target.instanceId
-      ? hydrateCard({
-          ...c,
-          evolutionStage: nextStage,
-          evolutionKey: `M${nextStage}`,
-          currentTier: c.evolutionForms?.[nextStage - 1]?.tier || c.currentTier,
-          rarity: c.evolutionForms?.[nextStage - 1]?.tier || c.rarity,
-          atk: c.baseAtk ? Math.floor(Number(c.baseAtk) * (nextStage === 2 ? 1.2 : 1.45)) + Number(c.weaponBonus?.atk || 0) : c.atk,
-          hp: c.baseHp ? Math.floor(Number(c.baseHp) * (nextStage === 2 ? 1.2 : 1.45)) + Number(c.weaponBonus?.hp || 0) : c.hp,
-          speed: c.baseSpeed ? Math.floor(Number(c.baseSpeed) * (nextStage === 2 ? 1.2 : 1.45)) + Number(c.weaponBonus?.speed || 0) : c.speed,
-        })
-      : hydrateCard(c)
+    c.instanceId === target.instanceId ? hydrateCard({ ...c, evolutionStage: nextStage, evolutionKey: `M${nextStage}` }) : hydrateCard(c)
   );
 
   return {

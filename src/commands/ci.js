@@ -41,12 +41,15 @@ function buildReqEmbed(card, stage) {
 
 function buildEmbed(card, owned, stage) {
   const form = card.evolutionForms?.[stage - 1];
-  const mult = stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45;
+  const mult = card.code === "luffy_straw_hat"
+    ? (stage === 1 ? 1 : stage === 2 ? 1.75 : 2.35)
+    : (stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45);
 
   return buildCardStyleEmbed({
     color: 0x5865f2,
     header: "Global Card Viewer",
     card,
+    badgeImage: form?.badgeImage || card.badgeImage || "",
     formName: form?.name || "Unknown Form",
     tier: form?.tier || card.currentTier || card.rarity,
     footerText: owned
@@ -56,7 +59,6 @@ function buildEmbed(card, owned, stage) {
       `Form: ${form?.key || `M${stage}`}`,
       `Tier: ${form?.tier || card.currentTier || card.rarity}`,
       `Role: ${card.cardRole}`,
-      `Base Path: ${card.baseTier} -> ${card.evolutionForms.map((x) => x.tier).join(" -> ")}`,
       "",
       `ATK: ${Math.floor(Number(card.baseAtk || 0) * mult)}`,
       `HP: ${Math.floor(Number(card.baseHp || 0) * mult)}`,

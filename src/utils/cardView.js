@@ -7,6 +7,7 @@ function buildCardStyleEmbed({
   card,
   formName = "",
   tier = "",
+  badgeImage = "",
   extraLines = [],
   footerText = "",
 }) {
@@ -23,7 +24,7 @@ function buildCardStyleEmbed({
         ...extraLines.filter(Boolean),
       ].join("\n")
     )
-    .setThumbnail(card?.badgeImage || null)
+    .setThumbnail(badgeImage || card?.badgeImage || null)
     .setImage(card?.image || null)
     .setFooter({
       text: footerText || (ownerName ? `This card belongs to ${ownerName}` : `Tier ${tier}`),
