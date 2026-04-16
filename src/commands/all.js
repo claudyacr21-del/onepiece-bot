@@ -1,10 +1,10 @@
 const {
-  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
 } = require("discord.js");
 const { getAllCards } = require("../utils/evolution");
+const { buildCardStyleEmbed } = require("../utils/cardView");
 
 function getM3Stats(card) {
   const mult = 1.45;
@@ -24,27 +24,30 @@ function buildEmbed(card, index, total, mode) {
   const m3 = card.evolutionForms?.[2];
   const stats = getM3Stats(card);
 
-  return new EmbedBuilder()
-    .setColor(mode === "boost" ? 0x9b59b6 : 0xe67e22)
-    .setTitle(mode === "boost" ? `🧩 All Boost ${index + 1}/${total}` : `🃏 All Battle ${index + 1}/${total}`)
-    .setDescription(
-      [
-        `**Name:** ${card.displayName || card.name}`,
-        `**Role:** ${card.cardRole}`,
-        `**Base Tier:** ${card.baseTier}`,
-        `**Max Form:** ${m3?.key || "M3"} • ${m3?.name || "Final"}`,
-        `**Max Tier:** ${m3?.tier || card.currentTier || card.rarity}`,
-        `**Path:** ${card.evolutionForms.map((x) => x.tier).join(" -> ")}`,
-        "",
-        `**ATK (M3):** ${stats.atk}`,
-        `**HP (M3):** ${stats.hp}`,
-        `**SPD (M3):** ${stats.speed}`,
-        `**Power (M3):** ${getPower(card)}`,
-      ].join("\n")
-    )
-    .setThumbnail(m3?.badgeImage || card.badgeImage || null)
-    .setImage(card.image || null)
-    .setFooter({ text: `Code: ${card.code}` });
+  return buildCardStyleEmbed({
+    color: mode === "boost" ? 0x9b59b6 : 0xe67e22,
+    header: mode === "boost" ? "All Boost Cards" : "All Battle Cards",
+    card: {
+      ...card,
+      badgeImage: m3?.badgeImage || card.badgeImage || "",
+    },
+    formName: m3?.name || "Final",
+    tier: m3?.tier || card.currentTier || card.rarity,
+    footerText: `${mode === "boost" ? "Boost" : "Battle"} ${index + 1}/${total} • Code: ${card.code}`,
+    extraLines: [
+      `Role: ${card.cardRole}`,
+      `Base Tier: ${card.baseTier}`,
+      `Max Form: ${m3?.key || "M3"}`,
+      `Max Tier: ${m3?.tier || card.currentTier || card.rarity}`,
+      `Path: ${card.evolutionForms.map((x) => x.tier).join(" -> ")}`,
+      "",
+      `ATK (M3): ${stats.atk}`,
+      `HP (M3): ${stats.hp}`,
+      `SPD (M3): ${stats.speed}`,
+      `Power (M3): ${getPower(card)}`,
+      mode === "boost" ? `Boost Type: ${card.boostType || "None"}` : `Type: ${card.type || "Battle"}`,
+    ],
+  });
 }
 
 function rows(index, total) {
@@ -102,9 +105,7 @@ module.exports = {
     });
 
     collector.on("end", async () => {
-      try {
-        await sent.edit({ components: [] });
-      } catch (_) {}
+      try { await sent.edit({ components: [] }); } catch (_) {}
     });
   },
 };

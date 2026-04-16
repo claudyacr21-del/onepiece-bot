@@ -1,31 +1,34 @@
 const {
-  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
 } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
+const { buildCardStyleEmbed } = require("../utils/cardView");
 
-function buildEmbed(card, index, total) {
-  return new EmbedBuilder()
-    .setColor(0x3498db)
-    .setTitle(`🗂️ My Cards ${index + 1}/${total}`)
-    .setDescription(
-      [
-        `**Name:** ${card.displayName || card.name}`,
-        `**Role:** ${card.cardRole}`,
-        `**Stage:** ${card.evolutionKey}`,
-        `**Tier:** ${card.currentTier || card.rarity}`,
-        `**ATK:** ${card.atk}`,
-        `**HP:** ${card.hp}`,
-        `**SPD:** ${card.speed}`,
-        `**Weapon:** ${card.equippedWeapon || "None"}`,
-      ].join("\n")
-    )
-    .setThumbnail(card.badgeImage || null)
-    .setImage(card.image || null)
-    .setFooter({ text: `Code: ${card.code}` });
+function buildEmbed(ownerName, card, index, total) {
+  return buildCardStyleEmbed({
+    color: 0x3498db,
+    ownerName,
+    card,
+    formName: card.evolutionForms?.[card.evolutionStage - 1]?.name || card.variant || "Unknown",
+    tier: card.currentTier || card.rarity,
+    footerText: `Card ${index + 1}/${total} • This card belongs to ${ownerName}`,
+    extraLines: [
+      `Form: ${card.evolutionKey}`,
+      `Tier: ${card.currentTier || card.rarity}`,
+      `Level: ${card.level || 1}`,
+      `Power: ${Math.floor(Number(card.atk || 0) * 1.4 + Number(card.hp || 0) * 0.22 + Number(card.speed || 0) * 9)}`,
+      `Health: ${card.hp}`,
+      `Speed: ${card.speed}`,
+      `Attack: ${card.atk}`,
+      `Weapons: ${card.equippedWeapon || "None"}`,
+      `Type: ${card.type || card.cardRole}`,
+      `Kills: ${card.kills || 0}`,
+      `Fragments: ${card.fragments || 0}`,
+    ],
+  });
 }
 
 function rows(index, total) {
@@ -46,11 +49,18 @@ module.exports = {
 
     if (!cards.length) return message.reply("You do not own any cards yet.");
 
+    const sorted = [...cards].sort((a, b) => {
+      const powerA = Math.floor(Number(a.atk || 0) * 1.4 + Number(a.hp || 0) * 0.22 + Number(a.speed || 0) * 9);
+      const powerB = Math.floor(Number(b.atk || 0) * 1.4 + Number(b.hp || 0) * 0.22 + Number(b.speed || 0) * 9);
+      if (powerB !== powerA) return powerB - powerA;
+      return String(a.displayName || a.name).localeCompare(String(b.displayName || b.name));
+    });
+
     let index = 0;
 
     const sent = await message.reply({
-      embeds: [buildEmbed(cards[index], index, cards.length)],
-      components: rows(index, cards.length),
+      embeds: [buildEmbed(message.author.username, sorted[index], index, sorted.length)],
+      components: rows(index, sorted.length),
     });
 
     const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
@@ -61,18 +71,16 @@ module.exports = {
       }
 
       if (i.customId === "mc_prev") index = Math.max(0, index - 1);
-      if (i.customId === "mc_next") index = Math.min(cards.length - 1, index + 1);
+      if (i.customId === "mc_next") index = Math.min(sorted.length - 1, index + 1);
 
       return i.update({
-        embeds: [buildEmbed(cards[index], index, cards.length)],
-        components: rows(index, cards.length),
+        embeds: [buildEmbed(message.author.username, sorted[index], index, sorted.length)],
+        components: rows(index, sorted.length),
       });
     });
 
     collector.on("end", async () => {
-      try {
-        await sent.edit({ components: [] });
-      } catch (_) {}
+      try { await sent.edit({ components: [] }); } catch (_) {}
     });
   },
 };
