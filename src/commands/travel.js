@@ -1,99 +1,60 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
-const { getCurrentIsland, getIslandByName, getIslandByCode } = require("../data/islands");
-
-const TRAVEL_COOLDOWN_MS = 60 * 60 * 1000;
-
-function formatRemaining(ms) {
-  if (ms <= 0) return "Now";
-
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m`;
-  return "Now";
-}
-
-function getShipState(player) {
-  return {
-    name: player?.ship?.name || "Going Merry",
-    tier: Number(player?.ship?.tier || 1),
-    sea: player?.ship?.sea || "East Blue",
-    nextTravelAt: Number(player?.ship?.nextTravelAt || 0),
-    unlockedIslands: Array.isArray(player?.ship?.unlockedIslands) && player.ship.unlockedIslands.length
-      ? player.ship.unlockedIslands
-      : ["shells_town"]
-  };
-}
+const { getPlayer } = require("../playerStore");
+const { getCurrentIsland, getUnlockedIslandObjects, getNextIsland } = require("../data/islands");
+const { getShipByCode } = require("../data/ships");
 
 module.exports = {
   name: "travel",
-  aliases: ["goto"],
-  async execute(message, args) {
-    if (!args.length) {
-      return message.reply("Usage: `op travel <island name>`");
-    }
-
+  aliases: ["route", "islandroute"],
+  async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-    const ship = getShipState(player);
     const currentIsland = getCurrentIsland(player);
-    const targetQuery = args.join(" ");
-    const targetIsland = getIslandByName(targetQuery);
-    const now = Date.now();
+    const unlockedIslands = getUnlockedIslandObjects(player);
+    const nextIsland = getNextIsland(currentIsland);
+    const ship = getShipByCode(player?.ship?.shipCode || "going_merry");
+    const clearedBosses = Array.isArray(player?.story?.clearedIslandBosses)
+      ? player.story.clearedIslandBosses
+      : [];
 
-    if (!targetIsland) {
-      return message.reply(`No island found matching \`${targetQuery}\`.`);
-    }
+    const unlockedText = unlockedIslands.length
+      ? unlockedIslands
+          .map((island, index) => {
+            const status = island.code === currentIsland.code ? "🌍 Current" : "✅ Unlocked";
+            const bossClear = clearedBosses.includes(island.code) ? "👑 Boss Cleared" : "⚔️ Boss Pending";
+            return `${index + 1}. **${island.name}** — ${status} • ${bossClear}`;
+          })
+          .join("\n")
+      : "No islands unlocked yet.";
 
-    if (ship.nextTravelAt > now) {
-      return message.reply(`Your ship is not ready yet. Next travel: ${formatRemaining(ship.nextTravelAt - now)}`);
-    }
+    const nextText = nextIsland
+      ? [
+          `**Next Canon Island:** ${nextIsland.name}`,
+          `**Required Ship Tier:** ${nextIsland.requiredShipTier}`,
+          `**Boss Gate from Current Island:** ${clearedBosses.includes(currentIsland.code) ? "Cleared" : "Not Cleared"}`,
+        ].join("\n")
+      : "You have reached the end of the currently configured island route.";
 
-    const unlockedCodes = Array.isArray(ship.unlockedIslands) ? ship.unlockedIslands : ["shells_town"];
-    const unlockedTarget = unlockedCodes
-      .map((code) => getIslandByCode(code))
-      .find((island) => island?.code === targetIsland.code);
-
-    if (!unlockedTarget) {
-      return message.reply(`You have not unlocked \`${targetIsland.name}\` yet.`);
-    }
-
-    if (currentIsland.code === targetIsland.code) {
-      return message.reply(`You are already at \`${targetIsland.name}\`.`);
-    }
-
-    updatePlayer(message.author.id, {
-      currentIsland: targetIsland.name,
-      ship: {
-        ...(player.ship || {}),
-        name: ship.name,
-        tier: ship.tier,
-        sea: targetIsland.sea,
-        nextTravelAt: now + TRAVEL_COOLDOWN_MS,
-        unlockedIslands: unlockedCodes,
-        currentPort: targetIsland.name
-      }
+    return message.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x1abc9c)
+          .setTitle("🧭 Travel Route")
+          .setDescription(
+            [
+              `**Current Island:** ${currentIsland.name}`,
+              `**Current Sea:** ${currentIsland.sea}`,
+              `**Ship:** ${ship.name} (Tier ${player?.ship?.tier || ship.tier || 1})`,
+              "",
+              "## Unlocked Islands",
+              unlockedText,
+              "",
+              "## Next Route",
+              nextText,
+            ].join("\n")
+          )
+          .setThumbnail(ship.image || null)
+          .setImage(currentIsland.image || null),
+      ],
     });
-
-    const embed = new EmbedBuilder()
-      .setColor(0xf1c40f)
-      .setTitle("🧭 Travel Successful")
-      .setDescription(
-        [
-          `**Departed From:** \`${currentIsland.name}\``,
-          `**Arrived At:** \`${targetIsland.name}\``,
-          `**Sea:** \`${targetIsland.sea}\``,
-          "",
-          targetIsland.description || "",
-          "",
-          `**Next Travel:** \`${formatRemaining(TRAVEL_COOLDOWN_MS)}\``
-        ].filter(Boolean).join("\n")
-      )
-      .setImage(targetIsland.image || null)
-      .setFooter({ text: "One Piece Bot • Travel" });
-
-    return message.reply({ embeds: [embed] });
-  }
+  },
 };

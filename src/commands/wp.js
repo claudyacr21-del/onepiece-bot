@@ -2,15 +2,14 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const weapons = require("../data/weapons");
 const { findOwnedCard, hydrateCard } = require("../utils/evolution");
+const { getRarityBadge, getWeaponImage } = require("../config/assetLinks");
 
 const normalize = (s = "") => String(s).toLowerCase().trim().replace(/\s+/g, " ");
 
 function splitCardAndWeaponInput(rawArgs) {
   if (!rawArgs.length) return null;
   const joined = rawArgs.join(" ").trim();
-  const weaponCandidates = [...weapons].sort(
-    (a, b) => normalize(b.name).length - normalize(a.name).length
-  );
+  const weaponCandidates = [...weapons].sort((a, b) => normalize(b.name).length - normalize(a.name).length);
 
   for (const weapon of weaponCandidates) {
     if (!normalize(joined).endsWith(normalize(weapon.name))) continue;
@@ -25,12 +24,8 @@ function splitCardAndWeaponInput(rawArgs) {
 function findWeapon(query) {
   const q = normalize(query);
   return (
-    weapons.find((w) =>
-      [w.name, w.code, w.type].filter(Boolean).map(normalize).includes(q)
-    ) ||
-    weapons.find((w) =>
-      [w.name, w.code, w.type].filter(Boolean).map(normalize).some((x) => x.includes(q))
-    ) ||
+    weapons.find((w) => [w.name, w.code, w.type].filter(Boolean).map(normalize).includes(q)) ||
+    weapons.find((w) => [w.name, w.code, w.type].filter(Boolean).map(normalize).some((x) => x.includes(q))) ||
     null
   );
 }
@@ -53,9 +48,7 @@ function consumeWeapon(list, weaponCode) {
   const arr = [...(list || [])];
   const idx = arr.findIndex((x) => x.code === weaponCode);
 
-  if (idx === -1 || Number(arr[idx].amount || 0) <= 0) {
-    throw new Error("Weapon not owned.");
-  }
+  if (idx === -1 || Number(arr[idx].amount || 0) <= 0) throw new Error("Weapon not owned.");
 
   if (Number(arr[idx].amount || 0) === 1) arr.splice(idx, 1);
   else arr[idx] = { ...arr[idx], amount: Number(arr[idx].amount || 0) - 1 };
@@ -77,9 +70,7 @@ module.exports = {
     const weapon = findWeapon(split.weaponName);
     if (!weapon) return message.reply(`No weapon found matching \`${split.weaponName}\`.`);
 
-    const owned = (player.weapons || []).find(
-      (x) => x.code === weapon.code && Number(x.amount || 0) > 0
-    );
+    const owned = (player.weapons || []).find((x) => x.code === weapon.code && Number(x.amount || 0) > 0);
     if (!owned) return message.reply(`You do not own \`${weapon.name}\`.`);
 
     const allowedOwners = Array.isArray(weapon.owners) ? weapon.owners : [];
@@ -99,17 +90,17 @@ module.exports = {
     const updatedCards = (player.cards || []).map((raw) => {
       if (raw.instanceId !== card.instanceId) return raw;
 
-      const baseStage = Number(raw.evolutionStage || 1);
-      const multiplier = baseStage === 1 ? 1 : baseStage === 2 ? 1.2 : 1.45;
+      const stage = Number(raw.evolutionStage || 1);
+      const mult = stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45;
 
       return hydrateCard({
         ...raw,
         equippedWeapon: weapon.name,
         equippedWeaponCode: weapon.code,
         weaponBonus: bonus,
-        atk: Math.floor(Number(raw.baseAtk || raw.atk || 0) * multiplier) + bonus.atk,
-        hp: Math.floor(Number(raw.baseHp || raw.hp || 0) * multiplier) + bonus.hp,
-        speed: Math.floor(Number(raw.baseSpeed || raw.speed || 0) * multiplier) + bonus.speed,
+        atk: Math.floor(Number(raw.baseAtk || raw.atk || 0) * mult) + bonus.atk,
+        hp: Math.floor(Number(raw.baseHp || raw.hp || 0) * mult) + bonus.hp,
+        speed: Math.floor(Number(raw.baseSpeed || raw.speed || 0) * mult) + bonus.speed,
       });
     });
 
@@ -119,6 +110,8 @@ module.exports = {
     });
 
     const synced = updatedCards.find((c) => c.instanceId === card.instanceId);
+    const weaponBadge = getRarityBadge(weapon.rarity || "B");
+    const weaponImage = getWeaponImage(weapon.code, weapon.image || "");
 
     return message.reply({
       embeds: [
@@ -129,6 +122,7 @@ module.exports = {
             [
               `**Card:** ${synced.displayName || synced.name}`,
               `**Weapon:** ${weapon.name}`,
+              `**Weapon Rarity:** ${String(weapon.rarity || "B").toUpperCase()}`,
               `**Inventory Sync:** 1 copy consumed`,
               "",
               `**ATK:** ${synced.atk}`,
@@ -137,7 +131,9 @@ module.exports = {
               "",
               `Bonus: +${bonus.atk} ATK / +${bonus.hp} HP / +${bonus.speed} SPD`,
             ].join("\n")
-          ),
+          )
+          .setThumbnail(weaponBadge || null)
+          .setImage(weaponImage || synced.image || null),
       ],
     });
   },
