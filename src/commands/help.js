@@ -51,9 +51,6 @@ module.exports = {
               "`op trade @peace (5000, mera_1, enma_5)(luffy_1, bigmom_6)`",
               "Tickets are untradeable.",
               "",
-              "## Notes",
-              "Card image fields are read from `src/data/cards.js`.",
-              "Ship and island image sync comes next.",
             ].join("\n")
           )
           .setFooter({ text: "One Piece Bot • Synced Help" }),
