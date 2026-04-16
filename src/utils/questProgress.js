@@ -1,237 +1,138 @@
-const { getPlayer, updatePlayer } = require("../playerStore");
+function getTodayDateKey() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 const QUEST_POOL = [
-  {
-    id: "daily_claim_1",
-    category: "daily_claim",
-    label: "Claim Daily 1x",
-    target: 1,
-    counterKey: "dailyClaims",
-    reward: { berries: 15000, gems: 5 },
-  },
-  {
-    id: "pull_5",
-    category: "pulls_used",
-    label: "Pull 5x",
-    target: 5,
-    counterKey: "pullsUsed",
-    reward: { berries: 25000, gems: 5 },
-  },
-  {
-    id: "pull_10",
-    category: "pulls_used",
-    label: "Pull 10x",
-    target: 10,
-    counterKey: "pullsUsed",
-    reward: { berries: 50000, gems: 10 },
-  },
-  {
-    id: "box_open_3",
-    category: "boxes_opened",
-    label: "Open Box 3x",
-    target: 3,
-    counterKey: "boxesOpened",
-    reward: { berries: 30000, gems: 5 },
-  },
-  {
-    id: "box_open_5",
-    category: "boxes_opened",
-    label: "Open Box 5x",
-    target: 5,
-    counterKey: "boxesOpened",
-    reward: { berries: 55000, gems: 10 },
-  },
-  {
-    id: "fight_play_5",
-    category: "fights_played",
-    label: "Play Fight 5x",
-    target: 5,
-    counterKey: "fightsPlayed",
-    reward: { berries: 40000, gems: 5 },
-  },
-  {
-    id: "fight_win_3",
-    category: "fights_won",
-    label: "Win Fight 3x",
-    target: 3,
-    counterKey: "fightsWon",
-    reward: { berries: 50000, gems: 8 },
-  },
-  {
-    id: "boss_fight_1",
-    category: "boss_fights",
-    label: "Fight Boss 1x",
-    target: 1,
-    counterKey: "bossFights",
-    reward: { berries: 65000, gems: 10 },
-  },
-  {
-    id: "boss_clear_1",
-    category: "bosses_defeated",
-    label: "Defeat Boss 1x",
-    target: 1,
-    counterKey: "bossesDefeated",
-    reward: { berries: 90000, gems: 12 },
-  },
-  {
-    id: "craft_2",
-    category: "crafts_done",
-    label: "Craft 2x",
-    target: 2,
-    counterKey: "craftsDone",
-    reward: { berries: 35000, gems: 5 },
-  },
-  {
-    id: "ticket_reset_1",
-    category: "reset_tickets_used",
-    label: "Use Reset Ticket 1x",
-    target: 1,
-    counterKey: "resetTicketsUsed",
-    reward: { berries: 30000, gems: 4 },
-  },
+  { id: "claim_daily_1", category: "daily_claim", title: "Claim Daily Reward", type: "counter", key: "dailyClaims", target: 1 },
+  { id: "pull_10", category: "pulls_used", title: "Use 10 Pulls", type: "counter", key: "pullsUsed", target: 10 },
+  { id: "pull_15", category: "pulls_used", title: "Use 15 Pulls", type: "counter", key: "pullsUsed", target: 15 },
+  { id: "open_box_5", category: "boxes_opened", title: "Open 5 Boxes", type: "counter", key: "boxesOpened", target: 5 },
+  { id: "open_box_8", category: "boxes_opened", title: "Open 8 Boxes", type: "counter", key: "boxesOpened", target: 8 },
+  { id: "fight_5", category: "fights_played", title: "Fight 5 Times", type: "counter", key: "fightsPlayed", target: 5 },
+  { id: "fight_8", category: "fights_played", title: "Fight 8 Times", type: "counter", key: "fightsPlayed", target: 8 },
+  { id: "win_3", category: "fights_won", title: "Win 3 Fights", type: "counter", key: "fightsWon", target: 3 },
+  { id: "win_5", category: "fights_won", title: "Win 5 Fights", type: "counter", key: "fightsWon", target: 5 },
+  { id: "boss_fight_1", category: "boss_fights", title: "Fight Boss 1 Time", type: "counter", key: "bossFights", target: 1 },
+  { id: "boss_clear_1", category: "bosses_defeated", title: "Defeat 1 Boss", type: "counter", key: "bossesDefeated", target: 1 },
+  { id: "craft_2", category: "crafts_done", title: "Craft 2 Times", type: "counter", key: "craftsDone", target: 2 },
+  { id: "reset_ticket_1", category: "reset_tickets_used", title: "Use 1 Reset Ticket", type: "counter", key: "resetTicketsUsed", target: 1 },
 ];
-
-const DAILY_FINAL_REWARD = {
-  berries: 150000,
-  gems: 25,
-};
-
-function getDateKey() {
-  const now = new Date();
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
-}
 
 function shuffle(array) {
   const arr = [...array];
-  for (let i = arr.length - 1; i > 0; i--) {
+  for (let i = arr.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
 }
 
-function generateDailyQuests(total = 5) {
-  const chosen = [];
-  const usedCategories = new Set();
+function pickUniqueCategoryQuests(total = 5) {
+  const picked = [];
+  const used = new Set();
 
   for (const quest of shuffle(QUEST_POOL)) {
-    if (usedCategories.has(quest.category)) continue;
-    chosen.push({
-      ...quest,
-      progress: 0,
-      completed: false,
-      claimed: false,
+    if (used.has(quest.category)) continue;
+    picked.push({
+      id: quest.id,
+      category: quest.category,
+      title: quest.title,
+      type: quest.type,
+      key: quest.key,
+      target: quest.target,
     });
-    usedCategories.add(quest.category);
-    if (chosen.length >= total) break;
+    used.add(quest.category);
+    if (picked.length >= total) break;
   }
 
-  return chosen;
+  return picked;
+}
+
+function createDailyQuestState() {
+  return {
+    dateKey: getTodayDateKey(),
+    rewardClaimed: false,
+    quests: pickUniqueCategoryQuests(5),
+    counters: {
+      dailyClaims: 0,
+      pullsUsed: 0,
+      boxesOpened: 0,
+      resetTicketsUsed: 0,
+      fightsPlayed: 0,
+      fightsWon: 0,
+      bossFights: 0,
+      bossesDefeated: 0,
+      craftsDone: 0,
+    },
+  };
 }
 
 function ensureDailyQuestState(player) {
-  const dateKey = getDateKey();
-  const current = player.quests?.dailyState || {};
-  const needsRefresh = current.dateKey !== dateKey || !Array.isArray(current.quests) || !current.quests.length;
+  const existing = player?.quests?.dailyState;
+  const today = getTodayDateKey();
 
-  if (!needsRefresh) return { player, changed: false };
-
-  const quests = generateDailyQuests(player.quests?.daily?.total || 5);
-
-  const next = {
-    ...player,
-    quests: {
-      ...(player.quests || {}),
-      daily: {
-        total: 5,
-        completed: 0,
-      },
-      dailyState: {
-        dateKey,
-        rewardClaimed: false,
-        quests,
-        counters: {
-          dailyClaims: 0,
-          pullsUsed: 0,
-          boxesOpened: 0,
-          resetTicketsUsed: 0,
-          fightsPlayed: 0,
-          fightsWon: 0,
-          bossFights: 0,
-          bossesDefeated: 0,
-          craftsDone: 0,
-        },
-      },
-    },
-  };
-
-  return { player: next, changed: true };
-}
-
-function applyQuestCounter(userId, username, counterKey, amount = 1) {
-  let player = getPlayer(userId, username);
-  const ensured = ensureDailyQuestState(player);
-  player = ensured.player;
-
-  const counters = {
-    ...(player.quests?.dailyState?.counters || {}),
-    [counterKey]: Number(player.quests?.dailyState?.counters?.[counterKey] || 0) + amount,
-  };
-
-  const quests = (player.quests?.dailyState?.quests || []).map((quest) => {
-    if (quest.counterKey !== counterKey) return quest;
-    const progress = Math.min(Number(quest.target || 0), Number(counters[counterKey] || 0));
-    return {
-      ...quest,
-      progress,
-      completed: progress >= Number(quest.target || 0),
-    };
-  });
-
-  const completedCount = quests.filter((q) => q.completed).length;
-  const allComplete = quests.length > 0 && completedCount === quests.length;
-  let rewardClaimed = Boolean(player.quests?.dailyState?.rewardClaimed);
-  let berries = Number(player.berries || 0);
-  let gems = Number(player.gems || 0);
-
-  if (allComplete && !rewardClaimed) {
-    berries += Number(DAILY_FINAL_REWARD.berries || 0);
-    gems += Number(DAILY_FINAL_REWARD.gems || 0);
-    rewardClaimed = true;
+  if (!existing || existing.dateKey !== today || !Array.isArray(existing.quests) || !existing.quests.length) {
+    return createDailyQuestState();
   }
 
-  updatePlayer(userId, {
-    berries,
-    gems,
-    quests: {
-      ...(player.quests || {}),
-      daily: {
-        total: quests.length,
-        completed: completedCount,
-      },
-      dailyState: {
-        ...(player.quests?.dailyState || {}),
-        dateKey: getDateKey(),
-        rewardClaimed,
-        counters,
-        quests,
-      },
-    },
-  });
-
   return {
-    quests,
-    completedCount,
-    total: quests.length,
-    autoRewardGranted: allComplete && rewardClaimed,
+    dateKey: existing.dateKey,
+    rewardClaimed: Boolean(existing.rewardClaimed),
+    quests: Array.isArray(existing.quests) ? existing.quests : [],
+    counters: {
+      dailyClaims: Number(existing?.counters?.dailyClaims || 0),
+      pullsUsed: Number(existing?.counters?.pullsUsed || 0),
+      boxesOpened: Number(existing?.counters?.boxesOpened || 0),
+      resetTicketsUsed: Number(existing?.counters?.resetTicketsUsed || 0),
+      fightsPlayed: Number(existing?.counters?.fightsPlayed || 0),
+      fightsWon: Number(existing?.counters?.fightsWon || 0),
+      bossFights: Number(existing?.counters?.bossFights || 0),
+      bossesDefeated: Number(existing?.counters?.bossesDefeated || 0),
+      craftsDone: Number(existing?.counters?.craftsDone || 0),
+    },
+  };
+}
+
+function incrementQuestCounter(player, key, amount = 1) {
+  const dailyState = ensureDailyQuestState(player);
+  dailyState.counters[key] = Number(dailyState.counters[key] || 0) + Number(amount || 0);
+  return dailyState;
+}
+
+function setQuestCounter(player, key, value) {
+  const dailyState = ensureDailyQuestState(player);
+  dailyState.counters[key] = Number(value || 0);
+  return dailyState;
+}
+
+function getQuestProgress(dailyState, quest) {
+  const value = Number(dailyState?.counters?.[quest.key] || 0);
+  return Math.min(value, Number(quest.target || 1));
+}
+
+function isQuestDone(dailyState, quest) {
+  return getQuestProgress(dailyState, quest) >= Number(quest.target || 1);
+}
+
+function getQuestCompletionSummary(dailyState) {
+  const quests = Array.isArray(dailyState?.quests) ? dailyState.quests : [];
+  const completed = quests.filter((quest) => isQuestDone(dailyState, quest)).length;
+  const total = quests.length;
+  return {
+    completed,
+    total,
+    left: Math.max(0, total - completed),
   };
 }
 
 module.exports = {
   QUEST_POOL,
-  DAILY_FINAL_REWARD,
-  getDateKey,
-  generateDailyQuests,
+  getTodayDateKey,
+  createDailyQuestState,
   ensureDailyQuestState,
-  applyQuestCounter,
+  incrementQuestCounter,
+  setQuestCounter,
+  getQuestProgress,
+  isQuestDone,
+  getQuestCompletionSummary,
 };
