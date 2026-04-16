@@ -30,25 +30,13 @@ function findWeapon(query) {
   );
 }
 
-function addBackWeapon(list, weaponCode) {
-  if (!weaponCode) return list;
-  const weapon = weapons.find((w) => w.code === weaponCode || w.name === weaponCode);
-  if (!weapon) return list;
-
-  const arr = [...(list || [])];
-  const idx = arr.findIndex((x) => x.code === weapon.code);
-
-  if (idx === -1) arr.push({ ...weapon, amount: 1 });
-  else arr[idx] = { ...arr[idx], amount: Number(arr[idx].amount || 0) + 1 };
-
-  return arr;
-}
-
 function consumeWeapon(list, weaponCode) {
   const arr = [...(list || [])];
   const idx = arr.findIndex((x) => x.code === weaponCode);
 
-  if (idx === -1 || Number(arr[idx].amount || 0) <= 0) throw new Error("Weapon not owned.");
+  if (idx === -1 || Number(arr[idx].amount || 0) <= 0) {
+    throw new Error("Weapon not owned.");
+  }
 
   if (Number(arr[idx].amount || 0) === 1) arr.splice(idx, 1);
   else arr[idx] = { ...arr[idx], amount: Number(arr[idx].amount || 0) - 1 };
@@ -67,6 +55,10 @@ module.exports = {
     const card = findOwnedCard(player.cards || [], split.cardName);
     if (!card) return message.reply(`No owned card found matching \`${split.cardName}\`.`);
 
+    if (card.equippedWeapon || card.equippedWeaponCode) {
+      return message.reply("This card already has a weapon equipped, and it cannot be removed.");
+    }
+
     const weapon = findWeapon(split.weaponName);
     if (!weapon) return message.reply(`No weapon found matching \`${split.weaponName}\`.`);
 
@@ -78,8 +70,7 @@ module.exports = {
       return message.reply(`\`${weapon.name}\` cannot be equipped to \`${card.displayName || card.name}\`.`);
     }
 
-    let nextWeapons = consumeWeapon(player.weapons || [], weapon.code);
-    nextWeapons = addBackWeapon(nextWeapons, card.equippedWeaponCode || null);
+    const nextWeapons = consumeWeapon(player.weapons || [], weapon.code);
 
     const bonus = {
       atk: Number(weapon?.statBonus?.atk || 0),
@@ -91,16 +82,25 @@ module.exports = {
       if (raw.instanceId !== card.instanceId) return raw;
 
       const stage = Number(raw.evolutionStage || 1);
-      const mult = stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45;
+      const mult =
+        raw.code === "luffy_straw_hat"
+          ? stage === 1 ? 1 : stage === 2 ? 1.75 : 2.35
+          : stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45;
+
+      const fruitBonus = {
+        atk: Number(raw?.fruitBonus?.atk || 0),
+        hp: Number(raw?.fruitBonus?.hp || 0),
+        speed: Number(raw?.fruitBonus?.speed || 0),
+      };
 
       return hydrateCard({
         ...raw,
         equippedWeapon: weapon.name,
         equippedWeaponCode: weapon.code,
         weaponBonus: bonus,
-        atk: Math.floor(Number(raw.baseAtk || raw.atk || 0) * mult) + bonus.atk,
-        hp: Math.floor(Number(raw.baseHp || raw.hp || 0) * mult) + bonus.hp,
-        speed: Math.floor(Number(raw.baseSpeed || raw.speed || 0) * mult) + bonus.speed,
+        atk: Math.floor(Number(raw.baseAtk || raw.atk || 0) * mult) + bonus.atk + fruitBonus.atk,
+        hp: Math.floor(Number(raw.baseHp || raw.hp || 0) * mult) + bonus.hp + fruitBonus.hp,
+        speed: Math.floor(Number(raw.baseSpeed || raw.speed || 0) * mult) + bonus.speed + fruitBonus.speed,
       });
     });
 
@@ -130,6 +130,8 @@ module.exports = {
               `**SPD:** ${synced.speed}`,
               "",
               `Bonus: +${bonus.atk} ATK / +${bonus.hp} HP / +${bonus.speed} SPD`,
+              "",
+              "This equip is permanent and cannot be removed.",
             ].join("\n")
           )
           .setThumbnail(weaponBadge || null)
