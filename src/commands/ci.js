@@ -5,13 +5,7 @@ const {
   ButtonStyle,
 } = require("discord.js");
 const { getPlayer } = require("../playerStore");
-const { findCardTemplate, findCardByQueryFromOwned, hydrateCard } = require("../utils/evolution");
-
-function stageMultiplier(stage) {
-  if (stage === 1) return 1;
-  if (stage === 2) return 1.2;
-  return 1.45;
-}
+const { findCardTemplate, findOwnedCard } = require("../utils/evolution");
 
 function reqText(req) {
   if (!req) return "Base form. No requirement.";
@@ -25,41 +19,30 @@ function reqText(req) {
     .join("\n");
 }
 
-function calcStageStats(card, stage) {
-  const mult = stageMultiplier(stage);
-  return {
-    atk: Math.floor(Number(card.baseAtk || 0) * mult),
-    hp: Math.floor(Number(card.baseHp || 0) * mult),
-    speed: Math.floor(Number(card.baseSpeed || 0) * mult),
-  };
-}
-
-function buildEmbed(card, ownedCard, stage) {
-  const form = card.evolutionForms[stage - 1];
-  const stats = calcStageStats(card, stage);
-
+function buildEmbed(card, owned, stage) {
+  const form = card.evolutionForms?.[stage - 1];
   return new EmbedBuilder()
     .setColor(0x5865f2)
     .setTitle(`🃏 Card Info • ${card.displayName || card.name}`)
     .setDescription(
       [
-        `**Form:** ${form.key} • ${form.name}`,
-        `**Tier:** ${form.tier}`,
+        `**Form:** ${form?.key || `M${stage}`} • ${form?.name || card.variant || "Unknown"}`,
+        `**Tier:** ${form?.tier || card.currentTier || card.rarity}`,
         `**Role:** ${card.cardRole}`,
         `**Base Path:** ${card.baseTier} -> ${card.evolutionForms.map((x) => x.tier).join(" -> ")}`,
         "",
-        `**ATK:** ${stats.atk}`,
-        `**HP:** ${stats.hp}`,
-        `**SPD:** ${stats.speed}`,
+        `**ATK:** ${stage === 1 ? card.baseAtk : stage === 2 ? Math.floor(card.baseAtk * 1.2) : Math.floor(card.baseAtk * 1.45)}`,
+        `**HP:** ${stage === 1 ? card.baseHp : stage === 2 ? Math.floor(card.baseHp * 1.2) : Math.floor(card.baseHp * 1.45)}`,
+        `**SPD:** ${stage === 1 ? card.baseSpeed : stage === 2 ? Math.floor(card.baseSpeed * 1.2) : Math.floor(card.baseSpeed * 1.45)}`,
         "",
-        ownedCard
-          ? `**Owned Stage:** M${ownedCard.evolutionStage} • ${ownedCard.evolutionForms[ownedCard.evolutionStage - 1].name}`
+        owned
+          ? `**Owned Stage:** M${owned.evolutionStage} • ${owned.evolutionForms?.[owned.evolutionStage - 1]?.name || owned.variant}`
           : "**Owned Stage:** Not owned",
       ].join("\n")
     )
     .setImage(card.image || null)
     .setFooter({
-      text: ownedCard
+      text: owned
         ? "Global Card Viewer • Owned card detected"
         : "Global Card Viewer • Not required to own the card",
     });
@@ -95,27 +78,20 @@ module.exports = {
     if (!query) return message.reply("Usage: `op ci <card name>`");
 
     const player = getPlayer(message.author.id, message.author.username);
-    const template = findCardTemplate(query);
+    const globalCard = findCardTemplate(query);
+    if (!globalCard) return message.reply("Card not found in global database.");
 
-    if (!template) {
-      return message.reply("Card not found in global database.");
-    }
-
-    const globalCard = hydrateCard({
-      ...template,
-      evolutionStage: 1,
-      weaponBonus: { atk: 0, hp: 0, speed: 0 },
-    });
-
-    const ownedCard = findCardByQueryFromOwned(player.cards || [], query);
+    const owned = findOwnedCard(player.cards || [], query);
     let stage = 1;
 
     const sent = await message.reply({
-      embeds: [buildEmbed(globalCard, ownedCard, stage)],
+      embeds: [buildEmbed(globalCard, owned, stage)],
       components: buildRows(stage),
     });
 
-    const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
+    const collector = sent.createMessageComponentCollector({
+      time: 10 * 60 * 1000,
+    });
 
     collector.on("collect", async (i) => {
       if (i.user.id !== message.author.id) {
@@ -129,7 +105,7 @@ module.exports = {
       if (i.customId === "ci_next") stage = Math.min(3, stage + 1);
 
       if (i.customId === "ci_info") {
-        const req = globalCard.evolutionForms[stage - 1]?.require;
+        const req = globalCard.awakenRequirements?.[`M${stage}`];
         return i.reply({
           ephemeral: true,
           embeds: [
@@ -142,7 +118,7 @@ module.exports = {
       }
 
       return i.update({
-        embeds: [buildEmbed(globalCard, ownedCard, stage)],
+        embeds: [buildEmbed(globalCard, owned, stage)],
         components: buildRows(stage),
       });
     });
