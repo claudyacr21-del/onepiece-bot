@@ -38,28 +38,18 @@ for (const file of commandFiles) {
 
 client.once("clientReady", async () => {
   console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
-  try {
-    const app = await client.application.fetch();
-    console.log(`[APP] Application ID: ${app.id}`);
-  } catch (e) {
-    console.error("[APP] Failed to fetch application:", e);
-  }
-
   startTopggWebhookServer(client);
 });
 
 client.on("messageCreate", async (message) => {
   try {
     if (message.partial) {
-      try { await message.fetch(); } catch (e) { console.error("[PARTIAL MESSAGE]", e); }
+      try { await message.fetch(); } catch (_) {}
     }
 
     if (message.channel?.partial) {
-      try { await message.channel.fetch(); } catch (e) { console.error("[PARTIAL CHANNEL]", e); }
+      try { await message.channel.fetch(); } catch (_) {}
     }
-
-    const isDM = !message.guild;
-    console.log(`[EVENT] messageCreate | ${isDM ? "DM" : "GUILD"} | ${message.author?.tag} | ${message.content}`);
 
     if (!message.author || message.author.bot) return;
     if (typeof message.content !== "string") return;
@@ -88,9 +78,7 @@ client.on("messageCreate", async (message) => {
     console.error("[COMMAND ERROR]", error);
     try {
       await message.reply("An error occurred while running that command.");
-    } catch (replyError) {
-      console.error("[REPLY ERROR]", replyError);
-    }
+    } catch (_) {}
   }
 });
 
