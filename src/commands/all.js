@@ -1,10 +1,11 @@
 const {
-  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  EmbedBuilder,
 } = require("discord.js");
 const { getAllCards } = require("../utils/evolution");
+const { buildCardStyleEmbed } = require("../utils/cardView");
 const weapons = require("../data/weapons");
 const devilFruits = require("../data/devilFruits");
 const {
@@ -12,7 +13,6 @@ const {
   getWeaponImage,
   getDevilFruitImage,
 } = require("../config/assetLinks");
-const { buildCardStyleEmbed } = require("../utils/cardView");
 
 function getM3Stats(card) {
   const mult = card.code === "luffy_straw_hat" ? 2.35 : 1.45;
@@ -37,23 +37,6 @@ function tierScore(tier) {
   return { C: 1, B: 2, A: 3, S: 4, SS: 5, UR: 6 }[String(tier || "").toUpperCase()] || 0;
 }
 
-function rows(index, total) {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("all_prev")
-        .setLabel("Prev")
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(index <= 0),
-      new ButtonBuilder()
-        .setCustomId("all_next")
-        .setLabel("Next")
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(index >= total - 1)
-    ),
-  ];
-}
-
 function buildCardEmbed(card, index, total, mode) {
   const m3 = card.evolutionForms?.[2];
   const stats = getM3Stats(card);
@@ -74,6 +57,8 @@ function buildCardEmbed(card, index, total, mode) {
       `Base Tier: ${card.baseTier}`,
       `Max Form: ${m3?.key || "M3"}`,
       `Max Tier: ${m3?.tier || card.currentTier || card.rarity}`,
+      `Path: ${card.evolutionForms.map((x) => x.tier).join(" -> ")}`,
+      "",
       `ATK (M3): ${stats.atk}`,
       `HP (M3): ${stats.hp}`,
       `SPD (M3): ${stats.speed}`,
@@ -128,11 +113,21 @@ function buildFruitEmbed(item, index, total) {
     .setFooter({ text: `Fruit ${index + 1}/${total} • Code: ${item.code}` });
 }
 
+function rows(index, total) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("all_prev").setLabel("Prev").setStyle(ButtonStyle.Secondary).setDisabled(index <= 0),
+      new ButtonBuilder().setCustomId("all_next").setLabel("Next").setStyle(ButtonStyle.Secondary).setDisabled(index >= total - 1)
+    ),
+  ];
+}
+
 module.exports = {
   name: "all",
   aliases: ["allcards"],
   async execute(message, args) {
     const rawMode = String(args.join(" ").trim()).toLowerCase();
+
     const mode =
       rawMode === "boost" ? "boost" :
       rawMode === "weapon" ? "weapon" :
@@ -148,10 +143,14 @@ module.exports = {
         .sort((a, b) => {
           const powerDiff = getCardPower(b) - getCardPower(a);
           if (powerDiff !== 0) return powerDiff;
-          const tierDiff = tierScore(b?.evolutionForms?.[2]?.tier) - tierScore(a?.evolutionForms?.[2]?.tier);
-          if (tierDiff !== 0) return tierDiff;
+
+          const aTier = tierScore(a?.evolutionForms?.[2]?.tier);
+          const bTier = tierScore(b?.evolutionForms?.[2]?.tier);
+          if (bTier !== aTier) return bTier - aTier;
+
           return String(a.displayName || a.name).localeCompare(String(b.displayName || b.name));
         });
+
       renderer = (item, index, total) => buildCardEmbed(item, index, total, mode);
     }
 
@@ -159,10 +158,13 @@ module.exports = {
       list = [...weapons].sort((a, b) => {
         const powerDiff = getItemPower(b) - getItemPower(a);
         if (powerDiff !== 0) return powerDiff;
+
         const tierDiff = tierScore(b.rarity) - tierScore(a.rarity);
         if (tierDiff !== 0) return tierDiff;
+
         return String(a.name || a.code).localeCompare(String(b.name || b.code));
       });
+
       renderer = buildWeaponEmbed;
     }
 
@@ -170,10 +172,13 @@ module.exports = {
       list = [...devilFruits].sort((a, b) => {
         const powerDiff = getItemPower(b) - getItemPower(a);
         if (powerDiff !== 0) return powerDiff;
+
         const tierDiff = tierScore(b.rarity) - tierScore(a.rarity);
         if (tierDiff !== 0) return tierDiff;
+
         return String(a.name || a.code).localeCompare(String(b.name || b.code));
       });
+
       renderer = buildFruitEmbed;
     }
 
