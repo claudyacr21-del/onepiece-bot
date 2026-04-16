@@ -6,6 +6,7 @@ const {
 } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { findCardTemplate, findOwnedCard } = require("../utils/evolution");
+const { buildCardStyleEmbed } = require("../utils/cardView");
 
 function buildReqEmbed(card, stage) {
   const req = card.awakenRequirements?.[`M${stage}`];
@@ -21,8 +22,7 @@ function buildReqEmbed(card, stage) {
     .setTitle(`ℹ️ Requirement • ${card.displayName || card.name} • M${stage}`)
     .setDescription(
       [
-        "🧩 **Fragments / Path Requirement**",
-        `↪ ${card.evolutionForms?.[stage - 1]?.name || `M${stage}`}`,
+        "🧩 **Requirement Panel**",
         "",
         "💰 **Berries Required**",
         `↪ ${Number(req.berries || 0).toLocaleString("en-US")}`,
@@ -43,52 +43,37 @@ function buildEmbed(card, owned, stage) {
   const form = card.evolutionForms?.[stage - 1];
   const mult = stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45;
 
-  return new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle(`🃏 Card Info • ${card.displayName || card.name}`)
-    .setDescription(
-      [
-        `**Form:** ${form?.key || `M${stage}`} • ${form?.name || "Unknown"}`,
-        `**Tier:** ${form?.tier || card.currentTier || card.rarity}`,
-        `**Role:** ${card.cardRole}`,
-        `**Base Path:** ${card.baseTier} -> ${card.evolutionForms.map((x) => x.tier).join(" -> ")}`,
-        "",
-        `**ATK:** ${Math.floor(Number(card.baseAtk || 0) * mult)}`,
-        `**HP:** ${Math.floor(Number(card.baseHp || 0) * mult)}`,
-        `**SPD:** ${Math.floor(Number(card.baseSpeed || 0) * mult)}`,
-        "",
-        owned
-          ? `**Owned Stage:** M${owned.evolutionStage} • ${owned.evolutionForms?.[owned.evolutionStage - 1]?.name || owned.variant}`
-          : "**Owned Stage:** Not owned",
-      ].join("\n")
-    )
-    .setThumbnail(form?.badgeImage || card.badgeImage || null)
-    .setImage(card.image || null)
-    .setFooter({
-      text: owned
-        ? "Global Card Viewer • Owned card detected"
-        : "Global Card Viewer • Not required to own the card",
-    });
+  return buildCardStyleEmbed({
+    color: 0x5865f2,
+    header: "Global Card Viewer",
+    card,
+    formName: form?.name || "Unknown Form",
+    tier: form?.tier || card.currentTier || card.rarity,
+    footerText: owned
+      ? `Owned Stage: M${owned.evolutionStage} • Global viewer`
+      : "Global Card Viewer • Not required to own the card",
+    extraLines: [
+      `Form: ${form?.key || `M${stage}`}`,
+      `Tier: ${form?.tier || card.currentTier || card.rarity}`,
+      `Role: ${card.cardRole}`,
+      `Base Path: ${card.baseTier} -> ${card.evolutionForms.map((x) => x.tier).join(" -> ")}`,
+      "",
+      `ATK: ${Math.floor(Number(card.baseAtk || 0) * mult)}`,
+      `HP: ${Math.floor(Number(card.baseHp || 0) * mult)}`,
+      `SPD: ${Math.floor(Number(card.baseSpeed || 0) * mult)}`,
+      owned
+        ? `Owned Stage: M${owned.evolutionStage} • ${owned.evolutionForms?.[owned.evolutionStage - 1]?.name || owned.variant}`
+        : "Owned Stage: Not owned",
+    ],
+  });
 }
 
 function buildRows(stage) {
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("ci_prev")
-        .setLabel("Prev")
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(stage <= 1),
-      new ButtonBuilder()
-        .setCustomId("ci_info")
-        .setLabel("(i)")
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(stage <= 1),
-      new ButtonBuilder()
-        .setCustomId("ci_next")
-        .setLabel("Next")
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(stage >= 3)
+      new ButtonBuilder().setCustomId("ci_prev").setLabel("Prev").setStyle(ButtonStyle.Secondary).setDisabled(stage <= 1),
+      new ButtonBuilder().setCustomId("ci_info").setLabel("(i)").setStyle(ButtonStyle.Primary).setDisabled(stage <= 1),
+      new ButtonBuilder().setCustomId("ci_next").setLabel("Next").setStyle(ButtonStyle.Secondary).setDisabled(stage >= 3)
     ),
   ];
 }
@@ -115,18 +100,13 @@ module.exports = {
     const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
 
     collector.on("collect", async (i) => {
-      if (i.user.id !== message.author.id) {
-        return i.reply({ content: "Only you can control this card viewer.", ephemeral: true });
-      }
+      if (i.user.id !== message.author.id) return i.reply({ content: "Only you can control this card viewer.", ephemeral: true });
 
       if (i.customId === "ci_prev") stage = Math.max(1, stage - 1);
       if (i.customId === "ci_next") stage = Math.min(3, stage + 1);
 
       if (i.customId === "ci_info") {
-        return i.reply({
-          ephemeral: true,
-          embeds: [buildReqEmbed(globalCard, stage)],
-        });
+        return i.reply({ ephemeral: true, embeds: [buildReqEmbed(globalCard, stage)] });
       }
 
       return i.update({
@@ -136,9 +116,7 @@ module.exports = {
     });
 
     collector.on("end", async () => {
-      try {
-        await sent.edit({ components: [] });
-      } catch (_) {}
+      try { await sent.edit({ components: [] }); } catch (_) {}
     });
   },
 };

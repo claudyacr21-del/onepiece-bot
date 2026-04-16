@@ -6,6 +6,7 @@ const {
 } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { findOwnedCard } = require("../utils/evolution");
+const { buildCardStyleEmbed } = require("../utils/cardView");
 
 function buildReqEmbed(card, stage) {
   const req = card.awakenRequirements?.[`M${stage}`];
@@ -21,8 +22,7 @@ function buildReqEmbed(card, stage) {
     .setTitle(`ℹ️ Requirement • ${card.displayName || card.name} • M${stage}`)
     .setDescription(
       [
-        "🧩 **Fragments / Path Requirement**",
-        `↪ ${card.evolutionForms?.[stage - 1]?.name || `M${stage}`}`,
+        "🧩 **Requirement Panel**",
         "",
         "💰 **Berries Required**",
         `↪ ${Number(req.berries || 0).toLocaleString("en-US")}`,
@@ -39,31 +39,29 @@ function buildReqEmbed(card, stage) {
     );
 }
 
-function buildEmbed(card, stage) {
+function buildEmbed(ownerName, card, stage) {
   const form = card.evolutionForms?.[stage - 1];
   const mult = stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45;
 
-  return new EmbedBuilder()
-    .setColor(0x1abc9c)
-    .setTitle(`🧾 My Card Info • ${card.displayName || card.name}`)
-    .setDescription(
-      [
-        `**Owned Stage:** ${card.evolutionKey}`,
-        `**Viewing Form:** ${form?.key || `M${stage}`} • ${form?.name || "Unknown"}`,
-        `**Tier:** ${form?.tier || card.currentTier || card.rarity}`,
-        `**Role:** ${card.cardRole}`,
-        "",
-        `**ATK:** ${Math.floor(Number(card.baseAtk || 0) * mult) + Number(card.weaponBonus?.atk || 0)}`,
-        `**HP:** ${Math.floor(Number(card.baseHp || 0) * mult) + Number(card.weaponBonus?.hp || 0)}`,
-        `**SPD:** ${Math.floor(Number(card.baseSpeed || 0) * mult) + Number(card.weaponBonus?.speed || 0)}`,
-        "",
-        `**Weapon:** ${card.equippedWeapon || "None"}`,
-        `**Base Tier:** ${card.baseTier}`,
-      ].join("\n")
-    )
-    .setThumbnail(form?.badgeImage || card.badgeImage || null)
-    .setImage(card.image || null)
-    .setFooter({ text: "Owned Card Viewer" });
+  return buildCardStyleEmbed({
+    color: 0x1abc9c,
+    ownerName,
+    card,
+    formName: form?.name || "Unknown Form",
+    tier: form?.tier || card.currentTier || card.rarity,
+    footerText: `This card belongs to ${ownerName}`,
+    extraLines: [
+      `Form: ${form?.key || `M${stage}`}`,
+      `Tier: ${form?.tier || card.currentTier || card.rarity}`,
+      `Level: ${card.level || 1}`,
+      `Power: ${Math.floor((Math.floor(Number(card.baseAtk || 0) * mult) + Number(card.weaponBonus?.atk || 0)) * 1.4 + (Math.floor(Number(card.baseHp || 0) * mult) + Number(card.weaponBonus?.hp || 0)) * 0.22 + (Math.floor(Number(card.baseSpeed || 0) * mult) + Number(card.weaponBonus?.speed || 0)) * 9)}`,
+      `Health: ${Math.floor(Number(card.baseHp || 0) * mult) + Number(card.weaponBonus?.hp || 0)}`,
+      `Speed: ${Math.floor(Number(card.baseSpeed || 0) * mult) + Number(card.weaponBonus?.speed || 0)}`,
+      `Attack: ${Math.floor(Number(card.baseAtk || 0) * mult) + Number(card.weaponBonus?.atk || 0)}`,
+      `Weapons: ${card.equippedWeapon || "None"}`,
+      `Type: ${card.type || card.cardRole}`,
+    ],
+  });
 }
 
 function buildRows(stage) {
@@ -90,37 +88,30 @@ module.exports = {
     let stage = Number(card.evolutionStage || 1);
 
     const sent = await message.reply({
-      embeds: [buildEmbed(card, stage)],
+      embeds: [buildEmbed(message.author.username, card, stage)],
       components: buildRows(stage),
     });
 
     const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
 
     collector.on("collect", async (i) => {
-      if (i.user.id !== message.author.id) {
-        return i.reply({ content: "Only you can control this card viewer.", ephemeral: true });
-      }
+      if (i.user.id !== message.author.id) return i.reply({ content: "Only you can control this card viewer.", ephemeral: true });
 
       if (i.customId === "mci_prev") stage = Math.max(1, stage - 1);
       if (i.customId === "mci_next") stage = Math.min(3, stage + 1);
 
       if (i.customId === "mci_info") {
-        return i.reply({
-          ephemeral: true,
-          embeds: [buildReqEmbed(card, stage)],
-        });
+        return i.reply({ ephemeral: true, embeds: [buildReqEmbed(card, stage)] });
       }
 
       return i.update({
-        embeds: [buildEmbed(card, stage)],
+        embeds: [buildEmbed(message.author.username, card, stage)],
         components: buildRows(stage),
       });
     });
 
     collector.on("end", async () => {
-      try {
-        await sent.edit({ components: [] });
-      } catch (_) {}
+      try { await sent.edit({ components: [] }); } catch (_) {}
     });
   },
 };
