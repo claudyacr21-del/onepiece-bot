@@ -28,8 +28,11 @@ const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith
 for (const file of commandFiles) {
   const command = require(path.join(commandsPath, file));
   client.commands.set(command.name, command);
+
   if (Array.isArray(command.aliases)) {
-    for (const alias of command.aliases) client.commands.set(alias, command);
+    for (const alias of command.aliases) {
+      client.commands.set(alias, command);
+    }
   }
 }
 
@@ -41,6 +44,8 @@ client.once("clientReady", async () => {
   } catch (e) {
     console.error("[APP] Failed to fetch application:", e);
   }
+
+  startTopggWebhookServer(client);
 });
 
 client.on("messageCreate", async (message) => {
@@ -48,6 +53,7 @@ client.on("messageCreate", async (message) => {
     if (message.partial) {
       try { await message.fetch(); } catch (e) { console.error("[PARTIAL MESSAGE]", e); }
     }
+
     if (message.channel?.partial) {
       try { await message.channel.fetch(); } catch (e) { console.error("[PARTIAL CHANNEL]", e); }
     }
@@ -59,6 +65,7 @@ client.on("messageCreate", async (message) => {
     if (typeof message.content !== "string") return;
 
     const content = message.content.trim();
+    if (!content) return;
     if (!content.toLowerCase().startsWith(PREFIX)) return;
 
     const sliced = content.slice(PREFIX.length).trim();
@@ -87,10 +94,6 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-client.on("channelCreate", (channel) => {
-  console.log(`[EVENT] channelCreate | type=${channel?.type} | id=${channel?.id}`);
-});
-
 client.on("error", (err) => {
   console.error("[CLIENT ERROR]", err);
 });
@@ -99,5 +102,4 @@ client.on("warn", (info) => {
   console.warn("[CLIENT WARN]", info);
 });
 
-startTopggWebhookServer(client);
 client.login(process.env.DISCORD_TOKEN);
