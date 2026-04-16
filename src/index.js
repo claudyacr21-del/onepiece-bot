@@ -19,7 +19,7 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
-const PREFIX = (process.env.PREFIX || "op").toLowerCase();
+const PREFIX = String(process.env.PREFIX || "op").toLowerCase();
 client.commands = new Collection();
 
 const commandsPath = path.join(__dirname, "commands");
@@ -29,7 +29,7 @@ for (const file of commandFiles) {
   const command = require(path.join(commandsPath, file));
   client.commands.set(command.name, command);
 
-  if (command.aliases && Array.isArray(command.aliases)) {
+  if (Array.isArray(command.aliases)) {
     for (const alias of command.aliases) {
       client.commands.set(alias, command);
     }
@@ -43,21 +43,18 @@ client.once("clientReady", () => {
 client.on("messageCreate", async (message) => {
   try {
     if (message.partial) {
-      try {
-        await message.fetch();
-      } catch (_) {}
+      try { await message.fetch(); } catch (_) {}
     }
 
     if (message.channel?.partial) {
-      try {
-        await message.channel.fetch();
-      } catch (_) {}
+      try { await message.channel.fetch(); } catch (_) {}
     }
 
-    if (message.author?.bot) return;
-    if (!message.content) return;
+    if (!message.author || message.author.bot) return;
+    if (typeof message.content !== "string") return;
 
     const content = message.content.trim();
+    if (!content) return;
     if (!content.toLowerCase().startsWith(PREFIX)) return;
 
     const sliced = content.slice(PREFIX.length).trim();
@@ -71,13 +68,8 @@ client.on("messageCreate", async (message) => {
     await command.execute(message, args);
   } catch (error) {
     console.error("Command error:", error);
-
     try {
-      await message.reply(
-        message.guild
-          ? "An error occurred while running that command."
-          : "That command could not run in DM or hit an error."
-      );
+      await message.reply("An error occurred while running that command.");
     } catch (_) {}
   }
 });
