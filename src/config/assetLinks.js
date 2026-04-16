@@ -8,9 +8,7 @@ const RARITY_BADGES = {
 };
 
 const CARD_IMAGES = {
-  // contoh:
   // luffy_straw_hat: "https://...",
-  // zoro_pirate_hunter: "https://...",
 };
 
 const WEAPON_IMAGES = {
@@ -18,9 +16,13 @@ const WEAPON_IMAGES = {
   // yoru: "https://...",
 };
 
+const DEVIL_FRUIT_IMAGES = {
+  // mera_mera_no_mi: "https://...",
+  // pika_pika_no_mi: "https://...",
+};
+
 const SHIP_IMAGES = {
-  // going_merry: "https://...",
-  // thousand_sunny: "https://...",
+  // small_boat: "https://...",
 };
 
 const ISLAND_IMAGES = {
@@ -61,30 +63,36 @@ function getRarityBadge(rarity) {
 }
 
 function getCardImage(code, fallback = "") {
-  return CARD_IMAGES[code] || fallback || "";
+  return CARD_IMAGES[String(code || "")] || fallback || "";
 }
 
 function getWeaponImage(code, fallback = "") {
-  return WEAPON_IMAGES[code] || fallback || "";
+  return WEAPON_IMAGES[String(code || "")] || fallback || "";
+}
+
+function getDevilFruitImage(code, fallback = "") {
+  return DEVIL_FRUIT_IMAGES[String(code || "")] || fallback || "";
 }
 
 function getShipImage(code, fallback = "") {
-  return SHIP_IMAGES[code] || fallback || "";
+  return SHIP_IMAGES[String(code || "")] || fallback || "";
 }
 
 function getIslandImage(code, fallback = "") {
-  return ISLAND_IMAGES[code] || fallback || "";
+  return ISLAND_IMAGES[String(code || "")] || fallback || "";
 }
 
 module.exports = {
   RARITY_BADGES,
   CARD_IMAGES,
   WEAPON_IMAGES,
+  DEVIL_FRUIT_IMAGES,
   SHIP_IMAGES,
   ISLAND_IMAGES,
   getRarityBadge,
   getCardImage,
   getWeaponImage,
+  getDevilFruitImage,
   getShipImage,
   getIslandImage,
 };
