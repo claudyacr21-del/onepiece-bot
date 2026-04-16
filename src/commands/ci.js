@@ -41,9 +41,18 @@ function buildReqEmbed(card, stage) {
 
 function buildEmbed(card, owned, stage) {
   const form = card.evolutionForms?.[stage - 1];
-  const mult = card.code === "luffy_straw_hat"
-    ? (stage === 1 ? 1 : stage === 2 ? 1.75 : 2.35)
-    : (stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45);
+  const mult =
+    card.code === "luffy_straw_hat"
+      ? stage === 1
+        ? 1
+        : stage === 2
+        ? 1.75
+        : 2.35
+      : stage === 1
+      ? 1
+      : stage === 2
+      ? 1.2
+      : 1.45;
 
   return buildCardStyleEmbed({
     color: 0x5865f2,
@@ -63,6 +72,8 @@ function buildEmbed(card, owned, stage) {
       `ATK: ${Math.floor(Number(card.baseAtk || 0) * mult)}`,
       `HP: ${Math.floor(Number(card.baseHp || 0) * mult)}`,
       `SPD: ${Math.floor(Number(card.baseSpeed || 0) * mult)}`,
+      `Weapon: ${card.weapon || "None"}`,
+      `Devil Fruit: ${card.devilFruit || "None"}`,
       owned
         ? `Owned Stage: M${owned.evolutionStage} • ${owned.evolutionForms?.[owned.evolutionStage - 1]?.name || owned.variant}`
         : "Owned Stage: Not owned",
@@ -102,7 +113,9 @@ module.exports = {
     const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
 
     collector.on("collect", async (i) => {
-      if (i.user.id !== message.author.id) return i.reply({ content: "Only you can control this card viewer.", ephemeral: true });
+      if (i.user.id !== message.author.id) {
+        return i.reply({ content: "Only you can control this card viewer.", ephemeral: true });
+      }
 
       if (i.customId === "ci_prev") stage = Math.max(1, stage - 1);
       if (i.customId === "ci_next") stage = Math.min(3, stage + 1);
@@ -118,7 +131,9 @@ module.exports = {
     });
 
     collector.on("end", async () => {
-      try { await sent.edit({ components: [] }); } catch (_) {}
+      try {
+        await sent.edit({ components: [] });
+      } catch (_) {}
     });
   },
 };

@@ -12,6 +12,7 @@ function buildEmbed(ownerName, card, index, total) {
     color: 0x3498db,
     ownerName,
     card,
+    badgeImage: card.evolutionForms?.[card.evolutionStage - 1]?.badgeImage || card.badgeImage || "",
     formName: card.evolutionForms?.[card.evolutionStage - 1]?.name || card.variant || "Unknown",
     tier: card.currentTier || card.rarity,
     footerText: `Card ${index + 1}/${total} • This card belongs to ${ownerName}`,
@@ -23,7 +24,8 @@ function buildEmbed(ownerName, card, index, total) {
       `Health: ${card.hp}`,
       `Speed: ${card.speed}`,
       `Attack: ${card.atk}`,
-      `Weapons: ${card.equippedWeapon || "None"}`,
+      `Weapon: ${card.equippedWeapon || "None"}`,
+      `Devil Fruit: ${card.equippedDevilFruit || "None"}`,
       `Type: ${card.type || card.cardRole}`,
       `Kills: ${card.kills || 0}`,
       `Fragments: ${card.fragments || 0}`,
@@ -80,7 +82,9 @@ module.exports = {
     });
 
     collector.on("end", async () => {
-      try { await sent.edit({ components: [] }); } catch (_) {}
+      try {
+        await sent.edit({ components: [] });
+      } catch (_) {}
     });
   },
 };

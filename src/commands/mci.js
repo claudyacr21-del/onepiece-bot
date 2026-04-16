@@ -41,12 +41,24 @@ function buildReqEmbed(card, stage) {
 
 function buildEmbed(ownerName, card, stage) {
   const form = card.evolutionForms?.[stage - 1];
-  const mult = stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45;
+  const mult =
+    card.code === "luffy_straw_hat"
+      ? stage === 1
+        ? 1
+        : stage === 2
+        ? 1.75
+        : 2.35
+      : stage === 1
+      ? 1
+      : stage === 2
+      ? 1.2
+      : 1.45;
 
   return buildCardStyleEmbed({
     color: 0x1abc9c,
     ownerName,
     card,
+    badgeImage: form?.badgeImage || card.badgeImage || "",
     formName: form?.name || "Unknown Form",
     tier: form?.tier || card.currentTier || card.rarity,
     footerText: `This card belongs to ${ownerName}`,
@@ -58,7 +70,8 @@ function buildEmbed(ownerName, card, stage) {
       `Health: ${Math.floor(Number(card.baseHp || 0) * mult) + Number(card.weaponBonus?.hp || 0)}`,
       `Speed: ${Math.floor(Number(card.baseSpeed || 0) * mult) + Number(card.weaponBonus?.speed || 0)}`,
       `Attack: ${Math.floor(Number(card.baseAtk || 0) * mult) + Number(card.weaponBonus?.atk || 0)}`,
-      `Weapons: ${card.equippedWeapon || "None"}`,
+      `Weapon: ${card.equippedWeapon || "None"}`,
+      `Devil Fruit: ${card.equippedDevilFruit || "None"}`,
       `Type: ${card.type || card.cardRole}`,
     ],
   });
@@ -95,7 +108,9 @@ module.exports = {
     const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
 
     collector.on("collect", async (i) => {
-      if (i.user.id !== message.author.id) return i.reply({ content: "Only you can control this card viewer.", ephemeral: true });
+      if (i.user.id !== message.author.id) {
+        return i.reply({ content: "Only you can control this card viewer.", ephemeral: true });
+      }
 
       if (i.customId === "mci_prev") stage = Math.max(1, stage - 1);
       if (i.customId === "mci_next") stage = Math.min(3, stage + 1);
@@ -111,7 +126,9 @@ module.exports = {
     });
 
     collector.on("end", async () => {
-      try { await sent.edit({ components: [] }); } catch (_) {}
+      try {
+        await sent.edit({ components: [] });
+      } catch (_) {}
     });
   },
 };
