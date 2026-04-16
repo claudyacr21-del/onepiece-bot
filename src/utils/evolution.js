@@ -1,8 +1,5 @@
 const cardsDb = require("../data/cards");
-const {
-  getRarityBadge,
-  getCardImage,
-} = require("../config/assetLinks");
+const { getRarityBadge, getCardImage } = require("../config/assetLinks");
 
 const slug = (s = "") =>
   String(s)
@@ -16,6 +13,16 @@ function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
+function sameList(a = [], b = []) {
+  return JSON.stringify([...a].map(slug).sort()) === JSON.stringify([...b].map(slug).sort());
+}
+
+function ensureUniqueRequirementEntry(list = [], fallback) {
+  const arr = [...list];
+  if (!arr.map(slug).includes(slug(fallback))) arr.push(fallback);
+  return arr;
+}
+
 function normalizeRequirementPair(card) {
   const next = clone(card);
   const m2 = next?.awakenRequirements?.M2 || null;
@@ -23,23 +30,39 @@ function normalizeRequirementPair(card) {
 
   if (!m2 || !m3) return next;
 
-  const sameBerries = Number(m2.berries || 0) === Number(m3.berries || 0);
-  const sameCards =
-    JSON.stringify([...(m2.cards || [])].sort()) ===
-    JSON.stringify([...(m3.cards || [])].sort());
-  const sameBoosts =
-    JSON.stringify([...(m2.boosts || [])].sort()) ===
-    JSON.stringify([...(m3.boosts || [])].sort());
+  const m2Cards = [...(m2.cards || [])];
+  const m3Cards = [...(m3.cards || [])];
+  const m2Boosts = [...(m2.boosts || [])];
+  const m3Boosts = [...(m3.boosts || [])];
 
-  if (!sameBerries || !sameCards || !sameBoosts) return next;
+  const cardsSame = sameList(m2Cards, m3Cards);
+  const boostsSame = sameList(m2Boosts, m3Boosts);
 
-  next.awakenRequirements.M3 = {
-    ...m3,
-    berries: Number(m3.berries || 0) + 15000,
-    cards: [...(m3.cards || []), `${next.code}_m3_req`],
-    boosts: [...(m3.boosts || []), `${next.code}_m3_boost`],
-    text: `${m3.text || "Advanced path."} Final awaken route is different from M2.`,
-  };
+  let patchedM3 = { ...m3 };
+
+  if (cardsSame) {
+    patchedM3.cards = ensureUniqueRequirementEntry(
+      m3Cards,
+      `${next.code}_m3_card`
+    );
+  }
+
+  if (boostsSame) {
+    patchedM3.boosts = ensureUniqueRequirementEntry(
+      m3Boosts,
+      `${next.code}_m3_boost`
+    );
+  }
+
+  if (Number(patchedM3.berries || 0) <= Number(m2.berries || 0)) {
+    patchedM3.berries = Number(m2.berries || 0) + 15000;
+  }
+
+  if (cardsSame || boostsSame) {
+    patchedM3.text = `${patchedM3.text || "Advanced path."} Final awaken route is different from M2.`;
+  }
+
+  next.awakenRequirements.M3 = patchedM3;
 
   if (Array.isArray(next.evolutionForms) && next.evolutionForms[2]) {
     next.evolutionForms[2] = {
@@ -166,9 +189,7 @@ function consumeReqCards(player, targetInstanceId, req) {
 function awakenOwnedCard(player, query) {
   const target = findOwnedCard(player.cards || [], query);
   if (!target) throw new Error("Card not found.");
-  if (Number(target.evolutionStage || 1) >= 3) {
-    throw new Error("This card is already at M3.");
-  }
+  if (Number(target.evolutionStage || 1) >= 3) throw new Error("This card is already at M3.");
 
   const nextStage = Number(target.evolutionStage || 1) + 1;
   const req = target.awakenRequirements?.[`M${nextStage}`];
@@ -187,16 +208,13 @@ function awakenOwnedCard(player, query) {
           currentTier: c.evolutionForms?.[nextStage - 1]?.tier || c.currentTier,
           rarity: c.evolutionForms?.[nextStage - 1]?.tier || c.rarity,
           atk: c.baseAtk
-            ? Math.floor(Number(c.baseAtk) * (nextStage === 2 ? 1.2 : 1.45)) +
-              Number(c.weaponBonus?.atk || 0)
+            ? Math.floor(Number(c.baseAtk) * (nextStage === 2 ? 1.2 : 1.45)) + Number(c.weaponBonus?.atk || 0)
             : c.atk,
           hp: c.baseHp
-            ? Math.floor(Number(c.baseHp) * (nextStage === 2 ? 1.2 : 1.45)) +
-              Number(c.weaponBonus?.hp || 0)
+            ? Math.floor(Number(c.baseHp) * (nextStage === 2 ? 1.2 : 1.45)) + Number(c.weaponBonus?.hp || 0)
             : c.hp,
           speed: c.baseSpeed
-            ? Math.floor(Number(c.baseSpeed) * (nextStage === 2 ? 1.2 : 1.45)) +
-              Number(c.weaponBonus?.speed || 0)
+            ? Math.floor(Number(c.baseSpeed) * (nextStage === 2 ? 1.2 : 1.45)) + Number(c.weaponBonus?.speed || 0)
             : c.speed,
         })
       : hydrateCard(c)
