@@ -231,9 +231,17 @@ function normalizeShip(ship, currentIsland) {
       ? ship.unlockedIslands
       : ["foosha_village"];
 
+  let shipCode = ship?.shipCode || "small_boat";
+  let tier = Number(ship?.tier || 1);
+
+  if (tier <= 1) {
+    shipCode = "small_boat";
+    tier = 1;
+  }
+
   return {
-    shipCode: ship?.shipCode || "going_merry",
-    tier: Number(ship?.tier || 1),
+    shipCode,
+    tier,
     sea: ship?.sea || "East Blue",
     nextTravelAt: Number(ship?.nextTravelAt || 0),
     unlockedIslands: unlocked,
@@ -370,7 +378,7 @@ function getDefaultPlayer(username) {
       bestWinStreak: 0,
     },
     ship: {
-      shipCode: "going_merry",
+      shipCode: "small_boat",
       tier: 1,
       sea: "East Blue",
       nextTravelAt: 0,

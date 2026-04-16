@@ -1,7 +1,12 @@
 require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
-const { Client, GatewayIntentBits, Collection } = require("discord.js");
+const {
+  Client,
+  GatewayIntentBits,
+  Collection,
+  Partials,
+} = require("discord.js");
 const { startTopggWebhookServer } = require("./topggWebhook");
 
 const client = new Client({
@@ -9,12 +14,12 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.DirectMessages
+    GatewayIntentBits.DirectMessages,
   ],
-  partials: ["CHANNEL"]
+  partials: [Partials.Channel],
 });
 
-const PREFIX = process.env.PREFIX || "op";
+const PREFIX = (process.env.PREFIX || "op").toLowerCase();
 client.commands = new Collection();
 
 const commandsPath = path.join(__dirname, "commands");
@@ -22,7 +27,6 @@ const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith
 
 for (const file of commandFiles) {
   const command = require(path.join(commandsPath, file));
-
   client.commands.set(command.name, command);
 
   if (command.aliases && Array.isArray(command.aliases)) {
@@ -37,23 +41,46 @@ client.once("clientReady", () => {
 });
 
 client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
-  if (!message.content.toLowerCase().startsWith(PREFIX)) return;
-
-  const args = message.content.slice(PREFIX.length).trim().split(/\s+/);
-  const commandName = (args.shift() || "").toLowerCase();
-
-  const command = client.commands.get(commandName);
-  if (!command) return;
-
   try {
+    if (message.partial) {
+      try {
+        await message.fetch();
+      } catch (_) {}
+    }
+
+    if (message.channel?.partial) {
+      try {
+        await message.channel.fetch();
+      } catch (_) {}
+    }
+
+    if (message.author?.bot) return;
+    if (!message.content) return;
+
+    const content = message.content.trim();
+    if (!content.toLowerCase().startsWith(PREFIX)) return;
+
+    const sliced = content.slice(PREFIX.length).trim();
+    if (!sliced) return;
+
+    const args = sliced.split(/\s+/);
+    const commandName = (args.shift() || "").toLowerCase();
+    const command = client.commands.get(commandName);
+    if (!command) return;
+
     await command.execute(message, args);
   } catch (error) {
-    console.error(error);
-    message.reply("An error occurred while running that command.");
+    console.error("Command error:", error);
+
+    try {
+      await message.reply(
+        message.guild
+          ? "An error occurred while running that command."
+          : "That command could not run in DM or hit an error."
+      );
+    } catch (_) {}
   }
 });
 
 startTopggWebhookServer(client);
-
 client.login(process.env.DISCORD_TOKEN);
