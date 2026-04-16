@@ -16,7 +16,7 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
   ],
-  partials: [Partials.Channel],
+  partials: [Partials.Channel, Partials.Message],
 });
 
 const PREFIX = String(process.env.PREFIX || "op").toLowerCase();
@@ -43,34 +43,46 @@ client.once("clientReady", () => {
 client.on("messageCreate", async (message) => {
   try {
     if (message.partial) {
-      try { await message.fetch(); } catch (_) {}
+      try { await message.fetch(); } catch (e) { console.error("Failed to fetch partial message:", e); }
     }
 
     if (message.channel?.partial) {
-      try { await message.channel.fetch(); } catch (_) {}
+      try { await message.channel.fetch(); } catch (e) { console.error("Failed to fetch partial channel:", e); }
     }
 
     if (!message.author || message.author.bot) return;
     if (typeof message.content !== "string") return;
+
+    const isDM = !message.guild;
+    console.log(`[MSG] ${isDM ? "DM" : "GUILD"} from ${message.author.tag}: ${message.content}`);
 
     const content = message.content.trim();
     if (!content) return;
     if (!content.toLowerCase().startsWith(PREFIX)) return;
 
     const sliced = content.slice(PREFIX.length).trim();
-    if (!sliced) return;
+    if (!sliced) {
+      await message.reply("Type a command after the prefix. Example: `op help`");
+      return;
+    }
 
     const args = sliced.split(/\s+/);
     const commandName = (args.shift() || "").toLowerCase();
     const command = client.commands.get(commandName);
-    if (!command) return;
+
+    if (!command) {
+      await message.reply(`Unknown command: \`${commandName}\``);
+      return;
+    }
 
     await command.execute(message, args);
   } catch (error) {
     console.error("Command error:", error);
     try {
       await message.reply("An error occurred while running that command.");
-    } catch (_) {}
+    } catch (replyError) {
+      console.error("Reply failed:", replyError);
+    }
   }
 });
 
