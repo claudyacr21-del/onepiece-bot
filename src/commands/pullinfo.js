@@ -15,20 +15,29 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(0x8e44ad)
-      .setTitle("🤘 Here is your pull information")
+      .setTitle("🎟️ Pull Information")
       .setDescription(
         [
+          "`op pull` now gives cards with evolution path M1 / M2 / M3.",
+          "`op pa` uses the same synced system for Mother Flame pulls.",
+          "",
           `↪ Base Pulls: 6/6`,
           `↪ Bonus Pull For Support Server Members: ${slotText(slots.supportMember.enabled, 1)}`,
           `↪ Bonus Pull For Support Server Boosters: ${slotText(slots.booster.enabled, 1)}`,
           `↪ Bonus Pull For Server Owners: ${slotText(slots.owner.enabled, 1)}`,
           `↪ Bonus pulls from Patreon: ${slots.patreon.enabled ? "3/3" : "0/3"}`,
           `↪ Bonus pulls from Baccarat Card: ${slotText(slots.baccaratCard.enabled, 1)}`,
-          `↪ Bonus pulls from Baccarat Devil Fruit: ${slotText(slots.baccaratFruit.enabled, 1)}`
+          `↪ Bonus pulls from Baccarat Devil Fruit: ${slotText(slots.baccaratFruit.enabled, 1)}`,
+          "",
+          "Tier path:",
+          "C-base → B → A",
+          "B-base → A → S",
+          "A-base → S → SS",
+          "S-base → SS → UR",
         ].join("\n")
       )
       .setFooter({ text: "One Piece Bot • Pull Information" });
 
     await message.reply({ embeds: [embed] });
-  }
+  },
 };
