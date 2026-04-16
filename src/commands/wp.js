@@ -1,168 +1,126 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const weapons = require("../data/weapons");
+const { hydrateCard, slug } = require("../utils/evolution");
 
-function normalize(text) {
-  return String(text || "").toLowerCase().trim().replace(/\s+/g, " ");
+const normalize = (s = "") => String(s).toLowerCase().trim().replace(/\s+/g, " ");
+
+function splitCardAndWeaponInput(rawArgs) {
+  if (!rawArgs.length) return null;
+  const joined = rawArgs.join(" ").trim();
+  const weaponCandidates = [...weapons].sort((a, b) => normalize(b.name).length - normalize(a.name).length);
+  for (const weapon of weaponCandidates) {
+    if (!normalize(joined).endsWith(normalize(weapon.name))) continue;
+    const cardName = joined.slice(0, joined.length - weapon.name.length).trim();
+    if (!cardName) continue;
+    return { cardName, weaponName: weapon.name };
+  }
+  return null;
 }
 
-function findMatchingCard(cards, query) {
+function findWeapon(query) {
   const q = normalize(query);
-
   return (
-    cards.find((card) => {
-      if (card.cardRole === "boost") return false;
-
-      const fields = [
-        card.displayName,
-        card.name,
-        card.title,
-        card.code,
-        card.variant,
-        card.arc
-      ]
-        .filter(Boolean)
-        .map((value) => normalize(value));
-
-      return fields.some((value) => value === q);
-    }) ||
-    cards.find((card) => {
-      if (card.cardRole === "boost") return false;
-
-      const fields = [
-        card.displayName,
-        card.name,
-        card.title,
-        card.code,
-        card.variant,
-        card.arc
-      ]
-        .filter(Boolean)
-        .map((value) => normalize(value));
-
-      return fields.some((value) => value.includes(q));
-    }) ||
+    weapons.find((w) => [w.name, w.code, w.type].filter(Boolean).map(normalize).includes(q)) ||
+    weapons.find((w) => [w.name, w.code, w.type].filter(Boolean).map(normalize).some((x) => x.includes(q))) ||
     null
   );
 }
 
-function findMatchingWeapon(query) {
-  const q = normalize(query);
-
-  const exact = weapons.find((weapon) => {
-    const fields = [weapon.name, weapon.code, weapon.type]
-      .filter(Boolean)
-      .map((value) => normalize(value));
-
-    return fields.some((value) => value === q);
-  });
-
-  if (exact) return exact;
-
-  return (
-    weapons.find((weapon) => {
-      const fields = [weapon.name, weapon.code, weapon.type]
-        .filter(Boolean)
-        .map((value) => normalize(value));
-
-      return fields.some((value) => value.includes(q));
-    }) || null
-  );
+function addBackWeapon(list, weaponCode) {
+  if (!weaponCode) return list;
+  const weapon = weapons.find((w) => w.code === weaponCode || w.name === weaponCode);
+  if (!weapon) return list;
+  const arr = [...(list || [])];
+  const idx = arr.findIndex((x) => x.code === weapon.code);
+  if (idx === -1) arr.push({ ...weapon, amount: 1 });
+  else arr[idx] = { ...arr[idx], amount: Number(arr[idx].amount || 0) + 1 };
+  return arr;
 }
 
-function splitCardAndWeaponInput(rawArgs) {
-  if (!rawArgs.length) return null;
-
-  const joined = rawArgs.join(" ").trim();
-  const normalizedJoined = normalize(joined);
-
-  const weaponCandidates = [...weapons].sort((a, b) => {
-    const aLen = normalize(a.name || "").length;
-    const bLen = normalize(b.name || "").length;
-    return bLen - aLen;
-  });
-
-  for (const weapon of weaponCandidates) {
-    const weaponName = normalize(weapon.name);
-    if (!normalizedJoined.endsWith(weaponName)) continue;
-
-    const cardPart = joined.slice(0, joined.length - weapon.name.length).trim();
-    if (!cardPart) continue;
-
-    return {
-      cardName: cardPart,
-      weaponName: weapon.name
-    };
-  }
-
-  return null;
+function consumeWeapon(list, weaponCode) {
+  const arr = [...(list || [])];
+  const idx = arr.findIndex((x) => x.code === weaponCode);
+  if (idx === -1 || Number(arr[idx].amount || 0) <= 0) throw new Error("Weapon not owned.");
+  if (Number(arr[idx].amount || 0) === 1) arr.splice(idx, 1);
+  else arr[idx] = { ...arr[idx], amount: Number(arr[idx].amount || 0) - 1 };
+  return arr;
 }
 
 module.exports = {
   name: "wp",
   aliases: ["weapon", "equipweapon"],
   async execute(message, args) {
-    if (!args.length) {
-      return message.reply("Usage: `op wp <card name> <weapon name>`");
-    }
-
-    const split = splitCardAndWeaponInput(args);
-
-    if (!split) {
-      return message.reply("Usage: `op wp <card name> <weapon name>`");
-    }
+    const split = splitCardAndWeaponInput(args || []);
+    if (!split) return message.reply("Usage: `op wp <card name> <weapon name>`");
 
     const player = getPlayer(message.author.id, message.author.username);
-    const ownedCards = Array.isArray(player.cards) ? player.cards : [];
-    const ownedWeapons = Array.isArray(player.weapons) ? player.weapons : [];
+    const cards = [...(player.cards || [])].map(hydrateCard).filter(Boolean);
+    const weaponsInv = [...(player.weapons || [])];
 
-    const card = findMatchingCard(ownedCards, split.cardName);
-    if (!card) {
-      return message.reply(`No battle card found matching \`${split.cardName}\`.`);
-    }
+    const card = cards.find((c) => {
+      const fields = [c.name, c.displayName, c.code, c.title, c.variant].filter(Boolean).map(normalize);
+      return fields.includes(normalize(split.cardName)) || fields.some((x) => x.includes(normalize(split.cardName)));
+    });
 
-    const weaponData = findMatchingWeapon(split.weaponName);
-    if (!weaponData) {
-      return message.reply(`No weapon found matching \`${split.weaponName}\`.`);
-    }
+    if (!card) return message.reply(`No card found matching \`${split.cardName}\`.`);
 
-    const ownedWeapon = ownedWeapons.find((item) => item.code === weaponData.code);
-    if (!ownedWeapon || Number(ownedWeapon.amount || 0) <= 0) {
-      return message.reply(`You do not own \`${weaponData.name}\`.`);
-    }
+    const weapon = findWeapon(split.weaponName);
+    if (!weapon) return message.reply(`No weapon found matching \`${split.weaponName}\`.`);
 
-    const allowedOwners = Array.isArray(weaponData.owners) ? weaponData.owners : [];
+    const owned = weaponsInv.find((x) => x.code === weapon.code && Number(x.amount || 0) > 0);
+    if (!owned) return message.reply(`You do not own \`${weapon.name}\`.`);
+
+    const allowedOwners = Array.isArray(weapon.owners) ? weapon.owners : [];
     if (allowedOwners.length && !allowedOwners.includes(card.code)) {
-      return message.reply(`\`${weaponData.name}\` cannot be equipped to \`${card.displayName || card.name}\`.`);
+      return message.reply(`\`${weapon.name}\` cannot be equipped to \`${card.displayName || card.name}\`.`);
     }
 
-    const updatedCards = ownedCards.map((entry) => {
-      if (entry.instanceId !== card.instanceId) return entry;
-      return {
-        ...entry,
-        equippedWeapon: weaponData.name
-      };
+    let nextWeapons = consumeWeapon(weaponsInv, weapon.code);
+    nextWeapons = addBackWeapon(nextWeapons, card.equippedWeaponCode || card.equippedWeapon || null);
+
+    const bonus = {
+      atk: Number(weapon?.statBonus?.atk || 0),
+      hp: Number(weapon?.statBonus?.hp || 0),
+      speed: Number(weapon?.statBonus?.speed || 0),
+    };
+
+    const updatedCards = (player.cards || []).map((raw) => {
+      if (raw.instanceId !== card.instanceId) return raw;
+      return hydrateCard({
+        ...raw,
+        equippedWeapon: weapon.name,
+        equippedWeaponCode: weapon.code,
+        weaponBonus: bonus,
+      });
     });
 
     updatePlayer(message.author.id, {
-      cards: updatedCards
+      cards: updatedCards,
+      weapons: nextWeapons,
     });
 
-    const embed = new EmbedBuilder()
-      .setColor(0x3498db)
-      .setTitle("🗡️ Weapon Equipped")
-      .setDescription(
-        [
-          `**Card:** ${card.displayName || card.name}`,
-          `**Weapon:** ${weaponData.name}`,
-          weaponData.type ? `**Type:** \`${weaponData.type}\`` : null,
-          weaponData.rarity ? `**Rarity:** \`${weaponData.rarity}\`` : null,
-          "",
-          "The weapon has been equipped successfully."
-        ].filter(Boolean).join("\n")
-      )
-      .setFooter({ text: "One Piece Bot • Weapon Equip" });
+    const synced = updatedCards.find((c) => c.instanceId === card.instanceId);
 
-    return message.reply({ embeds: [embed] });
-  }
+    return message.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x3498db)
+          .setTitle("🗡️ Weapon Equipped")
+          .setDescription(
+            [
+              `**Card:** ${synced.displayName || synced.name}`,
+              `**Weapon:** ${weapon.name}`,
+              `**Inventory Sync:** 1 copy consumed`,
+              "",
+              `**ATK:** ${synced.atk}`,
+              `**HP:** ${synced.hp}`,
+              `**SPD:** ${synced.speed}`,
+              "",
+              `Bonus: +${bonus.atk} ATK / +${bonus.hp} HP / +${bonus.speed} SPD`,
+            ].join("\n")
+          ),
+      ],
+    });
+  },
 };
