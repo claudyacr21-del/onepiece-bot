@@ -13,14 +13,15 @@ function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-function sameList(a = [], b = []) {
-  return JSON.stringify([...a].map(slug).sort()) === JSON.stringify([...b].map(slug).sort());
+function withoutOverlap(m2List = [], m3List = []) {
+  const m2Set = new Set(m2List.map(slug));
+  return m3List.filter((x) => !m2Set.has(slug(x)));
 }
 
-function ensureUniqueRequirementEntry(list = [], fallback) {
-  const arr = [...list];
-  if (!arr.map(slug).includes(slug(fallback))) arr.push(fallback);
-  return arr;
+function rotateUnique(source = [], used = [], take = 1) {
+  const usedSet = new Set(used.map(slug));
+  const unique = source.filter((x) => !usedSet.has(slug(x)));
+  return unique.slice(0, take);
 }
 
 function normalizeRequirementPair(card) {
@@ -30,44 +31,47 @@ function normalizeRequirementPair(card) {
 
   if (!m2 || !m3) return next;
 
-  const m2Cards = [...(m2.cards || [])];
-  const m3Cards = [...(m3.cards || [])];
-  const m2Boosts = [...(m2.boosts || [])];
-  const m3Boosts = [...(m3.boosts || [])];
+  const originalM2Cards = [...(m2.cards || [])];
+  const originalM2Boosts = [...(m2.boosts || [])];
+  let m3Cards = withoutOverlap(originalM2Cards, m3.cards || []);
+  let m3Boosts = withoutOverlap(originalM2Boosts, m3.boosts || []);
 
-  const cardsSame = sameList(m2Cards, m3Cards);
-  const boostsSame = sameList(m2Boosts, m3Boosts);
+  const allCardPool = [
+    ...(next?.canonLinks?.cards || []),
+    ...(next?.relatedCards || []),
+    ...(next?.awakenPool?.cards || []),
+  ].filter(Boolean);
 
-  let patchedM3 = { ...m3 };
+  const allBoostPool = [
+    ...(next?.canonLinks?.boosts || []),
+    ...(next?.relatedBoosts || []),
+    ...(next?.awakenPool?.boosts || []),
+  ].filter(Boolean);
 
-  if (cardsSame) {
-    patchedM3.cards = ensureUniqueRequirementEntry(
-      m3Cards,
-      `${next.code}_m3_card`
-    );
+  if (!m3Cards.length && allCardPool.length) {
+    m3Cards = rotateUnique(allCardPool, originalM2Cards, Math.max(1, originalM2Cards.length || 1));
   }
 
-  if (boostsSame) {
-    patchedM3.boosts = ensureUniqueRequirementEntry(
-      m3Boosts,
-      `${next.code}_m3_boost`
-    );
+  if (!m3Boosts.length && allBoostPool.length) {
+    m3Boosts = rotateUnique(allBoostPool, originalM2Boosts, Math.max(1, originalM2Boosts.length || 1));
   }
 
-  if (Number(patchedM3.berries || 0) <= Number(m2.berries || 0)) {
-    patchedM3.berries = Number(m2.berries || 0) + 15000;
-  }
-
-  if (cardsSame || boostsSame) {
-    patchedM3.text = `${patchedM3.text || "Advanced path."} Final awaken route is different from M2.`;
-  }
+  const patchedM3 = {
+    ...m3,
+    berries: Number(m3.berries || 0) <= Number(m2.berries || 0)
+      ? Number(m2.berries || 0) + 15000
+      : Number(m3.berries || 0),
+    cards: m3Cards,
+    boosts: m3Boosts,
+    text: m3.text || "Final awaken path.",
+  };
 
   next.awakenRequirements.M3 = patchedM3;
 
   if (Array.isArray(next.evolutionForms) && next.evolutionForms[2]) {
     next.evolutionForms[2] = {
       ...next.evolutionForms[2],
-      require: next.awakenRequirements.M3,
+      require: patchedM3,
     };
   }
 
@@ -97,16 +101,10 @@ function findCardTemplate(query) {
   const all = getAllCards();
   return (
     all.find((c) =>
-      [c.code, c.name, c.displayName, c.title, c.variant]
-        .filter(Boolean)
-        .map(slug)
-        .includes(q)
+      [c.code, c.name, c.displayName, c.title, c.variant].filter(Boolean).map(slug).includes(q)
     ) ||
     all.find((c) =>
-      [c.code, c.name, c.displayName, c.title, c.variant]
-        .filter(Boolean)
-        .map(slug)
-        .some((x) => x.includes(q))
+      [c.code, c.name, c.displayName, c.title, c.variant].filter(Boolean).map(slug).some((x) => x.includes(q))
     ) ||
     null
   );
@@ -117,16 +115,10 @@ function findOwnedCard(playerCards, query) {
   const all = (playerCards || []).map(hydrateCard).filter(Boolean);
   return (
     all.find((c) =>
-      [c.code, c.name, c.displayName, c.title, c.variant]
-        .filter(Boolean)
-        .map(slug)
-        .includes(q)
+      [c.code, c.name, c.displayName, c.title, c.variant].filter(Boolean).map(slug).includes(q)
     ) ||
     all.find((c) =>
-      [c.code, c.name, c.displayName, c.title, c.variant]
-        .filter(Boolean)
-        .map(slug)
-        .some((x) => x.includes(q))
+      [c.code, c.name, c.displayName, c.title, c.variant].filter(Boolean).map(slug).some((x) => x.includes(q))
     ) ||
     null
   );
