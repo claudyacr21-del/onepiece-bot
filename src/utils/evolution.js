@@ -1,4 +1,8 @@
 const cardsDb = require("../data/cards");
+const {
+  getRarityBadge,
+  getCardImage,
+} = require("../config/assetLinks");
 
 const slug = (s = "") =>
   String(s)
@@ -12,9 +16,53 @@ function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
+function normalizeRequirementPair(card) {
+  const next = clone(card);
+  const m2 = next?.awakenRequirements?.M2 || null;
+  const m3 = next?.awakenRequirements?.M3 || null;
+
+  if (!m2 || !m3) return next;
+
+  const sameBerries = Number(m2.berries || 0) === Number(m3.berries || 0);
+  const sameCards =
+    JSON.stringify([...(m2.cards || [])].sort()) ===
+    JSON.stringify([...(m3.cards || [])].sort());
+  const sameBoosts =
+    JSON.stringify([...(m2.boosts || [])].sort()) ===
+    JSON.stringify([...(m3.boosts || [])].sort());
+
+  if (!sameBerries || !sameCards || !sameBoosts) return next;
+
+  next.awakenRequirements.M3 = {
+    ...m3,
+    berries: Number(m3.berries || 0) + 15000,
+    cards: [...(m3.cards || []), `${next.code}_m3_req`],
+    boosts: [...(m3.boosts || []), `${next.code}_m3_boost`],
+    text: `${m3.text || "Advanced path."} Final awaken route is different from M2.`,
+  };
+
+  if (Array.isArray(next.evolutionForms) && next.evolutionForms[2]) {
+    next.evolutionForms[2] = {
+      ...next.evolutionForms[2],
+      require: next.awakenRequirements.M3,
+    };
+  }
+
+  return next;
+}
+
 function hydrateCard(card) {
   if (!card) return null;
-  return clone(card);
+
+  const next = normalizeRequirementPair(clone(card));
+  next.image = getCardImage(next.code, next.image || "");
+  next.badgeImage = getRarityBadge(next.currentTier || next.rarity || "");
+  next.evolutionForms = (next.evolutionForms || []).map((form) => ({
+    ...form,
+    badgeImage: getRarityBadge(form.tier),
+  }));
+
+  return next;
 }
 
 function getAllCards() {
@@ -90,9 +138,7 @@ function verifyRequirementOwnership(player, targetInstanceId, req) {
     const hit = ownedCards.find(
       (c) => c.instanceId !== targetInstanceId && slug(c.code) === slug(code)
     );
-    if (!hit) {
-      return { ok: false, reason: `Missing required card/boost: ${code}` };
-    }
+    if (!hit) return { ok: false, reason: `Missing required card/boost: ${code}` };
   }
 
   if (Number(player.berries || 0) < Number(req.berries || 0)) {
@@ -141,13 +187,16 @@ function awakenOwnedCard(player, query) {
           currentTier: c.evolutionForms?.[nextStage - 1]?.tier || c.currentTier,
           rarity: c.evolutionForms?.[nextStage - 1]?.tier || c.rarity,
           atk: c.baseAtk
-            ? Math.floor(Number(c.baseAtk) * (nextStage === 2 ? 1.2 : 1.45)) + Number(c.weaponBonus?.atk || 0)
+            ? Math.floor(Number(c.baseAtk) * (nextStage === 2 ? 1.2 : 1.45)) +
+              Number(c.weaponBonus?.atk || 0)
             : c.atk,
           hp: c.baseHp
-            ? Math.floor(Number(c.baseHp) * (nextStage === 2 ? 1.2 : 1.45)) + Number(c.weaponBonus?.hp || 0)
+            ? Math.floor(Number(c.baseHp) * (nextStage === 2 ? 1.2 : 1.45)) +
+              Number(c.weaponBonus?.hp || 0)
             : c.hp,
           speed: c.baseSpeed
-            ? Math.floor(Number(c.baseSpeed) * (nextStage === 2 ? 1.2 : 1.45)) + Number(c.weaponBonus?.speed || 0)
+            ? Math.floor(Number(c.baseSpeed) * (nextStage === 2 ? 1.2 : 1.45)) +
+              Number(c.weaponBonus?.speed || 0)
             : c.speed,
         })
       : hydrateCard(c)

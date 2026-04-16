@@ -7,28 +7,41 @@ const {
 const { getPlayer } = require("../playerStore");
 const { findOwnedCard } = require("../utils/evolution");
 
-function reqText(req) {
-  if (!req) return "Base form. No requirement.";
-  return [
-    `Berries: ${Number(req.berries || 0).toLocaleString("en-US")}`,
-    req.cards?.length ? `Battle Cards: ${req.cards.join(", ")}` : null,
-    req.boosts?.length ? `Boost Cards: ${req.boosts.join(", ")}` : null,
-    req.text || null,
-  ].filter(Boolean).join("\n");
-}
+function buildReqEmbed(card, stage) {
+  const req = card.awakenRequirements?.[`M${stage}`];
+  if (!req) {
+    return new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle(`ℹ️ Requirement • ${card.displayName || card.name} • M${stage}`)
+      .setDescription("Base form. No requirement.");
+  }
 
-function stageStats(card, stage) {
-  const mult = stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45;
-  return {
-    atk: Math.floor(Number(card.baseAtk || 0) * mult) + Number(card.weaponBonus?.atk || 0),
-    hp: Math.floor(Number(card.baseHp || 0) * mult) + Number(card.weaponBonus?.hp || 0),
-    speed: Math.floor(Number(card.baseSpeed || 0) * mult) + Number(card.weaponBonus?.speed || 0),
-  };
+  return new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle(`ℹ️ Requirement • ${card.displayName || card.name} • M${stage}`)
+    .setDescription(
+      [
+        "🧩 **Fragments / Path Requirement**",
+        `↪ ${card.evolutionForms?.[stage - 1]?.name || `M${stage}`}`,
+        "",
+        "💰 **Berries Required**",
+        `↪ ${Number(req.berries || 0).toLocaleString("en-US")}`,
+        "",
+        "🃏 **Cards Required**",
+        ...(req.cards?.length ? req.cards.map((x) => `↪ ${x}`) : ["↪ None"]),
+        "",
+        "✨ **Boosts Required**",
+        ...(req.boosts?.length ? req.boosts.map((x) => `↪ ${x}`) : ["↪ None"]),
+        "",
+        "📜 **Notes**",
+        `↪ ${req.text || "No extra notes."}`,
+      ].join("\n")
+    );
 }
 
 function buildEmbed(card, stage) {
   const form = card.evolutionForms?.[stage - 1];
-  const stats = stageStats(card, stage);
+  const mult = stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45;
 
   return new EmbedBuilder()
     .setColor(0x1abc9c)
@@ -40,14 +53,15 @@ function buildEmbed(card, stage) {
         `**Tier:** ${form?.tier || card.currentTier || card.rarity}`,
         `**Role:** ${card.cardRole}`,
         "",
-        `**ATK:** ${stats.atk}`,
-        `**HP:** ${stats.hp}`,
-        `**SPD:** ${stats.speed}`,
+        `**ATK:** ${Math.floor(Number(card.baseAtk || 0) * mult) + Number(card.weaponBonus?.atk || 0)}`,
+        `**HP:** ${Math.floor(Number(card.baseHp || 0) * mult) + Number(card.weaponBonus?.hp || 0)}`,
+        `**SPD:** ${Math.floor(Number(card.baseSpeed || 0) * mult) + Number(card.weaponBonus?.speed || 0)}`,
         "",
         `**Weapon:** ${card.equippedWeapon || "None"}`,
         `**Base Tier:** ${card.baseTier}`,
       ].join("\n")
     )
+    .setThumbnail(form?.badgeImage || card.badgeImage || null)
     .setImage(card.image || null)
     .setFooter({ text: "Owned Card Viewer" });
 }
@@ -91,15 +105,9 @@ module.exports = {
       if (i.customId === "mci_next") stage = Math.min(3, stage + 1);
 
       if (i.customId === "mci_info") {
-        const req = card.awakenRequirements?.[`M${stage}`];
         return i.reply({
           ephemeral: true,
-          embeds: [
-            new EmbedBuilder()
-              .setColor(0x2ecc71)
-              .setTitle(`ℹ️ Requirement • ${card.displayName || card.name} • M${stage}`)
-              .setDescription(reqText(req)),
-          ],
+          embeds: [buildReqEmbed(card, stage)],
         });
       }
 

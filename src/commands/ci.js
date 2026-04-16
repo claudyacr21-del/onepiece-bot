@@ -7,39 +7,62 @@ const {
 const { getPlayer } = require("../playerStore");
 const { findCardTemplate, findOwnedCard } = require("../utils/evolution");
 
-function reqText(req) {
-  if (!req) return "Base form. No requirement.";
-  return [
-    `Berries: ${Number(req.berries || 0).toLocaleString("en-US")}`,
-    req.cards?.length ? `Battle Cards: ${req.cards.join(", ")}` : null,
-    req.boosts?.length ? `Boost Cards: ${req.boosts.join(", ")}` : null,
-    req.text || null,
-  ]
-    .filter(Boolean)
-    .join("\n");
+function buildReqEmbed(card, stage) {
+  const req = card.awakenRequirements?.[`M${stage}`];
+  if (!req) {
+    return new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle(`ℹ️ Requirement • ${card.displayName || card.name} • M${stage}`)
+      .setDescription("Base form. No requirement.");
+  }
+
+  return new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle(`ℹ️ Requirement • ${card.displayName || card.name} • M${stage}`)
+    .setDescription(
+      [
+        "🧩 **Fragments / Path Requirement**",
+        `↪ ${card.evolutionForms?.[stage - 1]?.name || `M${stage}`}`,
+        "",
+        "💰 **Berries Required**",
+        `↪ ${Number(req.berries || 0).toLocaleString("en-US")}`,
+        "",
+        "🃏 **Cards Required**",
+        ...(req.cards?.length ? req.cards.map((x) => `↪ ${x}`) : ["↪ None"]),
+        "",
+        "✨ **Boosts Required**",
+        ...(req.boosts?.length ? req.boosts.map((x) => `↪ ${x}`) : ["↪ None"]),
+        "",
+        "📜 **Notes**",
+        `↪ ${req.text || "No extra notes."}`,
+      ].join("\n")
+    );
 }
 
 function buildEmbed(card, owned, stage) {
   const form = card.evolutionForms?.[stage - 1];
+  const mult = stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45;
+
   return new EmbedBuilder()
     .setColor(0x5865f2)
     .setTitle(`🃏 Card Info • ${card.displayName || card.name}`)
     .setDescription(
       [
-        `**Form:** ${form?.key || `M${stage}`} • ${form?.name || card.variant || "Unknown"}`,
+        `**Form:** ${form?.key || `M${stage}`} • ${form?.name || "Unknown"}`,
         `**Tier:** ${form?.tier || card.currentTier || card.rarity}`,
         `**Role:** ${card.cardRole}`,
         `**Base Path:** ${card.baseTier} -> ${card.evolutionForms.map((x) => x.tier).join(" -> ")}`,
         "",
-        `**ATK:** ${stage === 1 ? card.baseAtk : stage === 2 ? Math.floor(card.baseAtk * 1.2) : Math.floor(card.baseAtk * 1.45)}`,
-        `**HP:** ${stage === 1 ? card.baseHp : stage === 2 ? Math.floor(card.baseHp * 1.2) : Math.floor(card.baseHp * 1.45)}`,
-        `**SPD:** ${stage === 1 ? card.baseSpeed : stage === 2 ? Math.floor(card.baseSpeed * 1.2) : Math.floor(card.baseSpeed * 1.45)}`,
+        `**ATK:** ${Math.floor(Number(card.baseAtk || 0) * mult)}`,
+        `**HP:** ${Math.floor(Number(card.baseHp || 0) * mult)}`,
+        `**SPD:** ${Math.floor(Number(card.baseSpeed || 0) * mult)}`,
         "",
         owned
           ? `**Owned Stage:** M${owned.evolutionStage} • ${owned.evolutionForms?.[owned.evolutionStage - 1]?.name || owned.variant}`
           : "**Owned Stage:** Not owned",
       ].join("\n")
     )
+    .setThumbnail(form?.badgeImage || card.badgeImage || null)
     .setImage(card.image || null)
     .setFooter({
       text: owned
@@ -89,31 +112,20 @@ module.exports = {
       components: buildRows(stage),
     });
 
-    const collector = sent.createMessageComponentCollector({
-      time: 10 * 60 * 1000,
-    });
+    const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
 
     collector.on("collect", async (i) => {
       if (i.user.id !== message.author.id) {
-        return i.reply({
-          content: "Only you can control this card viewer.",
-          ephemeral: true,
-        });
+        return i.reply({ content: "Only you can control this card viewer.", ephemeral: true });
       }
 
       if (i.customId === "ci_prev") stage = Math.max(1, stage - 1);
       if (i.customId === "ci_next") stage = Math.min(3, stage + 1);
 
       if (i.customId === "ci_info") {
-        const req = globalCard.awakenRequirements?.[`M${stage}`];
         return i.reply({
           ephemeral: true,
-          embeds: [
-            new EmbedBuilder()
-              .setColor(0x2ecc71)
-              .setTitle(`ℹ️ Requirement • ${globalCard.displayName || globalCard.name} • M${stage}`)
-              .setDescription(reqText(req)),
-          ],
+          embeds: [buildReqEmbed(globalCard, stage)],
         });
       }
 

@@ -1,9 +1,40 @@
-const { EmbedBuilder } = require("discord.js");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 
-function fmt(card, index) {
-  return `${index + 1}. **${card.displayName || card.name}** • \`${card.cardRole}\` • \`${card.evolutionKey}\` • \`${card.currentTier || card.rarity}\``;
+function buildEmbed(card, index, total) {
+  return new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle(`🗂️ My Cards ${index + 1}/${total}`)
+    .setDescription(
+      [
+        `**Name:** ${card.displayName || card.name}`,
+        `**Role:** ${card.cardRole}`,
+        `**Stage:** ${card.evolutionKey}`,
+        `**Tier:** ${card.currentTier || card.rarity}`,
+        `**ATK:** ${card.atk}`,
+        `**HP:** ${card.hp}`,
+        `**SPD:** ${card.speed}`,
+        `**Weapon:** ${card.equippedWeapon || "None"}`,
+      ].join("\n")
+    )
+    .setThumbnail(card.badgeImage || null)
+    .setImage(card.image || null)
+    .setFooter({ text: `Code: ${card.code}` });
+}
+
+function rows(index, total) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("mc_prev").setLabel("Prev").setStyle(ButtonStyle.Secondary).setDisabled(index <= 0),
+      new ButtonBuilder().setCustomId("mc_next").setLabel("Next").setStyle(ButtonStyle.Secondary).setDisabled(index >= total - 1)
+    ),
+  ];
 }
 
 module.exports = {
@@ -13,30 +44,35 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
     const cards = (player.cards || []).map(hydrateCard).filter(Boolean);
 
-    if (!cards.length) {
-      return message.reply("You do not own any cards yet.");
-    }
+    if (!cards.length) return message.reply("You do not own any cards yet.");
 
-    const sorted = [...cards].sort((a, b) => {
-      const tierA = String(a.currentTier || a.rarity || "");
-      const tierB = String(b.currentTier || b.rarity || "");
-      if (tierA !== tierB) return tierA.localeCompare(tierB);
-      return String(a.displayName || a.name).localeCompare(String(b.displayName || b.name));
+    let index = 0;
+
+    const sent = await message.reply({
+      embeds: [buildEmbed(cards[index], index, cards.length)],
+      components: rows(index, cards.length),
     });
 
-    const chunks = [];
-    for (let i = 0; i < sorted.length; i += 15) {
-      chunks.push(sorted.slice(i, i + 15));
-    }
+    const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
 
-    const embeds = chunks.map((chunk, idx) =>
-      new EmbedBuilder()
-        .setColor(0x3498db)
-        .setTitle(`🗂️ My Cards ${idx + 1}/${chunks.length}`)
-        .setDescription(chunk.map((card, i) => fmt(card, idx * 15 + i)).join("\n"))
-        .setFooter({ text: `Total Cards: ${sorted.length}` })
-    );
+    collector.on("collect", async (i) => {
+      if (i.user.id !== message.author.id) {
+        return i.reply({ content: "Only you can control this card viewer.", ephemeral: true });
+      }
 
-    return message.reply({ embeds });
+      if (i.customId === "mc_prev") index = Math.max(0, index - 1);
+      if (i.customId === "mc_next") index = Math.min(cards.length - 1, index + 1);
+
+      return i.update({
+        embeds: [buildEmbed(cards[index], index, cards.length)],
+        components: rows(index, cards.length),
+      });
+    });
+
+    collector.on("end", async () => {
+      try {
+        await sent.edit({ components: [] });
+      } catch (_) {}
+    });
   },
 };
