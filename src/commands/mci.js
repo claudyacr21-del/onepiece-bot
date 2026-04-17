@@ -8,10 +8,20 @@ const { getPlayer } = require("../playerStore");
 const { findOwnedCard } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 
+function formatOwnedWeapons(card) {
+  if (Array.isArray(card.equippedWeapons) && card.equippedWeapons.length) {
+    return card.equippedWeapons.map((w) => w.name).join(", ");
+  }
+  return card.equippedWeapon || "None";
+}
+
 function buildReqEmbed(card, stage) {
   const req = card.awakenRequirements?.[`M${stage}`];
   if (!req) {
-    return new EmbedBuilder().setColor(0x2ecc71).setTitle(`ℹ️ Requirement • ${card.displayName || card.name} • M${stage}`).setDescription("Base form. No requirement.");
+    return new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle(`ℹ️ Requirement • ${card.displayName || card.name} • M${stage}`)
+      .setDescription("Base form. No requirement.");
   }
 
   return new EmbedBuilder()
@@ -41,7 +51,10 @@ function buildReqEmbed(card, stage) {
 
 function buildEmbed(ownerName, card, stage) {
   const form = card.evolutionForms?.[stage - 1];
-  const mult = card.code === "luffy_straw_hat" ? (stage === 1 ? 1 : stage === 2 ? 1.75 : 2.35) : (stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45);
+  const mult =
+    card.code === "luffy_straw_hat"
+      ? stage === 1 ? 1 : stage === 2 ? 1.75 : 2.35
+      : stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45;
 
   return buildCardStyleEmbed({
     color: 0x1abc9c,
@@ -59,7 +72,7 @@ function buildEmbed(ownerName, card, stage) {
       `Health: ${Math.floor(Number(card.baseHp || 0) * mult) + Number(card.weaponBonus?.hp || 0) + Number(card.fruitBonus?.hp || 0)}`,
       `Speed: ${Math.floor(Number(card.baseSpeed || 0) * mult) + Number(card.weaponBonus?.speed || 0) + Number(card.fruitBonus?.speed || 0)}`,
       `Attack: ${Math.floor(Number(card.baseAtk || 0) * mult) + Number(card.weaponBonus?.atk || 0) + Number(card.fruitBonus?.atk || 0)}`,
-      `Weapon: ${card.equippedWeapon || "None"}`,
+      `Weapons: ${formatOwnedWeapons(card)}`,
       `Devil Fruit: ${card.equippedDevilFruit || "None"}`,
       card.cardRole === "boost" ? `Effect: ${card.effectText || "No effect text"}` : `Type: ${card.type || card.cardRole}`,
     ],
@@ -97,7 +110,10 @@ module.exports = {
     const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
 
     collector.on("collect", async (i) => {
-      if (i.user.id !== message.author.id) return i.reply({ content: "Only you can control this card viewer.", ephemeral: true });
+      if (i.user.id !== message.author.id) {
+        return i.reply({ content: "Only you can control this card viewer.", ephemeral: true });
+      }
+
       if (i.customId === "mci_prev") stage = Math.max(1, stage - 1);
       if (i.customId === "mci_next") stage = Math.min(3, stage + 1);
       if (i.customId === "mci_info") return i.reply({ ephemeral: true, embeds: [buildReqEmbed(card, stage)] });

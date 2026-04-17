@@ -12,6 +12,13 @@ function getPower(card) {
   return Math.floor(Number(card.atk || 0) * 1.4 + Number(card.hp || 0) * 0.22 + Number(card.speed || 0) * 9);
 }
 
+function formatOwnedWeapons(card) {
+  if (Array.isArray(card.equippedWeapons) && card.equippedWeapons.length) {
+    return card.equippedWeapons.map((w) => w.name).join(", ");
+  }
+  return card.equippedWeapon || "None";
+}
+
 function buildViewerEmbed(ownerName, card, index, total) {
   return buildCardStyleEmbed({
     color: 0x3498db,
@@ -29,7 +36,7 @@ function buildViewerEmbed(ownerName, card, index, total) {
       `Health: ${card.hp}`,
       `Speed: ${card.speed}`,
       `Attack: ${card.atk}`,
-      `Weapon: ${card.equippedWeapon || "None"}`,
+      `Weapons: ${formatOwnedWeapons(card)}`,
       `Devil Fruit: ${card.equippedDevilFruit || "None"}`,
       `Type: ${card.type || card.cardRole}`,
       `Kills: ${card.kills || 0}`,
@@ -70,7 +77,6 @@ function dedupeCollection(cards) {
 
 function buildTextEmbeds(ownerName, cards) {
   const uniqueCards = dedupeCollection(cards);
-
   const lines = uniqueCards.map((card, i) => {
     const role = card.cardRole === "boost" ? "BOOST" : "CARD";
     const rarity = String(card.currentTier || card.rarity || "C").toUpperCase();
