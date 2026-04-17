@@ -24,8 +24,7 @@ function getM3Stats(card) {
 }
 
 function getCardPower(card) {
-  const s = getM3Stats(card);
-  return Math.floor(s.atk * 1.4 + s.hp * 0.22 + s.speed * 9);
+  return Number(card.powerCaps?.M3 || card.currentPower || 0);
 }
 
 function getItemPower(item) {
@@ -37,6 +36,15 @@ function tierScore(tier) {
   return { C: 1, B: 2, A: 3, S: 4, SS: 5, UR: 6 }[String(tier || "").toUpperCase()] || 0;
 }
 
+function statEffectText(item) {
+  const bonus = item?.statBonus || {};
+  const parts = [];
+  if (Number(bonus.atk || 0)) parts.push(`+${Number(bonus.atk)} ATK`);
+  if (Number(bonus.hp || 0)) parts.push(`+${Number(bonus.hp)} HP`);
+  if (Number(bonus.speed || 0)) parts.push(`+${Number(bonus.speed)} SPD`);
+  return parts.length ? parts.join(" / ") : "No stat bonus";
+}
+
 function buildCardEmbed(card, index, total, mode) {
   const m3 = card.evolutionForms?.[2];
   const stats = getM3Stats(card);
@@ -44,32 +52,26 @@ function buildCardEmbed(card, index, total, mode) {
   return buildCardStyleEmbed({
     color: mode === "boost" ? 0x9b59b6 : 0xe67e22,
     header: mode === "boost" ? "All Boost Cards" : "All Battle Cards",
-    card: {
-      ...card,
-      badgeImage: m3?.badgeImage || card.badgeImage || "",
-    },
+    card: { ...card, badgeImage: m3?.badgeImage || card.badgeImage || "" },
     badgeImage: m3?.badgeImage || card.badgeImage || "",
     formName: m3?.name || "Final",
     tier: m3?.tier || card.currentTier || card.rarity,
     footerText: `${mode === "boost" ? "Boost" : "Battle"} ${index + 1}/${total} • Code: ${card.code}`,
     extraLines: [
       `Role: ${card.cardRole}`,
-      `Base Tier: ${card.baseTier}`,
-      `Max Form: ${m3?.key || "M3"}`,
-      `Max Tier: ${m3?.tier || card.currentTier || card.rarity}`,
-      `Path: ${card.evolutionForms.map((x) => x.tier).join(" -> ")}`,
+      `Base Power: ${card.basePower || 0}`,
+      `Power Cap M1/M2/M3: ${card.powerCaps?.M1 || 0} / ${card.powerCaps?.M2 || 0} / ${card.powerCaps?.M3 || 0}`,
+      mode === "boost" ? `Effect: ${card.effectText || "No effect text"}` : `Type: ${card.type || "Battle"}`,
       "",
       `ATK (M3): ${stats.atk}`,
       `HP (M3): ${stats.hp}`,
       `SPD (M3): ${stats.speed}`,
       `Power (M3): ${getCardPower(card)}`,
-      mode === "boost" ? `Boost Type: ${card.boostType || "None"}` : `Type: ${card.type || "Battle"}`,
     ],
   });
 }
 
 function buildWeaponEmbed(item, index, total) {
-  const bonus = item?.statBonus || {};
   return new EmbedBuilder()
     .setColor(0x3498db)
     .setTitle("All Weapons")
@@ -79,9 +81,7 @@ function buildWeaponEmbed(item, index, total) {
         item.type || "Weapon",
         "",
         `Rarity: ${String(item.rarity || "B").toUpperCase()}`,
-        `ATK Bonus: +${Number(bonus.atk || 0)}`,
-        `HP Bonus: +${Number(bonus.hp || 0)}`,
-        `SPD Bonus: +${Number(bonus.speed || 0)}`,
+        `Effect: ${item.description || statEffectText(item)}`,
         `Power: ${getItemPower(item)}`,
         `Owners: ${Array.isArray(item.owners) && item.owners.length ? item.owners.join(", ") : "General"}`,
       ].join("\n")
@@ -92,7 +92,6 @@ function buildWeaponEmbed(item, index, total) {
 }
 
 function buildFruitEmbed(item, index, total) {
-  const bonus = item?.statBonus || {};
   return new EmbedBuilder()
     .setColor(0x9b59b6)
     .setTitle("All Devil Fruits")
@@ -102,9 +101,7 @@ function buildFruitEmbed(item, index, total) {
         item.type || "Devil Fruit",
         "",
         `Rarity: ${String(item.rarity || "B").toUpperCase()}`,
-        `ATK Bonus: +${Number(bonus.atk || 0)}`,
-        `HP Bonus: +${Number(bonus.hp || 0)}`,
-        `SPD Bonus: +${Number(bonus.speed || 0)}`,
+        `Effect: ${item.description || statEffectText(item)}`,
         `Power: ${getItemPower(item)}`,
       ].join("\n")
     )
@@ -127,12 +124,7 @@ module.exports = {
   aliases: ["allcards"],
   async execute(message, args) {
     const rawMode = String(args.join(" ").trim()).toLowerCase();
-
-    const mode =
-      rawMode === "boost" ? "boost" :
-      rawMode === "weapon" ? "weapon" :
-      rawMode === "fruit" ? "fruit" :
-      "battle";
+    const mode = rawMode === "boost" ? "boost" : rawMode === "weapon" ? "weapon" : rawMode === "fruit" ? "fruit" : "battle";
 
     let list = [];
     let renderer = null;
@@ -143,14 +135,10 @@ module.exports = {
         .sort((a, b) => {
           const powerDiff = getCardPower(b) - getCardPower(a);
           if (powerDiff !== 0) return powerDiff;
-
-          const aTier = tierScore(a?.evolutionForms?.[2]?.tier);
-          const bTier = tierScore(b?.evolutionForms?.[2]?.tier);
-          if (bTier !== aTier) return bTier - aTier;
-
+          const tierDiff = tierScore(b?.evolutionForms?.[2]?.tier) - tierScore(a?.evolutionForms?.[2]?.tier);
+          if (tierDiff !== 0) return tierDiff;
           return String(a.displayName || a.name).localeCompare(String(b.displayName || b.name));
         });
-
       renderer = (item, index, total) => buildCardEmbed(item, index, total, mode);
     }
 
@@ -158,13 +146,8 @@ module.exports = {
       list = [...weapons].sort((a, b) => {
         const powerDiff = getItemPower(b) - getItemPower(a);
         if (powerDiff !== 0) return powerDiff;
-
-        const tierDiff = tierScore(b.rarity) - tierScore(a.rarity);
-        if (tierDiff !== 0) return tierDiff;
-
-        return String(a.name || a.code).localeCompare(String(b.name || b.code));
+        return tierScore(b.rarity) - tierScore(a.rarity);
       });
-
       renderer = buildWeaponEmbed;
     }
 
@@ -172,20 +155,14 @@ module.exports = {
       list = [...devilFruits].sort((a, b) => {
         const powerDiff = getItemPower(b) - getItemPower(a);
         if (powerDiff !== 0) return powerDiff;
-
-        const tierDiff = tierScore(b.rarity) - tierScore(a.rarity);
-        if (tierDiff !== 0) return tierDiff;
-
-        return String(a.name || a.code).localeCompare(String(b.name || b.code));
+        return tierScore(b.rarity) - tierScore(a.rarity);
       });
-
       renderer = buildFruitEmbed;
     }
 
     if (!list.length) return message.reply("No data found.");
 
     let index = 0;
-
     const sent = await message.reply({
       embeds: [renderer(list[index], index, list.length)],
       components: rows(index, list.length),
@@ -194,10 +171,7 @@ module.exports = {
     const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
 
     collector.on("collect", async (i) => {
-      if (i.user.id !== message.author.id) {
-        return i.reply({ content: "Only you can control this viewer.", ephemeral: true });
-      }
-
+      if (i.user.id !== message.author.id) return i.reply({ content: "Only you can control this viewer.", ephemeral: true });
       if (i.customId === "all_prev") index = Math.max(0, index - 1);
       if (i.customId === "all_next") index = Math.min(list.length - 1, index + 1);
 
@@ -205,10 +179,6 @@ module.exports = {
         embeds: [renderer(list[index], index, list.length)],
         components: rows(index, list.length),
       });
-    });
-
-    collector.on("end", async () => {
-      try { await sent.edit({ components: [] }); } catch (_) {}
     });
   },
 };

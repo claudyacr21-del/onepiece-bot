@@ -62,6 +62,78 @@ function getLuffySpecialPath(card) {
   };
 }
 
+function getStageMultiplier(card, stage) {
+  const special = getLuffySpecialPath(card);
+  if (special) return special.mults[stage] || 1;
+  if (stage === 1) return 1;
+  if (stage === 2) return 1.2;
+  return 1.45;
+}
+
+function computeBattleBasePower(card) {
+  return Math.floor(
+    Number(card.baseAtk ?? card.atk ?? 0) * 1.4 +
+    Number(card.baseHp ?? card.hp ?? 0) * 0.22 +
+    Number(card.baseSpeed ?? card.speed ?? 0) * 9
+  );
+}
+
+function computeBoostBasePower(card) {
+  const rarityWeight = { C: 180, B: 260, A: 360, S: 520, SS: 700, UR: 950 }[String(card.baseTier || card.rarity || "C").toUpperCase()] || 180;
+  const value = Number(card.boostValue || 0);
+  const typeWeight = {
+    atk: 38,
+    hp: 30,
+    spd: 42,
+    dmg: 44,
+    exp: 24,
+    daily: 26,
+    fragmentStorage: 3,
+    pullChance: 75,
+  }[String(card.boostType || "").toLowerCase()] || 20;
+
+  return Math.floor(rarityWeight + value * typeWeight);
+}
+
+function getBasePower(card) {
+  return card.cardRole === "boost" ? computeBoostBasePower(card) : computeBattleBasePower(card);
+}
+
+function getPowerCaps(card) {
+  const base = getBasePower(card);
+  const m2 = Math.floor(base * getStageMultiplier(card, 2));
+  const m3 = Math.floor(base * getStageMultiplier(card, 3));
+  return { M1: base, M2: m2, M3: m3 };
+}
+
+function getCurrentPower(card) {
+  const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
+  const caps = getPowerCaps(card);
+  return caps[`M${stage}`] || caps.M1;
+}
+
+function getBoostEffectText(card) {
+  if (card.cardRole !== "boost") return "";
+  if (card.boostDescription) return card.boostDescription;
+
+  const target = card.boostTarget || "team";
+  const value = Number(card.boostValue || 0);
+  const type = String(card.boostType || "").toLowerCase();
+
+  const labels = {
+    atk: `Increase ${target} ATK by ${value}%`,
+    hp: `Increase ${target} HP by ${value}%`,
+    spd: `Increase ${target} SPD by ${value}%`,
+    dmg: `Increase ${target} damage by ${value}%`,
+    exp: `Increase ${target} EXP gain by ${value}%`,
+    daily: `Increase daily reward quality by ${value}`,
+    fragmentStorage: `Increase fragment storage by ${value}`,
+    pullChance: `Increase pull chance by ${value}`,
+  };
+
+  return labels[type] || `Boost effect: ${type || "unknown"} ${value}`;
+}
+
 function normalizeRequirementPair(card) {
   const next = clone(card);
   const m2 = next?.awakenRequirements?.M2 || null;
@@ -78,6 +150,8 @@ function normalizeRequirementPair(card) {
     berries: Math.max(Number(m2.berries || 0), getBerryScale(baseTier, 2)),
     cards: uniq(m2.cards || []),
     boosts: uniq(m2.boosts || []),
+    selfFragments: 25,
+    minLevel: next.cardRole === "battle" ? 35 : 0,
   };
 
   const targetM2Counts = minReqCounts(baseTier, 2);
@@ -93,6 +167,8 @@ function normalizeRequirementPair(card) {
     berries: Math.max(Number(m3.berries || 0), getBerryScale(baseTier, 3)),
     cards: withoutOverlap(reqM2.cards, m3.cards || []),
     boosts: withoutOverlap(reqM2.boosts, m3.boosts || []),
+    selfFragments: 35,
+    minLevel: next.cardRole === "battle" ? 75 : 0,
   };
 
   const targetM3Counts = minReqCounts(baseTier, 3);
@@ -135,6 +211,11 @@ function hydrateCard(card) {
     hp: Number(next?.weaponBonus?.hp || 0),
     speed: Number(next?.weaponBonus?.speed || 0),
   };
+  const fruitBonus = {
+    atk: Number(next?.fruitBonus?.atk || 0),
+    hp: Number(next?.fruitBonus?.hp || 0),
+    speed: Number(next?.fruitBonus?.speed || 0),
+  };
 
   if (special) {
     const mult = special.mults[stage];
@@ -151,11 +232,9 @@ function hydrateCard(card) {
     next.baseAtk = Number(next.baseAtk ?? next.atk ?? 0);
     next.baseHp = Number(next.baseHp ?? next.hp ?? 0);
     next.baseSpeed = Number(next.baseSpeed ?? next.speed ?? 0);
-    next.atk = Math.floor(next.baseAtk * mult) + weaponBonus.atk;
-    next.hp = Math.floor(next.baseHp * mult) + weaponBonus.hp;
-    next.speed = Math.floor(next.baseSpeed * mult) + weaponBonus.speed;
-    next.badgeImage = getRarityBadge(next.currentTier);
-    return next;
+    next.atk = Math.floor(next.baseAtk * mult) + weaponBonus.atk + fruitBonus.atk;
+    next.hp = Math.floor(next.baseHp * mult) + weaponBonus.hp + fruitBonus.hp;
+    next.speed = Math.floor(next.baseSpeed * mult) + weaponBonus.speed + fruitBonus.speed;
   }
 
   next.badgeImage = getRarityBadge(next.currentTier || next.rarity || "");
@@ -163,6 +242,11 @@ function hydrateCard(card) {
     ...form,
     badgeImage: getRarityBadge(form.tier),
   }));
+  next.basePower = getBasePower(next);
+  next.powerCaps = getPowerCaps(next);
+  next.currentPower = getCurrentPower(next);
+  next.effectText = getBoostEffectText(next);
+
   return next;
 }
 
@@ -208,28 +292,67 @@ function createOwnedCard(template) {
     kills: Number(card.kills || 0),
     equippedWeapon: null,
     equippedWeaponCode: null,
+    equippedDevilFruit: null,
+    equippedDevilFruitCode: null,
     weaponBonus: { atk: 0, hp: 0, speed: 0 },
+    fruitBonus: { atk: 0, hp: 0, speed: 0 },
   };
 }
 
-function verifyRequirementOwnership(player, targetInstanceId, req) {
+function getOwnedFragmentAmount(player, cardCode) {
+  const entry = (player.fragments || []).find((x) => slug(x.code) === slug(cardCode));
+  return Number(entry?.amount || 0);
+}
+
+function consumeSelfFragments(player, cardCode, amount) {
+  const next = [...(player.fragments || [])];
+  const idx = next.findIndex((x) => slug(x.code) === slug(cardCode));
+  if (idx === -1) throw new Error(`Missing ${amount} self fragments.`);
+  const current = Number(next[idx].amount || 0);
+  if (current < amount) throw new Error(`Missing ${amount} self fragments.`);
+  if (current === amount) next.splice(idx, 1);
+  else next[idx] = { ...next[idx], amount: current - amount };
+  return next;
+}
+
+function verifyRequirementOwnership(player, targetInstanceId, targetCard, req) {
   const ownedCards = (player.cards || []).map(hydrateCard).filter(Boolean);
+
   for (const code of [...(req.cards || []), ...(req.boosts || [])]) {
     const hit = ownedCards.find((c) => c.instanceId !== targetInstanceId && slug(c.code) === slug(code));
     if (!hit) return { ok: false, reason: `Missing required card/boost: ${code}` };
   }
-  if (Number(player.berries || 0) < Number(req.berries || 0)) return { ok: false, reason: "Not enough berries." };
+
+  if (Number(player.berries || 0) < Number(req.berries || 0)) {
+    return { ok: false, reason: "Not enough berries." };
+  }
+
+  if (Number(req.selfFragments || 0) > 0) {
+    const amount = getOwnedFragmentAmount(player, targetCard.code);
+    if (amount < Number(req.selfFragments)) {
+      return { ok: false, reason: `Need ${req.selfFragments} fragments of ${targetCard.displayName || targetCard.name}.` };
+    }
+  }
+
+  if (targetCard.cardRole === "battle" && Number(req.minLevel || 0) > 0) {
+    if (Number(targetCard.level || 1) < Number(req.minLevel)) {
+      return { ok: false, reason: `Need minimum level ${req.minLevel}.` };
+    }
+  }
+
   return { ok: true };
 }
 
 function consumeReqCards(player, targetInstanceId, req) {
   const needed = [...(req.cards || []), ...(req.boosts || [])].map(slug);
   const next = [...(player.cards || [])];
+
   for (const code of needed) {
     const idx = next.findIndex((c) => c.instanceId !== targetInstanceId && slug(c.code) === code);
     if (idx === -1) throw new Error(`Missing required card/boost: ${code}`);
     next.splice(idx, 1);
   }
+
   return next;
 }
 
@@ -242,16 +365,21 @@ function awakenOwnedCard(player, query) {
   const req = target.awakenRequirements?.[`M${nextStage}`];
   if (!req) throw new Error("No requirement found for next stage.");
 
-  const verify = verifyRequirementOwnership(player, target.instanceId, req);
+  const verify = verifyRequirementOwnership(player, target.instanceId, target, req);
   if (!verify.ok) throw new Error(verify.reason);
 
   const cardsAfterConsume = consumeReqCards(player, target.instanceId, req);
+  const fragmentsAfterConsume = Number(req.selfFragments || 0) > 0
+    ? consumeSelfFragments(player, target.code, Number(req.selfFragments))
+    : [...(player.fragments || [])];
+
   const updatedCards = cardsAfterConsume.map((c) =>
     c.instanceId === target.instanceId ? hydrateCard({ ...c, evolutionStage: nextStage, evolutionKey: `M${nextStage}` }) : hydrateCard(c)
   );
 
   return {
     updatedCards,
+    updatedFragments: fragmentsAfterConsume,
     berries: Number(player.berries || 0) - Number(req.berries || 0),
     target: updatedCards.find((c) => c.instanceId === target.instanceId),
     req,
@@ -267,4 +395,8 @@ module.exports = {
   rollBaseTier,
   createOwnedCard,
   awakenOwnedCard,
+  getBoostEffectText,
+  getBasePower,
+  getPowerCaps,
+  getCurrentPower,
 };
