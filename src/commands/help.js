@@ -44,7 +44,7 @@ module.exports = {
             "",
             "## Pull System",
             "🔹 `op pull` = single pull using your pull slot system",
-            "🔹 `op pa` = Mother Flame text-only pull all",
+            "🔹 `op pa` = Mother Flame Premium pull all",
             "🔹 `op pullinfo` = check pull slots and reset status",
             "",
             "## Quests",
