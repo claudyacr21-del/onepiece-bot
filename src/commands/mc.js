@@ -2,12 +2,17 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  EmbedBuilder,
 } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 
-function buildEmbed(ownerName, card, index, total) {
+function getPower(card) {
+  return Math.floor(Number(card.atk || 0) * 1.4 + Number(card.hp || 0) * 0.22 + Number(card.speed || 0) * 9);
+}
+
+function buildViewerEmbed(ownerName, card, index, total) {
   return buildCardStyleEmbed({
     color: 0x3498db,
     ownerName,
@@ -20,7 +25,7 @@ function buildEmbed(ownerName, card, index, total) {
       `Form: ${card.evolutionKey}`,
       `Tier: ${card.currentTier || card.rarity}`,
       `Level: ${card.level || 1}`,
-      `Power: ${Math.floor(Number(card.atk || 0) * 1.4 + Number(card.hp || 0) * 0.22 + Number(card.speed || 0) * 9)}`,
+      `Power: ${getPower(card)}`,
       `Health: ${card.hp}`,
       `Speed: ${card.speed}`,
       `Attack: ${card.atk}`,
@@ -33,7 +38,7 @@ function buildEmbed(ownerName, card, index, total) {
   });
 }
 
-function rows(index, total) {
+function buildRows(index, total) {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("mc_prev").setLabel("Prev").setStyle(ButtonStyle.Secondary).setDisabled(index <= 0),
@@ -42,27 +47,63 @@ function rows(index, total) {
   ];
 }
 
+function buildTextEmbeds(ownerName, cards) {
+  const lines = cards.map((card, i) => {
+    const rarity = String(card.currentTier || card.rarity || "C").toUpperCase();
+    const name = card.displayName || card.name || "Unknown Card";
+    const stage = card.evolutionKey || `M${card.evolutionStage || 1}`;
+    const power = getPower(card);
+    return `${i + 1}. **${name}** • ${stage} • ${rarity} • ${power}`;
+  });
+
+  const chunkSize = 20;
+  const embeds = [];
+
+  for (let i = 0; i < lines.length; i += chunkSize) {
+    embeds.push(
+      new EmbedBuilder()
+        .setColor(0x3498db)
+        .setTitle(`${ownerName}'s Card Collection`)
+        .setDescription(
+          [
+            "You are viewing your collection in text mode!",
+            "",
+            ...lines.slice(i, i + chunkSize),
+          ].join("\n")
+        )
+        .setFooter({ text: `Showing ${i + 1}-${Math.min(i + chunkSize, lines.length)} of ${lines.length} cards` })
+    );
+  }
+
+  return embeds;
+}
+
 module.exports = {
   name: "mc",
   aliases: ["mycards"],
-  async execute(message) {
+  async execute(message, args) {
     const player = getPlayer(message.author.id, message.author.username);
     const cards = (player.cards || []).map(hydrateCard).filter(Boolean);
 
     if (!cards.length) return message.reply("You do not own any cards yet.");
 
     const sorted = [...cards].sort((a, b) => {
-      const powerA = Math.floor(Number(a.atk || 0) * 1.4 + Number(a.hp || 0) * 0.22 + Number(a.speed || 0) * 9);
-      const powerB = Math.floor(Number(b.atk || 0) * 1.4 + Number(b.hp || 0) * 0.22 + Number(b.speed || 0) * 9);
-      if (powerB !== powerA) return powerB - powerA;
+      const powerDiff = getPower(b) - getPower(a);
+      if (powerDiff !== 0) return powerDiff;
       return String(a.displayName || a.name).localeCompare(String(b.displayName || b.name));
     });
+
+    const sub = String(args?.[0] || "").toLowerCase();
+
+    if (sub === "text") {
+      return message.reply({ embeds: buildTextEmbeds(message.author.username, sorted) });
+    }
 
     let index = 0;
 
     const sent = await message.reply({
-      embeds: [buildEmbed(message.author.username, sorted[index], index, sorted.length)],
-      components: rows(index, sorted.length),
+      embeds: [buildViewerEmbed(message.author.username, sorted[index], index, sorted.length)],
+      components: buildRows(index, sorted.length),
     });
 
     const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
@@ -76,15 +117,13 @@ module.exports = {
       if (i.customId === "mc_next") index = Math.min(sorted.length - 1, index + 1);
 
       return i.update({
-        embeds: [buildEmbed(message.author.username, sorted[index], index, sorted.length)],
-        components: rows(index, sorted.length),
+        embeds: [buildViewerEmbed(message.author.username, sorted[index], index, sorted.length)],
+        components: buildRows(index, sorted.length),
       });
     });
 
     collector.on("end", async () => {
-      try {
-        await sent.edit({ components: [] });
-      } catch (_) {}
+      try { await sent.edit({ components: [] }); } catch (_) {}
     });
   },
 };
