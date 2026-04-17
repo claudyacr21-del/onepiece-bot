@@ -4,7 +4,7 @@ module.exports = [
     name: "Akuma no Mi",
     rarity: "UR",
     owners: ["imu"],
-    type: "Unknown Fruit",
+    type: "Mythical Zoan Fruit",
     statBonus: { atk: 20, hp: 12, speed: 8 },
     image: "",
     description: "An unknown and terrifying devil fruit tied to the deepest secrets of the world."
