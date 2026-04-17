@@ -14,15 +14,6 @@ const {
   getDevilFruitImage,
 } = require("../config/assetLinks");
 
-function getM3Stats(card) {
-  const mult = card.code === "luffy_straw_hat" ? 2.35 : 1.45;
-  return {
-    atk: Math.floor(Number(card.baseAtk || 0) * mult),
-    hp: Math.floor(Number(card.baseHp || 0) * mult),
-    speed: Math.floor(Number(card.baseSpeed || 0) * mult),
-  };
-}
-
 function getCardPower(card) {
   return Number(card.powerCaps?.M3 || card.currentPower || 0);
 }
@@ -47,7 +38,6 @@ function statEffectText(item) {
 
 function buildCardEmbed(card, index, total, mode) {
   const m3 = card.evolutionForms?.[2];
-  const stats = getM3Stats(card);
 
   return buildCardStyleEmbed({
     color: mode === "boost" ? 0x9b59b6 : 0xe67e22,
@@ -61,11 +51,8 @@ function buildCardEmbed(card, index, total, mode) {
       `Role: ${card.cardRole}`,
       `Base Power: ${card.basePower || 0}`,
       `Power Cap M1/M2/M3: ${card.powerCaps?.M1 || 0} / ${card.powerCaps?.M2 || 0} / ${card.powerCaps?.M3 || 0}`,
-      mode === "boost" ? `Effect: ${card.effectText || "No effect text"}` : `Type: ${card.type || "Battle"}`,
+      mode === "boost" ? `Effect M1/M2/M3: ${card.evolutionForms?.[0]?.effectText || "-"} | ${card.evolutionForms?.[1]?.effectText || "-"} | ${card.evolutionForms?.[2]?.effectText || "-"}` : `Type: ${card.type || "Battle"}`,
       "",
-      `ATK (M3): ${stats.atk}`,
-      `HP (M3): ${stats.hp}`,
-      `SPD (M3): ${stats.speed}`,
       `Power (M3): ${getCardPower(card)}`,
     ],
   });

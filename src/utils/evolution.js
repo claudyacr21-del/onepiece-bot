@@ -73,24 +73,28 @@ function getStageMultiplier(card, stage) {
 function computeBattleBasePower(card) {
   return Math.floor(
     Number(card.baseAtk ?? card.atk ?? 0) * 1.4 +
-    Number(card.baseHp ?? card.hp ?? 0) * 0.22 +
-    Number(card.baseSpeed ?? card.speed ?? 0) * 9
+      Number(card.baseHp ?? card.hp ?? 0) * 0.22 +
+      Number(card.baseSpeed ?? card.speed ?? 0) * 9
   );
 }
 
 function computeBoostBasePower(card) {
-  const rarityWeight = { C: 180, B: 260, A: 360, S: 520, SS: 700, UR: 950 }[String(card.baseTier || card.rarity || "C").toUpperCase()] || 180;
+  const rarityWeight =
+    { C: 180, B: 260, A: 360, S: 520, SS: 700, UR: 950 }[
+      String(card.baseTier || card.rarity || "C").toUpperCase()
+    ] || 180;
   const value = Number(card.boostValue || 0);
-  const typeWeight = {
-    atk: 38,
-    hp: 30,
-    spd: 42,
-    dmg: 44,
-    exp: 24,
-    daily: 26,
-    fragmentStorage: 3,
-    pullChance: 75,
-  }[String(card.boostType || "").toLowerCase()] || 20;
+  const typeWeight =
+    {
+      atk: 38,
+      hp: 30,
+      spd: 42,
+      dmg: 44,
+      exp: 24,
+      daily: 26,
+      fragmentStorage: 3,
+      pullChance: 75,
+    }[String(card.boostType || "").toLowerCase()] || 20;
 
   return Math.floor(rarityWeight + value * typeWeight);
 }
@@ -101,9 +105,11 @@ function getBasePower(card) {
 
 function getPowerCaps(card) {
   const base = getBasePower(card);
-  const m2 = Math.floor(base * getStageMultiplier(card, 2));
-  const m3 = Math.floor(base * getStageMultiplier(card, 3));
-  return { M1: base, M2: m2, M3: m3 };
+  return {
+    M1: base,
+    M2: Math.floor(base * getStageMultiplier(card, 2)),
+    M3: Math.floor(base * getStageMultiplier(card, 3)),
+  };
 }
 
 function getCurrentPower(card) {
@@ -112,12 +118,17 @@ function getCurrentPower(card) {
   return caps[`M${stage}`] || caps.M1;
 }
 
-function getBoostEffectText(card) {
-  if (card.cardRole !== "boost") return "";
-  if (card.boostDescription) return card.boostDescription;
+function getBoostStageValue(card, stage) {
+  const base = Number(card.boostValue || 0);
+  if (stage === 1) return base;
+  if (stage === 2) return base + 1;
+  return base + 2;
+}
 
+function getBoostEffectText(card, stage = Number(card.evolutionStage || 1)) {
+  if (card.cardRole !== "boost") return "";
   const target = card.boostTarget || "team";
-  const value = Number(card.boostValue || 0);
+  const value = getBoostStageValue(card, stage);
   const type = String(card.boostType || "").toLowerCase();
 
   const labels = {
@@ -142,8 +153,16 @@ function normalizeRequirementPair(card) {
 
   const baseTier = String(next.baseTier || next.rarity || "C").toUpperCase();
   const links = next.canonLinks || {};
-  const poolCards = uniq([...(next.relatedCards || []), ...(next.awakenPool?.cards || []), ...(links.cards || [])]);
-  const poolBoosts = uniq([...(next.relatedBoosts || []), ...(next.awakenPool?.boosts || []), ...(links.boosts || [])]);
+  const poolCards = uniq([
+    ...(next.relatedCards || []),
+    ...(next.awakenPool?.cards || []),
+    ...(links.cards || []),
+  ]);
+  const poolBoosts = uniq([
+    ...(next.relatedBoosts || []),
+    ...(next.awakenPool?.boosts || []),
+    ...(links.boosts || []),
+  ]);
 
   const reqM2 = {
     ...m2,
@@ -156,10 +175,16 @@ function normalizeRequirementPair(card) {
 
   const targetM2Counts = minReqCounts(baseTier, 2);
   if (reqM2.cards.length < targetM2Counts.cards) {
-    reqM2.cards = uniq([...reqM2.cards, ...pickExtra(poolCards, reqM2.cards, targetM2Counts.cards - reqM2.cards.length)]);
+    reqM2.cards = uniq([
+      ...reqM2.cards,
+      ...pickExtra(poolCards, reqM2.cards, targetM2Counts.cards - reqM2.cards.length),
+    ]);
   }
   if (reqM2.boosts.length < targetM2Counts.boosts) {
-    reqM2.boosts = uniq([...reqM2.boosts, ...pickExtra(poolBoosts, reqM2.boosts, targetM2Counts.boosts - reqM2.boosts.length)]);
+    reqM2.boosts = uniq([
+      ...reqM2.boosts,
+      ...pickExtra(poolBoosts, reqM2.boosts, targetM2Counts.boosts - reqM2.boosts.length),
+    ]);
   }
 
   let reqM3 = {
@@ -173,28 +198,50 @@ function normalizeRequirementPair(card) {
 
   const targetM3Counts = minReqCounts(baseTier, 3);
   if (reqM3.cards.length < targetM3Counts.cards) {
-    reqM3.cards = uniq([...reqM3.cards, ...pickExtra(poolCards, [...reqM2.cards, ...reqM3.cards], targetM3Counts.cards - reqM3.cards.length)]);
+    reqM3.cards = uniq([
+      ...reqM3.cards,
+      ...pickExtra(poolCards, [...reqM2.cards, ...reqM3.cards], targetM3Counts.cards - reqM3.cards.length),
+    ]);
   }
   if (reqM3.boosts.length < targetM3Counts.boosts) {
-    reqM3.boosts = uniq([...reqM3.boosts, ...pickExtra(poolBoosts, [...reqM2.boosts, ...reqM3.boosts], targetM3Counts.boosts - reqM3.boosts.length)]);
+    reqM3.boosts = uniq([
+      ...reqM3.boosts,
+      ...pickExtra(poolBoosts, [...reqM2.boosts, ...reqM3.boosts], targetM3Counts.boosts - reqM3.boosts.length),
+    ]);
+  }
+
+  if (next.cardRole === "boost") {
+    reqM3.cards = uniq([
+      ...reqM3.cards,
+      ...pickExtra(poolCards, [...reqM2.cards, ...reqM3.cards], Math.max(2, 2 - reqM3.cards.length)),
+    ]);
+    reqM3.boosts = [];
   }
 
   if (baseTier !== "C") {
     reqM3.berries = Math.max(reqM3.berries, reqM2.berries + Math.ceil(reqM2.berries * 0.5));
     if (reqM3.cards.length <= reqM2.cards.length) {
-      reqM3.cards = uniq([...reqM3.cards, ...pickExtra(poolCards, [...reqM2.cards, ...reqM3.cards], reqM2.cards.length + 1 - reqM3.cards.length)]);
+      reqM3.cards = uniq([
+        ...reqM3.cards,
+        ...pickExtra(poolCards, [...reqM2.cards, ...reqM3.cards], reqM2.cards.length + 1 - reqM3.cards.length),
+      ]);
     }
-    if (reqM3.boosts.length < reqM2.boosts.length) {
-      reqM3.boosts = uniq([...reqM3.boosts, ...pickExtra(poolBoosts, [...reqM2.boosts, ...reqM3.boosts], reqM2.boosts.length - reqM3.boosts.length)]);
+    if (next.cardRole !== "boost" && reqM3.boosts.length < reqM2.boosts.length) {
+      reqM3.boosts = uniq([
+        ...reqM3.boosts,
+        ...pickExtra(poolBoosts, [...reqM2.boosts, ...reqM3.boosts], reqM2.boosts.length - reqM3.boosts.length),
+      ]);
     }
   }
 
   reqM2.text = reqM2.text || "Canon-linked awaken path.";
-  reqM3.text = reqM3.text || "Final awaken path with harder canon requirements.";
+  reqM3.text =
+    next.cardRole === "boost"
+      ? reqM3.text || "Final boost awaken path requiring battle cards."
+      : reqM3.text || "Final awaken path with harder canon requirements.";
 
   next.awakenRequirements.M2 = reqM2;
   next.awakenRequirements.M3 = reqM3;
-
   return next;
 }
 
@@ -238,14 +285,15 @@ function hydrateCard(card) {
   }
 
   next.badgeImage = getRarityBadge(next.currentTier || next.rarity || "");
-  next.evolutionForms = (next.evolutionForms || []).map((form) => ({
+  next.evolutionForms = (next.evolutionForms || []).map((form, index) => ({
     ...form,
     badgeImage: getRarityBadge(form.tier),
+    effectText: next.cardRole === "boost" ? getBoostEffectText(next, index + 1) : "",
   }));
   next.basePower = getBasePower(next);
   next.powerCaps = getPowerCaps(next);
   next.currentPower = getCurrentPower(next);
-  next.effectText = getBoostEffectText(next);
+  next.effectText = next.cardRole === "boost" ? getBoostEffectText(next, stage) : "";
 
   return next;
 }
@@ -369,12 +417,15 @@ function awakenOwnedCard(player, query) {
   if (!verify.ok) throw new Error(verify.reason);
 
   const cardsAfterConsume = consumeReqCards(player, target.instanceId, req);
-  const fragmentsAfterConsume = Number(req.selfFragments || 0) > 0
-    ? consumeSelfFragments(player, target.code, Number(req.selfFragments))
-    : [...(player.fragments || [])];
+  const fragmentsAfterConsume =
+    Number(req.selfFragments || 0) > 0
+      ? consumeSelfFragments(player, target.code, Number(req.selfFragments))
+      : [...(player.fragments || [])];
 
   const updatedCards = cardsAfterConsume.map((c) =>
-    c.instanceId === target.instanceId ? hydrateCard({ ...c, evolutionStage: nextStage, evolutionKey: `M${nextStage}` }) : hydrateCard(c)
+    c.instanceId === target.instanceId
+      ? hydrateCard({ ...c, evolutionStage: nextStage, evolutionKey: `M${nextStage}` })
+      : hydrateCard(c)
   );
 
   return {
@@ -396,6 +447,7 @@ module.exports = {
   createOwnedCard,
   awakenOwnedCard,
   getBoostEffectText,
+  getBoostStageValue,
   getBasePower,
   getPowerCaps,
   getCurrentPower,

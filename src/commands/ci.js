@@ -35,9 +35,6 @@ function buildReqEmbed(card, stage) {
         "",
         "✨ **Boosts Required**",
         ...(req.boosts?.length ? req.boosts.map((x) => `↪ ${x}`) : ["↪ None"]),
-        "",
-        "📜 **Notes**",
-        `↪ ${req.text || "No extra notes."}`,
       ].join("\n")
     );
 }
@@ -59,7 +56,7 @@ function buildEmbed(card, owned, stage) {
       `Tier: ${form?.tier || card.currentTier || card.rarity}`,
       `Role: ${card.cardRole}`,
       `Power: ${card.powerCaps?.[`M${stage}`] || card.currentPower || 0}`,
-      card.cardRole === "boost" ? `Effect: ${card.effectText || "No effect text"}` : `Type: ${card.type || "Battle"}`,
+      card.cardRole === "boost" ? `Effect: ${card.evolutionForms?.[stage - 1]?.effectText || card.effectText || "No effect text"}` : `Type: ${card.type || "Battle"}`,
       "",
       `ATK: ${Math.floor(Number(card.baseAtk || 0) * mult)}`,
       `HP: ${Math.floor(Number(card.baseHp || 0) * mult)}`,

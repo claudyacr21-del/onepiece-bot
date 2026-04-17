@@ -1,4 +1,5 @@
 const devilFruits = require("../data/devilFruits");
+const { getBoostStageValue } = require("./evolution");
 
 function getOwnedCards(player) {
   return Array.isArray(player?.cards) ? player.cards : [];
@@ -14,18 +15,14 @@ function findBoostFruitByCode(code) {
 }
 
 function getFruitBonusForBoostCard(card) {
-  if (!card || card.cardRole !== "boost" || !card.equippedDevilFruit) {
-    return 0;
-  }
-
-  const fruit = findBoostFruitByCode(card.equippedDevilFruit);
+  if (!card || card.cardRole !== "boost" || !card.equippedDevilFruit) return 0;
+  const fruit = findBoostFruitByCode(card.equippedDevilFruit) || findBoostFruitByCode(card.equippedDevilFruitCode);
   if (!fruit || !fruit.boostBonus) return 0;
-
   return Number(fruit.boostBonus[card.boostType] || 0);
 }
 
 function getEffectiveBoostValue(card) {
-  return Number(card?.boostValue || 0) + getFruitBonusForBoostCard(card);
+  return Number(getBoostStageValue(card, Number(card?.evolutionStage || 1)) || 0) + getFruitBonusForBoostCard(card);
 }
 
 function getUniqueBoostCards(player) {
@@ -34,7 +31,6 @@ function getUniqueBoostCards(player) {
 
   for (const card of boostCards) {
     const existing = seen.get(card.code);
-
     if (!existing) {
       seen.set(card.code, card);
       continue;
@@ -77,7 +73,6 @@ function getFragmentStorageBonus(player) {
 
 function getPassiveBoostSummary(player) {
   const boostCards = getUniqueBoostCards(player);
-
   const highestPullChance = getHighestBoost(boostCards, "pullChance");
   const highestDaily = getHighestBoost(boostCards, "daily");
 
@@ -86,7 +81,7 @@ function getPassiveBoostSummary(player) {
       ...card,
       fruitBonus: getFruitBonusForBoostCard(card),
       effectiveBoostValue: getEffectiveBoostValue(card),
-      equippedFruitData: findBoostFruitByCode(card.equippedDevilFruit)
+      equippedFruitData: findBoostFruitByCode(card.equippedDevilFruit) || findBoostFruitByCode(card.equippedDevilFruitCode),
     })),
     pullChance: highestPullChance ? getEffectiveBoostValue(highestPullChance) : 0,
     pullChanceCard: highestPullChance || null,
@@ -97,7 +92,7 @@ function getPassiveBoostSummary(player) {
     spd: sumBoost(boostCards, "spd"),
     exp: sumBoost(boostCards, "exp"),
     dmg: sumBoost(boostCards, "dmg"),
-    fragmentStorageBonus: getFragmentStorageBonus(player)
+    fragmentStorageBonus: getFragmentStorageBonus(player),
   };
 }
 
@@ -108,5 +103,5 @@ module.exports = {
   getFragmentStorageBonus,
   getFruitBonusForBoostCard,
   getEffectiveBoostValue,
-  findBoostFruitByCode
+  findBoostFruitByCode,
 };
