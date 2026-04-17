@@ -1,36 +1,24 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { incrementQuestCounter } = require("../utils/questProgress");
-const { ITEMS, cloneItem } = require("../data/items");
+const { ITEMS } = require("../data/items");
+const weapons = require("../data/weapons");
+const devilFruits = require("../data/devilFruits");
 
 function normalize(text) {
   return String(text || "").toLowerCase().trim().replace(/\s+/g, " ");
 }
 
-function findBox(boxes, query) {
-  const q = normalize(query);
+function removeOneBox(list, code) {
+  const arr = Array.isArray(list) ? [...list] : [];
+  const index = arr.findIndex((entry) => entry.code === code);
 
-  return (boxes || []).findIndex((box) => {
-    const name = normalize(box.name);
-    const code = normalize(box.code);
-    return name.includes(q) || code.includes(q);
-  });
-}
+  if (index === -1) return null;
+  if (Number(arr[index].amount || 0) <= 0) return null;
 
-function consumeBox(boxes, index) {
-  const updated = [...(boxes || [])];
-  const current = Number(updated[index]?.amount || 0);
+  if (Number(arr[index].amount || 0) === 1) arr.splice(index, 1);
+  else arr[index] = { ...arr[index], amount: Number(arr[index].amount || 0) - 1 };
 
-  if (current <= 1) {
-    updated.splice(index, 1);
-  } else {
-    updated[index] = {
-      ...updated[index],
-      amount: current - 1
-    };
-  }
-
-  return updated;
+  return arr;
 }
 
 function addOrIncrease(list, item) {
@@ -40,159 +28,157 @@ function addOrIncrease(list, item) {
   if (index !== -1) {
     arr[index] = {
       ...arr[index],
-      amount: Number(arr[index].amount || 1) + Number(item.amount || 1)
+      amount: Number(arr[index].amount || 1) + Number(item.amount || 1),
     };
     return arr;
   }
 
   arr.push({
     ...item,
-    amount: Number(item.amount || 1)
+    amount: Number(item.amount || 1),
   });
 
   return arr;
 }
 
-function randomBetween(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+function rollFrom(list) {
+  return list[Math.floor(Math.random() * list.length)];
 }
 
-function openBasicResourceBox() {
-  return {
-    berries: randomBetween(1500, 3000),
-    gems: randomBetween(5, 12),
-    materials: [
-      cloneItem(ITEMS.enhancementStone, randomBetween(1, 2))
-    ],
-    tickets: [],
-    boxes: []
-  };
-}
+function getBoxByQuery(query) {
+  const all = Object.values(ITEMS).filter((item) => item.type === "Box");
+  const q = normalize(query);
 
-function openRareResourceBox() {
-  const rewards = {
-    berries: randomBetween(4000, 7000),
-    gems: randomBetween(12, 25),
-    materials: [
-      cloneItem(ITEMS.treasureMaterialPack, randomBetween(2, 4))
-    ],
-    tickets: [],
-    boxes: []
-  };
-
-  if (Math.random() < 0.35) {
-    rewards.tickets.push(cloneItem(ITEMS.pullResetTicket, 1));
-  }
-
-  return rewards;
-}
-
-function openMotherFlameTreasureBox() {
-  const rewards = {
-    berries: randomBetween(12000, 18000),
-    gems: randomBetween(35, 60),
-    materials: [
-      cloneItem(ITEMS.treasureMaterialPack, randomBetween(4, 7)),
-      cloneItem(ITEMS.enhancementStone, randomBetween(2, 5))
-    ],
-    tickets: [],
-    boxes: []
-  };
-
-  if (Math.random() < 0.7) {
-    rewards.tickets.push(cloneItem(ITEMS.pullResetTicket, 1));
-  }
-
-  if (Math.random() < 0.35) {
-    rewards.boxes.push(cloneItem(ITEMS.rareResourceBox, 1));
-  }
-
-  return rewards;
-}
-
-function getBoxRewards(box) {
-  const code = String(box.code || "").toLowerCase();
-
-  if (code === "basic_resource_box") return openBasicResourceBox();
-  if (code === "rare_resource_box") return openRareResourceBox();
-  if (code === "mother_flame_treasure_box") return openMotherFlameTreasureBox();
-
-  return {
-    berries: randomBetween(1000, 2000),
-    gems: randomBetween(3, 8),
-    materials: [],
-    tickets: [],
-    boxes: []
-  };
+  return (
+    all.find((item) => normalize(item.name) === q) ||
+    all.find((item) => normalize(item.code) === q) ||
+    all.find((item) => normalize(item.name).includes(q)) ||
+    null
+  );
 }
 
 module.exports = {
   name: "open",
+  aliases: ["obox", "openbox"],
   async execute(message, args) {
-    if (!args.length) {
-      return message.reply("Usage: `op open <box name>`");
-    }
+    const query = args.join(" ").trim();
+    if (!query) return message.reply("Usage: `op open <box name>`");
 
-    const query = args.join(" ");
     const player = getPlayer(message.author.id, message.author.username);
-    const boxes = [...(player.boxes || [])];
+    const box = getBoxByQuery(query);
 
-    const boxIndex = findBox(boxes, query);
-
-    if (boxIndex === -1) {
-      return message.reply(`You do not have a box matching \`${query}\`.`);
+    if (!box) {
+      return message.reply("That box was not found.");
     }
 
-    const box = boxes[boxIndex];
-    const rewards = getBoxRewards(box);
+    const updatedBoxes = removeOneBox(player.boxes || [], box.code);
+    if (!updatedBoxes) {
+      return message.reply(`You do not own **${box.name}**.`);
+    }
 
-    let updatedBoxes = consumeBox(boxes, boxIndex);
-    let updatedMaterials = [...(player.materials || [])];
-    let updatedTickets = [...(player.tickets || [])];
+    let resultLines = [];
+    let nextWeapons = [...(player.weapons || [])];
+    let nextFruits = [...(player.devilFruits || [])];
+    let nextMaterials = [...(player.materials || [])];
+    let nextBerries = Number(player.berries || 0);
+    let nextGems = Number(player.gems || 0);
 
-    rewards.materials.forEach((item) => {
-      updatedMaterials = addOrIncrease(updatedMaterials, item);
-    });
-
-    rewards.tickets.forEach((item) => {
-      updatedTickets = addOrIncrease(updatedTickets, item);
-    });
-
-    rewards.boxes.forEach((item) => {
-      updatedBoxes = addOrIncrease(updatedBoxes, item);
-    });
-
-    const updatedDailyState = incrementQuestCounter(player, "boxesOpened", 1);
+    if (box.code === "wooden_material_box") {
+      const rewards = [
+        { ...ITEMS.hardwood, amount: 3 },
+        { ...ITEMS.sailCloth, amount: 2 },
+      ];
+      rewards.forEach((item) => {
+        nextMaterials = addOrIncrease(nextMaterials, item);
+        resultLines.push(`📦 ${item.name} x${item.amount}`);
+      });
+    } else if (box.code === "iron_material_box") {
+      const rewards = [
+        { ...ITEMS.hardwood, amount: 4 },
+        { ...ITEMS.ironPlating, amount: 2 },
+        { ...ITEMS.sailCloth, amount: 2 },
+      ];
+      rewards.forEach((item) => {
+        nextMaterials = addOrIncrease(nextMaterials, item);
+        resultLines.push(`📦 ${item.name} x${item.amount}`);
+      });
+    } else if (box.code === "royal_material_box") {
+      const rewards = [
+        { ...ITEMS.hardwood, amount: 5 },
+        { ...ITEMS.ironPlating, amount: 3 },
+        { ...ITEMS.sailCloth, amount: 3 },
+        { ...ITEMS.colaEnginePart, amount: 1 },
+      ];
+      rewards.forEach((item) => {
+        nextMaterials = addOrIncrease(nextMaterials, item);
+        resultLines.push(`📦 ${item.name} x${item.amount}`);
+      });
+    } else if (box.code === "random_weapon_box") {
+      const pool = weapons.filter((item) => ["C", "B", "A"].includes(String(item.rarity || "").toUpperCase()));
+      const reward = rollFrom(pool);
+      nextWeapons = addOrIncrease(nextWeapons, {
+        code: reward.code,
+        name: reward.name,
+        rarity: reward.rarity,
+        type: reward.type,
+        image: reward.image || "",
+        description: reward.description || "",
+        amount: 1,
+      });
+      resultLines.push(`🗡️ ${reward.name} [${reward.rarity}] x1`);
+    } else if (box.code === "random_devilfruit_box") {
+      const pool = devilFruits.filter((item) => ["C", "B", "A"].includes(String(item.rarity || "").toUpperCase()));
+      const reward = rollFrom(pool);
+      nextFruits = addOrIncrease(nextFruits, {
+        code: reward.code,
+        name: reward.name,
+        rarity: reward.rarity,
+        type: reward.type,
+        image: reward.image || "",
+        description: reward.description || "",
+        amount: 1,
+      });
+      resultLines.push(`🍎 ${reward.name} [${reward.rarity}] x1`);
+    } else if (box.code === "basic_resource_box") {
+      nextBerries += 2000;
+      nextGems += 10;
+      resultLines.push("💰 Berries +2000");
+      resultLines.push("💎 Gems +10");
+    } else if (box.code === "rare_resource_box") {
+      nextBerries += 5000;
+      nextGems += 20;
+      resultLines.push("💰 Berries +5000");
+      resultLines.push("💎 Gems +20");
+      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.ironPlating, amount: 2 });
+      resultLines.push("📦 Iron Plating x2");
+    } else if (box.code === "mother_flame_treasure_box") {
+      nextBerries += 15000;
+      nextGems += 50;
+      resultLines.push("💰 Berries +15000");
+      resultLines.push("💎 Gems +50");
+      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.colaEnginePart, amount: 2 });
+      resultLines.push("📦 Cola Engine Part x2");
+    } else {
+      return message.reply("This box is not configured yet.");
+    }
 
     updatePlayer(message.author.id, {
-      berries: Number(player.berries || 0) + Number(rewards.berries || 0),
-      gems: Number(player.gems || 0) + Number(rewards.gems || 0),
       boxes: updatedBoxes,
-      materials: updatedMaterials,
-      tickets: updatedTickets,
-      quests: {
-        ...(player.quests || {}),
-        dailyState: updatedDailyState
-      }
+      weapons: nextWeapons,
+      devilFruits: nextFruits,
+      materials: nextMaterials,
+      berries: nextBerries,
+      gems: nextGems,
     });
 
-    const lines = [
-      `Opened: **${box.name}**`,
-      "",
-      `↪ Berries: +${Number(rewards.berries || 0).toLocaleString("en-US")}`,
-      `↪ Gems: +${Number(rewards.gems || 0).toLocaleString("en-US")}`
-    ];
-
-    rewards.materials.forEach((item) => lines.push(`↪ ${item.name} x${item.amount}`));
-    rewards.tickets.forEach((item) => lines.push(`↪ ${item.name} x${item.amount}`));
-    rewards.boxes.forEach((item) => lines.push(`↪ ${item.name} x${item.amount}`));
-
-    const embed = new EmbedBuilder()
-      .setColor(0x2ecc71)
-      .setTitle("📦 Box Opened")
-      .setDescription(lines.join("\n"))
-      .setFooter({ text: "One Piece Bot • Open Box" });
-
-    return message.reply({ embeds: [embed] });
-  }
+    return message.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x3498db)
+          .setTitle(`🎁 Opened ${box.name}`)
+          .setDescription(resultLines.join("\n"))
+          .setFooter({ text: "One Piece Bot • Open Box" }),
+      ],
+    });
+  },
 };

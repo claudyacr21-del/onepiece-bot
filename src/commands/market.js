@@ -23,6 +23,20 @@ const MARKET_ITEMS = [
     price: 120,
     item: ITEMS.royalMaterialBox,
     description: "Premium random material box."
+  },
+  {
+    code: "random_weapon_box",
+    name: "Random Weapon Box",
+    price: 1500,
+    item: ITEMS.randomWeaponBox,
+    description: "Random weapon box with C / B / A rarity only."
+  },
+  {
+    code: "random_devilfruit_box",
+    name: "Random Devil Fruit Box",
+    price: 1500,
+    item: ITEMS.randomDevilFruitBox,
+    description: "Random devil fruit box with C / B / A rarity only."
   }
 ];
 
@@ -77,6 +91,8 @@ function buildMarketEmbed(player) {
         "`op market buy wooden material box`",
         "`op market buy iron material box`",
         "`op market buy royal material box`",
+        "`op market buy random weapon box`",
+        "`op market buy random devil fruit box`",
       ].join("\n")
     )
     .setFooter({ text: "One Piece Bot • Market" });
