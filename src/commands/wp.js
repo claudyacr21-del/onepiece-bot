@@ -10,7 +10,6 @@ function getWeaponSlotLimit(card) {
   const code = String(card?.code || "");
   if (code === "zoro_pirate_hunter") return 3;
   if (code === "oden") return 2;
-  if (code === "hatchan_six_sword_style") return 6;
   return 1;
 }
 

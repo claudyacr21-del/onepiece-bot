@@ -10,6 +10,16 @@ module.exports = [
     description: "Roger's legendary saber."
   },
   {
+    code: "ame_no_habakiri",
+    name: "Ame no Habakiri",
+    rarity: "UR",
+    owners: ["oden"],
+    type: "Great Grade Sword",
+    statBonus: { atk: 21, hp: 2, speed: 3 },
+    image: "",
+    description: "One of Oden's legendary swords."
+  },
+  {
     code: "basic_iron_club",
     name: "Basic Iron Club",
     rarity: "C",
@@ -180,14 +190,14 @@ module.exports = [
     description: "A terrifying blade fit for the captain of the Rocks Pirates."
   },
   {
-    code: "enma_and_ame_no_habakiri",
-    name: "Enma & Ame no Habakiri",
+    code: "enma",
+    name: "Enma",
     rarity: "UR",
-    owners: ["oden"],
-    type: "Dual Swords",
-    statBonus: { atk: 24, hp: 1, speed: 3 },
+    owners: ["oden", "zoro_pirate_hunter"],
+    type: "Great Grade Sword",
+    statBonus: { atk: 22, hp: 1, speed: 3 },
     image: "",
-    description: "The legendary twin blades of Kozuki Oden."
+    description: "A blade that draws out its wielder's haki."
   },
   {
     code: "fish_man_karate",
@@ -450,6 +460,16 @@ module.exports = [
     description: "A refined saber used by Holy Knights."
   },
   {
+    code: "sandai_kitetsu",
+    name: "Sandai Kitetsu",
+    rarity: "S",
+    owners: ["zoro_pirate_hunter"],
+    type: "Grade Sword",
+    statBonus: { atk: 16, hp: 1, speed: 3 },
+    image: "",
+    description: "A cursed blade with fierce cutting force."
+  },
+  {
     code: "scissors",
     name: "Scissors",
     rarity: "A",
@@ -494,10 +514,10 @@ module.exports = [
     name: "Six Swords",
     rarity: "B",
     owners: ["hatchan_six_sword_style"],
-    type: "Multi-Sword Set",
-    statBonus: { atk: 10, hp: 2, speed: 2 },
+    type: "Fixed Multi-Sword Set",
+    statBonus: { atk: 12, hp: 2, speed: 2 },
     image: "",
-    description: "A six-sword style set for relentless slashing."
+    description: "Hatchan's fixed six-sword fighting style. Not a free multi-equip set."
   },
   {
     code: "sky_lance",
