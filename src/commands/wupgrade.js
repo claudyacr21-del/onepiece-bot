@@ -25,11 +25,15 @@ function getStoneAmount(materials) {
 function consumeStones(materials, amount) {
   const arr = [...(Array.isArray(materials) ? materials : [])];
   const idx = arr.findIndex((x) => x.code === "enhancement_stone");
+
   if (idx === -1) throw new Error("Enhancement Stone not found.");
+
   const current = Number(arr[idx].amount || 0);
   if (current < amount) throw new Error(`You need ${amount} Enhancement Stones.`);
+
   if (current === amount) arr.splice(idx, 1);
   else arr[idx] = { ...arr[idx], amount: current - amount };
+
   return arr;
 }
 
@@ -183,7 +187,7 @@ module.exports = {
               `**Weapon Level:** +${Number(syncedWeapon.upgradeLevel || 0)}`,
               `**Cost:** ${stoneCost} Enhancement Stones`,
               "",
-              `**Weapon Bonus Now**`,
+              "**Weapon Bonus Now**",
               `ATK: +${shownBonus.atk}`,
               `HP: +${shownBonus.hp}`,
               `SPD: +${shownBonus.speed}`,

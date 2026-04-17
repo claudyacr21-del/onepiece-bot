@@ -23,7 +23,7 @@ module.exports = {
             "Weapons and Devil Fruits stay equipped permanently once used.",
             "Weapons can also be upgraded with **Enhancement Stone**.",
             "",
-            "Arena is now available for ranked random battles and direct test matches.",
+            "Arena is available for ranked random battles and direct test matches."
           ].join("\n")
         )
         .setFooter({ text: "One Piece Bot • 1/4" }),
@@ -52,7 +52,7 @@ module.exports = {
             "🔹 5 daily random quests",
             "🔹 categories do not repeat on the same day",
             "🔹 clear rewards auto enter when completed",
-            "🔹 `op quest` = open daily quest board",
+            "🔹 `op quest` = open daily quest board"
           ].join("\n")
         )
         .setFooter({ text: "One Piece Bot • 2/4" }),
@@ -78,7 +78,7 @@ module.exports = {
             "🔹 win = +12",
             "🔹 lose = -5",
             "🔹 draw = +2",
-            "🔹 `op challenge` is test only and gives no points",
+            "🔹 `op challenge` is test only and gives no points"
           ].join("\n")
         )
         .setFooter({ text: "One Piece Bot • 3/4" }),
@@ -118,7 +118,7 @@ module.exports = {
             "",
             "## Trade",
             "`op trade @mention (your offer)(their offer)`",
-            "Tickets are untradeable",
+            "Tickets are untradeable"
           ].join("\n")
         )
         .setFooter({ text: "One Piece Bot • 4/4" }),
