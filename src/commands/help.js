@@ -47,13 +47,13 @@ module.exports = {
               "All cards use M1 / M2 / M3.",
               "",
               "## Trade",
-              "`op trade @peace (5000)(enma_1)`",
-              "`op trade @peace (5000, mera_1, enma_5)(luffy_1, bigmom_6)`",
+              "`op trade @mention (5000)(enma_1)`",
+              "`op trade @mention (5000, mera_1, enma_5)(luffy_1, bigmom_6)`",
               "Tickets are untradeable.",
               "",
             ].join("\n")
           )
-          .setFooter({ text: "One Piece Bot • Synced Help" }),
+          .setFooter({ text: "One Piece Bot •" }),
       ],
     });
   },
