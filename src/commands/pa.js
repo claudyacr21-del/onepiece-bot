@@ -23,6 +23,28 @@ function fmtOwned(card) {
   return `[${card.currentTier}] ${card.displayName || card.name} (${card.cardRole}) • ${card.evolutionKey}`;
 }
 
+function addFragment(list, card) {
+  const arr = Array.isArray(list) ? [...list] : [];
+  const code = card.code;
+  const index = arr.findIndex((x) => x.code === code);
+
+  if (index !== -1) {
+    arr[index] = { ...arr[index], amount: Number(arr[index].amount || 0) + 1 };
+    return arr;
+  }
+
+  arr.push({
+    name: card.displayName || card.name,
+    amount: 1,
+    rarity: card.baseTier || card.rarity || "C",
+    category: card.cardRole === "boost" ? "boost" : "battle",
+    code: card.code,
+    image: card.image || "",
+  });
+
+  return arr;
+}
+
 module.exports = {
   name: "pa",
   aliases: ["pullall"],
@@ -53,6 +75,7 @@ module.exports = {
 
     let pityCounter = Number(player.pity?.premiumSPity || 0);
     let updatedCards = [...(player.cards || [])];
+    let updatedFragments = [...(player.fragments || [])];
     const pullLines = [];
 
     for (let i = 0; i < availableTotal; i++) {
@@ -65,9 +88,16 @@ module.exports = {
       if (!pool.length) continue;
 
       const picked = pool[Math.floor(Math.random() * pool.length)];
-      const owned = createOwnedCard(picked);
-      updatedCards.push(owned);
-      pullLines.push(`${i + 1}. ${fmtOwned(owned)}${pityTriggered ? " [PITY]" : ""}`);
+      const alreadyOwned = updatedCards.some((c) => String(c.code || "").toLowerCase() === String(picked.code || "").toLowerCase());
+
+      if (alreadyOwned) {
+        updatedFragments = addFragment(updatedFragments, picked);
+        pullLines.push(`${i + 1}. [FRAGMENT] ${picked.displayName || picked.name}${pityTriggered ? " [PITY]" : ""}`);
+      } else {
+        const owned = createOwnedCard(picked);
+        updatedCards.push(owned);
+        pullLines.push(`${i + 1}. ${fmtOwned(owned)}${pityTriggered ? " [PITY]" : ""}`);
+      }
 
       if (pityTriggered) pityCounter = 0;
     }
@@ -81,6 +111,7 @@ module.exports = {
 
     updatePlayer(message.author.id, {
       cards: updatedCards,
+      fragments: updatedFragments,
       pulls: updatedPulls,
       pity: updatedPity,
     });

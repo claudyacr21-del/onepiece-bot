@@ -23,6 +23,28 @@ function prettySlotName(key) {
   return map[key] || key;
 }
 
+function addFragment(list, card) {
+  const arr = Array.isArray(list) ? [...list] : [];
+  const code = card.code;
+  const index = arr.findIndex((x) => x.code === code);
+
+  if (index !== -1) {
+    arr[index] = { ...arr[index], amount: Number(arr[index].amount || 0) + 1 };
+    return arr;
+  }
+
+  arr.push({
+    name: card.displayName || card.name,
+    amount: 1,
+    rarity: card.baseTier || card.rarity || "C",
+    category: card.cardRole === "boost" ? "boost" : "battle",
+    code: card.code,
+    image: card.image || "",
+  });
+
+  return arr;
+}
+
 module.exports = {
   name: "pull",
   aliases: ["gacha"],
@@ -55,8 +77,38 @@ module.exports = {
     if (!pool.length) return message.reply("Pull pool is empty.");
 
     const picked = pool[Math.floor(Math.random() * pool.length)];
-    const owned = createOwnedCard(picked);
     const updatedPulls = consumePullSlot(player, pullKey);
+    const alreadyOwned = (player.cards || []).some((c) => String(c.code || "").toLowerCase() === String(picked.code || "").toLowerCase());
+
+    if (alreadyOwned) {
+      const updatedFragments = addFragment(player.fragments || [], picked);
+
+      updatePlayer(message.author.id, {
+        pulls: updatedPulls,
+        fragments: updatedFragments,
+      });
+
+      return message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xf1c40f)
+            .setTitle("🎴 Pull Result")
+            .setDescription(
+              [
+                `**Slot Used:** ${prettySlotName(pullKey)}`,
+                `**Remaining Pulls:** ${available - 1}/${totalMax}`,
+                "",
+                `You already own **${picked.displayName || picked.name}**.`,
+                `Converted into **1 Fragment** instead.`,
+              ].join("\n")
+            )
+            .setThumbnail(picked.evolutionForms?.[0]?.badgeImage || picked.badgeImage || null)
+            .setImage(picked.image || null),
+        ],
+      });
+    }
+
+    const owned = createOwnedCard(picked);
 
     updatePlayer(message.author.id, {
       cards: [...(player.cards || []), owned],
