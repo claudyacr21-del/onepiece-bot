@@ -51,12 +51,22 @@ function consumeWeapon(list, weaponCode) {
   return arr;
 }
 
+function getWeaponBonusAtLevel(baseBonus, level) {
+  const lv = Math.max(0, Number(level || 0));
+  return {
+    atk: Number(baseBonus?.atk || 0) + lv * 3,
+    hp: Number(baseBonus?.hp || 0) + lv * 8,
+    speed: Number(baseBonus?.speed || 0) + lv * 1,
+  };
+}
+
 function sumWeaponBonuses(equippedWeapons = []) {
   return equippedWeapons.reduce(
     (acc, item) => {
-      acc.atk += Number(item?.statBonus?.atk || 0);
-      acc.hp += Number(item?.statBonus?.hp || 0);
-      acc.speed += Number(item?.statBonus?.speed || 0);
+      const bonus = getWeaponBonusAtLevel(item.baseStatBonus || item.statBonus || {}, item.upgradeLevel || 0);
+      acc.atk += Number(bonus.atk || 0);
+      acc.hp += Number(bonus.hp || 0);
+      acc.speed += Number(bonus.speed || 0);
       return acc;
     },
     { atk: 0, hp: 0, speed: 0 }
@@ -65,7 +75,7 @@ function sumWeaponBonuses(equippedWeapons = []) {
 
 function formatEquippedWeaponNames(equippedWeapons = []) {
   if (!equippedWeapons.length) return null;
-  return equippedWeapons.map((x) => x.name).join(", ");
+  return equippedWeapons.map((x) => `${x.name}${Number(x.upgradeLevel || 0) > 0 ? ` +${x.upgradeLevel}` : ""}`).join(", ");
 }
 
 module.exports = {
@@ -93,7 +103,13 @@ module.exports = {
     const existingEquipped = Array.isArray(card.equippedWeapons)
       ? [...card.equippedWeapons]
       : card.equippedWeapon && card.equippedWeaponCode
-        ? [{ name: card.equippedWeapon, code: card.equippedWeaponCode, statBonus: card.weaponBonus || {} }]
+        ? [{
+            name: card.equippedWeapon,
+            code: card.equippedWeaponCode,
+            statBonus: card.weaponBonus || {},
+            baseStatBonus: card.weaponBonus || {},
+            upgradeLevel: 0,
+          }]
         : [];
 
     const slotLimit = getWeaponSlotLimit(card);
@@ -107,23 +123,20 @@ module.exports = {
     }
 
     const nextWeapons = consumeWeapon(player.weapons || [], weapon.code);
-    const nextEquipped = [...existingEquipped, { name: weapon.name, code: weapon.code, statBonus: weapon.statBonus || {} }];
+    const nextEquipped = [
+      ...existingEquipped,
+      {
+        name: weapon.name,
+        code: weapon.code,
+        statBonus: weapon.statBonus || {},
+        baseStatBonus: weapon.statBonus || {},
+        upgradeLevel: 0,
+      },
+    ];
     const totalWeaponBonus = sumWeaponBonuses(nextEquipped);
 
     const updatedCards = (player.cards || []).map((raw) => {
       if (raw.instanceId !== card.instanceId) return raw;
-
-      const stage = Number(raw.evolutionStage || 1);
-      const mult =
-        raw.code === "luffy_straw_hat"
-          ? stage === 1 ? 1 : stage === 2 ? 1.75 : 2.35
-          : stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45;
-
-      const fruitBonus = {
-        atk: Number(raw?.fruitBonus?.atk || 0),
-        hp: Number(raw?.fruitBonus?.hp || 0),
-        speed: Number(raw?.fruitBonus?.speed || 0),
-      };
 
       return hydrateCard({
         ...raw,
@@ -131,9 +144,6 @@ module.exports = {
         equippedWeapon: formatEquippedWeaponNames(nextEquipped),
         equippedWeaponCode: nextEquipped.length === 1 ? nextEquipped[0].code : null,
         weaponBonus: totalWeaponBonus,
-        atk: Math.floor(Number(raw.baseAtk || raw.atk || 0) * mult) + totalWeaponBonus.atk + fruitBonus.atk,
-        hp: Math.floor(Number(raw.baseHp || raw.hp || 0) * mult) + totalWeaponBonus.hp + fruitBonus.hp,
-        speed: Math.floor(Number(raw.baseSpeed || raw.speed || 0) * mult) + totalWeaponBonus.speed + fruitBonus.speed,
       });
     });
 
@@ -158,7 +168,7 @@ module.exports = {
               `**Added Weapon:** ${weapon.name}`,
               `**Weapon Rarity:** ${String(weapon.rarity || "B").toUpperCase()}`,
               `**Weapon Slots:** ${slotText}`,
-              `**Equipped Weapons:** ${synced.equippedWeapon || weapon.name}`,
+              `**Equipped Weapons:** ${formatEquippedWeaponNames(nextEquipped) || weapon.name}`,
               "",
               `**ATK:** ${synced.atk}`,
               `**HP:** ${synced.hp}`,
