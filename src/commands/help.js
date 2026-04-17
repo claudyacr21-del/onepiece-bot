@@ -107,6 +107,8 @@ module.exports = {
             "## Progression / Travel",
             "`op daily`",
             "`op quest`",
+            "`op market`",
+            "`op market buy <box name>`",
             "`op ship`",
             "`op ship upgrade`",
             "`op sail`",

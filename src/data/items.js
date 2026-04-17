@@ -85,7 +85,7 @@ const ITEMS = {
     rarity: "C",
     code: "enhancement_stone",
     type: "Material",
-    description: "A future upgrade material reserved for equipment enhancement systems."
+    description: "A weapon-only upgrade material. It is reserved for future weapon enhancement and refinement systems."
   },
   hardwood: {
     name: "Hardwood",
