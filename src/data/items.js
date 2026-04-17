@@ -47,22 +47,6 @@ const ITEMS = {
     type: "Box",
     description: "A premium random material box with stronger rewards."
   },
-  randomWeaponBox: {
-    name: "Random Weapon Box",
-    amount: 1,
-    rarity: "A",
-    code: "random_weapon_box",
-    type: "Box",
-    description: "A random weapon box containing C, B, or A rarity weapons."
-  },
-  randomDevilFruitBox: {
-    name: "Random Devil Fruit Box",
-    amount: 1,
-    rarity: "A",
-    code: "random_devilfruit_box",
-    type: "Box",
-    description: "A random devil fruit box containing C, B, or A rarity fruits."
-  },
   pullResetTicket: {
     name: "Pull Reset Ticket",
     amount: 1,
@@ -85,7 +69,7 @@ const ITEMS = {
     rarity: "C",
     code: "enhancement_stone",
     type: "Material",
-    description: "A weapon-only upgrade material. It is reserved for future weapon enhancement and refinement systems."
+    description: "A weapon-only upgrade material reserved for weapon enhancement systems."
   },
   hardwood: {
     name: "Hardwood",

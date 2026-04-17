@@ -1,8 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { ITEMS } = require("../data/items");
-const weapons = require("../data/weapons");
-const devilFruits = require("../data/devilFruits");
 
 function normalize(text) {
   return String(text || "").toLowerCase().trim().replace(/\s+/g, " ");
@@ -41,10 +39,6 @@ function addOrIncrease(list, item) {
   return arr;
 }
 
-function rollFrom(list) {
-  return list[Math.floor(Math.random() * list.length)];
-}
-
 function getBoxByQuery(query) {
   const all = Object.values(ITEMS).filter((item) => item.type === "Box");
   const q = normalize(query);
@@ -77,8 +71,6 @@ module.exports = {
     }
 
     let resultLines = [];
-    let nextWeapons = [...(player.weapons || [])];
-    let nextFruits = [...(player.devilFruits || [])];
     let nextMaterials = [...(player.materials || [])];
     let nextBerries = Number(player.berries || 0);
     let nextGems = Number(player.gems || 0);
@@ -117,32 +109,6 @@ module.exports = {
         nextMaterials = addOrIncrease(nextMaterials, item);
         resultLines.push(`📦 ${item.name} x${item.amount}`);
       });
-    } else if (box.code === "random_weapon_box") {
-      const pool = weapons.filter((item) => ["C", "B", "A"].includes(String(item.rarity || "").toUpperCase()));
-      const reward = rollFrom(pool);
-      nextWeapons = addOrIncrease(nextWeapons, {
-        code: reward.code,
-        name: reward.name,
-        rarity: reward.rarity,
-        type: reward.type,
-        image: reward.image || "",
-        description: reward.description || "",
-        amount: 1,
-      });
-      resultLines.push(`🗡️ ${reward.name} [${reward.rarity}] x1`);
-    } else if (box.code === "random_devilfruit_box") {
-      const pool = devilFruits.filter((item) => ["C", "B", "A"].includes(String(item.rarity || "").toUpperCase()));
-      const reward = rollFrom(pool);
-      nextFruits = addOrIncrease(nextFruits, {
-        code: reward.code,
-        name: reward.name,
-        rarity: reward.rarity,
-        type: reward.type,
-        image: reward.image || "",
-        description: reward.description || "",
-        amount: 1,
-      });
-      resultLines.push(`🍎 ${reward.name} [${reward.rarity}] x1`);
     } else if (box.code === "basic_resource_box") {
       nextBerries += 2000;
       nextGems += 10;
@@ -177,8 +143,6 @@ module.exports = {
 
     updatePlayer(message.author.id, {
       boxes: updatedBoxes,
-      weapons: nextWeapons,
-      devilFruits: nextFruits,
       materials: nextMaterials,
       tickets: nextTickets,
       berries: nextBerries,
