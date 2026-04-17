@@ -267,6 +267,18 @@ function normalizeStats(stats) {
   };
 }
 
+function normalizeArena(arena) {
+  return {
+    points: Number(arena?.points) >= 0 ? Number(arena.points) : 0,
+    wins: Number(arena?.wins) >= 0 ? Number(arena.wins) : 0,
+    losses: Number(arena?.losses) >= 0 ? Number(arena.losses) : 0,
+    draws: Number(arena?.draws) >= 0 ? Number(arena.draws) : 0,
+    streak: Number(arena?.streak) >= 0 ? Number(arena.streak) : 0,
+    bestStreak: Number(arena?.bestStreak) >= 0 ? Number(arena.bestStreak) : 0,
+    matches: Number(arena?.matches) >= 0 ? Number(arena.matches) : 0,
+  };
+}
+
 function normalizeShip(ship, currentIsland) {
   const unlocked =
     Array.isArray(ship?.unlockedIslands) && ship.unlockedIslands.length
@@ -327,6 +339,7 @@ function normalizePlayer(player, username = "Unknown") {
     vote: normalizeVote(player.vote),
     team: normalizeTeam(player.team),
     stats: normalizeStats(player.stats),
+    arena: normalizeArena(player.arena),
     ship: normalizeShip(player.ship, currentIsland),
     story: normalizeStory(player.story),
     clan: {
@@ -418,6 +431,15 @@ function getDefaultPlayer(username) {
       losses: 0,
       winStreak: 0,
       bestWinStreak: 0,
+    },
+    arena: {
+      points: 0,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      streak: 0,
+      bestStreak: 0,
+      matches: 0,
     },
     ship: {
       shipCode: "small_boat",
