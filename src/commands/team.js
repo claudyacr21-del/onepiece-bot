@@ -1,8 +1,16 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
+const { hydrateCard } = require("../utils/evolution");
 
 function getPower(card) {
-  return Number(card.atk || 0) + Number(card.hp || 0) + Number(card.speed || 0);
+  return Number(card.currentPower || Math.floor(Number(card.atk || 0) * 1.4 + Number(card.hp || 0) * 0.22 + Number(card.speed || 0) * 9));
+}
+
+function formatWeapons(card) {
+  if (Array.isArray(card.equippedWeapons) && card.equippedWeapons.length) {
+    return card.equippedWeapons.map((w) => w.name).join(", ");
+  }
+  return card.equippedWeapon || "None";
 }
 
 module.exports = {
@@ -10,23 +18,20 @@ module.exports = {
   aliases: ["lineup"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-    const cards = Array.isArray(player.cards) ? player.cards : [];
+    const cards = (Array.isArray(player.cards) ? player.cards : []).map(hydrateCard).filter(Boolean);
     const team = player.team || { slots: [null, null, null] };
 
     const lines = team.slots.map((instanceId, index) => {
-      if (!instanceId) {
-        return `**${index + 1}.** Empty`;
-      }
+      if (!instanceId) return `**${index + 1}.** Empty`;
 
-      const card = cards.find((entry) => entry.instanceId === instanceId);
-
-      if (!card) {
-        return `**${index + 1}.** Missing Card`;
-      }
+      const card = cards.find((entry) => entry.instanceId === instanceId && entry.cardRole !== "boost");
+      if (!card) return `**${index + 1}.** Missing Card`;
 
       return [
-        `**${index + 1}.** ${card.displayName || card.name} [${card.rarity}]`,
-        `↪ Lv ${Number(card.level || 1)} • Kills ${Number(card.kills || 0)} • Power ${getPower(card)}`
+        `**${index + 1}.** ${card.displayName || card.name} [${card.currentTier || card.rarity}]`,
+        `↪ Lv ${Number(card.level || 1)} • Kills ${Number(card.kills || 0)} • Power ${getPower(card)}`,
+        `↪ Weapons: ${formatWeapons(card)}`,
+        `↪ Devil Fruit: ${card.equippedDevilFruit || "None"}`
       ].join("\n");
     });
 

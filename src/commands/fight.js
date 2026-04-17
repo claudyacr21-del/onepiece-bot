@@ -2,6 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
+const { hydrateCard } = require("../utils/evolution");
 
 const FIGHT_COOLDOWN_MS = 8 * 60 * 1000;
 const MOTHER_FLAME_FIGHT_COOLDOWN_MS = 4 * 60 * 1000;
@@ -23,7 +24,6 @@ function addOrIncrease(list, item) {
     ...item,
     amount: Number(item.amount || 1),
   });
-
   return arr;
 }
 
@@ -55,32 +55,36 @@ function applyExpToCard(card, gainedExp) {
   };
 }
 
+function formatEquippedWeapons(card) {
+  if (Array.isArray(card?.equippedWeapons) && card.equippedWeapons.length) {
+    return card.equippedWeapons.map((w) => w.name).join(", ");
+  }
+  return card?.equippedWeapon || "None";
+}
+
 function toBattleUnit(card, slotIndex) {
+  const synced = hydrateCard(card);
+
   return {
     slot: slotIndex + 1,
-    instanceId: card.instanceId,
-    name: card.displayName || card.name || "Unknown",
-    rarity: card.rarity || "C",
-    atk: Number(card.atk || 0),
-    hp: Number(card.hp || 0),
-    maxHp: Number(card.hp || 0),
-    speed: Number(card.speed || 0),
-    level: Number(card.level || 1),
-    exp: Number(card.exp || 0),
-    kills: Number(card.kills || 0),
-    image: card.image || "",
+    instanceId: synced.instanceId,
+    name: synced.displayName || synced.name || "Unknown",
+    rarity: synced.currentTier || synced.rarity || "C",
+    atk: Number(synced.atk || 0),
+    hp: Number(synced.hp || 0),
+    maxHp: Number(synced.hp || 0),
+    speed: Number(synced.speed || 0),
+    level: Number(synced.level || 1),
+    exp: Number(synced.exp || 0),
+    kills: Number(synced.kills || 0),
+    image: synced.image || "",
+    equippedWeapon: formatEquippedWeapons(synced),
+    equippedDevilFruit: synced.equippedDevilFruit || "None",
   };
 }
 
 function createEnemy(name, rarity, atk, hp, speed) {
-  return {
-    name,
-    rarity,
-    atk,
-    hp,
-    maxHp: hp,
-    speed,
-  };
+  return { name, rarity, atk, hp, maxHp: hp, speed };
 }
 
 function generateEnemyTeam() {
@@ -100,7 +104,6 @@ function generateEnemyTeam() {
       instanceId: `enemy-${Date.now()}-${i}-${Math.floor(Math.random() * 1000)}`,
     });
   }
-
   return picks;
 }
 
@@ -117,11 +120,7 @@ function clampHp(value) {
 }
 
 function performAttack(attacker, defender) {
-  const rawDamage = Math.max(
-    1,
-    Number(attacker.atk || 0) - Math.floor(Number(defender.speed || 0) * 0.15)
-  );
-
+  const rawDamage = Math.max(1, Number(attacker.atk || 0) - Math.floor(Number(defender.speed || 0) * 0.15));
   defender.hp = clampHp(Number(defender.hp || 0) - rawDamage);
   return rawDamage;
 }
@@ -131,13 +130,17 @@ function renderHpBar(hp, maxHp, size = 10) {
   const max = Math.max(1, Number(maxHp || 1));
   const filled = Math.round((current / max) * size);
   const safeFilled = Math.max(0, Math.min(size, filled));
-
   return `${"█".repeat(safeFilled)}${"░".repeat(size - safeFilled)} ${current}/${max}`;
 }
 
 function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode) {
   const playerLines = playerTeam.map((unit) => {
-    return `**${unit.slot}. ${unit.name}** [${unit.rarity}] • ATK \`${unit.atk}\` • SPD \`${unit.speed}\` • LV \`${unit.level}\`\n${renderHpBar(unit.hp, unit.maxHp)}`;
+    return [
+      `**${unit.slot}. ${unit.name}** [${unit.rarity}] • ATK \`${unit.atk}\` • SPD \`${unit.speed}\` • LV \`${unit.level}\``,
+      `↪ Weapon: ${unit.equippedWeapon}`,
+      `↪ Fruit: ${unit.equippedDevilFruit}`,
+      renderHpBar(unit.hp, unit.maxHp),
+    ].join("\n");
   });
 
   const enemyLines = enemyTeam.map((unit, index) => {
@@ -163,7 +166,6 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode)
 
 function buildActionRows(playerTeam, battleEnded) {
   const attackButtons = new ActionRowBuilder();
-
   for (let i = 0; i < 3; i++) {
     const unit = playerTeam[i];
     attackButtons.addComponents(
@@ -219,11 +221,7 @@ function calculateFightExp(playerTeam, won, premiumMode) {
     if (won) expGain += premiumMode ? 20 : 15;
     if (unit.hp > 0) expGain += premiumMode ? 8 : 5;
     expGain += Number(unit.kills || 0) * 5;
-
-    return {
-      instanceId: unit.instanceId,
-      expGain,
-    };
+    return { instanceId: unit.instanceId, expGain };
   });
 }
 
@@ -232,7 +230,6 @@ function formatRemaining(ms) {
   const totalSeconds = Math.ceil(safeMs / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-
   if (minutes <= 0) return `${seconds}s`;
   return `${minutes}m ${seconds}s`;
 }
@@ -252,26 +249,21 @@ module.exports = {
     const cooldownUntil = Number(player?.cooldowns?.[cooldownKey] || 0);
 
     if (cooldownUntil > Date.now()) {
-      return message.reply(
-        `You must wait **${formatRemaining(cooldownUntil - Date.now())}** before using \`op fight\` again.`
-      );
+      return message.reply(`You must wait **${formatRemaining(cooldownUntil - Date.now())}** before using \`op fight\` again.`);
     }
 
-    const cards = Array.isArray(player.cards) ? player.cards : [];
+    const cards = (Array.isArray(player.cards) ? player.cards : []).map(hydrateCard).filter(Boolean);
     const teamSlots = Array.isArray(player?.team?.slots) ? player.team.slots : [null, null, null];
-
     const teamCards = teamSlots
       .map((instanceId, index) => {
         if (!instanceId) return null;
-        const found = cards.find(
-          (card) => card.instanceId === instanceId && card.cardRole !== "boost"
-        );
+        const found = cards.find((card) => card.instanceId === instanceId && card.cardRole !== "boost");
         return found ? toBattleUnit(found, index) : null;
       })
       .filter(Boolean);
 
     if (teamCards.length === 0) {
-      return message.reply("You do not have any battle cards in your team. Set your team first.");
+      return message.reply("You do not have any battle cards in your team.");
     }
 
     updatePlayer(message.author.id, {
@@ -285,53 +277,33 @@ module.exports = {
     const enemyTeam = generateEnemyTeam();
     const logs = [];
     let battleEnded = false;
-    const currentStreak = Number(player?.stats?.winStreak || 0);
+    let battleWon = false;
+    let currentStreak = Number(player.fightStreak || 0);
 
     const reply = await message.reply({
-      embeds: [
-        buildFightEmbed(
-          player.username || message.author.username,
-          playerTeam,
-          enemyTeam,
-          logs,
-          currentStreak,
-          battleEnded,
-          premiumMode
-        ),
-      ],
+      embeds: [buildFightEmbed(player.username || message.author.username, playerTeam, enemyTeam, logs, currentStreak, battleEnded, premiumMode)],
       components: buildActionRows(playerTeam, battleEnded),
     });
 
-    const collector = reply.createMessageComponentCollector({
-      time: SESSION_TIMEOUT_MS,
-    });
+    const collector = reply.createMessageComponentCollector({ time: SESSION_TIMEOUT_MS });
 
     collector.on("collect", async (interaction) => {
       if (interaction.user.id !== message.author.id) {
-        return interaction.reply({
-          content: "Only the command user can control this fight.",
-          ephemeral: true,
-        });
+        return interaction.reply({ content: "Only the command user can control this fight.", ephemeral: true });
       }
 
       if (battleEnded) {
-        return interaction.reply({
-          content: "This fight has already ended.",
-          ephemeral: true,
-        });
+        return interaction.reply({ content: "This fight has already ended.", ephemeral: true });
       }
 
       if (interaction.customId === "fight_run") {
         battleEnded = true;
 
-        const playedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
-        const expRewards = calculateFightExp(playerTeam, false, premiumMode);
-
-        const updatedCards = [...cards].map((card) => {
+        const expResults = calculateFightExp(playerTeam, false, premiumMode);
+        const updatedCards = [...(player.cards || [])].map((card) => {
+          const expEntry = expResults.find((entry) => entry.instanceId === card.instanceId);
           const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
-          if (!unit) return card;
-
-          const expInfo = expRewards.find((entry) => entry.instanceId === card.instanceId);
+          if (!expEntry || !unit) return card;
           const nextCard = applyExpToCard(
             {
               ...card,
@@ -339,59 +311,28 @@ module.exports = {
               level: Number(card.level || 1),
               exp: getCardExp(card),
             },
-            Number(expInfo?.expGain || 0)
+            expEntry.expGain
           );
-
-          return {
-            ...nextCard,
-            kills: Number(unit.kills || 0),
-          };
+          return { ...nextCard, kills: Number(unit.kills || 0) };
         });
 
-        const updatedStats = {
-          ...(player.stats || {}),
-          wins: Number(player?.stats?.wins || 0),
-          losses: Number(player?.stats?.losses || 0) + 1,
-          winStreak: 0,
-          bestWinStreak: Number(player?.stats?.bestWinStreak || 0),
-        };
+        let updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
 
         updatePlayer(message.author.id, {
           cards: updatedCards,
-          stats: updatedStats,
+          fightStreak: 0,
           quests: {
             ...(player.quests || {}),
-            dailyState: playedDailyState,
+            dailyState: updatedDailyState,
           },
         });
 
         logs.push("🏳️ You ran away from the fight.");
-
-        expRewards.forEach((entry) => {
-          const unit = playerTeam.find((u) => u.instanceId === entry.instanceId);
-          if (unit) logs.push(`✨ ${unit.name} gained ${entry.expGain} EXP.`);
-        });
-
         await interaction.update({
-          embeds: [
-            buildFightEmbed(
-              player.username || message.author.username,
-              playerTeam,
-              enemyTeam,
-              logs,
-              0,
-              true,
-              premiumMode
-            ),
-          ],
+          embeds: [buildFightEmbed(player.username || message.author.username, playerTeam, enemyTeam, logs, 0, true, premiumMode)],
           components: buildActionRows(playerTeam, true),
         });
-
         collector.stop("run");
-        return;
-      }
-
-      if (!interaction.customId.startsWith("fight_attack_")) {
         return;
       }
 
@@ -399,62 +340,38 @@ module.exports = {
       const attacker = playerTeam[index];
 
       if (!attacker || attacker.hp <= 0) {
-        return interaction.reply({
-          content: "That card cannot attack right now.",
-          ephemeral: true,
-        });
+        return interaction.reply({ content: "That card cannot attack right now.", ephemeral: true });
       }
 
-      const enemyTarget = getFirstAlive(enemyTeam);
-      if (!enemyTarget) {
-        return interaction.reply({
-          content: "There are no enemies left.",
-          ephemeral: true,
-        });
+      const target = getFirstAlive(enemyTeam);
+      if (!target) {
+        return interaction.reply({ content: "No enemy is available to attack.", ephemeral: true });
       }
 
-      const playerDamage = performAttack(attacker, enemyTarget);
-      logs.push(`⚔️ ${attacker.name} dealt **${playerDamage}** damage to ${enemyTarget.name}.`);
+      const damage = performAttack(attacker, target);
+      logs.push(`⚔️ ${attacker.name} dealt **${damage}** damage to ${target.name}.`);
 
-      if (enemyTarget.hp <= 0) {
-        logs.push(`☠️ ${enemyTarget.name} was defeated.`);
+      if (target.hp <= 0) {
         attacker.kills += 1;
+        logs.push(`☠️ ${target.name} was defeated.`);
       }
 
-      const aliveEnemies = getAliveUnits(enemyTeam);
-
-      if (aliveEnemies.length === 0) {
+      if (!getAliveUnits(enemyTeam).length) {
         battleEnded = true;
+        battleWon = true;
+        currentStreak += 1;
 
-        const streakAfterWin = currentStreak + 1;
-        const reward = calculateWinReward(streakAfterWin, premiumMode);
-
+        const reward = calculateWinReward(currentStreak, premiumMode);
         let updatedBoxes = [...(player.boxes || [])];
         reward.boxes.forEach((item) => {
           updatedBoxes = addOrIncrease(updatedBoxes, item);
         });
 
-        let updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
-        updatedDailyState = incrementQuestCounter(
-          {
-            ...player,
-            quests: {
-              ...(player.quests || {}),
-              dailyState: updatedDailyState,
-            },
-          },
-          "fightsWon",
-          1
-        );
-
-        const expRewards = calculateFightExp(playerTeam, true, premiumMode);
-        const levelUpLines = [];
-
-        const updatedCards = [...cards].map((card) => {
+        const expResults = calculateFightExp(playerTeam, true, premiumMode);
+        const updatedCards = [...(player.cards || [])].map((card) => {
+          const expEntry = expResults.find((entry) => entry.instanceId === card.instanceId);
           const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
-          if (!unit) return card;
-
-          const expInfo = expRewards.find((entry) => entry.instanceId === card.instanceId);
+          if (!expEntry || !unit) return card;
           const nextCard = applyExpToCard(
             {
               ...card,
@@ -462,35 +379,27 @@ module.exports = {
               level: Number(card.level || 1),
               exp: getCardExp(card),
             },
-            Number(expInfo?.expGain || 0)
+            expEntry.expGain
           );
-
-          if (nextCard.leveledUp > 0) {
-            levelUpLines.push(
-              `⬆️ ${nextCard.displayName || nextCard.name} reached Lv ${nextCard.level}`
-            );
-          }
-
-          return {
-            ...nextCard,
-            kills: Number(unit.kills || 0),
-          };
+          return { ...nextCard, kills: Number(unit.kills || 0) };
         });
 
-        const updatedStats = {
-          ...(player.stats || {}),
-          wins: Number(player?.stats?.wins || 0) + 1,
-          losses: Number(player?.stats?.losses || 0),
-          winStreak: streakAfterWin,
-          bestWinStreak: Math.max(Number(player?.stats?.bestWinStreak || 0), streakAfterWin),
-        };
+        let updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
+        updatedDailyState = incrementQuestCounter(
+          {
+            ...player,
+            quests: { ...(player.quests || {}), dailyState: updatedDailyState },
+          },
+          "fightsWon",
+          1
+        );
 
         updatePlayer(message.author.id, {
           cards: updatedCards,
           boxes: updatedBoxes,
           berries: Number(player.berries || 0) + reward.berries,
           gems: Number(player.gems || 0) + reward.gems,
-          stats: updatedStats,
+          fightStreak: currentStreak,
           quests: {
             ...(player.quests || {}),
             dailyState: updatedDailyState,
@@ -500,49 +409,23 @@ module.exports = {
         logs.push("🏆 You won the fight!");
         logs.push(`💰 +${reward.berries.toLocaleString("en-US")} berries`);
         logs.push(`💎 +${reward.gems} gems`);
-
-        if (reward.boxes.length) {
-          reward.boxes.forEach((item) => logs.push(`📦 ${item.name} x${item.amount}`));
-        }
-
-        expRewards.forEach((entry) => {
-          const unit = playerTeam.find((u) => u.instanceId === entry.instanceId);
-          if (unit) logs.push(`✨ ${unit.name} gained ${entry.expGain} EXP.`);
-        });
-
-        levelUpLines.forEach((line) => logs.push(line));
+        if (reward.boxes.length) logs.push("📦 Basic Resource Box x1");
 
         await interaction.update({
-          embeds: [
-            buildFightEmbed(
-              player.username || message.author.username,
-              playerTeam,
-              enemyTeam,
-              logs,
-              streakAfterWin,
-              true,
-              premiumMode
-            ),
-          ],
+          embeds: [buildFightEmbed(player.username || message.author.username, playerTeam, enemyTeam, logs, currentStreak, true, premiumMode)],
           components: buildActionRows(playerTeam, true),
         });
-
         collector.stop("win");
         return;
       }
 
-      const enemyAttacker = aliveEnemies.sort(
-        (a, b) => Number(b.speed || 0) - Number(a.speed || 0)
-      )[0];
+      const retaliationPool = getAliveUnits(enemyTeam);
+      for (const enemy of retaliationPool) {
+        const retaliationTarget = getFirstAlive(playerTeam);
+        if (!retaliationTarget) break;
 
-      const retaliationTarget =
-        attacker && attacker.hp > 0 ? attacker : getFirstAlive(playerTeam);
-
-      if (enemyAttacker && retaliationTarget) {
-        const enemyDamage = performAttack(enemyAttacker, retaliationTarget);
-        logs.push(
-          `💥 ${enemyAttacker.name} dealt **${enemyDamage}** damage to ${retaliationTarget.name}.`
-        );
+        const retaliationDamage = performAttack(enemy, retaliationTarget);
+        logs.push(`🩸 ${enemy.name} dealt **${retaliationDamage}** damage to ${retaliationTarget.name}.`);
 
         if (retaliationTarget.hp <= 0) {
           logs.push(`☠️ ${retaliationTarget.name} was defeated.`);
@@ -551,15 +434,13 @@ module.exports = {
 
       if (!getAliveUnits(playerTeam).length) {
         battleEnded = true;
+        battleWon = false;
 
-        const playedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
-        const expRewards = calculateFightExp(playerTeam, false, premiumMode);
-
-        const updatedCards = [...cards].map((card) => {
+        const expResults = calculateFightExp(playerTeam, false, premiumMode);
+        const updatedCards = [...(player.cards || [])].map((card) => {
+          const expEntry = expResults.find((entry) => entry.instanceId === card.instanceId);
           const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
-          if (!unit) return card;
-
-          const expInfo = expRewards.find((entry) => entry.instanceId === card.instanceId);
+          if (!expEntry || !unit) return card;
           const nextCard = applyExpToCard(
             {
               ...card,
@@ -567,95 +448,46 @@ module.exports = {
               level: Number(card.level || 1),
               exp: getCardExp(card),
             },
-            Number(expInfo?.expGain || 0)
+            expEntry.expGain
           );
-
-          return {
-            ...nextCard,
-            kills: Number(unit.kills || 0),
-          };
+          return { ...nextCard, kills: Number(unit.kills || 0) };
         });
 
-        const updatedStats = {
-          ...(player.stats || {}),
-          wins: Number(player?.stats?.wins || 0),
-          losses: Number(player?.stats?.losses || 0) + 1,
-          winStreak: 0,
-          bestWinStreak: Number(player?.stats?.bestWinStreak || 0),
-        };
+        let updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
 
         updatePlayer(message.author.id, {
           cards: updatedCards,
-          stats: updatedStats,
+          fightStreak: 0,
           quests: {
             ...(player.quests || {}),
-            dailyState: playedDailyState,
+            dailyState: updatedDailyState,
           },
         });
 
         logs.push("💀 You lost the fight.");
-
-        expRewards.forEach((entry) => {
-          const unit = playerTeam.find((u) => u.instanceId === entry.instanceId);
-          if (unit) logs.push(`✨ ${unit.name} gained ${entry.expGain} EXP.`);
-        });
-
         await interaction.update({
-          embeds: [
-            buildFightEmbed(
-              player.username || message.author.username,
-              playerTeam,
-              enemyTeam,
-              logs,
-              0,
-              true,
-              premiumMode
-            ),
-          ],
+          embeds: [buildFightEmbed(player.username || message.author.username, playerTeam, enemyTeam, logs, 0, true, premiumMode)],
           components: buildActionRows(playerTeam, true),
         });
-
         collector.stop("lose");
         return;
       }
 
       await interaction.update({
-        embeds: [
-          buildFightEmbed(
-            player.username || message.author.username,
-            playerTeam,
-            enemyTeam,
-            logs,
-            currentStreak,
-            false,
-            premiumMode
-          ),
-        ],
+        embeds: [buildFightEmbed(player.username || message.author.username, playerTeam, enemyTeam, logs, currentStreak, false, premiumMode)],
         components: buildActionRows(playerTeam, false),
       });
     });
 
     collector.on("end", async (reason) => {
-      if (reason === "time") {
+      if (reason === "time" && !battleEnded) {
         try {
           logs.push("⌛ Fight session expired.");
           await reply.edit({
-            embeds: [
-              buildFightEmbed(
-                player.username || message.author.username,
-                playerTeam,
-                enemyTeam,
-                logs,
-                currentStreak,
-                true,
-                premiumMode
-              ),
-            ],
+            embeds: [buildFightEmbed(player.username || message.author.username, playerTeam, enemyTeam, logs, battleWon ? currentStreak : Number(player.fightStreak || 0), true, premiumMode)],
             components: buildActionRows(playerTeam, true),
           });
-        } catch (error) {
-          // ignore edit errors
-        }
+        } catch (_) {}
       }
     });
   },
