@@ -10,84 +10,103 @@ module.exports = {
         .setTitle("📘 How To OPB")
         .setDescription(
           [
-            "To start, you need to build your crew and grow your account step by step.",
+            "To start, build your team, pull cards, strengthen them, then progress through islands and battles.",
             "",
-            "You get daily quests every day, can pull cards from your pull slots, then power them up through M1 / M2 / M3 progression.",
+            "Battle cards use **M1 / M2 / M3** progression.",
+            "Boost cards also use **M1 / M2 / M3** and their effects get stronger every stage.",
             "",
-            "Ships are important too. Your starter ship is **Small Boat Tier 1**, and later ship upgrades need materials.",
+            "Some swordsmen can equip multiple weapons:",
+            "🔹 Zoro = 3 swords",
+            "🔹 Oden = 2 swords",
+            "🔹 Hatchan stays fixed with Six Swords only",
             "",
-            "Weapons and Devil Fruits can be equipped to owned cards. Once equipped, they are **permanent** and cannot be removed.",
+            "Weapons and Devil Fruits stay equipped permanently once used.",
             "",
-            "Use the commands below to understand your collection, progression, travel route, and battle flow.",
+            "Arena is now available for ranked random battles and direct test matches.",
           ].join("\n")
         )
-        .setFooter({ text: "One Piece Bot • 1/3" }),
+        .setFooter({ text: "One Piece Bot • 1/4" }),
 
       new EmbedBuilder()
         .setColor(0x5865f2)
         .setTitle("🃏 Cards, Pulls, Quests")
         .setDescription(
           [
-            "## Card Types",
-            "🔹 **Battle Cards** are used for combat and progression.",
-            "🔹 **Boost Cards** give passive bonuses and are also part of your collection.",
-            "",
             "## Card Progression",
-            "🔹 Every card uses **M1 / M2 / M3**.",
             "🔹 `C` base caps at `A`",
             "🔹 `B` base caps at `S`",
             "🔹 `A` base caps at `SS`",
             "🔹 `S` base caps at `UR`",
-            "🔹 `op ci <card name>` shows global card info",
-            "🔹 `op mci <card name>` shows owned card info",
-            "🔹 `op awaken <card name>` upgrades your owned card",
+            "🔹 `op ci <card name>` = global card info",
+            "🔹 `op mci <card name>` = your current owned card info",
+            "🔹 `op awaken <card name>` = awaken your owned card",
             "",
             "## Pull System",
-            "🔹 `op pull` = single pull using your pull slot system",
-            "🔹 `op pa` = Mother Flame Premium pull all",
-            "🔹 `op pullinfo` = check pull slots and reset status",
+            "🔹 `op pull` = single synced pull",
+            "🔹 `op pa` = Mother Flame text-only pull all",
+            "🔹 `op pullinfo` = check synced pull slots",
+            "🔹 `op effect` = check synced current effects",
             "",
             "## Quests",
-            "🔹 You get **5 daily random quests**",
-            "🔹 Quest categories do not repeat on the same day",
-            "🔹 If all quests are finished, the clear reward goes in automatically",
-            "🔹 `op quest` = check your daily quest board",
+            "🔹 5 daily random quests",
+            "🔹 categories do not repeat on the same day",
+            "🔹 clear rewards auto enter when completed",
+            "🔹 `op quest` = open daily quest board",
           ].join("\n")
         )
-        .setFooter({ text: "One Piece Bot • 2/3" }),
+        .setFooter({ text: "One Piece Bot • 2/4" }),
 
       new EmbedBuilder()
         .setColor(0x5865f2)
-        .setTitle("⚔️ Main Commands")
+        .setTitle("⚔️ Battle / Arena")
+        .setDescription(
+          [
+            "## PvE",
+            "`op fight` → manual fight against random enemies",
+            "`op boss` → fight the current island boss",
+            "`op team` → check your current team",
+            "",
+            "## PvP",
+            "`op arena` → random ranked match against another user's team",
+            "`op challenge @user` → direct test fight against a user's team",
+            "`op lb arena` → arena leaderboard",
+            "`op lb power` → team power leaderboard",
+            "",
+            "Arena notes:",
+            "🔹 `op arena` gives points",
+            "🔹 win = +12",
+            "🔹 lose = -5",
+            "🔹 draw = +2",
+            "🔹 `op challenge` is test only and gives no points",
+          ].join("\n")
+        )
+        .setFooter({ text: "One Piece Bot • 3/4" }),
+
+      new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setTitle("📦 Main Commands")
         .setDescription(
           [
             "## Collection",
             "`op mc` → view your cards",
             "`op mc text` → text list of cards + boosts",
             "`op ci <card name>` → global card viewer",
-            "`op mci <card name>` → owned card viewer",
+            "`op mci <card name>` → owned current card viewer",
             "`op all` → all battle cards",
             "`op all boost` → all boost cards",
             "`op all weapon` → all weapons",
             "`op all fruit` → all devil fruits",
             "`op inventory` → check your items",
+            "`op finv` → check your fragments",
             "`op profile` → check your profile",
             "",
             "## Equipment",
             "`op wp <card name> <weapon name>`",
             "`op equipfruit <card name> <fruit name>`",
             "",
-            "## Progression",
+            "## Progression / Travel",
             "`op daily`",
             "`op quest`",
-            "`op pull`",
-            "`op pa`",
-            "`op fight`",
-            "`op boss`",
-            "",
-            "## Team / Travel",
-            "`op team`",
-            "`op team set <slot1> <slot2> <slot3>`",
             "`op ship`",
             "`op ship upgrade`",
             "`op sail`",
@@ -95,12 +114,10 @@ module.exports = {
             "",
             "## Trade",
             "`op trade @mention (your offer)(their offer)`",
-            "`op trade @𝓕𝓾 🌘 (5000)(enma_1)`",
-            "`op trade @𝓕𝓾 🌘 (5000, mera_1, enma_5)(luffy_1, bigmom_6)`",
-            "🔹 Tickets are untradeable",
+            "Tickets are untradeable",
           ].join("\n")
         )
-        .setFooter({ text: "One Piece Bot • 3/3" }),
+        .setFooter({ text: "One Piece Bot • 4/4" }),
     ];
 
     return message.reply({ embeds });
