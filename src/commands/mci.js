@@ -1,9 +1,4 @@
-const {
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-} = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { findOwnedCard } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
@@ -15,78 +10,40 @@ function formatOwnedWeapons(card) {
   return card.equippedWeapon || "None";
 }
 
-function buildReqEmbed(card, stage) {
-  const req = card.awakenRequirements?.[`M${stage}`];
-  if (!req) {
-    return new EmbedBuilder()
-      .setColor(0x2ecc71)
-      .setTitle(`ℹ️ Requirement • ${card.displayName || card.name} • M${stage}`)
-      .setDescription("Base form. No requirement.");
-  }
-
-  return new EmbedBuilder()
-    .setColor(0x2ecc71)
-    .setTitle(`ℹ️ Requirement • ${card.displayName || card.name} • M${stage}`)
-    .setDescription(
-      [
-        "🧩 **Requirement Panel**",
-        "",
-        "💰 **Berries Required**",
-        `↪ ${Number(req.berries || 0).toLocaleString("en-US")}`,
-        "",
-        "🧬 **Self Fragments Required**",
-        `↪ ${Number(req.selfFragments || 0)}x ${card.displayName || card.name}`,
-        "",
-        "📈 **Level Requirement**",
-        `↪ ${card.cardRole === "battle" ? Number(req.minLevel || 0) : "Not required"}`,
-        "",
-        "🃏 **Cards Required**",
-        ...(req.cards?.length ? req.cards.map((x) => `↪ ${x}`) : ["↪ None"]),
-        "",
-        "✨ **Boosts Required**",
-        ...(req.boosts?.length ? req.boosts.map((x) => `↪ ${x}`) : ["↪ None"]),
-      ].join("\n")
-    );
+function getCurrentForm(card) {
+  const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
+  return card.evolutionForms?.[stage - 1] || null;
 }
 
-function buildEmbed(ownerName, card, stage) {
-  const form = card.evolutionForms?.[stage - 1];
-  const mult =
-    card.code === "luffy_straw_hat"
-      ? stage === 1 ? 1 : stage === 2 ? 1.75 : 2.35
-      : stage === 1 ? 1 : stage === 2 ? 1.2 : 1.45;
+function buildOwnedCardEmbed(ownerName, card) {
+  const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
+  const form = getCurrentForm(card);
 
   return buildCardStyleEmbed({
     color: 0x1abc9c,
     ownerName,
     card,
     badgeImage: form?.badgeImage || card.badgeImage || "",
-    formName: form?.name || "Unknown Form",
-    tier: form?.tier || card.currentTier || card.rarity,
-    footerText: `This card belongs to ${ownerName}`,
+    formName: form?.name || card.variant || "Unknown Form",
+    tier: card.currentTier || card.rarity,
+    footerText: `Owned card info • ${ownerName}`,
     extraLines: [
-      `Form: ${form?.key || `M${stage}`}`,
-      `Tier: ${form?.tier || card.currentTier || card.rarity}`,
-      `Level: ${card.level || 1}`,
-      `Power: ${card.powerCaps?.[`M${stage}`] || card.currentPower || 0}`,
-      `Health: ${Math.floor(Number(card.baseHp || 0) * mult) + Number(card.weaponBonus?.hp || 0) + Number(card.fruitBonus?.hp || 0)}`,
-      `Speed: ${Math.floor(Number(card.baseSpeed || 0) * mult) + Number(card.weaponBonus?.speed || 0) + Number(card.fruitBonus?.speed || 0)}`,
-      `Attack: ${Math.floor(Number(card.baseAtk || 0) * mult) + Number(card.weaponBonus?.atk || 0) + Number(card.fruitBonus?.atk || 0)}`,
+      `Form: ${card.evolutionKey || `M${stage}`}`,
+      `Tier: ${card.currentTier || card.rarity}`,
+      `Level: ${Number(card.level || 1)}`,
+      `Power: ${Number(card.currentPower || 0)}`,
+      `Health: ${Number(card.hp || 0)}`,
+      `Speed: ${Number(card.speed || 0)}`,
+      `Attack: ${Number(card.atk || 0)}`,
       `Weapons: ${formatOwnedWeapons(card)}`,
       `Devil Fruit: ${card.equippedDevilFruit || "None"}`,
-      card.cardRole === "boost" ? `Effect: ${card.effectText || "No effect text"}` : `Type: ${card.type || card.cardRole}`,
+      card.cardRole === "boost"
+        ? `Effect: ${card.effectText || "No effect text"}`
+        : `Type: ${card.type || card.cardRole}`,
+      `Kills: ${Number(card.kills || 0)}`,
+      `Fragments: ${Number(card.fragments || 0)}`,
     ],
   });
-}
-
-function buildRows(stage) {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("mci_prev").setLabel("Prev").setStyle(ButtonStyle.Secondary).setDisabled(stage <= 1),
-      new ButtonBuilder().setCustomId("mci_info").setLabel("(i)").setStyle(ButtonStyle.Primary).setDisabled(stage <= 1),
-      new ButtonBuilder().setCustomId("mci_next").setLabel("Next").setStyle(ButtonStyle.Secondary).setDisabled(stage >= 3)
-    ),
-  ];
 }
 
 module.exports = {
@@ -98,30 +55,13 @@ module.exports = {
 
     const player = getPlayer(message.author.id, message.author.username);
     const card = findOwnedCard(player.cards || [], query);
-    if (!card) return message.reply("You do not own that card.");
 
-    let stage = Number(card.evolutionStage || 1);
+    if (!card) {
+      return message.reply("You do not own that card.");
+    }
 
-    const sent = await message.reply({
-      embeds: [buildEmbed(message.author.username, card, stage)],
-      components: buildRows(stage),
-    });
-
-    const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
-
-    collector.on("collect", async (i) => {
-      if (i.user.id !== message.author.id) {
-        return i.reply({ content: "Only you can control this card viewer.", ephemeral: true });
-      }
-
-      if (i.customId === "mci_prev") stage = Math.max(1, stage - 1);
-      if (i.customId === "mci_next") stage = Math.min(3, stage + 1);
-      if (i.customId === "mci_info") return i.reply({ ephemeral: true, embeds: [buildReqEmbed(card, stage)] });
-
-      return i.update({
-        embeds: [buildEmbed(message.author.username, card, stage)],
-        components: buildRows(stage),
-      });
+    return message.reply({
+      embeds: [buildOwnedCardEmbed(message.author.username, card)],
     });
   },
 };
