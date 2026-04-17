@@ -20,7 +20,11 @@ function getCardPower(card) {
 
 function getItemPower(item) {
   const bonus = item?.statBonus || {};
-  return Math.floor(Number(bonus.atk || 0) * 1.4 + Number(bonus.hp || 0) * 0.22 + Number(bonus.speed || 0) * 9);
+  return Math.floor(
+    Number(bonus.atk || 0) * 1.4 +
+    Number(bonus.hp || 0) * 0.22 +
+    Number(bonus.speed || 0) * 9
+  );
 }
 
 function tierScore(tier) {
@@ -51,7 +55,9 @@ function buildCardEmbed(card, index, total, mode) {
       `Role: ${card.cardRole}`,
       `Base Power: ${card.basePower || 0}`,
       `Power Cap M1/M2/M3: ${card.powerCaps?.M1 || 0} / ${card.powerCaps?.M2 || 0} / ${card.powerCaps?.M3 || 0}`,
-      mode === "boost" ? `Effect M1/M2/M3: ${card.evolutionForms?.[0]?.effectText || "-"} | ${card.evolutionForms?.[1]?.effectText || "-"} | ${card.evolutionForms?.[2]?.effectText || "-"}` : `Type: ${card.type || "Battle"}`,
+      mode === "boost"
+        ? `Effect M1/M2/M3: ${card.evolutionForms?.[0]?.effectText || "-"} | ${card.evolutionForms?.[1]?.effectText || "-"} | ${card.evolutionForms?.[2]?.effectText || "-"}`
+        : `Type: ${card.type || "Battle"}`,
       "",
       `Power (M3): ${getCardPower(card)}`,
     ],
@@ -111,7 +117,11 @@ module.exports = {
   aliases: ["allcards"],
   async execute(message, args) {
     const rawMode = String(args.join(" ").trim()).toLowerCase();
-    const mode = rawMode === "boost" ? "boost" : rawMode === "weapon" ? "weapon" : rawMode === "fruit" ? "fruit" : "battle";
+    const mode =
+      rawMode === "boost" ? "boost" :
+      rawMode === "weapon" ? "weapon" :
+      rawMode === "fruit" ? "fruit" :
+      "battle";
 
     let list = [];
     let renderer = null;
@@ -133,7 +143,9 @@ module.exports = {
       list = [...weapons].sort((a, b) => {
         const powerDiff = getItemPower(b) - getItemPower(a);
         if (powerDiff !== 0) return powerDiff;
-        return tierScore(b.rarity) - tierScore(a.rarity);
+        const tierDiff = tierScore(b.rarity) - tierScore(a.rarity);
+        if (tierDiff !== 0) return tierDiff;
+        return String(a.name || a.code).localeCompare(String(b.name || b.code));
       });
       renderer = buildWeaponEmbed;
     }
@@ -142,7 +154,9 @@ module.exports = {
       list = [...devilFruits].sort((a, b) => {
         const powerDiff = getItemPower(b) - getItemPower(a);
         if (powerDiff !== 0) return powerDiff;
-        return tierScore(b.rarity) - tierScore(a.rarity);
+        const tierDiff = tierScore(b.rarity) - tierScore(a.rarity);
+        if (tierDiff !== 0) return tierDiff;
+        return String(a.name || a.code).localeCompare(String(b.name || b.code));
       });
       renderer = buildFruitEmbed;
     }
@@ -158,7 +172,10 @@ module.exports = {
     const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
 
     collector.on("collect", async (i) => {
-      if (i.user.id !== message.author.id) return i.reply({ content: "Only you can control this viewer.", ephemeral: true });
+      if (i.user.id !== message.author.id) {
+        return i.reply({ content: "Only you can control this viewer.", ephemeral: true });
+      }
+
       if (i.customId === "all_prev") index = Math.max(0, index - 1);
       if (i.customId === "all_next") index = Math.min(list.length - 1, index + 1);
 
