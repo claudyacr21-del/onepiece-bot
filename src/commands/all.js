@@ -27,6 +27,29 @@ function getItemPower(item) {
   );
 }
 
+function getUpgradedItemPower(item, level = 0) {
+  const lv = Math.max(0, Number(level || 0));
+  const base = item?.statBonus || {};
+  return getItemPower({
+    ...item,
+    statBonus: {
+      atk: Number(base.atk || 0) + lv * 3,
+      hp: Number(base.hp || 0) + lv * 8,
+      speed: Number(base.speed || 0) + lv * 1,
+    },
+  });
+}
+
+function getUpgradedBonus(item, level = 0) {
+  const lv = Math.max(0, Number(level || 0));
+  const base = item?.statBonus || {};
+  return {
+    atk: Number(base.atk || 0) + lv * 3,
+    hp: Number(base.hp || 0) + lv * 8,
+    speed: Number(base.speed || 0) + lv * 1,
+  };
+}
+
 function tierScore(tier) {
   return { C: 1, B: 2, A: 3, S: 4, SS: 5, UR: 6 }[String(tier || "").toUpperCase()] || 0;
 }
@@ -65,6 +88,9 @@ function buildCardEmbed(card, index, total, mode) {
 }
 
 function buildWeaponEmbed(item, index, total) {
+  const bonus0 = getUpgradedBonus(item, 0);
+  const bonus5 = getUpgradedBonus(item, 5);
+
   return new EmbedBuilder()
     .setColor(0x3498db)
     .setTitle("All Weapons")
@@ -75,7 +101,10 @@ function buildWeaponEmbed(item, index, total) {
         "",
         `Rarity: ${String(item.rarity || "B").toUpperCase()}`,
         `Effect: ${item.description || statEffectText(item)}`,
-        `Power: ${getItemPower(item)}`,
+        `Power (Base): ${getItemPower(item)}`,
+        `Power (Max +5): ${getUpgradedItemPower(item, 5)}`,
+        `Bonus (Base): +${bonus0.atk} ATK / +${bonus0.hp} HP / +${bonus0.speed} SPD`,
+        `Bonus (Max +5): +${bonus5.atk} ATK / +${bonus5.hp} HP / +${bonus5.speed} SPD`,
         `Owners: ${Array.isArray(item.owners) && item.owners.length ? item.owners.join(", ") : "General"}`,
       ].join("\n")
     )
@@ -117,11 +146,7 @@ module.exports = {
   aliases: ["allcards"],
   async execute(message, args) {
     const rawMode = String(args.join(" ").trim()).toLowerCase();
-    const mode =
-      rawMode === "boost" ? "boost" :
-      rawMode === "weapon" ? "weapon" :
-      rawMode === "fruit" ? "fruit" :
-      "battle";
+    const mode = rawMode === "boost" ? "boost" : rawMode === "weapon" ? "weapon" : rawMode === "fruit" ? "fruit" : "battle";
 
     let list = [];
     let renderer = null;
@@ -141,7 +166,7 @@ module.exports = {
 
     if (mode === "weapon") {
       list = [...weapons].sort((a, b) => {
-        const powerDiff = getItemPower(b) - getItemPower(a);
+        const powerDiff = getUpgradedItemPower(b, 5) - getUpgradedItemPower(a, 5);
         if (powerDiff !== 0) return powerDiff;
         const tierDiff = tierScore(b.rarity) - tierScore(a.rarity);
         if (tierDiff !== 0) return tierDiff;
