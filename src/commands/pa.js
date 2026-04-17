@@ -25,8 +25,7 @@ function fmtOwned(card) {
 
 function addFragment(list, card) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const code = card.code;
-  const index = arr.findIndex((x) => x.code === code);
+  const index = arr.findIndex((x) => String(x.code || "").toLowerCase() === String(card.code || "").toLowerCase());
 
   if (index !== -1) {
     arr[index] = { ...arr[index], amount: Number(arr[index].amount || 0) + 1 };
@@ -88,7 +87,9 @@ module.exports = {
       if (!pool.length) continue;
 
       const picked = pool[Math.floor(Math.random() * pool.length)];
-      const alreadyOwned = updatedCards.some((c) => String(c.code || "").toLowerCase() === String(picked.code || "").toLowerCase());
+      const alreadyOwned = updatedCards.some(
+        (c) => String(c.code || "").toLowerCase() === String(picked.code || "").toLowerCase()
+      );
 
       if (alreadyOwned) {
         updatedFragments = addFragment(updatedFragments, picked);

@@ -1,9 +1,4 @@
-const {
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle
-} = require("discord.js");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { getFragmentStorageBonus } = require("../utils/passiveBoosts");
 
@@ -20,22 +15,18 @@ function getStorageInfo(player, fragments) {
 }
 
 function sortFragments(fragments) {
-  const rarityOrder = { UR: 5, S: 4, A: 3, B: 2, C: 1 };
-
+  const rarityOrder = { UR: 6, SS: 5, S: 4, A: 3, B: 2, C: 1 };
   return [...fragments].sort((a, b) => {
     const rarityDiff = (rarityOrder[b.rarity] || 0) - (rarityOrder[a.rarity] || 0);
     if (rarityDiff !== 0) return rarityDiff;
-
     const amountDiff = Number(b.amount || 0) - Number(a.amount || 0);
     if (amountDiff !== 0) return amountDiff;
-
     return String(a.name || "").localeCompare(String(b.name || ""));
   });
 }
 
 function filterFragments(fragments, query) {
   if (!query) return fragments;
-
   const lowerQuery = String(query).toLowerCase();
 
   return fragments.filter((fragment) => {
@@ -43,13 +34,7 @@ function filterFragments(fragments, query) {
     const code = String(fragment.code || "").toLowerCase();
     const category = String(fragment.category || "").toLowerCase();
     const rarity = String(fragment.rarity || "").toLowerCase();
-
-    return (
-      name.includes(lowerQuery) ||
-      code.includes(lowerQuery) ||
-      category.includes(lowerQuery) ||
-      rarity.includes(lowerQuery)
-    );
+    return name.includes(lowerQuery) || code.includes(lowerQuery) || category.includes(lowerQuery) || rarity.includes(lowerQuery);
   });
 }
 
@@ -63,7 +48,7 @@ function buildPageEmbed(message, player, fragments, currentPage, isPrivate, sear
 
   const lines = pageItems.length
     ? pageItems.map((fragment) => {
-        const icon = fragment.category === "boost" ? "🧩" : "🗡️";
+        const icon = fragment.category === "boost" ? "🧩" : "🃏";
         return `${icon} **${fragment.name}**: ${fragment.amount} (${formatRarity(fragment.rarity)})`;
       })
     : ["No fragments found."];
@@ -73,39 +58,26 @@ function buildPageEmbed(message, player, fragments, currentPage, isPrivate, sear
     .setTitle(`${message.author.username}'s Fragment Storage!`)
     .setDescription(
       [
-        "Fragments are used to upgrade cards! Boost cards can increase fragment storage.",
+        "Fragments are used to upgrade cards and boost cards.",
         searchQuery ? `\n**Search:** \`${searchQuery}\`` : "",
         "",
         lines.join("\n"),
         "",
-        `Your fragment storage capacity: ${storage.total}/${storage.max}`,
-        `Visibility Mode: ${isPrivate ? "Private" : "Public"}`
+        `Fragment storage capacity: ${storage.total}/${storage.max}`,
+        `Visibility Mode: ${isPrivate ? "Private" : "Public"}`,
       ].join("\n")
     )
     .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
-    .setFooter({
-      text: `Page ${safePage + 1}/${totalPages} • ${sorted.length} fragment entries`
-    });
+    .setFooter({ text: `Page ${safePage + 1}/${totalPages} • ${sorted.length} fragment entries` });
 
   return { embed, totalPages, safePage };
 }
 
 function buildButtons(currentPage, totalPages, isPrivate) {
   return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("finv_prev")
-      .setLabel("Previous")
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(currentPage <= 0),
-    new ButtonBuilder()
-      .setCustomId("finv_next")
-      .setLabel("Next")
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(currentPage >= totalPages - 1),
-    new ButtonBuilder()
-      .setCustomId("finv_toggle_mode")
-      .setLabel(isPrivate ? "Private" : "Public")
-      .setStyle(isPrivate ? ButtonStyle.Danger : ButtonStyle.Success)
+    new ButtonBuilder().setCustomId("finv_prev").setLabel("Previous").setStyle(ButtonStyle.Primary).setDisabled(currentPage <= 0),
+    new ButtonBuilder().setCustomId("finv_next").setLabel("Next").setStyle(ButtonStyle.Primary).setDisabled(currentPage >= totalPages - 1),
+    new ButtonBuilder().setCustomId("finv_toggle_mode").setLabel(isPrivate ? "Private" : "Public").setStyle(isPrivate ? ButtonStyle.Danger : ButtonStyle.Success)
   );
 }
 
@@ -121,67 +93,40 @@ module.exports = {
     let currentPage = 0;
     let isPrivate = true;
 
-    const initial = buildPageEmbed(
-      message,
-      player,
-      filteredFragments,
-      currentPage,
-      isPrivate,
-      searchQuery
-    );
+    const initial = buildPageEmbed(message, player, filteredFragments, currentPage, isPrivate, searchQuery);
 
     const sentMessage = await message.reply({
       embeds: [initial.embed],
-      components: [buildButtons(initial.safePage, initial.totalPages, isPrivate)]
+      components: [buildButtons(initial.safePage, initial.totalPages, isPrivate)],
     });
 
-    const collector = sentMessage.createMessageComponentCollector({
-      time: 120000
-    });
+    const collector = sentMessage.createMessageComponentCollector({ time: 120000 });
 
     collector.on("collect", async (interaction) => {
       const isOwner = interaction.user.id === message.author.id;
 
       if (isPrivate && !isOwner) {
-        return interaction.reply({
-          content: "This fragment menu is private right now.",
-          ephemeral: true
-        });
+        return interaction.reply({ content: "This fragment menu is private right now.", ephemeral: true });
       }
 
-      if (interaction.customId === "finv_prev") {
-        currentPage = Math.max(0, currentPage - 1);
-      }
-
-      if (interaction.customId === "finv_next") {
-        currentPage += 1;
-      }
-
+      if (interaction.customId === "finv_prev") currentPage = Math.max(0, currentPage - 1);
+      if (interaction.customId === "finv_next") currentPage += 1;
       if (interaction.customId === "finv_toggle_mode") {
         if (!isOwner) {
-          return interaction.reply({
-            content: "Only the owner can change the visibility mode.",
-            ephemeral: true
-          });
+          return interaction.reply({ content: "Only the owner can change the visibility mode.", ephemeral: true });
         }
-
         isPrivate = !isPrivate;
       }
 
-      const pageData = buildPageEmbed(
-        message,
-        player,
-        filteredFragments,
-        currentPage,
-        isPrivate,
-        searchQuery
-      );
+      const refreshedPlayer = getPlayer(message.author.id, message.author.username);
+      const refreshedFragments = filterFragments(Array.isArray(refreshedPlayer.fragments) ? refreshedPlayer.fragments : [], searchQuery);
+      const pageData = buildPageEmbed(message, refreshedPlayer, refreshedFragments, currentPage, isPrivate, searchQuery);
       currentPage = pageData.safePage;
 
       await interaction.update({
         embeds: [pageData.embed],
-        components: [buildButtons(currentPage, pageData.totalPages, isPrivate)]
+        components: [buildButtons(currentPage, pageData.totalPages, isPrivate)],
       });
     });
-  }
+  },
 };

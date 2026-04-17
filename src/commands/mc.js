@@ -54,20 +54,14 @@ function dedupeCollection(cards) {
     const key = String(card.code || "").toLowerCase();
     if (!key) continue;
 
-    const power = getPower(card);
-    if (!map.has(key)) {
-      map.set(key, { ...card, __count: 1, __bestPower: power });
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, card);
       continue;
     }
 
-    const current = map.get(key);
-    const currentPower = Number(current.__bestPower || 0);
-
-    if (power > currentPower) {
-      map.set(key, { ...card, __count: Number(current.__count || 1) + 1, __bestPower: power });
-    } else {
-      current.__count = Number(current.__count || 1) + 1;
-      map.set(key, current);
+    if (getPower(card) > getPower(existing)) {
+      map.set(key, card);
     }
   }
 
@@ -76,14 +70,14 @@ function dedupeCollection(cards) {
 
 function buildTextEmbeds(ownerName, cards) {
   const uniqueCards = dedupeCollection(cards);
+
   const lines = uniqueCards.map((card, i) => {
     const role = card.cardRole === "boost" ? "BOOST" : "CARD";
     const rarity = String(card.currentTier || card.rarity || "C").toUpperCase();
     const name = card.displayName || card.name || "Unknown Card";
     const stage = card.evolutionKey || `M${card.evolutionStage || 1}`;
     const power = getPower(card);
-    const count = Number(card.__count || 1);
-    return `${i + 1}. **${name}** • ${role} • ${stage} • ${rarity} • ${power}${count > 1 ? ` • x${count}` : ""}`;
+    return `${i + 1}. **${name}** • ${role} • ${stage} • ${rarity} • ${power}`;
   });
 
   const chunkSize = 20;
@@ -98,7 +92,6 @@ function buildTextEmbeds(ownerName, cards) {
           [
             "You are viewing your collection in text mode!",
             "Cards and boosts are combined in one list.",
-            "Duplicate entries are merged into one line.",
             "",
             ...lines.slice(i, i + chunkSize),
           ].join("\n")

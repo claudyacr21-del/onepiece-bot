@@ -25,8 +25,7 @@ function prettySlotName(key) {
 
 function addFragment(list, card) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const code = card.code;
-  const index = arr.findIndex((x) => x.code === code);
+  const index = arr.findIndex((x) => String(x.code || "").toLowerCase() === String(card.code || "").toLowerCase());
 
   if (index !== -1) {
     arr[index] = { ...arr[index], amount: Number(arr[index].amount || 0) + 1 };
@@ -69,7 +68,6 @@ module.exports = {
     const allCards = getAllCards();
     const battlePool = allCards.filter((c) => c.cardRole === "battle");
     const boostPool = allCards.filter((c) => c.cardRole === "boost");
-
     const contentType = pickContentType();
     const baseTier = rollStandardBaseTier();
     const pool = (contentType === "battle" ? battlePool : boostPool).filter((c) => c.baseTier === baseTier);
@@ -78,7 +76,10 @@ module.exports = {
 
     const picked = pool[Math.floor(Math.random() * pool.length)];
     const updatedPulls = consumePullSlot(player, pullKey);
-    const alreadyOwned = (player.cards || []).some((c) => String(c.code || "").toLowerCase() === String(picked.code || "").toLowerCase());
+
+    const alreadyOwned = (player.cards || []).some(
+      (c) => String(c.code || "").toLowerCase() === String(picked.code || "").toLowerCase()
+    );
 
     if (alreadyOwned) {
       const updatedFragments = addFragment(player.fragments || [], picked);
@@ -99,7 +100,7 @@ module.exports = {
                 `**Remaining Pulls:** ${available - 1}/${totalMax}`,
                 "",
                 `You already own **${picked.displayName || picked.name}**.`,
-                `Converted into **1 Fragment** instead.`,
+                "Converted into **1 Fragment** instead.",
               ].join("\n")
             )
             .setThumbnail(picked.evolutionForms?.[0]?.badgeImage || picked.badgeImage || null)
