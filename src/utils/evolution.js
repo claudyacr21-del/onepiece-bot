@@ -58,7 +58,7 @@ function getLuffySpecialPath(card) {
       { stage: 2, key: "M2", tier: "SS", name: "Revival Arc" },
       { stage: 3, key: "M3", tier: "UR", name: "Gear 5" },
     ],
-    mults: { 1: 1, 2: 1.75, 3: 2.35 },
+    mults: { 1: 1, 2: 1.75, 3: 2.5 },
   };
 }
 
