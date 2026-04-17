@@ -39,10 +39,6 @@ function getStoryProgress(player) {
   return `${cleared} bosses cleared • Current island: ${currentIsland}`;
 }
 
-function getFightStreak(player) {
-  return Number(player?.fightStreak || 0);
-}
-
 function getArenaSummary(player) {
   const arena = player?.arena || {};
   return {
@@ -83,7 +79,6 @@ module.exports = {
     const isMotherFlame = hasRole(message, PREMIUM_ROLE_NAME);
     const teamPower = getTeamPower(player);
     const storyProgress = getStoryProgress(player);
-    const fightStreak = getFightStreak(player);
     const arena = getArenaSummary(player);
     const ship = getShipSummary(player);
 
@@ -124,7 +119,7 @@ module.exports = {
           "## Game Stats",
           `- Team Power: \`${teamPower.toLocaleString("en-US")}\``,
           `- Story Progress: \`${storyProgress}\``,
-          `- Fight Win Streak: \`${fightStreak}\``,
+          `- Fight Win Streak: \`${Number(player?.fightStreak || 0)}\``,
           "",
           "## Arena Stats",
           `- Arena Points: \`${arena.points}\``,

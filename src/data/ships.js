@@ -13,8 +13,8 @@ const SHIPS = [
     upgradeCost: {
       berries: 5000,
       materials: [
-        { name: "Wood", amount: 10 },
-        { name: "Sail Cloth", amount: 5 },
+        { code: "hardwood", name: "Hardwood", amount: 10 },
+        { code: "sail_cloth", name: "Sail Cloth", amount: 5 },
       ],
     },
     nextShipCode: "going_merry",
@@ -31,9 +31,9 @@ const SHIPS = [
     upgradeCost: {
       berries: 15000,
       materials: [
-        { name: "Wood", amount: 20 },
-        { name: "Steel", amount: 10 },
-        { name: "Sail Cloth", amount: 10 },
+        { code: "hardwood", name: "Hardwood", amount: 20 },
+        { code: "iron_plating", name: "Iron Plating", amount: 10 },
+        { code: "sail_cloth", name: "Sail Cloth", amount: 10 },
       ],
     },
     nextShipCode: "improved_merry",
@@ -50,10 +50,10 @@ const SHIPS = [
     upgradeCost: {
       berries: 40000,
       materials: [
-        { name: "Wood", amount: 35 },
-        { name: "Steel", amount: 20 },
-        { name: "Cola", amount: 10 },
-        { name: "Island Blueprint", amount: 1 },
+        { code: "hardwood", name: "Hardwood", amount: 35 },
+        { code: "iron_plating", name: "Iron Plating", amount: 20 },
+        { code: "cola_engine_part", name: "Cola Engine Part", amount: 4 },
+        { code: "sail_cloth", name: "Sail Cloth", amount: 15 },
       ],
     },
     nextShipCode: "thousand_sunny",
@@ -70,10 +70,10 @@ const SHIPS = [
     upgradeCost: {
       berries: 90000,
       materials: [
-        { name: "Wood", amount: 50 },
-        { name: "Steel", amount: 35 },
-        { name: "Cola", amount: 20 },
-        { name: "Island Blueprint", amount: 2 },
+        { code: "hardwood", name: "Hardwood", amount: 50 },
+        { code: "iron_plating", name: "Iron Plating", amount: 35 },
+        { code: "cola_engine_part", name: "Cola Engine Part", amount: 10 },
+        { code: "sail_cloth", name: "Sail Cloth", amount: 25 },
       ],
     },
     nextShipCode: "sunny_final",
@@ -96,7 +96,7 @@ const SHIPS = [
 }));
 
 function getShipByCode(code) {
-  return SHIPS.find((ship) => ship.code === code) || SHIPS[1];
+  return SHIPS.find((ship) => ship.code === code) || SHIPS[0];
 }
 
 function getNextShip(shipCode) {
@@ -105,8 +105,4 @@ function getNextShip(shipCode) {
   return getShipByCode(current.nextShipCode);
 }
 
-module.exports = {
-  SHIPS,
-  getShipByCode,
-  getNextShip,
-};
+module.exports = { SHIPS, getShipByCode, getNextShip };
