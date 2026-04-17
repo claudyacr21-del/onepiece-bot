@@ -1,43 +1,13 @@
 module.exports = [
   {
-    code: "wado_ichimonji",
-    name: "Wado Ichimonji",
-    rarity: "A",
-    owners: ["zoro_pirate_hunter"],
-    type: "Sword",
-    statBonus: { atk: 18, hp: 0, speed: 2 },
+    code: "ace",
+    name: "Ace",
+    rarity: "UR",
+    owners: ["roger_king_of_the_pirates"],
+    type: "Supreme Grade Sword",
+    statBonus: { atk: 24, hp: 2, speed: 4 },
     image: "",
-    description: "A treasured blade wielded by Zoro."
-  },
-  {
-    code: "basic_staff",
-    name: "Basic Staff",
-    rarity: "C",
-    owners: ["nami_cat_burglar"],
-    type: "Staff",
-    statBonus: { atk: 6, hp: 0, speed: 3 },
-    image: "",
-    description: "A simple staff for agile support fighters."
-  },
-  {
-    code: "basic_slingshot",
-    name: "Basic Slingshot",
-    rarity: "C",
-    owners: ["nami_cat_burglar", "usopp_sniper", "usopp_god"],
-    type: "Ranged",
-    statBonus: { atk: 7, hp: 0, speed: 2 },
-    image: "",
-    description: "A basic slingshot used by sharpshooters."
-  },
-  {
-    code: "black_leg_combat_shoes",
-    name: "Black Leg Combat Shoes",
-    rarity: "A",
-    owners: ["sanji_black_leg", "sanji_ifrit_jambe"],
-    type: "Boots",
-    statBonus: { atk: 16, hp: 0, speed: 4 },
-    image: "",
-    description: "Special combat shoes for devastating kicks."
+    description: "Roger's legendary saber."
   },
   {
     code: "basic_iron_club",
@@ -45,29 +15,119 @@ module.exports = [
     rarity: "C",
     owners: ["alvida_iron_club"],
     type: "Club",
-    statBonus: { atk: 8, hp: 8, speed: 0 },
+    statBonus: { atk: 5, hp: 2, speed: 0 },
     image: "",
-    description: "A heavy iron club."
+    description: "A rough iron club with blunt destructive force."
   },
   {
     code: "basic_marine_saber",
     name: "Basic Marine Saber",
     rarity: "C",
-    owners: ["morgan_axe_hand", "helmeppo_spoiled_brat", "tashigi_swordswoman"],
-    type: "Sword",
-    statBonus: { atk: 7, hp: 0, speed: 1 },
+    owners: ["helmeppo_spoiled_brat", "morgan_axe_hand", "tashigi_swordswoman"],
+    type: "Saber",
+    statBonus: { atk: 5, hp: 1, speed: 1 },
     image: "",
-    description: "A standard saber used by Marines."
+    description: "A standard-issue marine saber."
   },
   {
-    code: "dual_daggers",
-    name: "Dual Daggers",
-    rarity: "B",
-    owners: ["buggy_the_clown"],
-    type: "Daggers",
-    statBonus: { atk: 12, hp: 0, speed: 3 },
+    code: "basic_slingshot",
+    name: "Basic Slingshot",
+    rarity: "C",
+    owners: ["usopp_sniper"],
+    type: "Ranged Weapon",
+    statBonus: { atk: 4, hp: 0, speed: 2 },
     image: "",
-    description: "Twin daggers for fast and tricky attacks."
+    description: "A simple but reliable slingshot."
+  },
+  {
+    code: "basic_staff",
+    name: "Basic Staff",
+    rarity: "C",
+    owners: ["nami_cat_burglar"],
+    type: "Staff",
+    statBonus: { atk: 3, hp: 1, speed: 2 },
+    image: "",
+    description: "A basic staff used for agile support combat."
+  },
+  {
+    code: "battle_axe",
+    name: "Battle Axe",
+    rarity: "A",
+    owners: ["sentomaru"],
+    type: "Axe",
+    statBonus: { atk: 14, hp: 5, speed: 0 },
+    image: "",
+    description: "A heavy axe built for defense and impact."
+  },
+  {
+    code: "bible",
+    name: "Bible",
+    rarity: "S",
+    owners: ["bartholomew_kuma"],
+    type: "Book",
+    statBonus: { atk: 5, hp: 10, speed: 2 },
+    image: "",
+    description: "Kuma's massive Bible used in battle."
+  },
+  {
+    code: "bisento",
+    name: "Bisento",
+    rarity: "UR",
+    owners: ["whitebeard_strongest_man"],
+    type: "Polearm",
+    statBonus: { atk: 22, hp: 6, speed: 0 },
+    image: "",
+    description: "Whitebeard's colossal bisento."
+  },
+  {
+    code: "black_blade_replica",
+    name: "Black Blade Replica",
+    rarity: "A",
+    owners: ["mihawk_seraphim"],
+    type: "Blade",
+    statBonus: { atk: 14, hp: 1, speed: 4 },
+    image: "",
+    description: "A replica blade inspired by Mihawk's black sword."
+  },
+  {
+    code: "black_leg_combat_shoes",
+    name: "Black Leg Combat Shoes",
+    rarity: "A",
+    owners: ["sanji_black_leg"],
+    type: "Combat Boots",
+    statBonus: { atk: 13, hp: 1, speed: 5 },
+    image: "",
+    description: "High-performance shoes used for devastating kicking techniques."
+  },
+  {
+    code: "burn_bazooka",
+    name: "Burn Bazooka",
+    rarity: "A",
+    owners: ["wyper_shandian_warrior"],
+    type: "Bazooka",
+    statBonus: { atk: 14, hp: 2, speed: 2 },
+    image: "",
+    description: "A powerful bazooka fueled by dials."
+  },
+  {
+    code: "candy_cane",
+    name: "Candy Cane",
+    rarity: "A",
+    owners: ["perospero"],
+    type: "Cane",
+    statBonus: { atk: 11, hp: 4, speed: 2 },
+    image: "",
+    description: "A hardened candy cane used as a weapon."
+  },
+  {
+    code: "cannon_jaw",
+    name: "Cannon Jaw",
+    rarity: "B",
+    owners: ["wapol"],
+    type: "Jaw Weapon",
+    statBonus: { atk: 10, hp: 5, speed: 0 },
+    image: "",
+    description: "A weaponized metal jaw bite."
   },
   {
     code: "cat_claws",
@@ -75,79 +135,99 @@ module.exports = [
     rarity: "B",
     owners: ["kuro_hundred_plans"],
     type: "Claws",
-    statBonus: { atk: 13, hp: 0, speed: 4 },
+    statBonus: { atk: 9, hp: 1, speed: 4 },
     image: "",
-    description: "Sharp claw blades for assassination."
+    description: "Deadly claw blades built for assassination."
   },
   {
-    code: "hypnosis_ring",
-    name: "Hypnosis Ring",
-    rarity: "C",
-    owners: ["jango_hypnotist"],
-    type: "Focus Tool",
-    statBonus: { atk: 5, hp: 0, speed: 2 },
-    image: "",
-    description: "A focus tool used for hypnosis."
-  },
-  {
-    code: "wootz_steel_spear",
-    name: "Wootz Steel Spear",
-    rarity: "B",
-    owners: ["don_krieg_admiral"],
-    type: "Spear",
-    statBonus: { atk: 14, hp: 6, speed: 0 },
-    image: "",
-    description: "A sturdy spear wielded by Don Krieg."
-  },
-  {
-    code: "tonfa",
-    name: "Tonfa",
-    rarity: "B",
-    owners: ["gin_man_demon"],
-    type: "Blunt Weapon",
-    statBonus: { atk: 13, hp: 0, speed: 2 },
-    image: "",
-    description: "Twin tonfa for rapid strikes."
-  },
-  {
-    code: "kiribachi",
-    name: "Kiribachi",
+    code: "chemical_staff",
+    name: "Chemical Staff",
     rarity: "A",
-    owners: ["arlong_saw"],
-    type: "Heavy Weapon",
-    statBonus: { atk: 17, hp: 5, speed: 0 },
+    owners: ["caesar_clown"],
+    type: "Staff",
+    statBonus: { atk: 11, hp: 4, speed: 2 },
     image: "",
-    description: "Arlong's brutal saw-like weapon."
+    description: "A staff used for chemical warfare."
   },
   {
-    code: "six_swords",
-    name: "Six Swords",
+    code: "dragon_claw_gloves",
+    name: "Dragon Claw Gloves",
+    rarity: "S",
+    owners: ["sabo_flame_emperor"],
+    type: "Gloves",
+    statBonus: { atk: 16, hp: 3, speed: 4 },
+    image: "",
+    description: "Martial gloves for the Dragon Claw technique."
+  },
+  {
+    code: "dual_daggers",
+    name: "Dual Daggers",
     rarity: "B",
-    owners: ["hatchan_six_sword_style"],
-    type: "Sword Set",
-    statBonus: { atk: 14, hp: 0, speed: 1 },
+    owners: ["buggy_the_clown"],
+    type: "Daggers",
+    statBonus: { atk: 8, hp: 1, speed: 3 },
     image: "",
-    description: "A set of swords for multi-blade combat."
+    description: "A fast pair of daggers for flashy close combat."
   },
   {
-    code: "jitte",
-    name: "Jitte",
+    code: "eclipse",
+    name: "Eclipse",
+    rarity: "UR",
+    owners: ["xebec_captain_of_rocks"],
+    type: "Legendary Blade",
+    statBonus: { atk: 24, hp: 3, speed: 3 },
+    image: "",
+    description: "A terrifying blade fit for the captain of the Rocks Pirates."
+  },
+  {
+    code: "enma_and_ame_no_habakiri",
+    name: "Enma & Ame no Habakiri",
+    rarity: "UR",
+    owners: ["oden"],
+    type: "Dual Swords",
+    statBonus: { atk: 24, hp: 1, speed: 3 },
+    image: "",
+    description: "The legendary twin blades of Kozuki Oden."
+  },
+  {
+    code: "fish_man_karate",
+    name: "Fish-Man Karate",
     rarity: "A",
-    owners: ["smoker_white_hunter"],
-    type: "Polearm",
-    statBonus: { atk: 15, hp: 3, speed: 1 },
+    owners: ["jinbe_first_son_of_the_sea"],
+    type: "Martial Art",
+    statBonus: { atk: 12, hp: 6, speed: 2 },
     image: "",
-    description: "Smoker's seastone-tipped jitte."
+    description: "A close-range martial art using water shockwaves."
   },
   {
-    code: "peacock_slasher",
-    name: "Peacock Slasher",
-    rarity: "B",
-    owners: ["vivi_princess"],
-    type: "Whip",
-    statBonus: { atk: 10, hp: 0, speed: 2 },
+    code: "fists",
+    name: "Fists",
+    rarity: "UR",
+    owners: ["garp_hero_of_the_marines"],
+    type: "Martial Art",
+    statBonus: { atk: 18, hp: 8, speed: 2 },
     image: "",
-    description: "Vivi's elegant flexible weapon."
+    description: "Pure overwhelming fist power."
+  },
+  {
+    code: "giant_fists",
+    name: "Giant Fists",
+    rarity: "A",
+    owners: ["saul"],
+    type: "Martial Art",
+    statBonus: { atk: 13, hp: 7, speed: 0 },
+    image: "",
+    description: "The overwhelming force of a giant's fists."
+  },
+  {
+    code: "giant_hammer",
+    name: "Giant Hammer",
+    rarity: "S",
+    owners: ["loki"],
+    type: "Hammer",
+    statBonus: { atk: 18, hp: 6, speed: 0 },
+    image: "",
+    description: "A massive hammer fit for Elbaf royalty."
   },
   {
     code: "golden_hook",
@@ -155,19 +235,9 @@ module.exports = [
     rarity: "S",
     owners: ["crocodile_desert_king"],
     type: "Hook",
-    statBonus: { atk: 20, hp: 0, speed: 0 },
+    statBonus: { atk: 14, hp: 2, speed: 2 },
     image: "",
-    description: "A sharp hook wielded by Crocodile."
-  },
-  {
-    code: "ballet_shoes",
-    name: "Ballet Shoes",
-    rarity: "A",
-    owners: ["bon_clay"],
-    type: "Shoes",
-    statBonus: { atk: 14, hp: 0, speed: 3 },
-    image: "",
-    description: "Combat ballet footwear."
+    description: "Crocodile's signature golden hook."
   },
   {
     code: "golden_staff",
@@ -175,159 +245,129 @@ module.exports = [
     rarity: "S",
     owners: ["enel_god"],
     type: "Staff",
-    statBonus: { atk: 19, hp: 0, speed: 3 },
+    statBonus: { atk: 14, hp: 2, speed: 4 },
     image: "",
-    description: "A divine staff crackling with power."
+    description: "A staff amplified by thunder powers."
   },
   {
-    code: "burn_bazooka",
-    name: "Burn Bazooka",
-    rarity: "A",
-    owners: ["wyper_shandian_warrior"],
-    type: "Launcher",
-    statBonus: { atk: 16, hp: 0, speed: 1 },
-    image: "",
-    description: "A powerful bazooka used by Wyper."
-  },
-  {
-    code: "lance",
-    name: "Lance",
-    rarity: "B",
-    owners: ["gan_fall"],
-    type: "Polearm",
-    statBonus: { atk: 11, hp: 4, speed: 0 },
-    image: "",
-    description: "A knightly lance."
-  },
-  {
-    code: "franky_iron_gauntlet",
-    name: "Franky Iron Gauntlet",
+    code: "general_franky_arsenal",
+    name: "General Franky Arsenal",
     rarity: "A",
     owners: ["franky_cyborg"],
-    type: "Gauntlet",
-    statBonus: { atk: 17, hp: 6, speed: 0 },
+    type: "Cyborg Arsenal",
+    statBonus: { atk: 14, hp: 8, speed: 0 },
     image: "",
-    description: "Heavy cyborg gauntlets."
+    description: "Heavy battle arsenal built into General Franky."
   },
   {
-    code: "rokushiki",
-    name: "Rokushiki",
-    rarity: "S",
-    owners: ["lucci_cp9"],
-    type: "Technique",
-    statBonus: { atk: 20, hp: 0, speed: 4 },
-    image: "",
-    description: "A high-level assassination combat style."
-  },
-  {
-    code: "four_sword_style",
-    name: "Four-Sword Style",
-    rarity: "A",
-    owners: ["kaku_cp9"],
-    type: "Sword Style",
-    statBonus: { atk: 16, hp: 0, speed: 2 },
-    image: "",
-    description: "Kaku's rotating multi-sword style."
-  },
-  {
-    code: "soul_solid",
-    name: "Soul Solid",
-    rarity: "A",
-    owners: ["brook_soul_king"],
+    code: "gryphon",
+    name: "Gryphon",
+    rarity: "UR",
+    owners: ["shanks_red_hair"],
     type: "Sword",
-    statBonus: { atk: 15, hp: 0, speed: 4 },
+    statBonus: { atk: 23, hp: 2, speed: 4 },
     image: "",
-    description: "Brook's elegant cane sword."
+    description: "Shanks's signature saber."
   },
   {
-    code: "scissors",
-    name: "Scissors",
-    rarity: "B",
-    owners: ["gecko_moria"],
-    type: "Tool Weapon",
-    statBonus: { atk: 10, hp: 0, speed: 0 },
+    code: "hypnosis_ring",
+    name: "Hypnosis Ring",
+    rarity: "C",
+    owners: ["jango_hypnotist"],
+    type: "Ring Weapon",
+    statBonus: { atk: 3, hp: 0, speed: 3 },
     image: "",
-    description: "Scissors used for shadow manipulation."
+    description: "A hypnotic focus ring used to control attention."
   },
   {
-    code: "perfume_femur",
-    name: "Perfume Femur",
+    code: "ice_saber",
+    name: "Ice Saber",
     rarity: "S",
-    owners: ["boa_hancock"],
-    type: "Kick Technique",
-    statBonus: { atk: 18, hp: 0, speed: 3 },
+    owners: ["aokiji"],
+    type: "Sword",
+    statBonus: { atk: 15, hp: 3, speed: 4 },
     image: "",
-    description: "A devastating kick technique."
+    description: "A blade forged from solid ice."
   },
   {
-    code: "murakumogiri",
-    name: "Murakumogiri",
+    code: "imperial_blade",
+    name: "Imperial Blade",
+    rarity: "S",
+    owners: ["king_wildfire"],
+    type: "Sword",
+    statBonus: { atk: 17, hp: 3, speed: 3 },
+    image: "",
+    description: "A blazing sword wielded by King."
+  },
+  {
+    code: "jitte",
+    name: "Jitte",
+    rarity: "A",
+    owners: ["smoker_white_hunter"],
+    type: "Jitte",
+    statBonus: { atk: 10, hp: 3, speed: 2 },
+    image: "",
+    description: "A marine jitte reinforced with seastone."
+  },
+  {
+    code: "kanabo",
+    name: "Kanabo",
+    rarity: "S",
+    owners: ["yamato_oni_princess"],
+    type: "Club",
+    statBonus: { atk: 16, hp: 4, speed: 1 },
+    image: "",
+    description: "A heavy kanabo used in overwhelming close combat."
+  },
+  {
+    code: "kiribachi",
+    name: "Kiribachi",
+    rarity: "A",
+    owners: ["arlong_saw"],
+    type: "Saw Blade",
+    statBonus: { atk: 13, hp: 3, speed: 1 },
+    image: "",
+    description: "Arlong's signature serrated weapon."
+  },
+  {
+    code: "laser_kicks",
+    name: "Laser Kicks",
+    rarity: "A",
+    owners: ["boa_seraphim"],
+    type: "Combat Boots",
+    statBonus: { atk: 12, hp: 2, speed: 5 },
+    image: "",
+    description: "Pacifista-style laser enhanced kicks."
+  },
+  {
+    code: "long_rifle",
+    name: "Long Rifle",
+    rarity: "S",
+    owners: ["yasopp"],
+    type: "Rifle",
+    statBonus: { atk: 15, hp: 0, speed: 5 },
+    image: "",
+    description: "A deadeye long rifle."
+  },
+  {
+    code: "long_sword",
+    name: "Long Sword",
     rarity: "UR",
-    owners: ["whitebeard_strongest_man"],
-    type: "Supreme Blade",
-    statBonus: { atk: 24, hp: 8, speed: 0 },
+    owners: ["rayleigh_dark_king"],
+    type: "Sword",
+    statBonus: { atk: 19, hp: 3, speed: 4 },
     image: "",
-    description: "Whitebeard's massive naginata."
+    description: "A perfectly balanced sword of a master."
   },
   {
-    code: "enma",
-    name: "Enma",
+    code: "magma_fist",
+    name: "Magma Fist",
     rarity: "UR",
-    owners: ["zoro_demon_aura", "oden"],
-    type: "Legendary Sword",
-    statBonus: { atk: 25, hp: 0, speed: 2 },
+    owners: ["akainu"],
+    type: "Elemental Weapon",
+    statBonus: { atk: 22, hp: 2, speed: 1 },
     image: "",
-    description: "A legendary blade that draws out Haki."
-  },
-  {
-    code: "kikoku",
-    name: "Kikoku",
-    rarity: "S",
-    owners: ["law_surgeon_of_death", "law_awakened_room"],
-    type: "Cursed Sword",
-    statBonus: { atk: 20, hp: 0, speed: 3 },
-    image: "",
-    description: "Law's nodachi."
-  },
-  {
-    code: "metal_arm",
-    name: "Metal Arm",
-    rarity: "S",
-    owners: ["kid_captain"],
-    type: "Construct",
-    statBonus: { atk: 19, hp: 5, speed: 0 },
-    image: "",
-    description: "A magnetic metal battle arm."
-  },
-  {
-    code: "punk_railgun",
-    name: "Punk Railgun",
-    rarity: "S",
-    owners: ["kid_damned_punk"],
-    type: "Construct Weapon",
-    statBonus: { atk: 21, hp: 0, speed: 0 },
-    image: "",
-    description: "A devastating magnetic cannon."
-  },
-  {
-    code: "dragon_claw",
-    name: "Dragon Claw",
-    rarity: "S",
-    owners: ["sabo_flame_emperor"],
-    type: "Technique",
-    statBonus: { atk: 19, hp: 0, speed: 3 },
-    image: "",
-    description: "A crushing claw-based martial technique."
-  },
-  {
-    code: "shikomizue",
-    name: "Shikomizue",
-    rarity: "S",
-    owners: ["fujitora"],
-    type: "Hidden Blade",
-    statBonus: { atk: 18, hp: 2, speed: 1 },
-    image: "",
-    description: "Fujitora's sword cane."
+    description: "A fist coated in devastating magma."
   },
   {
     code: "mogura",
@@ -335,69 +375,219 @@ module.exports = [
     rarity: "S",
     owners: ["katakuri_strongest_sweet_commander"],
     type: "Trident",
-    statBonus: { atk: 20, hp: 0, speed: 3 },
+    statBonus: { atk: 16, hp: 3, speed: 4 },
     image: "",
-    description: "Katakuri's heavy trident."
+    description: "Katakuri's powerful trident."
   },
   {
     code: "napoleon",
     name: "Napoleon",
     rarity: "UR",
     owners: ["big_mom_emperor"],
-    type: "Homie Weapon",
-    statBonus: { atk: 24, hp: 6, speed: 0 },
+    type: "Living Sword",
+    statBonus: { atk: 21, hp: 5, speed: 1 },
     image: "",
-    description: "Big Mom's living blade-hat companion."
+    description: "Big Mom's soul-infused living blade."
   },
   {
-    code: "katana",
-    name: "Katana",
-    rarity: "A",
-    owners: ["king_wildfire"],
-    type: "Sword",
-    statBonus: { atk: 15, hp: 0, speed: 2 },
+    code: "perfume_femur",
+    name: "Perfume Femur",
+    rarity: "S",
+    owners: ["boa_hancock"],
+    type: "Kick Technique",
+    statBonus: { atk: 15, hp: 2, speed: 5 },
     image: "",
-    description: "A sharp katana used in aerial combat."
+    description: "A devastating perfume-infused kicking style."
   },
   {
-    code: "plague_launcher",
-    name: "Plague Launcher",
+    code: "plague_arsenal",
+    name: "Plague Arsenal",
     rarity: "S",
     owners: ["queen_the_plague"],
-    type: "Launcher",
-    statBonus: { atk: 18, hp: 4, speed: 0 },
+    type: "Cyborg Arsenal",
+    statBonus: { atk: 16, hp: 8, speed: 0 },
     image: "",
-    description: "A mechanical plague weapon."
+    description: "Queen's plague-loaded mechanical arsenal."
   },
   {
-    code: "twin_scythes",
-    name: "Twin Scythes",
+    code: "raiu",
+    name: "Raiu",
     rarity: "S",
+    owners: ["shiryu"],
+    type: "Sword",
+    statBonus: { atk: 17, hp: 2, speed: 4 },
+    image: "",
+    description: "Shiryu's infamous blade."
+  },
+  {
+    code: "rokushiki",
+    name: "Rokushiki",
+    rarity: "S",
+    owners: ["lucci_cp9"],
+    type: "Martial Art",
+    statBonus: { atk: 15, hp: 3, speed: 5 },
+    image: "",
+    description: "The lethal six powers mastered by CP9."
+  },
+  {
+    code: "rokushiki_blades",
+    name: "Rokushiki Blades",
+    rarity: "A",
+    owners: ["kaku_cp9"],
+    type: "Blades",
+    statBonus: { atk: 13, hp: 2, speed: 3 },
+    image: "",
+    description: "Precision blades combined with Rokushiki techniques."
+  },
+  {
+    code: "sacred_saber",
+    name: "Sacred Saber",
+    rarity: "S",
+    owners: ["garling"],
+    type: "Saber",
+    statBonus: { atk: 17, hp: 3, speed: 3 },
+    image: "",
+    description: "A refined saber used by Holy Knights."
+  },
+  {
+    code: "scissors",
+    name: "Scissors",
+    rarity: "A",
+    owners: ["gecko_moria"],
+    type: "Scissor Blade",
+    statBonus: { atk: 10, hp: 3, speed: 2 },
+    image: "",
+    description: "Massive scissors used with shadow techniques."
+  },
+  {
+    code: "shikomizue",
+    name: "Shikomizue",
+    rarity: "S",
+    owners: ["fujitora"],
+    type: "Cane Sword",
+    statBonus: { atk: 15, hp: 4, speed: 2 },
+    image: "",
+    description: "A hidden blade carried in a cane."
+  },
+  {
+    code: "shodai_kitetsu",
+    name: "Shodai Kitetsu",
+    rarity: "UR",
+    owners: ["nusjuro"],
+    type: "Supreme Grade Sword",
+    statBonus: { atk: 23, hp: 2, speed: 3 },
+    image: "",
+    description: "One of the cursed supreme blades."
+  },
+  {
+    code: "silencer_handgun",
+    name: "Silencer Handgun",
+    rarity: "A",
+    owners: ["corazon"],
+    type: "Handgun",
+    statBonus: { atk: 11, hp: 2, speed: 4 },
+    image: "",
+    description: "Corazon's suppressed handgun."
+  },
+  {
+    code: "six_swords",
+    name: "Six Swords",
+    rarity: "B",
+    owners: ["hatchan_six_sword_style"],
+    type: "Multi-Sword Set",
+    statBonus: { atk: 10, hp: 2, speed: 2 },
+    image: "",
+    description: "A six-sword style set for relentless slashing."
+  },
+  {
+    code: "sky_lance",
+    name: "Sky Lance",
+    rarity: "B",
+    owners: ["gan_fall"],
+    type: "Lance",
+    statBonus: { atk: 10, hp: 3, speed: 2 },
+    image: "",
+    description: "A sturdy sky knight lance."
+  },
+  {
+    code: "soul_solid",
+    name: "Soul Solid",
+    rarity: "A",
+    owners: ["brook_soul_king"],
+    type: "Sword",
+    statBonus: { atk: 13, hp: 1, speed: 5 },
+    image: "",
+    description: "Brook's icy soul-infused blade."
+  },
+  {
+    code: "steel_blades",
+    name: "Steel Blades",
+    rarity: "B",
+    owners: ["daz_bonez"],
+    type: "Blades",
+    statBonus: { atk: 12, hp: 2, speed: 1 },
+    image: "",
+    description: "Razor-sharp steel blades."
+  },
+  {
+    code: "sticky_staff",
+    name: "Sticky Staff",
+    rarity: "A",
+    owners: ["trebol_underworld_support"],
+    type: "Staff",
+    statBonus: { atk: 10, hp: 5, speed: 1 },
+    image: "",
+    description: "A mucus-coated staff for battlefield control."
+  },
+  {
+    code: "tonfa",
+    name: "Tonfa",
+    rarity: "B",
+    owners: ["gin_man_demon"],
+    type: "Tonfa",
+    statBonus: { atk: 9, hp: 2, speed: 3 },
+    image: "",
+    description: "Compact striking weapons for fast, brutal combos."
+  },
+  {
+    code: "twin_blades",
+    name: "Twin Blades",
+    rarity: "A",
     owners: ["jack_the_drought"],
-    type: "Heavy Weapon",
-    statBonus: { atk: 18, hp: 5, speed: 0 },
+    type: "Twin Blades",
+    statBonus: { atk: 14, hp: 4, speed: 1 },
     image: "",
-    description: "Massive dual scythes."
+    description: "Heavy twin blades used by Jack."
   },
   {
-    code: "kanabo",
-    name: "Kanabo",
+    code: "wado_ichimonji",
+    name: "Wado Ichimonji",
     rarity: "UR",
-    owners: ["yamato_oni_princess", "kaido_strongest_creature"],
-    type: "Club",
-    statBonus: { atk: 22, hp: 6, speed: 0 },
+    owners: ["zoro_pirate_hunter"],
+    type: "Great Grade Sword",
+    statBonus: { atk: 18, hp: 2, speed: 4 },
     image: "",
-    description: "A brutal club of immense power."
+    description: "One of Zoro's treasured swords."
   },
   {
-    code: "gryphon",
-    name: "Gryphon",
-    rarity: "UR",
-    owners: ["shanks_red_hair"],
-    type: "Legendary Sword",
-    statBonus: { atk: 24, hp: 0, speed: 3 },
+    code: "wax_blade",
+    name: "Wax Blade",
+    rarity: "B",
+    owners: ["mr3"],
+    type: "Blade",
+    statBonus: { atk: 9, hp: 4, speed: 1 },
     image: "",
-    description: "Shanks' named sword."
+    description: "A hardened wax blade."
+  },
+  {
+    code: "wootz_steel_spear",
+    name: "Wootz Steel Spear",
+    rarity: "B",
+    owners: ["don_krieg_admiral"],
+    type: "Spear",
+    statBonus: { atk: 10, hp: 4, speed: 0 },
+    image: "",
+    description: "A heavy spear forged for war."
   },
   {
     code: "yoru",
@@ -405,88 +595,8 @@ module.exports = [
     rarity: "UR",
     owners: ["mihawk_hawk_eyes"],
     type: "Black Blade",
-    statBonus: { atk: 26, hp: 0, speed: 2 },
+    statBonus: { atk: 25, hp: 1, speed: 3 },
     image: "",
-    description: "The strongest black blade."
-  },
-  {
-    code: "ace_sword",
-    name: "Ace",
-    rarity: "UR",
-    owners: ["roger_king_of_the_pirates"],
-    type: "Supreme Blade",
-    statBonus: { atk: 25, hp: 0, speed: 3 },
-    image: "",
-    description: "Roger's legendary sword."
-  },
-  {
-    code: "eclipse",
-    name: "Eclipse",
-    rarity: "UR",
-    owners: ["xebec_captain_of_rocks"],
-    type: "Saber",
-    statBonus: { atk: 26, hp: 2, speed: 2 },
-    image: "",
-    description: "Rocks D. Xebec's large single-edged saber." 
-  },
-  {
-    code: "cursed_blade",
-    name: "Cursed Blade",
-    rarity: "UR",
-    owners: ["nusjuro"],
-    type: "Legendary Blade",
-    statBonus: { atk: 24, hp: 0, speed: 2 },
-    image: "",
-    description: "A terrifying blade used by Nusjuro."
-  },
-  {
-    code: "sacred_blade",
-    name: "Sacred Blade",
-    rarity: "UR",
-    owners: ["garling"],
-    type: "Holy Blade",
-    statBonus: { atk: 23, hp: 0, speed: 2 },
-    image: "",
-    description: "A weapon of divine authority."
-  },
-  {
-    code: "ragnir",
-    name: "Ragnir",
-    rarity: "UR",
-    owners: ["loki"],
-    type: "Mythic Weapon",
-    statBonus: { atk: 24, hp: 4, speed: 1 },
-    image: "",
-    description: "A mythic weapon wielded by Loki."
-  },
-  {
-    code: "sword",
-    name: "Sword",
-    rarity: "S",
-    owners: ["rayleigh_dark_king"],
-    type: "Blade",
-    statBonus: { atk: 19, hp: 0, speed: 2 },
-    image: "",
-    description: "Rayleigh's masterful blade."
-  },
-  {
-    code: "kuro_kabuto",
-    name: "Kuro Kabuto",
-    rarity: "A",
-    owners: ["usopp_god"],
-    type: "Ranged",
-    statBonus: { atk: 15, hp: 0, speed: 3 },
-    image: "",
-    description: "Usopp's improved slingshot."
-  },
-  {
-    code: "black_blade_replica",
-    name: "Black Blade Replica",
-    rarity: "S",
-    owners: ["mihawk_seraphim"],
-    type: "Replica Blade",
-    statBonus: { atk: 19, hp: 0, speed: 1 },
-    image: "",
-    description: "A high-grade black blade replica."
+    description: "The strongest black blade in the world."
   }
 ];

@@ -95,8 +95,8 @@ module.exports = {
             "",
             "## Trade",
             "`op trade @mention (your offer)(their offer)`",
-            "`op trade @peace (5000)(enma_1)`",
-            "`op trade @peace (5000, mera_1, enma_5)(luffy_1, bigmom_6)`",
+            "`op trade @𝓕𝓾 🌘 (5000)(enma_1)`",
+            "`op trade @𝓕𝓾 🌘 (5000, mera_1, enma_5)(luffy_1, bigmom_6)`",
             "🔹 Tickets are untradeable",
           ].join("\n")
         )
