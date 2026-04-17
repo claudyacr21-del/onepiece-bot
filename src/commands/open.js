@@ -82,11 +82,13 @@ module.exports = {
     let nextMaterials = [...(player.materials || [])];
     let nextBerries = Number(player.berries || 0);
     let nextGems = Number(player.gems || 0);
+    let nextTickets = [...(player.tickets || [])];
 
     if (box.code === "wooden_material_box") {
       const rewards = [
         { ...ITEMS.hardwood, amount: 3 },
         { ...ITEMS.sailCloth, amount: 2 },
+        { ...ITEMS.enhancementStone, amount: 8 },
       ];
       rewards.forEach((item) => {
         nextMaterials = addOrIncrease(nextMaterials, item);
@@ -97,6 +99,7 @@ module.exports = {
         { ...ITEMS.hardwood, amount: 4 },
         { ...ITEMS.ironPlating, amount: 2 },
         { ...ITEMS.sailCloth, amount: 2 },
+        { ...ITEMS.enhancementStone, amount: 15 },
       ];
       rewards.forEach((item) => {
         nextMaterials = addOrIncrease(nextMaterials, item);
@@ -108,6 +111,7 @@ module.exports = {
         { ...ITEMS.ironPlating, amount: 3 },
         { ...ITEMS.sailCloth, amount: 3 },
         { ...ITEMS.colaEnginePart, amount: 1 },
+        { ...ITEMS.enhancementStone, amount: 25 },
       ];
       rewards.forEach((item) => {
         nextMaterials = addOrIncrease(nextMaterials, item);
@@ -142,22 +146,31 @@ module.exports = {
     } else if (box.code === "basic_resource_box") {
       nextBerries += 2000;
       nextGems += 10;
+      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.enhancementStone, amount: 3 });
       resultLines.push("💰 Berries +2000");
       resultLines.push("💎 Gems +10");
+      resultLines.push("🧱 Enhancement Stone x3");
     } else if (box.code === "rare_resource_box") {
       nextBerries += 5000;
       nextGems += 20;
+      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.ironPlating, amount: 2 });
+      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.enhancementStone, amount: 10 });
       resultLines.push("💰 Berries +5000");
       resultLines.push("💎 Gems +20");
-      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.ironPlating, amount: 2 });
       resultLines.push("📦 Iron Plating x2");
+      resultLines.push("🧱 Enhancement Stone x10");
     } else if (box.code === "mother_flame_treasure_box") {
       nextBerries += 15000;
       nextGems += 50;
+      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.colaEnginePart, amount: 2 });
+      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.enhancementStone, amount: 30 });
       resultLines.push("💰 Berries +15000");
       resultLines.push("💎 Gems +50");
-      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.colaEnginePart, amount: 2 });
       resultLines.push("📦 Cola Engine Part x2");
+      resultLines.push("🧱 Enhancement Stone x30");
+    } else if (box.code === "pull_reset_ticket_box") {
+      nextTickets = addOrIncrease(nextTickets, { ...ITEMS.pullResetTicket, amount: 1 });
+      resultLines.push("🎟️ Pull Reset Ticket x1");
     } else {
       return message.reply("This box is not configured yet.");
     }
@@ -167,6 +180,7 @@ module.exports = {
       weapons: nextWeapons,
       devilFruits: nextFruits,
       materials: nextMaterials,
+      tickets: nextTickets,
       berries: nextBerries,
       gems: nextGems,
     });

@@ -12,34 +12,38 @@ function amountText(item) {
 function formatSimpleList(items, emptyText) {
   if (!Array.isArray(items) || items.length === 0) return emptyText;
 
-  return items
+  const rows = items
+    .filter((item) => Number(item?.amount || 0) > 0)
     .slice()
     .sort((a, b) => String(a.name || a.code || "").localeCompare(String(b.name || b.code || "")))
-    .map((item) => `• ${item.name} ${amountText(item)}${rarityText(item)}`)
-    .join("\n");
+    .map((item) => `• ${item.name} ${amountText(item)}${rarityText(item)}`);
+
+  return rows.length ? rows.join("\n") : emptyText;
 }
 
 function formatWeaponInventory(player) {
   const items = Array.isArray(player?.weapons) ? player.weapons : [];
   if (!items.length) return "No unequipped weapons owned.";
 
-  return items
+  const rows = items
     .filter((item) => Number(item?.amount || 0) > 0)
     .slice()
     .sort((a, b) => String(a.name || a.code || "").localeCompare(String(b.name || b.code || "")))
-    .map((item) => `• ${item.name} ${amountText(item)}${rarityText(item)}`)
-    .join("\n") || "No unequipped weapons owned.";
+    .map((item) => `• ${item.name} ${amountText(item)}${rarityText(item)}`);
+
+  return rows.length ? rows.join("\n") : "No unequipped weapons owned.";
 }
 
 function formatFruitInventory(items) {
   if (!Array.isArray(items) || items.length === 0) return "No unequipped devil fruits owned.";
 
-  return items
+  const rows = items
     .filter((item) => Number(item?.amount || 0) > 0)
     .slice()
     .sort((a, b) => String(a.name || a.code || "").localeCompare(String(b.name || b.code || "")))
-    .map((item) => `• ${item.name} ${amountText(item)}${rarityText(item)}`)
-    .join("\n") || "No unequipped devil fruits owned.";
+    .map((item) => `• ${item.name} ${amountText(item)}${rarityText(item)}`);
+
+  return rows.length ? rows.join("\n") : "No unequipped devil fruits owned.";
 }
 
 module.exports = {
