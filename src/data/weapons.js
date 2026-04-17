@@ -230,12 +230,12 @@ module.exports = [
     description: "The overwhelming force of a giant's fists."
   },
   {
-    code: "giant_hammer",
-    name: "Giant Hammer",
-    rarity: "S",
+    code: "ragnir",
+    name: "Ragnir",
+    rarity: "UR",
     owners: ["loki"],
     type: "Hammer",
-    statBonus: { atk: 18, hp: 6, speed: 0 },
+    statBonus: { atk: 23, hp: 6, speed: 2 },
     image: "",
     description: "A massive hammer fit for Elbaf royalty."
   },

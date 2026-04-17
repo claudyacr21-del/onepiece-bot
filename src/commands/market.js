@@ -6,37 +6,23 @@ const MARKET_ITEMS = [
   {
     code: "wooden_material_box",
     name: "Wooden Material Box",
-    price: 25,
+    price: 100,
     item: ITEMS.woodenMaterialBox,
     description: "Cheap random material box."
   },
   {
     code: "iron_material_box",
     name: "Iron Material Box",
-    price: 60,
+    price: 200,
     item: ITEMS.ironMaterialBox,
     description: "Balanced random material box."
   },
   {
     code: "royal_material_box",
     name: "Royal Material Box",
-    price: 120,
+    price: 300,
     item: ITEMS.royalMaterialBox,
     description: "Premium random material box."
-  },
-  {
-    code: "random_weapon_box",
-    name: "Random Weapon Box",
-    price: 1500,
-    item: ITEMS.randomWeaponBox,
-    description: "Random weapon box with C / B / A rarity only."
-  },
-  {
-    code: "random_devilfruit_box",
-    name: "Random Devil Fruit Box",
-    price: 1500,
-    item: ITEMS.randomDevilFruitBox,
-    description: "Random devil fruit box with C / B / A rarity only."
   }
 ];
 
