@@ -19,54 +19,27 @@ function formatSimpleList(items, emptyText) {
     .join("\n");
 }
 
-function getEquippedWeaponLevels(player) {
-  const result = new Map();
-  const cards = Array.isArray(player?.cards) ? player.cards : [];
-
-  for (const card of cards) {
-    const equippedWeapons = Array.isArray(card?.equippedWeapons) ? card.equippedWeapons : [];
-    for (const weapon of equippedWeapons) {
-      const code = String(weapon?.code || "");
-      if (!code) continue;
-      const current = result.get(code) || [];
-      current.push({
-        owner: card.displayName || card.name || "Unknown",
-        level: Number(weapon?.upgradeLevel || 0),
-      });
-      result.set(code, current);
-    }
-  }
-
-  return result;
-}
-
 function formatWeaponInventory(player) {
   const items = Array.isArray(player?.weapons) ? player.weapons : [];
-  if (!items.length) return "No weapons owned.";
-
-  const equippedMap = getEquippedWeaponLevels(player);
+  if (!items.length) return "No unequipped weapons owned.";
 
   return items
-    .slice()
-    .sort((a, b) => String(a.name || a.code || "").localeCompare(String(b.name || b.code || "")))
-    .map((item) => {
-      const equippedInfo = equippedMap.get(String(item.code || "")) || [];
-      const equippedText = equippedInfo.length
-        ? ` • Equipped: ${equippedInfo.map((x) => `${x.owner}${x.level > 0 ? ` +${x.level}` : ""}`).join(", ")}`
-        : "";
-      return `• ${item.name} ${amountText(item)}${rarityText(item)}${equippedText}`;
-    })
-    .join("\n");
-}
-
-function formatFruitInventory(items) {
-  if (!Array.isArray(items) || items.length === 0) return "No devil fruits owned.";
-
-  return items
+    .filter((item) => Number(item?.amount || 0) > 0)
     .slice()
     .sort((a, b) => String(a.name || a.code || "").localeCompare(String(b.name || b.code || "")))
     .map((item) => `• ${item.name} ${amountText(item)}${rarityText(item)}`)
-    .join("\n");
+    .join("\n") || "No unequipped weapons owned.";
+}
+
+function formatFruitInventory(items) {
+  if (!Array.isArray(items) || items.length === 0) return "No unequipped devil fruits owned.";
+
+  return items
+    .filter((item) => Number(item?.amount || 0) > 0)
+    .slice()
+    .sort((a, b) => String(a.name || a.code || "").localeCompare(String(b.name || b.code || "")))
+    .map((item) => `• ${item.name} ${amountText(item)}${rarityText(item)}`)
+    .join("\n") || "No unequipped devil fruits owned.";
 }
 
 module.exports = {
