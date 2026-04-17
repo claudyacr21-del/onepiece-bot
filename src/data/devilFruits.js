@@ -10,6 +10,16 @@ module.exports = [
     description: "An unknown and terrifying devil fruit tied to the deepest secrets of the world."
   },
   {
+  code: "ryu_ryu_no_mi_model_nidhoggr",
+  name: "Ryu Ryu no Mi, Model: Nidhöggr",
+  rarity: "UR",
+  owners: ["loki"],
+  type: "Mythical Zoan Fruit",
+  statBonus: { atk: 21, hp: 10, speed: 5 },
+  image: "",
+  description: "A mythical dragon fruit tied to the legendary Nidhöggr."
+},
+  {
     code: "baku_baku_no_mi",
     name: "Baku Baku no Mi",
     rarity: "B",
@@ -155,7 +165,7 @@ module.exports = [
     rarity: "UR",
     owners: ["luffy_straw_hat"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 19, hp: 8, speed: 8 },
+    statBonus: { atk: 20, hp: 8, speed: 8 },
     image: "",
     description: "The fruit of liberation, granting ridiculous freedom and power."
   },

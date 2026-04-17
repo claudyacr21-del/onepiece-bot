@@ -235,9 +235,9 @@ module.exports = [
     rarity: "UR",
     owners: ["loki"],
     type: "Hammer",
-    statBonus: { atk: 23, hp: 6, speed: 2 },
+    statBonus: { atk: 23, hp: 4, speed: 2 },
     image: "",
-    description: "A massive hammer fit for Elbaf royalty."
+    description: "Loki's massive legendary weapon from Elbaf."
   },
   {
     code: "golden_hook",
