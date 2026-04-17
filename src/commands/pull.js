@@ -2,7 +2,12 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { getAllCards, createOwnedCard } = require("../utils/evolution");
 const { applyGlobalPullReset } = require("../utils/pullReset");
-const { getNextAvailablePullKey, consumePullSlot, getTotalPullUsage } = require("../utils/pullSlots");
+const {
+  getNextAvailablePullKey,
+  consumePullSlot,
+  getTotalPullUsage,
+  buildPullAccessSnapshot,
+} = require("../utils/pullSlots");
 const { rollStandardBaseTier } = require("../utils/pullRates");
 
 function pickContentType() {
@@ -25,7 +30,8 @@ function prettySlotName(key) {
 
 function addFragment(list, card) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const index = arr.findIndex((x) => String(x.code || "").toLowerCase() === String(card.code || "").toLowerCase());
+  const code = card.code;
+  const index = arr.findIndex((x) => x.code === code);
 
   if (index !== -1) {
     arr[index] = { ...arr[index], amount: Number(arr[index].amount || 0) + 1 };
@@ -56,8 +62,18 @@ module.exports = {
       player.pulls = resetState.pulls;
     }
 
+    const snapshot = buildPullAccessSnapshot(player, message);
+
+    if (message.guild) {
+      updatePlayer(message.author.id, {
+        pullAccessSnapshot: snapshot,
+      });
+      player.pullAccessSnapshot = snapshot;
+    }
+
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
     const available = Math.max(0, totalMax - totalUsed);
+
     if (available <= 0) {
       return message.reply("You do not have any available pulls right now. Use `op pullinfo` to check your slots.");
     }
@@ -68,6 +84,7 @@ module.exports = {
     const allCards = getAllCards();
     const battlePool = allCards.filter((c) => c.cardRole === "battle");
     const boostPool = allCards.filter((c) => c.cardRole === "boost");
+
     const contentType = pickContentType();
     const baseTier = rollStandardBaseTier();
     const pool = (contentType === "battle" ? battlePool : boostPool).filter((c) => c.baseTier === baseTier);
@@ -76,7 +93,6 @@ module.exports = {
 
     const picked = pool[Math.floor(Math.random() * pool.length)];
     const updatedPulls = consumePullSlot(player, pullKey);
-
     const alreadyOwned = (player.cards || []).some(
       (c) => String(c.code || "").toLowerCase() === String(picked.code || "").toLowerCase()
     );

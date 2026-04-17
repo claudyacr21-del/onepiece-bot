@@ -1,7 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-const { getTotalPullUsage } = require("../utils/pullSlots");
+const { getTotalPullUsage, buildPullAccessSnapshot } = require("../utils/pullSlots");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 
 function formatValue(value, suffix = "") {
@@ -14,20 +14,27 @@ module.exports = {
   aliases: ["effects", "status"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-
     const resetState = applyGlobalPullReset(player);
+
     if (resetState.wasReset) {
       updatePlayer(message.author.id, { pulls: resetState.pulls });
       player.pulls = resetState.pulls;
     }
 
+    const snapshot = buildPullAccessSnapshot(player, message);
+
+    if (message.guild) {
+      updatePlayer(message.author.id, {
+        pullAccessSnapshot: snapshot,
+      });
+      player.pullAccessSnapshot = snapshot;
+    }
+
     const boosts = getPassiveBoostSummary(player);
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
-
     const questTotal = Number(player?.quests?.daily?.total || 5);
     const questCompleted = Number(player?.quests?.daily?.completed || 0);
     const questLeft = Math.max(0, questTotal - questCompleted);
-
     const pityDrop =
       Number(player?.pity?.premiumSPity || 0) > 0
         ? `${Number(player.pity.premiumSPity)}/80`
@@ -35,7 +42,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(0x8e44ad)
-      .setTitle("🧪 Here are your current effects")
+      .setTitle("✨ Here are your current effects")
       .setDescription(
         [
           `↪ Pulls Done: ${totalUsed}/${totalMax}`,
@@ -45,11 +52,11 @@ module.exports = {
           `↪ HP Boost: ${formatValue(boosts.hp, "%")}`,
           `↪ SPD Boost: ${formatValue(boosts.spd, "%")}`,
           `↪ EXP Boost: ${formatValue(boosts.exp, "%")}`,
-          `↪ DMG Boost: ${formatValue(boosts.dmg, "%")}`
+          `↪ DMG Boost: ${formatValue(boosts.dmg, "%")}`,
         ].join("\n")
       )
       .setFooter({ text: "One Piece Bot • Current Effects" });
 
     await message.reply({ embeds: [embed] });
-  }
+  },
 };

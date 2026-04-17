@@ -2,7 +2,11 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
 const { applyGlobalPullReset } = require("../utils/pullReset");
-const { getTotalPullUsage, consumeAllActivePullSlots } = require("../utils/pullSlots");
+const {
+  getTotalPullUsage,
+  consumeAllActivePullSlots,
+  buildPullAccessSnapshot,
+} = require("../utils/pullSlots");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { getAllCards, createOwnedCard } = require("../utils/evolution");
 const { rollPremiumBaseTier } = require("../utils/pullRates");
@@ -25,6 +29,7 @@ function fmtOwned(card) {
 
 function addFragment(list, card) {
   const arr = Array.isArray(list) ? [...list] : [];
+  const code = card.code;
   const index = arr.findIndex((x) => String(x.code || "").toLowerCase() === String(card.code || "").toLowerCase());
 
   if (index !== -1) {
@@ -58,6 +63,15 @@ module.exports = {
     if (resetState.wasReset) {
       updatePlayer(message.author.id, { pulls: resetState.pulls });
       player.pulls = resetState.pulls;
+    }
+
+    const snapshot = buildPullAccessSnapshot(player, message);
+
+    if (message.guild) {
+      updatePlayer(message.author.id, {
+        pullAccessSnapshot: snapshot,
+      });
+      player.pullAccessSnapshot = snapshot;
     }
 
     const passiveBoosts = getPassiveBoostSummary(player);
