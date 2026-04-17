@@ -6,6 +6,14 @@ const { getRarityBadge, getWeaponImage } = require("../config/assetLinks");
 
 const normalize = (s = "") => String(s).toLowerCase().trim().replace(/\s+/g, " ");
 
+function getWeaponSlotLimit(card) {
+  const code = String(card?.code || "");
+  if (code === "zoro_pirate_hunter") return 3;
+  if (code === "oden") return 2;
+  if (code === "hatchan_six_sword_style") return 6;
+  return 1;
+}
+
 function splitCardAndWeaponInput(rawArgs) {
   if (!rawArgs.length) return null;
   const joined = rawArgs.join(" ").trim();
@@ -44,6 +52,23 @@ function consumeWeapon(list, weaponCode) {
   return arr;
 }
 
+function sumWeaponBonuses(equippedWeapons = []) {
+  return equippedWeapons.reduce(
+    (acc, item) => {
+      acc.atk += Number(item?.statBonus?.atk || 0);
+      acc.hp += Number(item?.statBonus?.hp || 0);
+      acc.speed += Number(item?.statBonus?.speed || 0);
+      return acc;
+    },
+    { atk: 0, hp: 0, speed: 0 }
+  );
+}
+
+function formatEquippedWeaponNames(equippedWeapons = []) {
+  if (!equippedWeapons.length) return null;
+  return equippedWeapons.map((x) => x.name).join(", ");
+}
+
 module.exports = {
   name: "wp",
   aliases: ["weapon", "equipweapon"],
@@ -54,10 +79,6 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
     const card = findOwnedCard(player.cards || [], split.cardName);
     if (!card) return message.reply(`No owned card found matching \`${split.cardName}\`.`);
-
-    if (card.equippedWeapon || card.equippedWeaponCode) {
-      return message.reply("This card already has a weapon equipped, and it cannot be removed.");
-    }
 
     const weapon = findWeapon(split.weaponName);
     if (!weapon) return message.reply(`No weapon found matching \`${split.weaponName}\`.`);
@@ -70,13 +91,25 @@ module.exports = {
       return message.reply(`\`${weapon.name}\` cannot be equipped to \`${card.displayName || card.name}\`.`);
     }
 
-    const nextWeapons = consumeWeapon(player.weapons || [], weapon.code);
+    const existingEquipped = Array.isArray(card.equippedWeapons)
+      ? [...card.equippedWeapons]
+      : card.equippedWeapon && card.equippedWeaponCode
+        ? [{ name: card.equippedWeapon, code: card.equippedWeaponCode, statBonus: card.weaponBonus || {} }]
+        : [];
 
-    const bonus = {
-      atk: Number(weapon?.statBonus?.atk || 0),
-      hp: Number(weapon?.statBonus?.hp || 0),
-      speed: Number(weapon?.statBonus?.speed || 0),
-    };
+    const slotLimit = getWeaponSlotLimit(card);
+
+    if (existingEquipped.length >= slotLimit) {
+      return message.reply(`This card already reached its weapon limit (${slotLimit}).`);
+    }
+
+    if (existingEquipped.some((x) => x.code === weapon.code)) {
+      return message.reply("That weapon is already equipped on this card.");
+    }
+
+    const nextWeapons = consumeWeapon(player.weapons || [], weapon.code);
+    const nextEquipped = [...existingEquipped, { name: weapon.name, code: weapon.code, statBonus: weapon.statBonus || {} }];
+    const totalWeaponBonus = sumWeaponBonuses(nextEquipped);
 
     const updatedCards = (player.cards || []).map((raw) => {
       if (raw.instanceId !== card.instanceId) return raw;
@@ -95,12 +128,13 @@ module.exports = {
 
       return hydrateCard({
         ...raw,
-        equippedWeapon: weapon.name,
-        equippedWeaponCode: weapon.code,
-        weaponBonus: bonus,
-        atk: Math.floor(Number(raw.baseAtk || raw.atk || 0) * mult) + bonus.atk + fruitBonus.atk,
-        hp: Math.floor(Number(raw.baseHp || raw.hp || 0) * mult) + bonus.hp + fruitBonus.hp,
-        speed: Math.floor(Number(raw.baseSpeed || raw.speed || 0) * mult) + bonus.speed + fruitBonus.speed,
+        equippedWeapons: nextEquipped,
+        equippedWeapon: formatEquippedWeaponNames(nextEquipped),
+        equippedWeaponCode: nextEquipped.length === 1 ? nextEquipped[0].code : null,
+        weaponBonus: totalWeaponBonus,
+        atk: Math.floor(Number(raw.baseAtk || raw.atk || 0) * mult) + totalWeaponBonus.atk + fruitBonus.atk,
+        hp: Math.floor(Number(raw.baseHp || raw.hp || 0) * mult) + totalWeaponBonus.hp + fruitBonus.hp,
+        speed: Math.floor(Number(raw.baseSpeed || raw.speed || 0) * mult) + totalWeaponBonus.speed + fruitBonus.speed,
       });
     });
 
@@ -112,6 +146,7 @@ module.exports = {
     const synced = updatedCards.find((c) => c.instanceId === card.instanceId);
     const weaponBadge = getRarityBadge(weapon.rarity || "B");
     const weaponImage = getWeaponImage(weapon.code, weapon.image || "");
+    const slotText = `${nextEquipped.length}/${slotLimit}`;
 
     return message.reply({
       embeds: [
@@ -121,17 +156,18 @@ module.exports = {
           .setDescription(
             [
               `**Card:** ${synced.displayName || synced.name}`,
-              `**Weapon:** ${weapon.name}`,
+              `**Added Weapon:** ${weapon.name}`,
               `**Weapon Rarity:** ${String(weapon.rarity || "B").toUpperCase()}`,
-              `**Inventory Sync:** 1 copy consumed`,
+              `**Weapon Slots:** ${slotText}`,
+              `**Equipped Weapons:** ${synced.equippedWeapon || weapon.name}`,
               "",
               `**ATK:** ${synced.atk}`,
               `**HP:** ${synced.hp}`,
               `**SPD:** ${synced.speed}`,
               "",
-              `Bonus: +${bonus.atk} ATK / +${bonus.hp} HP / +${bonus.speed} SPD`,
+              `Total Weapon Bonus: +${totalWeaponBonus.atk} ATK / +${totalWeaponBonus.hp} HP / +${totalWeaponBonus.speed} SPD`,
               "",
-              "This equip is permanent and cannot be removed.",
+              "Weapons stay permanently equipped.",
             ].join("\n")
           )
           .setThumbnail(weaponBadge || null)

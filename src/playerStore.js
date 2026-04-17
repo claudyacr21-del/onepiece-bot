@@ -112,19 +112,61 @@ function normalizeFragmentList(value) {
 function normalizeCards(value) {
   if (!Array.isArray(value)) return [];
 
-  return value.map((card) => ({
-    ...card,
-    instanceId: String(card.instanceId || `${Date.now()}-${Math.floor(Math.random() * 10000)}`),
-    level: Number(card.level) > 0 ? Number(card.level) : 1,
-    exp: Number(card.exp) >= 0 ? Number(card.exp) : 0,
-    kills: Number(card.kills) >= 0 ? Number(card.kills) : 0,
-    fragments: Number(card.fragments) >= 0 ? Number(card.fragments) : 0,
-    image: card.image || "",
-    equippedWeapon: card.equippedWeapon || null,
-    equippedDevilFruit: card.equippedDevilFruit || null,
-  }));
-}
+  return value.map((card) => {
+    const equippedWeapons = Array.isArray(card.equippedWeapons)
+      ? card.equippedWeapons.map((w) => ({
+          name: w?.name || "Unknown Weapon",
+          code: w?.code || null,
+          statBonus: {
+            atk: Number(w?.statBonus?.atk || 0),
+            hp: Number(w?.statBonus?.hp || 0),
+            speed: Number(w?.statBonus?.speed || 0),
+          },
+        }))
+      : [];
 
+    const legacySingleWeapon =
+      !equippedWeapons.length && (card.equippedWeapon || card.equippedWeaponCode)
+        ? [{
+            name: card.equippedWeapon || "Unknown Weapon",
+            code: card.equippedWeaponCode || null,
+            statBonus: {
+              atk: Number(card?.weaponBonus?.atk || 0),
+              hp: Number(card?.weaponBonus?.hp || 0),
+              speed: Number(card?.weaponBonus?.speed || 0),
+            },
+          }]
+        : [];
+
+    const finalEquippedWeapons = equippedWeapons.length ? equippedWeapons : legacySingleWeapon;
+
+    const totalWeaponBonus = finalEquippedWeapons.reduce(
+      (acc, w) => {
+        acc.atk += Number(w?.statBonus?.atk || 0);
+        acc.hp += Number(w?.statBonus?.hp || 0);
+        acc.speed += Number(w?.statBonus?.speed || 0);
+        return acc;
+      },
+      { atk: 0, hp: 0, speed: 0 }
+    );
+
+    return {
+      ...card,
+      instanceId: String(card.instanceId || `${Date.now()}-${Math.floor(Math.random() * 10000)}`),
+      level: Number(card.level) > 0 ? Number(card.level) : 1,
+      exp: Number(card.exp) >= 0 ? Number(card.exp) : 0,
+      kills: Number(card.kills) >= 0 ? Number(card.kills) : 0,
+      fragments: Number(card.fragments) >= 0 ? Number(card.fragments) : 0,
+      image: card.image || "",
+      equippedWeapons: finalEquippedWeapons,
+      equippedWeapon: finalEquippedWeapons.length ? finalEquippedWeapons.map((w) => w.name).join(", ") : null,
+      equippedWeaponCode: finalEquippedWeapons.length === 1 ? finalEquippedWeapons[0].code : null,
+      weaponBonus: totalWeaponBonus,
+      equippedDevilFruit: card.equippedDevilFruit || null,
+      equippedDevilFruitCode: card.equippedDevilFruitCode || null,
+    };
+  });
+}
 function normalizePullSlot(slot, fallbackMax) {
   return {
     used: Number(slot?.used) >= 0 ? Number(slot.used) : 0,
