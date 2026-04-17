@@ -77,8 +77,6 @@ function buildMarketEmbed(player) {
         "`op market buy wooden material box`",
         "`op market buy iron material box`",
         "`op market buy royal material box`",
-        "`op market buy random weapon box`",
-        "`op market buy random devil fruit box`",
       ].join("\n")
     )
     .setFooter({ text: "One Piece Bot • Market" });
