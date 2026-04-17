@@ -19,7 +19,7 @@ function cleanList(items) {
 }
 
 function formatList(items) {
-  return items.map((item) => `• ${item.name} ${amountText(item)}${rarityText(item)}`).join("\n");
+  return items.map((item) => `- ${item.name} ${amountText(item)}${rarityText(item)}`).join("\n");
 }
 
 module.exports = {
@@ -34,45 +34,37 @@ module.exports = {
     const weapons = cleanList(player.weapons);
     const devilFruits = cleanList(player.devilFruits);
 
-    const fields = [
-      {
-        name: "📦 Boxes",
-        value: boxes.length ? formatList(boxes) : "No boxes owned.",
-        inline: false,
-      },
-      {
-        name: "🎟️ Tickets",
-        value: tickets.length ? formatList(tickets) : "No tickets owned.",
-        inline: false,
-      },
-      {
-        name: "🧱 Materials",
-        value: materials.length ? formatList(materials) : "No materials owned.",
-        inline: false,
-      },
-    ];
-
-    if (weapons.length) {
-      fields.push({
-        name: "🗡️ Weapons",
-        value: formatList(weapons),
-        inline: false,
-      });
-    }
-
-    if (devilFruits.length) {
-      fields.push({
-        name: "🍎 Devil Fruits",
-        value: formatList(devilFruits),
-        inline: false,
-      });
-    }
-
     const embed = new EmbedBuilder()
       .setColor(0x3498db)
       .setTitle(`${player.username}'s Inventory`)
       .setDescription("Here is everything currently stored in your inventory.")
-      .addFields(fields)
+      .addFields(
+        {
+          name: "📦 Boxes",
+          value: boxes.length ? formatList(boxes) : "No boxes owned.",
+          inline: false,
+        },
+        {
+          name: "🎟️ Tickets",
+          value: tickets.length ? formatList(tickets) : "No tickets owned.",
+          inline: false,
+        },
+        {
+          name: "🧱 Materials",
+          value: materials.length ? formatList(materials) : "No materials owned.",
+          inline: false,
+        },
+        {
+          name: "🗡️ Weapons",
+          value: weapons.length ? formatList(weapons) : "No weapons owned.",
+          inline: false,
+        },
+        {
+          name: "🍎 Devil Fruits",
+          value: devilFruits.length ? formatList(devilFruits) : "No devil fruits owned.",
+          inline: false,
+        }
+      )
       .setFooter({ text: "One Piece Bot • Inventory" });
 
     await message.reply({ embeds: [embed] });
