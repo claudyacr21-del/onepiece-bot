@@ -49,11 +49,12 @@ function buildRows(index, total) {
 
 function buildTextEmbeds(ownerName, cards) {
   const lines = cards.map((card, i) => {
+    const role = card.cardRole === "boost" ? "BOOST" : "CARD";
     const rarity = String(card.currentTier || card.rarity || "C").toUpperCase();
     const name = card.displayName || card.name || "Unknown Card";
     const stage = card.evolutionKey || `M${card.evolutionStage || 1}`;
     const power = getPower(card);
-    return `${i + 1}. **${name}** • ${stage} • ${rarity} • ${power}`;
+    return `${i + 1}. **${name}** • ${role} • ${stage} • ${rarity} • ${power}`;
   });
 
   const chunkSize = 20;
@@ -63,15 +64,16 @@ function buildTextEmbeds(ownerName, cards) {
     embeds.push(
       new EmbedBuilder()
         .setColor(0x3498db)
-        .setTitle(`${ownerName}'s Card Collection`)
+        .setTitle(`${ownerName}'s Collection`)
         .setDescription(
           [
             "You are viewing your collection in text mode!",
+            "Cards and boosts are combined in one list.",
             "",
             ...lines.slice(i, i + chunkSize),
           ].join("\n")
         )
-        .setFooter({ text: `Showing ${i + 1}-${Math.min(i + chunkSize, lines.length)} of ${lines.length} cards` })
+        .setFooter({ text: `Showing ${i + 1}-${Math.min(i + chunkSize, lines.length)} of ${lines.length} entries` })
     );
   }
 
@@ -90,6 +92,7 @@ module.exports = {
     const sorted = [...cards].sort((a, b) => {
       const powerDiff = getPower(b) - getPower(a);
       if (powerDiff !== 0) return powerDiff;
+      if ((a.cardRole || "") !== (b.cardRole || "")) return String(a.cardRole || "").localeCompare(String(b.cardRole || ""));
       return String(a.displayName || a.name).localeCompare(String(b.displayName || b.name));
     });
 
