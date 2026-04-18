@@ -490,11 +490,11 @@ module.exports = [
     description: "A terrifying mythical horse fruit linked to a skeletal yokai."
   },
   {
-    code: "unknown",
-    name: "Unknown",
+    code: "arashi_arashi_no_mi",
+    name: "Arashi Arashi no Mi",
     rarity: "UR",
     owners: ["dragon_revolutionary_leader"],
-    type: "Unknown Fruit",
+    type: "Logia Fruit",
     statBonus: { atk: 18, hp: 10, speed: 6 },
     image: "",
     description: "An unknown and unrevealed devil fruit with overwhelming potential."
