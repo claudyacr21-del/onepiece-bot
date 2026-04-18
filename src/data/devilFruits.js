@@ -400,16 +400,6 @@ module.exports = [
     description: "Controls souls and creates fearsome living homies."
   },
   {
-    code: "storage_blessing_fruit",
-    name: "Storage Blessing Fruit",
-    rarity: "B",
-    owners: ["carina_treasure_hunter", "kaya_medical_patron", "shirahoshi_sea_princess"],
-    type: "Support Fruit",
-    statBonus: { atk: 2, hp: 5, speed: 2 },
-    image: "",
-    description: "A support fruit concept used for inventory and storage enhancement."
-  },
-  {
     code: "sube_sube_no_mi",
     name: "Sube Sube no Mi",
     rarity: "C",
