@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
+const { incrementQuestCounter } = require("../utils/questProgress");
 
 function normalize(text) {
   return String(text || "").toLowerCase().trim().replace(/\s+/g, " ");
@@ -161,9 +162,15 @@ module.exports = {
       });
     });
 
+    const updatedDailyState = incrementQuestCounter(player, "weaponUpgrades", 1);
+
     updatePlayer(message.author.id, {
       cards: updatedCards,
       materials: updatedMaterials,
+      quests: {
+        ...(player.quests || {}),
+        dailyState: updatedDailyState,
+      },
     });
 
     const syncedCard = updatedCards.find((c) => c.instanceId === card.instanceId);

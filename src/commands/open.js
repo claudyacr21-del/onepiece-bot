@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { ITEMS } = require("../data/items");
+const { incrementQuestCounter } = require("../utils/questProgress");
 
 function normalize(text) {
   return String(text || "").toLowerCase().trim().replace(/\s+/g, " ");
@@ -134,12 +135,11 @@ module.exports = {
       resultLines.push("💎 Gems +50");
       resultLines.push("📦 Cola Engine Part x2");
       resultLines.push("🧱 Enhancement Stone x30");
-    } else if (box.code === "pull_reset_ticket_box") {
-      nextTickets = addOrIncrease(nextTickets, { ...ITEMS.pullResetTicket, amount: 1 });
-      resultLines.push("🎟️ Pull Reset Ticket x1");
     } else {
       return message.reply("This box is not configured yet.");
     }
+
+    const updatedDailyState = incrementQuestCounter(player, "boxesOpened", 1);
 
     updatePlayer(message.author.id, {
       boxes: updatedBoxes,
@@ -147,6 +147,10 @@ module.exports = {
       tickets: nextTickets,
       berries: nextBerries,
       gems: nextGems,
+      quests: {
+        ...(player.quests || {}),
+        dailyState: updatedDailyState,
+      },
     });
 
     return message.reply({

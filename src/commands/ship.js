@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { getShipByCode, getNextShip } = require("../data/ships");
+const { incrementQuestCounter } = require("../utils/questProgress");
 
 function getMaterialAmount(materials, code) {
   const found = (Array.isArray(materials) ? materials : []).find((x) => x.code === code);
@@ -111,6 +112,7 @@ module.exports = {
     }
 
     const updatedMaterials = consumeMaterials(player.materials || [], ship.upgradeCost.materials || []);
+    const updatedDailyState = incrementQuestCounter(player, "shipUpgrades", 1);
 
     updatePlayer(message.author.id, {
       berries: currentBerries - berryNeed,
@@ -120,6 +122,10 @@ module.exports = {
         shipCode: nextShip.code,
         tier: nextShip.tier,
         name: nextShip.name,
+      },
+      quests: {
+        ...(player.quests || {}),
+        dailyState: updatedDailyState,
       },
     });
 

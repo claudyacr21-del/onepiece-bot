@@ -9,6 +9,7 @@ const {
   buildPullAccessSnapshot,
 } = require("../utils/pullSlots");
 const { rollStandardBaseTier } = require("../utils/pullRates");
+const { incrementQuestCounter } = require("../utils/questProgress");
 
 function pickContentType() {
   const roll = Math.random() * 100;
@@ -93,6 +94,7 @@ module.exports = {
 
     const picked = pool[Math.floor(Math.random() * pool.length)];
     const updatedPulls = consumePullSlot(player, pullKey);
+    const updatedDailyState = incrementQuestCounter(player, "pullsUsed", 1);
     const alreadyOwned = (player.cards || []).some(
       (c) => String(c.code || "").toLowerCase() === String(picked.code || "").toLowerCase()
     );
@@ -103,6 +105,10 @@ module.exports = {
       updatePlayer(message.author.id, {
         pulls: updatedPulls,
         fragments: updatedFragments,
+        quests: {
+          ...(player.quests || {}),
+          dailyState: updatedDailyState,
+        },
       });
 
       return message.reply({
@@ -130,6 +136,10 @@ module.exports = {
     updatePlayer(message.author.id, {
       cards: [...(player.cards || []), owned],
       pulls: updatedPulls,
+      quests: {
+        ...(player.quests || {}),
+        dailyState: updatedDailyState,
+      },
     });
 
     return message.reply({

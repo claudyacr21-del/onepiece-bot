@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer, readPlayers } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
+const { incrementQuestCounter } = require("../utils/questProgress");
 
 function getPower(card) {
   return Number(card.currentPower || Math.floor(Number(card.atk || 0) * 1.4 + Number(card.hp || 0) * 0.22 + Number(card.speed || 0) * 9));
@@ -192,8 +193,21 @@ module.exports = {
     const battle = simulateBattle(myTeam, enemyTeam);
     const updatedArena = applyArenaResult(player.arena, battle.result);
 
+    let updatedDailyState = incrementQuestCounter(player, "arenaMatches", 1);
+    if (battle.result === "win") {
+      updatedDailyState = incrementQuestCounter(
+        { ...player, quests: { ...(player.quests || {}), dailyState: updatedDailyState } },
+        "arenaWins",
+        1
+      );
+    }
+
     updatePlayer(message.author.id, {
       arena: updatedArena,
+      quests: {
+        ...(player.quests || {}),
+        dailyState: updatedDailyState,
+      },
     });
 
     const resultTitle =
