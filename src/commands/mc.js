@@ -42,17 +42,17 @@ function getSafeForm(card) {
   };
 }
 
-function buildViewerEmbed(ownerName, card, index, total) {
+function buildViewerEmbed(ownerName, card, index, total, label = "Collection") {
   const form = getSafeForm(card);
 
   return buildCardStyleEmbed({
-    color: 0x3498db,
+    color: card.cardRole === "boost" ? 0x9b59b6 : 0x3498db,
     ownerName,
     card,
     badgeImage: form.badgeImage,
     formName: form.name,
     tier: form.tier,
-    footerText: `Card ${index + 1}/${total} • This card belongs to ${ownerName}`,
+    footerText: `${label} ${index + 1}/${total} • This card belongs to ${ownerName}`,
     extraLines: [
       `Form: ${card.evolutionKey || `M${form.stage}`}`,
       `Tier: ${card.currentTier || card.rarity || "C"}`,
@@ -63,7 +63,9 @@ function buildViewerEmbed(ownerName, card, index, total) {
       `Attack: ${card.atk || 0}`,
       `Weapons: ${formatOwnedWeapons(card)}`,
       `Devil Fruit: ${card.equippedDevilFruit || "None"}`,
-      `Type: ${card.type || card.cardRole || "Unknown"}`,
+      card.cardRole === "boost"
+        ? `Effect: ${card.effectText || "No effect text"}`
+        : `Type: ${card.type || card.cardRole || "Unknown"}`,
       `Kills: ${card.kills || 0}`,
       `Fragments: ${card.fragments || 0}`,
     ],
@@ -156,7 +158,21 @@ module.exports = {
       return message.reply("You do not own any cards yet.");
     }
 
-    const sorted = [...cards].sort((a, b) => {
+    const sub1 = String(args?.[0] || "").toLowerCase();
+
+    let working = [...cards];
+    let title = "Collection";
+
+    if (sub1 === "boost") {
+      working = working.filter((card) => card.cardRole === "boost");
+      title = "Boost Collection";
+    }
+
+    if (!working.length) {
+      return message.reply(sub1 === "boost" ? "You do not own any boost cards yet." : "You do not own any cards yet.");
+    }
+
+    working.sort((a, b) => {
       const powerDiff = getPower(b) - getPower(a);
       if (powerDiff !== 0) return powerDiff;
       if ((a.cardRole || "") !== (b.cardRole || "")) {
@@ -165,17 +181,15 @@ module.exports = {
       return String(a.displayName || a.name).localeCompare(String(b.displayName || b.name));
     });
 
-    const sub = String(args?.[0] || "").toLowerCase();
-
-    if (sub === "text") {
-      return message.reply({ embeds: buildTextEmbeds(message.author.username, sorted) });
+    if (sub1 === "text") {
+      return message.reply({ embeds: buildTextEmbeds(message.author.username, working) });
     }
 
     let index = 0;
 
     const sent = await message.reply({
-      embeds: [buildViewerEmbed(message.author.username, sorted[index], index, sorted.length)],
-      components: buildRows(index, sorted.length),
+      embeds: [buildViewerEmbed(message.author.username, working[index], index, working.length, title)],
+      components: buildRows(index, working.length),
     });
 
     const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
@@ -186,11 +200,11 @@ module.exports = {
       }
 
       if (i.customId === "mc_prev") index = Math.max(0, index - 1);
-      if (i.customId === "mc_next") index = Math.min(sorted.length - 1, index + 1);
+      if (i.customId === "mc_next") index = Math.min(working.length - 1, index + 1);
 
       return i.update({
-        embeds: [buildViewerEmbed(message.author.username, sorted[index], index, sorted.length)],
-        components: buildRows(index, sorted.length),
+        embeds: [buildViewerEmbed(message.author.username, working[index], index, working.length, title)],
+        components: buildRows(index, working.length),
       });
     });
 

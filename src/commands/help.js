@@ -91,6 +91,7 @@ module.exports = {
             "## Collection",
             "`op mc` → view your cards",
             "`op mc text` → text list of cards + boosts",
+            "`op mc boost` → view your boost cards",
             "`op ci <card name>` → global card viewer",
             "`op mci <card name>` → owned current card viewer",
             "`op all` → all battle cards",

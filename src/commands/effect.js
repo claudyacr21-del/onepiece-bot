@@ -57,6 +57,9 @@ module.exports = {
       .setTitle("✨ Current Effects & Status")
       .setDescription(
         [
+          "## Pull",
+          `↪ Total Pull Chance: ${formatValue(boosts.pullChance, "%")}`,
+          "",
           "## Boost Effects",
           `↪ ATK Boost: ${formatValue(boosts.atk, "%")}`,
           `↪ HP Boost: ${formatValue(boosts.hp, "%")}`,
@@ -64,7 +67,6 @@ module.exports = {
           `↪ EXP Boost: ${formatValue(boosts.exp, "%")}`,
           `↪ DMG Boost: ${formatValue(boosts.dmg, "%")}`,
           `↪ Daily Reward Boost: ${formatValue(boosts.daily)}`,
-          `↪ Pull Chance Boost: ${formatValue(boosts.pullChance)}`,
           `↪ Fragment Storage Bonus: ${formatValue(boosts.fragmentStorageBonus)}`,
           "",
           "## Progress",
