@@ -1,25 +1,11 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-const { getPullSlotStatus, buildPullAccessSnapshot } = require("../utils/pullSlots");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 
 function formatValue(value, suffix = "") {
   const number = Number(value || 0);
   return number > 0 ? `+${number}${suffix}` : "None";
-}
-
-function formatPullInfo(slots) {
-  const fmt = (enabled, max) => (enabled ? `${max}/${max}` : `0/${max}`);
-  return [
-    `↪ Base Pulls: ${fmt(true, slots.base.max)}`,
-    `↪ Support Member Pulls: ${fmt(slots.supportMember.enabled, slots.supportMember.max)}`,
-    `↪ Booster Pulls: ${fmt(slots.booster.enabled, slots.booster.max)}`,
-    `↪ Owner Pulls: ${fmt(slots.owner.enabled, slots.owner.max)}`,
-    `↪ Mother Flame Pulls: ${fmt(slots.patreon.enabled, slots.patreon.max)}`,
-    `↪ Baccarat Card Pulls: ${fmt(slots.baccaratCard.enabled, slots.baccaratCard.max)}`,
-    `↪ Baccarat Fruit Pulls: ${fmt(slots.baccaratFruit.enabled, slots.baccaratFruit.max)}`,
-  ].join("\n");
 }
 
 function getArenaSummary(player) {
@@ -53,17 +39,7 @@ module.exports = {
       player.pulls = resetState.pulls;
     }
 
-    const snapshot = buildPullAccessSnapshot(player, message);
-
-    if (message.guild) {
-      updatePlayer(message.author.id, {
-        pullAccessSnapshot: snapshot,
-      });
-      player.pullAccessSnapshot = snapshot;
-    }
-
     const boosts = getPassiveBoostSummary(player);
-    const slots = getPullSlotStatus(player, message);
     const arena = getArenaSummary(player);
     const ship = getShipSummary(player);
 
@@ -81,9 +57,6 @@ module.exports = {
       .setTitle("✨ Current Effects & Status")
       .setDescription(
         [
-          "## Pull Access",
-          formatPullInfo(slots),
-          "",
           "## Boost Effects",
           `↪ ATK Boost: ${formatValue(boosts.atk, "%")}`,
           `↪ HP Boost: ${formatValue(boosts.hp, "%")}`,
