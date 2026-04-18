@@ -1,11 +1,12 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-const {
-  getTotalPullUsage,
-  buildPullAccessSnapshot,
-} = require("../utils/pullSlots");
+const { getTotalPullUsage, buildPullAccessSnapshot } = require("../utils/pullSlots");
 const { applyGlobalPullReset } = require("../utils/pullReset");
+const {
+  ensureDailyQuestState,
+  getQuestCompletionSummary,
+} = require("../utils/questProgress");
 
 function formatValue(value, suffix = "") {
   const number = Number(value || 0);
@@ -34,21 +35,42 @@ function getShipSummary(player) {
 module.exports = {
   name: "effect",
   aliases: ["effects", "status"],
+
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-    const resetState = applyGlobalPullReset(player);
 
+    const resetState = applyGlobalPullReset(player);
     if (resetState.wasReset) {
       updatePlayer(message.author.id, { pulls: resetState.pulls });
       player.pulls = resetState.pulls;
     }
 
     const snapshot = buildPullAccessSnapshot(player, message);
+    const dailyState = ensureDailyQuestState(player);
+    const questSummary = getQuestCompletionSummary(dailyState);
+
+    const syncPayload = {
+      quests: {
+        ...(player.quests || {}),
+        dailyState,
+        daily: {
+          ...(player?.quests?.daily || {}),
+          total: questSummary.total,
+          completed: questSummary.completed,
+          left: questSummary.left,
+          lastSyncedAt: Date.now(),
+        },
+      },
+    };
 
     if (message.guild) {
-      updatePlayer(message.author.id, {
-        pullAccessSnapshot: snapshot,
-      });
+      syncPayload.pullAccessSnapshot = snapshot;
+    }
+
+    updatePlayer(message.author.id, syncPayload);
+
+    player.quests = syncPayload.quests;
+    if (message.guild) {
       player.pullAccessSnapshot = snapshot;
     }
 
@@ -56,10 +78,6 @@ module.exports = {
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
     const arena = getArenaSummary(player);
     const ship = getShipSummary(player);
-
-    const questTotal = Number(player?.quests?.daily?.total || 5);
-    const questCompleted = Number(player?.quests?.daily?.completed || 0);
-    const questLeft = Math.max(0, questTotal - questCompleted);
 
     const pityDrop =
       Number(player?.pity?.premiumSPity || 0) > 0
@@ -75,6 +93,7 @@ module.exports = {
           `↪ Pulls Done: ${totalUsed}/${totalMax}`,
           `↪ Total Pull Chance: ${formatValue(boosts.pullChance, "%")}`,
           "",
+
           "## Boost Effects",
           `↪ ATK Boost: ${formatValue(boosts.atk, "%")}`,
           `↪ HP Boost: ${formatValue(boosts.hp, "%")}`,
@@ -84,16 +103,19 @@ module.exports = {
           `↪ Daily Reward Boost: ${formatValue(boosts.daily)}`,
           `↪ Fragment Storage Bonus: ${formatValue(boosts.fragmentStorageBonus)}`,
           "",
+
           "## Progress",
           `↪ Pity Drop: ${pityDrop}`,
-          `↪ Quest Left: ${questLeft}/${questTotal}`,
+          `↪ Quest Left: ${questSummary.left}/${questSummary.total}`,
           `↪ Fight Streak: ${Number(player?.fightStreak || 0)}`,
           "",
+
           "## Arena",
           `↪ Arena Points: ${arena.points}`,
           `↪ Record: ${arena.wins}W / ${arena.losses}L / ${arena.draws}D`,
           `↪ Arena Streak: ${arena.streak}`,
           "",
+
           "## Ship",
           `↪ Current Ship: ${ship.name}`,
           `↪ Ship Tier: ${ship.tier}`,

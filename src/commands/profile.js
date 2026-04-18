@@ -3,6 +3,8 @@ const { getPlayer } = require("../playerStore");
 const { PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
 const { hydrateCard } = require("../utils/evolution");
 
+const DEFAULT_START_ISLAND = "Foosha Village";
+
 function hasRole(message, roleName) {
   if (!message.member?.roles?.cache || !roleName) return false;
   return message.member.roles.cache.some((role) => role.name === roleName);
@@ -18,24 +20,39 @@ function getProfileImage(message) {
 }
 
 function getTeamUnits(player) {
-  const cards = (Array.isArray(player.cards) ? player.cards : []).map(hydrateCard).filter(Boolean);
-  const slots = Array.isArray(player?.team?.slots) ? player.team.slots : [null, null, null];
+  const cards = (Array.isArray(player.cards) ? player.cards : [])
+    .map(hydrateCard)
+    .filter(Boolean);
+
+  const slots = Array.isArray(player?.team?.slots)
+    ? player.team.slots
+    : [null, null, null];
 
   return slots
     .map((instanceId) => {
       if (!instanceId) return null;
-      return cards.find((card) => card.instanceId === instanceId && card.cardRole !== "boost") || null;
+      return (
+        cards.find(
+          (card) => card.instanceId === instanceId && card.cardRole !== "boost"
+        ) || null
+      );
     })
     .filter(Boolean);
 }
 
 function getTeamPower(player) {
-  return getTeamUnits(player).reduce((sum, card) => sum + Number(card?.currentPower || 0), 0);
+  return getTeamUnits(player).reduce(
+    (sum, card) => sum + Number(card?.currentPower || 0),
+    0
+  );
 }
 
 function getStoryProgress(player) {
-  const cleared = Array.isArray(player?.story?.clearedIslandBosses) ? player.story.clearedIslandBosses.length : 0;
-  const currentIsland = player.currentIsland || "Shells Town";
+  const cleared = Array.isArray(player?.story?.clearedIslandBosses)
+    ? player.story.clearedIslandBosses.length
+    : 0;
+
+  const currentIsland = player.currentIsland || DEFAULT_START_ISLAND;
   return `${cleared} bosses cleared • Current island: ${currentIsland}`;
 }
 
@@ -62,8 +79,10 @@ function getShipSummary(player) {
 module.exports = {
   name: "profile",
   aliases: ["pf", "me"],
+
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
+
     const cards = Array.isArray(player.cards) ? player.cards : [];
     const battleCards = cards.filter((card) => card.cardRole !== "boost");
     const boostCards = cards.filter((card) => card.cardRole === "boost");
@@ -74,7 +93,8 @@ module.exports = {
     const totalMaterials = countTotalAmount(player.materials);
     const totalWeapons = countTotalAmount(player.weapons);
     const totalFruits = countTotalAmount(player.devilFruits);
-    const totalResources = totalBoxes + totalTickets + totalMaterials + totalWeapons + totalFruits;
+    const totalResources =
+      totalBoxes + totalTickets + totalMaterials + totalWeapons + totalFruits;
 
     const isMotherFlame = hasRole(message, PREMIUM_ROLE_NAME);
     const teamPower = getTeamPower(player);
@@ -91,23 +111,26 @@ module.exports = {
       .setDescription(
         [
           "## Captain Info",
-          `- Current Island: \`${player.currentIsland || "Shells Town"}\``,
+          `- Current Island: \`${player.currentIsland || DEFAULT_START_ISLAND}\``,
           `- Username: \`${player.username}\``,
           `- Premium: \`${isMotherFlame ? "Mother Flame" : "Normal"}\``,
           `- Clan: \`${player?.clan?.name || "None"}\``,
           `- Ship: \`${ship.name}\``,
           `- Ship Tier: \`${ship.tier}\``,
           "",
+
           "## Wallet",
           `- Berries: \`${Number(player.berries || 0).toLocaleString("en-US")}\``,
           `- Gems: \`${Number(player.gems || 0).toLocaleString("en-US")}\``,
           "",
+
           "## Card Statistics",
           `- Battle Cards: \`${battleCards.length}\``,
           `- Boost Cards: \`${boostCards.length}\``,
           `- Total Cards Owned: \`${cards.length}\``,
           `- Total Fragments: \`${totalFragments}\``,
           "",
+
           "## Inventory Stats",
           `- Total Resources: \`${totalResources}\``,
           `- Boxes: \`${totalBoxes}\``,
@@ -116,11 +139,13 @@ module.exports = {
           `- Materials: \`${totalMaterials}\``,
           `- Tickets: \`${totalTickets}\``,
           "",
+
           "## Game Stats",
           `- Team Power: \`${teamPower.toLocaleString("en-US")}\``,
           `- Story Progress: \`${storyProgress}\``,
           `- Fight Win Streak: \`${Number(player?.fightStreak || 0)}\``,
           "",
+
           "## Arena Stats",
           `- Arena Points: \`${arena.points}\``,
           `- Arena Record: \`${arena.wins}W / ${arena.losses}L / ${arena.draws}D\``,
