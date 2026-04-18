@@ -250,16 +250,6 @@ module.exports = [
     description: "Petrifies targets through irresistible charm and beam attacks."
   },
   {
-    code: "mink_sprint_fruit",
-    name: "Mink Sprint Fruit",
-    rarity: "B",
-    owners: ["bepo_navigator_support"],
-    type: "Support Fruit",
-    statBonus: { atk: 3, hp: 3, speed: 5 },
-    image: "",
-    description: "A support fruit concept used for high-speed navigation boosts."
-  },
-  {
     code: "mochi_mochi_no_mi",
     name: "Mochi Mochi no Mi",
     rarity: "S",
