@@ -10,6 +10,7 @@ const weapons = require("../data/weapons");
 const devilFruits = require("../data/devilFruits");
 const {
   getRarityBadge,
+  getCardImage,
   getWeaponImage,
   getDevilFruitImage,
 } = require("../config/assetLinks");
@@ -22,8 +23,8 @@ function getItemPower(item) {
   const bonus = item?.statBonus || {};
   return Math.floor(
     Number(bonus.atk || 0) * 1.4 +
-    Number(bonus.hp || 0) * 0.22 +
-    Number(bonus.speed || 0) * 9
+      Number(bonus.hp || 0) * 0.22 +
+      Number(bonus.speed || 0) * 9
   );
 }
 
@@ -51,7 +52,9 @@ function getUpgradedBonus(item, level = 0) {
 }
 
 function tierScore(tier) {
-  return { C: 1, B: 2, A: 3, S: 4, SS: 5, UR: 6 }[String(tier || "").toUpperCase()] || 0;
+  return { C: 1, B: 2, A: 3, S: 4, SS: 5, UR: 6 }[
+    String(tier || "").toUpperCase()
+  ] || 0;
 }
 
 function statEffectText(item) {
@@ -65,12 +68,22 @@ function statEffectText(item) {
 
 function buildCardEmbed(card, index, total, mode) {
   const m3 = card.evolutionForms?.[2];
+  const stageImage =
+    card.evolutionForms?.[2]?.image ||
+    card.stageImages?.M3 ||
+    getCardImage(card.code, "M3", card.image) ||
+    card.image ||
+    "";
 
   return buildCardStyleEmbed({
     color: mode === "boost" ? 0x9b59b6 : 0xe67e22,
     header: mode === "boost" ? "All Boost Cards" : "All Battle Cards",
-    card: { ...card, badgeImage: m3?.badgeImage || card.badgeImage || "" },
+    card: {
+      ...card,
+      badgeImage: m3?.badgeImage || card.badgeImage || "",
+    },
     badgeImage: m3?.badgeImage || card.badgeImage || "",
+    image: stageImage,
     formName: m3?.name || "Final",
     tier: m3?.tier || card.currentTier || card.rarity,
     footerText: `${mode === "boost" ? "Boost" : "Battle"} ${index + 1}/${total} • Code: ${card.code}`,
@@ -135,8 +148,16 @@ function buildFruitEmbed(item, index, total) {
 function rows(index, total) {
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("all_prev").setLabel("Prev").setStyle(ButtonStyle.Secondary).setDisabled(index <= 0),
-      new ButtonBuilder().setCustomId("all_next").setLabel("Next").setStyle(ButtonStyle.Secondary).setDisabled(index >= total - 1)
+      new ButtonBuilder()
+        .setCustomId("all_prev")
+        .setLabel("Prev")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(index <= 0),
+      new ButtonBuilder()
+        .setCustomId("all_next")
+        .setLabel("Next")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(index >= total - 1)
     ),
   ];
 }
@@ -144,9 +165,17 @@ function rows(index, total) {
 module.exports = {
   name: "all",
   aliases: ["allcards"],
+
   async execute(message, args) {
     const rawMode = String(args.join(" ").trim()).toLowerCase();
-    const mode = rawMode === "boost" ? "boost" : rawMode === "weapon" ? "weapon" : rawMode === "fruit" ? "fruit" : "battle";
+    const mode =
+      rawMode === "boost"
+        ? "boost"
+        : rawMode === "weapon"
+          ? "weapon"
+          : rawMode === "fruit"
+            ? "fruit"
+            : "battle";
 
     let list = [];
     let renderer = null;
@@ -157,10 +186,17 @@ module.exports = {
         .sort((a, b) => {
           const powerDiff = getCardPower(b) - getCardPower(a);
           if (powerDiff !== 0) return powerDiff;
-          const tierDiff = tierScore(b?.evolutionForms?.[2]?.tier) - tierScore(a?.evolutionForms?.[2]?.tier);
+
+          const tierDiff =
+            tierScore(b?.evolutionForms?.[2]?.tier) -
+            tierScore(a?.evolutionForms?.[2]?.tier);
           if (tierDiff !== 0) return tierDiff;
-          return String(a.displayName || a.name).localeCompare(String(b.displayName || b.name));
+
+          return String(a.displayName || a.name).localeCompare(
+            String(b.displayName || b.name)
+          );
         });
+
       renderer = (item, index, total) => buildCardEmbed(item, index, total, mode);
     }
 
@@ -168,10 +204,13 @@ module.exports = {
       list = [...weapons].sort((a, b) => {
         const powerDiff = getUpgradedItemPower(b, 5) - getUpgradedItemPower(a, 5);
         if (powerDiff !== 0) return powerDiff;
+
         const tierDiff = tierScore(b.rarity) - tierScore(a.rarity);
         if (tierDiff !== 0) return tierDiff;
+
         return String(a.name || a.code).localeCompare(String(b.name || b.code));
       });
+
       renderer = buildWeaponEmbed;
     }
 
@@ -179,26 +218,35 @@ module.exports = {
       list = [...devilFruits].sort((a, b) => {
         const powerDiff = getItemPower(b) - getItemPower(a);
         if (powerDiff !== 0) return powerDiff;
+
         const tierDiff = tierScore(b.rarity) - tierScore(a.rarity);
         if (tierDiff !== 0) return tierDiff;
+
         return String(a.name || a.code).localeCompare(String(b.name || b.code));
       });
+
       renderer = buildFruitEmbed;
     }
 
     if (!list.length) return message.reply("No data found.");
 
     let index = 0;
+
     const sent = await message.reply({
       embeds: [renderer(list[index], index, list.length)],
       components: rows(index, list.length),
     });
 
-    const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
+    const collector = sent.createMessageComponentCollector({
+      time: 10 * 60 * 1000,
+    });
 
     collector.on("collect", async (i) => {
       if (i.user.id !== message.author.id) {
-        return i.reply({ content: "Only you can control this viewer.", ephemeral: true });
+        return i.reply({
+          content: "Only you can control this viewer.",
+          ephemeral: true,
+        });
       }
 
       if (i.customId === "all_prev") index = Math.max(0, index - 1);
