@@ -1,6 +1,10 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const {
+  getTotalPullUsage,
+  buildPullAccessSnapshot,
+} = require("../utils/pullSlots");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 
 function formatValue(value, suffix = "") {
@@ -39,7 +43,17 @@ module.exports = {
       player.pulls = resetState.pulls;
     }
 
+    const snapshot = buildPullAccessSnapshot(player, message);
+
+    if (message.guild) {
+      updatePlayer(message.author.id, {
+        pullAccessSnapshot: snapshot,
+      });
+      player.pullAccessSnapshot = snapshot;
+    }
+
     const boosts = getPassiveBoostSummary(player);
+    const { totalUsed, totalMax } = getTotalPullUsage(player, message);
     const arena = getArenaSummary(player);
     const ship = getShipSummary(player);
 
@@ -58,6 +72,7 @@ module.exports = {
       .setDescription(
         [
           "## Pull",
+          `↪ Pulls Done: ${totalUsed}/${totalMax}`,
           `↪ Total Pull Chance: ${formatValue(boosts.pullChance, "%")}`,
           "",
           "## Boost Effects",
