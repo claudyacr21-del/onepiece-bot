@@ -184,13 +184,23 @@ module.exports = {
       list = getAllCards()
         .filter((c) => c.cardRole === mode)
         .sort((a, b) => {
-          const powerDiff = getCardPower(b) - getCardPower(a);
-          if (powerDiff !== 0) return powerDiff;
+          if (mode === "boost") {
+            const tierDiff =
+              tierScore(b?.evolutionForms?.[2]?.tier || b.currentTier || b.rarity) -
+              tierScore(a?.evolutionForms?.[2]?.tier || a.currentTier || a.rarity);
+            if (tierDiff !== 0) return tierDiff;
 
-          const tierDiff =
-            tierScore(b?.evolutionForms?.[2]?.tier) -
-            tierScore(a?.evolutionForms?.[2]?.tier);
-          if (tierDiff !== 0) return tierDiff;
+            const powerDiff = getCardPower(b) - getCardPower(a);
+            if (powerDiff !== 0) return powerDiff;
+          } else {
+            const powerDiff = getCardPower(b) - getCardPower(a);
+            if (powerDiff !== 0) return powerDiff;
+
+            const tierDiff =
+              tierScore(b?.evolutionForms?.[2]?.tier || b.currentTier || b.rarity) -
+              tierScore(a?.evolutionForms?.[2]?.tier || a.currentTier || a.rarity);
+            if (tierDiff !== 0) return tierDiff;
+          }
 
           return String(a.displayName || a.name).localeCompare(
             String(b.displayName || b.name)
