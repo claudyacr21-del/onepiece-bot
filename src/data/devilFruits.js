@@ -490,6 +490,16 @@ module.exports = [
   description: "A mythical zoan that transforms the user into an immense azure dragon with overwhelming destructive power."
   },
   {
+  code: "ito_ito_no_mi",
+  name: "Ito Ito no Mi",
+  rarity: "S",
+  owners: ["doflamingo_heavenly_demon"],
+  type: "Paramecia Fruit",
+  statBonus: { atk: 14, hp: 6, speed: 7 },
+  image: "",
+  description: "A paramecia fruit that lets the user create and manipulate razor-sharp strings for control, slicing, and awakened terrain attacks."
+  },
+  {
     code: "uma_uma_no_mi_model_bakotsu",
     name: "Uma Uma no Mi, Model: Bakotsu",
     rarity: "UR",

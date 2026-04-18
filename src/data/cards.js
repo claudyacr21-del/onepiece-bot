@@ -159,6 +159,7 @@ const BASE_CARDS = [
   battleCard({ id: 125, code: "yamato_oni_princess", name: "Yamato", title: "Oni Princess", rarity: "S", arc: "Wano", faction: "Wano", variant: "Guardian Wolf", type: "Fighter", atk: 186, hp: 1240, speed: 82, weapon: "Kanabo", devilFruit: "Inu Inu no Mi, Model: Okuchi no Makami", equipType: "Devil Fruit", image: "" }),
   battleCard({ id: 126, code: "greenbull", name: "Aramaki", title: "Ryokugyu", rarity: "S", arc: "Wano", faction: "Marines", variant: "Forest Admiral", type: "Control", atk: 204, hp: 1400, speed: 68, weapon: "None", devilFruit: "Mori Mori no Mi", equipType: "Devil Fruit", image: "" }),
   battleCard({ id: 159, code: "kaido_strongest_creature", name: "Kaido", title: "Strongest Creature", rarity: "UR", arc: "Wano", faction: "Beast Pirates", variant: "Azure Dragon Emperor", type: "Legend", atk: 258, hp: 1680, speed: 78, weapon: "Hassaikai", devilFruit: "Uo Uo no Mi, Model: Seiryu", equipType: "Devil Fruit", image: "" }),
+  battleCard({ id: 160, code: "doflamingo_heavenly_demon", name: "Donquixote Doflamingo", title: "Heavenly Demon", rarity: "S", arc: "Dressrosa", faction: "Donquixote Pirates", variant: "String Tyrant", type: "Control", atk: 182, hp: 1160, speed: 86, weapon: "None", devilFruit: "Ito Ito no Mi", equipType: "Devil Fruit", image: "" })
 ];
 
 const EXTRA_CANON_CARDS = [
