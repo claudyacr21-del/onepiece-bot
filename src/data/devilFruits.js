@@ -480,6 +480,16 @@ module.exports = [
     description: "A phoenix fruit with legendary regenerative flames."
   },
   {
+  code: "uo_uo_no_mi_model_seiryu",
+  name: "Uo Uo no Mi, Model: Seiryu",
+  rarity: "UR",
+  owners: ["kaido_strongest_creature"],
+  type: "Mythical Zoan Fruit",
+  statBonus: { atk: 18, hp: 12, speed: 4 },
+  image: "",
+  description: "A mythical zoan that transforms the user into an immense azure dragon with overwhelming destructive power."
+  },
+  {
     code: "uma_uma_no_mi_model_bakotsu",
     name: "Uma Uma no Mi, Model: Bakotsu",
     rarity: "UR",

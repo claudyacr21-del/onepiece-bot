@@ -400,6 +400,16 @@ module.exports = [
     description: "Big Mom's soul-infused living blade."
   },
   {
+  code: "hassaikai",
+  name: "Hassaikai",
+  rarity: "UR",
+  owners: ["kaido_strongest_creature"],
+  type: "Kanabo",
+  statBonus: { atk: 20, hp: 6, speed: 1 },
+  image: "",
+  description: "Kaido's massive kanabo, used to crush enemies with monstrous force."
+  },
+  {
     code: "perfume_femur",
     name: "Perfume Femur",
     rarity: "S",
