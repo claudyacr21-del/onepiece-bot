@@ -8,10 +8,13 @@ function buildCardStyleEmbed({
   formName = "",
   tier = "",
   badgeImage = "",
+  image = "",
   extraLines = [],
   footerText = "",
 }) {
   const title = ownerName ? `${ownerName}'s Card` : header;
+  const finalImage = image || card?.image || null;
+  const finalBadge = badgeImage || card?.badgeImage || null;
 
   return new EmbedBuilder()
     .setColor(color)
@@ -24,13 +27,13 @@ function buildCardStyleEmbed({
         ...extraLines.filter(Boolean),
       ].join("\n")
     )
-    .setThumbnail(badgeImage || card?.badgeImage || null)
-    .setImage(card?.image || null)
+    .setThumbnail(finalBadge)
+    .setImage(finalImage)
     .setFooter({
-      text: footerText || (ownerName ? `This card belongs to ${ownerName}` : `Tier ${tier}`),
+      text:
+        footerText ||
+        (ownerName ? `This card belongs to ${ownerName}` : `Tier ${tier}`),
     });
 }
 
-module.exports = {
-  buildCardStyleEmbed,
-};
+module.exports = { buildCardStyleEmbed };

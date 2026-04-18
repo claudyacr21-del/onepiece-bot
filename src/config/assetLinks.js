@@ -17,8 +17,12 @@ const WEAPON_IMAGES = {
 };
 
 const DEVIL_FRUIT_IMAGES = {
-  // mera_mera_no_mi: "https://...",
-  // pika_pika_no_mi: "https://...",
+  akuma_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1494707763690082575/akumanomi.png?ex=69e43f55&is=69e2edd5&hm=cc42078229877abfc41a8104eb07d39f32149390d62342321a81434b348992e1&",
+  ryu_ryu_no_mi_model_nidhoggr: "https://cdn.discordapp.com/attachments/1493204525975076944/1494707764197589174/Nidhoggr.png?ex=69e43f55&is=69e2edd5&hm=943d43beac19fdeac8ad4b7db58f322f89ecd86dfa13cd71e74a9df8c12ce493&",
+  baku_baku_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1494707765220999229/banebanenomi.png?ex=69e43f55&is=69e2edd5&hm=2ad84ae2e8fbb71ccc1b8f60c63b813c95dede6cb062a237d41bf95c3383dc7b&",
+  bane_bane_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1494707765803876613/Bane_Bane_no_Mi.png?ex=69e43f55&is=69e2edd5&hm=733d5bfc9c82031d83645b6c0e7135b711ed4bb78fe510eaa1575e52f70535d5&",
+  bara_bara_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1494707764700909608/Bara_Bara_no_Mi.png?ex=69e43f55&is=69e2edd5&hm=297f56ffd9a4cef02f3c33ce8b3c9228793db8ff81bb8dfb17b36caf1a7682da&",
+  beta_beta_no_mi: ""
 };
 
 const SHIP_IMAGES = {
@@ -66,8 +70,16 @@ function getRarityBadge(rarity) {
   return RARITY_BADGES[String(rarity || "").toUpperCase()] || "";
 }
 
-function getCardImage(code, fallback = "") {
-  return CARD_IMAGES[String(code || "")] || fallback || "";
+function getCardImage(code, stage = "M1", fallback = "") {
+  const entry = CARD_IMAGES[code];
+
+  if (!entry) return fallback || "";
+
+  if (typeof entry === "string") {
+    return entry || fallback || "";
+  }
+
+  return entry[stage] || entry.M1 || fallback || "";
 }
 
 function getWeaponImage(code, fallback = "") {
