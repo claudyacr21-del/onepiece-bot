@@ -93,8 +93,8 @@ function computeBoostBasePower(card) {
       dmg: 44,
       exp: 24,
       daily: 26,
-      fragmentStorage: 3,
-      pullChance: 75,
+      fragmentstorage: 3,
+      pullchance: 75,
     }[String(card.boostType || "").toLowerCase()] || 20;
 
   return Math.floor(rarityWeight + value * typeWeight);
@@ -123,7 +123,7 @@ function getBoostStageValue(card, stage) {
   const base = Number(card.boostValue || 0);
   const type = String(card.boostType || "").trim().toLowerCase();
 
-  if (type === "fragmentStorage") {
+  if (type === "fragmentstorage") {
     if (base <= 18) return stage === 1 ? 18 : stage === 2 ? 36 : 55;
     if (base <= 36) return stage === 1 ? 36 : stage === 2 ? 73 : 110;
     if (base <= 55) return stage === 1 ? 55 : stage === 2 ? 110 : 165;
@@ -135,7 +135,7 @@ function getBoostStageValue(card, stage) {
     return stage === 1 ? base : stage === 2 ? base + 1 : base + 2;
   }
 
-  if (type === "pullChance") {
+  if (type === "pullchance") {
     return stage === 1 ? base : stage === 2 ? base + 1 : base + 2;
   }
 
