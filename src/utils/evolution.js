@@ -83,6 +83,7 @@ function computeBoostBasePower(card) {
     { C: 180, B: 260, A: 360, S: 520, SS: 700, UR: 950 }[
       String(card.baseTier || card.rarity || "C").toUpperCase()
     ] || 180;
+
   const value = Number(card.boostValue || 0);
   const typeWeight =
     {
@@ -120,9 +121,33 @@ function getCurrentPower(card) {
 
 function getBoostStageValue(card, stage) {
   const base = Number(card.boostValue || 0);
-  if (stage === 1) return base;
-  if (stage === 2) return base + 1;
-  return base + 2;
+  const type = String(card.boostType || "").toLowerCase();
+
+  if (type === "fragmentStorage") {
+    if (base <= 18) return stage === 1 ? 18 : stage === 2 ? 36 : 55;
+    if (base <= 36) return stage === 1 ? 36 : stage === 2 ? 73 : 110;
+    if (base <= 55) return stage === 1 ? 55 : stage === 2 ? 110 : 165;
+    if (base <= 73) return stage === 1 ? 73 : stage === 2 ? 146 : 220;
+    return stage === 1 ? base : stage === 2 ? Math.floor(base * 2) : Math.floor(base * 3.25);
+  }
+
+  if (type === "daily") {
+    return stage === 1 ? base : stage === 2 ? base + 1 : base + 2;
+  }
+
+  if (type === "pullChance") {
+    return stage === 1 ? base : stage === 2 ? base + 1 : base + 2;
+  }
+
+  if (type === "exp") {
+    return stage === 1 ? base : stage === 2 ? base + 3 : base + 6;
+  }
+
+  if (type === "atk" || type === "hp" || type === "spd" || type === "dmg") {
+    return stage === 1 ? base : stage === 2 ? base + 3 : base + 6;
+  }
+
+  return stage === 1 ? base : stage === 2 ? base + 1 : base + 2;
 }
 
 function getBoostEffectText(card, stage = Number(card.evolutionStage || 1)) {
@@ -332,19 +357,32 @@ function rollBaseTier() {
 
 function createOwnedCard(template) {
   const card = hydrateCard(template);
-  return {
+  const owned = {
     ...card,
     instanceId: `${Date.now()}_${Math.floor(Math.random() * 999999)}`,
-    level: Number(card.level || 1),
-    exp: Number(card.exp || 0),
-    kills: Number(card.kills || 0),
     equippedWeapon: null,
     equippedWeaponCode: null,
     equippedDevilFruit: null,
     equippedDevilFruitCode: null,
     weaponBonus: { atk: 0, hp: 0, speed: 0 },
     fruitBonus: { atk: 0, hp: 0, speed: 0 },
+    fragments: Number(card.fragments || 0),
   };
+
+  if (card.cardRole === "boost") {
+    delete owned.level;
+    delete owned.exp;
+    delete owned.kills;
+    delete owned.atk;
+    delete owned.hp;
+    delete owned.speed;
+    return owned;
+  }
+
+  owned.level = Number(card.level || 1);
+  owned.exp = Number(card.exp || 0);
+  owned.kills = Number(card.kills || 0);
+  return owned;
 }
 
 function getOwnedFragmentAmount(player, cardCode) {

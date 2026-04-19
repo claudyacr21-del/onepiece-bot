@@ -32,9 +32,7 @@ function buildReqEmbed(card, stage) {
         `↪ ${Number(req.selfFragments || 0)}x ${card.displayName || card.name}`,
         "",
         "**Level Requirement**",
-        `↪ ${
-          card.cardRole === "battle" ? Number(req.minLevel || 0) : "Not required"
-        }`,
+        `↪ ${card.cardRole === "battle" ? Number(req.minLevel || 0) : "Not required"}`,
         "",
         "**Cards Required**",
         ...(req.cards?.length ? req.cards.map((x) => `↪ ${x}`) : ["↪ None"]),
@@ -78,6 +76,38 @@ function buildEmbed(card, owned, stage) {
   const stageImage = getStageImage(card, stage);
   const stageBadge = getStageBadge(card, stage);
 
+  const extraLines =
+    card.cardRole === "boost"
+      ? [
+          `Form: ${form?.key || `M${stage}`}`,
+          `Tier: ${form?.tier || card.currentTier || card.rarity}`,
+          `Role: ${card.cardRole}`,
+          `Power: ${card.powerCaps?.[`M${stage}`] || card.currentPower || 0}`,
+          `Effect: ${card.evolutionForms?.[stage - 1]?.effectText || card.effectText || "No effect text"}`,
+          `Target: ${card.boostTarget || "team"}`,
+          `Boost Type: ${card.boostType || "unknown"}`,
+          `Fragments: ${Number(owned?.fragments || 0)}`,
+          owned
+            ? `Owned Stage: M${owned.evolutionStage} • ${owned.evolutionForms?.[owned.evolutionStage - 1]?.name || owned.variant}`
+            : "Owned Stage: Not owned",
+        ]
+      : [
+          `Form: ${form?.key || `M${stage}`}`,
+          `Tier: ${form?.tier || card.currentTier || card.rarity}`,
+          `Role: ${card.cardRole}`,
+          `Power: ${card.powerCaps?.[`M${stage}`] || card.currentPower || 0}`,
+          `Type: ${card.type || "Battle"}`,
+          "",
+          `ATK: ${Math.floor(Number(card.baseAtk || 0) * mult)}`,
+          `HP: ${Math.floor(Number(card.baseHp || 0) * mult)}`,
+          `SPD: ${Math.floor(Number(card.baseSpeed || 0) * mult)}`,
+          `Weapon Set: ${card.weapon || "None"}`,
+          `Devil Fruit: ${card.devilFruit || "None"}`,
+          owned
+            ? `Owned Stage: M${owned.evolutionStage} • ${owned.evolutionForms?.[owned.evolutionStage - 1]?.name || owned.variant}`
+            : "Owned Stage: Not owned",
+        ];
+
   return buildCardStyleEmbed({
     color: 0x5865f2,
     header: "Global Card Viewer",
@@ -89,31 +119,7 @@ function buildEmbed(card, owned, stage) {
     footerText: owned
       ? `Owned Stage: M${owned.evolutionStage} • Global viewer`
       : "Global Card Viewer • Not required to own the card",
-    extraLines: [
-      `Form: ${form?.key || `M${stage}`}`,
-      `Tier: ${form?.tier || card.currentTier || card.rarity}`,
-      `Role: ${card.cardRole}`,
-      `Power: ${card.powerCaps?.[`M${stage}`] || card.currentPower || 0}`,
-      card.cardRole === "boost"
-        ? `Effect: ${
-            card.evolutionForms?.[stage - 1]?.effectText ||
-            card.effectText ||
-            "No effect text"
-          }`
-        : `Type: ${card.type || "Battle"}`,
-      "",
-      `ATK: ${Math.floor(Number(card.baseAtk || 0) * mult)}`,
-      `HP: ${Math.floor(Number(card.baseHp || 0) * mult)}`,
-      `SPD: ${Math.floor(Number(card.baseSpeed || 0) * mult)}`,
-      `Weapon Set: ${card.weapon || "None"}`,
-      `Devil Fruit: ${card.devilFruit || "None"}`,
-      owned
-        ? `Owned Stage: M${owned.evolutionStage} • ${
-            owned.evolutionForms?.[owned.evolutionStage - 1]?.name ||
-            owned.variant
-          }`
-        : "Owned Stage: Not owned",
-    ],
+    extraLines,
   });
 }
 

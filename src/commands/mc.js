@@ -10,20 +10,13 @@ const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage } = require("../config/assetLinks");
 
 function getPower(card) {
-  return Math.floor(
-    Number(card.atk || 0) * 1.4 +
-      Number(card.hp || 0) * 0.22 +
-      Number(card.speed || 0) * 9
-  );
+  return Number(card.currentPower || 0);
 }
 
 function formatOwnedWeapons(card) {
   if (Array.isArray(card.equippedWeapons) && card.equippedWeapons.length) {
     return card.equippedWeapons
-      .map(
-        (w) =>
-          `${w.name}${Number(w.upgradeLevel || 0) > 0 ? ` +${w.upgradeLevel}` : ""}`
-      )
+      .map((w) => `${w.name}${Number(w.upgradeLevel || 0) > 0 ? ` +${w.upgradeLevel}` : ""}`)
       .join(", ");
   }
   return card.equippedWeapon || "None";
@@ -35,8 +28,7 @@ function getSafeForm(card) {
 
   return {
     stage,
-    name:
-      form?.name || card.variant || card.displayName || card.name || "Unknown Card",
+    name: form?.name || card.variant || card.displayName || card.name || "Unknown Card",
     badgeImage: form?.badgeImage || card.badgeImage || "",
     tier: form?.tier || card.currentTier || card.rarity || "C",
   };
@@ -59,6 +51,32 @@ function buildViewerEmbed(ownerName, card, index, total, label = "Collection") {
   const form = getSafeForm(card);
   const stageImage = getStageImage(card);
 
+  const extraLines =
+    card.cardRole === "boost"
+      ? [
+          `Form: ${card.evolutionKey || `M${form.stage}`}`,
+          `Tier: ${card.currentTier || card.rarity || "C"}`,
+          `Power: ${getPower(card)}`,
+          `Effect: ${card.effectText || "No effect text"}`,
+          `Target: ${card.boostTarget || "team"}`,
+          `Boost Type: ${card.boostType || "unknown"}`,
+          `Fragments: ${card.fragments || 0}`,
+        ]
+      : [
+          `Form: ${card.evolutionKey || `M${form.stage}`}`,
+          `Tier: ${card.currentTier || card.rarity || "C"}`,
+          `Level: ${card.level || 1}`,
+          `Power: ${getPower(card)}`,
+          `Health: ${card.hp || 0}`,
+          `Speed: ${card.speed || 0}`,
+          `Attack: ${card.atk || 0}`,
+          `Weapons: ${formatOwnedWeapons(card)}`,
+          `Devil Fruit: ${card.equippedDevilFruit || "None"}`,
+          `Type: ${card.type || card.cardRole || "Unknown"}`,
+          `Kills: ${card.kills || 0}`,
+          `Fragments: ${card.fragments || 0}`,
+        ];
+
   return buildCardStyleEmbed({
     color: card.cardRole === "boost" ? 0x9b59b6 : 0x3498db,
     ownerName,
@@ -68,22 +86,7 @@ function buildViewerEmbed(ownerName, card, index, total, label = "Collection") {
     formName: form.name,
     tier: form.tier,
     footerText: `${label} ${index + 1}/${total} • This card belongs to ${ownerName}`,
-    extraLines: [
-      `Form: ${card.evolutionKey || `M${form.stage}`}`,
-      `Tier: ${card.currentTier || card.rarity || "C"}`,
-      `Level: ${card.level || 1}`,
-      `Power: ${getPower(card)}`,
-      `Health: ${card.hp || 0}`,
-      `Speed: ${card.speed || 0}`,
-      `Attack: ${card.atk || 0}`,
-      `Weapons: ${formatOwnedWeapons(card)}`,
-      `Devil Fruit: ${card.equippedDevilFruit || "None"}`,
-      card.cardRole === "boost"
-        ? `Effect: ${card.effectText || "No effect text"}`
-        : `Type: ${card.type || card.cardRole || "Unknown"}`,
-      `Kills: ${card.kills || 0}`,
-      `Fragments: ${card.fragments || 0}`,
-    ],
+    extraLines,
   });
 }
 
@@ -254,7 +257,7 @@ module.exports = {
       collector.on("end", async () => {
         try {
           await sent.edit({ components: [] });
-        } catch (_) {}
+        } catch {}
       });
 
       return;
@@ -307,7 +310,7 @@ module.exports = {
     collector.on("end", async () => {
       try {
         await sent.edit({ components: [] });
-      } catch (_) {}
+      } catch {}
     });
   },
 };

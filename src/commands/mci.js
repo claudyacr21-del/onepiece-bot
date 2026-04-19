@@ -19,6 +19,32 @@ function buildOwnedCardEmbed(ownerName, card) {
   const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
   const form = getCurrentForm(card);
 
+  const extraLines =
+    card.cardRole === "boost"
+      ? [
+          `Form: ${card.evolutionKey || `M${stage}`}`,
+          `Tier: ${card.currentTier || card.rarity}`,
+          `Power: ${Number(card.currentPower || 0)}`,
+          `Effect: ${card.effectText || "No effect text"}`,
+          `Target: ${card.boostTarget || "team"}`,
+          `Boost Type: ${card.boostType || "unknown"}`,
+          `Fragments: ${Number(card.fragments || 0)}`,
+        ]
+      : [
+          `Form: ${card.evolutionKey || `M${stage}`}`,
+          `Tier: ${card.currentTier || card.rarity}`,
+          `Level: ${Number(card.level || 1)}`,
+          `Power: ${Number(card.currentPower || 0)}`,
+          `Health: ${Number(card.hp || 0)}`,
+          `Speed: ${Number(card.speed || 0)}`,
+          `Attack: ${Number(card.atk || 0)}`,
+          `Weapons: ${formatOwnedWeapons(card)}`,
+          `Devil Fruit: ${card.equippedDevilFruit || "None"}`,
+          `Type: ${card.type || card.cardRole}`,
+          `Kills: ${Number(card.kills || 0)}`,
+          `Fragments: ${Number(card.fragments || 0)}`,
+        ];
+
   return buildCardStyleEmbed({
     color: 0x1abc9c,
     ownerName,
@@ -27,28 +53,14 @@ function buildOwnedCardEmbed(ownerName, card) {
     formName: form?.name || card.variant || "Unknown Form",
     tier: card.currentTier || card.rarity,
     footerText: `Owned card info • ${ownerName}`,
-    extraLines: [
-      `Form: ${card.evolutionKey || `M${stage}`}`,
-      `Tier: ${card.currentTier || card.rarity}`,
-      `Level: ${Number(card.level || 1)}`,
-      `Power: ${Number(card.currentPower || 0)}`,
-      `Health: ${Number(card.hp || 0)}`,
-      `Speed: ${Number(card.speed || 0)}`,
-      `Attack: ${Number(card.atk || 0)}`,
-      `Weapons: ${formatOwnedWeapons(card)}`,
-      `Devil Fruit: ${card.equippedDevilFruit || "None"}`,
-      card.cardRole === "boost"
-        ? `Effect: ${card.effectText || "No effect text"}`
-        : `Type: ${card.type || card.cardRole}`,
-      `Kills: ${Number(card.kills || 0)}`,
-      `Fragments: ${Number(card.fragments || 0)}`,
-    ],
+    extraLines,
   });
 }
 
 module.exports = {
   name: "mci",
   aliases: ["mycardinfo"],
+
   async execute(message, args) {
     const query = args.join(" ").trim();
     if (!query) return message.reply("Usage: `op mci <card name>`");
