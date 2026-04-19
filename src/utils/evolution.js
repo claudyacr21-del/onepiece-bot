@@ -121,7 +121,7 @@ function getCurrentPower(card) {
 
 function getBoostStageValue(card, stage) {
   const base = Number(card.boostValue || 0);
-  const type = String(card.boostType || "").toLowerCase();
+  const type = String(card.boostType || "").trim().toLowerCase();
 
   if (type === "fragmentStorage") {
     if (base <= 18) return stage === 1 ? 18 : stage === 2 ? 36 : 55;
