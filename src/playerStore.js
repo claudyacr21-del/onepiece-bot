@@ -304,10 +304,24 @@ function normalizeShip(ship, currentIsland) {
 }
 
 function normalizeStory(story) {
+  const bossPhases = story?.bossPhases || {};
+
   return {
     clearedIslandBosses: Array.isArray(story?.clearedIslandBosses)
       ? story.clearedIslandBosses
       : [],
+    bossPhases: {
+      egghead: {
+        phase1Cleared: Boolean(bossPhases?.egghead?.phase1Cleared),
+        phase2Cleared: Boolean(bossPhases?.egghead?.phase2Cleared),
+        completed: Boolean(bossPhases?.egghead?.completed),
+      },
+      elbaf: {
+        phase1Cleared: Boolean(bossPhases?.elbaf?.phase1Cleared),
+        phase2Cleared: Boolean(bossPhases?.elbaf?.phase2Cleared),
+        completed: Boolean(bossPhases?.elbaf?.completed),
+      },
+    },
   };
 }
 
@@ -451,6 +465,18 @@ function getDefaultPlayer(username) {
     },
     story: {
       clearedIslandBosses: [],
+      bossPhases: {
+        egghead: {
+          phase1Cleared: false,
+          phase2Cleared: false,
+          completed: false,
+        },
+        elbaf: {
+          phase1Cleared: false,
+          phase2Cleared: false,
+          completed: false,
+        },
+      },
     },
     clan: {
       name: null,
