@@ -5,7 +5,7 @@ module.exports = [
     rarity: "UR",
     owners: ["imu"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 20, hp: 12, speed: 8 },
+    statBonus: { atk: 21, hp: 12, speed: 8 },
     image: "",
     description: "An unknown and terrifying devil fruit tied to the deepest secrets of the world."
   },
@@ -15,7 +15,7 @@ module.exports = [
   rarity: "UR",
   owners: ["loki"],
   type: "Mythical Zoan Fruit",
-  statBonus: { atk: 21, hp: 10, speed: 5 },
+  statBonus: { atk: 22, hp: 10, speed: 5 },
   image: "",
   description: "A mythical dragon fruit tied to the legendary Nidhöggr."
 },
@@ -103,9 +103,9 @@ module.exports = [
     code: "gura_gura_no_mi",
     name: "Gura Gura no Mi",
     rarity: "UR",
-    owners: ["whitebeard_strongest_man"],
+    owners: ["whitebeard_strongest_man", "blackbeard_emperor_of_darkness"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 20, hp: 10, speed: 2 },
+    statBonus: { atk: 22, hp: 11, speed: 3 },
     image: "",
     description: "Creates world-shaking quakes powerful enough to destroy seas and islands."
   },
@@ -165,7 +165,7 @@ module.exports = [
     rarity: "UR",
     owners: ["luffy_straw_hat"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 20, hp: 8, speed: 8 },
+    statBonus: { atk: 22, hp: 9, speed: 10 },
     image: "",
     description: "The fruit of liberation, granting ridiculous freedom and power."
   },
@@ -497,7 +497,7 @@ module.exports = [
     type: "Logia Fruit",
     statBonus: { atk: 18, hp: 10, speed: 6 },
     image: "",
-    description: "An unknown and unrevealed devil fruit with overwhelming potential."
+    description: "A Logia-type Devil fruit that allows the user to manipulate, create, and transform into storms freely."
   },
   {
     code: "ushi_ushi_no_mi_model_giraffe",

@@ -28,6 +28,19 @@ function getItemPower(item) {
   );
 }
 
+function getFruitPower(item) {
+  const rarityBase = {
+    C: 0,
+    B: 30,
+    A: 60,
+    S: 100,
+    SS: 130,
+    UR: 160,
+  }[String(item?.rarity || "").toUpperCase()] || 0;
+
+  return rarityBase + getItemPower(item);
+}
+
 function getUpgradedItemPower(item, level = 0) {
   const lv = Math.max(0, Number(level || 0));
   const base = item?.statBonus || {};
@@ -75,6 +88,25 @@ function buildCardEmbed(card, index, total, mode) {
     card.image ||
     "";
 
+  const extraLines = [
+    `Role: ${card.cardRole}`,
+    `Base Power: ${card.basePower || 0}`,
+    `Power Cap M1/M2/M3: ${card.powerCaps?.M1 || 0} / ${card.powerCaps?.M2 || 0} / ${card.powerCaps?.M3 || 0}`,
+  ];
+
+  if (mode === "boost") {
+    extraLines.push(`Owner: ${card.displayName || card.name || "Unknown"}`);
+    extraLines.push(`Faction: ${card.faction || "Unknown"}`);
+    extraLines.push(
+      `Effect M1/M2/M3: ${card.evolutionForms?.[0]?.effectText || "-"} | ${card.evolutionForms?.[1]?.effectText || "-"} | ${card.evolutionForms?.[2]?.effectText || "-"}`
+    );
+  } else {
+    extraLines.push(`Type: ${card.type || "Battle"}`);
+  }
+
+  extraLines.push("");
+  extraLines.push(`Power (M3): ${getCardPower(card)}`);
+
   return buildCardStyleEmbed({
     color: mode === "boost" ? 0x9b59b6 : 0xe67e22,
     header: mode === "boost" ? "All Boost Cards" : "All Battle Cards",
@@ -87,16 +119,7 @@ function buildCardEmbed(card, index, total, mode) {
     formName: m3?.name || "Final",
     tier: m3?.tier || card.currentTier || card.rarity,
     footerText: `${mode === "boost" ? "Boost" : "Battle"} ${index + 1}/${total} • Code: ${card.code}`,
-    extraLines: [
-      `Role: ${card.cardRole}`,
-      `Base Power: ${card.basePower || 0}`,
-      `Power Cap M1/M2/M3: ${card.powerCaps?.M1 || 0} / ${card.powerCaps?.M2 || 0} / ${card.powerCaps?.M3 || 0}`,
-      mode === "boost"
-        ? `Effect M1/M2/M3: ${card.evolutionForms?.[0]?.effectText || "-"} | ${card.evolutionForms?.[1]?.effectText || "-"} | ${card.evolutionForms?.[2]?.effectText || "-"}`
-        : `Type: ${card.type || "Battle"}`,
-      "",
-      `Power (M3): ${getCardPower(card)}`,
-    ],
+    extraLines,
   });
 }
 
@@ -137,7 +160,8 @@ function buildFruitEmbed(item, index, total) {
         "",
         `Rarity: ${String(item.rarity || "B").toUpperCase()}`,
         `Effect: ${item.description || statEffectText(item)}`,
-        `Power: ${getItemPower(item)}`,
+        `Power: ${getFruitPower(item)}`,
+        `Owners: ${Array.isArray(item.owners) && item.owners.length ? item.owners.join(", ") : "Unknown"}`,
       ].join("\n")
     )
     .setThumbnail(getRarityBadge(item.rarity || "B") || null)
@@ -226,7 +250,7 @@ module.exports = {
 
     if (mode === "fruit") {
       list = [...devilFruits].sort((a, b) => {
-        const powerDiff = getItemPower(b) - getItemPower(a);
+        const powerDiff = getFruitPower(b) - getFruitPower(a);
         if (powerDiff !== 0) return powerDiff;
 
         const tierDiff = tierScore(b.rarity) - tierScore(a.rarity);

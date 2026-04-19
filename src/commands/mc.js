@@ -36,11 +36,7 @@ function getSafeForm(card) {
   return {
     stage,
     name:
-      form?.name ||
-      card.variant ||
-      card.displayName ||
-      card.name ||
-      "Unknown Card",
+      form?.name || card.variant || card.displayName || card.name || "Unknown Card",
     badgeImage: form?.badgeImage || card.badgeImage || "",
     tier: form?.tier || card.currentTier || card.rarity || "C",
   };
@@ -129,9 +125,10 @@ function dedupeCollection(cards) {
   return [...map.values()];
 }
 
-function buildTextEmbeds(ownerName, cards) {
+function buildTextLines(cards) {
   const uniqueCards = dedupeCollection(cards);
-  const lines = uniqueCards.map((card, i) => {
+
+  return uniqueCards.map((card, i) => {
     const role = card.cardRole === "boost" ? "BOOST" : "CARD";
     const rarity = String(card.currentTier || card.rarity || "C").toUpperCase();
     const name = card.displayName || card.name || "Unknown Card";
@@ -140,30 +137,43 @@ function buildTextEmbeds(ownerName, cards) {
 
     return `${i + 1}. **${name}** • ${role} • ${stage} • ${rarity} • ${power}`;
   });
+}
 
-  const chunkSize = 20;
-  const embeds = [];
+function buildTextPageEmbed(ownerName, lines, pageIndex, pageSize = 10) {
+  const start = pageIndex * pageSize;
+  const pageLines = lines.slice(start, start + pageSize);
 
-  for (let i = 0; i < lines.length; i += chunkSize) {
-    embeds.push(
-      new EmbedBuilder()
-        .setColor(0x3498db)
-        .setTitle(`${ownerName}'s Collection`)
-        .setDescription(
-          [
-            "You are viewing your collection in text mode!",
-            "Cards and boosts are combined in one list.",
-            "",
-            ...lines.slice(i, i + chunkSize),
-          ].join("\n")
-        )
-        .setFooter({
-          text: `Showing ${i + 1}-${Math.min(i + chunkSize, lines.length)} of ${lines.length} unique entries`,
-        })
-    );
-  }
+  return new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle(`${ownerName}'s Collection`)
+    .setDescription(
+      [
+        "You are viewing your collection in text mode!",
+        "Cards and boosts are combined in one list.",
+        "",
+        ...pageLines,
+      ].join("\n")
+    )
+    .setFooter({
+      text: `Showing ${start + 1}-${Math.min(start + pageSize, lines.length)} of ${lines.length} unique entries`,
+    });
+}
 
-  return embeds;
+function buildTextRows(pageIndex, totalPages) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("mc_text_prev")
+        .setLabel("Prev")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(pageIndex <= 0),
+      new ButtonBuilder()
+        .setCustomId("mc_text_next")
+        .setLabel("Next")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(pageIndex >= totalPages - 1)
+    ),
+  ];
 }
 
 module.exports = {
@@ -201,9 +211,7 @@ module.exports = {
       if (powerDiff !== 0) return powerDiff;
 
       if ((a.cardRole || "") !== (b.cardRole || "")) {
-        return String(a.cardRole || "").localeCompare(
-          String(b.cardRole || "")
-        );
+        return String(a.cardRole || "").localeCompare(String(b.cardRole || ""));
       }
 
       return String(a.displayName || a.name).localeCompare(
@@ -212,9 +220,44 @@ module.exports = {
     });
 
     if (sub1 === "text") {
-      return message.reply({
-        embeds: buildTextEmbeds(message.author.username, working),
+      const lines = buildTextLines(working);
+      const pageSize = 10;
+      const totalPages = Math.max(1, Math.ceil(lines.length / pageSize));
+      let pageIndex = 0;
+
+      const sent = await message.reply({
+        embeds: [buildTextPageEmbed(message.author.username, lines, pageIndex, pageSize)],
+        components: buildTextRows(pageIndex, totalPages),
       });
+
+      const collector = sent.createMessageComponentCollector({
+        time: 10 * 60 * 1000,
+      });
+
+      collector.on("collect", async (i) => {
+        if (i.user.id !== message.author.id) {
+          return i.reply({
+            content: "Only you can control this text viewer.",
+            ephemeral: true,
+          });
+        }
+
+        if (i.customId === "mc_text_prev") pageIndex = Math.max(0, pageIndex - 1);
+        if (i.customId === "mc_text_next") pageIndex = Math.min(totalPages - 1, pageIndex + 1);
+
+        return i.update({
+          embeds: [buildTextPageEmbed(message.author.username, lines, pageIndex, pageSize)],
+          components: buildTextRows(pageIndex, totalPages),
+        });
+      });
+
+      collector.on("end", async () => {
+        try {
+          await sent.edit({ components: [] });
+        } catch (_) {}
+      });
+
+      return;
     }
 
     let index = 0;
