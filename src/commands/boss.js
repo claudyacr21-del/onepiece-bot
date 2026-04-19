@@ -97,25 +97,44 @@ function getBossTemplate(currentIsland) {
     ? hydrateCard(cardsDb.find((card) => card.code === currentIsland.bossCode))
     : null;
 
+  const shipTier = Number(currentIsland?.requiredShipTier || 1);
+  const islandOrder = Number(currentIsland?.order || 0);
+
+  const atkMulByTier = { 1: 1.75, 2: 2.0, 3: 2.3, 4: 2.7, 5: 3.1 };
+  const hpMulByTier = { 1: 2.4, 2: 2.9, 3: 3.4, 4: 4.0, 5: 4.8 };
+  const spdMulByTier = { 1: 1.2, 2: 1.28, 3: 1.36, 4: 1.45, 5: 1.55 };
+
+  const atkMul = (atkMulByTier[shipTier] || 1.75) + islandOrder * 0.015;
+  const hpMul = (hpMulByTier[shipTier] || 2.4) + islandOrder * 0.035;
+  const spdMul = (spdMulByTier[shipTier] || 1.2) + islandOrder * 0.008;
+
   if (fromDb) {
+    const baseAtk = Number(fromDb.atk || 100);
+    const baseHp = Number(fromDb.hp || 1000);
+    const baseSpeed = Number(fromDb.speed || 50);
+
     return {
       name: fromDb.displayName || fromDb.name,
       rarity: fromDb.currentTier || fromDb.rarity || "S",
-      atk: Math.floor(Number(fromDb.atk || 100) * 1.35),
-      hp: Math.floor(Number(fromDb.hp || 1000) * 1.6),
-      maxHp: Math.floor(Number(fromDb.hp || 1000) * 1.6),
-      speed: Math.floor(Number(fromDb.speed || 50) * 1.15),
+      atk: Math.floor(baseAtk * atkMul),
+      hp: Math.floor(baseHp * hpMul),
+      maxHp: Math.floor(baseHp * hpMul),
+      speed: Math.floor(baseSpeed * spdMul),
       image: currentIsland.image || fromDb.image || "",
     };
   }
 
+  const fallbackAtk = 180 + shipTier * 45 + islandOrder * 8;
+  const fallbackHp = 3200 + shipTier * 900 + islandOrder * 180;
+  const fallbackSpeed = 90 + shipTier * 8 + Math.floor(islandOrder * 0.8);
+
   return {
     name: currentIsland?.boss || "Island Boss",
-    rarity: "S",
-    atk: 140,
-    hp: 2200,
-    maxHp: 2200,
-    speed: 80,
+    rarity: shipTier >= 4 ? "UR" : "S",
+    atk: fallbackAtk,
+    hp: fallbackHp,
+    maxHp: fallbackHp,
+    speed: fallbackSpeed,
     image: currentIsland?.image || "",
   };
 }
