@@ -29,6 +29,18 @@ function isAdmin(userId) {
   return getAdminIds().includes(String(userId));
 }
 
+function resolveUserLabel(message, targetId) {
+  const member =
+    message.guild?.members?.cache?.get(String(targetId)) || null;
+
+  if (member) {
+    return member.displayName || member.user?.username || String(targetId);
+  }
+
+  const user = message.client?.users?.cache?.get(String(targetId)) || null;
+  return user?.username || String(targetId);
+}
+
 module.exports = {
   name: "raidteamadd",
   aliases: ["rtadd"],
@@ -47,13 +59,14 @@ module.exports = {
       return message.reply("You do not need to add yourself.");
     }
 
+    const targetLabel = resolveUserLabel(message, targetId);
     const activeRoom = getRoom(message.author.id);
 
     if (activeRoom) {
       try {
         const updated = addWhitelistUser(message.author.id, targetId);
         return message.reply(
-          `Added <@${targetId}> to active ${updated.mode} room whitelist. Total invited: ${updated.whitelist.length}`
+          `Added ${targetLabel} to active ${updated.mode} room whitelist. Total invited: ${updated.whitelist.length}`
         );
       } catch (error) {
         return message.reply(error.message || "Failed to add user to active room.");
@@ -71,14 +84,14 @@ module.exports = {
     players[hostId].raidTeam.members = ensureArray(players[hostId].raidTeam.members);
 
     if (players[hostId].raidTeam.members.includes(targetId)) {
-      return message.reply(`<@${targetId}> is already in your raid team.`);
+      return message.reply(`${targetLabel} is already in your saved raid team.`);
     }
 
     players[hostId].raidTeam.members.push(targetId);
     writePlayers(players);
 
     return message.reply(
-      `Added <@${targetId}> to your saved raid team. Total members: ${players[hostId].raidTeam.members.length}`
+      `Added ${targetLabel} to your saved raid team. Total members: ${players[hostId].raidTeam.members.length}`
     );
   },
 };

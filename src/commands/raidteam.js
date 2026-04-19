@@ -22,6 +22,18 @@ function isAdmin(userId) {
   return getAdminIds().includes(String(userId));
 }
 
+function resolveUserLabel(message, userId) {
+  const member =
+    message.guild?.members?.cache?.get(String(userId)) || null;
+
+  if (member) {
+    return member.displayName || member.user?.username || String(userId);
+  }
+
+  const user = message.client?.users?.cache?.get(String(userId)) || null;
+  return user?.username || String(userId);
+}
+
 module.exports = {
   name: "raidteam",
   aliases: ["rt"],
@@ -57,23 +69,23 @@ module.exports = {
             .setDescription(
               [
                 `**Boss:** ${activeRoom.bossName}`,
-                `**Room ID:** ${activeRoom.roomId}`,
                 `**Status:** ${activeRoom.status}`,
                 `**Joined Guests:** ${guestParticipants.length}/${maxGuestSlots}`,
+                `**Invited Users:** ${members.length}`,
                 "",
                 `**Host**`,
-                `<@${hostId}>`,
+                resolveUserLabel(message, hostId),
                 "",
                 "**Invited Users**",
                 ...(members.length
-                  ? members.map((id, i) => `${i + 1}. <@${id}>`)
+                  ? members.map((id, i) => `${i + 1}. ${resolveUserLabel(message, id)}`)
                   : ["None"]),
                 "",
                 "**Joined Battle**",
                 ...(guestParticipants.length
                   ? guestParticipants.map(
                       (p, i) =>
-                        `${i + 1}. <@${p.userId}> • ${ensureArray(
+                        `${i + 1}. ${resolveUserLabel(message, p.userId)} • ${ensureArray(
                           p.selectedCards
                         )
                           .map((c) => c.name || c.code)
@@ -101,10 +113,10 @@ module.exports = {
       embeds: [
         new EmbedBuilder()
           .setColor(0x5865f2)
-          .setTitle("Saved Raid Team")
+          .setTitle(`Saved Raid Team ${members.length}/9`)
           .setDescription(
             members.length
-              ? members.map((id, i) => `${i + 1}. <@${id}>`).join("\n")
+              ? members.map((id, i) => `${i + 1}. ${resolveUserLabel(message, id)}`).join("\n")
               : "No saved raid team members."
           ),
       ],
