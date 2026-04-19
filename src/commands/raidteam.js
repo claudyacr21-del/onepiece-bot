@@ -22,16 +22,35 @@ function isAdmin(userId) {
   return getAdminIds().includes(String(userId));
 }
 
-function resolveUserLabel(message, userId) {
-  const member =
-    message.guild?.members?.cache?.get(String(userId)) || null;
+async function resolveUserLabel(message, userId) {
+  const id = String(userId);
 
-  if (member) {
-    return member.displayName || member.user?.username || String(userId);
-  }
+  try {
+    const cachedMember = message.guild?.members?.cache?.get(id);
+    if (cachedMember) {
+      return cachedMember.displayName || cachedMember.user?.username || id;
+    }
 
-  const user = message.client?.users?.cache?.get(String(userId)) || null;
-  return user?.username || String(userId);
+    const fetchedMember = message.guild
+      ? await message.guild.members.fetch(id).catch(() => null)
+      : null;
+
+    if (fetchedMember) {
+      return fetchedMember.displayName || fetchedMember.user?.username || id;
+    }
+
+    const cachedUser = message.client?.users?.cache?.get(id);
+    if (cachedUser) {
+      return cachedUser.username || id;
+    }
+
+    const fetchedUser = await message.client.users.fetch(id).catch(() => null);
+    if (fetchedUser) {
+      return fetchedUser.username || id;
+    }
+  } catch (_) {}
+
+  return id;
 }
 
 module.exports = {
@@ -59,6 +78,20 @@ module.exports = {
         Number(activeRoom.maxParticipants || 0) - 1
       );
 
+      const hostLabel = await resolveUserLabel(message, hostId);
+      const invitedLines = await Promise.all(
+        members.map(async (id, i) => `${i + 1}. ${await resolveUserLabel(message, id)}`)
+      );
+      const joinedLines = await Promise.all(
+        guestParticipants.map(async (p, i) => {
+          const label = await resolveUserLabel(message, p.userId);
+          const cards = ensureArray(p.selectedCards)
+            .map((c) => c.name || c.code)
+            .join(", ");
+          return `${i + 1}. ${label} • ${cards}`;
+        })
+      );
+
       return message.reply({
         embeds: [
           new EmbedBuilder()
@@ -74,24 +107,13 @@ module.exports = {
                 `**Invited Users:** ${members.length}`,
                 "",
                 `**Host**`,
-                resolveUserLabel(message, hostId),
+                hostLabel,
                 "",
                 "**Invited Users**",
-                ...(members.length
-                  ? members.map((id, i) => `${i + 1}. ${resolveUserLabel(message, id)}`)
-                  : ["None"]),
+                ...(invitedLines.length ? invitedLines : ["None"]),
                 "",
                 "**Joined Battle**",
-                ...(guestParticipants.length
-                  ? guestParticipants.map(
-                      (p, i) =>
-                        `${i + 1}. ${resolveUserLabel(message, p.userId)} • ${ensureArray(
-                          p.selectedCards
-                        )
-                          .map((c) => c.name || c.code)
-                          .join(", ")}`
-                    )
-                  : ["None"]),
+                ...(joinedLines.length ? joinedLines : ["None"]),
               ].join("\n")
             ),
         ],
@@ -108,6 +130,9 @@ module.exports = {
     }
 
     const members = ensureArray(players[hostId]?.raidTeam?.members);
+    const memberLines = await Promise.all(
+      members.map(async (id, i) => `${i + 1}. ${await resolveUserLabel(message, id)}`)
+    );
 
     return message.reply({
       embeds: [
@@ -115,9 +140,7 @@ module.exports = {
           .setColor(0x5865f2)
           .setTitle(`Saved Raid Team ${members.length}/9`)
           .setDescription(
-            members.length
-              ? members.map((id, i) => `${i + 1}. ${resolveUserLabel(message, id)}`).join("\n")
-              : "No saved raid team members."
+            memberLines.length ? memberLines.join("\n") : "No saved raid team members."
           ),
       ],
     });
