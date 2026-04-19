@@ -5,7 +5,7 @@ module.exports = [
     rarity: "UR",
     owners: ["imu"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 21, hp: 12, speed: 8 },
+    statBonus: { atk: 24, hp: 12, speed: 10 },
     image: "",
     description: "An unknown and terrifying devil fruit tied to the deepest secrets of the world."
   },
@@ -15,7 +15,7 @@ module.exports = [
   rarity: "UR",
   owners: ["loki"],
   type: "Mythical Zoan Fruit",
-  statBonus: { atk: 22, hp: 10, speed: 5 },
+  statBonus: { atk: 23, hp: 12, speed: 8 },
   image: "",
   description: "A mythical dragon fruit tied to the legendary Nidhöggr."
 },
@@ -105,7 +105,7 @@ module.exports = [
     rarity: "UR",
     owners: ["whitebeard_strongest_man", "blackbeard_emperor_of_darkness"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 22, hp: 11, speed: 3 },
+    statBonus: { atk: 20, hp: 13, speed: 7 },
     image: "",
     description: "Creates world-shaking quakes powerful enough to destroy seas and islands."
   },
@@ -155,7 +155,7 @@ module.exports = [
     rarity: "UR",
     owners: ["warcury"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 17, hp: 12, speed: 3 },
+    statBonus: { atk: 22, hp: 15, speed: 8 },
     image: "",
     description: "A monstrous mythical zoan tied to overwhelming durability and dominance."
   },
@@ -165,7 +165,7 @@ module.exports = [
     rarity: "UR",
     owners: ["luffy_straw_hat"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 22, hp: 9, speed: 10 },
+    statBonus: { atk: 23, hp: 13, speed: 10 },
     image: "",
     description: "The fruit of liberation, granting ridiculous freedom and power."
   },
@@ -215,7 +215,7 @@ module.exports = [
     rarity: "UR",
     owners: ["akainu"],
     type: "Logia Fruit",
-    statBonus: { atk: 21, hp: 6, speed: 3 },
+    statBonus: { atk: 21, hp: 9, speed: 7 },
     image: "",
     description: "The supreme magma fruit with overwhelming destructive power."
   },
@@ -285,7 +285,7 @@ module.exports = [
     rarity: "UR",
     owners: ["ju_peter"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 16, hp: 12, speed: 3 },
+    statBonus: { atk: 22, hp: 15, speed: 7 },
     image: "",
     description: "A terrifying mythical zoan tied to a giant devouring sandworm."
   },
@@ -325,7 +325,7 @@ module.exports = [
     rarity: "UR",
     owners: ["vegapunk_stella"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 10, hp: 8, speed: 6 },
+    statBonus: { atk: 19, hp: 12, speed: 8 },
     image: "",
     description: "The brain fruit that stores limitless knowledge."
   },
@@ -395,7 +395,7 @@ module.exports = [
     rarity: "UR",
     owners: ["big_mom_emperor"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 18, hp: 10, speed: 2 },
+    statBonus: { atk: 23, hp: 15, speed: 7 },
     image: "",
     description: "Controls souls and creates fearsome living homies."
   },
@@ -445,7 +445,7 @@ module.exports = [
     rarity: "UR",
     owners: ["mars"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 17, hp: 10, speed: 5 },
+    statBonus: { atk: 21, hp: 12, speed: 8 },
     image: "",
     description: "A mythical bird fruit tied to a monstrous yokai form."
   },
@@ -465,7 +465,7 @@ module.exports = [
   rarity: "UR",
   owners: ["kaido_strongest_creature"],
   type: "Mythical Zoan Fruit",
-  statBonus: { atk: 18, hp: 12, speed: 4 },
+  statBonus: { atk: 22, hp: 17, speed: 7 },
   image: "",
   description: "A mythical zoan that transforms the user into an immense azure dragon with overwhelming destructive power."
   },
@@ -485,7 +485,7 @@ module.exports = [
     rarity: "UR",
     owners: ["nusjuro"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 18, hp: 8, speed: 6 },
+    statBonus: { atk: 21, hp: 10, speed: 8 },
     image: "",
     description: "A terrifying mythical horse fruit linked to a skeletal yokai."
   },
@@ -495,7 +495,7 @@ module.exports = [
     rarity: "UR",
     owners: ["dragon_revolutionary_leader"],
     type: "Logia Fruit",
-    statBonus: { atk: 18, hp: 10, speed: 6 },
+    statBonus: { atk: 21, hp: 12, speed: 9 },
     image: "",
     description: "A Logia-type Devil fruit that allows the user to manipulate, create, and transform into storms freely."
   },
@@ -515,7 +515,7 @@ module.exports = [
     rarity: "UR",
     owners: ["saturn"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 17, hp: 12, speed: 3 },
+    statBonus: { atk: 22, hp: 16, speed: 7 },
     image: "",
     description: "A monstrous ox-spider mythical zoan with horrifying presence."
   },
@@ -535,7 +535,7 @@ module.exports = [
     rarity: "UR",
     owners: ["blackbeard_emperor_of_darkness"],
     type: "Logia Fruit",
-    statBonus: { atk: 19, hp: 8, speed: 2 },
+    statBonus: { atk: 23, hp: 10, speed: 8 },
     image: "",
     description: "Controls darkness and nullifies other devil fruit powers."
   },
