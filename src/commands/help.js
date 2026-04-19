@@ -113,7 +113,7 @@ module.exports = {
             "The same character code cannot be used twice in the same party room",
           ].join("\n")
         )
-        .setFooter({ text: "One Piece Bot • Raid / Party" })
+        .setFooter({ text: "One Piece Bot • Raid / Party" }),
 
       new EmbedBuilder()
         .setColor(0x5865f2)
