@@ -2,7 +2,10 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 
 function getProfileImage(message) {
-  return message.author.displayAvatarURL({ extension: "png", size: 512 });
+  return (
+    message.member?.displayAvatarURL?.({ extension: "png", size: 512 }) ||
+    message.author.displayAvatarURL({ extension: "png", size: 512 })
+  );
 }
 
 module.exports = {

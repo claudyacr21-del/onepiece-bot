@@ -67,7 +67,10 @@ function buildPageEmbed(message, player, fragments, currentPage, isPrivate, sear
         `Visibility Mode: ${isPrivate ? "Private" : "Public"}`,
       ].join("\n")
     )
-    .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
+    .setThumbnail(
+      message.member?.displayAvatarURL({ extension: "png", size: 512 }) ||
+      message.author.displayAvatarURL({ extension: "png", size: 512 })
+    )
     .setFooter({ text: `Page ${safePage + 1}/${totalPages} • ${sorted.length} fragment entries` });
 
   return { embed, totalPages, safePage };

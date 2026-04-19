@@ -16,7 +16,10 @@ function countTotalAmount(list) {
 }
 
 function getProfileImage(message) {
-  return message.author.displayAvatarURL({ extension: "png", size: 512 });
+  return (
+    message.member?.displayAvatarURL?.({ extension: "png", size: 512 }) ||
+    message.author.displayAvatarURL({ extension: "png", size: 512 })
+  );
 }
 
 function getTeamUnits(player) {
