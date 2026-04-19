@@ -37,26 +37,45 @@ module.exports = {
       const members = ensureArray(activeRoom.whitelist);
       const participants = ensureArray(activeRoom.participants);
 
+      const hostId = String(activeRoom.hostId);
+      const guestParticipants = participants.filter(
+        (p) => String(p.userId) !== hostId
+      );
+
+      const maxGuestSlots = Math.max(
+        0,
+        Number(activeRoom.maxParticipants || 0) - 1
+      );
+
       return message.reply({
         embeds: [
           new EmbedBuilder()
             .setColor(0x5865f2)
-            .setTitle(`Active ${activeRoom.mode === "raid" ? "Raid" : "Party Boss"} Team`)
+            .setTitle(
+              `Active ${activeRoom.mode === "raid" ? "Raid" : "Party Boss"} Team`
+            )
             .setDescription(
               [
                 `**Boss:** ${activeRoom.bossName}`,
                 `**Room ID:** ${activeRoom.roomId}`,
                 `**Status:** ${activeRoom.status}`,
-                `**Max Participants:** ${activeRoom.maxParticipants}`,
+                `**Joined Guests:** ${guestParticipants.length}/${maxGuestSlots}`,
+                "",
+                `**Host**`,
+                `<@${hostId}>`,
                 "",
                 "**Invited Users**",
-                ...(members.length ? members.map((id, i) => `${i + 1}. <@${id}>`) : ["None"]),
+                ...(members.length
+                  ? members.map((id, i) => `${i + 1}. <@${id}>`)
+                  : ["None"]),
                 "",
                 "**Joined Battle**",
-                ...(participants.length
-                  ? participants.map(
+                ...(guestParticipants.length
+                  ? guestParticipants.map(
                       (p, i) =>
-                        `${i + 1}. <@${p.userId}> • ${ensureArray(p.selectedCards)
+                        `${i + 1}. <@${p.userId}> • ${ensureArray(
+                          p.selectedCards
+                        )
                           .map((c) => c.name || c.code)
                           .join(", ")}`
                     )
@@ -71,7 +90,9 @@ module.exports = {
     const hostId = String(message.author.id);
 
     if (!players[hostId]) {
-      return message.reply("Your player data was not found. Run a normal game command first.");
+      return message.reply(
+        "Your player data was not found. Run a normal game command first."
+      );
     }
 
     const members = ensureArray(players[hostId]?.raidTeam?.members);
