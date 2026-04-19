@@ -152,9 +152,10 @@ function getBoostStageValue(card, stage) {
 
 function getBoostEffectText(card, stage = Number(card.evolutionStage || 1)) {
   if (card.cardRole !== "boost") return "";
-  const target = card.boostTarget || "team";
+
+  const target = String(card.boostTarget || "team").toLowerCase();
   const value = getBoostStageValue(card, stage);
-  const type = String(card.boostType || "").toLowerCase();
+  const type = String(card.boostType || "").trim().toLowerCase();
 
   const labels = {
     atk: `Increase ${target} ATK by ${value}%`,
@@ -162,9 +163,9 @@ function getBoostEffectText(card, stage = Number(card.evolutionStage || 1)) {
     spd: `Increase ${target} SPD by ${value}%`,
     dmg: `Increase ${target} damage by ${value}%`,
     exp: `Increase ${target} EXP gain by ${value}%`,
-    daily: `Increase daily reward quality by ${value}`,
-    fragmentStorage: `Increase fragment storage by ${value}`,
-    pullChance: `Increase pull chance by ${value}`,
+    daily: `Increase daily reward quality by ${value} tier${value > 1 ? "s" : ""}`,
+    fragmentstorage: `Increase fragment storage cap by ${value}`,
+    pullchance: `Increase pull chance by ${value}`,
   };
 
   return labels[type] || `Boost effect: ${type || "unknown"} ${value}`;
