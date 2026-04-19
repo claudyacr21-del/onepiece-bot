@@ -32,7 +32,7 @@ module.exports = {
             "Arena is available for ranked random battles and direct test matches.",
           ].join("\n")
         )
-        .setFooter({ text: "One Piece Bot • 1/4" }),
+        .setFooter({ text: "One Piece Bot • 1/5" }),
 
       new EmbedBuilder()
         .setColor(0x5865f2)
@@ -58,7 +58,7 @@ module.exports = {
             "clear rewards are claimed from the daily quest board state",
           ].join("\n")
         )
-        .setFooter({ text: "One Piece Bot • 2/4" }),
+        .setFooter({ text: "One Piece Bot • 2/5" }),
 
       new EmbedBuilder()
         .setColor(0x5865f2)
@@ -84,7 +84,7 @@ module.exports = {
             "`op challenge` is test only and gives no points",
           ].join("\n")
         )
-        .setFooter({ text: "One Piece Bot • 3/4" }),
+        .setFooter({ text: "One Piece Bot • 3/5" }),
       
       new EmbedBuilder()
         .setColor(0x5865f2)
@@ -113,7 +113,7 @@ module.exports = {
             "The same character code cannot be used twice in the same party room",
           ].join("\n")
         )
-        .setFooter({ text: "One Piece Bot • Raid / Party" }),
+        .setFooter({ text: "One Piece Bot • 4/5" }),
 
       new EmbedBuilder()
         .setColor(0x5865f2)
@@ -153,7 +153,7 @@ module.exports = {
             "Tickets are untradeable",
           ].join("\n")
         )
-        .setFooter({ text: "One Piece Bot • 4/4" }),
+        .setFooter({ text: "One Piece Bot • 5/5" }),
     ];
 
     return message.reply({ embeds });
