@@ -22,31 +22,31 @@ function isAdmin(userId) {
   return getAdminIds().includes(String(userId));
 }
 
-async function resolveUserLabel(message, userId) {
+async function resolveUsername(message, userId) {
   const id = String(userId);
 
   try {
     const cachedMember = message.guild?.members?.cache?.get(id);
-    if (cachedMember) {
-      return cachedMember.displayName || cachedMember.user?.username || id;
+    if (cachedMember?.user?.username) {
+      return cachedMember.user.username;
     }
 
     const fetchedMember = message.guild
       ? await message.guild.members.fetch(id).catch(() => null)
       : null;
 
-    if (fetchedMember) {
-      return fetchedMember.displayName || fetchedMember.user?.username || id;
+    if (fetchedMember?.user?.username) {
+      return fetchedMember.user.username;
     }
 
     const cachedUser = message.client?.users?.cache?.get(id);
-    if (cachedUser) {
-      return cachedUser.username || id;
+    if (cachedUser?.username) {
+      return cachedUser.username;
     }
 
     const fetchedUser = await message.client.users.fetch(id).catch(() => null);
-    if (fetchedUser) {
-      return fetchedUser.username || id;
+    if (fetchedUser?.username) {
+      return fetchedUser.username;
     }
   } catch (_) {}
 
@@ -78,17 +78,17 @@ module.exports = {
         Number(activeRoom.maxParticipants || 0) - 1
       );
 
-      const hostLabel = await resolveUserLabel(message, hostId);
+      const hostUsername = await resolveUsername(message, hostId);
       const invitedLines = await Promise.all(
-        members.map(async (id, i) => `${i + 1}. ${await resolveUserLabel(message, id)}`)
+        members.map(async (id, i) => `${i + 1}. ${await resolveUsername(message, id)}`)
       );
       const joinedLines = await Promise.all(
         guestParticipants.map(async (p, i) => {
-          const label = await resolveUserLabel(message, p.userId);
+          const username = await resolveUsername(message, p.userId);
           const cards = ensureArray(p.selectedCards)
             .map((c) => c.name || c.code)
             .join(", ");
-          return `${i + 1}. ${label} • ${cards}`;
+          return `${i + 1}. ${username} • ${cards}`;
         })
       );
 
@@ -107,7 +107,7 @@ module.exports = {
                 `**Invited Users:** ${members.length}`,
                 "",
                 `**Host**`,
-                hostLabel,
+                hostUsername,
                 "",
                 "**Invited Users**",
                 ...(invitedLines.length ? invitedLines : ["None"]),
@@ -131,7 +131,7 @@ module.exports = {
 
     const members = ensureArray(players[hostId]?.raidTeam?.members);
     const memberLines = await Promise.all(
-      members.map(async (id, i) => `${i + 1}. ${await resolveUserLabel(message, id)}`)
+      members.map(async (id, i) => `${i + 1}. ${await resolveUsername(message, id)}`)
     );
 
     return message.reply({
