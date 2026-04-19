@@ -8,13 +8,19 @@ module.exports = {
     const embeds = [
       new EmbedBuilder()
         .setColor(0x5865f2)
-        .setTitle("🏴‍☠️ How To OPB")
+        .setTitle("☠️ How To OPB")
         .setDescription(
           [
-            "To start, build your team, pull cards, strengthen them, then progress through islands and battles.",
+            "Start by building your team, pulling cards, strengthening them, then progressing through islands and battles.",
             "",
             "Battle cards use **M1 / M2 / M3** progression.",
-            "Boost cards also use **M1 / M2 / M3** and their effects get stronger every stage.",
+            "Boost cards also use **M1 / M2 / M3** and their passive effects get stronger every stage.",
+            "",
+            "Base rarity caps:",
+            "`C` → `A`",
+            "`B` → `S`",
+            "`A` → `SS`",
+            "`S` → `UR`",
             "",
             "Some swordsmen can equip multiple weapons:",
             "• Zoro = 3 swords",
@@ -35,15 +41,9 @@ module.exports = {
         .setDescription(
           [
             "## Card Progression",
-            "`op ci <card name>` = global card info",
-            "`op mci <card name>` = your current owned card info",
-            "`op awaken <card name>` = awaken your owned card",
-            "",
-            "Base rarity caps:",
-            "`C` → `A`",
-            "`B` → `S`",
-            "`A` → `SS`",
-            "`S` → `UR`",
+            "`op ci <card>` = global card info viewer",
+            "`op mci <card>` = your owned current card info",
+            "`op awaken <card>` = awaken your owned card",
             "",
             "## Pull System",
             "`op pull` = single synced pull",
@@ -52,10 +52,11 @@ module.exports = {
             "`op effect` = check synced current effects",
             "",
             "## Quests",
+            "`op daily` = claim daily reward",
+            "`op quest` = open your current daily quest board",
             "5 daily random quests",
             "quest categories do not repeat on the same day",
             "clear rewards are claimed from the daily quest board state",
-            "use `op quest` to open and refresh your current daily quest board",
           ].join("\n")
         )
         .setFooter({ text: "One Piece Bot • 2/4" }),
@@ -88,15 +89,15 @@ module.exports = {
 
       new EmbedBuilder()
         .setColor(0x5865f2)
-        .setTitle("🧭 Main Commands")
+        .setTitle("📜 Main Commands")
         .setDescription(
           [
             "## Collection",
             "`op mc` → view your cards",
-            "`op mc text` → text list of cards + boosts",
-            "`op mc boost` → view your boost cards",
-            "`op ci <card name>` → global card viewer",
-            "`op mci <card name>` → owned current card viewer",
+            "`op mc text` → text list of cards + boosts, 10 per page with Prev / Next",
+            "`op mc boost` → view your boost cards only",
+            "`op ci <card>` → global card viewer",
+            "`op mci <card>` → owned current card viewer",
             "`op all` → all battle cards",
             "`op all boost` → all boost cards",
             "`op all weapon` → all weapons",
@@ -106,20 +107,18 @@ module.exports = {
             "`op profile` → check your profile",
             "",
             "## Equipment",
-            "`op wp <weapon name> <card name>`",
-            "`op wupgrade <weapon name>`",
-            "`op equipfruit <fruit name> <card name>`",
+            "`op wp <card>` → view equipped weapon / weapon set info",
+            "`op wupgrade <weapon name>` → upgrade a weapon with Enhancement Stone",
+            "`op equipfruit <card> <fruit>` → equip a Devil Fruit to a valid card",
             "",
             "## Progression / Travel",
-            "`op daily`",
-            "`op quest`",
-            "`op market`",
-            "`op market buy <item>`",
-            "`op ship`",
-            "`op ship upgrade`",
-            "`op sail`",
+            "`op market` → open the market",
+            "`op market buy <item>` → buy an item from the market",
+            "`op ship` → view your ship",
+            "`op ship upgrade` → upgrade your current ship",
+            "`op sail` → sail to the next sea route if requirements are met",
             "`op travel` → view unlocked islands and route",
-            "`op travel <island name>` → move to an unlocked island",
+            "`op travel <island>` → move to an unlocked island",
             "",
             "## Trade",
             "`op trade @mention (your offer) (their offer)`",
