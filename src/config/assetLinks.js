@@ -63,7 +63,22 @@ const CARD_IMAGES = {
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1495330140413231135/content.png?ex=69e5da37&is=69e488b7&hm=ebfce96292e552c3cac36adfbc7def2beb254458ceeef77898e1161284cfb8bb&",
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1495330140857696417/content.png?ex=69e5da37&is=69e488b7&hm=b1a25092e4f82b9ace7d5982f8deefd701dd7ff37c241069f36797acf7011fdf&",
   },
-  //jango_hypnotist: {
+  jango_hypnotist: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1495356775598395432/content.png?ex=69e5f305&is=69e4a185&hm=79c5bc87bc1da76c615d3e6e895d659cef3e4d21873dfebe3c2b8e21b21ec4da&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1495356776000913539/content.png?ex=69e5f305&is=69e4a185&hm=f04a01e4547906dde95696e2a8f0c45e857c760403b11be84e396b4e8f859f27&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1495356776369881228/content.png?ex=69e5f305&is=69e4a185&hm=12b17bcf7f4989f151722cc3d8d760459e9b11cb2ab7dc1717c3eb7100607f59&",
+  },
+  don_krieg_admiral: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1495366297754796194/content.png?ex=69e5fbe3&is=69e4aa63&hm=2cbe7845ff6aae389e2b138f562e190c938c05e54ae3ef020adcf9443eba2378&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1495366298283282472/content.png?ex=69e5fbe4&is=69e4aa64&hm=d74358d81530080b88b53629c9573db55d2b941b86ec80bfd5dfb1bc65d19d38&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1495366298841120768/content.png?ex=69e5fbe4&is=69e4aa64&hm=f7534198f8fa1d8c900429b23e47973c01294964537bf05bad4c70665e142a7a&",
+  },
+  gin_man_demon: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1495382302476337262/content.png?ex=69e60acb&is=69e4b94b&hm=2059e4dd91ffce0830da4f377643ea6547e31b974835490e2ac6bdc029ef8c7e&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1495382303218864178/content.png?ex=69e60acb&is=69e4b94b&hm=d60cfa713f0697406abcedda9d75264b947e1059c40f8bfc3cd097b5fa3db9b4&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1495382303726108782/content.png?ex=69e60acc&is=69e4b94c&hm=12d9123b9df3ba90aa785c07671803a7a8e24cedca854521931655d8aabf9967",
+  }
+  //arlong_saw: {
     //M1: "",
     //M2: "",
     //M3: "",
