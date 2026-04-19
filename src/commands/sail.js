@@ -7,106 +7,112 @@ const BASE_TRAVEL_COOLDOWN_MS = 60 * 60 * 1000;
 
 function formatRemaining(ms) {
   if (ms <= 0) return "Now";
+
   const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
+
   if (hours > 0) return `${hours}h ${minutes}m`;
   if (minutes > 0) return `${minutes}m`;
   return "Now";
 }
 
-function getShipState(player) {
-  const stored = player?.ship || {};
-  const shipData = getShipByCode(stored.shipCode || "small_boat");
-
+function ensureTravelState(player) {
   return {
-    code: shipData.code,
-    name: stored.name || shipData.name,
-    tier: Number(stored.tier || shipData.tier || 1),
-    sea: stored.sea || shipData.sea || "East Blue",
-    hpBonus: Number(shipData.hpBonus || 0),
-    rewardBonus: Number(shipData.rewardBonus || 0),
-    travelCooldownReduction: Number(shipData.travelCooldownReduction || 0),
-    nextTravelAt: Number(stored.nextTravelAt || 0),
-    unlockedIslands:
-      Array.isArray(stored.unlockedIslands) && stored.unlockedIslands.length
-        ? stored.unlockedIslands
-        : ["foosha_village"],
-    currentPort: stored.currentPort || player?.currentIsland || "Foosha Village",
-    image: shipData.image || "",
+    unlockedIslands: Array.isArray(player?.travel?.unlockedIslands)
+      ? player.travel.unlockedIslands
+      : ["foosha_village"],
+    currentIslandCode:
+      player?.travel?.currentIslandCode ||
+      player?.currentIslandCode ||
+      "foosha_village",
+    cooldownUntil: Number(player?.travel?.cooldownUntil || 0),
   };
 }
 
-function getTravelCooldownMs(ship) {
-  const reducedMinutes = Math.max(0, Number(ship.travelCooldownReduction || 0));
-  return Math.max(5 * 60 * 1000, BASE_TRAVEL_COOLDOWN_MS - reducedMinutes * 60 * 1000);
+function isPhasedIsland(island) {
+  return Array.isArray(island?.bossPhases) && island.bossPhases.length > 0;
+}
+
+function isIslandBossRouteCleared(player, island) {
+  const clearedBosses = Array.isArray(player?.story?.clearedIslandBosses)
+    ? player.story.clearedIslandBosses
+    : [];
+
+  if (!isPhasedIsland(island)) {
+    return clearedBosses.includes(island.code);
+  }
+
+  const phaseState = player?.story?.bossPhases?.[island.code];
+  return Boolean(phaseState?.phase1Cleared && phaseState?.phase2Cleared);
 }
 
 module.exports = {
   name: "sail",
-  aliases: ["nextisland"],
+  aliases: [],
+
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-    const currentIsland = getCurrentIsland(player);
-    const nextIsland = getNextIsland(currentIsland);
-    const ship = getShipState(player);
-    const now = Date.now();
-    const clearedBosses = Array.isArray(player?.story?.clearedIslandBosses)
-      ? player.story.clearedIslandBosses
-      : [];
+    const travel = ensureTravelState(player);
+
+    const currentIsland = getCurrentIsland({
+      ...player,
+      travel,
+      currentIslandCode: travel.currentIslandCode,
+    });
+
+    const nextIsland = getNextIsland(currentIsland?.code);
+
+    if (!currentIsland) {
+      return message.reply("Current island not found.");
+    }
 
     if (!nextIsland) {
-      return message.reply("There is no next island available from your current route.");
+      return message.reply("There is no further island to sail to right now.");
     }
 
-    if (!clearedBosses.includes(currentIsland.code)) {
+    if (!isIslandBossRouteCleared(player, currentIsland)) {
       return message.reply(
-        [
-          `You must defeat the boss of **${currentIsland.name}** first before sailing to **${nextIsland.name}**.`,
-          "Use `op boss`.",
-        ].join("\n")
+        `You must clear the boss route of \`${currentIsland.name}\` before sailing onward.`
       );
     }
 
-    if (ship.nextTravelAt > now) {
+    const ship = getShipByCode(player?.ship?.code || "small_boat");
+    const shipTier = Number(player?.ship?.tier || ship?.tier || 1);
+    const requiredShipTier = Number(nextIsland.requiredShipTier || 1);
+
+    if (shipTier < requiredShipTier) {
       return message.reply(
-        `Your ship is not ready yet.\nNext travel: ${formatRemaining(ship.nextTravelAt - now)}`
+        `Your ship is not strong enough.\nCurrent Ship Tier: \`${shipTier}\`\nRequired Ship Tier for \`${nextIsland.name}\`: \`${requiredShipTier}\``
       );
     }
 
-    if (ship.tier < Number(nextIsland.requiredShipTier || 1)) {
+    if (travel.cooldownUntil > Date.now()) {
       return message.reply(
-        [
-          `Your ship is too weak to sail to **${nextIsland.name}**.`,
-          `Required Ship Tier: **${nextIsland.requiredShipTier}**`,
-          `Current Ship Tier: **${ship.tier}**`,
-          "Use `op ship` and `op ship upgrade` first.",
-        ].join("\n")
+        `You are still sailing.\nTravel cooldown remaining: **${formatRemaining(
+          travel.cooldownUntil - Date.now()
+        )}**`
       );
     }
 
-    const unlockedIslands = Array.isArray(ship.unlockedIslands)
-      ? [...ship.unlockedIslands]
+    const unlocked = Array.isArray(travel.unlockedIslands)
+      ? [...travel.unlockedIslands]
       : ["foosha_village"];
 
-    if (!unlockedIslands.includes(nextIsland.code)) {
-      unlockedIslands.push(nextIsland.code);
+    if (!unlocked.includes(nextIsland.code)) {
+      unlocked.push(nextIsland.code);
     }
 
-    const cooldownMs = getTravelCooldownMs(ship);
+    const nextTravel = {
+      ...travel,
+      unlockedIslands: unlocked,
+      currentIslandCode: nextIsland.code,
+      cooldownUntil: Date.now() + BASE_TRAVEL_COOLDOWN_MS,
+    };
 
     updatePlayer(message.author.id, {
-      currentIsland: nextIsland.name,
-      ship: {
-        ...(player.ship || {}),
-        shipCode: ship.code,
-        name: ship.name,
-        tier: ship.tier,
-        sea: nextIsland.sea,
-        nextTravelAt: now + cooldownMs,
-        unlockedIslands,
-        currentPort: nextIsland.name,
-      },
+      travel: nextTravel,
+      currentIslandCode: nextIsland.code,
     });
 
     return message.reply({
@@ -116,24 +122,18 @@ module.exports = {
           .setTitle("⛵ Sailing Complete")
           .setDescription(
             [
-              `**Departed From:** ${currentIsland.name}`,
-              `**Arrived At:** ${nextIsland.name}`,
+              `**From:** \`${currentIsland.name}\``,
+              `**To:** \`${nextIsland.name}\``,
+              `**Sea:** \`${nextIsland.sea || "Unknown"}\``,
+              `**Saga:** \`${nextIsland.saga || "Unknown"}\``,
+              `**Ship Tier Used:** \`${shipTier}\``,
               "",
-              `**Sea:** ${nextIsland.sea}`,
-              `**Saga:** ${nextIsland.saga || "Unknown"}`,
-              `**Boss Route:** ${nextIsland.boss || "None"}`,
-              `**Ship:** ${ship.name}`,
-              `**Ship Tier:** ${ship.tier}`,
-              `**Reward Bonus:** +${ship.rewardBonus}%`,
-              `**Travel Cooldown Reduction:** ${ship.travelCooldownReduction} minute(s)`,
-              "",
-              "You may now use `op travel`, `op fight`, and `op boss` on this island.",
-              `**Next Travel:** ${formatRemaining(cooldownMs)}`,
+              `You have unlocked and arrived at **${nextIsland.name}**.`,
+              `Next travel cooldown: **${formatRemaining(BASE_TRAVEL_COOLDOWN_MS)}**`,
             ].join("\n")
           )
-          .setThumbnail(ship.image || null)
           .setImage(nextIsland.image || null)
-          .setFooter({ text: `${ship.name} • Tier ${ship.tier}` }),
+          .setFooter({ text: "One Piece Bot • Sail" }),
       ],
     });
   },

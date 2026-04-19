@@ -628,5 +628,15 @@ module.exports = [
     statBonus: { atk: 25, hp: 1, speed: 3 },
     image: "",
     description: "The strongest black blade in the world."
+  },
+  {
+    code: "trident",
+    name: "Trident",
+    rarity: "A",
+    owners: ["hody_jones"],
+    type: "Trident",
+    statBonus: { atk: 12, hp: 6, speed: 2 },
+    image: "",
+    description: "A brutal trident used by Hody Jones in close-range domination and piercing attacks."
   }
 ];

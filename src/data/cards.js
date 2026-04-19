@@ -201,7 +201,8 @@ const EXTRA_CHARACTER_CARDS = [
   battleCard({ id: 158, code: "mr3", name: "Galdino", title: "Mr. 3", rarity: "B", arc: "Little Garden", faction: "Baroque Works", variant: "Wax Sculptor", type: "Control", atk: 96, hp: 700, speed: 68, weapon: "Wax Blade", devilFruit: "Doru Doru no Mi", equipType: "Devil Fruit", image: "" }),
   battleCard({ id: 159, code: "wapol", name: "Wapol", title: "Bliking King", rarity: "B", arc: "Drum Island", faction: "Drum Kingdom", variant: "Metal Mouth", type: "Bruiser", atk: 98, hp: 820, speed: 56, weapon: "Cannon Jaw", devilFruit: "Baku Baku no Mi", equipType: "Devil Fruit", image: "" }),
   battleCard({ id: 160, code: "caesar_clown", name: "Caesar Clown", title: "Master of Gas", rarity: "A", arc: "Punk Hazard", faction: "Independent", variant: "Gas Weapon", type: "Control", atk: 144, hp: 920, speed: 78, weapon: "Chemical Staff", devilFruit: "Gasu Gasu no Mi", equipType: "Devil Fruit", image: "" }),
-  battleCard({ id: 161, code: "gunko_holy_knight", name: "Manmayer Gunko", title: "Holy Knight", rarity: "S", arc: "Elbaf", faction: "Holy Knights", variant: "Arrow Executioner", type: "Control", atk: 186, hp: 1180, speed: 94, weapon: "None", devilFruit: "Aro Aro no Mi", equipType: "Devil Fruit", image: "" })
+  battleCard({ id: 161, code: "gunko_holy_knight", name: "Manmayer Gunko", title: "Holy Knight", rarity: "S", arc: "Elbaf", faction: "Holy Knights", variant: "Arrow Executioner", type: "Control", atk: 186, hp: 1180, speed: 94, weapon: "None", devilFruit: "Aro Aro no Mi", equipType: "Devil Fruit", image: "" }),
+  battleCard({ id: 162, code: "hody_jones", name: "Hody Jones", title: "Captain of the New Fish-Man Pirates", rarity: "A", arc: "Fish-Man Island", faction: "New Fish-Man Pirates", variant: "Steroid Tyrant", type: "Bruiser", atk: 142, hp: 1080, speed: 58, weapon: "Trident", devilFruit: "None", equipType: "Weapon", image: "" })
 ];
 
 const SPECIAL_FORMS = {
@@ -214,11 +215,13 @@ const SPECIAL_FORMS = {
   helmeppo_spoiled_brat: ["Early Helmeppo", "Post-Enies Lobby", "Marine HQ"],
   buggy_the_clown: ["Early Buggy", "Alabasta Arc", "Impel Down Younkou"],
   kuro_hundred_plans: ["East Blue Saga", "Baratie Arc", "Long Ring Long Land Arc"],
-  jango_hypnotist: ["Syrup Village Arc", "Jango’s Dance Paradise", "Marine Phase (Hina Unit)"],
+  jango_hypnotist: ["Syrup Village Arc", "Jango Dance Paradise", "Marine Phase (Hina Unit)"],
   don_krieg_admiral: ["East Blue Saga", "Syrup Village Arc", "Baratie Arc"],
   gin_man_demon: ["East Blue Saga", "Arlong Park Arc", "Baratie Arc"],
   arlong_saw: ["East Blue Saga", "Arlong Park Arc", "Arlong Prime"],
-  //hatchan_six_sword_style: [""],
+  hatchan_six_sword_style: ["East Blue Saga", "Arlong Park Arc", "Fish-Man Island Arc"],
+  smoker_white_hunter: ["East Blue", "Baroque Works ", "New World"],
+  //tashigi_swordswoman: [""],
   crocodile_desert_king: ["Desert Tyrant", "Awakened Sand", "Underworld King"],
   nico_robin_devil_child: ["Archaeologist", "Demonio Fleur", "Ohara's Flame"],
   brook_soul_king: ["Soul Prelude", "Soul Parade", "Underworld Maestro"],
