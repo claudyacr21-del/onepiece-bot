@@ -200,7 +200,8 @@ const EXTRA_CHARACTER_CARDS = [
   battleCard({ id: 157, code: "saul", name: "Jaguar D. Saul", title: "Giant Marine", rarity: "A", arc: "Ohara", faction: "Marines", variant: "Giant Resolve", type: "Tank", atk: 150, hp: 1280, speed: 48, weapon: "Giant Fists", devilFruit: "None", equipType: "Weapon", image: "" }),
   battleCard({ id: 158, code: "mr3", name: "Galdino", title: "Mr. 3", rarity: "B", arc: "Little Garden", faction: "Baroque Works", variant: "Wax Sculptor", type: "Control", atk: 96, hp: 700, speed: 68, weapon: "Wax Blade", devilFruit: "Doru Doru no Mi", equipType: "Devil Fruit", image: "" }),
   battleCard({ id: 159, code: "wapol", name: "Wapol", title: "Bliking King", rarity: "B", arc: "Drum Island", faction: "Drum Kingdom", variant: "Metal Mouth", type: "Bruiser", atk: 98, hp: 820, speed: 56, weapon: "Cannon Jaw", devilFruit: "Baku Baku no Mi", equipType: "Devil Fruit", image: "" }),
-  battleCard({ id: 160, code: "caesar_clown", name: "Caesar Clown", title: "Master of Gas", rarity: "A", arc: "Punk Hazard", faction: "Independent", variant: "Gas Weapon", type: "Control", atk: 144, hp: 920, speed: 78, weapon: "Chemical Staff", devilFruit: "Gasu Gasu no Mi", equipType: "Devil Fruit", image: "" })
+  battleCard({ id: 160, code: "caesar_clown", name: "Caesar Clown", title: "Master of Gas", rarity: "A", arc: "Punk Hazard", faction: "Independent", variant: "Gas Weapon", type: "Control", atk: 144, hp: 920, speed: 78, weapon: "Chemical Staff", devilFruit: "Gasu Gasu no Mi", equipType: "Devil Fruit", image: "" }),
+  battleCard({ id: 161, code: "gunko_holy_knight", name: "Manmayer Gunko", title: "Holy Knight", rarity: "S", arc: "Elbaf", faction: "Holy Knights", variant: "Arrow Executioner", type: "Control", atk: 186, hp: 1180, speed: 94, weapon: "None", devilFruit: "Aro Aro no Mi", equipType: "Devil Fruit", image: "" })
 ];
 
 const SPECIAL_FORMS = {

@@ -568,5 +568,15 @@ module.exports = [
     statBonus: { atk: 13, hp: 7, speed: 3 },
     image: "",
     description: "Manipulates gravity to pin enemies and call meteors."
+  },
+  {
+  code: "aro_aro_no_mi",
+  name: "Aro Aro no Mi",
+  rarity: "UR",
+  owners: ["gunko_holy_knight"],
+  type: "Paramecia Fruit",
+  statBonus: { atk: 19, hp: 8, speed: 10 },
+  image: "",
+  description: "A paramecia fruit that lets the user create and manipulate arrow-like strips for offense, control, mobility, and restraint."
   }
 ];

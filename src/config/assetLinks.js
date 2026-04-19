@@ -57,12 +57,12 @@ const CARD_IMAGES = {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1495262922153398323/content.png?ex=69e59b9d&is=69e44a1d&hm=dcf85c00b2a8d4da07207ef61a178e0c6d23542175e8ee17c99efbc03266ca56&",
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1495262923122151556/content.png?ex=69e59b9d&is=69e44a1d&hm=3c37b3a66638e7f1b4d695484d5796d8fd24c272fcf321903d3c9b2cf7c90621&",
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1495262923860480150/content.png?ex=69e59b9d&is=69e44a1d&hm=12288f7bc6fa7b51466eea502bca683e537465fccf07172d91a24a0478a5cec2&",
-  }
-  //kuro_hundred_plans: {
-    //M1: "",
-    //M2: "",
-    //M3: "",
-  //},
+  },
+  kuro_hundred_plans: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1495330139855130725/content.png?ex=69e5da37&is=69e488b7&hm=1b63833af263b4173039355a7afaf72c8204819451a5f6ee0d3aed89b5e31b9a&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1495330140413231135/content.png?ex=69e5da37&is=69e488b7&hm=ebfce96292e552c3cac36adfbc7def2beb254458ceeef77898e1161284cfb8bb&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1495330140857696417/content.png?ex=69e5da37&is=69e488b7&hm=b1a25092e4f82b9ace7d5982f8deefd701dd7ff37c241069f36797acf7011fdf&",
+  },
   //jango_hypnotist: {
     //M1: "",
     //M2: "",
@@ -133,6 +133,7 @@ const DEVIL_FRUIT_IMAGES = {
   yomi_yomi_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1495024511446290433/Yomi_Yomi_no_Mi.png?ex=69e4bd93&is=69e36c13&hm=217275c6ad43a7d534cd4c10636e200105149cd7b085e1ec20e5f1e863cb137e&",
   zou_zou_no_mi_model_mammoth: "https://cdn.discordapp.com/attachments/1493204525975076944/1495024511848812575/Zou_Zou_no_Mi_Model_Mammoth.png?ex=69e4bd93&is=69e36c13&hm=e39c6b545ef7b673c59ec47fb61b6697ff26393f0d18317e3ee75ce683bc1827&",
   zushi_zushi_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1495024512276889630/Zushi_Zushi_no_Mi.png?ex=69e4bd93&is=69e36c13&hm=fdeae4b2a64b7c73ffa770fcb65570506ea1d24262ec9febafed808e0618708a&",
+  aro_aro_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1495336991309434881/content.png?ex=69e5e098&is=69e48f18&hm=24bcc663fb4ddd9a24ecd3a813c18f79593e2167f2480efe836936d6ab61087e",
 };
 
 const SHIP_IMAGES = {
