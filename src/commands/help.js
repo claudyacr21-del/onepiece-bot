@@ -25,7 +25,6 @@ module.exports = {
             "Some swordsmen can equip multiple weapons:",
             "• Zoro = 3 swords",
             "• Oden = 2 swords",
-            "• Hatchan stays fixed with Six Swords only",
             "",
             "Weapons and Devil Fruits stay equipped permanently once used.",
             "Weapons can also be upgraded with **Enhancement Stone**.",
@@ -86,6 +85,35 @@ module.exports = {
           ].join("\n")
         )
         .setFooter({ text: "One Piece Bot • 3/4" }),
+      
+      new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setTitle("🤝 Raid / Party")
+        .setDescription(
+          [
+            "## Raid",
+            "`op raid <boss>` → create a raid room using a Raid Ticket",
+            "Host uses 1 Raid Ticket immediately when the raid room is created",
+            "Raid supports up to 10 users total including the host",
+            "Each participant can join with only 1 battle card",
+            "The same character code cannot be used twice in the same raid room",
+            "",
+            "## Party Team",
+            "`op rtadd <@user|userId|username>` → add a user to your raid/party team",
+            "`op rtremove <@user|userId|username>` → remove a user from your raid/party team",
+            "`op rtdelete` → clear your entire raid/party team",
+            "`op rt` → show your saved team or active room team info",
+            "`op rm` → show who has not joined the active room yet",
+            "",
+            "## Party Boss Phase 2",
+            "Some story bosses use mandatory party phase 2",
+            "Party boss phase 2 does not consume Raid Tickets",
+            "Party boss supports up to 4 users total including the host",
+            "Each participant joins with their 3 current team battle cards",
+            "The same character code cannot be used twice in the same party room",
+          ].join("\n")
+        )
+        .setFooter({ text: "One Piece Bot • Raid / Party" })
 
       new EmbedBuilder()
         .setColor(0x5865f2)
