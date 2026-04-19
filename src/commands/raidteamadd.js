@@ -17,28 +17,97 @@ function ensureArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-function extractMentionId(raw) {
-  const text = String(raw || "").trim();
-  const match = text.match(/^<@!?(\d+)>$/);
-  if (match) return match[1];
-  if (/^\d+$/.test(text)) return text;
-  return null;
-}
-
 function isAdmin(userId) {
   return getAdminIds().includes(String(userId));
 }
 
-function resolveUserLabel(message, targetId) {
-  const member =
-    message.guild?.members?.cache?.get(String(targetId)) || null;
+async function resolveTargetUser(message, raw) {
+  const text = String(raw || "").trim();
+  if (!text) return null;
 
-  if (member) {
-    return member.displayName || member.user?.username || String(targetId);
+  const mention = text.match(/^<@!?(\d+)>$/);
+  if (mention) {
+    const id = mention[1];
+    const member =
+      message.guild?.members?.cache?.get(id) ||
+      (message.guild ? await message.guild.members.fetch(id).catch(() => null) : null);
+
+    if (member?.user) {
+      return { id, username: member.user.username };
+    }
+
+    const user =
+      message.client?.users?.cache?.get(id) ||
+      (await message.client.users.fetch(id).catch(() => null));
+
+    if (user) {
+      return { id, username: user.username };
+    }
+
+    return { id, username: id };
   }
 
-  const user = message.client?.users?.cache?.get(String(targetId)) || null;
-  return user?.username || String(targetId);
+  if (/^\d+$/.test(text)) {
+    const id = text;
+    const member =
+      message.guild?.members?.cache?.get(id) ||
+      (message.guild ? await message.guild.members.fetch(id).catch(() => null) : null);
+
+    if (member?.user) {
+      return { id, username: member.user.username };
+    }
+
+    const user =
+      message.client?.users?.cache?.get(id) ||
+      (await message.client.users.fetch(id).catch(() => null));
+
+    if (user) {
+      return { id, username: user.username };
+    }
+
+    return { id, username: id };
+  }
+
+  const lower = text.toLowerCase();
+
+  const cachedMembers = message.guild
+    ? [...message.guild.members.cache.values()]
+    : [];
+
+  let member =
+    cachedMembers.find((m) => m.user?.username?.toLowerCase() === lower) ||
+    cachedMembers.find((m) => m.user?.username?.toLowerCase().includes(lower));
+
+  if (!member && message.guild) {
+    const fetchedMembers = await message.guild.members.fetch().catch(() => null);
+    if (fetchedMembers) {
+      const all = [...fetchedMembers.values()];
+      member =
+        all.find((m) => m.user?.username?.toLowerCase() === lower) ||
+        all.find((m) => m.user?.username?.toLowerCase().includes(lower));
+    }
+  }
+
+  if (member?.user) {
+    return {
+      id: String(member.user.id),
+      username: member.user.username,
+    };
+  }
+
+  const cachedUsers = [...message.client.users.cache.values()];
+  const user =
+    cachedUsers.find((u) => u.username?.toLowerCase() === lower) ||
+    cachedUsers.find((u) => u.username?.toLowerCase().includes(lower));
+
+  if (user) {
+    return {
+      id: String(user.id),
+      username: user.username,
+    };
+  }
+
+  return null;
 }
 
 module.exports = {
@@ -50,23 +119,24 @@ module.exports = {
       return message.reply("Owner only command.");
     }
 
-    const targetId = extractMentionId(args[0]);
-    if (!targetId) {
-      return message.reply("Usage: `op rtadd <@user>`");
+    const rawTarget = args.join(" ").trim();
+    const target = await resolveTargetUser(message, rawTarget);
+
+    if (!target) {
+      return message.reply("Usage: `op rtadd <@user|userId|username>`");
     }
 
-    if (targetId === String(message.author.id)) {
+    if (target.id === String(message.author.id)) {
       return message.reply("You do not need to add yourself.");
     }
 
-    const targetLabel = resolveUserLabel(message, targetId);
     const activeRoom = getRoom(message.author.id);
 
     if (activeRoom) {
       try {
-        const updated = addWhitelistUser(message.author.id, targetId);
+        const updated = addWhitelistUser(message.author.id, target.id);
         return message.reply(
-          `Added ${targetLabel} to active ${updated.mode} room whitelist. Total invited: ${updated.whitelist.length}`
+          `Added ${target.username} to active ${updated.mode} room whitelist. Total invited: ${updated.whitelist.length}`
         );
       } catch (error) {
         return message.reply(error.message || "Failed to add user to active room.");
@@ -83,15 +153,15 @@ module.exports = {
     players[hostId].raidTeam = players[hostId].raidTeam || {};
     players[hostId].raidTeam.members = ensureArray(players[hostId].raidTeam.members);
 
-    if (players[hostId].raidTeam.members.includes(targetId)) {
-      return message.reply(`${targetLabel} is already in your saved raid team.`);
+    if (players[hostId].raidTeam.members.includes(target.id)) {
+      return message.reply(`${target.username} is already in your saved raid team.`);
     }
 
-    players[hostId].raidTeam.members.push(targetId);
+    players[hostId].raidTeam.members.push(target.id);
     writePlayers(players);
 
     return message.reply(
-      `Added ${targetLabel} to your saved raid team. Total members: ${players[hostId].raidTeam.members.length}`
+      `Added ${target.username} to your saved raid team. Total members: ${players[hostId].raidTeam.members.length}`
     );
   },
 };
