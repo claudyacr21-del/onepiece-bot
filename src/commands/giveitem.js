@@ -1,4 +1,7 @@
 const { readPlayers, writePlayers } = require("../playerStore");
+const weaponsData = require("../data/weapons");
+const devilFruitsData = require("../data/devilFruits");
+const itemsData = require("../data/items");
 
 const VALID_BUCKETS = [
   "items",
@@ -13,9 +16,9 @@ const VALID_BUCKETS = [
 function getAdminIds() {
   return String(
     process.env.ADMIN_USER_IDS ||
-    process.env.DISCORD_OWNER_ID ||
-    process.env.BOT_OWNER_ID ||
-    ""
+      process.env.DISCORD_OWNER_ID ||
+      process.env.BOT_OWNER_ID ||
+      ""
   )
     .split(",")
     .map((x) => x.trim())
@@ -26,7 +29,7 @@ function isAdmin(userId) {
   return getAdminIds().includes(String(userId));
 }
 
-function normalizeName(value) {
+function normalize(value) {
   return String(value || "").trim().toLowerCase();
 }
 
@@ -34,13 +37,95 @@ function ensureArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-function parseExtras(raw) {
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
+function collectCatalogEntries(source, out = []) {
+  if (Array.isArray(source)) {
+    for (const entry of source) collectCatalogEntries(entry, out);
+    return out;
   }
+
+  if (!source || typeof source !== "object") return out;
+
+  const hasIdentity =
+    typeof source.name === "string" ||
+    typeof source.code === "string" ||
+    typeof source.id === "string";
+
+  if (hasIdentity) {
+    out.push(source);
+  }
+
+  for (const value of Object.values(source)) {
+    if (Array.isArray(value) || (value && typeof value === "object")) {
+      collectCatalogEntries(value, out);
+    }
+  }
+
+  return out;
+}
+
+function buildIndex(entries) {
+  const map = new Map();
+
+  for (const entry of entries) {
+    const keys = [
+      entry?.code,
+      entry?.name,
+      entry?.id,
+      entry?.key,
+      entry?.title,
+    ].filter(Boolean);
+
+    for (const key of keys) {
+      map.set(normalize(key), entry);
+    }
+  }
+
+  return map;
+}
+
+const weaponIndex = buildIndex(collectCatalogEntries(weaponsData));
+const fruitIndex = buildIndex(collectCatalogEntries(devilFruitsData));
+const itemIndex = buildIndex(collectCatalogEntries(itemsData));
+
+function findCatalogEntry(bucket, query) {
+  const q = normalize(query);
+
+  if (bucket === "weapons") return weaponIndex.get(q) || null;
+  if (bucket === "devilFruits") return fruitIndex.get(q) || null;
+
+  if (
+    bucket === "items" ||
+    bucket === "boxes" ||
+    bucket === "tickets" ||
+    bucket === "materials" ||
+    bucket === "fragments"
+  ) {
+    return itemIndex.get(q) || null;
+  }
+
+  return null;
+}
+
+function buildStoredEntry(bucket, catalogEntry, amount) {
+  const base = {
+    name: catalogEntry.name || catalogEntry.code,
+    amount,
+  };
+
+  if (catalogEntry.code) base.code = catalogEntry.code;
+  if (catalogEntry.rarity) base.rarity = catalogEntry.rarity;
+  if (catalogEntry.image) base.image = catalogEntry.image;
+  if (catalogEntry.type) base.type = catalogEntry.type;
+  if (catalogEntry.description) base.description = catalogEntry.description;
+  if (catalogEntry.statBonus) base.statBonus = { ...catalogEntry.statBonus };
+  if (catalogEntry.owners) base.owners = [...catalogEntry.owners];
+
+  if (bucket === "boxes" || bucket === "tickets" || bucket === "materials" || bucket === "fragments") {
+    delete base.statBonus;
+    delete base.owners;
+  }
+
+  return base;
 }
 
 module.exports = {
@@ -55,10 +140,11 @@ module.exports = {
     const userId = String(args.shift() || "").trim();
     const bucket = String(args.shift() || "").trim();
     const amount = Number(args.shift() || 0);
+    const query = args.join(" ").trim();
 
-    if (!userId || !bucket || !Number.isFinite(amount) || amount <= 0) {
+    if (!userId || !bucket || !Number.isFinite(amount) || amount <= 0 || !query) {
       return message.reply(
-        "Usage: `op giveitem <userId> <bucket> <amount> <item name> [extrasJson]`"
+        "Usage: `op giveitem <userId> <bucket> <amount> <exact item/weapon/fruit name or code>`"
       );
     }
 
@@ -72,60 +158,40 @@ module.exports = {
       return message.reply(`User not found: \`${userId}\``);
     }
 
-    const rawRest = args.join(" ").trim();
-    if (!rawRest) {
+    const catalogEntry = findCatalogEntry(bucket, query);
+
+    if (!catalogEntry) {
       return message.reply(
-        "Usage: `op giveitem <userId> <bucket> <amount> <item name> [extrasJson]`"
+        `Invalid ${bucket} entry. Must match data exactly by name or code.`
       );
-    }
-
-    let itemName = rawRest;
-    let extras = {};
-
-    const jsonStart = rawRest.indexOf("{");
-    if (jsonStart !== -1) {
-      itemName = rawRest.slice(0, jsonStart).trim();
-      const parsed = parseExtras(rawRest.slice(jsonStart).trim());
-
-      if (parsed === null) {
-        return message.reply("Invalid extras JSON.");
-      }
-
-      extras = parsed;
-    }
-
-    if (!itemName) {
-      return message.reply("Item name is required.");
     }
 
     players[userId][bucket] = ensureArray(players[userId][bucket]);
 
+    const stored = buildStoredEntry(bucket, catalogEntry, amount);
+
     const existing = players[userId][bucket].find((entry) => {
-      const sameName = normalizeName(entry?.name) === normalizeName(itemName);
-      const sameCode = extras.code
-        ? normalizeName(entry?.code) === normalizeName(extras.code)
-        : true;
-      return sameName && sameCode;
+      if (stored.code && entry?.code) {
+        return normalize(entry.code) === normalize(stored.code);
+      }
+      return normalize(entry?.name) === normalize(stored.name);
     });
 
     if (existing) {
       existing.amount = Number(existing.amount || 0) + amount;
-      for (const [key, value] of Object.entries(extras)) {
+
+      for (const [key, value] of Object.entries(stored)) {
         if (key === "amount") continue;
         existing[key] = value;
       }
     } else {
-      players[userId][bucket].push({
-        name: itemName,
-        amount,
-        ...extras,
-      });
+      players[userId][bucket].push(stored);
     }
 
     writePlayers(players);
 
     return message.reply(
-      `Added ${amount}x \`${itemName}\` to \`${userId}\` in \`${bucket}\`.`
+      `Added ${amount}x \`${stored.name}\` to \`${userId}\` in \`${bucket}\`.`
     );
   },
 };
