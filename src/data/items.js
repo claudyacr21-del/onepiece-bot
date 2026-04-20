@@ -39,6 +39,14 @@ const ITEMS = {
     type: "Box",
     description: "A better random material box with improved material rewards."
   },
+  raidTicket: {
+  name: "Raid Ticket",
+  amount: 1,
+  rarity: "A",
+  code: "raid_ticket",
+  type: "Ticket",
+  description: "Used to create a raid room."
+  },
   royalMaterialBox: {
     name: "Royal Material Box",
     amount: 1,
