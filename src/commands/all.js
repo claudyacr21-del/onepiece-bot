@@ -29,14 +29,15 @@ function getItemPower(item) {
 }
 
 function getFruitPower(item) {
-  const rarityBase = {
-    C: 0,
-    B: 30,
-    A: 60,
-    S: 100,
-    SS: 130,
-    UR: 160,
-  }[String(item?.rarity || "").toUpperCase()] || 0;
+  const rarityBase =
+    {
+      C: 0,
+      B: 30,
+      A: 60,
+      S: 100,
+      SS: 130,
+      UR: 160,
+    }[String(item?.rarity || "").toUpperCase()] || 0;
 
   return rarityBase + getItemPower(item);
 }
@@ -65,9 +66,16 @@ function getUpgradedBonus(item, level = 0) {
 }
 
 function tierScore(tier) {
-  return { C: 1, B: 2, A: 3, S: 4, SS: 5, UR: 6 }[
-    String(tier || "").toUpperCase()
-  ] || 0;
+  return (
+    {
+      C: 1,
+      B: 2,
+      A: 3,
+      S: 4,
+      SS: 5,
+      UR: 6,
+    }[String(tier || "").toUpperCase()] || 0
+  );
 }
 
 function statEffectText(item) {
@@ -88,24 +96,22 @@ function buildCardEmbed(card, index, total, mode) {
     card.image ||
     "";
 
-  const extraLines = [
-    `Role: ${card.cardRole}`,
-    `Base Power: ${card.basePower || 0}`,
-    `Power Cap M1/M2/M3: ${card.powerCaps?.M1 || 0} / ${card.powerCaps?.M2 || 0} / ${card.powerCaps?.M3 || 0}`,
-  ];
-
-  if (mode === "boost") {
-    extraLines.push(`Owner: ${card.displayName || card.name || "Unknown"}`);
-    extraLines.push(`Faction: ${card.faction || "Unknown"}`);
-    extraLines.push(
-      `Effect M1/M2/M3: ${card.evolutionForms?.[0]?.effectText || "-"} | ${card.evolutionForms?.[1]?.effectText || "-"} | ${card.evolutionForms?.[2]?.effectText || "-"}`
-    );
-  } else {
-    extraLines.push(`Type: ${card.type || "Battle"}`);
-  }
-
-  extraLines.push("");
-  extraLines.push(`Power (M3): ${getCardPower(card)}`);
+  const extraLines =
+    mode === "boost"
+      ? [
+          `Role: ${card.cardRole}`,
+          `Owner: ${card.displayName || card.name || "Unknown"}`,
+          `Faction: ${card.faction || "Unknown"}`,
+          `Effect M1/M2/M3: ${card.evolutionForms?.[0]?.effectText || "-"} | ${card.evolutionForms?.[1]?.effectText || "-"} | ${card.evolutionForms?.[2]?.effectText || "-"}`,
+          "",
+          `Power: ${getCardPower(card)}`,
+        ]
+      : [
+          `Role: ${card.cardRole}`,
+          `Type: ${card.type || "Battle"}`,
+          "",
+          `Power: ${getCardPower(card)}`,
+        ];
 
   return buildCardStyleEmbed({
     color: mode === "boost" ? 0x9b59b6 : 0xe67e22,
