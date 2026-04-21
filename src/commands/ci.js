@@ -9,6 +9,11 @@ const { findCardTemplate, findOwnedCard, hydrateCard } = require("../utils/evolu
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
 
+function formatAtkRange(atk) {
+  const value = Number(atk || 0);
+  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
 function buildReqEmbed(card, stage) {
   const req = card.awakenRequirements?.[`M${stage}`];
 
@@ -107,7 +112,7 @@ function buildEmbed(card, owned, stage) {
           `Power: ${Number(stageCard.currentPower || 0)}`,
           `Type: ${stageCard.type || "Battle"}`,
           "",
-          `ATK: ${Number(stageCard.atk || 0)}`,
+          `ATK: ${formatAtkRange(stageCard.atk)}`,
           `HP: ${Number(stageCard.hp || 0)}`,
           `SPD: ${Number(stageCard.speed || 0)}`,
           `Weapon Set: ${stageCard.weapon || "None"}`,

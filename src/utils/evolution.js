@@ -277,6 +277,64 @@ function normalizeRequirementPair(card) {
   return next;
 }
 
+function titleCaseWords(value) {
+  return String(value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function getDisplayWeaponName(card) {
+  if (Array.isArray(card?.equippedWeapons) && card.equippedWeapons.length) {
+    return card.equippedWeapons
+      .map((w) => `${w.name || titleCaseWords(w.code || "Unknown Weapon")}${Number(w.upgradeLevel || 0) > 0 ? ` +${w.upgradeLevel}` : ""}`)
+      .join(", ");
+  }
+
+  if (card?.equippedWeaponName) {
+    return String(card.equippedWeaponName);
+  }
+
+  return "None";
+}
+
+function getDisplayFruitName(card) {
+  if (card?.equippedDevilFruitName) {
+    return String(card.equippedDevilFruitName);
+  }
+
+  if (card?.equippedDevilFruit && card.equippedDevilFruit !== "None") {
+    return titleCaseWords(card.equippedDevilFruit);
+  }
+
+  return "None";
+}
+
+function getSafeWeaponBonus(card) {
+  if (Array.isArray(card?.equippedWeapons) && card.equippedWeapons.length) {
+    return {
+      atk: Number(card?.weaponBonus?.atk || 0),
+      hp: Number(card?.weaponBonus?.hp || 0),
+      speed: Number(card?.weaponBonus?.speed || 0),
+    };
+  }
+
+  return { atk: 0, hp: 0, speed: 0 };
+}
+
+function getSafeFruitBonus(card) {
+  if (card?.equippedDevilFruit && card.equippedDevilFruit !== "None") {
+    return {
+      atk: Number(card?.fruitBonus?.atk || 0),
+      hp: Number(card?.fruitBonus?.hp || 0),
+      speed: Number(card?.fruitBonus?.speed || 0),
+    };
+  }
+
+  return { atk: 0, hp: 0, speed: 0 };
+}
+
 function hydrateCard(card) {
   if (!card) return null;
 
@@ -286,17 +344,8 @@ function hydrateCard(card) {
   const special = getLuffySpecialPath(next);
   const stage = Math.max(1, Math.min(3, Number(next.evolutionStage || 1)));
 
-  const weaponBonus = {
-    atk: Number(next?.weaponBonus?.atk || 0),
-    hp: Number(next?.weaponBonus?.hp || 0),
-    speed: Number(next?.weaponBonus?.speed || 0),
-  };
-
-  const fruitBonus = {
-    atk: Number(next?.fruitBonus?.atk || 0),
-    hp: Number(next?.fruitBonus?.hp || 0),
-    speed: Number(next?.fruitBonus?.speed || 0),
-  };
+  const weaponBonus = getSafeWeaponBonus(next);
+  const fruitBonus = getSafeFruitBonus(next);
 
   next.baseAtk = Number(next.baseAtk ?? next.atk ?? 0);
   next.baseHp = Number(next.baseHp ?? next.hp ?? 0);
@@ -336,6 +385,9 @@ function hydrateCard(card) {
     next.hp = Math.floor(next.baseHp * mult) + weaponBonus.hp + fruitBonus.hp;
     next.speed = Math.floor(next.baseSpeed * mult) + weaponBonus.speed + fruitBonus.speed;
   }
+
+  next.displayWeaponName = getDisplayWeaponName(next);
+  next.displayFruitName = getDisplayFruitName(next);
 
   next.badgeImage = getRarityBadge(next.currentTier || next.rarity || "");
 

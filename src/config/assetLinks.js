@@ -139,14 +139,14 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1496019375722074203/content.png?ex=69e85c1d&is=69e70a9d&hm=d72de1443765ff2b1d199a160d139f4a85af9c66b3ac71b453bbcffd10ec21ef&",
   },
   vegapunk_stella: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1496036387558920242/content.png?ex=69e86bf5&is=69e71a75&hm=1d06fc9d41f82280c7fda54d3e776c0197efa2a3491f12af08d0370b658a6035&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1496036388015964221/content.png?ex=69e86bf5&is=69e71a75&hm=55772fc537c79cbbe710bed871e9adb2ced5965228ef48bb1d6f2818bbd8ffc2&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1496036388557160448/content.png?ex=69e86bf6&is=69e71a76&hm=808f33e8831f3eb65b6b2ad74cb76f4fd6ed3eff55181d8a7c9018731c2d5ae9&",
   },
   lindbergh_revolutionary_genius: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1496052868766236692/content.png?ex=69e87b4f&is=69e729cf&hm=a3a1fb9624adf496c43afac03a5e6a8157f327d30b58d43db8c66ab5c21679d6&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1496052869231546428/content.png?ex=69e87b4f&is=69e729cf&hm=f301200324fa00a4026af052805e7e6b7c1cb26ce252e2b978519a539305829f&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1496052869672210442/content.png?ex=69e87b4f&is=69e729cf&hm=6a451bdb03cff00fa9aacf048ef026bdb8ab59245dfe1151734d9f07a2406b4e&",
   },
   doc_q_sickly_support: {
     M1: "",

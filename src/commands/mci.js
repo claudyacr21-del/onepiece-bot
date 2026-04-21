@@ -3,14 +3,9 @@ const { findOwnedCard } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage } = require("../config/assetLinks");
 
-function formatOwnedWeapons(card) {
-  if (Array.isArray(card.equippedWeapons) && card.equippedWeapons.length) {
-    return card.equippedWeapons
-      .map((w) => `${w.name}${Number(w.upgradeLevel || 0) > 0 ? ` +${w.upgradeLevel}` : ""}`)
-      .join(", ");
-  }
-
-  return card.equippedWeapon || "None";
+function formatAtkRange(atk) {
+  const value = Number(atk || 0);
+  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
 function getCurrentForm(card) {
@@ -54,9 +49,9 @@ function buildOwnedCardEmbed(ownerName, card) {
           `Power: ${Number(card.currentPower || 0)}`,
           `Health: ${Number(card.hp || 0)}`,
           `Speed: ${Number(card.speed || 0)}`,
-          `Attack: ${Number(card.atk || 0)}`,
-          `Weapons: ${formatOwnedWeapons(card)}`,
-          `Devil Fruit: ${card.equippedDevilFruit || "None"}`,
+          `Attack: ${formatAtkRange(card.atk)}`,
+          `Weapons: ${card.displayWeaponName || "None"}`,
+          `Devil Fruit: ${card.displayFruitName || "None"}`,
           `Type: ${card.type || card.cardRole}`,
           `Kills: ${Number(card.kills || 0)}`,
           `Fragments: ${Number(card.fragments || 0)}`,
