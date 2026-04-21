@@ -175,9 +175,11 @@ function clearWhitelist(hostId) {
 }
 
 function getParticipant(room, userId) {
-  return ensureArray(room?.participants).find(
-    (p) => String(p.userId) === String(userId)
-  ) || null;
+  return (
+    ensureArray(room?.participants).find(
+      (p) => String(p.userId) === String(userId)
+    ) || null
+  );
 }
 
 function getUsedCardCodes(room, excludeUserId = null) {

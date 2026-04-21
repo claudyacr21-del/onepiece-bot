@@ -12,13 +12,12 @@ const {
   createRaidRoom,
   addParticipant,
   startRoom,
+  deleteRoom,
 } = require("../utils/partyRooms");
 const raidBossImages = require("../config/raidBossImages");
 
 const RAID_ROOM_TIMEOUT_MS = 10 * 60 * 1000;
 const RAID_PICK_TIMEOUT_MS = 60 * 1000;
-const RAID_TICKET_CODE = "raid_ticket";
-const RAID_TICKET_NAME = "Raid Ticket";
 
 function normalize(value) {
   return String(value || "").trim().toLowerCase();
@@ -43,35 +42,53 @@ function makeHpBar(current, max, size = 16) {
   return `${"🟩".repeat(filled)}${"⬛".repeat(empty)}`;
 }
 
-function tierWeight(tier) {
-  return (
-    {
-      C: 1,
-      B: 2,
-      A: 3,
-      S: 4,
-      SS: 5,
-      UR: 6,
-    }[String(tier || "").toUpperCase()] || 2
-  );
+function formatAtkRange(atk) {
+  const value = Number(atk || 0);
+  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
-function findRaidTicketEntry(tickets = []) {
+function getRaidModeConfig(commandName) {
+  const cmd = String(commandName || "").toLowerCase();
+
+  if (cmd === "craid") {
+    return {
+      allowed: new Set(["C", "B"]),
+      ticketCode: "common_raid_ticket",
+      ticketName: "Common Raid Ticket",
+      label: "Common Raid Ticket",
+    };
+  }
+
+  return {
+    allowed: new Set(["A", "S"]),
+    ticketCode: "raid_ticket",
+    ticketName: "Raid Ticket",
+    label: "Raid Ticket",
+  };
+}
+
+function findTicketEntry(tickets = [], raidMode) {
   return (
     ensureArray(tickets).find((entry) => {
       const code = normalize(entry?.code);
       const name = normalize(entry?.name);
-      return code === RAID_TICKET_CODE || name === normalize(RAID_TICKET_NAME);
+      return (
+        code === normalize(raidMode.ticketCode) ||
+        name === normalize(raidMode.ticketName)
+      );
     }) || null
   );
 }
 
-function consumeOneRaidTicket(player) {
+function consumeOneTicket(player, raidMode) {
   const tickets = ensureArray(player?.tickets).map((t) => ({ ...t }));
   const idx = tickets.findIndex((entry) => {
     const code = normalize(entry?.code);
     const name = normalize(entry?.name);
-    return code === RAID_TICKET_CODE || name === normalize(RAID_TICKET_NAME);
+    return (
+      code === normalize(raidMode.ticketCode) ||
+      name === normalize(raidMode.ticketName)
+    );
   });
 
   if (idx === -1) {
@@ -151,6 +168,43 @@ function resolveRaidBoss(query) {
   };
 }
 
+function deriveRaidBossStats(template) {
+  const hydrated = hydrateCard(template);
+  const tier = String(hydrated.rarity || hydrated.currentTier || "B").toUpperCase();
+
+  const profile =
+    {
+      C: { hp: 9000, speed: 180, atkMin: 180, atkMax: 360 },
+      B: { hp: 12500, speed: 240, atkMin: 260, atkMax: 520 },
+      A: { hp: 17500, speed: 340, atkMin: 380, atkMax: 760 },
+      S: { hp: 24000, speed: 460, atkMin: 520, atkMax: 1020 },
+    }[tier] || { hp: 12500, speed: 240, atkMin: 260, atkMax: 520 };
+
+  const baseAtk = Number(hydrated.atk || 120);
+  const baseHp = Number(hydrated.hp || 900);
+  const baseSpeed = Number(hydrated.speed || 60);
+  const basePower = Number(
+    hydrated.powerCaps?.M3 || hydrated.currentPower || hydrated.basePower || 0
+  );
+
+  const maxHp = Math.floor(profile.hp + baseHp * 2.8 + basePower * 1.2);
+  const speed = Math.floor(profile.speed + baseSpeed * 0.9);
+  const atkMin = Math.floor(profile.atkMin + baseAtk * 0.8 + basePower * 0.025);
+  const atkMax = Math.floor(profile.atkMax + baseAtk * 1.2 + basePower * 0.05);
+
+  return {
+    code: hydrated.code,
+    name: hydrated.displayName || hydrated.name || "Unknown Boss",
+    tier,
+    hp: maxHp,
+    maxHp,
+    speed,
+    atkMin,
+    atkMax,
+    image: getRaidBossImage(hydrated.code),
+  };
+}
+
 function buildLobbyEmbed(hostName, room, ended = false, bossStats = null) {
   const participants = ensureArray(room?.participants);
 
@@ -179,7 +233,7 @@ function buildLobbyEmbed(hostName, room, ended = false, bossStats = null) {
         `**Host:** ${hostName}`,
         `**Boss:** ${room.bossName}`,
         `**Status:** ${room.status || "waiting"}`,
-        `**Raid Ticket Consumed:** ${room.ticketConsumed ? "Yes" : "No"}`,
+        `**Ticket Used:** ${room.ticketConsumed ? "Yes" : "No"}`,
         "",
         "**Boss Stats**",
         bossStatLine,
@@ -233,58 +287,6 @@ function buildPickRows(roomId, cards) {
   }
 
   return [row];
-}
-
-function deriveRaidBossStats(template) {
-  const hydrated = hydrateCard(template);
-  const tier = String(
-    hydrated.currentTier ||
-      hydrated.rarity ||
-      hydrated.baseTier ||
-      "B"
-  ).toUpperCase();
-
-  const rarityScale =
-    {
-      C: 10,
-      B: 12,
-      A: 15,
-      S: 18,
-      SS: 23,
-      UR: 30,
-    }[tier] || 12;
-
-  const baseAtk = Number(hydrated.atk || hydrated.baseAtk || 250);
-  const baseHp = Number(hydrated.hp || hydrated.baseHp || 1500);
-  const baseSpd = Number(hydrated.speed || hydrated.baseSpeed || 150);
-  const basePower = Number(
-    hydrated.powerCaps?.M3 || hydrated.currentPower || hydrated.basePower || 0
-  );
-
-  const maxHp = Math.floor(
-    Math.max(baseHp * rarityScale * 8, basePower * 18, 35000)
-  );
-  const speed = Math.floor(
-    Math.max(baseSpd * (rarityScale / 2.2), basePower * 0.55, 1800)
-  );
-  const atkMin = Math.floor(
-    Math.max(baseAtk * (rarityScale / 2.8), basePower * 0.18, 650)
-  );
-  const atkMax = Math.floor(
-    Math.max(baseAtk * (rarityScale / 1.4), basePower * 0.34, 1800)
-  );
-
-  return {
-    code: hydrated.code,
-    name: hydrated.displayName || hydrated.name || "Unknown Boss",
-    tier,
-    maxHp,
-    hp: maxHp,
-    speed,
-    atkMin,
-    atkMax,
-    image: getRaidBossImage(hydrated.code),
-  };
 }
 
 function buildBattleRoster(room) {
@@ -352,7 +354,7 @@ function buildBattleEmbed(state) {
           `**${i + 1}. ${m.name}** • ${m.username}`,
           `${label} ${Math.max(0, Number(m.hp || 0))}/${Number(m.maxHp || 0)} | 👟 ${Number(
             m.speed || 0
-          )} | ⚔️ ${Math.floor(Number(m.atk || 0) * 0.85)}-${Math.floor(Number(m.atk || 0) * 1.15)}`,
+          )} | ⚔️ ${formatAtkRange(m.atk)}`,
         ].join("\n");
       })
     : ["None"];
@@ -448,11 +450,15 @@ function checkEndState(state) {
 
 module.exports = {
   name: "raid",
-  aliases: [],
+  aliases: ["craid"],
 
   async execute(message, args) {
     const query = args.join(" ").trim();
-    if (!query) return message.reply("Usage: `op raid <boss>`");
+    if (!query) return message.reply("Usage: `op raid <boss>` or `op craid <boss>`");
+
+    const raw = String(message.content || "").trim().split(/\s+/);
+    const usedCommand = String(raw[1] || "").toLowerCase() === "craid" ? "craid" : "raid";
+    const raidMode = getRaidModeConfig(usedCommand);
 
     const hostId = String(message.author.id);
     const host = getPlayer(hostId, message.author.username);
@@ -466,14 +472,26 @@ module.exports = {
       return message.reply("Raid boss not found.");
     }
 
-    const ticketEntry = findRaidTicketEntry(host.tickets);
-    if (!ticketEntry || Number(ticketEntry.amount || 0) <= 0) {
-      return message.reply("You do not have any Raid Ticket.");
+    const bossTier = String(
+      bossInfo?.template?.rarity || bossInfo?.template?.currentTier || "B"
+    ).toUpperCase();
+
+    if (!raidMode.allowed.has(bossTier)) {
+      return message.reply(
+        usedCommand === "craid"
+          ? "craid only supports C and B raid bosses."
+          : "raid only supports A and S raid bosses."
+      );
     }
 
-    const consumed = consumeOneRaidTicket(host);
+    const ticketEntry = findTicketEntry(host.tickets, raidMode);
+    if (!ticketEntry || Number(ticketEntry.amount || 0) <= 0) {
+      return message.reply(`You do not have any ${raidMode.label}.`);
+    }
+
+    const consumed = consumeOneTicket(host, raidMode);
     if (!consumed.ok) {
-      return message.reply("Failed to consume Raid Ticket.");
+      return message.reply(`Failed to consume ${raidMode.label}.`);
     }
 
     const players = readPlayers();
@@ -725,8 +743,14 @@ module.exports = {
             battleState.round += 1;
           } else if (battleState.winner === "players") {
             pushBattleLog(battleState, "Raid cleared.");
+            try {
+              deleteRoom(hostId);
+            } catch {}
           } else {
             pushBattleLog(battleState, "All raid members have been defeated.");
+            try {
+              deleteRoom(hostId);
+            } catch {}
           }
 
           await btn.update({
@@ -740,7 +764,12 @@ module.exports = {
         });
 
         battleCollector.on("end", async () => {
+          try {
+            deleteRoom(hostId);
+          } catch {}
+
           if (!battleMessage) return;
+
           try {
             await battleMessage.edit({
               embeds: battleMessage.embeds?.length
