@@ -19,6 +19,11 @@ function getCardPower(card) {
   return Number(card.powerCaps?.M3 || card.currentPower || 0);
 }
 
+function formatAtkRange(atk) {
+  const value = Number(atk || 0);
+  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
 function getRarityPower(rarity) {
   return (
     {
@@ -99,6 +104,9 @@ function buildCardEmbed(card, index, total, mode) {
       : [
           `Role: ${card.cardRole}`,
           `Type: ${card.type || "Battle"}`,
+          `ATK: ${formatAtkRange(card.atk)}`,
+          `HP: ${Number(card.hp || 0)}`,
+          `SPD: ${Number(card.speed || 0)}`,
           "",
           `Power: ${getCardPower(card)}`,
         ];
