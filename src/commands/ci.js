@@ -55,10 +55,20 @@ function getStageCard(card, stage) {
 function getStageImage(card, stageCard, stage) {
   const stageKey = `M${stage}`;
   return (
-    stageCard?.image ||
+    stageCard?.evolutionForms?.[stage - 1]?.image ||
     card.evolutionForms?.[stage - 1]?.image ||
+    stageCard?.stageImages?.[stageKey] ||
     card.stageImages?.[stageKey] ||
-    getCardImage(card.code, stageKey, card.image) ||
+    getCardImage(
+      card.code,
+      stageKey,
+      stageCard?.stageImages?.[stageKey] ||
+        card.stageImages?.[stageKey] ||
+        stageCard?.image ||
+        card.image ||
+        ""
+    ) ||
+    stageCard?.image ||
     card.image ||
     ""
   );
@@ -67,16 +77,6 @@ function getStageImage(card, stageCard, stage) {
 function getStageBadge(card, stageCard, stage) {
   const form = stageCard?.evolutionForms?.[stage - 1] || card.evolutionForms?.[stage - 1];
   return form?.badgeImage || getRarityBadge(form?.tier || stageCard?.currentTier || card.rarity);
-}
-
-function formatOwnedWeapons(card) {
-  if (Array.isArray(card?.equippedWeapons) && card.equippedWeapons.length) {
-    return card.equippedWeapons
-      .map((w) => `${w.name}${Number(w.upgradeLevel || 0) > 0 ? ` +${w.upgradeLevel}` : ""}`)
-      .join(", ");
-  }
-
-  return card?.equippedWeapon || "None";
 }
 
 function buildEmbed(card, owned, stage) {

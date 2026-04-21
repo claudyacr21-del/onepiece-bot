@@ -1,6 +1,7 @@
 const { getPlayer } = require("../playerStore");
 const { findOwnedCard } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
+const { getCardImage } = require("../config/assetLinks");
 
 function formatOwnedWeapons(card) {
   if (Array.isArray(card.equippedWeapons) && card.equippedWeapons.length) {
@@ -17,9 +18,23 @@ function getCurrentForm(card) {
   return card.evolutionForms?.[stage - 1] || null;
 }
 
+function getCurrentStageImage(card) {
+  const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
+  const stageKey = `M${stage}`;
+
+  return (
+    card.evolutionForms?.[stage - 1]?.image ||
+    card.stageImages?.[stageKey] ||
+    getCardImage(card.code, stageKey, card.image) ||
+    card.image ||
+    ""
+  );
+}
+
 function buildOwnedCardEmbed(ownerName, card) {
   const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
   const form = getCurrentForm(card);
+  const stageImage = getCurrentStageImage(card);
 
   const extraLines =
     card.cardRole === "boost"
@@ -51,6 +66,7 @@ function buildOwnedCardEmbed(ownerName, card) {
     color: 0x1abc9c,
     ownerName,
     card,
+    image: stageImage,
     badgeImage: form?.badgeImage || card.badgeImage || "",
     formName: form?.name || card.variant || "Unknown Form",
     tier: card.currentTier || card.rarity,
