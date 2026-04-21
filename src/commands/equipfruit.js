@@ -203,6 +203,11 @@ async function equipFruitToCard(message, player, card, fruit) {
     ...cards[cardIndex],
     equippedDevilFruit: fruit.code,
     equippedDevilFruitName: fruit.name,
+    fruitBonus: {
+      atk: Number(fruit?.statBonus?.atk || 0),
+      hp: Number(fruit?.statBonus?.hp || 0),
+      speed: Number(fruit?.statBonus?.speed || 0),
+    },
   };
 
   const currentAmount = Number(ownedFruits[fruitIndex].amount || 1);
