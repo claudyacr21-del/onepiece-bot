@@ -137,22 +137,22 @@ const CARD_IMAGES = {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1496019374883082311/content.png?ex=69e85c1d&is=69e70a9d&hm=90c12ba613c215381dc24d88099f3153a1f34dde5010b945dd48090d8f1a72b3&",
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1496019375281537095/content.png?ex=69e85c1d&is=69e70a9d&hm=ecfccf72ef4fb8ccb755501707342e0e30ff6a487dce82cfc23c63b0d256eddd&",
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1496019375722074203/content.png?ex=69e85c1d&is=69e70a9d&hm=d72de1443765ff2b1d199a160d139f4a85af9c66b3ac71b453bbcffd10ec21ef&",
-  }
- // vegapunk_stella: {
-  //  M1: "",
-//    M2: "",
-  //  M3: "",
-  //},
- // lindbergh_revolutionary_genius: {
-  //  M1: "",
-   // M2: "",
-    //M3: "",
- // },
- // doc_q_sickly_support: {
-  //  M1: "",
-   // M2: "",
-   // M3: "",
-  //},
+  },
+  vegapunk_stella: {
+    M1: "",
+    M2: "",
+    M3: "",
+  },
+  lindbergh_revolutionary_genius: {
+    M1: "",
+    M2: "",
+    M3: "",
+  },
+  doc_q_sickly_support: {
+    M1: "",
+    M2: "",
+    M3: "",
+  },
 };
 
 const WEAPON_IMAGES = {
