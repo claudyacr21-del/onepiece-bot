@@ -3,8 +3,6 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
 } = require("discord.js");
 const { readPlayers, writePlayers, getPlayer } = require("../playerStore");
 const { hydrateCard, findCardTemplate } = require("../utils/evolution");
@@ -104,7 +102,7 @@ function getRaidBossImage(code) {
   return raidBossImages[String(code || "").toLowerCase()] || "";
 }
 
-function getBossNameFromQuery(query) {
+function resolveRaidBoss(query) {
   const template = findCardTemplate(query);
   if (!template || template.cardRole !== "battle") return null;
 
@@ -170,6 +168,23 @@ function buildRaidRows(room, ended = false) {
   ];
 }
 
+function buildTeamPickRows(roomId, cards) {
+  const row = new ActionRowBuilder();
+
+  for (let i = 0; i < 3; i++) {
+    const card = cards[i];
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(card ? `raid_pick_${roomId}_${card.instanceId}` : `raid_pick_${roomId}_empty_${i}`)
+        .setLabel(card ? (card.displayName || card.name || `Slot ${i + 1}`).slice(0, 80) : `Empty Slot ${i + 1}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(!card)
+    );
+  }
+
+  return [row];
+}
+
 module.exports = {
   name: "raid",
   aliases: [],
@@ -186,7 +201,7 @@ module.exports = {
       return message.reply("You already have an active raid/party room.");
     }
 
-    const bossInfo = getBossNameFromQuery(query);
+    const bossInfo = resolveRaidBoss(query);
     if (!bossInfo) {
       return message.reply("Raid boss not found.");
     }
@@ -277,69 +292,63 @@ module.exports = {
           });
         }
 
-        const options = teamCards.slice(0, 3).map((card) =>
-          new StringSelectMenuOptionBuilder()
-            .setLabel((card.displayName || card.name || "Unknown").slice(0, 100))
-            .setDescription(
-              `M${card.evolutionStage || 1} • ${card.currentTier || card.rarity || "C"} • Power ${Number(card.currentPower || 0)}`
-                .slice(0, 100)
-            )
-            .setValue(String(card.instanceId))
-        );
-
-        const row = new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId(`raid_pick_${room.roomId}`)
-            .setPlaceholder("Choose 1 battle card")
-            .setMinValues(1)
-            .setMaxValues(1)
-            .addOptions(options)
-        );
-
-        return interaction.reply({
+        await interaction.reply({
           content: `Pick 1 battle card for raid against ${active.bossName}.`,
-          components: [row],
+          components: buildTeamPickRows(room.roomId, teamCards),
           ephemeral: true,
         });
-      }
 
-      if (interaction.customId === `raid_pick_${room.roomId}`) {
-        const joiningPlayer = getPlayer(interaction.user.id, interaction.user.username);
-        const teamCards = getBattleTeamCards(joiningPlayer);
-        const pickedId = interaction.values?.[0];
+        const ephemeralMsg = await interaction.fetchReply();
 
-        const picked = teamCards.find((card) => String(card.instanceId) === String(pickedId));
-        if (!picked) {
-          return interaction.update({
-            content: "Selected card not found in your current team.",
-            components: [],
-          });
-        }
+        const pickCollector = ephemeralMsg.createMessageComponentCollector({
+          time: 60 * 1000,
+        });
 
-        try {
-          const updated = addParticipant(message.author.id, {
-            userId: String(interaction.user.id),
-            username: interaction.user.username,
-            selectedCards: [toRoomCard(picked)],
-          });
+        pickCollector.on("collect", async (pickInteraction) => {
+          if (pickInteraction.user.id !== interaction.user.id) {
+            return pickInteraction.reply({
+              content: "This picker is not for you.",
+              ephemeral: true,
+            });
+          }
 
-          await interaction.update({
-            content: `Joined raid with ${picked.displayName || picked.name}.`,
-            components: [],
-          });
+          const pickedId = String(pickInteraction.customId).replace(`raid_pick_${room.roomId}_`, "");
+          const picked = teamCards.find((card) => String(card.instanceId) === pickedId);
 
-          await sent.edit({
-            embeds: [buildRaidEmbed(message.author.username, updated, false)],
-            components: buildRaidRows(updated, false),
-          });
+          if (!picked) {
+            return pickInteraction.update({
+              content: "Selected card not found in your current team.",
+              components: [],
+            });
+          }
 
-          return;
-        } catch (error) {
-          return interaction.update({
-            content: error.message || "Failed to join raid.",
-            components: [],
-          });
-        }
+          try {
+            const updated = addParticipant(message.author.id, {
+              userId: String(pickInteraction.user.id),
+              username: pickInteraction.user.username,
+              selectedCards: [toRoomCard(picked)],
+            });
+
+            await pickInteraction.update({
+              content: `Joined raid with ${picked.displayName || picked.name}.`,
+              components: [],
+            });
+
+            await sent.edit({
+              embeds: [buildRaidEmbed(message.author.username, updated, false)],
+              components: buildRaidRows(updated, false),
+            });
+
+            pickCollector.stop("picked");
+          } catch (error) {
+            return pickInteraction.update({
+              content: error.message || "Failed to join raid.",
+              components: [],
+            });
+          }
+        });
+
+        return;
       }
     });
 
