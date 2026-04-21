@@ -4,6 +4,8 @@ const {
   StringSelectMenuBuilder,
 } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
+const devilFruits = require("../data/devilFruits");
+const { findOwnedCard, hydrateCard } = require("../utils/evolution");
 const { getEffectiveBoostValue, findBoostFruitByCode } = require("../utils/passiveBoosts");
 
 function normalize(text) {
@@ -20,18 +22,20 @@ function getCardSearchStrings(card) {
     card.name,
     card.title,
     card.code,
+    `${card.name} ${card.title || ""}`.trim(),
   ]
     .filter(Boolean)
-    .map((v) => normalize(v));
+    .map(normalize);
 }
 
 function getFruitSearchStrings(fruit) {
   return [
     fruit.name,
     fruit.code,
+    fruit.type,
   ]
     .filter(Boolean)
-    .map((v) => normalize(v));
+    .map(normalize);
 }
 
 function scoreMatch(query, candidates) {
@@ -59,8 +63,7 @@ function scoreMatch(query, candidates) {
     }
 
     const qWords = q.split(" ").filter(Boolean);
-    const allWordsMatch = qWords.length > 0 && qWords.every((w) => candidate.includes(w));
-    if (allWordsMatch) {
+    if (qWords.length && qWords.every((w) => candidate.includes(w))) {
       best = Math.max(best, 250 + qWords.join("").length);
     }
   }
@@ -88,29 +91,51 @@ function findFruitCandidates(fruits, query) {
     .sort((a, b) => b.score - a.score);
 }
 
+function splitIntoAllPairs(rawArgs) {
+  const parts = rawArgs.map((x) => String(x).trim()).filter(Boolean);
+  const pairs = [];
+
+  for (let i = 1; i < parts.length; i++) {
+    pairs.push({
+      cardQuery: parts.slice(0, i).join(" "),
+      fruitQuery: parts.slice(i).join(" "),
+    });
+  }
+
+  return pairs;
+}
+
 function parseCardAndFruit(cards, fruits, rawArgs) {
   const joined = normalize(rawArgs.join(" "));
-  if (!joined) return { card: null, fruit: null, ambiguous: false, cardOptions: [], fruitOptions: [] };
+  if (!joined) {
+    return {
+      card: null,
+      fruit: null,
+      ambiguous: false,
+      cardOptions: [],
+      fruitOptions: [],
+    };
+  }
 
+  const pairs = splitIntoAllPairs(rawArgs);
   let bestPair = null;
 
-  for (const card of cards) {
-    const cardNames = getCardSearchStrings(card);
+  for (const pair of pairs) {
+    const cardCandidates = findCardCandidates(cards, pair.cardQuery);
+    const fruitCandidates = findFruitCandidates(fruits, pair.fruitQuery);
 
-    for (const cardName of cardNames) {
-      if (!cardName) continue;
-      if (!(joined === cardName || joined.startsWith(`${cardName} `) || joined.includes(cardName))) continue;
+    if (!cardCandidates.length || !fruitCandidates.length) continue;
 
-      const exactRemainder = normalize(joined.replace(cardName, "").trim());
-      if (!exactRemainder) continue;
+    const cardTop = cardCandidates[0];
+    const fruitTop = fruitCandidates[0];
+    const pairScore = cardTop.score + fruitTop.score;
 
-      const fruitCandidates = findFruitCandidates(fruits, exactRemainder);
-      if (!fruitCandidates.length) continue;
-
-      const score = cardName.length * 1000 + fruitCandidates[0].score;
-      if (!bestPair || score > bestPair.score) {
-        bestPair = { score, card, fruit: fruitCandidates[0].fruit };
-      }
+    if (!bestPair || pairScore > bestPair.score) {
+      bestPair = {
+        score: pairScore,
+        card: cardTop.card,
+        fruit: fruitTop.fruit,
+      };
     }
   }
 
@@ -164,14 +189,8 @@ function buildChoiceMenu(type, roomId, options) {
             type === "card"
               ? String(item.displayName || item.name || `Card ${i + 1}`).slice(0, 100)
               : String(item.name || `Fruit ${i + 1}`).slice(0, 100),
-          value:
-            type === "card"
-              ? String(item.instanceId)
-              : String(item.code),
-          description:
-            type === "card"
-              ? `Code: ${item.code || "-"}`
-              : `Code: ${item.code || "-"}`,
+          value: type === "card" ? String(item.instanceId) : String(item.code),
+          description: `Code: ${String(item.code || "-").slice(0, 100)}`,
         }))
       )
   );
@@ -199,7 +218,7 @@ async function equipFruitToCard(message, player, card, fruit) {
     return message.reply("That devil fruit cannot be used by this card.");
   }
 
-  cards[cardIndex] = {
+  cards[cardIndex] = hydrateCard({
     ...cards[cardIndex],
     equippedDevilFruit: fruit.code,
     equippedDevilFruitName: fruit.name,
@@ -208,7 +227,7 @@ async function equipFruitToCard(message, player, card, fruit) {
       hp: Number(fruit?.statBonus?.hp || 0),
       speed: Number(fruit?.statBonus?.speed || 0),
     },
-  };
+  });
 
   const currentAmount = Number(ownedFruits[fruitIndex].amount || 1);
   if (currentAmount <= 1) {
@@ -226,21 +245,25 @@ async function equipFruitToCard(message, player, card, fruit) {
   });
 
   const equippedFruitData = findBoostFruitByCode(fruit.code);
-  const isBoost = cards[cardIndex].cardRole === "boost";
-  const effectiveValue = isBoost ? getEffectiveBoostValue(cards[cardIndex]) : null;
-  const suffix = isBoost && ["atk", "hp", "spd", "exp", "dmg"].includes(cards[cardIndex].boostType) ? "%" : "";
+  const syncedCard = cards[cardIndex];
+  const isBoost = syncedCard.cardRole === "boost";
+  const effectiveValue = isBoost ? getEffectiveBoostValue(syncedCard) : null;
+  const suffix = isBoost && ["atk", "hp", "spd", "exp", "dmg"].includes(syncedCard.boostType) ? "%" : "";
 
   const embed = new EmbedBuilder()
     .setColor(isBoost ? 0x9b59b6 : 0x2ecc71)
     .setTitle("🍈 Devil Fruit Equipped")
     .setDescription(
       [
-        `**Card:** ${cards[cardIndex].displayName || cards[cardIndex].name}`,
+        `**Card:** ${syncedCard.displayName || syncedCard.name}`,
         `**Fruit:** ${fruit.name}`,
-        isBoost ? `**Boost Type:** \`${cards[cardIndex].boostType}\`` : null,
+        !isBoost ? `**ATK:** ${Math.floor(Number(syncedCard.atk || 0) * 0.85)}-${Math.floor(Number(syncedCard.atk || 0) * 1.15)}` : null,
+        !isBoost ? `**HP:** ${Number(syncedCard.hp || 0)}` : null,
+        !isBoost ? `**SPD:** ${Number(syncedCard.speed || 0)}` : null,
+        isBoost ? `**Boost Type:** \`${syncedCard.boostType}\`` : null,
         isBoost ? `**Final Boost Value:** \`${effectiveValue}${suffix}\`` : null,
         isBoost && equippedFruitData?.boostBonus
-          ? `**Fruit Bonus Applied:** \`${Number(equippedFruitData.boostBonus[cards[cardIndex].boostType] || 0)}${suffix}\``
+          ? `**Fruit Bonus Applied:** \`${Number(equippedFruitData.boostBonus[syncedCard.boostType] || 0)}${suffix}\``
           : null,
         "",
         "This equip is permanent and cannot be removed.",
