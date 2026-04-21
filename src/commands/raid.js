@@ -14,11 +14,10 @@ const {
   createRaidRoom,
   addParticipant,
   startRoom,
-  deleteRoom,
 } = require("../utils/partyRooms");
+const raidBossImages = require("../config/raidBossImages");
 
 const RAID_ROOM_TIMEOUT_MS = 10 * 60 * 1000;
-const RAID_MAX_USERS = 10; // including host
 const RAID_TICKET_CODE = "raid_ticket";
 const RAID_TICKET_NAME = "Raid Ticket";
 
@@ -101,26 +100,20 @@ function toRoomCard(card) {
   };
 }
 
+function getRaidBossImage(code) {
+  return raidBossImages[String(code || "").toLowerCase()] || "";
+}
+
 function getBossNameFromQuery(query) {
   const template = findCardTemplate(query);
-  if (template && template.cardRole === "battle") {
-    return {
-      bossCode: template.code,
-      bossName: template.displayName || template.name,
-      bossImage: template.image || "",
-    };
-  }
+  if (!template || template.cardRole !== "battle") return null;
 
-  const q = normalize(query);
-  if (q === "five elders" || q === "five_elders" || q === "five_elders_combined") {
-    return {
-      bossCode: "five_elders_combined",
-      bossName: "Five Elders",
-      bossImage: "",
-    };
-  }
-
-  return null;
+  return {
+    bossCode: template.code,
+    bossName: template.displayName || template.name,
+    bossImage: getRaidBossImage(template.code),
+    template,
+  };
 }
 
 function buildRaidEmbed(hostName, room, ended = false) {
@@ -154,6 +147,7 @@ function buildRaidEmbed(hostName, room, ended = false) {
         "• The same character code cannot be used twice in the same raid",
       ].join("\n")
     )
+    .setImage(room.bossImage || null)
     .setFooter({
       text: ended ? "Raid room closed" : "Join Battle to enter • Host only can Start Raid",
     });
@@ -171,11 +165,6 @@ function buildRaidRows(room, ended = false) {
         .setCustomId(`raid_start_${room.roomId}`)
         .setLabel("Start Raid")
         .setStyle(ButtonStyle.Success)
-        .setDisabled(ended),
-      new ButtonBuilder()
-        .setCustomId(`raid_cancel_${room.roomId}`)
-        .setLabel("Cancel Raid")
-        .setStyle(ButtonStyle.Danger)
         .setDisabled(ended)
     ),
   ];
@@ -228,6 +217,7 @@ module.exports = {
       channelId: String(message.channelId || ""),
       bossCode: bossInfo.bossCode,
       bossName: bossInfo.bossName,
+      bossImage: bossInfo.bossImage || "",
       ticketConsumed: true,
       whitelist,
     });
@@ -248,25 +238,6 @@ module.exports = {
           content: "This raid room is no longer active.",
           ephemeral: true,
         });
-      }
-
-      if (interaction.customId === `raid_cancel_${room.roomId}`) {
-        if (interaction.user.id !== message.author.id) {
-          return interaction.reply({
-            content: "Only the host can cancel this raid.",
-            ephemeral: true,
-          });
-        }
-
-        deleteRoom(message.author.id);
-
-        await interaction.update({
-          embeds: [buildRaidEmbed(message.author.username, room, true)],
-          components: buildRaidRows(room, true),
-        });
-
-        collector.stop("cancelled");
-        return;
       }
 
       if (interaction.customId === `raid_start_${room.roomId}`) {

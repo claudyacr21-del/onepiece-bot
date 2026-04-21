@@ -58,7 +58,7 @@ function getLuffySpecialPath(card) {
       { stage: 2, key: "M2", tier: "SS", name: "Revival Arc" },
       { stage: 3, key: "M3", tier: "UR", name: "Gear 5" },
     ],
-    mults: { 1: 1, 2: 1.75, 3: 2.5 },
+    mults: { 1: 1, 2: 3.8, 3: 4.745 },
   };
 }
 
@@ -66,8 +66,8 @@ function getStageMultiplier(card, stage) {
   const special = getLuffySpecialPath(card);
   if (special) return special.mults[stage] || 1;
   if (stage === 1) return 1;
-  if (stage === 2) return 1.2;
-  return 1.45;
+  if (stage === 2) return 3;
+  return 3.8;
 }
 
 function computeBattleBasePower(card) {
@@ -101,7 +101,13 @@ function computeBoostBasePower(card) {
 }
 
 function getBasePower(card) {
-  return card.cardRole === "boost" ? computeBoostBasePower(card) : computeBattleBasePower(card);
+  if (Number.isFinite(Number(card?.basePower))) {
+    return Number(card.basePower);
+  }
+
+  return card.cardRole === "boost"
+    ? computeBoostBasePower(card)
+    : computeBattleBasePower(card);
 }
 
 function getPowerCaps(card) {
@@ -116,7 +122,7 @@ function getPowerCaps(card) {
 function getCurrentPower(card) {
   const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
   const caps = getPowerCaps(card);
-  return caps[`M${stage}`] || caps.M1;
+  return Number(caps[`M${stage}`] || caps.M1 || 0);
 }
 
 function getBoostStageValue(card, stage) {

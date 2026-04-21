@@ -365,9 +365,11 @@ module.exports = [
     rarity: "S",
     owners: ["baccarat_lucky_draw"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 7, hp: 4, speed: 7 },
+    statBonus: { atk: 0, hp: 0, speed: 0 },
+    resetPullBonus: 2,
+    dailyResetToken: 1,
     image: "",
-    description: "Manipulates luck and fortune to influence outcomes."
+    description: "Increases reset pull bonus by 2 and grants 1 Reset Token whenever claiming daily rewards."
   },
   {
     code: "ryu_ryu_no_mi_model_brachiosaurus",

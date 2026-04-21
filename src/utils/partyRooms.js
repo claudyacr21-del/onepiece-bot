@@ -89,6 +89,7 @@ function createBaseRoom(data = {}) {
     channelId: String(data.channelId || ""),
     bossCode: String(data.bossCode || ""),
     bossName: String(data.bossName || "Boss"),
+    bossImage: String(data.bossImage || ""),
     islandCode: data.islandCode ? String(data.islandCode) : null,
     bossPhase: Number.isFinite(Number(data.bossPhase)) ? Number(data.bossPhase) : null,
     maxParticipants: Number(data.maxParticipants || 10),

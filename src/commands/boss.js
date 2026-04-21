@@ -194,9 +194,90 @@ function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
   return null;
 }
 
+function getSpecialIslandBossTemplate(currentIsland) {
+  const code = String(currentIsland?.code || "").toLowerCase();
+  const order = Number(currentIsland?.order || 0);
+
+  const specials = {
+    foosha_village: {
+      name: "Mountain Bandit Dadan",
+      rarity: "C",
+      atk: 70,
+      hp: 900,
+      speed: 28,
+      image: currentIsland?.image || "",
+    },
+    reverse_mountain: {
+      name: "Laboon",
+      rarity: "A",
+      atk: 185,
+      hp: 3400,
+      speed: 60,
+      image: currentIsland?.image || "",
+    },
+    whiskey_peak: {
+      name: "Baroque Works Agents",
+      rarity: "B",
+      atk: 138,
+      hp: 2700,
+      speed: 58,
+      image: currentIsland?.image || "",
+    },
+    long_ring_long_land: {
+      name: "Foxy",
+      rarity: "A",
+      atk: 185,
+      hp: 3550,
+      speed: 68,
+      image: currentIsland?.image || "",
+    },
+    water_7: {
+      name: "CP9 Lead Fight",
+      rarity: "S",
+      atk: 215,
+      hp: 4300,
+      speed: 82,
+      image: currentIsland?.image || "",
+    },
+    sabaody: {
+      name: "Pacifista Survival",
+      rarity: "S",
+      atk: 235,
+      hp: 5200,
+      speed: 86,
+      image: currentIsland?.image || "",
+    },
+    impel_down: {
+      name: "Magellan",
+      rarity: "SS",
+      atk: 270,
+      hp: 6100,
+      speed: 92,
+      image: currentIsland?.image || "",
+    },
+  };
+
+  const base = specials[code];
+  if (!base) return null;
+
+  const hp = Math.floor(Number(base.hp) + order * 90);
+  return {
+    ...base,
+    atk: Math.floor(Number(base.atk) + order * 3),
+    hp,
+    maxHp: hp,
+    speed: Math.floor(Number(base.speed) + order * 0.5),
+  };
+}
+
 function getBossTemplate(currentIsland, phaseBoss = null) {
-  const special = phaseBoss ? getSpecialPhaseBossTemplate(phaseBoss, currentIsland) : null;
-  if (special) return special;
+  const phaseSpecial = phaseBoss
+    ? getSpecialPhaseBossTemplate(phaseBoss, currentIsland)
+    : null;
+  if (phaseSpecial) return phaseSpecial;
+
+  const islandSpecial = !phaseBoss ? getSpecialIslandBossTemplate(currentIsland) : null;
+  if (islandSpecial) return islandSpecial;
 
   const effectiveBossCode = phaseBoss?.bossCode || currentIsland?.bossCode || null;
   const fromDb = effectiveBossCode
