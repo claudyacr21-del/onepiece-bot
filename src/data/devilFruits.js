@@ -165,7 +165,7 @@ module.exports = [
     rarity: "UR",
     owners: ["luffy_straw_hat"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 23, hp: 13, speed: 10 },
+    statBonus: { atk: 25, hp: 13, speed: 10 },
     image: "",
     description: "The fruit of liberation, granting ridiculous freedom and power."
   },
