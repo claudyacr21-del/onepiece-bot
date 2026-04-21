@@ -16,6 +16,7 @@ const {
 const raidBossImages = require("../config/raidBossImages");
 
 const RAID_ROOM_TIMEOUT_MS = 10 * 60 * 1000;
+const RAID_PICK_TIMEOUT_MS = 60 * 1000;
 const RAID_TICKET_CODE = "raid_ticket";
 const RAID_TICKET_NAME = "Raid Ticket";
 
@@ -27,12 +28,42 @@ function ensureArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function randomInt(min, max) {
+  const a = Math.floor(Number(min || 0));
+  const b = Math.floor(Number(max || 0));
+  if (b <= a) return a;
+  return Math.floor(Math.random() * (b - a + 1)) + a;
+}
+
+function makeHpBar(current, max, size = 16) {
+  const safeMax = Math.max(1, Number(max || 1));
+  const safeCur = Math.max(0, Math.min(safeMax, Number(current || 0)));
+  const filled = Math.round((safeCur / safeMax) * size);
+  const empty = Math.max(0, size - filled);
+  return `${"🟩".repeat(filled)}${"⬛".repeat(empty)}`;
+}
+
+function tierWeight(tier) {
+  return (
+    {
+      C: 1,
+      B: 2,
+      A: 3,
+      S: 4,
+      SS: 5,
+      UR: 6,
+    }[String(tier || "").toUpperCase()] || 2
+  );
+}
+
 function findRaidTicketEntry(tickets = []) {
-  return ensureArray(tickets).find((entry) => {
-    const code = normalize(entry?.code);
-    const name = normalize(entry?.name);
-    return code === RAID_TICKET_CODE || name === normalize(RAID_TICKET_NAME);
-  }) || null;
+  return (
+    ensureArray(tickets).find((entry) => {
+      const code = normalize(entry?.code);
+      const name = normalize(entry?.name);
+      return code === RAID_TICKET_CODE || name === normalize(RAID_TICKET_NAME);
+    }) || null
+  );
 }
 
 function consumeOneRaidTicket(player) {
@@ -74,9 +105,13 @@ function getBattleTeamCards(player) {
   return slots
     .map((instanceId) => {
       if (!instanceId) return null;
-      return cards.find(
-        (card) => String(card.instanceId) === String(instanceId) && card.cardRole === "battle"
-      ) || null;
+      return (
+        cards.find(
+          (card) =>
+            String(card.instanceId) === String(instanceId) &&
+            String(card.cardRole || "").toLowerCase() === "battle"
+        ) || null
+      );
     })
     .filter(Boolean);
 }
@@ -104,7 +139,9 @@ function getRaidBossImage(code) {
 
 function resolveRaidBoss(query) {
   const template = findCardTemplate(query);
-  if (!template || template.cardRole !== "battle") return null;
+  if (!template || String(template.cardRole || "").toLowerCase() !== "battle") {
+    return null;
+  }
 
   return {
     bossCode: template.code,
@@ -114,27 +151,38 @@ function resolveRaidBoss(query) {
   };
 }
 
-function buildRaidEmbed(hostName, room, ended = false) {
+function buildLobbyEmbed(hostName, room, ended = false, bossStats = null) {
   const participants = ensureArray(room?.participants);
-  const guestCount = participants.filter((p) => String(p.userId) !== String(room.hostId)).length;
+
   const joinedLines = participants.length
     ? participants.map((p, i) => {
-        const cards = ensureArray(p.selectedCards).map((c) => c.name || c.code).join(", ");
-        return `${i + 1}. ${p.username} • ${cards || "No card selected"}`;
+        const picked = ensureArray(p.selectedCards)
+          .map((c) => c.name || c.code)
+          .join(", ");
+        return `${i + 1}. ${p.username} • ${picked || "No card selected"}`;
       })
     : ["None"];
 
+  const bossStatLine = bossStats
+    ? `❤️ ${Number(bossStats.maxHp || bossStats.hp || 0)}/${Number(
+        bossStats.maxHp || bossStats.hp || 0
+      )} | 👟 ${Number(bossStats.speed || 0)} | ⚔️ ${Number(
+        bossStats.atkMin || 0
+      )}-${Number(bossStats.atkMax || 0)}`
+    : "Not loaded";
+
   return new EmbedBuilder()
-    .setColor(0x9b59b6)
+    .setColor(0x8e44ad)
     .setTitle("🤝 Raid Room")
     .setDescription(
       [
         `**Host:** ${hostName}`,
         `**Boss:** ${room.bossName}`,
-        `**Status:** ${room.status}`,
-        `**Joined Guests:** ${guestCount}/9`,
-        `**Host counts in battle:** Yes`,
+        `**Status:** ${room.status || "waiting"}`,
         `**Raid Ticket Consumed:** ${room.ticketConsumed ? "Yes" : "No"}`,
+        "",
+        "**Boss Stats**",
+        bossStatLine,
         "",
         "**Joined Participants**",
         ...joinedLines,
@@ -147,11 +195,13 @@ function buildRaidEmbed(hostName, room, ended = false) {
     )
     .setImage(room.bossImage || null)
     .setFooter({
-      text: ended ? "Raid room closed" : "Join Battle to enter • Host only can Start Raid",
+      text: ended
+        ? "Raid room closed"
+        : "Join Battle to enter • Host only can Start Raid",
     });
 }
 
-function buildRaidRows(room, ended = false) {
+function buildLobbyRows(room, ended = false) {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -168,7 +218,7 @@ function buildRaidRows(room, ended = false) {
   ];
 }
 
-function buildTeamPickRows(roomId, cards) {
+function buildPickRows(roomId, cards) {
   const row = new ActionRowBuilder();
 
   for (let i = 0; i < 3; i++) {
@@ -176,7 +226,7 @@ function buildTeamPickRows(roomId, cards) {
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(card ? `raid_pick_${roomId}_${card.instanceId}` : `raid_pick_${roomId}_empty_${i}`)
-        .setLabel(card ? (card.displayName || card.name || `Slot ${i + 1}`).slice(0, 80) : `Empty Slot ${i + 1}`)
+        .setLabel(card ? `${i + 1} ${card.displayName || card.name}`.slice(0, 80) : `Empty Slot ${i + 1}`)
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(!card)
     );
@@ -185,19 +235,229 @@ function buildTeamPickRows(roomId, cards) {
   return [row];
 }
 
+function deriveRaidBossStats(template) {
+  const hydrated = hydrateCard(template);
+  const tier = String(
+    hydrated.currentTier ||
+      hydrated.rarity ||
+      hydrated.baseTier ||
+      "B"
+  ).toUpperCase();
+
+  const rarityScale =
+    {
+      C: 10,
+      B: 12,
+      A: 15,
+      S: 18,
+      SS: 23,
+      UR: 30,
+    }[tier] || 12;
+
+  const baseAtk = Number(hydrated.atk || hydrated.baseAtk || 250);
+  const baseHp = Number(hydrated.hp || hydrated.baseHp || 1500);
+  const baseSpd = Number(hydrated.speed || hydrated.baseSpeed || 150);
+  const basePower = Number(
+    hydrated.powerCaps?.M3 || hydrated.currentPower || hydrated.basePower || 0
+  );
+
+  const maxHp = Math.floor(
+    Math.max(baseHp * rarityScale * 8, basePower * 18, 35000)
+  );
+  const speed = Math.floor(
+    Math.max(baseSpd * (rarityScale / 2.2), basePower * 0.55, 1800)
+  );
+  const atkMin = Math.floor(
+    Math.max(baseAtk * (rarityScale / 2.8), basePower * 0.18, 650)
+  );
+  const atkMax = Math.floor(
+    Math.max(baseAtk * (rarityScale / 1.4), basePower * 0.34, 1800)
+  );
+
+  return {
+    code: hydrated.code,
+    name: hydrated.displayName || hydrated.name || "Unknown Boss",
+    tier,
+    maxHp,
+    hp: maxHp,
+    speed,
+    atkMin,
+    atkMax,
+    image: getRaidBossImage(hydrated.code),
+  };
+}
+
+function buildBattleRoster(room) {
+  const participants = ensureArray(room?.participants);
+
+  return participants
+    .flatMap((p) =>
+      ensureArray(p.selectedCards).map((card) => ({
+        userId: String(p.userId),
+        username: String(p.username || "Unknown"),
+        instanceId: String(card.instanceId || ""),
+        code: String(card.code || ""),
+        name: String(card.name || card.code || "Unknown"),
+        atk: Number(card.atk || 0),
+        maxHp: Number(card.hp || 1),
+        hp: Number(card.hp || 1),
+        speed: Number(card.speed || 0),
+        currentPower: Number(card.currentPower || 0),
+        currentTier: String(card.currentTier || ""),
+        evolutionStage: Number(card.evolutionStage || 1),
+        alive: true,
+      }))
+    )
+    .sort((a, b) => {
+      const spd = Number(b.speed || 0) - Number(a.speed || 0);
+      if (spd !== 0) return spd;
+      return Number(b.currentPower || 0) - Number(a.currentPower || 0);
+    });
+}
+
+function buildBattleState(room, bossTemplate) {
+  return {
+    roomId: room.roomId,
+    hostId: room.hostId,
+    hostName: room.hostName,
+    boss: deriveRaidBossStats(bossTemplate),
+    members: buildBattleRoster(room),
+    round: 1,
+    log: ["Raid battle started."],
+    finished: false,
+    winner: null,
+  };
+}
+
+function pushBattleLog(state, line) {
+  state.log.push(line);
+  if (state.log.length > 8) {
+    state.log = state.log.slice(state.log.length - 8);
+  }
+}
+
+function getAliveMembers(state) {
+  return state.members.filter((m) => Number(m.hp || 0) > 0);
+}
+
+function buildBattleEmbed(state) {
+  const boss = state.boss;
+  const alive = getAliveMembers(state);
+
+  const raidLines = state.members.length
+    ? state.members.map((m, i) => {
+        const isDead = Number(m.hp || 0) <= 0;
+        const label = isDead ? "☠️" : "❤️";
+        return [
+          `**${i + 1}. ${m.name}** • ${m.username}`,
+          `${label} ${Math.max(0, Number(m.hp || 0))}/${Number(m.maxHp || 0)} | 👟 ${Number(
+            m.speed || 0
+          )} | ⚔️ ${Math.floor(Number(m.atk || 0) * 0.85)}-${Math.floor(Number(m.atk || 0) * 1.15)}`,
+        ].join("\n");
+      })
+    : ["None"];
+
+  const statusText = state.finished
+    ? state.winner === "players"
+      ? "Raid Cleared!"
+      : "Raid Failed!"
+    : "Selection Phase\nSelect a character to deploy for battle!";
+
+  return new EmbedBuilder()
+    .setColor(state.finished ? (state.winner === "players" ? 0x2ecc71 : 0xe74c3c) : 0xe67e22)
+    .setTitle(`${boss.name}'s Boss Battle`)
+    .setDescription(statusText)
+    .addFields(
+      {
+        name: "Boss",
+        value: [
+          `${makeHpBar(boss.hp, boss.maxHp)}`,
+          `❤️ ${Math.max(0, boss.hp)}/${boss.maxHp} | 👟 ${boss.speed} | ⚔️ ${boss.atkMin}-${boss.atkMax}`,
+        ].join("\n"),
+      },
+      {
+        name: `Raid Team (${alive.length}/${state.members.length} alive)`,
+        value: raidLines.join("\n\n").slice(0, 1024),
+      },
+      {
+        name: "Battle Log",
+        value: state.log.length ? state.log.map((x) => `• ${x}`).join("\n").slice(0, 1024) : "No actions yet.",
+      }
+    )
+    .setImage(boss.image || null)
+    .setFooter({
+      text: state.finished
+        ? state.winner === "players"
+          ? "Raid complete"
+          : "Raid failed"
+        : `Round ${state.round} • Choose 1 card to attack`,
+    });
+}
+
+function buildBattleRows(state) {
+  if (state.finished) return [];
+
+  const alive = getAliveMembers(state);
+  const rows = [];
+  let chunk = [];
+
+  for (let i = 0; i < alive.length; i++) {
+    chunk.push(alive[i]);
+
+    if (chunk.length === 5 || i === alive.length - 1) {
+      const row = new ActionRowBuilder();
+
+      for (const member of chunk) {
+        row.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`raid_act_${state.roomId}_${member.instanceId}`)
+            .setLabel(`${state.members.indexOf(member) + 1} ${member.name}`.slice(0, 80))
+            .setStyle(ButtonStyle.Success)
+        );
+      }
+
+      rows.push(row);
+      chunk = [];
+    }
+  }
+
+  return rows;
+}
+
+function chooseBossTarget(state) {
+  const alive = getAliveMembers(state);
+  if (!alive.length) return null;
+  return alive[randomInt(0, alive.length - 1)];
+}
+
+function checkEndState(state) {
+  if (state.boss.hp <= 0) {
+    state.finished = true;
+    state.winner = "players";
+    return true;
+  }
+
+  if (!getAliveMembers(state).length) {
+    state.finished = true;
+    state.winner = "boss";
+    return true;
+  }
+
+  return false;
+}
+
 module.exports = {
   name: "raid",
   aliases: [],
 
   async execute(message, args) {
     const query = args.join(" ").trim();
-    if (!query) {
-      return message.reply("Usage: `op raid <boss>`");
-    }
+    if (!query) return message.reply("Usage: `op raid <boss>`");
 
-    const host = getPlayer(message.author.id, message.author.username);
+    const hostId = String(message.author.id);
+    const host = getPlayer(hostId, message.author.username);
 
-    if (hasActiveRoom(message.author.id)) {
+    if (hasActiveRoom(hostId)) {
       return message.reply("You already have an active raid/party room.");
     }
 
@@ -217,7 +477,6 @@ module.exports = {
     }
 
     const players = readPlayers();
-    const hostId = String(message.author.id);
     players[hostId] = {
       ...players[hostId],
       tickets: consumed.tickets,
@@ -225,6 +484,7 @@ module.exports = {
     writePlayers(players);
 
     const whitelist = getSavedRaidTeam(host);
+
     const room = createRaidRoom({
       hostId,
       hostName: message.author.username,
@@ -237,52 +497,43 @@ module.exports = {
       whitelist,
     });
 
-    const sent = await message.reply({
-      embeds: [buildRaidEmbed(message.author.username, room, false)],
-      components: buildRaidRows(room, false),
+    const bossPreviewStats = deriveRaidBossStats(bossInfo.template);
+
+    const lobbyMessage = await message.reply({
+      embeds: [buildLobbyEmbed(message.author.username, room, false, bossPreviewStats)],
+      components: buildLobbyRows(room, false),
     });
 
-    const collector = sent.createMessageComponentCollector({
+    const lobbyCollector = lobbyMessage.createMessageComponentCollector({
       time: RAID_ROOM_TIMEOUT_MS,
     });
 
-    collector.on("collect", async (interaction) => {
-      const active = getRoom(message.author.id);
-      if (!active || String(active.roomId) !== String(room.roomId)) {
+    let battleMessage = null;
+    let battleCollector = null;
+
+    lobbyCollector.on("collect", async (interaction) => {
+      const activeRoom = getRoom(hostId);
+
+      if (!activeRoom || String(activeRoom.roomId) !== String(room.roomId)) {
         return interaction.reply({
           content: "This raid room is no longer active.",
           ephemeral: true,
         });
       }
 
-      if (interaction.customId === `raid_start_${room.roomId}`) {
-        if (interaction.user.id !== message.author.id) {
-          return interaction.reply({
-            content: "Only the host can start this raid.",
-            ephemeral: true,
-          });
-        }
-
-        try {
-          const started = startRoom(message.author.id);
-
-          await interaction.update({
-            embeds: [buildRaidEmbed(message.author.username, started, true)],
-            components: buildRaidRows(started, true),
-          });
-
-          collector.stop("started");
-          return;
-        } catch (error) {
-          return interaction.reply({
-            content: error.message || "Failed to start raid.",
-            ephemeral: true,
-          });
-        }
-      }
-
       if (interaction.customId === `raid_join_${room.roomId}`) {
-        const joiningPlayer = getPlayer(interaction.user.id, interaction.user.username);
+        const userId = String(interaction.user.id);
+        const isHost = userId === hostId;
+        const whitelistIds = ensureArray(activeRoom.whitelist).map(String);
+
+        if (!isHost && !whitelistIds.includes(userId)) {
+          return interaction.reply({
+            content: "You are not in the host's saved raid team.",
+            ephemeral: true,
+          });
+        }
+
+        const joiningPlayer = getPlayer(userId, interaction.user.username);
         const teamCards = getBattleTeamCards(joiningPlayer);
 
         if (!teamCards.length) {
@@ -293,75 +544,227 @@ module.exports = {
         }
 
         await interaction.reply({
-          content: `Pick 1 battle card for raid against ${active.bossName}.`,
-          components: buildTeamPickRows(room.roomId, teamCards),
+          content: `Pick 1 battle card for raid against ${activeRoom.bossName}.`,
+          components: buildPickRows(room.roomId, teamCards),
           ephemeral: true,
         });
 
-        const ephemeralMsg = await interaction.fetchReply();
+        const pickReply = await interaction.fetchReply();
 
-        const pickCollector = ephemeralMsg.createMessageComponentCollector({
-          time: 60 * 1000,
+        let pickInteraction;
+        try {
+          pickInteraction = await pickReply.awaitMessageComponent({
+            time: RAID_PICK_TIMEOUT_MS,
+            filter: (i) =>
+              i.user.id === interaction.user.id &&
+              String(i.customId).startsWith(`raid_pick_${room.roomId}_`),
+          });
+        } catch {
+          return;
+        }
+
+        const pickedId = String(pickInteraction.customId).replace(
+          `raid_pick_${room.roomId}_`,
+          ""
+        );
+
+        const picked = teamCards.find(
+          (card) => String(card.instanceId) === pickedId
+        );
+
+        if (!picked) {
+          return pickInteraction.update({
+            content: "Selected card not found in your current team.",
+            components: [],
+          });
+        }
+
+        try {
+          const updatedRoom = addParticipant(hostId, {
+            userId,
+            username: interaction.user.username,
+            selectedCards: [toRoomCard(picked)],
+          });
+
+          await pickInteraction.update({
+            content: `Joined raid with ${picked.displayName || picked.name}.`,
+            components: [],
+          });
+
+          await lobbyMessage.edit({
+            embeds: [buildLobbyEmbed(message.author.username, updatedRoom, false, bossPreviewStats)],
+            components: buildLobbyRows(updatedRoom, false),
+          });
+
+          await message.channel.send(
+            `${interaction.user.username} joined the raid with **${picked.displayName || picked.name}**.`
+          );
+        } catch (error) {
+          return pickInteraction.update({
+            content: error.message || "Failed to join raid.",
+            components: [],
+          });
+        }
+
+        return;
+      }
+
+      if (interaction.customId === `raid_start_${room.roomId}`) {
+        if (String(interaction.user.id) !== hostId) {
+          return interaction.reply({
+            content: "Only the host can start this raid.",
+            ephemeral: true,
+          });
+        }
+
+        let startedRoom;
+        try {
+          startedRoom = startRoom(hostId);
+        } catch (error) {
+          return interaction.reply({
+            content: error.message || "Failed to start raid.",
+            ephemeral: true,
+          });
+        }
+
+        const joinedCount = ensureArray(startedRoom.participants).length;
+        if (joinedCount < 1) {
+          return interaction.reply({
+            content: "No participants have joined yet.",
+            ephemeral: true,
+          });
+        }
+
+        const battleState = buildBattleState(startedRoom, bossInfo.template);
+
+        await interaction.update({
+          embeds: [buildLobbyEmbed(message.author.username, startedRoom, true, bossPreviewStats)],
+          components: buildLobbyRows(startedRoom, true),
         });
 
-        pickCollector.on("collect", async (pickInteraction) => {
-          if (pickInteraction.user.id !== interaction.user.id) {
-            return pickInteraction.reply({
-              content: "This picker is not for you.",
+        battleMessage = await message.channel.send({
+          embeds: [buildBattleEmbed(battleState)],
+          components: buildBattleRows(battleState),
+        });
+
+        battleCollector = battleMessage.createMessageComponentCollector({
+          time: RAID_ROOM_TIMEOUT_MS,
+        });
+
+        battleCollector.on("collect", async (btn) => {
+          if (!String(btn.customId).startsWith(`raid_act_${battleState.roomId}_`)) {
+            return;
+          }
+
+          const instanceId = String(btn.customId).replace(
+            `raid_act_${battleState.roomId}_`,
+            ""
+          );
+
+          const actor = battleState.members.find(
+            (m) => String(m.instanceId) === instanceId
+          );
+
+          if (!actor || Number(actor.hp || 0) <= 0) {
+            return btn.reply({
+              content: "That card can no longer act.",
               ephemeral: true,
             });
           }
 
-          const pickedId = String(pickInteraction.customId).replace(`raid_pick_${room.roomId}_`, "");
-          const picked = teamCards.find((card) => String(card.instanceId) === pickedId);
+          const canControl =
+            String(btn.user.id) === String(actor.userId) ||
+            String(btn.user.id) === hostId;
 
-          if (!picked) {
-            return pickInteraction.update({
-              content: "Selected card not found in your current team.",
-              components: [],
+          if (!canControl) {
+            return btn.reply({
+              content: "You can only use your own raid card.",
+              ephemeral: true,
             });
           }
 
-          try {
-            const updated = addParticipant(message.author.id, {
-              userId: String(pickInteraction.user.id),
-              username: pickInteraction.user.username,
-              selectedCards: [toRoomCard(picked)],
-            });
+          const damage = randomInt(
+            Math.floor(Number(actor.atk || 0) * 0.85),
+            Math.floor(Number(actor.atk || 0) * 1.15)
+          );
 
-            await pickInteraction.update({
-              content: `Joined raid with ${picked.displayName || picked.name}.`,
-              components: [],
-            });
+          battleState.boss.hp = Math.max(0, battleState.boss.hp - damage);
+          pushBattleLog(
+            battleState,
+            `${actor.username} used ${actor.name} and dealt ${damage} damage.`
+          );
 
-            await sent.edit({
-              embeds: [buildRaidEmbed(message.author.username, updated, false)],
-              components: buildRaidRows(updated, false),
-            });
+          if (!checkEndState(battleState)) {
+            const target = chooseBossTarget(battleState);
 
-            pickCollector.stop("picked");
-          } catch (error) {
-            return pickInteraction.update({
-              content: error.message || "Failed to join raid.",
-              components: [],
-            });
+            if (target) {
+              const bossDamage = randomInt(
+                Number(battleState.boss.atkMin || 0),
+                Number(battleState.boss.atkMax || 0)
+              );
+
+              target.hp = Math.max(0, Number(target.hp || 0) - bossDamage);
+
+              pushBattleLog(
+                battleState,
+                `${battleState.boss.name} hit ${target.name} (${target.username}) for ${bossDamage} damage.`
+              );
+
+              if (target.hp <= 0) {
+                pushBattleLog(
+                  battleState,
+                  `${target.name} (${target.username}) has been defeated.`
+                );
+              }
+            }
+
+            checkEndState(battleState);
+          }
+
+          if (!battleState.finished) {
+            battleState.round += 1;
+          } else if (battleState.winner === "players") {
+            pushBattleLog(battleState, "Raid cleared.");
+          } else {
+            pushBattleLog(battleState, "All raid members have been defeated.");
+          }
+
+          await btn.update({
+            embeds: [buildBattleEmbed(battleState)],
+            components: buildBattleRows(battleState),
+          });
+
+          if (battleState.finished) {
+            battleCollector.stop("finished");
           }
         });
 
-        return;
+        battleCollector.on("end", async () => {
+          if (!battleMessage) return;
+          try {
+            await battleMessage.edit({
+              embeds: battleMessage.embeds?.length
+                ? battleMessage.embeds
+                : undefined,
+              components: [],
+            });
+          } catch {}
+        });
+
+        lobbyCollector.stop("started");
       }
     });
 
-    collector.on("end", async () => {
-      const active = getRoom(message.author.id);
-      const endedRoom = active && String(active.roomId) === String(room.roomId) ? active : room;
-
+    lobbyCollector.on("end", async () => {
       try {
-        await sent.edit({
-          embeds: [buildRaidEmbed(message.author.username, endedRoom, true)],
-          components: buildRaidRows(endedRoom, true),
-        });
-      } catch (_) {}
+        if (!battleMessage) {
+          const activeRoom = getRoom(hostId) || room;
+          await lobbyMessage.edit({
+            embeds: [buildLobbyEmbed(message.author.username, activeRoom, true, bossPreviewStats)],
+            components: buildLobbyRows(activeRoom, true),
+          });
+        }
+      } catch {}
     });
   },
 };
