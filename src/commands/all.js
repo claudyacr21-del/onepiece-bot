@@ -19,40 +19,30 @@ function getCardPower(card) {
   return Number(card.powerCaps?.M3 || card.currentPower || 0);
 }
 
-function getItemPower(item) {
-  const bonus = item?.statBonus || {};
-  return Math.floor(
-    Number(bonus.atk || 0) * 1.4 +
-      Number(bonus.hp || 0) * 0.22 +
-      Number(bonus.speed || 0) * 9
+function getRarityPower(rarity) {
+  return (
+    {
+      C: 400,
+      B: 800,
+      A: 1400,
+      S: 2400,
+      SS: 3800,
+      UR: 5600,
+    }[String(rarity || "").toUpperCase()] || 400
   );
 }
 
-function getFruitPower(item) {
-  const rarityBase =
-    {
-      C: 0,
-      B: 30,
-      A: 60,
-      S: 100,
-      SS: 130,
-      UR: 160,
-    }[String(item?.rarity || "").toUpperCase()] || 0;
+function getItemPower(item) {
+  return getRarityPower(item?.rarity);
+}
 
-  return rarityBase + getItemPower(item);
+function getFruitPower(item) {
+  return getRarityPower(item?.rarity);
 }
 
 function getUpgradedItemPower(item, level = 0) {
   const lv = Math.max(0, Number(level || 0));
-  const base = item?.statBonus || {};
-  return getItemPower({
-    ...item,
-    statBonus: {
-      atk: Number(base.atk || 0) + lv * 3,
-      hp: Number(base.hp || 0) + lv * 8,
-      speed: Number(base.speed || 0) + lv * 1,
-    },
-  });
+  return getRarityPower(item?.rarity) + lv * 250;
 }
 
 function getUpgradedBonus(item, level = 0) {
