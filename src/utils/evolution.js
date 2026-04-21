@@ -46,16 +46,8 @@ function getBoostEffectText(card, stage = 1) {
   if (!card || card.cardRole !== "boost") return "";
   const boostType = String(card.boostType || "").toLowerCase();
   const target = card.boostTarget || "team";
-
-  const stageValue =
-    stage === 1
-      ? Number(card.boostValue || 0)
-      : stage === 2
-        ? Number(card.boostValue || 0)
-        : Number(card.boostValue || 0);
-
-  const suffix =
-    ["atk", "hp", "spd", "exp", "dmg"].includes(boostType) ? "%" : "";
+  const stageValue = Number(card.boostValue || 0);
+  const suffix = ["atk", "hp", "spd", "exp", "dmg"].includes(boostType) ? "%" : "";
 
   if (boostType === "fragmentstorage") {
     return `Increase ${target} fragment storage by ${stageValue}.`;
@@ -121,6 +113,47 @@ function findCardTemplate(query) {
   );
 }
 
+function findTemplateByCode(code) {
+  const q = normalize(code);
+  return safeArray(cards).find((card) => normalize(card.code) === q) || null;
+}
+
+function mergeOwnedCardWithTemplate(ownedCard) {
+  if (!ownedCard) return null;
+
+  const template = findTemplateByCode(ownedCard.code);
+  if (!template) return clone(ownedCard);
+
+  return {
+    ...clone(template),
+
+    // keep user-owned identity/progression/equip
+    instanceId: ownedCard.instanceId,
+    level: ownedCard.level,
+    xp: ownedCard.xp,
+    kills: ownedCard.kills,
+    fragments: ownedCard.fragments,
+    evolutionStage: ownedCard.evolutionStage,
+    evolutionKey: ownedCard.evolutionKey,
+    currentTier: ownedCard.currentTier || template.currentTier,
+    rarity: ownedCard.rarity || template.rarity,
+
+    // keep user equip data
+    equippedWeapons: clone(ownedCard.equippedWeapons || []),
+    equippedWeapon: ownedCard.equippedWeapon || null,
+    equippedWeaponName: ownedCard.equippedWeaponName || null,
+    equippedWeaponCode: ownedCard.equippedWeaponCode || null,
+    equippedWeaponLevel: ownedCard.equippedWeaponLevel || 0,
+
+    equippedDevilFruit: ownedCard.equippedDevilFruit || null,
+    equippedDevilFruitName: ownedCard.equippedDevilFruitName || null,
+
+    // keep user state if needed
+    cardRole: ownedCard.cardRole || template.cardRole,
+    ownerId: ownedCard.ownerId,
+  };
+}
+
 function findByCodeOrName(list, value) {
   const q = normalize(value);
   if (!q) return null;
@@ -139,8 +172,7 @@ function resolveEquippedWeapons(card) {
 
   if (Array.isArray(card?.equippedWeapons) && card.equippedWeapons.length) {
     for (const entry of card.equippedWeapons) {
-      const found =
-        findByCodeOrName(weapons, entry?.code || entry?.name) || null;
+      const found = findByCodeOrName(weapons, entry?.code || entry?.name) || null;
       if (!found) continue;
 
       equipped.push({
@@ -367,7 +399,10 @@ function findOwnedCard(cardsOwned, query) {
     );
   });
 
-  return found ? hydrateCard(found) : null;
+  if (!found) return null;
+
+  const merged = mergeOwnedCardWithTemplate(found);
+  return hydrateCard(merged);
 }
 
 function getAllCards() {
