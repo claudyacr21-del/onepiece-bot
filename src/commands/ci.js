@@ -5,12 +5,13 @@ const {
   ButtonStyle,
 } = require("discord.js");
 const { getPlayer } = require("../playerStore");
-const { findCardTemplate, findOwnedCard } = require("../utils/evolution");
+const { findCardTemplate, findOwnedCard, hydrateCard } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
 
 function buildReqEmbed(card, stage) {
   const req = card.awakenRequirements?.[`M${stage}`];
+
   if (!req) {
     return new EmbedBuilder()
       .setColor(0x2ecc71)
@@ -43,9 +44,18 @@ function buildReqEmbed(card, stage) {
     );
 }
 
-function getStageImage(card, stage) {
+function getStageCard(card, stage) {
+  return hydrateCard({
+    ...card,
+    evolutionStage: stage,
+    evolutionKey: `M${stage}`,
+  });
+}
+
+function getStageImage(card, stageCard, stage) {
   const stageKey = `M${stage}`;
   return (
+    stageCard?.image ||
     card.evolutionForms?.[stage - 1]?.image ||
     card.stageImages?.[stageKey] ||
     getCardImage(card.code, stageKey, card.image) ||
@@ -54,55 +64,54 @@ function getStageImage(card, stage) {
   );
 }
 
-function getStageBadge(card, stage) {
-  const form = card.evolutionForms?.[stage - 1];
-  return form?.badgeImage || getRarityBadge(form?.tier || card.rarity);
+function getStageBadge(card, stageCard, stage) {
+  const form = stageCard?.evolutionForms?.[stage - 1] || card.evolutionForms?.[stage - 1];
+  return form?.badgeImage || getRarityBadge(form?.tier || stageCard?.currentTier || card.rarity);
 }
 
-function getStageMultiplier(card, stage) {
-  if (card.code === "luffy_straw_hat") {
-    if (stage === 1) return 1;
-    if (stage === 2) return 1.75;
-    return 2.35;
+function formatOwnedWeapons(card) {
+  if (Array.isArray(card?.equippedWeapons) && card.equippedWeapons.length) {
+    return card.equippedWeapons
+      .map((w) => `${w.name}${Number(w.upgradeLevel || 0) > 0 ? ` +${w.upgradeLevel}` : ""}`)
+      .join(", ");
   }
-  if (stage === 1) return 1;
-  if (stage === 2) return 1.2;
-  return 1.45;
+
+  return card?.equippedWeapon || "None";
 }
 
 function buildEmbed(card, owned, stage) {
-  const form = card.evolutionForms?.[stage - 1];
-  const mult = getStageMultiplier(card, stage);
-  const stageImage = getStageImage(card, stage);
-  const stageBadge = getStageBadge(card, stage);
+  const stageCard = getStageCard(card, stage);
+  const form = stageCard.evolutionForms?.[stage - 1];
+  const stageImage = getStageImage(card, stageCard, stage);
+  const stageBadge = getStageBadge(card, stageCard, stage);
 
   const extraLines =
-    card.cardRole === "boost"
+    stageCard.cardRole === "boost"
       ? [
-          `Form: ${form?.key || `M${stage}`}`,
-          `Tier: ${form?.tier || card.currentTier || card.rarity}`,
-          `Role: ${card.cardRole}`,
-          `Power: ${card.powerCaps?.[`M${stage}`] || card.currentPower || 0}`,
-          `Effect: ${card.evolutionForms?.[stage - 1]?.effectText || card.effectText || "No effect text"}`,
-          `Target: ${card.boostTarget || "team"}`,
-          `Boost Type: ${card.boostType || "unknown"}`,
+          `Form: ${stageCard.evolutionKey || `M${stage}`}`,
+          `Tier: ${stageCard.currentTier || stageCard.rarity}`,
+          `Role: ${stageCard.cardRole}`,
+          `Power: ${Number(stageCard.currentPower || 0)}`,
+          `Effect: ${form?.effectText || stageCard.effectText || "No effect text"}`,
+          `Target: ${stageCard.boostTarget || "team"}`,
+          `Boost Type: ${stageCard.boostType || "unknown"}`,
           `Fragments: ${Number(owned?.fragments || 0)}`,
           owned
             ? `Owned Stage: M${owned.evolutionStage} • ${owned.evolutionForms?.[owned.evolutionStage - 1]?.name || owned.variant}`
             : "Owned Stage: Not owned",
         ]
       : [
-          `Form: ${form?.key || `M${stage}`}`,
-          `Tier: ${form?.tier || card.currentTier || card.rarity}`,
-          `Role: ${card.cardRole}`,
-          `Power: ${card.powerCaps?.[`M${stage}`] || card.currentPower || 0}`,
-          `Type: ${card.type || "Battle"}`,
+          `Form: ${stageCard.evolutionKey || `M${stage}`}`,
+          `Tier: ${stageCard.currentTier || stageCard.rarity}`,
+          `Role: ${stageCard.cardRole}`,
+          `Power: ${Number(stageCard.currentPower || 0)}`,
+          `Type: ${stageCard.type || "Battle"}`,
           "",
-          `ATK: ${Math.floor(Number(card.baseAtk || 0) * mult)}`,
-          `HP: ${Math.floor(Number(card.baseHp || 0) * mult)}`,
-          `SPD: ${Math.floor(Number(card.baseSpeed || 0) * mult)}`,
-          `Weapon Set: ${card.weapon || "None"}`,
-          `Devil Fruit: ${card.devilFruit || "None"}`,
+          `ATK: ${Number(stageCard.atk || 0)}`,
+          `HP: ${Number(stageCard.hp || 0)}`,
+          `SPD: ${Number(stageCard.speed || 0)}`,
+          `Weapon Set: ${stageCard.weapon || "None"}`,
+          `Devil Fruit: ${stageCard.devilFruit || "None"}`,
           owned
             ? `Owned Stage: M${owned.evolutionStage} • ${owned.evolutionForms?.[owned.evolutionStage - 1]?.name || owned.variant}`
             : "Owned Stage: Not owned",
@@ -111,11 +120,11 @@ function buildEmbed(card, owned, stage) {
   return buildCardStyleEmbed({
     color: 0x5865f2,
     header: "Global Card Viewer",
-    card,
+    card: stageCard,
     image: stageImage,
     badgeImage: stageBadge,
     formName: form?.name || "Unknown Form",
-    tier: form?.tier || card.currentTier || card.rarity,
+    tier: form?.tier || stageCard.currentTier || stageCard.rarity,
     footerText: owned
       ? `Owned Stage: M${owned.evolutionStage} • Global viewer`
       : "Global Card Viewer • Not required to own the card",
@@ -151,7 +160,7 @@ module.exports = {
 
   async execute(message, args) {
     const query = args.join(" ").trim();
-    if (!query) return message.reply("Usage: `op ci <card name>`");
+    if (!query) return message.reply("Usage: `op ci <card>`");
 
     const player = getPlayer(message.author.id, message.author.username);
     const globalCard = findCardTemplate(query);

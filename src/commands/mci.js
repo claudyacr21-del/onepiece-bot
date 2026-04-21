@@ -1,12 +1,14 @@
-const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { findOwnedCard } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 
 function formatOwnedWeapons(card) {
   if (Array.isArray(card.equippedWeapons) && card.equippedWeapons.length) {
-    return card.equippedWeapons.map((w) => w.name).join(", ");
+    return card.equippedWeapons
+      .map((w) => `${w.name}${Number(w.upgradeLevel || 0) > 0 ? ` +${w.upgradeLevel}` : ""}`)
+      .join(", ");
   }
+
   return card.equippedWeapon || "None";
 }
 
@@ -63,7 +65,7 @@ module.exports = {
 
   async execute(message, args) {
     const query = args.join(" ").trim();
-    if (!query) return message.reply("Usage: `op mci <card name>`");
+    if (!query) return message.reply("Usage: `op mci <card>`");
 
     const player = getPlayer(message.author.id, message.author.username);
     const card = findOwnedCard(player.cards || [], query);

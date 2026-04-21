@@ -40,12 +40,12 @@ function getFruitPower(item) {
   return getRarityPower(item?.rarity);
 }
 
-function getUpgradedItemPower(item, level = 0) {
+function getUpgradedItemPower(item, level = 5) {
   const lv = Math.max(0, Number(level || 0));
   return getRarityPower(item?.rarity) + lv * 250;
 }
 
-function getUpgradedBonus(item, level = 0) {
+function getUpgradedBonus(item, level = 5) {
   const lv = Math.max(0, Number(level || 0));
   const base = item?.statBonus || {};
   return {
@@ -92,7 +92,7 @@ function buildCardEmbed(card, index, total, mode) {
           `Role: ${card.cardRole}`,
           `Owner: ${card.displayName || card.name || "Unknown"}`,
           `Faction: ${card.faction || "Unknown"}`,
-          `Effect M1/M2/M3: ${card.evolutionForms?.[0]?.effectText || "-"} | ${card.evolutionForms?.[1]?.effectText || "-"} | ${card.evolutionForms?.[2]?.effectText || "-"}`,
+          `Effect: ${card.evolutionForms?.[2]?.effectText || card.effectText || "No effect text"}`,
           "",
           `Power: ${getCardPower(card)}`,
         ]
@@ -120,7 +120,6 @@ function buildCardEmbed(card, index, total, mode) {
 }
 
 function buildWeaponEmbed(item, index, total) {
-  const bonus0 = getUpgradedBonus(item, 0);
   const bonus5 = getUpgradedBonus(item, 5);
 
   return new EmbedBuilder()
@@ -133,10 +132,12 @@ function buildWeaponEmbed(item, index, total) {
         "",
         `Rarity: ${String(item.rarity || "B").toUpperCase()}`,
         `Effect: ${item.description || statEffectText(item)}`,
-        `Power (Base): ${getItemPower(item)}`,
-        `Power (Max +5): ${getUpgradedItemPower(item, 5)}`,
-        `Bonus (Base): +${bonus0.atk} ATK / +${bonus0.hp} HP / +${bonus0.speed} SPD`,
-        `Bonus (Max +5): +${bonus5.atk} ATK / +${bonus5.hp} HP / +${bonus5.speed} SPD`,
+        `Power: ${getUpgradedItemPower(item, 5)}`,
+        "",
+        `ATK: +${bonus5.atk}`,
+        `HP: +${bonus5.hp}`,
+        `SPD: +${bonus5.speed}`,
+        "",
         `Owners: ${Array.isArray(item.owners) && item.owners.length ? item.owners.join(", ") : "General"}`,
       ].join("\n")
     )
@@ -146,6 +147,8 @@ function buildWeaponEmbed(item, index, total) {
 }
 
 function buildFruitEmbed(item, index, total) {
+  const bonus = item?.statBonus || {};
+
   return new EmbedBuilder()
     .setColor(0x9b59b6)
     .setTitle("All Devil Fruits")
@@ -157,6 +160,11 @@ function buildFruitEmbed(item, index, total) {
         `Rarity: ${String(item.rarity || "B").toUpperCase()}`,
         `Effect: ${item.description || statEffectText(item)}`,
         `Power: ${getFruitPower(item)}`,
+        "",
+        `ATK: +${Number(bonus.atk || 0)}`,
+        `HP: +${Number(bonus.hp || 0)}`,
+        `SPD: +${Number(bonus.speed || 0)}`,
+        "",
         `Owners: ${Array.isArray(item.owners) && item.owners.length ? item.owners.join(", ") : "Unknown"}`,
       ].join("\n")
     )

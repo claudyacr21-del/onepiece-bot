@@ -122,6 +122,14 @@ function dedupeCollection(cards) {
 
     if (getPower(card) > getPower(existing)) {
       map.set(key, card);
+      continue;
+    }
+
+    if (
+      getPower(card) === getPower(existing) &&
+      Number(card.evolutionStage || 1) > Number(existing.evolutionStage || 1)
+    ) {
+      map.set(key, card);
     }
   }
 
