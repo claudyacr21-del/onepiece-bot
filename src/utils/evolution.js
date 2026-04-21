@@ -285,43 +285,66 @@ function hydrateCard(card) {
 
   const special = getLuffySpecialPath(next);
   const stage = Math.max(1, Math.min(3, Number(next.evolutionStage || 1)));
+
   const weaponBonus = {
     atk: Number(next?.weaponBonus?.atk || 0),
     hp: Number(next?.weaponBonus?.hp || 0),
     speed: Number(next?.weaponBonus?.speed || 0),
   };
+
   const fruitBonus = {
     atk: Number(next?.fruitBonus?.atk || 0),
     hp: Number(next?.fruitBonus?.hp || 0),
     speed: Number(next?.fruitBonus?.speed || 0),
   };
 
+  next.baseAtk = Number(next.baseAtk ?? next.atk ?? 0);
+  next.baseHp = Number(next.baseHp ?? next.hp ?? 0);
+  next.baseSpeed = Number(next.baseSpeed ?? next.speed ?? 0);
+
   if (special) {
     const mult = special.mults[stage];
+
     next.evolutionForms = [
       { ...special.forms[0], require: null, badgeImage: getRarityBadge(special.forms[0].tier) },
       { ...special.forms[1], require: next.awakenRequirements?.M2 || null, badgeImage: getRarityBadge(special.forms[1].tier) },
       { ...special.forms[2], require: next.awakenRequirements?.M3 || null, badgeImage: getRarityBadge(special.forms[2].tier) },
     ];
+
     next.baseTier = "A";
     next.evolutionStage = stage;
     next.evolutionKey = `M${stage}`;
     next.currentTier = special.forms[stage - 1].tier;
     next.rarity = special.forms[stage - 1].tier;
-    next.baseAtk = Number(next.baseAtk ?? next.atk ?? 0);
-    next.baseHp = Number(next.baseHp ?? next.hp ?? 0);
-    next.baseSpeed = Number(next.baseSpeed ?? next.speed ?? 0);
+
+    next.atk = Math.floor(next.baseAtk * mult) + weaponBonus.atk + fruitBonus.atk;
+    next.hp = Math.floor(next.baseHp * mult) + weaponBonus.hp + fruitBonus.hp;
+    next.speed = Math.floor(next.baseSpeed * mult) + weaponBonus.speed + fruitBonus.speed;
+  } else {
+    const mult = getStageMultiplier(next, stage);
+
+    next.evolutionStage = stage;
+    next.evolutionKey = `M${stage}`;
+
+    const forms = Array.isArray(next.evolutionForms) ? next.evolutionForms : [];
+    const activeForm = forms[stage - 1] || null;
+
+    next.currentTier = activeForm?.tier || next.currentTier || next.rarity;
+    next.rarity = next.currentTier || next.rarity;
+
     next.atk = Math.floor(next.baseAtk * mult) + weaponBonus.atk + fruitBonus.atk;
     next.hp = Math.floor(next.baseHp * mult) + weaponBonus.hp + fruitBonus.hp;
     next.speed = Math.floor(next.baseSpeed * mult) + weaponBonus.speed + fruitBonus.speed;
   }
 
   next.badgeImage = getRarityBadge(next.currentTier || next.rarity || "");
+
   next.evolutionForms = (next.evolutionForms || []).map((form, index) => ({
     ...form,
     badgeImage: getRarityBadge(form.tier),
     effectText: next.cardRole === "boost" ? getBoostEffectText(next, index + 1) : "",
   }));
+
   next.basePower = getBasePower(next);
   next.powerCaps = getPowerCaps(next);
   next.currentPower = getCurrentPower(next);
