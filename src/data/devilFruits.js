@@ -5,7 +5,7 @@ module.exports = [
     rarity: "UR",
     owners: ["imu"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 24, hp: 12, speed: 10 },
+    statBonus: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "An unknown and terrifying devil fruit tied to the deepest secrets of the world."
   },
@@ -15,7 +15,7 @@ module.exports = [
   rarity: "UR",
   owners: ["loki"],
   type: "Mythical Zoan Fruit",
-  statBonus: { atk: 23, hp: 12, speed: 8 },
+  statBonus: { atk: 10, hp: 8, speed: 5 },
   image: "",
   description: "A mythical dragon fruit tied to the legendary Nidhöggr."
 },
@@ -25,7 +25,7 @@ module.exports = [
     rarity: "B",
     owners: ["wapol"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 7, hp: 6, speed: 1 },
+    statBonus: { atk: 3, hp: 3, speed: 2 },
     image: "",
     description: "Allows the user to eat and fuse objects into their body."
   },
@@ -35,7 +35,7 @@ module.exports = [
     rarity: "B",
     owners: ["bellamy_hyena"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 8, hp: 2, speed: 5 },
+    statBonus: { atk: 3, hp: 3, speed: 2 },
     image: "",
     description: "Turns the legs into springs for explosive movement and attacks."
   },
@@ -45,7 +45,7 @@ module.exports = [
     rarity: "B",
     owners: ["buggy_the_clown"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 7, hp: 4, speed: 3 },
+    statBonus: { atk: 3, hp: 3, speed: 2 },
     image: "",
     description: "Lets the body split apart and move independently."
   },
@@ -55,7 +55,7 @@ module.exports = [
     rarity: "A",
     owners: ["trebol_underworld_support"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 8, hp: 6, speed: 2 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Produces sticky mucus-like material for trapping and control."
   },
@@ -65,7 +65,7 @@ module.exports = [
     rarity: "A",
     owners: ["mansherry_healing_princess"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 4, hp: 9, speed: 3 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "A miraculous healing fruit that restores allies."
   },
@@ -75,7 +75,7 @@ module.exports = [
     rarity: "B",
     owners: ["mr3"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 7, hp: 5, speed: 1 },
+    statBonus: { atk: 3, hp: 3, speed: 2 },
     image: "",
     description: "Creates and shapes wax into armor, traps, and weapons."
   },
@@ -85,7 +85,7 @@ module.exports = [
     rarity: "A",
     owners: ["caesar_clown"],
     type: "Logia Fruit",
-    statBonus: { atk: 10, hp: 4, speed: 3 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Controls gas in many deadly forms."
   },
@@ -95,7 +95,7 @@ module.exports = [
     rarity: "S",
     owners: ["enel_god"],
     type: "Logia Fruit",
-    statBonus: { atk: 14, hp: 4, speed: 8 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Grants control over thunder and lightning at immense speed."
   },
@@ -105,7 +105,7 @@ module.exports = [
     rarity: "UR",
     owners: ["whitebeard_strongest_man", "blackbeard_emperor_of_darkness"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 20, hp: 13, speed: 7 },
+    statBonus: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "Creates world-shaking quakes powerful enough to destroy seas and islands."
   },
@@ -115,7 +115,7 @@ module.exports = [
     rarity: "A",
     owners: ["nico_robin_devil_child"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 8, hp: 5, speed: 5 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Allows body parts to bloom anywhere within range."
   },
@@ -125,7 +125,7 @@ module.exports = [
     rarity: "S",
     owners: ["aokiji"],
     type: "Logia Fruit",
-    statBonus: { atk: 13, hp: 6, speed: 5 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Turns the user into ice and freezes the battlefield."
   },
@@ -135,7 +135,7 @@ module.exports = [
     rarity: "A",
     owners: ["chopper_cotton_candy_lover"],
     type: "Zoan Fruit",
-    statBonus: { atk: 6, hp: 8, speed: 3 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "The human fruit that grants human intelligence and form changes."
   },
@@ -145,7 +145,7 @@ module.exports = [
     rarity: "S",
     owners: ["sengoku_buddha"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 15, hp: 9, speed: 2 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Transforms the user into a giant golden Buddha."
   },
@@ -155,7 +155,7 @@ module.exports = [
     rarity: "UR",
     owners: ["warcury"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 22, hp: 15, speed: 8 },
+    statBonus: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "A monstrous mythical zoan tied to overwhelming durability and dominance."
   },
@@ -165,7 +165,7 @@ module.exports = [
     rarity: "UR",
     owners: ["luffy_straw_hat"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 25, hp: 13, speed: 10 },
+    statBonus: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "The fruit of liberation, granting ridiculous freedom and power."
   },
@@ -175,7 +175,7 @@ module.exports = [
     rarity: "A",
     owners: ["perona_ghost_princess"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 7, hp: 6, speed: 4 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Creates ghosts that weaken enemies and disrupt the battlefield."
   },
@@ -185,7 +185,7 @@ module.exports = [
     rarity: "S",
     owners: ["yamato_oni_princess"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 14, hp: 9, speed: 5 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "A divine guardian wolf fruit with ice and guardian powers."
   },
@@ -195,7 +195,7 @@ module.exports = [
     rarity: "A",
     owners: ["gecko_moria"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 9, hp: 7, speed: 2 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Controls shadows for stolen strength and monstrous forms."
   },
@@ -205,7 +205,7 @@ module.exports = [
     rarity: "B",
     owners: ["otama_kibi_support"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 3, hp: 5, speed: 2 },
+    statBonus: { atk: 3, hp: 3, speed: 2 },
     image: "",
     description: "Creates kibi dango that can tame beasts."
   },
@@ -215,7 +215,7 @@ module.exports = [
     rarity: "UR",
     owners: ["akainu"],
     type: "Logia Fruit",
-    statBonus: { atk: 21, hp: 9, speed: 7 },
+    statBonus: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "The supreme magma fruit with overwhelming destructive power."
   },
@@ -225,7 +225,7 @@ module.exports = [
     rarity: "A",
     owners: ["charlotte_pudding"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 5, hp: 7, speed: 4 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Manipulates memories and extracts them like film strips."
   },
@@ -235,7 +235,7 @@ module.exports = [
     rarity: "S",
     owners: ["ace_fire_fist", "sabo_flame_emperor"],
     type: "Logia Fruit",
-    statBonus: { atk: 15, hp: 3, speed: 6 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Grants control over flames and intense burst offense."
   },
@@ -245,7 +245,7 @@ module.exports = [
     rarity: "S",
     owners: ["boa_hancock", "boa_seraphim"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 12, hp: 5, speed: 6 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Petrifies targets through irresistible charm and beam attacks."
   },
@@ -255,7 +255,7 @@ module.exports = [
     rarity: "S",
     owners: ["katakuri_strongest_sweet_commander"],
     type: "Special Paramecia Fruit",
-    statBonus: { atk: 14, hp: 6, speed: 6 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Creates and controls mochi with overwhelming mastery."
   },
@@ -265,7 +265,7 @@ module.exports = [
     rarity: "A",
     owners: ["smoker_white_hunter"],
     type: "Logia Fruit",
-    statBonus: { atk: 9, hp: 6, speed: 5 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Turns the user into smoke for pursuit and battlefield control."
   },
@@ -275,7 +275,7 @@ module.exports = [
     rarity: "S",
     owners: ["greenbull"],
     type: "Logia Fruit",
-    statBonus: { atk: 13, hp: 9, speed: 3 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Creates and controls life-draining forest growth."
   },
@@ -285,7 +285,7 @@ module.exports = [
     rarity: "UR",
     owners: ["ju_peter"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 22, hp: 15, speed: 7 },
+    statBonus: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "A terrifying mythical zoan tied to a giant devouring sandworm."
   },
@@ -295,7 +295,7 @@ module.exports = [
     rarity: "A",
     owners: ["corazon"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 5, hp: 7, speed: 5 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Creates soundless zones that silence everything inside."
   },
@@ -305,7 +305,7 @@ module.exports = [
     rarity: "S",
     owners: ["lucci_cp9"],
     type: "Zoan Fruit",
-    statBonus: { atk: 15, hp: 6, speed: 6 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Transforms the user into a lethal leopard hybrid."
   },
@@ -315,7 +315,7 @@ module.exports = [
     rarity: "S",
     owners: ["bartholomew_kuma"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 12, hp: 8, speed: 5 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Repels anything it touches, from air to pain to people."
   },
@@ -325,7 +325,7 @@ module.exports = [
     rarity: "UR",
     owners: ["vegapunk_stella"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 19, hp: 12, speed: 8 },
+    statBonus: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "The brain fruit that stores limitless knowledge."
   },
@@ -335,7 +335,7 @@ module.exports = [
     rarity: "S",
     owners: ["law_surgeon_of_death"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 14, hp: 5, speed: 6 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Creates surgical Rooms that manipulate everything within them."
   },
@@ -345,7 +345,7 @@ module.exports = [
     rarity: "A",
     owners: ["perospero"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 8, hp: 6, speed: 2 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Creates and controls candy structures and weapons."
   },
@@ -355,7 +355,7 @@ module.exports = [
     rarity: "S",
     owners: ["kizaru"],
     type: "Logia Fruit",
-    statBonus: { atk: 13, hp: 3, speed: 9 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Turns the user into light for unmatched speed and piercing attacks."
   },
@@ -365,7 +365,7 @@ module.exports = [
     rarity: "S",
     owners: ["baccarat_lucky_draw"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 0, hp: 0, speed: 0 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     resetPullBonus: 2,
     dailyResetToken: 1,
     image: "",
@@ -377,7 +377,7 @@ module.exports = [
     rarity: "S",
     owners: ["queen_the_plague"],
     type: "Ancient Zoan Fruit",
-    statBonus: { atk: 15, hp: 10, speed: 2 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Transforms the user into a brachiosaurus with massive durability."
   },
@@ -387,7 +387,7 @@ module.exports = [
     rarity: "S",
     owners: ["king_wildfire"],
     type: "Ancient Zoan Fruit",
-    statBonus: { atk: 15, hp: 6, speed: 6 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "An ancient pteranodon fruit granting aerial assault power."
   },
@@ -397,7 +397,7 @@ module.exports = [
     rarity: "UR",
     owners: ["big_mom_emperor"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 23, hp: 15, speed: 7 },
+    statBonus: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "Controls souls and creates fearsome living homies."
   },
@@ -407,7 +407,7 @@ module.exports = [
     rarity: "C",
     owners: ["alvida_iron_club"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 4, hp: 5, speed: 2 },
+    statBonus: { atk: 2, hp: 2, speed: 1 },
     image: "",
     description: "Smooths the body and reduces incoming friction."
   },
@@ -417,7 +417,7 @@ module.exports = [
     rarity: "S",
     owners: ["shiryu"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 11, hp: 2, speed: 7 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Makes the user invisible for deadly surprise attacks."
   },
@@ -427,7 +427,7 @@ module.exports = [
     rarity: "S",
     owners: ["crocodile_desert_king"],
     type: "Logia Fruit",
-    statBonus: { atk: 14, hp: 5, speed: 5 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Turns the user into sand and dries out everything it touches."
   },
@@ -437,7 +437,7 @@ module.exports = [
     rarity: "A",
     owners: ["daz_bonez", "mihawk_seraphim"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 10, hp: 5, speed: 3 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Turns the body into steel blades."
   },
@@ -447,7 +447,7 @@ module.exports = [
     rarity: "UR",
     owners: ["mars"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 21, hp: 12, speed: 8 },
+    statBonus: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "A mythical bird fruit tied to a monstrous yokai form."
   },
@@ -457,7 +457,7 @@ module.exports = [
     rarity: "S",
     owners: ["marco_phoenix"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 11, hp: 11, speed: 5 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "A phoenix fruit with legendary regenerative flames."
   },
@@ -467,7 +467,7 @@ module.exports = [
   rarity: "UR",
   owners: ["kaido_strongest_creature"],
   type: "Mythical Zoan Fruit",
-  statBonus: { atk: 22, hp: 17, speed: 7 },
+  statBonus: { atk: 10, hp: 8, speed: 5 },
   image: "",
   description: "A mythical zoan that transforms the user into an immense azure dragon with overwhelming destructive power."
   },
@@ -477,7 +477,7 @@ module.exports = [
   rarity: "S",
   owners: ["doflamingo_heavenly_demon"],
   type: "Paramecia Fruit",
-  statBonus: { atk: 14, hp: 6, speed: 7 },
+  statBonus: { atk: 7, hp: 6, speed: 4 },
   image: "",
   description: "A paramecia fruit that lets the user create and manipulate razor-sharp strings for control, slicing, and awakened terrain attacks."
   },
@@ -487,7 +487,7 @@ module.exports = [
     rarity: "UR",
     owners: ["nusjuro"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 21, hp: 10, speed: 8 },
+    statBonus: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "A terrifying mythical horse fruit linked to a skeletal yokai."
   },
@@ -497,7 +497,7 @@ module.exports = [
     rarity: "UR",
     owners: ["dragon_revolutionary_leader"],
     type: "Logia Fruit",
-    statBonus: { atk: 21, hp: 12, speed: 9 },
+    statBonus: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "A Logia-type Devil fruit that allows the user to manipulate, create, and transform into storms freely."
   },
@@ -507,7 +507,7 @@ module.exports = [
     rarity: "A",
     owners: ["kaku_cp9"],
     type: "Zoan Fruit",
-    statBonus: { atk: 10, hp: 7, speed: 3 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Transforms the user into a giraffe hybrid with strange but deadly reach."
   },
@@ -517,7 +517,7 @@ module.exports = [
     rarity: "UR",
     owners: ["saturn"],
     type: "Mythical Zoan Fruit",
-    statBonus: { atk: 22, hp: 16, speed: 7 },
+    statBonus: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "A monstrous ox-spider mythical zoan with horrifying presence."
   },
@@ -527,7 +527,7 @@ module.exports = [
     rarity: "S",
     owners: ["tsuru_tactical_support"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 5, hp: 9, speed: 3 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Allows the user to wash and flatten things like laundry."
   },
@@ -537,7 +537,7 @@ module.exports = [
     rarity: "UR",
     owners: ["blackbeard_emperor_of_darkness"],
     type: "Logia Fruit",
-    statBonus: { atk: 23, hp: 10, speed: 8 },
+    statBonus: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "Controls darkness and nullifies other devil fruit powers."
   },
@@ -547,7 +547,7 @@ module.exports = [
     rarity: "A",
     owners: ["brook_soul_king"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 8, hp: 4, speed: 7 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Returns the user to life and awakens soul-based powers."
   },
@@ -557,7 +557,7 @@ module.exports = [
     rarity: "A",
     owners: ["jack_the_drought"],
     type: "Ancient Zoan Fruit",
-    statBonus: { atk: 12, hp: 10, speed: 1 },
+    statBonus: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Transforms the user into a mammoth with crushing mass."
   },
@@ -567,7 +567,7 @@ module.exports = [
     rarity: "S",
     owners: ["fujitora"],
     type: "Paramecia Fruit",
-    statBonus: { atk: 13, hp: 7, speed: 3 },
+    statBonus: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "Manipulates gravity to pin enemies and call meteors."
   },
@@ -577,7 +577,7 @@ module.exports = [
   rarity: "UR",
   owners: ["gunko_holy_knight"],
   type: "Paramecia Fruit",
-  statBonus: { atk: 19, hp: 8, speed: 10 },
+  statBonus: { atk: 10, hp: 8, speed: 5 },
   image: "",
   description: "A paramecia fruit that lets the user create and manipulate arrow-like strips for offense, control, mobility, and restraint."
   }

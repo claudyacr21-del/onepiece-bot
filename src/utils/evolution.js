@@ -200,7 +200,7 @@ function resolveEquippedFruit(card) {
   return findByCodeOrName(devilFruits, card.equippedDevilFruit);
 }
 
-function getWeaponBonusFromData(card) {
+function getWeaponPercentFromData(card) {
   const equipped = resolveEquippedWeapons(card);
 
   let atk = 0;
@@ -209,15 +209,17 @@ function getWeaponBonusFromData(card) {
 
   for (const item of equipped) {
     const level = Math.max(0, Number(item.upgradeLevel || 0));
-    atk += Number(item?.statBonus?.atk || 0) + level * 3;
-    hp += Number(item?.statBonus?.hp || 0) + level * 8;
-    speed += Number(item?.statBonus?.speed || 0) + level * 1;
+    const percent = item?.statPercent || {};
+
+    atk += Number(percent.atk || 0) + level * 1;
+    hp += Number(percent.hp || 0) + level * 1;
+    speed += Number(percent.speed || 0);
   }
 
   return { atk, hp, speed, equipped };
 }
 
-function getFruitBonusFromData(card) {
+function getFruitPercentFromData(card) {
   const fruit = resolveEquippedFruit(card);
 
   if (!fruit) {
@@ -229,10 +231,12 @@ function getFruitBonusFromData(card) {
     };
   }
 
+  const percent = fruit?.statPercent || {};
+
   return {
-    atk: Number(fruit?.statBonus?.atk || 0),
-    hp: Number(fruit?.statBonus?.hp || 0),
-    speed: Number(fruit?.statBonus?.speed || 0),
+    atk: Number(percent.atk || 0),
+    hp: Number(percent.hp || 0),
+    speed: Number(percent.speed || 0),
     fruit,
   };
 }
@@ -305,24 +309,13 @@ function hydrateCard(card) {
   const special = getLuffySpecialPath(next);
   const stage = Math.max(1, Math.min(3, Number(next.evolutionStage || 1)));
 
-  const weaponData = getWeaponBonusFromData(next);
-  const fruitData = getFruitBonusFromData(next);
-
-  next.weaponBonus = {
-    atk: weaponData.atk,
-    hp: weaponData.hp,
-    speed: weaponData.speed,
-  };
-
-  next.fruitBonus = {
-    atk: fruitData.atk,
-    hp: fruitData.hp,
-    speed: fruitData.speed,
-  };
-
   next.baseAtk = Number(next.baseAtk ?? next.atk ?? 0);
   next.baseHp = Number(next.baseHp ?? next.hp ?? 0);
   next.baseSpeed = Number(next.baseSpeed ?? next.speed ?? 0);
+
+  let scaledAtk = 0;
+  let scaledHp = 0;
+  let scaledSpeed = 0;
 
   if (special) {
     const mult = special.mults[stage];
@@ -339,9 +332,9 @@ function hydrateCard(card) {
     next.currentTier = special.forms[stage - 1].tier;
     next.rarity = special.forms[stage - 1].tier;
 
-    next.atk = Math.floor(next.baseAtk * mult) + next.weaponBonus.atk + next.fruitBonus.atk;
-    next.hp = Math.floor(next.baseHp * mult) + next.weaponBonus.hp + next.fruitBonus.hp;
-    next.speed = Math.floor(next.baseSpeed * mult) + next.weaponBonus.speed + next.fruitBonus.speed;
+    scaledAtk = Math.floor(next.baseAtk * mult);
+    scaledHp = Math.floor(next.baseHp * mult);
+    scaledSpeed = Math.floor(next.baseSpeed * mult);
   } else {
     const mult = getStageMultiplier(next, stage);
 
@@ -354,15 +347,49 @@ function hydrateCard(card) {
     next.currentTier = activeForm?.tier || next.currentTier || next.rarity;
     next.rarity = next.currentTier || next.rarity;
 
-    next.atk = Math.floor(next.baseAtk * mult) + next.weaponBonus.atk + next.fruitBonus.atk;
-    next.hp = Math.floor(next.baseHp * mult) + next.weaponBonus.hp + next.fruitBonus.hp;
-    next.speed = Math.floor(next.baseSpeed * mult) + next.weaponBonus.speed + next.fruitBonus.speed;
+    scaledAtk = Math.floor(next.baseAtk * mult);
+    scaledHp = Math.floor(next.baseHp * mult);
+    scaledSpeed = Math.floor(next.baseSpeed * mult);
   }
 
-  next.equippedWeapons = weaponData.equipped;
-  next.equippedDevilFruitData = fruitData.fruit;
-  next.displayWeaponName = getDisplayWeaponName(next, weaponData.equipped);
-  next.displayFruitName = getDisplayFruitName(next, fruitData.fruit);
+  const weaponPercent = getWeaponPercentFromData(next);
+  const fruitPercent = getFruitPercentFromData(next);
+
+  const weaponBonus = {
+    atk: Math.floor(scaledAtk * Number(weaponPercent.atk || 0) / 100),
+    hp: Math.floor(scaledHp * Number(weaponPercent.hp || 0) / 100),
+    speed: Math.floor(scaledSpeed * Number(weaponPercent.speed || 0) / 100),
+  };
+
+  const fruitBonus = {
+    atk: Math.floor(scaledAtk * Number(fruitPercent.atk || 0) / 100),
+    hp: Math.floor(scaledHp * Number(fruitPercent.hp || 0) / 100),
+    speed: Math.floor(scaledSpeed * Number(fruitPercent.speed || 0) / 100),
+  };
+
+  next.weaponBonus = weaponBonus;
+  next.fruitBonus = fruitBonus;
+
+  next.weaponBonusPercent = {
+    atk: Number(weaponPercent.atk || 0),
+    hp: Number(weaponPercent.hp || 0),
+    speed: Number(weaponPercent.speed || 0),
+  };
+
+  next.fruitBonusPercent = {
+    atk: Number(fruitPercent.atk || 0),
+    hp: Number(fruitPercent.hp || 0),
+    speed: Number(fruitPercent.speed || 0),
+  };
+
+  next.atk = scaledAtk + weaponBonus.atk + fruitBonus.atk;
+  next.hp = scaledHp + weaponBonus.hp + fruitBonus.hp;
+  next.speed = scaledSpeed + weaponBonus.speed + fruitBonus.speed;
+
+  next.equippedWeapons = weaponPercent.equipped;
+  next.equippedDevilFruitData = fruitPercent.fruit;
+  next.displayWeaponName = getDisplayWeaponName(next, weaponPercent.equipped);
+  next.displayFruitName = getDisplayFruitName(next, fruitPercent.fruit);
 
   next.badgeImage = getRarityBadge(next.currentTier || next.rarity || "");
 
