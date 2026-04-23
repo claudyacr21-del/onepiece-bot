@@ -87,22 +87,36 @@ function formatEquippedWeaponNames(equippedWeapons = []) {
     .join(", ");
 }
 
-function getWeaponPercentAtLevel(basePercent, level) {
+function getWeaponPercentAtLevel(basePercent, level, ownerBonusPercent, ownerActive) {
   const lv = Math.max(0, Number(level || 0));
   return {
-    atk: Number(basePercent?.atk || 0) + lv * 1,
-    hp: Number(basePercent?.hp || 0) + lv * 1,
-    speed: Number(basePercent?.speed || 0),
+    atk:
+      Number(basePercent?.atk || 0) +
+      lv * 1 +
+      (ownerActive ? Number(ownerBonusPercent?.atk || 0) : 0),
+    hp:
+      Number(basePercent?.hp || 0) +
+      lv * 1 +
+      (ownerActive ? Number(ownerBonusPercent?.hp || 0) : 0),
+    speed:
+      Number(basePercent?.speed || 0) +
+      (ownerActive ? Number(ownerBonusPercent?.speed || 0) : 0),
   };
 }
 
-function sumWeaponPercents(equippedWeapons = []) {
+function sumWeaponPercents(equippedWeapons = [], cardCode = "") {
   return equippedWeapons.reduce(
     (acc, item) => {
+      const ownerActive =
+        Array.isArray(item.owners) && item.owners.includes(cardCode);
+
       const percent = getWeaponPercentAtLevel(
         item.baseStatPercent || item.statPercent || { atk: 0, hp: 0, speed: 0 },
-        item.upgradeLevel || 0
+        item.upgradeLevel || 0,
+        item.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
+        ownerActive
       );
+
       acc.atk += Number(percent.atk || 0);
       acc.hp += Number(percent.hp || 0);
       acc.speed += Number(percent.speed || 0);
@@ -134,15 +148,6 @@ module.exports = {
     const ownedEntry = findOwnedWeaponEntry(player.weapons || [], weaponTemplate.code);
     if (!ownedEntry || Number(ownedEntry.amount || 0) <= 0) {
       return message.reply(`You do not own \`${weaponTemplate.name}\`.`);
-    }
-
-    const allowedOwners = Array.isArray(weaponTemplate.owners)
-      ? weaponTemplate.owners
-      : [];
-    if (allowedOwners.length && !allowedOwners.includes(card.code)) {
-      return message.reply(
-        `\`${weaponTemplate.name}\` cannot be equipped to \`${card.displayName || card.name}\`.`
-      );
     }
 
     const existingEquipped = Array.isArray(card.equippedWeapons)
@@ -178,6 +183,7 @@ module.exports = {
         type: weaponTemplate.type,
         statPercent: weaponTemplate.statPercent || { atk: 0, hp: 0, speed: 0 },
         baseStatPercent: weaponTemplate.statPercent || { atk: 0, hp: 0, speed: 0 },
+        ownerBonusPercent: weaponTemplate.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
         upgradeLevel: inheritedLevel,
         image: weaponTemplate.image || "",
         owners: weaponTemplate.owners || [],
@@ -185,7 +191,7 @@ module.exports = {
       },
     ];
 
-    const totalWeaponPercent = sumWeaponPercents(nextEquipped);
+    const totalWeaponPercent = sumWeaponPercents(nextEquipped, card.code);
     const equippedWeaponName = formatEquippedWeaponNames(nextEquipped);
 
     const updatedCards = (player.cards || []).map((raw) => {
@@ -210,9 +216,15 @@ module.exports = {
     const weaponBadge = getRarityBadge(weaponTemplate.rarity || "B");
     const weaponImage = getWeaponImage(weaponTemplate.code, weaponTemplate.image || "");
     const slotText = `${nextEquipped.length}/${slotLimit}`;
+
+    const ownerActive =
+      Array.isArray(weaponTemplate.owners) && weaponTemplate.owners.includes(card.code);
+
     const shownPercent = getWeaponPercentAtLevel(
       weaponTemplate.statPercent || { atk: 0, hp: 0, speed: 0 },
-      inheritedLevel
+      inheritedLevel,
+      weaponTemplate.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
+      ownerActive
     );
 
     return message.reply({
@@ -228,6 +240,7 @@ module.exports = {
               `**Weapon Level:** +${inheritedLevel}`,
               `**Weapon Slots:** ${slotText}`,
               `**Equipped Weapons:** ${equippedWeaponName || weaponTemplate.name}`,
+              `**Owner Bonus Active:** ${ownerActive ? "Yes" : "No"}`,
               "",
               `**ATK:** ${formatAtkRange(synced.atk)}`,
               `**HP:** ${synced.hp}`,

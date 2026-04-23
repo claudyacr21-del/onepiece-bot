@@ -202,6 +202,8 @@ function resolveEquippedWeapons(card) {
       equipped.push({
         ...found,
         upgradeLevel: Number(entry?.upgradeLevel || 0),
+        baseStatPercent: entry?.baseStatPercent || found?.statPercent || { atk: 0, hp: 0, speed: 0 },
+        ownerBonusPercent: found?.ownerBonusPercent || entry?.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
       });
     }
     return equipped;
@@ -213,6 +215,8 @@ function resolveEquippedWeapons(card) {
       equipped.push({
         ...found,
         upgradeLevel: Number(card?.equippedWeaponLevel || 0),
+        baseStatPercent: found?.statPercent || { atk: 0, hp: 0, speed: 0 },
+        ownerBonusPercent: found?.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
       });
     }
   }
@@ -225,6 +229,10 @@ function resolveEquippedFruit(card) {
   return findByCodeOrName(devilFruits, card.equippedDevilFruit);
 }
 
+function isWeaponOwnerBonusActive(card, weapon) {
+  return Array.isArray(weapon?.owners) && weapon.owners.includes(card?.code);
+}
+
 function getWeaponPercentFromData(card) {
   const equipped = resolveEquippedWeapons(card);
 
@@ -234,11 +242,13 @@ function getWeaponPercentFromData(card) {
 
   for (const item of equipped) {
     const level = Math.max(0, Number(item.upgradeLevel || 0));
-    const percent = item?.statPercent || {};
+    const base = item?.statPercent || item?.baseStatPercent || {};
+    const ownerBonus = item?.ownerBonusPercent || {};
+    const ownerActive = isWeaponOwnerBonusActive(card, item);
 
-    atk += Number(percent.atk || 0) + level * 1;
-    hp += Number(percent.hp || 0) + level * 1;
-    speed += Number(percent.speed || 0);
+    atk += Number(base.atk || 0) + level * 1 + (ownerActive ? Number(ownerBonus.atk || 0) : 0);
+    hp += Number(base.hp || 0) + level * 1 + (ownerActive ? Number(ownerBonus.hp || 0) : 0);
+    speed += Number(base.speed || 0) + (ownerActive ? Number(ownerBonus.speed || 0) : 0);
   }
 
   return { atk, hp, speed, equipped };
