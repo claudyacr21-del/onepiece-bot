@@ -2,8 +2,14 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { findOwnedCard } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
-const { getCardImage, getDevilFruitImage, getRarityBadge } = require("../config/assetLinks");
+const {
+  getCardImage,
+  getDevilFruitImage,
+  getWeaponImage,
+  getRarityBadge,
+} = require("../config/assetLinks");
 const devilFruitsDb = require("../data/devilFruits");
+const weaponsDb = require("../data/weapons");
 
 function normalize(text) {
   return String(text || "")
@@ -84,6 +90,19 @@ function findFruitTemplate(value) {
   );
 }
 
+function findWeaponTemplate(value) {
+  const q = normalize(value);
+  if (!q) return null;
+
+  return (
+    weaponsDb.find((item) => normalize(item.code) === q) ||
+    weaponsDb.find((item) => normalize(item.name) === q) ||
+    weaponsDb.find((item) => normalize(item.code).includes(q)) ||
+    weaponsDb.find((item) => normalize(item.name).includes(q)) ||
+    null
+  );
+}
+
 function buildOwnedFruitPool(player) {
   const fruits = new Map();
 
@@ -124,22 +143,84 @@ function buildOwnedFruitPool(player) {
   return [...fruits.values()];
 }
 
+function buildOwnedWeaponPool(player) {
+  const weapons = new Map();
+
+  for (const entry of Array.isArray(player.weapons) ? player.weapons : []) {
+    const template = findWeaponTemplate(entry.code || entry.name);
+    if (!template) continue;
+
+    const key = String(template.code);
+    const existing = weapons.get(key) || {
+      ...template,
+      amount: 0,
+      equippedOn: [],
+      bestUpgradeLevel: 0,
+    };
+
+    existing.amount += Math.max(1, Number(entry.amount || 1));
+    existing.bestUpgradeLevel = Math.max(
+      existing.bestUpgradeLevel,
+      Number(entry.upgradeLevel || 0)
+    );
+    weapons.set(key, existing);
+  }
+
+  for (const rawCard of Array.isArray(player.cards) ? player.cards : []) {
+    const equipped = Array.isArray(rawCard.equippedWeapons)
+      ? rawCard.equippedWeapons
+      : [];
+
+    for (const entry of equipped) {
+      const template = findWeaponTemplate(entry.code || entry.name);
+      if (!template) continue;
+
+      const key = String(template.code);
+      const existing = weapons.get(key) || {
+        ...template,
+        amount: 0,
+        equippedOn: [],
+        bestUpgradeLevel: 0,
+      };
+
+      existing.equippedOn.push(rawCard.displayName || rawCard.name || rawCard.code);
+      existing.bestUpgradeLevel = Math.max(
+        existing.bestUpgradeLevel,
+        Number(entry.upgradeLevel || 0)
+      );
+      weapons.set(key, existing);
+    }
+  }
+
+  return [...weapons.values()];
+}
+
 function findOwnedFruit(player, query) {
   const pool = buildOwnedFruitPool(player);
 
   const scored = pool
     .map((fruit) => {
-      const score = scoreQuery(query, [
-        fruit.name,
-        fruit.code,
-        fruit.type,
-      ]);
+      const score = scoreQuery(query, [fruit.name, fruit.code, fruit.type]);
       return { fruit, score };
     })
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
 
   return scored.length ? scored[0].fruit : null;
+}
+
+function findOwnedWeapon(player, query) {
+  const pool = buildOwnedWeaponPool(player);
+
+  const scored = pool
+    .map((weapon) => {
+      const score = scoreQuery(query, [weapon.name, weapon.code, weapon.type]);
+      return { weapon, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored.length ? scored[0].weapon : null;
 }
 
 function buildOwnedFruitEmbed(ownerName, fruit) {
@@ -170,6 +251,37 @@ function buildOwnedFruitEmbed(ownerName, fruit) {
     .setThumbnail(getRarityBadge(fruit.rarity || "B") || null)
     .setImage(getDevilFruitImage(fruit.code, fruit.image || "") || null)
     .setFooter({ text: `Owned devil fruit info • ${ownerName}` });
+}
+
+function buildOwnedWeaponEmbed(ownerName, weapon) {
+  const percent = weapon.statPercent || weapon.statBonus || { atk: 0, hp: 0, speed: 0 };
+  const equippedText =
+    Array.isArray(weapon.equippedOn) && weapon.equippedOn.length
+      ? weapon.equippedOn.join(", ")
+      : "Not equipped";
+
+  return new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle(`${ownerName}'s Weapon`)
+    .setDescription(
+      [
+        `**${weapon.name}**`,
+        `${weapon.type || "Weapon"}`,
+        "",
+        `Rarity: ${String(weapon.rarity || "B").toUpperCase()}`,
+        `ATK: +${Number(percent.atk || 0)}%`,
+        `HP: +${Number(percent.hp || 0)}%`,
+        `SPD: +${Number(percent.speed || 0)}%`,
+        `Owned Amount: ${Math.max(0, Number(weapon.amount || 0))}`,
+        `Best Upgrade: +${Math.max(0, Number(weapon.bestUpgradeLevel || 0))}`,
+        `Equipped On: ${equippedText}`,
+        "",
+        `${weapon.description || "No description."}`,
+      ].join("\n")
+    )
+    .setThumbnail(getRarityBadge(weapon.rarity || "B") || null)
+    .setImage(getWeaponImage(weapon.code, weapon.image || "") || null)
+    .setFooter({ text: `Owned weapon info • ${ownerName}` });
 }
 
 function buildOwnedCardEmbed(ownerName, card) {
@@ -222,7 +334,7 @@ module.exports = {
 
   async execute(message, args) {
     const query = args.join(" ").trim();
-    if (!query) return message.reply("Usage: `op mci <card or devil fruit>`");
+    if (!query) return message.reply("Usage: `op mci <card, devil fruit, or weapon>`");
 
     const player = getPlayer(message.author.id, message.author.username);
 
@@ -233,9 +345,16 @@ module.exports = {
       });
     }
 
+    const ownedWeapon = findOwnedWeapon(player, query);
+    if (ownedWeapon) {
+      return message.reply({
+        embeds: [buildOwnedWeaponEmbed(message.author.username, ownedWeapon)],
+      });
+    }
+
     const card = findOwnedCard(player.cards || [], query);
     if (!card) {
-      return message.reply("You do not own that card or devil fruit.");
+      return message.reply("You do not own that card, devil fruit, or weapon.");
     }
 
     return message.reply({

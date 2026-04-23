@@ -35,7 +35,10 @@ function addFragment(list, card) {
   const index = arr.findIndex((x) => x.code === code);
 
   if (index !== -1) {
-    arr[index] = { ...arr[index], amount: Number(arr[index].amount || 0) + 1 };
+    arr[index] = {
+      ...arr[index],
+      amount: Number(arr[index].amount || 0) + 1,
+    };
     return arr;
   }
 
@@ -51,20 +54,67 @@ function addFragment(list, card) {
   return arr;
 }
 
+function addTicket(list, ticket) {
+  const arr = Array.isArray(list) ? [...list] : [];
+  const idx = arr.findIndex((x) => String(x.code) === String(ticket.code));
+
+  if (idx === -1) {
+    arr.push({
+      code: ticket.code,
+      name: ticket.name,
+      amount: 1,
+    });
+  } else {
+    arr[idx] = {
+      ...arr[idx],
+      amount: Number(arr[idx].amount || 0) + 1,
+    };
+  }
+
+  return arr;
+}
+
+function rollTicketBonus() {
+  const roll = Math.random() * 100;
+
+  if (roll < 0.75) {
+    return {
+      code: "raid_ticket",
+      name: "Raid Ticket",
+      rarity: "A",
+    };
+  }
+
+  if (roll < 3.25) {
+    return {
+      code: "common_raid_ticket",
+      name: "Common Raid Ticket",
+      rarity: "B",
+    };
+  }
+
+  return null;
+}
+
+function buildTicketDropText(ticket) {
+  if (!ticket) return null;
+  return `🎟️ Bonus Drop: **${ticket.name}**`;
+}
+
 module.exports = {
   name: "pull",
   aliases: ["gacha"],
+
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-    const resetState = applyGlobalPullReset(player);
 
+    const resetState = applyGlobalPullReset(player);
     if (resetState?.wasReset) {
       updatePlayer(message.author.id, { pulls: resetState.pulls });
       player.pulls = resetState.pulls;
     }
 
     const snapshot = buildPullAccessSnapshot(player, message);
-
     if (message.guild) {
       updatePlayer(message.author.id, {
         pullAccessSnapshot: snapshot,
@@ -76,7 +126,7 @@ module.exports = {
     const available = Math.max(0, totalMax - totalUsed);
 
     if (available <= 0) {
-      return message.reply("You do not have any available pulls right now. Use `op pullinfo` to check your slots.");
+      return message.reply("You do not have any available pulls right now.\nUse `op pullinfo` to check your slots.");
     }
 
     const pullKey = getNextAvailablePullKey(player, message);
@@ -88,15 +138,24 @@ module.exports = {
 
     const contentType = pickContentType();
     const baseTier = rollStandardBaseTier();
-    const pool = (contentType === "battle" ? battlePool : boostPool).filter((c) => c.baseTier === baseTier);
+    const pool = (contentType === "battle" ? battlePool : boostPool).filter(
+      (c) => c.baseTier === baseTier
+    );
 
     if (!pool.length) return message.reply("Pull pool is empty.");
 
     const picked = pool[Math.floor(Math.random() * pool.length)];
     const updatedPulls = consumePullSlot(player, pullKey);
     const updatedDailyState = incrementQuestCounter(player, "pullsUsed", 1);
+    const ticketDrop = rollTicketBonus();
+    const updatedTickets = ticketDrop
+      ? addTicket(player.tickets || [], ticketDrop)
+      : (player.tickets || []);
+
     const alreadyOwned = (player.cards || []).some(
-      (c) => String(c.code || "").toLowerCase() === String(picked.code || "").toLowerCase()
+      (c) =>
+        String(c.code || "").toLowerCase() ===
+        String(picked.code || "").toLowerCase()
     );
 
     if (alreadyOwned) {
@@ -105,6 +164,7 @@ module.exports = {
       updatePlayer(message.author.id, {
         pulls: updatedPulls,
         fragments: updatedFragments,
+        tickets: updatedTickets,
         quests: {
           ...(player.quests || {}),
           dailyState: updatedDailyState,
@@ -123,9 +183,15 @@ module.exports = {
                 "",
                 `You already own **${picked.displayName || picked.name}**.`,
                 "Converted into **1 Fragment** instead.",
-              ].join("\n")
+                "",
+                buildTicketDropText(ticketDrop),
+              ]
+                .filter(Boolean)
+                .join("\n")
             )
-            .setThumbnail(picked.evolutionForms?.[0]?.badgeImage || picked.badgeImage || null)
+            .setThumbnail(
+              picked.evolutionForms?.[0]?.badgeImage || picked.badgeImage || null
+            )
             .setImage(picked.image || null),
         ],
       });
@@ -136,6 +202,7 @@ module.exports = {
     updatePlayer(message.author.id, {
       cards: [...(player.cards || []), owned],
       pulls: updatedPulls,
+      tickets: updatedTickets,
       quests: {
         ...(player.quests || {}),
         dailyState: updatedDailyState,
@@ -161,9 +228,15 @@ module.exports = {
               `**ATK:** ${owned.atk}`,
               `**HP:** ${owned.hp}`,
               `**SPD:** ${owned.speed}`,
-            ].join("\n")
+              "",
+              buildTicketDropText(ticketDrop),
+            ]
+              .filter(Boolean)
+              .join("\n")
           )
-          .setThumbnail(owned.evolutionForms?.[0]?.badgeImage || owned.badgeImage || null)
+          .setThumbnail(
+            owned.evolutionForms?.[0]?.badgeImage || owned.badgeImage || null
+          )
           .setImage(owned.image || null),
       ],
     });
