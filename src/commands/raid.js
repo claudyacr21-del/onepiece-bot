@@ -139,15 +139,65 @@ function toRoomCard(card) {
     instanceId: String(synced.instanceId || ""),
     code: String(synced.code || ""),
     name: String(synced.displayName || synced.name || "Unknown"),
-    atk: Number(synced.atk || 0),
-    hp: Number(synced.hp || 0),
-    speed: Number(synced.speed || 0),
-    currentPower: Number(synced.currentPower || 0),
-    currentTier: String(synced.currentTier || synced.rarity || ""),
     evolutionStage: Number(synced.evolutionStage || 1),
+    currentTier: String(synced.currentTier || synced.rarity || ""),
     image: String(synced.image || ""),
     cardRole: String(synced.cardRole || "battle"),
   };
+}
+
+function getFreshOwnedBattleCard(userId, username, instanceId) {
+  const player = getPlayer(userId, username);
+  const cards = ensureArray(player?.cards).map(hydrateCard).filter(Boolean);
+
+  return (
+    cards.find(
+      (card) =>
+        String(card.instanceId) === String(instanceId) &&
+        String(card.cardRole || "").toLowerCase() === "battle"
+    ) || null
+  );
+}
+
+function buildBattleRoster(room) {
+  const participants = ensureArray(room?.participants);
+
+  return participants
+    .flatMap((p) =>
+      ensureArray(p.selectedCards).map((picked) => {
+        const fresh = getFreshOwnedBattleCard(
+          String(p.userId),
+          String(p.username || "Unknown"),
+          String(picked.instanceId || "")
+        );
+
+        const card = fresh || hydrateCard(picked);
+        if (!card) return null;
+
+        return {
+          userId: String(p.userId),
+          username: String(p.username || "Unknown"),
+          instanceId: String(card.instanceId || ""),
+          code: String(card.code || ""),
+          name: String(card.displayName || card.name || picked.name || "Unknown"),
+          atk: Number(card.atk || 0),
+          maxHp: Number(card.hp || 1),
+          hp: Number(card.hp || 1),
+          speed: Number(card.speed || 0),
+          currentPower: Number(card.currentPower || 0),
+          currentTier: String(card.currentTier || card.rarity || ""),
+          evolutionStage: Number(card.evolutionStage || 1),
+          image: String(card.image || ""),
+          alive: true,
+        };
+      })
+    )
+    .filter(Boolean)
+    .sort((a, b) => {
+      const spd = Number(b.speed || 0) - Number(a.speed || 0);
+      if (spd !== 0) return spd;
+      return Number(b.currentPower || 0) - Number(a.currentPower || 0);
+    });
 }
 
 function getRaidBossImage(code) {
