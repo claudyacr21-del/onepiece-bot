@@ -136,13 +136,23 @@ function buildTextLines(cards) {
   const uniqueCards = dedupeCollection(cards);
 
   return uniqueCards.map((card, i) => {
-    const role = card.cardRole === "boost" ? "BOOST" : "CARD";
     const rarity = String(card.currentTier || card.rarity || "C").toUpperCase();
     const name = card.displayName || card.name || "Unknown Card";
     const stage = card.evolutionKey || `M${card.evolutionStage || 1}`;
     const power = getPower(card);
+    const level = Number(card.level || 1);
 
-    return `${i + 1}. **${name}** • ${role} • ${stage} • ${rarity} • ${power}`;
+    if (card.cardRole === "boost") {
+      return [
+        `${i + 1}. **${name}** | ${stage} | ${power}`,
+        `${card.effectText || "No effect text"} | ${rarity} | Lv.${level}`,
+      ].join("\n");
+    }
+
+    return [
+      `${i + 1}. **${name}** | ${stage} | ${power} | ${Number(card.hp || 0)}/${Number(card.hp || 0)} | ${Number(card.speed || 0)} | ${formatAtkRange(card.atk)}`,
+      `${rarity} | Lv.${level}`,
+    ].join("\n");
   });
 }
 
@@ -152,15 +162,8 @@ function buildTextPageEmbed(ownerName, lines, pageIndex, pageSize = 10) {
 
   return new EmbedBuilder()
     .setColor(0x3498db)
-    .setTitle(`${ownerName}'s Collection`)
-    .setDescription(
-      [
-        "You are viewing your collection in text mode!",
-        "Cards and boosts are combined in one list.",
-        "",
-        ...pageLines,
-      ].join("\n")
-    )
+    .setTitle(`${ownerName}'s Card Collection`)
+    .setDescription(pageLines.join("\n\n"))
     .setFooter({
       text: `Showing ${start + 1}-${Math.min(start + pageSize, lines.length)} of ${lines.length} unique entries`,
     });
