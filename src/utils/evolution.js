@@ -93,24 +93,56 @@ function getStageMultiplier(card, stage) {
 }
 
 function findCardTemplate(query) {
-  const q = normalize(query);
-  return (
-    cards.find((card) => {
+  const q = normalize(query).replace(/^model:\s*/i, "").trim();
+
+  const scored = safeArray(cards)
+    .map((card) => {
       const fields = [
         card.code,
         card.name,
         card.displayName,
         card.title,
         card.variant,
+        card.devilFruit,
+        ...(Array.isArray(card.evolutionForms)
+          ? card.evolutionForms.flatMap((f) => [f?.name, f?.title, f?.label]).filter(Boolean)
+          : []),
       ]
         .filter(Boolean)
-        .map(normalize);
+        .map((x) => normalize(x).replace(/^model:\s*/i, "").trim());
 
-      return fields.some(
-        (field) => field === q || field.includes(q) || q.includes(field)
-      );
-    }) || null
-  );
+      let score = 0;
+
+      for (const field of fields) {
+        if (!field) continue;
+
+        if (field === q) {
+          score = Math.max(score, 1000 + field.length);
+          continue;
+        }
+
+        if (field.startsWith(q)) {
+          score = Math.max(score, 700 + q.length);
+          continue;
+        }
+
+        if (field.includes(q)) {
+          score = Math.max(score, 400 + q.length);
+          continue;
+        }
+
+        const qWords = q.split(" ").filter(Boolean);
+        if (qWords.length && qWords.every((w) => field.includes(w))) {
+          score = Math.max(score, 250 + qWords.join("").length);
+        }
+      }
+
+      return { card, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored.length ? scored[0].card : null;
 }
 
 function findTemplateByCode(code) {
@@ -408,26 +440,62 @@ function hydrateCard(card) {
 }
 
 function findOwnedCard(cardsOwned, query) {
-  const q = normalize(query);
-  const found = safeArray(cardsOwned).find((card) => {
-    const fields = [
-      card.code,
-      card.name,
-      card.displayName,
-      card.title,
-      card.variant,
-    ]
-      .filter(Boolean)
-      .map(normalize);
+  const q = normalize(query).replace(/^model:\s*/i, "").trim();
 
-    return fields.some(
-      (field) => field === q || field.includes(q) || q.includes(field)
-    );
-  });
+  const scored = safeArray(cardsOwned)
+    .map((card) => {
+      const merged = mergeOwnedCardWithTemplate(card);
 
-  if (!found) return null;
+      const fields = [
+        merged.code,
+        merged.name,
+        merged.displayName,
+        merged.title,
+        merged.variant,
+        merged.devilFruit,
+        merged.equippedDevilFruit,
+        merged.equippedDevilFruitName,
+        ...(Array.isArray(merged.evolutionForms)
+          ? merged.evolutionForms.flatMap((f) => [f?.name, f?.title, f?.label]).filter(Boolean)
+          : []),
+      ]
+        .filter(Boolean)
+        .map((x) => normalize(x).replace(/^model:\s*/i, "").trim());
 
-  const merged = mergeOwnedCardWithTemplate(found);
+      let score = 0;
+
+      for (const field of fields) {
+        if (!field) continue;
+
+        if (field === q) {
+          score = Math.max(score, 1000 + field.length);
+          continue;
+        }
+
+        if (field.startsWith(q)) {
+          score = Math.max(score, 700 + q.length);
+          continue;
+        }
+
+        if (field.includes(q)) {
+          score = Math.max(score, 400 + q.length);
+          continue;
+        }
+
+        const qWords = q.split(" ").filter(Boolean);
+        if (qWords.length && qWords.every((w) => field.includes(w))) {
+          score = Math.max(score, 250 + qWords.join("").length);
+        }
+      }
+
+      return { card, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (!scored.length) return null;
+
+  const merged = mergeOwnedCardWithTemplate(scored[0].card);
   return hydrateCard(merged);
 }
 
