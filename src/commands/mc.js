@@ -135,7 +135,8 @@ function dedupeCollection(cards) {
 function buildTextLines(cards) {
   const uniqueCards = dedupeCollection(cards);
 
-  return uniqueCards.map((card, i) => {
+  return uniqueCards.map((rawCard, i) => {
+    const card = hydrateCard(rawCard);
     const rarity = String(card.currentTier || card.rarity || "C").toUpperCase();
     const name = card.displayName || card.name || "Unknown Card";
     const stage = card.evolutionKey || `M${card.evolutionStage || 1}`;
@@ -149,8 +150,12 @@ function buildTextLines(cards) {
       ].join("\n");
     }
 
+    const currentHp = Number(card.hp || 0);
+    const currentSpd = Number(card.speed || 0);
+    const atkRange = `${Math.floor(Number(card.atk || 0) * 0.85)}-${Math.floor(Number(card.atk || 0) * 1.15)}`;
+
     return [
-      `${i + 1}. **${name}** | ${stage} | ${power} | ${Number(card.hp || 0)}/${Number(card.hp || 0)} | ${Number(card.speed || 0)} | ${formatAtkRange(card.atk)}`,
+      `${i + 1}. **${name}** | ${stage} | ${power} | ${currentHp}/${currentHp} | ${currentSpd} | ${atkRange}`,
       `${rarity} | Lv.${level}`,
     ].join("\n");
   });
