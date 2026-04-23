@@ -4,7 +4,7 @@ const {
   ButtonStyle,
   EmbedBuilder,
 } = require("discord.js");
-const { getAllCards } = require("../utils/evolution");
+const { getAllCards, getRarityPower, getWeaponPower, getFruitPower } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const weapons = require("../data/weapons");
 const devilFruits = require("../data/devilFruits");
@@ -16,7 +16,7 @@ const {
 } = require("../config/assetLinks");
 
 function getCardPower(card) {
-  return Number(card.powerCaps?.M3 || card.currentPower || 0);
+  return Number(card.currentPower || card.powerCaps?.M3 || 0);
 }
 
 function formatAtkRange(atk) {
@@ -24,39 +24,13 @@ function formatAtkRange(atk) {
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
-function getRarityPower(rarity) {
-  return (
-    {
-      C: 400,
-      B: 800,
-      A: 1400,
-      S: 2400,
-      SS: 3800,
-      UR: 5600,
-    }[String(rarity || "").toUpperCase()] || 400
-  );
-}
-
-function getItemPower(item) {
-  return getRarityPower(item?.rarity);
-}
-
-function getFruitPower(item) {
-  return getRarityPower(item?.rarity);
-}
-
-function getUpgradedItemPower(item, level = 5) {
+function getUpgradedWeaponPercent(item, level = 5) {
+  const base = item?.statPercent || {};
   const lv = Math.max(0, Number(level || 0));
-  return getRarityPower(item?.rarity) + lv * 250;
-}
-
-function getUpgradedBonus(item, level = 5) {
-  const lv = Math.max(0, Number(level || 0));
-  const base = item?.statBonus || {};
   return {
-    atk: Number(base.atk || 0) + lv * 3,
-    hp: Number(base.hp || 0) + lv * 8,
-    speed: Number(base.speed || 0) + lv * 1,
+    atk: Number(base.atk || 0) + lv * 1,
+    hp: Number(base.hp || 0) + lv * 1,
+    speed: Number(base.speed || 0),
   };
 }
 
@@ -74,11 +48,11 @@ function tierScore(tier) {
 }
 
 function statEffectText(item) {
-  const bonus = item?.statBonus || {};
+  const percent = item?.statPercent || item?.statBonus || {};
   const parts = [];
-  if (Number(bonus.atk || 0)) parts.push(`+${Number(bonus.atk)} ATK`);
-  if (Number(bonus.hp || 0)) parts.push(`+${Number(bonus.hp)} HP`);
-  if (Number(bonus.speed || 0)) parts.push(`+${Number(bonus.speed)} SPD`);
+  if (Number(percent.atk || 0)) parts.push(`+${Number(percent.atk)}% ATK`);
+  if (Number(percent.hp || 0)) parts.push(`+${Number(percent.hp)}% HP`);
+  if (Number(percent.speed || 0)) parts.push(`+${Number(percent.speed)}% SPD`);
   return parts.length ? parts.join(" / ") : "No stat bonus";
 }
 
@@ -128,7 +102,7 @@ function buildCardEmbed(card, index, total, mode) {
 }
 
 function buildWeaponEmbed(item, index, total) {
-  const bonus5 = getUpgradedBonus(item, 5);
+  const percent5 = getUpgradedWeaponPercent(item, 5);
 
   return new EmbedBuilder()
     .setColor(0x3498db)
@@ -140,11 +114,11 @@ function buildWeaponEmbed(item, index, total) {
         "",
         `Rarity: ${String(item.rarity || "B").toUpperCase()}`,
         `Effect: ${item.description || statEffectText(item)}`,
-        `Power: ${getUpgradedItemPower(item, 5)}`,
+        `Power: ${getWeaponPower(item, 5)}`,
         "",
-        `ATK: +${bonus5.atk}`,
-        `HP: +${bonus5.hp}`,
-        `SPD: +${bonus5.speed}`,
+        `ATK: +${Number(percent5.atk || 0)}%`,
+        `HP: +${Number(percent5.hp || 0)}%`,
+        `SPD: +${Number(percent5.speed || 0)}%`,
         "",
         `Owners: ${Array.isArray(item.owners) && item.owners.length ? item.owners.join(", ") : "General"}`,
       ].join("\n")
@@ -155,7 +129,7 @@ function buildWeaponEmbed(item, index, total) {
 }
 
 function buildFruitEmbed(item, index, total) {
-  const bonus = item?.statBonus || {};
+  const percent = item?.statPercent || item?.statBonus || {};
 
   return new EmbedBuilder()
     .setColor(0x9b59b6)
@@ -169,9 +143,9 @@ function buildFruitEmbed(item, index, total) {
         `Effect: ${item.description || statEffectText(item)}`,
         `Power: ${getFruitPower(item)}`,
         "",
-        `ATK: +${Number(bonus.atk || 0)}`,
-        `HP: +${Number(bonus.hp || 0)}`,
-        `SPD: +${Number(bonus.speed || 0)}`,
+        `ATK: +${Number(percent.atk || 0)}%`,
+        `HP: +${Number(percent.hp || 0)}%`,
+        `SPD: +${Number(percent.speed || 0)}%`,
         "",
         `Owners: ${Array.isArray(item.owners) && item.owners.length ? item.owners.join(", ") : "Unknown"}`,
       ].join("\n")
@@ -248,7 +222,7 @@ module.exports = {
 
     if (mode === "weapon") {
       list = [...weapons].sort((a, b) => {
-        const powerDiff = getUpgradedItemPower(b, 5) - getUpgradedItemPower(a, 5);
+        const powerDiff = getWeaponPower(b, 5) - getWeaponPower(a, 5);
         if (powerDiff !== 0) return powerDiff;
 
         const tierDiff = tierScore(b.rarity) - tierScore(a.rarity);

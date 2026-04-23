@@ -92,57 +92,50 @@ function getStageMultiplier(card, stage) {
   return 3.8;
 }
 
-function findCardTemplate(query) {
-  const q = normalize(query).replace(/^model:\s*/i, "").trim();
+function getRarityPower(rarity) {
+  return (
+    {
+      C: 400,
+      B: 800,
+      A: 1400,
+      S: 2400,
+      SS: 3800,
+      UR: 5600,
+    }[String(rarity || "").toUpperCase()] || 400
+  );
+}
 
-  const scored = safeArray(cards)
-    .map((card) => {
+function getWeaponPower(weapon, level = 0) {
+  const explicit = Number(weapon?.power || 0);
+  if (explicit > 0) return explicit + Math.max(0, Number(level || 0)) * 250;
+  return getRarityPower(weapon?.rarity) + Math.max(0, Number(level || 0)) * 250;
+}
+
+function getFruitPower(fruit) {
+  const explicit = Number(fruit?.power || 0);
+  if (explicit > 0) return explicit;
+  return getRarityPower(fruit?.rarity);
+}
+
+function findCardTemplate(query) {
+  const q = normalize(query);
+  return (
+    cards.find((card) => {
       const fields = [
         card.code,
         card.name,
         card.displayName,
         card.title,
         card.variant,
-        card.devilFruit,
-        ...(Array.isArray(card.evolutionForms)
-          ? card.evolutionForms.flatMap((f) => [f?.name, f?.title, f?.label]).filter(Boolean)
-          : []),
       ]
         .filter(Boolean)
-        .map((x) => normalize(x).replace(/^model:\s*/i, "").trim());
+        .map(normalize);
 
-      let score = 0;
-
-      for (const field of fields) {
-        if (!field) continue;
-
-        if (field === q) {
-          score = Math.max(score, 1000 + field.length);
-          continue;
-        }
-
-        if (field.startsWith(q)) {
-          score = Math.max(score, 700 + q.length);
-          continue;
-        }
-
-        if (field.includes(q)) {
-          score = Math.max(score, 400 + q.length);
-          continue;
-        }
-
-        const qWords = q.split(" ").filter(Boolean);
-        if (qWords.length && qWords.every((w) => field.includes(w))) {
-          score = Math.max(score, 250 + qWords.join("").length);
-        }
-      }
-
-      return { card, score };
-    })
-    .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score);
-
-  return scored.length ? scored[0].card : null;
+      return fields.some(
+        (field) => field === q || field.includes(q) || q.includes(field)
+      );
+    }) || null
+  );
 }
 
 function findTemplateByCode(code) {
@@ -273,6 +266,21 @@ function getFruitPercentFromData(card) {
   };
 }
 
+function getEquipmentPowerBonus(card, equippedWeapons, equippedFruit) {
+  const weaponPower = safeArray(equippedWeapons).reduce(
+    (sum, weapon) => sum + getWeaponPower(weapon, weapon?.upgradeLevel || 0),
+    0
+  );
+
+  const fruitPower = equippedFruit ? getFruitPower(equippedFruit) : 0;
+
+  return {
+    weaponPower,
+    fruitPower,
+    total: weaponPower + fruitPower,
+  };
+}
+
 function getDisplayWeaponName(card, equippedWeapons) {
   const equipped = equippedWeapons || resolveEquippedWeapons(card);
 
@@ -329,7 +337,13 @@ function getPowerCaps(card) {
 function getCurrentPower(card) {
   const stage = Math.max(1, Math.min(3, Number(card?.evolutionStage || 1)));
   const caps = card.powerCaps || getPowerCaps(card);
-  return Number(caps[`M${stage}`] || caps.M1 || 0);
+  const stagePower = Number(caps[`M${stage}`] || caps.M1 || 0);
+
+  const equippedWeapons = card.equippedWeaponsResolved || resolveEquippedWeapons(card);
+  const equippedFruit = card.equippedDevilFruitData || resolveEquippedFruit(card);
+  const equipPower = getEquipmentPowerBonus(card, equippedWeapons, equippedFruit);
+
+  return stagePower + equipPower.total;
 }
 
 function hydrateCard(card) {
@@ -418,10 +432,19 @@ function hydrateCard(card) {
   next.hp = scaledHp + weaponBonus.hp + fruitBonus.hp;
   next.speed = scaledSpeed + weaponBonus.speed + fruitBonus.speed;
 
-  next.equippedWeapons = weaponPercent.equipped;
+  next.equippedWeaponsResolved = weaponPercent.equipped;
   next.equippedDevilFruitData = fruitPercent.fruit;
   next.displayWeaponName = getDisplayWeaponName(next, weaponPercent.equipped);
   next.displayFruitName = getDisplayFruitName(next, fruitPercent.fruit);
+
+  const equipmentPower = getEquipmentPowerBonus(
+    next,
+    weaponPercent.equipped,
+    fruitPercent.fruit
+  );
+  next.weaponPowerBonus = equipmentPower.weaponPower;
+  next.fruitPowerBonus = equipmentPower.fruitPower;
+  next.totalEquipmentPowerBonus = equipmentPower.total;
 
   next.badgeImage = getRarityBadge(next.currentTier || next.rarity || "");
 
@@ -440,62 +463,26 @@ function hydrateCard(card) {
 }
 
 function findOwnedCard(cardsOwned, query) {
-  const q = normalize(query).replace(/^model:\s*/i, "").trim();
+  const q = normalize(query);
+  const found = safeArray(cardsOwned).find((card) => {
+    const fields = [
+      card.code,
+      card.name,
+      card.displayName,
+      card.title,
+      card.variant,
+    ]
+      .filter(Boolean)
+      .map(normalize);
 
-  const scored = safeArray(cardsOwned)
-    .map((card) => {
-      const merged = mergeOwnedCardWithTemplate(card);
+    return fields.some(
+      (field) => field === q || field.includes(q) || q.includes(field)
+    );
+  });
 
-      const fields = [
-        merged.code,
-        merged.name,
-        merged.displayName,
-        merged.title,
-        merged.variant,
-        merged.devilFruit,
-        merged.equippedDevilFruit,
-        merged.equippedDevilFruitName,
-        ...(Array.isArray(merged.evolutionForms)
-          ? merged.evolutionForms.flatMap((f) => [f?.name, f?.title, f?.label]).filter(Boolean)
-          : []),
-      ]
-        .filter(Boolean)
-        .map((x) => normalize(x).replace(/^model:\s*/i, "").trim());
+  if (!found) return null;
 
-      let score = 0;
-
-      for (const field of fields) {
-        if (!field) continue;
-
-        if (field === q) {
-          score = Math.max(score, 1000 + field.length);
-          continue;
-        }
-
-        if (field.startsWith(q)) {
-          score = Math.max(score, 700 + q.length);
-          continue;
-        }
-
-        if (field.includes(q)) {
-          score = Math.max(score, 400 + q.length);
-          continue;
-        }
-
-        const qWords = q.split(" ").filter(Boolean);
-        if (qWords.length && qWords.every((w) => field.includes(w))) {
-          score = Math.max(score, 250 + qWords.join("").length);
-        }
-      }
-
-      return { card, score };
-    })
-    .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score);
-
-  if (!scored.length) return null;
-
-  const merged = mergeOwnedCardWithTemplate(scored[0].card);
+  const merged = mergeOwnedCardWithTemplate(found);
   return hydrateCard(merged);
 }
 
@@ -518,4 +505,7 @@ module.exports = {
   getBasePower,
   getPowerCaps,
   getCurrentPower,
+  getRarityPower,
+  getWeaponPower,
+  getFruitPower,
 };
