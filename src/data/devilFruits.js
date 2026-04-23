@@ -5,7 +5,7 @@ module.exports = [
     rarity: "UR",
     owners: ["imu"],
     type: "Mythical Zoan Fruit",
-    statPercent: { atk: 10, hp: 8, speed: 5 },
+    statPercent: { atk: 12, hp: 9, speed: 6 },
     image: "",
     description: "An unknown and terrifying devil fruit tied to the deepest secrets of the world."
   },
