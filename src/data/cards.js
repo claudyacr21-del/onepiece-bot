@@ -27,7 +27,7 @@ const BASE_CARDS = [
   // =========================
   // East Blue / Early Saga
   // =========================
-  battleCard({ id: 1, code: "luffy_straw_hat", name: "Monkey D. Luffy", title: "Straw Hat", rarity: "A", arc: "East Blue", faction: "Straw Hat Pirates", variant: "Base", type: "Captain", atk: 200, hp: 1300, speed: 80, basePower: 2000, weapon: "None", devilFruit: "Hito Hito no Mi, Model: Nika", equipType: "Devil Fruit", image: "" }),
+  battleCard({ id: 1, code: "luffy_straw_hat", name: "Monkey D. Luffy", title: "Straw Hat", rarity: "A", arc: "East Blue", faction: "Straw Hat Pirates", variant: "Base", type: "Captain", atk: 210, hp: 1300, speed: 80, basePower: 2000, weapon: "None", devilFruit: "Hito Hito no Mi, Model: Nika", equipType: "Devil Fruit", image: "" }),
   battleCard({ id: 2, code: "zoro_pirate_hunter", name: "Roronoa Zoro", title: "Pirate Hunter", rarity: "A", arc: "East Blue", faction: "Straw Hat Pirates", variant: "Three Sword Style", type: "Attacker", atk: 200, hp: 1100, speed: 75, basePower: 1990, weapon: "Wado Ichimonji, Sandai Kitetsu, Enma", devilFruit: "None", equipType: "Weapon", image: "" }),
   battleCard({ id: 3, code: "nami_cat_burglar", name: "Nami", title: "Cat Burglar", rarity: "B", arc: "East Blue", faction: "Straw Hat Pirates", variant: "Base", type: "Support", atk: 88, hp: 600, speed: 95, basePower: 1470, weapon: "Basic Staff", devilFruit: "None", equipType: "Weapon", image: "" }),
   battleCard({ id: 4, code: "usopp_sniper", name: "Usopp", title: "Sniper", rarity: "B", arc: "East Blue", faction: "Straw Hat Pirates", variant: "Base", type: "Ranged", atk: 88, hp: 620, speed: 88, basePower: 1450, weapon: "Basic Slingshot", devilFruit: "None", equipType: "Weapon", image: "" }),
