@@ -5,7 +5,11 @@ const { findOwnedCard, hydrateCard } = require("../utils/evolution");
 const { getRarityBadge, getWeaponImage } = require("../config/assetLinks");
 
 const normalize = (s = "") =>
-  String(s).toLowerCase().trim().replace(/\s+/g, " ");
+  String(s)
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
 
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
@@ -36,7 +40,7 @@ function splitCardAndWeaponInput(rawArgs) {
   return null;
 }
 
-function findWeapon(query) {
+function findWeaponTemplate(query) {
   const q = normalize(query);
   return (
     weapons.find((w) =>
@@ -52,9 +56,16 @@ function findWeapon(query) {
   );
 }
 
+function findOwnedWeaponEntry(ownedWeapons, weaponCode) {
+  const q = normalize(weaponCode);
+  return (Array.isArray(ownedWeapons) ? ownedWeapons : []).find(
+    (x) => normalize(x.code || x.name) === q
+  );
+}
+
 function consumeWeapon(list, weaponCode) {
   const arr = [...(list || [])];
-  const idx = arr.findIndex((x) => x.code === weaponCode);
+  const idx = arr.findIndex((x) => normalize(x.code) === normalize(weaponCode));
 
   if (idx === -1 || Number(arr[idx].amount || 0) <= 0) {
     throw new Error("Weapon not owned.");
@@ -64,6 +75,16 @@ function consumeWeapon(list, weaponCode) {
   else arr[idx] = { ...arr[idx], amount: Number(arr[idx].amount || 0) - 1 };
 
   return arr;
+}
+
+function formatEquippedWeaponNames(equippedWeapons = []) {
+  if (!equippedWeapons.length) return null;
+  return equippedWeapons
+    .map(
+      (x) =>
+        `${x.name}${Number(x.upgradeLevel || 0) > 0 ? ` +${x.upgradeLevel}` : ""}`
+    )
+    .join(", ");
 }
 
 function getWeaponPercentAtLevel(basePercent, level) {
@@ -79,7 +100,7 @@ function sumWeaponPercents(equippedWeapons = []) {
   return equippedWeapons.reduce(
     (acc, item) => {
       const percent = getWeaponPercentAtLevel(
-        item.baseStatPercent || item.statPercent || {},
+        item.baseStatPercent || item.statPercent || { atk: 0, hp: 0, speed: 0 },
         item.upgradeLevel || 0
       );
       acc.atk += Number(percent.atk || 0);
@@ -89,16 +110,6 @@ function sumWeaponPercents(equippedWeapons = []) {
     },
     { atk: 0, hp: 0, speed: 0 }
   );
-}
-
-function formatEquippedWeaponNames(equippedWeapons = []) {
-  if (!equippedWeapons.length) return null;
-  return equippedWeapons
-    .map(
-      (x) =>
-        `${x.name}${Number(x.upgradeLevel || 0) > 0 ? ` +${x.upgradeLevel}` : ""}`
-    )
-    .join(", ");
 }
 
 module.exports = {
@@ -115,38 +126,28 @@ module.exports = {
       return message.reply(`No owned card found matching \`${split.cardName}\`.`);
     }
 
-    const weapon = findWeapon(split.weaponName);
-    if (!weapon) {
+    const weaponTemplate = findWeaponTemplate(split.weaponName);
+    if (!weaponTemplate) {
       return message.reply(`No weapon found matching \`${split.weaponName}\`.`);
     }
 
-    const owned = (player.weapons || []).find(
-      (x) => x.code === weapon.code && Number(x.amount || 0) > 0
-    );
-    if (!owned) {
-      return message.reply(`You do not own \`${weapon.name}\`.`);
+    const ownedEntry = findOwnedWeaponEntry(player.weapons || [], weaponTemplate.code);
+    if (!ownedEntry || Number(ownedEntry.amount || 0) <= 0) {
+      return message.reply(`You do not own \`${weaponTemplate.name}\`.`);
     }
 
-    const allowedOwners = Array.isArray(weapon.owners) ? weapon.owners : [];
+    const allowedOwners = Array.isArray(weaponTemplate.owners)
+      ? weaponTemplate.owners
+      : [];
     if (allowedOwners.length && !allowedOwners.includes(card.code)) {
       return message.reply(
-        `\`${weapon.name}\` cannot be equipped to \`${card.displayName || card.name}\`.`
+        `\`${weaponTemplate.name}\` cannot be equipped to \`${card.displayName || card.name}\`.`
       );
     }
 
     const existingEquipped = Array.isArray(card.equippedWeapons)
       ? [...card.equippedWeapons]
-      : card.equippedWeapon && card.equippedWeaponCode
-        ? [
-            {
-              name: card.equippedWeapon,
-              code: card.equippedWeaponCode,
-              statPercent: card.weaponBonusPercent || {},
-              baseStatPercent: card.weaponBonusPercent || {},
-              upgradeLevel: 0,
-            },
-          ]
-        : [];
+      : [];
 
     const slotLimit = getWeaponSlotLimit(card);
 
@@ -156,20 +157,31 @@ module.exports = {
       );
     }
 
-    if (existingEquipped.some((x) => x.code === weapon.code)) {
+    if (
+      existingEquipped.some(
+        (x) => normalize(x.code || x.name) === normalize(weaponTemplate.code)
+      )
+    ) {
       return message.reply("That weapon is already equipped on this card.");
     }
 
-    const nextWeapons = consumeWeapon(player.weapons || [], weapon.code);
+    const nextWeapons = consumeWeapon(player.weapons || [], weaponTemplate.code);
+
+    const inheritedLevel = Math.max(0, Number(ownedEntry.upgradeLevel || 0));
 
     const nextEquipped = [
       ...existingEquipped,
       {
-        name: weapon.name,
-        code: weapon.code,
-        statPercent: weapon.statPercent || { atk: 0, hp: 0, speed: 0 },
-        baseStatPercent: weapon.statPercent || { atk: 0, hp: 0, speed: 0 },
-        upgradeLevel: 0,
+        name: weaponTemplate.name,
+        code: weaponTemplate.code,
+        rarity: weaponTemplate.rarity,
+        type: weaponTemplate.type,
+        statPercent: weaponTemplate.statPercent || { atk: 0, hp: 0, speed: 0 },
+        baseStatPercent: weaponTemplate.statPercent || { atk: 0, hp: 0, speed: 0 },
+        upgradeLevel: inheritedLevel,
+        image: weaponTemplate.image || "",
+        owners: weaponTemplate.owners || [],
+        description: weaponTemplate.description || "",
       },
     ];
 
@@ -195,9 +207,13 @@ module.exports = {
     });
 
     const synced = updatedCards.find((c) => c.instanceId === card.instanceId);
-    const weaponBadge = getRarityBadge(weapon.rarity || "B");
-    const weaponImage = getWeaponImage(weapon.code, weapon.image || "");
+    const weaponBadge = getRarityBadge(weaponTemplate.rarity || "B");
+    const weaponImage = getWeaponImage(weaponTemplate.code, weaponTemplate.image || "");
     const slotText = `${nextEquipped.length}/${slotLimit}`;
+    const shownPercent = getWeaponPercentAtLevel(
+      weaponTemplate.statPercent || { atk: 0, hp: 0, speed: 0 },
+      inheritedLevel
+    );
 
     return message.reply({
       embeds: [
@@ -207,15 +223,17 @@ module.exports = {
           .setDescription(
             [
               `**Card:** ${synced.displayName || synced.name}`,
-              `**Added Weapon:** ${weapon.name}`,
-              `**Weapon Rarity:** ${String(weapon.rarity || "B").toUpperCase()}`,
+              `**Added Weapon:** ${weaponTemplate.name}`,
+              `**Weapon Rarity:** ${String(weaponTemplate.rarity || "B").toUpperCase()}`,
+              `**Weapon Level:** +${inheritedLevel}`,
               `**Weapon Slots:** ${slotText}`,
-              `**Equipped Weapons:** ${equippedWeaponName || weapon.name}`,
+              `**Equipped Weapons:** ${equippedWeaponName || weaponTemplate.name}`,
               "",
               `**ATK:** ${formatAtkRange(synced.atk)}`,
               `**HP:** ${synced.hp}`,
               `**SPD:** ${synced.speed}`,
               "",
+              `Weapon Bonus Applied: +${shownPercent.atk}% ATK / +${shownPercent.hp}% HP / +${shownPercent.speed}% SPD`,
               `Total Weapon Bonus: +${totalWeaponPercent.atk}% ATK / +${totalWeaponPercent.hp}% HP / +${totalWeaponPercent.speed}% SPD`,
               "",
               "Weapons stay permanently equipped.",
