@@ -127,18 +127,19 @@ function mergeOwnedCardWithTemplate(ownedCard) {
   return {
     ...clone(template),
 
-    // keep user-owned identity/progression/equip
     instanceId: ownedCard.instanceId,
+    ownerId: ownedCard.ownerId,
+
     level: ownedCard.level,
     xp: ownedCard.xp,
     kills: ownedCard.kills,
     fragments: ownedCard.fragments,
+
     evolutionStage: ownedCard.evolutionStage,
     evolutionKey: ownedCard.evolutionKey,
     currentTier: ownedCard.currentTier || template.currentTier,
     rarity: ownedCard.rarity || template.rarity,
 
-    // keep user equip data
     equippedWeapons: clone(ownedCard.equippedWeapons || []),
     equippedWeapon: ownedCard.equippedWeapon || null,
     equippedWeaponName: ownedCard.equippedWeaponName || null,
@@ -148,9 +149,7 @@ function mergeOwnedCardWithTemplate(ownedCard) {
     equippedDevilFruit: ownedCard.equippedDevilFruit || null,
     equippedDevilFruitName: ownedCard.equippedDevilFruitName || null,
 
-    // keep user state if needed
     cardRole: ownedCard.cardRole || template.cardRole,
-    ownerId: ownedCard.ownerId,
   };
 }
 
