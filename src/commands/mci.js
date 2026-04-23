@@ -1,6 +1,10 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
-const { findOwnedCard } = require("../utils/evolution");
+const {
+  findOwnedCard,
+  getWeaponPower,
+  getFruitPower,
+} = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const {
   getCardImage,
@@ -103,6 +107,15 @@ function findWeaponTemplate(value) {
   );
 }
 
+function getWeaponPercentAtLevel(basePercent, level) {
+  const lv = Math.max(0, Number(level || 0));
+  return {
+    atk: Number(basePercent?.atk || 0) + lv * 1,
+    hp: Number(basePercent?.hp || 0) + lv * 1,
+    speed: Number(basePercent?.speed || 0),
+  };
+}
+
 function buildOwnedFruitPool(player) {
   const fruits = new Map();
 
@@ -144,14 +157,14 @@ function buildOwnedFruitPool(player) {
 }
 
 function buildOwnedWeaponPool(player) {
-  const weapons = new Map();
+  const pool = new Map();
 
   for (const entry of Array.isArray(player.weapons) ? player.weapons : []) {
     const template = findWeaponTemplate(entry.code || entry.name);
     if (!template) continue;
 
     const key = String(template.code);
-    const existing = weapons.get(key) || {
+    const existing = pool.get(key) || {
       ...template,
       amount: 0,
       equippedOn: [],
@@ -163,7 +176,7 @@ function buildOwnedWeaponPool(player) {
       existing.bestUpgradeLevel,
       Number(entry.upgradeLevel || 0)
     );
-    weapons.set(key, existing);
+    pool.set(key, existing);
   }
 
   for (const rawCard of Array.isArray(player.cards) ? player.cards : []) {
@@ -176,7 +189,7 @@ function buildOwnedWeaponPool(player) {
       if (!template) continue;
 
       const key = String(template.code);
-      const existing = weapons.get(key) || {
+      const existing = pool.get(key) || {
         ...template,
         amount: 0,
         equippedOn: [],
@@ -188,21 +201,21 @@ function buildOwnedWeaponPool(player) {
         existing.bestUpgradeLevel,
         Number(entry.upgradeLevel || 0)
       );
-      weapons.set(key, existing);
+      pool.set(key, existing);
     }
   }
 
-  return [...weapons.values()];
+  return [...pool.values()];
 }
 
 function findOwnedFruit(player, query) {
   const pool = buildOwnedFruitPool(player);
 
   const scored = pool
-    .map((fruit) => {
-      const score = scoreQuery(query, [fruit.name, fruit.code, fruit.type]);
-      return { fruit, score };
-    })
+    .map((fruit) => ({
+      fruit,
+      score: scoreQuery(query, [fruit.name, fruit.code, fruit.type]),
+    }))
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
 
@@ -213,10 +226,10 @@ function findOwnedWeapon(player, query) {
   const pool = buildOwnedWeaponPool(player);
 
   const scored = pool
-    .map((weapon) => {
-      const score = scoreQuery(query, [weapon.name, weapon.code, weapon.type]);
-      return { weapon, score };
-    })
+    .map((weapon) => ({
+      weapon,
+      score: scoreQuery(query, [weapon.name, weapon.code, weapon.type]),
+    }))
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
 
@@ -239,6 +252,7 @@ function buildOwnedFruitEmbed(ownerName, fruit) {
         `${fruit.type || "Devil Fruit"}`,
         "",
         `Rarity: ${String(fruit.rarity || "B").toUpperCase()}`,
+        `Power: ${Number(getFruitPower(fruit) || 0)}`,
         `ATK: +${Number(percent.atk || 0)}%`,
         `HP: +${Number(percent.hp || 0)}%`,
         `SPD: +${Number(percent.speed || 0)}%`,
@@ -254,7 +268,11 @@ function buildOwnedFruitEmbed(ownerName, fruit) {
 }
 
 function buildOwnedWeaponEmbed(ownerName, weapon) {
-  const percent = weapon.statPercent || weapon.statBonus || { atk: 0, hp: 0, speed: 0 };
+  const percent = getWeaponPercentAtLevel(
+    weapon.statPercent || weapon.statBonus || { atk: 0, hp: 0, speed: 0 },
+    weapon.bestUpgradeLevel || 0
+  );
+
   const equippedText =
     Array.isArray(weapon.equippedOn) && weapon.equippedOn.length
       ? weapon.equippedOn.join(", ")
@@ -269,6 +287,7 @@ function buildOwnedWeaponEmbed(ownerName, weapon) {
         `${weapon.type || "Weapon"}`,
         "",
         `Rarity: ${String(weapon.rarity || "B").toUpperCase()}`,
+        `Power: ${Number(getWeaponPower(weapon, weapon.bestUpgradeLevel || 0) || 0)}`,
         `ATK: +${Number(percent.atk || 0)}%`,
         `HP: +${Number(percent.hp || 0)}%`,
         `SPD: +${Number(percent.speed || 0)}%`,
@@ -310,6 +329,9 @@ function buildOwnedCardEmbed(ownerName, card) {
           `Attack: ${formatAtkRange(card.atk)}`,
           `Weapons: ${card.displayWeaponName || "None"}`,
           `Devil Fruit: ${card.displayFruitName || "None"}`,
+          `Weapon Power Bonus: +${Number(card.weaponPowerBonus || 0)}`,
+          `Fruit Power Bonus: +${Number(card.fruitPowerBonus || 0)}`,
+          `Total Equipped Power: +${Number(card.totalEquipmentPowerBonus || 0)}`,
           `Type: ${card.type || card.cardRole}`,
           `Kills: ${Number(card.kills || 0)}`,
           `Fragments: ${Number(card.fragments || 0)}`,
