@@ -146,17 +146,27 @@ function toRoomCard(card) {
   };
 }
 
-function getFreshOwnedBattleCard(userId, username, instanceId) {
+function getFreshOwnedBattleCard(userId, username, picked) {
   const player = getPlayer(userId, username);
   const cards = ensureArray(player?.cards).map(hydrateCard).filter(Boolean);
 
-  return (
-    cards.find(
-      (card) =>
-        String(card.instanceId) === String(instanceId) &&
-        String(card.cardRole || "").toLowerCase() === "battle"
-    ) || null
+  const byInstance = cards.find(
+    (card) =>
+      String(card.instanceId) === String(picked?.instanceId || "") &&
+      String(card.cardRole || "").toLowerCase() === "battle"
   );
+
+  if (byInstance) return byInstance;
+
+  const byCode = cards.find(
+    (card) =>
+      String(card.code || "").toLowerCase() === String(picked?.code || "").toLowerCase() &&
+      String(card.cardRole || "").toLowerCase() === "battle"
+  );
+
+  if (byCode) return byCode;
+
+  return null;
 }
 
 function buildBattleRoster(room) {
@@ -168,26 +178,25 @@ function buildBattleRoster(room) {
         const fresh = getFreshOwnedBattleCard(
           String(p.userId),
           String(p.username || "Unknown"),
-          String(picked.instanceId || "")
+          picked
         );
 
-        const card = fresh || hydrateCard(picked);
-        if (!card) return null;
+        if (!fresh) return null;
 
         return {
           userId: String(p.userId),
           username: String(p.username || "Unknown"),
-          instanceId: String(card.instanceId || ""),
-          code: String(card.code || ""),
-          name: String(card.displayName || card.name || picked.name || "Unknown"),
-          atk: Number(card.atk || 0),
-          maxHp: Number(card.hp || 1),
-          hp: Number(card.hp || 1),
-          speed: Number(card.speed || 0),
-          currentPower: Number(card.currentPower || 0),
-          currentTier: String(card.currentTier || card.rarity || ""),
-          evolutionStage: Number(card.evolutionStage || 1),
-          image: String(card.image || ""),
+          instanceId: String(fresh.instanceId || ""),
+          code: String(fresh.code || ""),
+          name: String(fresh.displayName || fresh.name || picked?.name || "Unknown"),
+          atk: Number(fresh.atk || 0),
+          maxHp: Number(fresh.hp || 1),
+          hp: Number(fresh.hp || 1),
+          speed: Number(fresh.speed || 0),
+          currentPower: Number(fresh.currentPower || 0),
+          currentTier: String(fresh.currentTier || fresh.rarity || ""),
+          evolutionStage: Number(fresh.evolutionStage || 1),
+          image: String(fresh.image || ""),
           alive: true,
         };
       })
@@ -368,12 +377,14 @@ function buildBattleRoster(room) {
 }
 
 function buildBattleState(room, bossTemplate) {
+  const members = buildBattleRoster(room);
+
   return {
     roomId: room.roomId,
     hostId: room.hostId,
     hostName: room.hostName,
     boss: deriveRaidBossStats(bossTemplate),
-    members: buildBattleRoster(room),
+    members,
     round: 1,
     log: ["Raid battle started."],
     finished: false,
@@ -704,6 +715,32 @@ module.exports = {
         }
 
         const battleState = buildBattleState(startedRoom, bossInfo.template);
+
+        if (!battleState.members.length) {
+          try {
+            deleteRoom(hostId);
+          } catch {}
+
+          return interaction.followUp({
+            content: "Failed to sync raid participants from latest card data. Please re-open raid and join again.",
+            ephemeral: true,
+          });
+        }
+
+        const invalidMember = battleState.members.find(
+          (m) => Number(m.atk || 0) <= 0 || Number(m.maxHp || 0) <= 1
+        );
+
+        if (invalidMember) {
+          try {
+            deleteRoom(hostId);
+          } catch {}
+
+          return interaction.followUp({
+            content: "A raid card failed to sync correctly. Please re-open raid and join again.",
+            ephemeral: true,
+          });
+        }
 
         await interaction.update({
           embeds: [buildLobbyEmbed(message.author.username, startedRoom, true, bossPreviewStats)],

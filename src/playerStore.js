@@ -370,18 +370,27 @@ function getDefaultPlayer(username) {
     gems: 100,
     currentIsland: "Foosha Village",
     dailyLastClaim: null,
+
     cards: [],
     fragments: [],
     items: [],
     weapons: [],
     devilFruits: [],
+
     boxes: [],
-    tickets: [],
+
+    tickets: [
+      { code: "common_raid_ticket", name: "Common Raid Ticket", amount: 0 },
+      { code: "raid_ticket", name: "Raid Ticket", amount: 0 },
+    ],
+
     materials: [],
+
     pity: {
       normalSPity: 0,
       premiumSPity: 0,
     },
+
     pulls: {
       base: { used: 0, max: 6 },
       supportMember: { used: 0, max: 1 },
@@ -392,6 +401,7 @@ function getDefaultPlayer(username) {
       baccaratFruit: { used: 0, max: 1 },
       lastResetBucket: null,
     },
+
     boosts: {
       pullSlot: 0,
       daily: 0,
@@ -402,6 +412,7 @@ function getDefaultPlayer(username) {
       dmg: 0,
       motherFlameFight: 0,
     },
+
     quests: {
       daily: { total: 5, completed: 0 },
       dailyState: {
@@ -422,6 +433,7 @@ function getDefaultPlayer(username) {
       },
       totalClears: 0,
     },
+
     cooldowns: {
       daily: null,
       fight: null,
@@ -432,20 +444,24 @@ function getDefaultPlayer(username) {
       vote: null,
       treasure: null,
     },
+
     vote: {
       streak: 0,
       totalVotes: 0,
       lastVoteAt: null,
     },
+
     team: {
       slots: [null, null, null],
     },
+
     stats: {
       wins: 0,
       losses: 0,
       winStreak: 0,
       bestWinStreak: 0,
     },
+
     arena: {
       points: 0,
       wins: 0,
@@ -455,6 +471,7 @@ function getDefaultPlayer(username) {
       bestStreak: 0,
       matches: 0,
     },
+
     ship: {
       shipCode: "small_boat",
       tier: 1,
@@ -463,6 +480,7 @@ function getDefaultPlayer(username) {
       unlockedIslands: ["foosha_village"],
       currentPort: "Foosha Village",
     },
+
     story: {
       clearedIslandBosses: [],
       bossPhases: {
@@ -478,6 +496,7 @@ function getDefaultPlayer(username) {
         },
       },
     },
+
     clan: {
       name: null,
       role: "member",
