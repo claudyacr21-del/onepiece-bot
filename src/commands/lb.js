@@ -1,32 +1,15 @@
 const { EmbedBuilder } = require("discord.js");
 const { readPlayers } = require("../playerStore");
-const { hydrateCard } = require("../utils/evolution");
+const { hydrateCard, getWeaponPower, getFruitPower } = require("../utils/evolution");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 
 function normalize(value) {
-  return String(value || "").toLowerCase().trim();
-}
-
-function getRarityPower(rarity) {
-  return (
-    {
-      C: 400,
-      B: 800,
-      A: 1400,
-      S: 2400,
-      SS: 3800,
-      UR: 5600,
-    }[String(rarity || "").toUpperCase()] || 400
-  );
-}
-
-function getWeaponPowerByRarityAndLevel(rarity, level = 0) {
-  return getRarityPower(rarity) + Math.max(0, Number(level || 0)) * 250;
-}
-
-function getFruitPowerByRarity(rarity) {
-  return getRarityPower(rarity);
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
 }
 
 function findWeaponTemplate(value) {
@@ -73,7 +56,7 @@ function getInventoryWeaponsPower(player) {
     const amount = Math.max(0, Number(entry.amount || 0));
     const level = Math.max(0, Number(entry.upgradeLevel || 0));
 
-    return sum + getWeaponPowerByRarityAndLevel(template.rarity, level) * amount;
+    return sum + getWeaponPower(template, level) * amount;
   }, 0);
 }
 
@@ -87,7 +70,7 @@ function getEquippedWeaponsPower(player) {
       const template = findWeaponTemplate(entry.code || entry.name);
       if (!template) return sub;
 
-      return sub + getWeaponPowerByRarityAndLevel(template.rarity, Number(entry.upgradeLevel || 0));
+      return sub + getWeaponPower(template, Number(entry.upgradeLevel || 0));
     }, 0);
 
     return sum + equippedPower;
@@ -102,7 +85,7 @@ function getInventoryFruitsPower(player) {
     if (!template) return sum;
 
     const amount = Math.max(0, Number(entry.amount || 0));
-    return sum + getFruitPowerByRarity(template.rarity) * amount;
+    return sum + getFruitPower(template) * amount;
   }, 0);
 }
 
@@ -117,7 +100,7 @@ function getEquippedFruitsPower(player) {
     );
     if (!template) return sum;
 
-    return sum + getFruitPowerByRarity(template.rarity);
+    return sum + getFruitPower(template);
   }, 0);
 }
 
@@ -128,13 +111,21 @@ function getPlayerCollectionPower(player) {
   const inventoryFruitsPower = getInventoryFruitsPower(player);
   const equippedFruitsPower = getEquippedFruitsPower(player);
 
-  return (
-    cardsPower +
-    inventoryWeaponsPower +
-    equippedWeaponsPower +
-    inventoryFruitsPower +
-    equippedFruitsPower
-  );
+  return {
+    total:
+      cardsPower +
+      inventoryWeaponsPower +
+      equippedWeaponsPower +
+      inventoryFruitsPower +
+      equippedFruitsPower,
+    breakdown: {
+      cardsPower,
+      inventoryWeaponsPower,
+      equippedWeaponsPower,
+      inventoryFruitsPower,
+      equippedFruitsPower,
+    },
+  };
 }
 
 module.exports = {
@@ -151,10 +142,13 @@ module.exports = {
       title = "⚔️ Collection Power Leaderboard";
 
       rows = players
-        .map((player) => ({
-          username: player.username || "Unknown",
-          value: getPlayerCollectionPower(player),
-        }))
+        .map((player) => {
+          const result = getPlayerCollectionPower(player);
+          return {
+            username: player.username || "Unknown",
+            value: result.total,
+          };
+        })
         .sort((a, b) => b.value - a.value)
         .slice(0, 10)
         .map(
