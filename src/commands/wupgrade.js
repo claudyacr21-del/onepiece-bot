@@ -19,7 +19,9 @@ function getStoneCost(nextLevel) {
 }
 
 function getStoneAmount(materials) {
-  const found = (Array.isArray(materials) ? materials : []).find((x) => x.code === "enhancement_stone");
+  const found = (Array.isArray(materials) ? materials : []).find(
+    (x) => x.code === "enhancement_stone"
+  );
   return Number(found?.amount || 0);
 }
 
@@ -38,25 +40,25 @@ function consumeStones(materials, amount) {
   return arr;
 }
 
-function getWeaponBonusAtLevel(baseBonus, level) {
+function getWeaponPercentAtLevel(basePercent, level) {
   const lv = Math.max(0, Number(level || 0));
   return {
-    atk: Number(baseBonus?.atk || 0) + lv * 3,
-    hp: Number(baseBonus?.hp || 0) + lv * 8,
-    speed: Number(baseBonus?.speed || 0) + lv * 1,
+    atk: Number(basePercent?.atk || 0) + lv * 1,
+    hp: Number(basePercent?.hp || 0) + lv * 1,
+    speed: Number(basePercent?.speed || 0),
   };
 }
 
-function rebuildWeaponBonus(equippedWeapons) {
+function rebuildWeaponPercent(equippedWeapons) {
   return equippedWeapons.reduce(
     (acc, weapon) => {
-      const bonus = getWeaponBonusAtLevel(
-        weapon.baseStatBonus || weapon.statBonus || {},
+      const percent = getWeaponPercentAtLevel(
+        weapon.baseStatPercent || weapon.statPercent || { atk: 0, hp: 0, speed: 0 },
         weapon.upgradeLevel || 0
       );
-      acc.atk += Number(bonus.atk || 0);
-      acc.hp += Number(bonus.hp || 0);
-      acc.speed += Number(bonus.speed || 0);
+      acc.atk += Number(percent.atk || 0);
+      acc.hp += Number(percent.hp || 0);
+      acc.speed += Number(percent.speed || 0);
       return acc;
     },
     { atk: 0, hp: 0, speed: 0 }
@@ -89,6 +91,7 @@ function findEquippedWeaponMatches(cards, weaponName) {
 module.exports = {
   name: "wupgrade",
   aliases: ["weaponupgrade", "upweapon"],
+
   async execute(message, args) {
     const weaponQuery = args.join(" ").trim();
     if (!weaponQuery) {
@@ -145,12 +148,12 @@ module.exports = {
         if (normalize(w.name) !== normalize(targetWeapon.name)) return w;
         return {
           ...w,
-          baseStatBonus: w.baseStatBonus || w.statBonus || { atk: 0, hp: 0, speed: 0 },
+          baseStatPercent: w.baseStatPercent || w.statPercent || { atk: 0, hp: 0, speed: 0 },
           upgradeLevel: nextLevel,
         };
       });
 
-      const totalWeaponBonus = rebuildWeaponBonus(nextEquippedWeapons);
+      const totalWeaponPercent = rebuildWeaponPercent(nextEquippedWeapons);
 
       return hydrateCard({
         ...raw,
@@ -158,7 +161,7 @@ module.exports = {
         equippedWeapon: nextEquippedWeapons
           .map((w) => `${w.name}${Number(w.upgradeLevel || 0) > 0 ? ` +${w.upgradeLevel}` : ""}`)
           .join(", "),
-        weaponBonus: totalWeaponBonus,
+        weaponBonusPercent: totalWeaponPercent,
       });
     });
 
@@ -177,8 +180,9 @@ module.exports = {
     const syncedWeapon = (syncedCard.equippedWeapons || []).find(
       (w) => normalize(w.name) === normalize(targetWeapon.name)
     );
-    const shownBonus = getWeaponBonusAtLevel(
-      syncedWeapon.baseStatBonus || syncedWeapon.statBonus || {},
+
+    const shownPercent = getWeaponPercentAtLevel(
+      syncedWeapon.baseStatPercent || syncedWeapon.statPercent || { atk: 0, hp: 0, speed: 0 },
       syncedWeapon.upgradeLevel || 0
     );
 
@@ -194,10 +198,10 @@ module.exports = {
               `**Weapon Level:** +${Number(syncedWeapon.upgradeLevel || 0)}`,
               `**Cost:** ${stoneCost} Enhancement Stones`,
               "",
-              "**Weapon Bonus Now**",
-              `ATK: +${shownBonus.atk}`,
-              `HP: +${shownBonus.hp}`,
-              `SPD: +${shownBonus.speed}`,
+              "**Weapon Percent Now**",
+              `ATK: +${shownPercent.atk}%`,
+              `HP: +${shownPercent.hp}%`,
+              `SPD: +${shownPercent.speed}%`,
             ].join("\n")
           ),
       ],
