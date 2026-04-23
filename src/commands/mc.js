@@ -5,7 +5,7 @@ const {
   EmbedBuilder,
 } = require("discord.js");
 const { getPlayer } = require("../playerStore");
-const { hydrateCard } = require("../utils/evolution");
+const { hydrateCard, findCardTemplate } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage } = require("../config/assetLinks");
 
@@ -41,6 +41,39 @@ function getStageImage(card) {
     card.image ||
     ""
   );
+}
+
+function mergeOwnedCardWithLatestTemplate(rawCard) {
+  const template = findCardTemplate(rawCard.code || rawCard.name || "");
+  if (!template) return hydrateCard(rawCard);
+
+  return hydrateCard({
+    ...template,
+
+    instanceId: rawCard.instanceId,
+    ownerId: rawCard.ownerId,
+
+    level: rawCard.level,
+    xp: rawCard.xp,
+    kills: rawCard.kills,
+    fragments: rawCard.fragments,
+
+    evolutionStage: rawCard.evolutionStage,
+    evolutionKey: rawCard.evolutionKey,
+    currentTier: rawCard.currentTier || template.currentTier,
+    rarity: rawCard.rarity || template.rarity,
+
+    equippedWeapons: Array.isArray(rawCard.equippedWeapons) ? rawCard.equippedWeapons : [],
+    equippedWeapon: rawCard.equippedWeapon || null,
+    equippedWeaponName: rawCard.equippedWeaponName || null,
+    equippedWeaponCode: rawCard.equippedWeaponCode || null,
+    equippedWeaponLevel: rawCard.equippedWeaponLevel || 0,
+
+    equippedDevilFruit: rawCard.equippedDevilFruit || null,
+    equippedDevilFruitName: rawCard.equippedDevilFruitName || null,
+
+    cardRole: rawCard.cardRole || template.cardRole,
+  });
 }
 
 function buildViewerEmbed(ownerName, card, index, total, label = "Collection") {
@@ -135,8 +168,7 @@ function dedupeCollection(cards) {
 function buildTextLines(cards) {
   const uniqueCards = dedupeCollection(cards);
 
-  return uniqueCards.map((rawCard, i) => {
-    const card = hydrateCard(rawCard);
+  return uniqueCards.map((card, i) => {
     const rarity = String(card.currentTier || card.rarity || "C").toUpperCase();
     const name = card.displayName || card.name || "Unknown Card";
     const stage = card.evolutionKey || `M${card.evolutionStage || 1}`;
@@ -152,7 +184,7 @@ function buildTextLines(cards) {
 
     const currentHp = Number(card.hp || 0);
     const currentSpd = Number(card.speed || 0);
-    const atkRange = `${Math.floor(Number(card.atk || 0) * 0.85)}-${Math.floor(Number(card.atk || 0) * 1.15)}`;
+    const atkRange = formatAtkRange(card.atk);
 
     return [
       `${i + 1}. **${name}** | ${stage} | ${power} | ${currentHp}/${currentHp} | ${currentSpd} | ${atkRange}`,
@@ -197,7 +229,9 @@ module.exports = {
 
   async execute(message, args) {
     const player = getPlayer(message.author.id, message.author.username);
-    const cards = (player.cards || []).map(hydrateCard).filter(Boolean);
+    const cards = (player.cards || [])
+      .map(mergeOwnedCardWithLatestTemplate)
+      .filter(Boolean);
 
     if (!cards.length) {
       return message.reply("You do not own any cards yet.");
