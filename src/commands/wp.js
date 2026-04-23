@@ -66,25 +66,25 @@ function consumeWeapon(list, weaponCode) {
   return arr;
 }
 
-function getWeaponBonusAtLevel(baseBonus, level) {
+function getWeaponPercentAtLevel(basePercent, level) {
   const lv = Math.max(0, Number(level || 0));
   return {
-    atk: Number(baseBonus?.atk || 0) + lv * 3,
-    hp: Number(baseBonus?.hp || 0) + lv * 8,
-    speed: Number(baseBonus?.speed || 0) + lv * 1,
+    atk: Number(basePercent?.atk || 0) + lv * 1,
+    hp: Number(basePercent?.hp || 0) + lv * 1,
+    speed: Number(basePercent?.speed || 0),
   };
 }
 
-function sumWeaponBonuses(equippedWeapons = []) {
+function sumWeaponPercents(equippedWeapons = []) {
   return equippedWeapons.reduce(
     (acc, item) => {
-      const bonus = getWeaponBonusAtLevel(
-        item.baseStatBonus || item.statBonus || {},
+      const percent = getWeaponPercentAtLevel(
+        item.baseStatPercent || item.statPercent || {},
         item.upgradeLevel || 0
       );
-      acc.atk += Number(bonus.atk || 0);
-      acc.hp += Number(bonus.hp || 0);
-      acc.speed += Number(bonus.speed || 0);
+      acc.atk += Number(percent.atk || 0);
+      acc.hp += Number(percent.hp || 0);
+      acc.speed += Number(percent.speed || 0);
       return acc;
     },
     { atk: 0, hp: 0, speed: 0 }
@@ -141,8 +141,8 @@ module.exports = {
             {
               name: card.equippedWeapon,
               code: card.equippedWeaponCode,
-              statBonus: card.weaponBonus || {},
-              baseStatBonus: card.weaponBonus || {},
+              statPercent: card.weaponBonusPercent || {},
+              baseStatPercent: card.weaponBonusPercent || {},
               upgradeLevel: 0,
             },
           ]
@@ -167,13 +167,13 @@ module.exports = {
       {
         name: weapon.name,
         code: weapon.code,
-        statBonus: weapon.statBonus || {},
-        baseStatBonus: weapon.statBonus || {},
+        statPercent: weapon.statPercent || { atk: 0, hp: 0, speed: 0 },
+        baseStatPercent: weapon.statPercent || { atk: 0, hp: 0, speed: 0 },
         upgradeLevel: 0,
       },
     ];
 
-    const totalWeaponBonus = sumWeaponBonuses(nextEquipped);
+    const totalWeaponPercent = sumWeaponPercents(nextEquipped);
     const equippedWeaponName = formatEquippedWeaponNames(nextEquipped);
 
     const updatedCards = (player.cards || []).map((raw) => {
@@ -185,7 +185,7 @@ module.exports = {
         equippedWeapon: equippedWeaponName,
         equippedWeaponName,
         equippedWeaponCode: nextEquipped.length === 1 ? nextEquipped[0].code : null,
-        weaponBonus: totalWeaponBonus,
+        weaponBonusPercent: totalWeaponPercent,
       });
     });
 
@@ -216,7 +216,7 @@ module.exports = {
               `**HP:** ${synced.hp}`,
               `**SPD:** ${synced.speed}`,
               "",
-              `Total Weapon Bonus: +${totalWeaponBonus.atk} ATK / +${totalWeaponBonus.hp} HP / +${totalWeaponBonus.speed} SPD`,
+              `Total Weapon Bonus: +${totalWeaponPercent.atk}% ATK / +${totalWeaponPercent.hp}% HP / +${totalWeaponPercent.speed}% SPD`,
               "",
               "Weapons stay permanently equipped.",
             ].join("\n")

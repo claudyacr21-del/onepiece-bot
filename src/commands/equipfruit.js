@@ -29,11 +29,7 @@ function getCardSearchStrings(card) {
 }
 
 function getFruitSearchStrings(fruit) {
-  return [
-    fruit.name,
-    fruit.code,
-    fruit.type,
-  ]
+  return [fruit.name, fruit.code, fruit.type]
     .filter(Boolean)
     .map(normalize);
 }
@@ -214,7 +210,10 @@ async function equipFruitToCard(message, player, card, fruit) {
     return message.reply("You do not own that devil fruit.");
   }
 
-  if (!Array.isArray(ownedFruits[fruitIndex].owners) || !ownedFruits[fruitIndex].owners.includes(cards[cardIndex].code)) {
+  if (
+    !Array.isArray(ownedFruits[fruitIndex].owners) ||
+    !ownedFruits[fruitIndex].owners.includes(cards[cardIndex].code)
+  ) {
     return message.reply("That devil fruit cannot be used by this card.");
   }
 
@@ -222,11 +221,6 @@ async function equipFruitToCard(message, player, card, fruit) {
     ...cards[cardIndex],
     equippedDevilFruit: fruit.code,
     equippedDevilFruitName: fruit.name,
-    fruitBonus: {
-      atk: Number(fruit?.statBonus?.atk || 0),
-      hp: Number(fruit?.statBonus?.hp || 0),
-      speed: Number(fruit?.statBonus?.speed || 0),
-    },
   });
 
   const currentAmount = Number(ownedFruits[fruitIndex].amount || 1);
@@ -248,7 +242,12 @@ async function equipFruitToCard(message, player, card, fruit) {
   const syncedCard = cards[cardIndex];
   const isBoost = syncedCard.cardRole === "boost";
   const effectiveValue = isBoost ? getEffectiveBoostValue(syncedCard) : null;
-  const suffix = isBoost && ["atk", "hp", "spd", "exp", "dmg"].includes(syncedCard.boostType) ? "%" : "";
+  const suffix =
+    isBoost && ["atk", "hp", "spd", "exp", "dmg"].includes(syncedCard.boostType)
+      ? "%"
+      : "";
+
+  const percent = fruit.statPercent || { atk: 0, hp: 0, speed: 0 };
 
   const embed = new EmbedBuilder()
     .setColor(isBoost ? 0x9b59b6 : 0x2ecc71)
@@ -257,9 +256,14 @@ async function equipFruitToCard(message, player, card, fruit) {
       [
         `**Card:** ${syncedCard.displayName || syncedCard.name}`,
         `**Fruit:** ${fruit.name}`,
-        !isBoost ? `**ATK:** ${Math.floor(Number(syncedCard.atk || 0) * 0.85)}-${Math.floor(Number(syncedCard.atk || 0) * 1.15)}` : null,
+        !isBoost
+          ? `**ATK:** ${Math.floor(Number(syncedCard.atk || 0) * 0.85)}-${Math.floor(Number(syncedCard.atk || 0) * 1.15)}`
+          : null,
         !isBoost ? `**HP:** ${Number(syncedCard.hp || 0)}` : null,
         !isBoost ? `**SPD:** ${Number(syncedCard.speed || 0)}` : null,
+        !isBoost
+          ? `**Fruit Bonus:** +${Number(percent.atk || 0)}% ATK / +${Number(percent.hp || 0)}% HP / +${Number(percent.speed || 0)}% SPD`
+          : null,
         isBoost ? `**Boost Type:** \`${syncedCard.boostType}\`` : null,
         isBoost ? `**Final Boost Value:** \`${effectiveValue}${suffix}\`` : null,
         isBoost && equippedFruitData?.boostBonus
@@ -319,7 +323,9 @@ module.exports = {
             i.customId === `equipfruit_pick_card_${roomId}`,
         });
 
-        const pickedCard = cards.find((c) => String(c.instanceId) === String(interaction.values[0]));
+        const pickedCard = cards.find(
+          (c) => String(c.instanceId) === String(interaction.values[0])
+        );
         if (!pickedCard) {
           return interaction.update({
             content: "Selected card not found.",
@@ -354,7 +360,9 @@ module.exports = {
             i.customId === `equipfruit_pick_fruit_${roomId}`,
         });
 
-        const pickedFruit = ownedFruits.find((f) => String(f.code) === String(interaction.values[0]));
+        const pickedFruit = ownedFruits.find(
+          (f) => String(f.code) === String(interaction.values[0])
+        );
         if (!pickedFruit) {
           return interaction.update({
             content: "Selected fruit not found.",
