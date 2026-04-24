@@ -2,7 +2,10 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { hydrateCard, getAllCards } = require("../utils/evolution");
 const { applyGlobalPullReset } = require("../utils/pullReset");
-const { getTotalPullUsage, buildPullAccessSnapshot } = require("../utils/pullSlots");
+const {
+  getTotalPullUsage,
+  consumeAllActivePullSlots,
+} = require("../utils/pullSlots");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { incrementQuestCounter } = require("../utils/questProgress");
 
@@ -48,7 +51,6 @@ function createOwnedCardLocal(template) {
 function getPremiumRarity(pullChanceBonus = 0) {
   const bonus = Math.max(0, Number(pullChanceBonus || 0));
   const roll = Math.random() * 100;
-
   const sRate = 10 + bonus * 0.25;
   const aRate = 22;
   const bRate = 28;
@@ -60,9 +62,7 @@ function getPremiumRarity(pullChanceBonus = 0) {
 }
 
 function getGuaranteedSRarity() {
-  const roll = Math.random() * 100;
-  if (roll < 8) return "UR";
-  return "S";
+  return Math.random() * 100 < 8 ? "UR" : "S";
 }
 
 function getContentType() {
@@ -82,10 +82,7 @@ function getRewardPool(contentType) {
     return getAllCards().filter((c) => c.cardRole === "boost");
   }
 
-  if (contentType === "weapon") {
-    return require("../data/weapons");
-  }
-
+  if (contentType === "weapon") return require("../data/weapons");
   return require("../data/devilFruits");
 }
 
@@ -113,16 +110,7 @@ function hasOwnedCardByCode(cards, code) {
 
 function getDuplicateFragmentAmount(card) {
   const rarity = String(card.baseTier || card.rarity || "C").toUpperCase();
-  return (
-    {
-      C: 1,
-      B: 2,
-      A: 4,
-      S: 8,
-      SS: 10,
-      UR: 12,
-    }[rarity] || 1
-  );
+  return ({ C: 1, B: 2, A: 4, S: 8, SS: 10, UR: 12 }[rarity] || 1);
 }
 
 function addFragment(list, card, amount = 1) {
@@ -214,11 +202,7 @@ function rollTicketBonus() {
   const roll = Math.random() * 100;
 
   if (roll < 0.75) {
-    return {
-      code: "raid_ticket",
-      name: "Raid Ticket",
-      rarity: "A",
-    };
+    return { code: "raid_ticket", name: "Raid Ticket", rarity: "A" };
   }
 
   if (roll < 3.25) {
@@ -241,16 +225,10 @@ function getRewardResult(contentType, reward) {
   }
 
   if (contentType === "weapon") {
-    return {
-      storageKey: "weapons",
-      storedReward: reward,
-    };
+    return { storageKey: "weapons", storedReward: reward };
   }
 
-  return {
-    storageKey: "devilFruits",
-    storedReward: reward,
-  };
+  return { storageKey: "devilFruits", storedReward: reward };
 }
 
 function getTypeLabel(contentType) {
@@ -258,33 +236,6 @@ function getTypeLabel(contentType) {
   if (contentType === "boostCard") return "Boost Card";
   if (contentType === "weapon") return "Weapon";
   return "Devil Fruit";
-}
-
-function consumeAllActivePullSlots(player, message) {
-  const pulls = { ...(player.pulls || {}) };
-  const snapshot = buildPullAccessSnapshot(player, message);
-
-  const slots = {
-    base: snapshot.base || { enabled: true, max: 6 },
-    supportMember: snapshot.supportMember,
-    booster: snapshot.booster,
-    owner: snapshot.owner,
-    patreon: snapshot.patreon,
-    baccaratCard: snapshot.baccaratCard,
-    baccaratFruit: snapshot.baccaratFruit,
-  };
-
-  for (const [key, slot] of Object.entries(slots)) {
-    if (!slot?.enabled && key !== "base") continue;
-    const max = Number(slot?.max || pulls[key]?.max || (key === "base" ? 6 : 1));
-    pulls[key] = {
-      ...(pulls[key] || {}),
-      used: max,
-      max,
-    };
-  }
-
-  return pulls;
 }
 
 module.exports = {
@@ -297,14 +248,13 @@ module.exports = {
     }
 
     const player = getPlayer(message.author.id, message.author.username);
-    const resetState = applyGlobalPullReset(player);
 
+    const resetState = applyGlobalPullReset(player);
     if (resetState?.wasReset) {
       updatePlayer(message.author.id, { pulls: resetState.pulls });
       player.pulls = resetState.pulls;
     }
 
-    const passiveBoosts = getPassiveBoostSummary(player);
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
     const availableTotal = Math.max(0, totalMax - totalUsed);
 
@@ -312,12 +262,13 @@ module.exports = {
       return message.reply("You do not have any available pulls right now.");
     }
 
+    const passiveBoosts = getPassiveBoostSummary(player);
+
     let updatedCards = [...(player.cards || [])];
     let updatedWeapons = [...(player.weapons || [])];
     let updatedDevilFruits = [...(player.devilFruits || [])];
     let updatedFragments = [...(player.fragments || [])];
     let updatedTickets = [...(player.tickets || [])];
-
     let pityCounter = Number(player.pity?.premiumSPity || 0);
 
     const summary = {
@@ -340,7 +291,6 @@ module.exports = {
     for (let i = 0; i < availableTotal; i++) {
       pityCounter += 1;
       const triggeredPity = pityCounter >= PREMIUM_PITY_TARGET;
-
       const contentType = getContentType();
       const pool = getRewardPool(contentType);
 
@@ -374,15 +324,18 @@ module.exports = {
         }
       } else if (rewardResult.storageKey === "weapons") {
         updatedWeapons = addNamedItem(updatedWeapons, rewardResult.storedReward);
-      } else if (rewardResult.storageKey === "devilFruits") {
-        updatedDevilFruits = addNamedItem(updatedDevilFruits, rewardResult.storedReward);
+      } else {
+        updatedDevilFruits = addNamedItem(
+          updatedDevilFruits,
+          rewardResult.storedReward
+        );
       }
 
       if (contentType === "battleCard" || contentType === "boostCard") {
         summary.card += 1;
       } else if (contentType === "weapon") {
         summary.weapon += 1;
-      } else if (contentType === "devilFruit") {
+      } else {
         summary.devilFruit += 1;
       }
 
@@ -434,22 +387,31 @@ module.exports = {
 
     const chunkSize = 20;
     const chunks = [];
-
     for (let i = 0; i < pullLines.length; i += chunkSize) {
       chunks.push(pullLines.slice(i, i + chunkSize).join("\n"));
     }
 
     const embeds = [];
-
-    chunks.slice(0, 9).forEach((chunk, index) => {
+    chunks.slice(0, 10).forEach((chunk, index) => {
       embeds.push(
         new EmbedBuilder()
           .setColor(0x8e44ad)
           .setTitle(`📜 Pull Results ${index + 1}/${chunks.length}`)
           .setDescription(chunk || "No rewards rolled.")
-          .setFooter({ text: `One Piece Bot • Pull All • Pity ${updatedPity.premiumSPity}/${PREMIUM_PITY_TARGET}`, })
+          .setFooter({
+            text: `One Piece Bot • Pull All • Pity ${updatedPity.premiumSPity}/${PREMIUM_PITY_TARGET}`,
+          })
       );
     });
+
+    if (!embeds.length) {
+      embeds.push(
+        new EmbedBuilder()
+          .setColor(0x8e44ad)
+          .setTitle("📜 Pull Results")
+          .setDescription("No rewards rolled.")
+      );
+    }
 
     return message.reply({ embeds });
   },

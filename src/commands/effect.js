@@ -52,7 +52,7 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
 
     const resetState = applyGlobalPullReset(player);
-    if (resetState.wasReset) {
+    if (resetState?.wasReset) {
       updatePlayer(message.author.id, { pulls: resetState.pulls });
       player.pulls = resetState.pulls;
     }
@@ -82,19 +82,17 @@ module.exports = {
     updatePlayer(message.author.id, syncPayload);
 
     player.quests = syncPayload.quests;
-    if (message.guild) {
-      player.pullAccessSnapshot = snapshot;
-    }
-
-    const isMotherFlame = hasRole(message, PREMIUM_ROLE_NAME);
-    const pityDrop = isMotherFlame
-      ? `${Number(player?.pity?.premiumSPity || 0)}/100`
-      : `${Number(player?.pity?.normalSPity || 0)}/150`;
+    if (message.guild) player.pullAccessSnapshot = snapshot;
 
     const boosts = getPassiveBoostSummary(player);
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
     const arena = getArenaSummary(player);
     const ship = getShipSummary(player);
+
+    const isMotherFlame = hasRole(message, PREMIUM_ROLE_NAME);
+    const pityDrop = isMotherFlame
+      ? `${Number(player?.pity?.premiumSPity || 0)}/100`
+      : `${Number(player?.pity?.normalSPity || 0)}/150`;
 
     const embed = new EmbedBuilder()
       .setColor(0x8e44ad)
@@ -105,7 +103,6 @@ module.exports = {
           `↪ Pulls Done: ${totalUsed}/${totalMax}`,
           `↪ Total Pull Chance: ${formatValue(boosts.pullChance, "%")}`,
           "",
-
           "## Boost Effects",
           `↪ ATK Boost: ${formatValue(boosts.atk, "%")}`,
           `↪ HP Boost: ${formatValue(boosts.hp, "%")}`,
@@ -115,19 +112,16 @@ module.exports = {
           `↪ Daily Reward Boost: ${formatValue(boosts.daily)}`,
           `↪ Fragment Storage Bonus: ${formatValue(boosts.fragmentStorageBonus)}`,
           "",
-
           "## Progress",
           `↪ Pity Drop: ${pityDrop}`,
           `↪ Quest Left: ${questSummary.left}/${questSummary.total}`,
           `↪ Fight Streak: ${Number(player?.fightStreak || 0)}`,
           "",
-
           "## Arena",
           `↪ Arena Points: ${arena.points}`,
           `↪ Record: ${arena.wins}W / ${arena.losses}L / ${arena.draws}D`,
           `↪ Arena Streak: ${arena.streak}`,
           "",
-
           "## Ship",
           `↪ Current Ship: ${ship.name}`,
           `↪ Ship Tier: ${ship.tier}`,
@@ -135,6 +129,6 @@ module.exports = {
       )
       .setFooter({ text: "One Piece Bot • Current Effects" });
 
-    await message.reply({ embeds: [embed] });
+    return message.reply({ embeds: [embed] });
   },
 };
