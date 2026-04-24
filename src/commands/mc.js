@@ -79,7 +79,8 @@ function mergeOwnedCardWithLatestTemplate(rawCard) {
 function buildViewerEmbed(ownerName, card, index, total, label = "Collection") {
   const form = getSafeForm(card);
   const stageImage = getStageImage(card);
-
+  const atkMin = Math.floor((card.atk || 0) * 0.85);
+  const atkMax = Math.floor((card.atk || 0) * 1.15);
   const extraLines =
     card.cardRole === "boost"
       ? [
@@ -96,9 +97,9 @@ function buildViewerEmbed(ownerName, card, index, total, label = "Collection") {
           `Tier: ${card.currentTier || card.rarity || "C"}`,
           `Level: ${card.level || 1}`,
           `Power: ${getPower(card)}`,
-          `Health: ${card.hp || 0}`,
-          `Speed: ${card.speed || 0}`,
-          `Attack: ${formatAtkRange(card.atk)}`,
+          `Health: ${card.hp}`,
+          `Speed: ${card.speed}`,
+          `Attack: ${atkMin}-${atkMax}`,
           `Weapons: ${card.displayWeaponName || "None"}`,
           `Devil Fruit: ${card.displayFruitName || "None"}`,
           `Type: ${card.type || card.cardRole || "Unknown"}`,
@@ -182,8 +183,8 @@ function buildTextLines(cards) {
       ].join("\n");
     }
 
-    const currentHp = Number(card.hp || 0);
-    const currentSpd = Number(card.speed || 0);
+    const currentHp = card.hp;
+    const currentSpd = card.speed;
     const atkRange = formatAtkRange(card.atk);
 
     return [
@@ -229,9 +230,11 @@ module.exports = {
 
   async execute(message, args) {
     const player = getPlayer(message.author.id, message.author.username);
-    const cards = (player.cards || [])
-      .map(mergeOwnedCardWithLatestTemplate)
-      .filter(Boolean);
+    const {
+      getPlayerCombatCards,
+    } = require("../utils/combatStats");
+
+    const cards = getPlayerCombatCards(player);
 
     if (!cards.length) {
       return message.reply("You do not own any cards yet.");

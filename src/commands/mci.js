@@ -307,7 +307,8 @@ function buildOwnedCardEmbed(ownerName, card) {
   const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
   const form = getCurrentForm(card);
   const stageImage = getCurrentStageImage(card);
-
+  const atkMin = Math.floor((card.atk || 0) * 0.85);
+  const atkMax = Math.floor((card.atk || 0) * 1.15);
   const extraLines =
     card.cardRole === "boost"
       ? [
@@ -324,9 +325,9 @@ function buildOwnedCardEmbed(ownerName, card) {
           `Tier: ${card.currentTier || card.rarity}`,
           `Level: ${Number(card.level || 1)}`,
           `Power: ${Number(card.currentPower || 0)}`,
-          `Health: ${Number(card.hp || 0)}`,
-          `Speed: ${Number(card.speed || 0)}`,
-          `Attack: ${formatAtkRange(card.atk)}`,
+          `Health: ${card.hp}`,
+          `Speed: ${card.speed}`,
+          `Attack: ${atkMin}-${atkMax}`,
           `Weapons: ${card.displayWeaponName || "None"}`,
           `Devil Fruit: ${card.displayFruitName || "None"}`,
           `Type: ${card.type || card.cardRole}`,
@@ -371,7 +372,10 @@ module.exports = {
       });
     }
 
-    const card = findOwnedCard(player.cards || [], query);
+    const { getPlayerCombatCards } = require("../utils/combatStats");
+
+    const combatCards = getPlayerCombatCards(player);
+    const card = findOwnedCard(combatCards, query);
     if (!card) {
       return message.reply("You do not own that card, devil fruit, or weapon.");
     }
