@@ -4,10 +4,16 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require("discord.js");
+
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
-const { hydrateCard } = require("../utils/evolution");
+const {
+  getPlayerCombatCards,
+  getPlayerCombatBoosts,
+  applyDamageBoost,
+  applyExpBoost,
+} = require("../utils/combatStats");
 
 const FIGHT_COOLDOWN_MS = 8 * 60 * 1000;
 const MOTHER_FLAME_FIGHT_COOLDOWN_MS = 4 * 60 * 1000;
@@ -25,11 +31,7 @@ function addOrIncrease(list, item) {
     return arr;
   }
 
-  arr.push({
-    ...item,
-    amount: Number(item.amount || 1),
-  });
-
+  arr.push({ ...item, amount: Number(item.amount || 1) });
   return arr;
 }
 
@@ -53,12 +55,7 @@ function applyExpToCard(card, gainedExp) {
     leveledUp += 1;
   }
 
-  return {
-    ...card,
-    level,
-    exp,
-    leveledUp,
-  };
+  return { ...card, level, exp, leveledUp };
 }
 
 function formatEquippedWeapons(card) {
@@ -67,27 +64,33 @@ function formatEquippedWeapons(card) {
       .map((w) => `${w.name}${Number(w.upgradeLevel || 0) > 0 ? ` +${w.upgradeLevel}` : ""}`)
       .join(", ");
   }
-  return card?.equippedWeapon || "None";
+
+  return card?.displayWeaponName || card?.equippedWeapon || "None";
 }
 
-function toBattleUnit(card, slotIndex) {
-  const synced = hydrateCard(card);
-
+function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   return {
     slot: slotIndex + 1,
-    instanceId: synced.instanceId,
-    name: synced.displayName || synced.name || "Unknown",
-    rarity: synced.currentTier || synced.rarity || "C",
-    atk: Number(synced.atk || 0),
-    hp: Number(synced.hp || 0),
-    maxHp: Number(synced.hp || 0),
-    speed: Number(synced.speed || 0),
-    level: Number(synced.level || 1),
-    exp: Number(synced.exp || 0),
-    kills: Number(synced.kills || 0),
-    image: synced.image || "",
-    equippedWeapon: formatEquippedWeapons(synced),
-    equippedDevilFruit: synced.equippedDevilFruit || "None",
+    instanceId: card.instanceId,
+    name: card.displayName || card.name || "Unknown",
+    rarity: card.currentTier || card.rarity || "C",
+    atk: Number(card.atk || 0),
+    hp: Number(card.hp || 0),
+    maxHp: Number(card.hp || 0),
+    speed: Number(card.speed || 0),
+    level: Number(card.level || 1),
+    exp: Number(card.exp || 0),
+    kills: Number(card.kills || 0),
+    image: card.image || "",
+    equippedWeapon: formatEquippedWeapons(card),
+    equippedDevilFruit: card.displayFruitName || card.equippedDevilFruitName || card.equippedDevilFruit || "None",
+    passiveBoostsApplied: {
+      atk: Number(combatBoosts.atk || 0),
+      hp: Number(combatBoosts.hp || 0),
+      spd: Number(combatBoosts.spd || 0),
+      dmg: Number(combatBoosts.dmg || 0),
+      exp: Number(combatBoosts.exp || 0),
+    },
   };
 }
 
@@ -105,6 +108,7 @@ function generateEnemyTeam() {
   ];
 
   const picks = [];
+
   for (let i = 0; i < 3; i++) {
     const enemy = pool[Math.floor(Math.random() * pool.length)];
     picks.push({
@@ -112,6 +116,7 @@ function generateEnemyTeam() {
       instanceId: `enemy-${Date.now()}-${i}-${Math.floor(Math.random() * 1000)}`,
     });
   }
+
   return picks;
 }
 
@@ -127,13 +132,17 @@ function clampHp(value) {
   return Math.max(0, Math.floor(value));
 }
 
-function performAttack(attacker, defender) {
+function performAttack(attacker, defender, boosts = {}) {
   const rawDamage = Math.max(
     1,
     Number(attacker.atk || 0) - Math.floor(Number(defender.speed || 0) * 0.15)
   );
-  defender.hp = clampHp(Number(defender.hp || 0) - rawDamage);
-  return rawDamage;
+
+  const isPlayerUnit = !String(attacker.instanceId || "").startsWith("enemy-");
+  const finalDamage = isPlayerUnit ? applyDamageBoost(rawDamage, boosts) : rawDamage;
+
+  defender.hp = clampHp(Number(defender.hp || 0) - finalDamage);
+  return finalDamage;
 }
 
 function renderHpBar(hp, maxHp, size = 10) {
@@ -147,7 +156,8 @@ function renderHpBar(hp, maxHp, size = 10) {
 function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode) {
   const playerLines = playerTeam.map((unit) => {
     return [
-      `**${unit.slot}. ${unit.name}** [${unit.rarity}] • ATK \`${unit.atk}\` • SPD \`${unit.speed}\` • LV \`${unit.level}\``,
+      `**${unit.slot}. ${unit.name}**`,
+      `[${unit.rarity}] • ATK \`${unit.atk}\` • SPD \`${unit.speed}\` • LV \`${unit.level}\``,
       `↪ Weapon: ${unit.equippedWeapon}`,
       `↪ Fruit: ${unit.equippedDevilFruit}`,
       renderHpBar(unit.hp, unit.maxHp),
@@ -155,7 +165,11 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode)
   });
 
   const enemyLines = enemyTeam.map((unit, index) => {
-    return `**${index + 1}. ${unit.name}** [${unit.rarity}] • ATK \`${unit.atk}\` • SPD \`${unit.speed}\`\n${renderHpBar(unit.hp, unit.maxHp)}`;
+    return [
+      `**${index + 1}. ${unit.name}**`,
+      `[${unit.rarity}] • ATK \`${unit.atk}\` • SPD \`${unit.speed}\``,
+      renderHpBar(unit.hp, unit.maxHp),
+    ].join("\n");
   });
 
   const recentLogs = logs.slice(-6);
@@ -180,6 +194,7 @@ function buildActionRows(playerTeam, battleEnded) {
 
   for (let i = 0; i < 3; i++) {
     const unit = playerTeam[i];
+
     attackButtons.addComponents(
       new ButtonBuilder()
         .setCustomId(`fight_attack_${i}`)
@@ -232,7 +247,11 @@ function calculateFightExp(playerTeam, won, premiumMode) {
     if (won) expGain += premiumMode ? 20 : 15;
     if (unit.hp > 0) expGain += premiumMode ? 8 : 5;
     expGain += Number(unit.kills || 0) * 5;
-    return { instanceId: unit.instanceId, expGain };
+
+    return {
+      instanceId: unit.instanceId,
+      expGain: applyExpBoost(expGain, unit.passiveBoostsApplied || {}),
+    };
   });
 }
 
@@ -241,6 +260,7 @@ function formatRemaining(ms) {
   const totalSeconds = Math.ceil(safeMs / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
+
   if (minutes <= 0) return `${seconds}s`;
   return `${minutes}m ${seconds}s`;
 }
@@ -252,9 +272,11 @@ function isMotherFlamePremium(player) {
 module.exports = {
   name: "fight",
   aliases: ["battle"],
+
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
     const premiumMode = isMotherFlamePremium(player);
+
     const cooldownKey = premiumMode ? "fightMotherFlame" : "fight";
     const cooldownMs = premiumMode ? MOTHER_FLAME_FIGHT_COOLDOWN_MS : FIGHT_COOLDOWN_MS;
     const cooldownUntil = Number(player?.cooldowns?.[cooldownKey] || 0);
@@ -265,13 +287,24 @@ module.exports = {
       );
     }
 
-    const cards = (Array.isArray(player.cards) ? player.cards : []).map(hydrateCard).filter(Boolean);
-    const teamSlots = Array.isArray(player?.team?.slots) ? player.team.slots : [null, null, null];
+    const combatBoosts = getPlayerCombatBoosts(player);
+    const cards = getPlayerCombatCards(player).filter(Boolean);
+
+    const teamSlots = Array.isArray(player?.team?.slots)
+      ? player.team.slots
+      : [null, null, null];
+
     const teamCards = teamSlots
       .map((instanceId, index) => {
         if (!instanceId) return null;
-        const found = cards.find((card) => card.instanceId === instanceId && card.cardRole !== "boost");
-        return found ? toBattleUnit(found, index) : null;
+
+        const found = cards.find(
+          (card) =>
+            String(card.instanceId) === String(instanceId) &&
+            String(card.cardRole || "").toLowerCase() !== "boost"
+        );
+
+        return found ? toBattleUnit(found, index, combatBoosts) : null;
       })
       .filter(Boolean);
 
@@ -289,6 +322,7 @@ module.exports = {
     const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
     const enemyTeam = generateEnemyTeam();
     const logs = [];
+
     let battleEnded = false;
     let battleWon = false;
     let currentStreak = Number(player.fightStreak || 0);
@@ -308,7 +342,9 @@ module.exports = {
       components: buildActionRows(playerTeam, battleEnded),
     });
 
-    const collector = reply.createMessageComponentCollector({ time: SESSION_TIMEOUT_MS });
+    const collector = reply.createMessageComponentCollector({
+      time: SESSION_TIMEOUT_MS,
+    });
 
     collector.on("collect", async (interaction) => {
       if (interaction.user.id !== message.author.id) {
@@ -329,9 +365,11 @@ module.exports = {
         battleEnded = true;
 
         const expResults = calculateFightExp(playerTeam, false, premiumMode);
+
         const updatedCards = [...(player.cards || [])].map((card) => {
           const expEntry = expResults.find((entry) => entry.instanceId === card.instanceId);
           const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
+
           if (!expEntry || !unit) return card;
 
           const nextCard = applyExpToCard(
@@ -358,7 +396,7 @@ module.exports = {
           },
         });
 
-        logs.push("🏳️ You ran away from the fight.");
+        logs.push("🏃 You ran away from the fight.");
 
         await interaction.update({
           embeds: [
@@ -397,7 +435,7 @@ module.exports = {
         });
       }
 
-      const damage = performAttack(attacker, target);
+      const damage = performAttack(attacker, target, attacker.passiveBoostsApplied || combatBoosts);
       logs.push(`⚔️ ${attacker.name} dealt **${damage}** damage to ${target.name}.`);
 
       if (target.hp <= 0) {
@@ -412,14 +450,17 @@ module.exports = {
 
         const reward = calculateWinReward(currentStreak, premiumMode);
         let updatedBoxes = [...(player.boxes || [])];
+
         reward.boxes.forEach((item) => {
           updatedBoxes = addOrIncrease(updatedBoxes, item);
         });
 
         const expResults = calculateFightExp(playerTeam, true, premiumMode);
+
         const updatedCards = [...(player.cards || [])].map((card) => {
           const expEntry = expResults.find((entry) => entry.instanceId === card.instanceId);
           const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
+
           if (!expEntry || !unit) return card;
 
           const nextCard = applyExpToCard(
@@ -437,7 +478,13 @@ module.exports = {
 
         let updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
         updatedDailyState = incrementQuestCounter(
-          { ...player, quests: { ...(player.quests || {}), dailyState: updatedDailyState } },
+          {
+            ...player,
+            quests: {
+              ...(player.quests || {}),
+              dailyState: updatedDailyState,
+            },
+          },
           "fightsWon",
           1
         );
@@ -479,11 +526,12 @@ module.exports = {
       }
 
       const retaliationPool = getAliveUnits(enemyTeam);
+
       for (const enemy of retaliationPool) {
         const retaliationTarget = getFirstAlive(playerTeam);
         if (!retaliationTarget) break;
 
-        const retaliationDamage = performAttack(enemy, retaliationTarget);
+        const retaliationDamage = performAttack(enemy, retaliationTarget, {});
         logs.push(`🩸 ${enemy.name} dealt **${retaliationDamage}** damage to ${retaliationTarget.name}.`);
 
         if (retaliationTarget.hp <= 0) {
@@ -496,9 +544,11 @@ module.exports = {
         battleWon = false;
 
         const expResults = calculateFightExp(playerTeam, false, premiumMode);
+
         const updatedCards = [...(player.cards || [])].map((card) => {
           const expEntry = expResults.find((entry) => entry.instanceId === card.instanceId);
           const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
+
           if (!expEntry || !unit) return card;
 
           const nextCard = applyExpToCard(
@@ -562,10 +612,11 @@ module.exports = {
       });
     });
 
-    collector.on("end", async (reason) => {
+    collector.on("end", async (_collected, reason) => {
       if (reason === "time" && !battleEnded) {
         try {
           logs.push("⌛ Fight session expired.");
+
           await reply.edit({
             embeds: [
               buildFightEmbed(
