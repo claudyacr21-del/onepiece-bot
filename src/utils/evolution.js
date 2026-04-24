@@ -67,22 +67,6 @@ function getBoostEffectText(card, stage = 1) {
   return `Increase ${target} ${boostType.toUpperCase()} by ${stageValue}${suffix}.`;
 }
 
-function getBoostStageValue(card, stage = 1) {
-  const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
-  const base = Number(card?.boostValue || 0);
-
-  const explicitValues = card?.boostValues || card?.stageBoostValues || null;
-  const key = `M${safeStage}`;
-
-  if (explicitValues && Number.isFinite(Number(explicitValues[key]))) {
-    return Number(explicitValues[key]);
-  }
-
-  if (safeStage === 1) return base;
-  if (safeStage === 2) return Number(card?.boostValueM2 ?? card?.m2BoostValue ?? base * 1.25);
-  return Number(card?.boostValueM3 ?? card?.m3BoostValue ?? base * 1.5);
-}
-
 function getLuffySpecialPath(card) {
   if (!card) return null;
   if (String(card.code || "").toLowerCase() !== "luffy_straw_hat") return null;
@@ -559,8 +543,8 @@ function getBoostStageValue(card, stage = 1) {
   }
 
   if (safeStage === 1) return base;
-  if (safeStage === 2) return Number(card?.boostValueM2 ?? card?.m2BoostValue ?? base * 2);
-  return Number(card?.boostValueM3 ?? card?.m3BoostValue ?? base * 3);
+  if (safeStage === 2) return Number(card?.boostValueM2 ?? card?.m2BoostValue ?? base + 2);
+  return Number(card?.boostValueM3 ?? card?.m3BoostValue ?? base + 4);
 }
 
 module.exports = {
