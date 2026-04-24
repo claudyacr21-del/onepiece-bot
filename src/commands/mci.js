@@ -5,6 +5,7 @@ const {
   getWeaponPower,
   getFruitPower,
 } = require("../utils/evolution");
+const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const {
   getCardImage,
@@ -27,6 +28,17 @@ function normalize(text) {
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
+function applyBoostedDisplayStats(card, boosts = {}) {
+  if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
+
+  return {
+    ...card,
+    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+  };
 }
 
 function getCurrentForm(card) {
@@ -57,24 +69,14 @@ function scoreQuery(query, candidates) {
     const candidate = normalize(raw);
     if (!candidate) continue;
 
-    if (candidate === q) {
-      best = Math.max(best, 1000 + candidate.length);
-      continue;
-    }
-
-    if (candidate.startsWith(q)) {
-      best = Math.max(best, 700 + q.length);
-      continue;
-    }
-
-    if (candidate.includes(q)) {
-      best = Math.max(best, 400 + q.length);
-      continue;
-    }
-
-    const qWords = q.split(" ").filter(Boolean);
-    if (qWords.length && qWords.every((w) => candidate.includes(w))) {
-      best = Math.max(best, 250 + qWords.join("").length);
+    if (candidate === q) best = Math.max(best, 1000 + candidate.length);
+    else if (candidate.startsWith(q)) best = Math.max(best, 700 + q.length);
+    else if (candidate.includes(q)) best = Math.max(best, 400 + q.length);
+    else {
+      const qWords = q.split(" ").filter(Boolean);
+      if (qWords.length && qWords.every((w) => candidate.includes(w))) {
+        best = Math.max(best, 250 + qWords.join("").length);
+      }
     }
   }
 
@@ -124,12 +126,7 @@ function buildOwnedFruitPool(player) {
     if (!template) continue;
 
     const key = String(template.code);
-    const existing = fruits.get(key) || {
-      ...template,
-      amount: 0,
-      equippedOn: [],
-    };
-
+    const existing = fruits.get(key) || { ...template, amount: 0, equippedOn: [] };
     existing.amount += Math.max(1, Number(entry.amount || 1));
     fruits.set(key, existing);
   }
@@ -143,12 +140,7 @@ function buildOwnedFruitPool(player) {
     if (!template) continue;
 
     const key = String(template.code);
-    const existing = fruits.get(key) || {
-      ...template,
-      amount: 0,
-      equippedOn: [],
-    };
-
+    const existing = fruits.get(key) || { ...template, amount: 0, equippedOn: [] };
     existing.equippedOn.push(rawCard.displayName || rawCard.name || rawCard.code);
     fruits.set(key, existing);
   }
@@ -180,9 +172,7 @@ function buildOwnedWeaponPool(player) {
   }
 
   for (const rawCard of Array.isArray(player.cards) ? player.cards : []) {
-    const equipped = Array.isArray(rawCard.equippedWeapons)
-      ? rawCard.equippedWeapons
-      : [];
+    const equipped = Array.isArray(rawCard.equippedWeapons) ? rawCard.equippedWeapons : [];
 
     for (const entry of equipped) {
       const template = findWeaponTemplate(entry.code || entry.name);
@@ -307,8 +297,8 @@ function buildOwnedCardEmbed(ownerName, card) {
   const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
   const form = getCurrentForm(card);
   const stageImage = getCurrentStageImage(card);
-  const atkMin = Math.floor((card.atk || 0) * 0.85);
-  const atkMax = Math.floor((card.atk || 0) * 1.15);
+  const atkRange = formatAtkRange(card.atk);
+
   const extraLines =
     card.cardRole === "boost"
       ? [
@@ -325,9 +315,9 @@ function buildOwnedCardEmbed(ownerName, card) {
           `Tier: ${card.currentTier || card.rarity}`,
           `Level: ${Number(card.level || 1)}`,
           `Power: ${Number(card.currentPower || 0)}`,
-          `Health: ${card.hp}`,
-          `Speed: ${card.speed}`,
-          `Attack: ${atkMin}-${atkMax}`,
+          `Health: ${Number(card.hp || 0)}`,
+          `Speed: ${Number(card.speed || 0)}`,
+          `Attack: ${atkRange}`,
           `Weapons: ${card.displayWeaponName || "None"}`,
           `Devil Fruit: ${card.displayFruitName || "None"}`,
           `Type: ${card.type || card.cardRole}`,
@@ -372,10 +362,12 @@ module.exports = {
       });
     }
 
-    const { getPlayerCombatCards } = require("../utils/combatStats");
+    const boosts = getPassiveBoostSummary(player);
+    const card = applyBoostedDisplayStats(
+      findOwnedCard(player.cards || [], query),
+      boosts
+    );
 
-    const combatCards = getPlayerCombatCards(player);
-    const card = findOwnedCard(combatCards, query);
     if (!card) {
       return message.reply("You do not own that card, devil fruit, or weapon.");
     }

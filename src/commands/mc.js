@@ -6,6 +6,7 @@ const {
 } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { hydrateCard, findCardTemplate } = require("../utils/evolution");
+const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage } = require("../config/assetLinks");
 
@@ -16,6 +17,17 @@ function getPower(card) {
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
+function applyBoostedDisplayStats(card, boosts = {}) {
+  if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
+
+  return {
+    ...card,
+    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+  };
 }
 
 function getSafeForm(card) {
@@ -79,8 +91,8 @@ function mergeOwnedCardWithLatestTemplate(rawCard) {
 function buildViewerEmbed(ownerName, card, index, total, label = "Collection") {
   const form = getSafeForm(card);
   const stageImage = getStageImage(card);
-  const atkMin = Math.floor((card.atk || 0) * 0.85);
-  const atkMax = Math.floor((card.atk || 0) * 1.15);
+  const atkRange = formatAtkRange(card.atk);
+
   const extraLines =
     card.cardRole === "boost"
       ? [
@@ -97,9 +109,9 @@ function buildViewerEmbed(ownerName, card, index, total, label = "Collection") {
           `Tier: ${card.currentTier || card.rarity || "C"}`,
           `Level: ${card.level || 1}`,
           `Power: ${getPower(card)}`,
-          `Health: ${card.hp}`,
-          `Speed: ${card.speed}`,
-          `Attack: ${atkMin}-${atkMax}`,
+          `Health: ${card.hp || 0}`,
+          `Speed: ${card.speed || 0}`,
+          `Attack: ${atkRange}`,
           `Weapons: ${card.displayWeaponName || "None"}`,
           `Devil Fruit: ${card.displayFruitName || "None"}`,
           `Type: ${card.type || card.cardRole || "Unknown"}`,
@@ -183,8 +195,8 @@ function buildTextLines(cards) {
       ].join("\n");
     }
 
-    const currentHp = card.hp;
-    const currentSpd = card.speed;
+    const currentHp = Number(card.hp || 0);
+    const currentSpd = Number(card.speed || 0);
     const atkRange = formatAtkRange(card.atk);
 
     return [
@@ -230,11 +242,12 @@ module.exports = {
 
   async execute(message, args) {
     const player = getPlayer(message.author.id, message.author.username);
-    const {
-      getPlayerCombatCards,
-    } = require("../utils/combatStats");
+    const boosts = getPassiveBoostSummary(player);
 
-    const cards = getPlayerCombatCards(player);
+    const cards = (player.cards || [])
+      .map(mergeOwnedCardWithLatestTemplate)
+      .filter(Boolean)
+      .map((card) => applyBoostedDisplayStats(card, boosts));
 
     if (!cards.length) {
       return message.reply("You do not own any cards yet.");
