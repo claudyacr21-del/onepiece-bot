@@ -439,30 +439,7 @@ module.exports = {
       chunks.push(pullLines.slice(i, i + chunkSize).join("\n"));
     }
 
-    const embeds = [
-      new EmbedBuilder()
-        .setColor(0xf39c12)
-        .setTitle("🔥 Pull All Result")
-        .setDescription(
-          [
-            `**Pulled By:** ${player.username}`,
-            `**Banner:** \`Mother Flame\``,
-            `**Total Pulls Used:** \`${availableTotal}\``,
-            "",
-            `**Battle/Boost Cards:** \`${summary.card}\``,
-            `**Weapons:** \`${summary.weapon}\``,
-            `**Devil Fruits:** \`${summary.devilFruit}\``,
-            `**Fragments Gained:** \`${summary.fragments}\``,
-            `**Common Raid Tickets:** \`${summary.commonRaidTicket}\``,
-            `**Raid Tickets:** \`${summary.raidTicket}\``,
-            "",
-            `**C:** \`${summary.C}\` • **B:** \`${summary.B}\` • **A:** \`${summary.A}\` • **S:** \`${summary.S}\` • **SS:** \`${summary.SS}\` • **UR:** \`${summary.UR}\``,
-            "",
-            `**S Pity Now:** \`${updatedPity.premiumSPity}/${PREMIUM_PITY_TARGET}\``,
-          ].join("\n")
-        )
-        .setFooter({ text: "One Piece Bot • Pull All Summary" }),
-    ];
+    const embeds = [];
 
     chunks.slice(0, 9).forEach((chunk, index) => {
       embeds.push(
@@ -470,7 +447,7 @@ module.exports = {
           .setColor(0x8e44ad)
           .setTitle(`📜 Pull Results ${index + 1}/${chunks.length}`)
           .setDescription(chunk || "No rewards rolled.")
-          .setFooter({ text: "One Piece Bot • Detailed Pull List" })
+          .setFooter({ text: `One Piece Bot • Pull All • Pity ${updatedPity.premiumSPity}/${PREMIUM_PITY_TARGET}`, })
       );
     });
 
