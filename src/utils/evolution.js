@@ -42,20 +42,6 @@ function normalizeRequirementPair(card) {
   return next;
 }
 
-function getBoostStageValue(card, stage = 1) {
-  const base = Number(card?.boostValue || 0);
-  const values = card?.boostValues || card?.stageBoostValues || null;
-  const key = `M${Math.max(1, Math.min(3, Number(stage || 1)))}`;
-
-  if (values && Number.isFinite(Number(values[key]))) {
-    return Number(values[key]);
-  }
-
-  if (stage === 1) return base;
-  if (stage === 2) return Number(card?.boostValueM2 || card?.m2BoostValue || base * 2);
-  return Number(card?.boostValueM3 || card?.m3BoostValue || base * 3);
-}
-
 function getBoostEffectText(card, stage = 1) {
   if (!card || card.cardRole !== "boost") return "";
   const boostType = String(card.boostType || "").toLowerCase();
@@ -78,6 +64,37 @@ function getBoostEffectText(card, stage = 1) {
   if (!boostType) return card.boostDescription || "";
 
   return `Increase ${target} ${boostType.toUpperCase()} by ${stageValue}${suffix}.`;
+}
+
+function getBoostStageValue(card, stage = 1) {
+  const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
+
+  const explicitValues = card?.boostValues || card?.stageBoostValues || null;
+  const key = `M${safeStage}`;
+
+  if (explicitValues && Number.isFinite(Number(explicitValues[key]))) {
+    return Number(explicitValues[key]);
+  }
+
+  if (safeStage === 1) {
+    return Number(card?.boostValue || 0);
+  }
+
+  if (safeStage === 2) {
+    return Number(
+      card?.boostValueM2 ??
+      card?.m2BoostValue ??
+      card?.boostM2 ??
+      Number(card?.boostValue || 0) * 2
+    );
+  }
+
+  return Number(
+    card?.boostValueM3 ??
+    card?.m3BoostValue ??
+    card?.boostM3 ??
+    Number(card?.boostValue || 0) * 3
+  );
 }
 
 function getLuffySpecialPath(card) {
