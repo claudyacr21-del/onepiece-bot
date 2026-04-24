@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { getAllCards, createOwnedCard } = require("../utils/evolution");
+const { createOwnedCard } = require("../utils/evolution");
+const rawCards = require("../data/cards");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 const {
   getNextAvailablePullKey,
@@ -132,9 +133,8 @@ module.exports = {
     const pullKey = getNextAvailablePullKey(player, message);
     if (!pullKey) return message.reply("No pull slot is currently available.");
 
-    const allCards = getAllCards();
-    const battlePool = allCards.filter((c) => c.cardRole === "battle");
-    const boostPool = allCards.filter((c) => c.cardRole === "boost");
+    const battlePool = rawCards.filter((c) => c.cardRole === "battle");
+    const boostPool = rawCards.filter((c) => c.cardRole === "boost");
 
     const contentType = pickContentType();
     const baseTier = rollStandardBaseTier();
@@ -221,7 +221,6 @@ module.exports = {
               "",
               `**${owned.displayName || owned.name}**`,
               `**Role:** ${owned.cardRole}`,
-              `**Base Tier:** ${owned.baseTier}`,
               `**Current Form:** ${owned.evolutionKey} • ${owned.evolutionForms[0].name}`,
               `**Base Tier:** ${picked.baseTier || picked.rarity || "C"}`,
               "",

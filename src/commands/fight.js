@@ -339,15 +339,31 @@ function calculateWinReward(streakAfterWin, premiumMode) {
 }
 
 function calculateFightExp(playerTeam, won, premiumMode) {
+  const eligible = playerTeam.filter((unit) => Number(unit.level || 1) < 100);
+
+  if (!eligible.length) {
+    return playerTeam.map((unit) => ({
+      instanceId: unit.instanceId,
+      expGain: 0,
+    }));
+  }
+
+  let totalExp = premiumMode ? 48 : 30;
+  if (won) totalExp += premiumMode ? 60 : 45;
+
+  const aliveCount = eligible.filter((unit) => Number(unit.battleHp ?? unit.hp) > 0).length;
+  totalExp += aliveCount * (premiumMode ? 8 : 5);
+
+  const sharedExp = Math.floor(totalExp / eligible.length);
+
   return playerTeam.map((unit) => {
-    let expGain = premiumMode ? 16 : 10;
-    if (won) expGain += premiumMode ? 20 : 15;
-    if (Number(unit.battleHp ?? unit.hp) > 0) expGain += premiumMode ? 8 : 5;
-    expGain += Number(unit.kills || 0) * 5;
+    if (Number(unit.level || 1) >= 100) {
+      return { instanceId: unit.instanceId, expGain: 0 };
+    }
 
     return {
       instanceId: unit.instanceId,
-      expGain: applyExpBoost(expGain, unit.passiveBoostsApplied || {}),
+      expGain: applyExpBoost(sharedExp, unit.passiveBoostsApplied || {}),
     };
   });
 }

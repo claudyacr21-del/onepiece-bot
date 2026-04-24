@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { hydrateCard, getAllCards } = require("../utils/evolution");
+const { hydrateCard } = require("../utils/evolution");
+const rawCards = require("../data/cards");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 const {
   getTotalPullUsage,
@@ -75,11 +76,11 @@ function getContentType() {
 
 function getRewardPool(contentType) {
   if (contentType === "battleCard") {
-    return getAllCards().filter((c) => c.cardRole === "battle");
+    return rawCards.filter((c) => c.cardRole === "battle");
   }
 
   if (contentType === "boostCard") {
-    return getAllCards().filter((c) => c.cardRole === "boost");
+    return rawCards.filter((c) => c.cardRole === "boost");
   }
 
   if (contentType === "weapon") return require("../data/weapons");
@@ -338,7 +339,7 @@ module.exports = {
         summary.devilFruit += 1;
       }
 
-      const rewardRarity = String(reward.rarity || reward.baseTier || "C").toUpperCase();
+      const rewardRarity = String(reward.baseTier || reward.rarity || "C").toUpperCase();
       if (summary[rewardRarity] !== undefined) summary[rewardRarity] += 1;
 
       const ticketDrop = rollTicketBonus();

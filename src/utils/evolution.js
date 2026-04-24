@@ -563,14 +563,18 @@ function createOwnedCard(template) {
 
 function getBoostStageValue(card, stage = 1) {
   const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
-  const values = card?.boostValues || card?.stageBoostValues || null;
+  const base = Number(card?.boostValue || 0);
+
+  const explicitValues = card?.boostValues || card?.stageBoostValues || null;
   const key = `M${safeStage}`;
 
-  if (values && Number.isFinite(Number(values[key]))) return Number(values[key]);
-  if (safeStage === 1) return Number(card?.boostValue || 0);
-  if (safeStage === 2) return Number(card?.boostValueM2 ?? card?.m2BoostValue ?? Number(card?.boostValue || 0) * 2);
+  if (explicitValues && Number.isFinite(Number(explicitValues[key]))) {
+    return Number(explicitValues[key]);
+  }
 
-  return Number(card?.boostValueM3 ?? card?.m3BoostValue ?? Number(card?.boostValue || 0) * 3);
+  if (safeStage === 1) return base;
+  if (safeStage === 2) return Number(card?.boostValueM2 ?? card?.m2BoostValue ?? base * 2);
+  return Number(card?.boostValueM3 ?? card?.m3BoostValue ?? base * 3);
 }
 
 module.exports = {
