@@ -348,6 +348,16 @@ module.exports = {
 
     const player = getPlayer(message.author.id, message.author.username);
 
+    const boosts = getPassiveBoostSummary(player);
+    const ownedCard = findOwnedCard(player.cards || [], query);
+    const card = applyBoostedDisplayStats(ownedCard, boosts);
+
+    if (card) {
+      return message.reply({
+        embeds: [buildOwnedCardEmbed(message.author.username, card)],
+      });
+    }
+
     const ownedFruit = findOwnedFruit(player, query);
     if (ownedFruit) {
       return message.reply({
@@ -362,15 +372,7 @@ module.exports = {
       });
     }
 
-    const boosts = getPassiveBoostSummary(player);
-    const card = applyBoostedDisplayStats(
-      findOwnedCard(player.cards || [], query),
-      boosts
-    );
-
-    if (!card) {
-      return message.reply("You do not own that card, devil fruit, or weapon.");
-    }
+    return message.reply("You do not own that card, devil fruit, or weapon.");
 
     return message.reply({
       embeds: [buildOwnedCardEmbed(message.author.username, card)],
