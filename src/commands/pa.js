@@ -1,10 +1,14 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { createOwnedCard, getAllCards } = require("../utils/evolution");
+const { hydrateCard, getAllCards } = require("../utils/evolution");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 const { getTotalPullUsage, buildPullAccessSnapshot } = require("../utils/pullSlots");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-const { getPremiumRarity, getGuaranteedSRarity, PREMIUM_PITY_TARGET } = require("../utils/pullRates");
+const {
+  getPremiumRarity,
+  getGuaranteedSRarity,
+  PREMIUM_PITY_TARGET,
+} = require("../utils/pullRates");
 const { incrementQuestCounter } = require("../utils/questProgress");
 
 const PREMIUM_ROLE_NAME = "Mother Flame";
@@ -12,9 +16,37 @@ const PREMIUM_ROLE_NAME = "Mother Flame";
 function hasRole(message, roleName) {
   return Boolean(
     message?.member?.roles?.cache?.some(
-      (role) => String(role?.name || "").toLowerCase() === String(roleName || "").toLowerCase()
+      (role) =>
+        String(role?.name || "").toLowerCase() ===
+        String(roleName || "").toLowerCase()
     )
   );
+}
+
+function makeInstanceId(code) {
+  return `${code}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createOwnedCardLocal(template) {
+  return hydrateCard({
+    ...template,
+    instanceId: makeInstanceId(template.code || "card"),
+    level: 1,
+    xp: 0,
+    kills: 0,
+    fragments: 0,
+    evolutionStage: 1,
+    evolutionKey: "M1",
+    currentTier: template.baseTier || template.rarity || "C",
+    rarity: template.baseTier || template.rarity || "C",
+    equippedWeapons: [],
+    equippedWeapon: null,
+    equippedWeaponName: null,
+    equippedWeaponCode: null,
+    equippedWeaponLevel: 0,
+    equippedDevilFruit: null,
+    equippedDevilFruitName: null,
+  });
 }
 
 function getContentType() {
@@ -44,20 +76,24 @@ function getRewardPool(contentType) {
 }
 
 function pickRandomByRarity(pool, rarity) {
-  const filtered = pool.filter(
-    (entry) => String(entry.baseTier || entry.rarity || "").toUpperCase() === String(rarity || "").toUpperCase()
-  );
-  if (!filtered.length) return null;
-  return filtered[Math.floor(Math.random() * filtered.length)];
-}
+  const list = Array.isArray(pool) ? pool : [];
+  if (!list.length) return null;
 
-function buildCardReward(card) {
-  return createOwnedCard(card);
+  const filtered = list.filter(
+    (entry) =>
+      String(entry.baseTier || entry.rarity || "").toUpperCase() ===
+      String(rarity || "").toUpperCase()
+  );
+
+  const source = filtered.length ? filtered : list;
+  return source[Math.floor(Math.random() * source.length)] || null;
 }
 
 function hasOwnedCardByCode(cards, code) {
   return (Array.isArray(cards) ? cards : []).some(
-    (entry) => String(entry.code || "").toLowerCase() === String(code || "").toLowerCase()
+    (entry) =>
+      String(entry.code || "").toLowerCase() ===
+      String(code || "").toLowerCase()
   );
 }
 
@@ -69,6 +105,7 @@ function getDuplicateFragmentAmount(card) {
       B: 2,
       A: 4,
       S: 8,
+      SS: 10,
       UR: 12,
     }[rarity] || 1
   );
@@ -101,7 +138,9 @@ function addFragment(list, card, amount = 1) {
 
 function addNamedItem(list, reward) {
   const items = Array.isArray(list) ? [...list] : [];
-  const existingIndex = items.findIndex((entry) => String(entry.code) === String(reward.code));
+  const existingIndex = items.findIndex(
+    (entry) => String(entry.code) === String(reward.code)
+  );
 
   if (existingIndex !== -1) {
     items[existingIndex] = {
@@ -118,10 +157,13 @@ function addNamedItem(list, reward) {
     code: reward.code,
     image: reward.image || "",
     type: reward.type,
-    statPercent: reward.statPercent,
-    owners: reward.owners,
+    statPercent: reward.statPercent || { atk: 0, hp: 0, speed: 0 },
+    ownerBonusPercent: reward.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
+    owners: reward.owners || [],
     boostBonus: reward.boostBonus,
-    description: reward.description,
+    description: reward.description || "",
+    power: reward.power || undefined,
+    upgradeLevel: 0,
   });
 
   return items;
@@ -129,7 +171,9 @@ function addNamedItem(list, reward) {
 
 function addTicket(list, ticket) {
   const items = Array.isArray(list) ? [...list] : [];
-  const existingIndex = items.findIndex((entry) => String(entry.code) === String(ticket.code));
+  const existingIndex = items.findIndex(
+    (entry) => String(entry.code) === String(ticket.code)
+  );
 
   if (existingIndex !== -1) {
     items[existingIndex] = {
@@ -170,24 +214,24 @@ function rollTicketBonus() {
   return null;
 }
 
-function getRewardResult(contentType, baseReward) {
+function getRewardResult(contentType, reward) {
   if (contentType === "battleCard" || contentType === "boostCard") {
     return {
       storageKey: "cards",
-      storedReward: buildCardReward(baseReward),
+      storedReward: createOwnedCardLocal(reward),
     };
   }
 
   if (contentType === "weapon") {
     return {
       storageKey: "weapons",
-      storedReward: baseReward,
+      storedReward: reward,
     };
   }
 
   return {
     storageKey: "devilFruits",
-    storedReward: baseReward,
+    storedReward: reward,
   };
 }
 
@@ -207,31 +251,45 @@ function consumeAllActivePullSlots(player, message) {
     used: snapshot.base.max,
   };
 
-  if (snapshot.supportMember.enabled) {
+  if (snapshot.supportMember?.enabled) {
     pulls.supportMember = {
       ...(pulls.supportMember || { used: 0, max: 1 }),
       used: snapshot.supportMember.max,
     };
   }
 
-  if (snapshot.booster.enabled) {
+  if (snapshot.booster?.enabled) {
     pulls.booster = {
       ...(pulls.booster || { used: 0, max: 1 }),
       used: snapshot.booster.max,
     };
   }
 
-  if (snapshot.owner.enabled) {
+  if (snapshot.owner?.enabled) {
     pulls.owner = {
       ...(pulls.owner || { used: 0, max: 1 }),
       used: snapshot.owner.max,
     };
   }
 
-  if (snapshot.patreon.enabled) {
+  if (snapshot.patreon?.enabled) {
     pulls.patreon = {
       ...(pulls.patreon || { used: 0, max: 3 }),
       used: snapshot.patreon.max,
+    };
+  }
+
+  if (snapshot.baccaratCard?.enabled) {
+    pulls.baccaratCard = {
+      ...(pulls.baccaratCard || { used: 0, max: 1 }),
+      used: snapshot.baccaratCard.max,
+    };
+  }
+
+  if (snapshot.baccaratFruit?.enabled) {
+    pulls.baccaratFruit = {
+      ...(pulls.baccaratFruit || { used: 0, max: 1 }),
+      used: snapshot.baccaratFruit.max,
     };
   }
 
@@ -250,7 +308,7 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
     const resetState = applyGlobalPullReset(player);
 
-    if (resetState.wasReset) {
+    if (resetState?.wasReset) {
       updatePlayer(message.author.id, { pulls: resetState.pulls });
       player.pulls = resetState.pulls;
     }
@@ -279,6 +337,7 @@ module.exports = {
       B: 0,
       A: 0,
       S: 0,
+      SS: 0,
       UR: 0,
       fragments: 0,
       commonRaidTicket: 0,
@@ -298,18 +357,25 @@ module.exports = {
         ? getGuaranteedSRarity()
         : getPremiumRarity(passiveBoosts.pullChance);
 
-      let reward = pickRandomByRarity(pool, rarity);
-      if (!reward) reward = pool[Math.floor(Math.random() * pool.length)];
+      const reward = pickRandomByRarity(pool, rarity);
+      if (!reward) continue;
 
       const rewardResult = getRewardResult(contentType, reward);
       let duplicateNote = "";
 
       if (rewardResult.storageKey === "cards") {
-        const alreadyOwned = hasOwnedCardByCode(updatedCards, rewardResult.storedReward.code);
+        const alreadyOwned = hasOwnedCardByCode(
+          updatedCards,
+          rewardResult.storedReward.code
+        );
 
         if (alreadyOwned) {
           const fragmentAmount = getDuplicateFragmentAmount(rewardResult.storedReward);
-          updatedFragments = addFragment(updatedFragments, rewardResult.storedReward, fragmentAmount);
+          updatedFragments = addFragment(
+            updatedFragments,
+            rewardResult.storedReward,
+            fragmentAmount
+          );
           summary.fragments += fragmentAmount;
           duplicateNote = ` → Duplicate (+${fragmentAmount} fragments)`;
         } else {
@@ -317,17 +383,20 @@ module.exports = {
         }
       } else if (rewardResult.storageKey === "weapons") {
         updatedWeapons = addNamedItem(updatedWeapons, rewardResult.storedReward);
-      } else {
+      } else if (rewardResult.storageKey === "devilFruits") {
         updatedDevilFruits = addNamedItem(updatedDevilFruits, rewardResult.storedReward);
       }
 
       if (contentType === "battleCard" || contentType === "boostCard") {
         summary.card += 1;
-      } else {
-        summary[contentType] += 1;
+      } else if (contentType === "weapon") {
+        summary.weapon += 1;
+      } else if (contentType === "devilFruit") {
+        summary.devilFruit += 1;
       }
 
-      summary[String(reward.rarity || "C").toUpperCase()] += 1;
+      const rewardRarity = String(reward.rarity || reward.baseTier || "C").toUpperCase();
+      if (summary[rewardRarity] !== undefined) summary[rewardRarity] += 1;
 
       const ticketDrop = rollTicketBonus();
       let ticketNote = "";
@@ -344,12 +413,10 @@ module.exports = {
       const pityLabel = triggeredPity ? " [PITY]" : "";
 
       pullLines.push(
-        `${i + 1}. [${reward.rarity}] ${rewardName} (${typeLabel})${pityLabel}${duplicateNote}${ticketNote}`
+        `${i + 1}. [${rewardRarity}] ${rewardName} (${typeLabel})${pityLabel}${duplicateNote}${ticketNote}`
       );
 
-      if (triggeredPity) {
-        pityCounter = 0;
-      }
+      if (triggeredPity) pityCounter = 0;
     }
 
     const updatedPity = {
@@ -380,9 +447,7 @@ module.exports = {
       chunks.push(pullLines.slice(i, i + chunkSize).join("\n"));
     }
 
-    const embeds = [];
-
-    embeds.push(
+    const embeds = [
       new EmbedBuilder()
         .setColor(0xf39c12)
         .setTitle("🔥 Pull All Result")
@@ -399,20 +464,20 @@ module.exports = {
             `**Common Raid Tickets:** \`${summary.commonRaidTicket}\``,
             `**Raid Tickets:** \`${summary.raidTicket}\``,
             "",
-            `**C:** \`${summary.C}\` • **B:** \`${summary.B}\` • **A:** \`${summary.A}\` • **S:** \`${summary.S}\` • **UR:** \`${summary.UR}\``,
+            `**C:** \`${summary.C}\` • **B:** \`${summary.B}\` • **A:** \`${summary.A}\` • **S:** \`${summary.S}\` • **SS:** \`${summary.SS}\` • **UR:** \`${summary.UR}\``,
             "",
             `**S Pity Now:** \`${updatedPity.premiumSPity}/${PREMIUM_PITY_TARGET}\``,
           ].join("\n")
         )
-        .setFooter({ text: "One Piece Bot • Pull All Summary" })
-    );
+        .setFooter({ text: "One Piece Bot • Pull All Summary" }),
+    ];
 
     chunks.forEach((chunk, index) => {
       embeds.push(
         new EmbedBuilder()
           .setColor(0x8e44ad)
           .setTitle(`📜 Pull Results ${index + 1}/${chunks.length}`)
-          .setDescription(chunk)
+          .setDescription(chunk || "No rewards rolled.")
           .setFooter({ text: "One Piece Bot • Detailed Pull List" })
       );
     });
