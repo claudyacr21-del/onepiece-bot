@@ -144,7 +144,7 @@ module.exports = {
             "",
             "## Equipment",
             "`op wp <card> <weapon>` → equip a weapon to a card",
-            "`op unequip <weapon>` → unequip a weapon by partial or full weapon name",
+            "`op unequip <weapon>` → unequip a weapon for 200 gems",
             "`op wupgrade <weapon>` → upgrade a weapon globally with Enhancement Stone",
             "`op df <card> <fruit>` → equip a Devil Fruit to a valid card",
             "",
