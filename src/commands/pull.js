@@ -223,7 +223,7 @@ module.exports = {
               `**Role:** ${owned.cardRole}`,
               `**Base Tier:** ${owned.baseTier}`,
               `**Current Form:** ${owned.evolutionKey} • ${owned.evolutionForms[0].name}`,
-              `**Current Tier:** ${owned.currentTier}`,
+              `**Base Tier:** ${picked.baseTier || picked.rarity || "C"}`,
               "",
               `**ATK:** ${owned.atk}`,
               `**HP:** ${owned.hp}`,

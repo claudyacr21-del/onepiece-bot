@@ -109,8 +109,7 @@ function hasOwnedCardByCode(cards, code) {
 }
 
 function getDuplicateFragmentAmount(card) {
-  const rarity = String(card.baseTier || card.rarity || "C").toUpperCase();
-  return ({ C: 1, B: 2, A: 4, S: 8, SS: 10, UR: 12 }[rarity] || 1);
+  return 1;
 }
 
 function addFragment(list, card, amount = 1) {
@@ -311,10 +310,10 @@ module.exports = {
         );
 
         if (alreadyOwned) {
-          const fragmentAmount = getDuplicateFragmentAmount(rewardResult.storedReward);
+          const fragmentAmount = 1;
           updatedFragments = addFragment(
             updatedFragments,
-            rewardResult.storedReward,
+            reward,
             fragmentAmount
           );
           summary.fragments += fragmentAmount;
