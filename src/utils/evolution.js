@@ -44,21 +44,22 @@ function normalizeRequirementPair(card) {
 
 function getBoostEffectText(card, stage = 1) {
   if (!card || card.cardRole !== "boost") return "";
+
   const boostType = String(card.boostType || "").toLowerCase();
   const target = card.boostTarget || "team";
-  const stageValue = Number(card.boostValue || 0);
+  const stageValue = getBoostStageValue(card, stage);
   const suffix = ["atk", "hp", "spd", "exp", "dmg"].includes(boostType) ? "%" : "";
 
-  if (boostType === "fragmentstorage") {
+  if (boostType === "fragmentstorage" || boostType === "fragment_storage") {
     return `Increase ${target} fragment storage by ${stageValue}.`;
   }
 
-  if (boostType === "pullchance") {
-    return `Increase ${target} pull chance by ${stageValue}.`;
+  if (boostType === "pullchance" || boostType === "pull_chance") {
+    return `Increase ${target} pull chance by ${stageValue}%.`;
   }
 
   if (boostType === "daily") {
-    return `Increase ${target} daily reward quality by ${stageValue} tier${stageValue > 1 ? "s" : ""}.`;
+    return `Increase ${target} daily reward quality by ${stageValue}.`;
   }
 
   if (!boostType) return card.boostDescription || "";
@@ -68,6 +69,7 @@ function getBoostEffectText(card, stage = 1) {
 
 function getBoostStageValue(card, stage = 1) {
   const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
+  const base = Number(card?.boostValue || 0);
 
   const explicitValues = card?.boostValues || card?.stageBoostValues || null;
   const key = `M${safeStage}`;
@@ -76,25 +78,9 @@ function getBoostStageValue(card, stage = 1) {
     return Number(explicitValues[key]);
   }
 
-  if (safeStage === 1) {
-    return Number(card?.boostValue || 0);
-  }
-
-  if (safeStage === 2) {
-    return Number(
-      card?.boostValueM2 ??
-      card?.m2BoostValue ??
-      card?.boostM2 ??
-      Number(card?.boostValue || 0) * 2
-    );
-  }
-
-  return Number(
-    card?.boostValueM3 ??
-    card?.m3BoostValue ??
-    card?.boostM3 ??
-    Number(card?.boostValue || 0) * 3
-  );
+  if (safeStage === 1) return base;
+  if (safeStage === 2) return Number(card?.boostValueM2 ?? card?.m2BoostValue ?? base * 1.25);
+  return Number(card?.boostValueM3 ?? card?.m3BoostValue ?? base * 1.5);
 }
 
 function getLuffySpecialPath(card) {
