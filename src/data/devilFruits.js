@@ -366,7 +366,7 @@ module.exports = [
     owners: ["baccarat_lucky_draw"],
     type: "Paramecia Fruit",
     statPercent: { atk: 7, hp: 6, speed: 4 },
-    resetPullBonus: 2,
+    resetPullBonus: 1,
     dailyResetToken: 1,
     image: "",
     description: "Increases reset pull bonus by 2 and grants 1 Reset Token whenever claiming daily rewards."

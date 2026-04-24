@@ -4,14 +4,10 @@ const { hydrateCard, getAllCards } = require("../utils/evolution");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 const { getTotalPullUsage, buildPullAccessSnapshot } = require("../utils/pullSlots");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-const {
-  getPremiumRarity,
-  getGuaranteedSRarity,
-  PREMIUM_PITY_TARGET,
-} = require("../utils/pullRates");
 const { incrementQuestCounter } = require("../utils/questProgress");
 
 const PREMIUM_ROLE_NAME = "Mother Flame";
+const PREMIUM_PITY_TARGET = 100;
 
 function hasRole(message, roleName) {
   return Boolean(
@@ -49,6 +45,26 @@ function createOwnedCardLocal(template) {
   });
 }
 
+function getPremiumRarity(pullChanceBonus = 0) {
+  const bonus = Math.max(0, Number(pullChanceBonus || 0));
+  const roll = Math.random() * 100;
+
+  const sRate = 10 + bonus * 0.25;
+  const aRate = 22;
+  const bRate = 28;
+
+  if (roll < sRate) return "S";
+  if (roll < sRate + aRate) return "A";
+  if (roll < sRate + aRate + bRate) return "B";
+  return "C";
+}
+
+function getGuaranteedSRarity() {
+  const roll = Math.random() * 100;
+  if (roll < 8) return "UR";
+  return "S";
+}
+
 function getContentType() {
   const roll = Math.random() * 100;
   if (roll < 70) return "battleCard";
@@ -58,14 +74,12 @@ function getContentType() {
 }
 
 function getRewardPool(contentType) {
-  const allCards = getAllCards();
-
   if (contentType === "battleCard") {
-    return allCards.filter((c) => c.cardRole === "battle");
+    return getAllCards().filter((c) => c.cardRole === "battle");
   }
 
   if (contentType === "boostCard") {
-    return allCards.filter((c) => c.cardRole === "boost");
+    return getAllCards().filter((c) => c.cardRole === "boost");
   }
 
   if (contentType === "weapon") {
@@ -146,6 +160,10 @@ function addNamedItem(list, reward) {
     items[existingIndex] = {
       ...items[existingIndex],
       amount: Number(items[existingIndex].amount || 1) + 1,
+      upgradeLevel: Math.max(
+        Number(items[existingIndex].upgradeLevel || 0),
+        Number(reward.upgradeLevel || 0)
+      ),
     };
     return items;
   }
@@ -246,50 +264,23 @@ function consumeAllActivePullSlots(player, message) {
   const pulls = { ...(player.pulls || {}) };
   const snapshot = buildPullAccessSnapshot(player, message);
 
-  pulls.base = {
-    ...(pulls.base || { used: 0, max: 6 }),
-    used: snapshot.base.max,
+  const slots = {
+    base: snapshot.base || { enabled: true, max: 6 },
+    supportMember: snapshot.supportMember,
+    booster: snapshot.booster,
+    owner: snapshot.owner,
+    patreon: snapshot.patreon,
+    baccaratCard: snapshot.baccaratCard,
+    baccaratFruit: snapshot.baccaratFruit,
   };
 
-  if (snapshot.supportMember?.enabled) {
-    pulls.supportMember = {
-      ...(pulls.supportMember || { used: 0, max: 1 }),
-      used: snapshot.supportMember.max,
-    };
-  }
-
-  if (snapshot.booster?.enabled) {
-    pulls.booster = {
-      ...(pulls.booster || { used: 0, max: 1 }),
-      used: snapshot.booster.max,
-    };
-  }
-
-  if (snapshot.owner?.enabled) {
-    pulls.owner = {
-      ...(pulls.owner || { used: 0, max: 1 }),
-      used: snapshot.owner.max,
-    };
-  }
-
-  if (snapshot.patreon?.enabled) {
-    pulls.patreon = {
-      ...(pulls.patreon || { used: 0, max: 3 }),
-      used: snapshot.patreon.max,
-    };
-  }
-
-  if (snapshot.baccaratCard?.enabled) {
-    pulls.baccaratCard = {
-      ...(pulls.baccaratCard || { used: 0, max: 1 }),
-      used: snapshot.baccaratCard.max,
-    };
-  }
-
-  if (snapshot.baccaratFruit?.enabled) {
-    pulls.baccaratFruit = {
-      ...(pulls.baccaratFruit || { used: 0, max: 1 }),
-      used: snapshot.baccaratFruit.max,
+  for (const [key, slot] of Object.entries(slots)) {
+    if (!slot?.enabled && key !== "base") continue;
+    const max = Number(slot?.max || pulls[key]?.max || (key === "base" ? 6 : 1));
+    pulls[key] = {
+      ...(pulls[key] || {}),
+      used: max,
+      max,
     };
   }
 
@@ -441,8 +432,9 @@ module.exports = {
       },
     });
 
-    const chunkSize = 25;
+    const chunkSize = 20;
     const chunks = [];
+
     for (let i = 0; i < pullLines.length; i += chunkSize) {
       chunks.push(pullLines.slice(i, i + chunkSize).join("\n"));
     }
@@ -472,7 +464,7 @@ module.exports = {
         .setFooter({ text: "One Piece Bot • Pull All Summary" }),
     ];
 
-    chunks.forEach((chunk, index) => {
+    chunks.slice(0, 9).forEach((chunk, index) => {
       embeds.push(
         new EmbedBuilder()
           .setColor(0x8e44ad)
