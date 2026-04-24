@@ -254,10 +254,10 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode)
   const playerLines = playerTeam.map((unit) => {
     return [
       `**${unit.slot}. ${unit.name}**`,
-      `[${unit.rarity}] • ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\` • LV \`${unit.level}\``,
+      `[${unit.rarity}] • ATK \`${formatAtkRange(unit.battleAtk)}\` • SPD \`${unit.battleSpeed}\` • LV \`${unit.level}\``,
       `↪ Weapon: ${unit.equippedWeapon}`,
       `↪ Fruit: ${unit.equippedDevilFruit}`,
-      renderHpBar(unit.hp, unit.maxHp),
+      renderHpBar(unit.battleHp, unit.battleMaxHp),
     ].join("\n");
   });
 
