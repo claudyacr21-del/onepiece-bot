@@ -537,6 +537,42 @@ function getAllCards() {
   );
 }
 
+function createOwnedCard(template) {
+  const owned = hydrateCard({
+    ...clone(template),
+    instanceId: `${template.code}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    level: 1,
+    xp: 0,
+    kills: 0,
+    fragments: 0,
+    evolutionStage: 1,
+    evolutionKey: "M1",
+    currentTier: template.baseTier || template.rarity || "C",
+    rarity: template.baseTier || template.rarity || "C",
+    equippedWeapons: [],
+    equippedWeapon: null,
+    equippedWeaponName: null,
+    equippedWeaponCode: null,
+    equippedWeaponLevel: 0,
+    equippedDevilFruit: null,
+    equippedDevilFruitName: null,
+  });
+
+  return owned;
+}
+
+function getBoostStageValue(card, stage = 1) {
+  const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
+  const values = card?.boostValues || card?.stageBoostValues || null;
+  const key = `M${safeStage}`;
+
+  if (values && Number.isFinite(Number(values[key]))) return Number(values[key]);
+  if (safeStage === 1) return Number(card?.boostValue || 0);
+  if (safeStage === 2) return Number(card?.boostValueM2 ?? card?.m2BoostValue ?? Number(card?.boostValue || 0) * 2);
+
+  return Number(card?.boostValueM3 ?? card?.m3BoostValue ?? Number(card?.boostValue || 0) * 3);
+}
+
 module.exports = {
   hydrateCard,
   findCardTemplate,
@@ -549,5 +585,6 @@ module.exports = {
   getRarityPower,
   getWeaponPower,
   getFruitPower,
+  createOwnedCard,
   getBoostStageValue,
 };
