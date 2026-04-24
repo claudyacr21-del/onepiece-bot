@@ -19,6 +19,16 @@ const FIGHT_COOLDOWN_MS = 8 * 60 * 1000;
 const MOTHER_FLAME_FIGHT_COOLDOWN_MS = 4 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 
+function formatExpResults(playerTeam, expResults) {
+  return expResults
+    .map((entry) => {
+      const unit = playerTeam.find((card) => card.instanceId === entry.instanceId);
+      if (!unit) return null;
+      return `✨ ${unit.name} gained **${entry.expGain} EXP**.`;
+    })
+    .filter(Boolean);
+}
+
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
   const index = arr.findIndex((entry) => entry.code === item.code);
@@ -548,6 +558,7 @@ module.exports = {
         });
 
         const expResults = calculateFightExp(playerTeam, true, premiumMode);
+        logs.push(...formatExpResults(playerTeam, expResults));
 
         const updatedCards = [...(player.cards || [])].map((card) => {
           const expEntry = expResults.find((entry) => entry.instanceId === card.instanceId);
@@ -676,8 +687,40 @@ module.exports = {
       if (reason === "time" && !battleEnded) {
         try {
           battleEnded = true;
-          applyFightLoss(message, player, playerTeam);
+
+          const expResults = calculateFightExp(playerTeam, false, premiumMode);
           logs.push("⌛ No interaction for 5 minutes. You lost the fight.");
+          logs.push(...formatExpResults(playerTeam, expResults));
+
+          const updatedCards = [...(player.cards || [])].map((card) => {
+            const expEntry = expResults.find((entry) => entry.instanceId === card.instanceId);
+            const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
+
+            if (!expEntry || !unit) return card;
+
+            const nextCard = applyExpToCard(
+              {
+                ...card,
+                kills: Number(unit.kills || 0),
+                level: Number(card.level || 1),
+                exp: getCardExp(card),
+              },
+              expEntry.expGain
+            );
+
+            return { ...nextCard, kills: Number(unit.kills || 0) };
+          });
+
+          const updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
+
+          updatePlayer(message.author.id, {
+            cards: updatedCards,
+            fightStreak: 0,
+            quests: {
+              ...(player.quests || {}),
+              dailyState: updatedDailyState,
+            },
+          });
 
           await reply.edit({
             embeds: [

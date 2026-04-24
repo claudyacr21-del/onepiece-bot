@@ -2,23 +2,22 @@ const devilFruits = require("../data/devilFruits");
 const { hydrateCard, findCardTemplate, getBoostStageValue } = require("./evolution");
 
 function normalize(value) {
-  return String(value || "").toLowerCase().trim();
+  return String(value || "").toLowerCase().trim().replace(/[_-]+/g, "");
 }
 
 function normalizeBoostType(value) {
   const type = normalize(value);
 
-  if (type === "attack") return "atk";
-  if (type === "health") return "hp";
-  if (type === "speed") return "spd";
-  if (type === "pullchance" || type === "pull_chance") return "pullChance";
-  if (type === "fragmentstorage" || type === "fragment_storage") return "fragmentStorage";
+  if (type === "attack" || type === "atk") return "atk";
+  if (type === "health" || type === "hp") return "hp";
+  if (type === "speed" || type === "spd") return "spd";
+  if (type === "damage" || type === "dmg") return "dmg";
+  if (type === "experience" || type === "exp") return "exp";
+  if (type === "daily") return "daily";
+  if (type === "pullchance") return "pullChance";
+  if (type === "fragmentstorage") return "fragmentStorage";
 
   return type;
-}
-
-function getOwnedCards(player) {
-  return Array.isArray(player?.cards) ? player.cards : [];
 }
 
 function mergeBoostWithTemplate(rawCard) {
@@ -47,14 +46,14 @@ function mergeBoostWithTemplate(rawCard) {
 }
 
 function getBoostCards(player) {
-  return getOwnedCards(player)
+  return (Array.isArray(player?.cards) ? player.cards : [])
     .map(mergeBoostWithTemplate)
     .filter((card) => String(card?.cardRole || "").toLowerCase() === "boost");
 }
 
-function findBoostFruitByCode(code) {
-  if (!code) return null;
-  const q = normalize(code);
+function findBoostFruitByCode(value) {
+  const q = normalize(value);
+  if (!q) return null;
 
   return (
     devilFruits.find((fruit) => normalize(fruit.code) === q) ||
@@ -90,41 +89,30 @@ function getUniqueBoostCards(player) {
     const key = `${String(card.code || "").toLowerCase()}_${normalizeBoostType(card.boostType)}`;
     const existing = seen.get(key);
 
-    if (!existing) {
-      seen.set(key, card);
-      continue;
-    }
-
-    const existingValue = getEffectiveBoostValue(existing);
-    const currentValue = getEffectiveBoostValue(card);
-
-    if (currentValue > existingValue) {
+    if (!existing || getEffectiveBoostValue(card) > getEffectiveBoostValue(existing)) {
       seen.set(key, card);
     }
   }
 
-  return Array.from(seen.values());
+  return [...seen.values()];
 }
 
 function getHighestBoost(cards, boostType) {
-  const normalizedType = normalizeBoostType(boostType);
-  const filtered = cards.filter((card) => normalizeBoostType(card.boostType) === normalizedType);
-
+  const type = normalizeBoostType(boostType);
+  const filtered = cards.filter((card) => normalizeBoostType(card.boostType) === type);
   if (!filtered.length) return null;
 
-  return filtered.reduce((best, current) => {
-    const bestValue = getEffectiveBoostValue(best);
-    const currentValue = getEffectiveBoostValue(current);
-    return currentValue > bestValue ? current : best;
-  }, filtered[0]);
+  return filtered.reduce((best, card) =>
+    getEffectiveBoostValue(card) > getEffectiveBoostValue(best) ? card : best
+  );
 }
 
 function sumBoost(cards, boostType) {
-  const normalizedType = normalizeBoostType(boostType);
+  const type = normalizeBoostType(boostType);
 
   return cards
-    .filter((card) => normalizeBoostType(card.boostType) === normalizedType)
-    .reduce((total, card) => total + getEffectiveBoostValue(card), 0);
+    .filter((card) => normalizeBoostType(card.boostType) === type)
+    .reduce((sum, card) => sum + getEffectiveBoostValue(card), 0);
 }
 
 function getFragmentStorageBonus(player) {
@@ -138,6 +126,7 @@ function getFragmentStorageBonus(player) {
 
 function getPassiveBoostSummary(player) {
   const boostCards = getUniqueBoostCards(player);
+
   const highestPullChance = getHighestBoost(boostCards, "pullChance");
   const highestDaily = getHighestBoost(boostCards, "daily");
 
