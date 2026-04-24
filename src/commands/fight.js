@@ -6,10 +6,10 @@ const {
 } = require("discord.js");
 
 const { getPlayer, updatePlayer } = require("../playerStore");
+const { hydrateCard, findCardTemplate } = require("../utils/evolution");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
 const {
-  getPlayerCombatCards,
   getPlayerCombatBoosts,
   applyDamageBoost,
   applyExpBoost,
@@ -58,6 +58,44 @@ function applyExpToCard(card, gainedExp) {
   return { ...card, level, exp, leveledUp };
 }
 
+function formatAtkRange(atk) {
+  const value = Number(atk || 0);
+  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
+function mergeOwnedCardWithLatestTemplate(rawCard) {
+  const template = findCardTemplate(rawCard.code || rawCard.name || "");
+  if (!template) return hydrateCard(rawCard);
+
+  return hydrateCard({
+    ...template,
+
+    instanceId: rawCard.instanceId,
+    ownerId: rawCard.ownerId,
+
+    level: rawCard.level,
+    xp: rawCard.xp,
+    kills: rawCard.kills,
+    fragments: rawCard.fragments,
+
+    evolutionStage: rawCard.evolutionStage,
+    evolutionKey: rawCard.evolutionKey,
+    currentTier: rawCard.currentTier || template.currentTier,
+    rarity: rawCard.rarity || template.rarity,
+
+    equippedWeapons: Array.isArray(rawCard.equippedWeapons) ? rawCard.equippedWeapons : [],
+    equippedWeapon: rawCard.equippedWeapon || null,
+    equippedWeaponName: rawCard.equippedWeaponName || null,
+    equippedWeaponCode: rawCard.equippedWeaponCode || null,
+    equippedWeaponLevel: rawCard.equippedWeaponLevel || 0,
+
+    equippedDevilFruit: rawCard.equippedDevilFruit || null,
+    equippedDevilFruitName: rawCard.equippedDevilFruitName || null,
+
+    cardRole: rawCard.cardRole || template.cardRole,
+  });
+}
+
 function formatEquippedWeapons(card) {
   if (Array.isArray(card?.equippedWeapons) && card.equippedWeapons.length) {
     return card.equippedWeapons
@@ -68,22 +106,43 @@ function formatEquippedWeapons(card) {
   return card?.displayWeaponName || card?.equippedWeapon || "None";
 }
 
+function applyBoostToNumber(value, percent) {
+  return Math.floor(Number(value || 0) * (1 + Number(percent || 0) / 100));
+}
+
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {
+  const baseAtk = Number(card.atk || 0);
+  const baseHp = Number(card.hp || 0);
+  const baseSpeed = Number(card.speed || 0);
+
   return {
     slot: slotIndex + 1,
     instanceId: card.instanceId,
     name: card.displayName || card.name || "Unknown",
     rarity: card.currentTier || card.rarity || "C",
-    atk: Number(card.atk || 0),
-    hp: Number(card.hp || 0),
-    maxHp: Number(card.hp || 0),
-    speed: Number(card.speed || 0),
+
+    atk: baseAtk,
+    hp: baseHp,
+    maxHp: baseHp,
+    speed: baseSpeed,
+
+    battleAtk: applyBoostToNumber(baseAtk, combatBoosts.atk),
+    battleMaxHp: applyBoostToNumber(baseHp, combatBoosts.hp),
+    battleHp: applyBoostToNumber(baseHp, combatBoosts.hp),
+    battleSpeed: applyBoostToNumber(baseSpeed, combatBoosts.spd),
+
     level: Number(card.level || 1),
     exp: Number(card.exp || 0),
     kills: Number(card.kills || 0),
     image: card.image || "",
+
     equippedWeapon: formatEquippedWeapons(card),
-    equippedDevilFruit: card.displayFruitName || card.equippedDevilFruitName || card.equippedDevilFruit || "None",
+    equippedDevilFruit:
+      card.displayFruitName ||
+      card.equippedDevilFruitName ||
+      card.equippedDevilFruit ||
+      "None",
+
     passiveBoostsApplied: {
       atk: Number(combatBoosts.atk || 0),
       hp: Number(combatBoosts.hp || 0),
@@ -95,7 +154,18 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
 }
 
 function createEnemy(name, rarity, atk, hp, speed) {
-  return { name, rarity, atk, hp, maxHp: hp, speed };
+  return {
+    name,
+    rarity,
+    atk,
+    hp,
+    maxHp: hp,
+    speed,
+    battleAtk: atk,
+    battleHp: hp,
+    battleMaxHp: hp,
+    battleSpeed: speed,
+  };
 }
 
 function generateEnemyTeam() {
@@ -121,32 +191,34 @@ function generateEnemyTeam() {
 }
 
 function getAliveUnits(units) {
-  return units.filter((unit) => Number(unit.hp) > 0);
+  return units.filter((unit) => Number(unit.battleHp ?? unit.hp) > 0);
 }
 
 function getFirstAlive(units) {
-  return units.find((unit) => Number(unit.hp) > 0) || null;
+  return units.find((unit) => Number(unit.battleHp ?? unit.hp) > 0) || null;
 }
 
 function clampHp(value) {
   return Math.max(0, Math.floor(value));
 }
 
-function formatAtkRange(atk) {
-  const value = Number(atk || 0);
-  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
-}
-
 function performAttack(attacker, defender, boosts = {}) {
+  const atk = Number(attacker.battleAtk || attacker.atk || 0);
+  const defSpeed = Number(defender.battleSpeed || defender.speed || 0);
+
+  const rolledAtk = Math.floor(atk * (0.85 + Math.random() * 0.3));
+
   const rawDamage = Math.max(
     1,
-    Number(attacker.atk || 0) - Math.floor(Number(defender.speed || 0) * 0.15)
+    rolledAtk - Math.floor(defSpeed * 0.15)
   );
 
   const isPlayerUnit = !String(attacker.instanceId || "").startsWith("enemy-");
   const finalDamage = isPlayerUnit ? applyDamageBoost(rawDamage, boosts) : rawDamage;
 
-  defender.hp = clampHp(Number(defender.hp || 0) - finalDamage);
+  defender.battleHp = clampHp(Number(defender.battleHp ?? defender.hp ?? 0) - finalDamage);
+  defender.hp = Math.min(Number(defender.hp || 0), defender.battleHp);
+
   return finalDamage;
 }
 
@@ -171,7 +243,9 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode)
 
   const enemyLines = enemyTeam.map((unit, index) => {
     return [
-      `**${index + 1}. ${unit.name}** [${unit.rarity}] • ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\`\n${renderHpBar(unit.hp, unit.maxHp)}`
+      `**${index + 1}. ${unit.name}**`,
+      `[${unit.rarity}] • ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
+      renderHpBar(unit.hp, unit.maxHp),
     ].join("\n");
   });
 
@@ -203,7 +277,7 @@ function buildActionRows(playerTeam, battleEnded) {
         .setCustomId(`fight_attack_${i}`)
         .setLabel(unit ? unit.name.slice(0, 20) : `Slot ${i + 1}`)
         .setStyle(ButtonStyle.Primary)
-        .setDisabled(battleEnded || !unit || unit.hp <= 0)
+        .setDisabled(battleEnded || !unit || Number(unit.battleHp ?? unit.hp) <= 0)
     );
   }
 
@@ -248,7 +322,7 @@ function calculateFightExp(playerTeam, won, premiumMode) {
   return playerTeam.map((unit) => {
     let expGain = premiumMode ? 16 : 10;
     if (won) expGain += premiumMode ? 20 : 15;
-    if (unit.hp > 0) expGain += premiumMode ? 8 : 5;
+    if (Number(unit.battleHp ?? unit.hp) > 0) expGain += premiumMode ? 8 : 5;
     expGain += Number(unit.kills || 0) * 5;
 
     return {
@@ -272,6 +346,11 @@ function isMotherFlamePremium(player) {
   return Number(player?.boosts?.motherFlameFight || 0) > 0;
 }
 
+function syncDisplayHp(unit) {
+  const battleRatio = Math.max(0, Number(unit.battleHp || 0)) / Math.max(1, Number(unit.battleMaxHp || unit.maxHp || 1));
+  unit.hp = clampHp(Number(unit.maxHp || 0) * battleRatio);
+}
+
 module.exports = {
   name: "fight",
   aliases: ["battle"],
@@ -291,7 +370,10 @@ module.exports = {
     }
 
     const combatBoosts = getPlayerCombatBoosts(player);
-    const cards = getPlayerCombatCards(player).filter(Boolean);
+
+    const cards = (Array.isArray(player.cards) ? player.cards : [])
+      .map(mergeOwnedCardWithLatestTemplate)
+      .filter(Boolean);
 
     const teamSlots = Array.isArray(player?.team?.slots)
       ? player.team.slots
@@ -423,7 +505,7 @@ module.exports = {
       const index = Number(interaction.customId.replace("fight_attack_", ""));
       const attacker = playerTeam[index];
 
-      if (!attacker || attacker.hp <= 0) {
+      if (!attacker || Number(attacker.battleHp ?? attacker.hp) <= 0) {
         return interaction.reply({
           content: "That card cannot attack right now.",
           ephemeral: true,
@@ -439,9 +521,11 @@ module.exports = {
       }
 
       const damage = performAttack(attacker, target, attacker.passiveBoostsApplied || combatBoosts);
+      syncDisplayHp(target);
+
       logs.push(`⚔️ ${attacker.name} dealt **${damage}** damage to ${target.name}.`);
 
-      if (target.hp <= 0) {
+      if (Number(target.battleHp ?? target.hp) <= 0) {
         attacker.kills += 1;
         logs.push(`☠️ ${target.name} was defeated.`);
       }
@@ -535,9 +619,11 @@ module.exports = {
         if (!retaliationTarget) break;
 
         const retaliationDamage = performAttack(enemy, retaliationTarget, {});
+        syncDisplayHp(retaliationTarget);
+
         logs.push(`🩸 ${enemy.name} dealt **${retaliationDamage}** damage to ${retaliationTarget.name}.`);
 
-        if (retaliationTarget.hp <= 0) {
+        if (Number(retaliationTarget.battleHp ?? retaliationTarget.hp) <= 0) {
           logs.push(`☠️ ${retaliationTarget.name} was defeated.`);
         }
       }
