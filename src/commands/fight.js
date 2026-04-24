@@ -184,13 +184,30 @@ function createEnemy(name, rarity, atk, hp, speed) {
   };
 }
 
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function scaleEnemy(enemy) {
+  const mult = randomInt(115, 165) / 100;
+
+  return createEnemy(
+    enemy.name,
+    enemy.rarity,
+    Math.floor(enemy.atk * mult),
+    Math.floor(enemy.hp * mult),
+    Math.floor(enemy.speed * randomInt(105, 135) / 100)
+  );
+}
+
 function generateEnemyTeam() {
   const pool = [
-    createEnemy("Marine Recruit", "C", 35, 220, 35),
-    createEnemy("Pirate Raider", "C", 40, 240, 32),
-    createEnemy("Bounty Hunter", "B", 55, 290, 40),
-    createEnemy("CP Agent", "A", 70, 340, 52),
-    createEnemy("Vice Admiral Soldier", "S", 90, 420, 60),
+    createEnemy("Marine Recruit", "C", 120, 900, 85),
+    createEnemy("Pirate Raider", "C", 140, 1050, 90),
+    createEnemy("Bounty Hunter", "B", 180, 1300, 110),
+    createEnemy("CP Agent", "A", 230, 1650, 135),
+    createEnemy("Vice Admiral Soldier", "S", 300, 2200, 160),
+    createEnemy("New World Captain", "S", 360, 2600, 185),
   ];
 
   const picks = [];
@@ -198,7 +215,7 @@ function generateEnemyTeam() {
   for (let i = 0; i < 3; i++) {
     const enemy = pool[Math.floor(Math.random() * pool.length)];
     picks.push({
-      ...enemy,
+      ...scaleEnemy(enemy),
       instanceId: `enemy-${Date.now()}-${i}-${Math.floor(Math.random() * 1000)}`,
     });
   }
