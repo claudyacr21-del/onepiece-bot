@@ -580,7 +580,7 @@ module.exports = [
     statPercent: { atk: 3, hp: 3, speed: 2 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
-    description: "Hatchan's fixed six-sword fighting style. Not a free multi-equip set."
+    description: "Hatchan's fixed six-sword fighting style.",
   },
   {
     code: "sky_lance",
