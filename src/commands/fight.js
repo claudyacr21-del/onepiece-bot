@@ -132,6 +132,11 @@ function clampHp(value) {
   return Math.max(0, Math.floor(value));
 }
 
+function formatAtkRange(atk) {
+  const value = Number(atk || 0);
+  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
 function performAttack(attacker, defender, boosts = {}) {
   const rawDamage = Math.max(
     1,
@@ -157,7 +162,7 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode)
   const playerLines = playerTeam.map((unit) => {
     return [
       `**${unit.slot}. ${unit.name}**`,
-      `[${unit.rarity}] • ATK \`${unit.atk}\` • SPD \`${unit.speed}\` • LV \`${unit.level}\``,
+      `[${unit.rarity}] • ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\` • LV \`${unit.level}\``,
       `↪ Weapon: ${unit.equippedWeapon}`,
       `↪ Fruit: ${unit.equippedDevilFruit}`,
       renderHpBar(unit.hp, unit.maxHp),
@@ -166,9 +171,7 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode)
 
   const enemyLines = enemyTeam.map((unit, index) => {
     return [
-      `**${index + 1}. ${unit.name}**`,
-      `[${unit.rarity}] • ATK \`${unit.atk}\` • SPD \`${unit.speed}\``,
-      renderHpBar(unit.hp, unit.maxHp),
+      `**${index + 1}. ${unit.name}** [${unit.rarity}] • ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\`\n${renderHpBar(unit.hp, unit.maxHp)}`
     ].join("\n");
   });
 
