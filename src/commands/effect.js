@@ -8,6 +8,18 @@ const {
   getQuestCompletionSummary,
 } = require("../utils/questProgress");
 
+const PREMIUM_ROLE_NAME = "Mother Flame";
+
+function hasRole(message, roleName) {
+  return Boolean(
+    message?.member?.roles?.cache?.some(
+      (role) =>
+        String(role?.name || "").toLowerCase() ===
+        String(roleName || "").toLowerCase()
+    )
+  );
+}
+
 function formatValue(value, suffix = "") {
   const number = Number(value || 0);
   return number > 0 ? `+${number}${suffix}` : "None";
@@ -78,22 +90,11 @@ module.exports = {
     const pityDrop = isMotherFlame
       ? `${Number(player?.pity?.premiumSPity || 0)}/100`
       : `${Number(player?.pity?.normalSPity || 0)}/150`;
+
     const boosts = getPassiveBoostSummary(player);
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
     const arena = getArenaSummary(player);
     const ship = getShipSummary(player);
-
-    const PREMIUM_ROLE_NAME = "Mother Flame";
-
-    function hasRole(message, roleName) {
-      return Boolean(
-        message?.member?.roles?.cache?.some(
-          (role) =>
-            String(role?.name || "").toLowerCase() ===
-            String(roleName || "").toLowerCase()
-        )
-      );
-    }
 
     const embed = new EmbedBuilder()
       .setColor(0x8e44ad)
