@@ -1,171 +1,302 @@
-const { EmbedBuilder } = require("discord.js");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+} = require("discord.js");
+
+const PREFIX = "op";
+
+const HELP_PAGES = {
+  main: {
+    label: "Command List",
+    description: "View the list of commands",
+    emoji: "📜",
+    title: "📜 Command List",
+    body: [
+      "Review the command list below.",
+      `**Prefix:** \`${PREFIX}\``,
+      "",
+      "## COMMANDS",
+      "",
+      "**🎒 Items & More**",
+      "`inventory` | view consumable items, materials, tickets, boxes",
+      "`finv` | view your fragments",
+      "`all` | view all obtainable cards/items",
+      "`all boost` | view all boost cards",
+      "`all weapon` | view all weapons",
+      "`all fruit` | view all devil fruits",
+      "`market` | open the market",
+      "",
+      "**🎴 Cards & Pulls**",
+      "`pull` | single pull",
+      "`pa` | Mother Flame pull all",
+      "`pullinfo` | check pull slots",
+      "`ci <card>` | global card info",
+      "`mci <card/fruit/weapon>` | owned item/card info",
+      "`mc` | view your card collection",
+      "`mc text` | compact text collection",
+      "`mc boost` | view boost cards only",
+      "`awaken <card>` | awaken card stage",
+      "",
+      "**⚔️ Battle & Raid**",
+      "`fight` | manual fight",
+      "`boss` | fight island boss",
+      "`raid <boss>` | A/S raid",
+      "`craid <boss>` | C/B common raid",
+      "`killraid` | clear active raid room",
+      "`arena` | ranked arena",
+      "`challenge @user` | direct test battle",
+      "",
+      "**🚢 Progression**",
+      "`ship` | view ship",
+      "`ship upgrade` | upgrade current ship",
+      "`shipupgrade` | standalone ship upgrade",
+      "`travel` | view route/islands",
+      "`travel <island>` | move island",
+      "`sail` | sail to next route",
+      "",
+      "**📊 Profile & Leaderboard**",
+      "`profile` | view profile",
+      "`effect` | current effects/status",
+      "`team` | view team",
+      "`lb arena` | arena leaderboard",
+      "`lb power` | collection power leaderboard",
+      "",
+      "**Use the dropdown below for more details.**",
+    ],
+  },
+
+  card: {
+    label: "Cards / Pull Help",
+    description: "Card, pull, awaken, and collection commands",
+    emoji: "🎴",
+    title: "🎴 Cards / Pull Help",
+    body: [
+      "**Cards**",
+      "`op ci <card>` → global card viewer",
+      "`op mci <card>` → your owned card viewer",
+      "`op mci <fruit>` → your owned devil fruit viewer",
+      "`op mci <weapon>` → your owned weapon viewer",
+      "`op mc` → card collection viewer",
+      "`op mc text` → compact card list",
+      "`op mc boost` → boost card collection only",
+      "",
+      "**Pulls**",
+      "`op pull` → single pull",
+      "`op pa` → Mother Flame pull all",
+      "`op pullinfo` → check pull slot status",
+      "",
+      "**Awaken**",
+      "`op awaken <card>` → awaken card to next form",
+      "",
+      "**Notes**",
+      "Battle and boost cards use **M1 / M2 / M3**.",
+      "Pull result rarity should show the base M1 rarity.",
+      "Duplicate cards become fragments.",
+    ],
+  },
+
+  equipment: {
+    label: "Equipment Help",
+    description: "Weapon, fruit, upgrade, and unequip commands",
+    emoji: "🗡️",
+    title: "🗡️ Equipment Help",
+    body: [
+      "**Weapon**",
+      "`op wp <card> <weapon>` → equip weapon",
+      "`op unequip <weapon>` → unequip weapon for 200 gems",
+      "`op wupgrade <weapon>` → upgrade weapon globally",
+      "",
+      "**Devil Fruit**",
+      "`op df <card> <fruit>` → equip devil fruit",
+      "",
+      "**Notes**",
+      "Weapons can be equipped to any character.",
+      "Owner characters can receive owner bonus if the weapon has one.",
+      "Weapon and fruit stat bonuses use percentage stats.",
+      "Equipped weapon/fruit power is added to card power.",
+    ],
+  },
+
+  battle: {
+    label: "Battle Help",
+    description: "Fight, boss, arena, and leaderboard commands",
+    emoji: "⚔️",
+    title: "⚔️ Battle Help",
+    body: [
+      "**PvE**",
+      "`op fight` → manual fight",
+      "`op boss` → fight current island boss",
+      "`op team` → view current team",
+      "",
+      "**PvP**",
+      "`op arena` → ranked random arena",
+      "`op challenge @user` → direct test battle",
+      "",
+      "**Leaderboard**",
+      "`op lb arena` → arena ranking",
+      "`op lb power` → collection power ranking",
+      "",
+      "**Notes**",
+      "Fight stats use your synced card stats plus active boost card effects.",
+      "If no interaction happens in fight for 5 minutes, it counts as a loss.",
+      "Max level cards do not gain EXP.",
+    ],
+  },
+
+  raid: {
+    label: "Raid Help",
+    description: "Raid, common raid, room, and party commands",
+    emoji: "👥",
+    title: "👥 Raid Help",
+    body: [
+      "**Raid Rooms**",
+      "`op craid <boss>` → C/B boss raid using Common Raid Ticket",
+      "`op raid <boss>` → A/S boss raid using Raid Ticket",
+      "`op killraid` → close active raid room",
+      "",
+      "**Rules**",
+      "Host ticket is consumed when room is created.",
+      "Max 10 users including host.",
+      "Each user joins with 1 battle card.",
+      "Same character code cannot be used twice.",
+      "",
+      "**Party Team**",
+      "`op rtadd <user>` → add user to party team",
+      "`op rtremove <user>` → remove user from party team",
+      "`op rtdelete` → clear party team",
+      "`op rt` → show team/room info",
+      "`op rm` → show missing users in active room",
+    ],
+  },
+
+  quest: {
+    label: "Quest / Daily Help",
+    description: "Daily, quest, effect, and reward commands",
+    emoji: "✨",
+    title: "✨ Quest / Daily Help",
+    body: [
+      "**Daily / Quest**",
+      "`op daily` → claim daily reward",
+      "`op quest` → view daily quest board",
+      "`op effect` → view current effects and status",
+      "",
+      "**Boost Effects**",
+      "Boost cards can affect ATK, HP, SPD, EXP, DMG, Daily rewards, Pull chance, and Fragment storage.",
+      "",
+      "**Tickets**",
+      "Common Raid Ticket and Raid Ticket can drop from pulls.",
+      "Pull Reset Ticket currently comes from daily rewards.",
+    ],
+  },
+
+  travel: {
+    label: "Travel / Ship Help",
+    description: "Ship, travel, island, and route commands",
+    emoji: "🚢",
+    title: "🚢 Travel / Ship Help",
+    body: [
+      "**Ship**",
+      "`op ship` → view current ship",
+      "`op ship upgrade` → upgrade ship",
+      "`op shipupgrade` → standalone ship upgrade command",
+      "",
+      "**Travel**",
+      "`op travel` → view unlocked islands and route",
+      "`op travel <island>` → move to island",
+      "`op sail` → sail to next route if requirements are met",
+      "",
+      "**Notes**",
+      "Some islands require higher ship tier.",
+      "Ship upgrades use berries and materials.",
+    ],
+  },
+
+  trade: {
+    label: "Trade / Market Help",
+    description: "Market and trade commands",
+    emoji: "💰",
+    title: "💰 Trade / Market Help",
+    body: [
+      "**Market**",
+      "`op market` → open market",
+      "`op market buy <item>` → buy item",
+      "",
+      "**Trade**",
+      "`op trade @user (your offer) (their offer)`",
+      "",
+      "**Notes**",
+      "Tickets are untradeable.",
+      "Materials, cards, fruits, and weapons depend on your trade logic/settings.",
+    ],
+  },
+};
+
+function buildEmbed(pageKey = "main") {
+  const page = HELP_PAGES[pageKey] || HELP_PAGES.main;
+
+  return new EmbedBuilder()
+    .setColor(0x8e44ad)
+    .setTitle(page.title)
+    .setDescription(page.body.join("\n"))
+    .setFooter({ text: "One Piece Bot • Help Menu" });
+}
+
+function buildMenu(selected = "main") {
+  return [
+    new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("help_menu")
+        .setPlaceholder("Select a topic to see more information")
+        .addOptions(
+          Object.entries(HELP_PAGES).map(([value, page]) => ({
+            label: page.label,
+            description: page.description,
+            value,
+            emoji: page.emoji,
+            default: value === selected,
+          }))
+        )
+    ),
+  ];
+}
 
 module.exports = {
   name: "help",
   aliases: ["commands", "cmd"],
 
   async execute(message) {
-    const embeds = [
-      new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle("☠️ How To OPB")
-        .setDescription(
-          [
-            "Start by building your team, pulling cards, strengthening them, then progressing through islands and battles.",
-            "",
-            "Battle cards use **M1 / M2 / M3** progression.",
-            "Boost cards also use **M1 / M2 / M3** and their passive effects get stronger every stage.",
-            "",
-            "Base rarity caps:",
-            "`C` → `A`",
-            "`B` → `S`",
-            "`A` → `SS`",
-            "`S` → `UR`",
-            "",
-            "Some swordsmen can equip multiple weapons:",
-            "• Zoro = 3 swords",
-            "• Oden = 2 swords",
-            "",
-            "Devil Fruits stay equipped permanently once used.",
-            "Weapons can be upgraded globally with **Enhancement Stone**.",
-            "",
-            "Arena is available for ranked random battles and direct test matches.",
-          ].join("\n")
-        )
-        .setFooter({ text: "One Piece Bot • 1/5" }),
+    let currentPage = "main";
 
-      new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle("🎴 Cards, Pulls, Quests")
-        .setDescription(
-          [
-            "## Card Progression",
-            "`op ci <card>` = global card info viewer",
-            "`op mci <card/fruit/weapon>` = your owned current info viewer",
-            "`op awaken <card>` = awaken your owned card",
-            "",
-            "## Pull System",
-            "`op pull` = single synced pull",
-            "`op pa` = Mother Flame text-only pull all",
-            "`op pullinfo` = check synced pull access info",
-            "`op effect` = check synced current effects",
-            "",
-            "Pull note:",
-            "`Common Raid Ticket` and `Raid Ticket` are pull drops",
-            "`Common Raid Ticket` is easier to get than `Raid Ticket`",
-            "",
-            "## Quests",
-            "`op daily` = claim daily reward",
-            "`op quest` = open your current daily quest board",
-            "5 daily random quests",
-            "quest categories do not repeat on the same day",
-            "clear rewards are claimed from the daily quest board state",
-          ].join("\n")
-        )
-        .setFooter({ text: "One Piece Bot • 2/5" }),
+    const sent = await message.reply({
+      embeds: [buildEmbed(currentPage)],
+      components: buildMenu(currentPage),
+    });
 
-      new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle("⚔️ Battle / Arena")
-        .setDescription(
-          [
-            "## PvE",
-            "`op fight` → manual fight against random enemies",
-            "`op boss` → fight the current island boss",
-            "`op team` → check your current team",
-            "",
-            "## PvP",
-            "`op arena` → random ranked match against another user's team",
-            "`op challenge @user` → direct test fight against a user's team",
-            "`op lb arena` → arena leaderboard",
-            "`op lb power` → total collection power leaderboard",
-            "",
-            "Arena notes:",
-            "`op arena` gives points",
-            "win = +12",
-            "lose = -5",
-            "draw = +2",
-            "`op challenge` is test only and gives no points",
-          ].join("\n")
-        )
-        .setFooter({ text: "One Piece Bot • 3/5" }),
+    const collector = sent.createMessageComponentCollector({
+      time: 10 * 60 * 1000,
+    });
 
-      new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle("👥 Raid / Party")
-        .setDescription(
-          [
-            "## Common Raid",
-            "`op craid <boss>` → create a C/B raid room using a Common Raid Ticket",
-            "",
-            "## Raid",
-            "`op raid <boss>` → create an A/S raid room using a Raid Ticket",
-            "Host uses 1 ticket immediately when the raid room is created",
-            "Raid supports up to 10 users total including the host",
-            "Each participant can join with only 1 battle card",
-            "The same character code cannot be used twice in the same raid room",
-            "`op killraid` → close your active raid room",
-            "",
-            "## Party Team",
-            "`op rtadd <@user|userId|username>` → add a user to your raid/party team",
-            "`op rtremove <@user|userId|username>` → remove a user from your raid/party team",
-            "`op rtdelete` → clear your entire raid/party team",
-            "`op rt` → show your saved team or active room team info",
-            "`op rm` → show who has not joined the active room yet",
-            "",
-            "## Party Boss Phase 2",
-            "Some story bosses use mandatory party phase 2",
-            "Party boss phase 2 does not consume Raid Tickets",
-            "Party boss supports up to 4 users total including the host",
-            "Each participant joins with their 3 current team battle cards",
-            "The same character code cannot be used twice in the same party room",
-          ].join("\n")
-        )
-        .setFooter({ text: "One Piece Bot • 4/5" }),
+    collector.on("collect", async (interaction) => {
+      if (interaction.user.id !== message.author.id) {
+        return interaction.reply({
+          content: "Only the command user can use this help menu.",
+          ephemeral: true,
+        });
+      }
 
-      new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle("🧭 Main Commands")
-        .setDescription(
-          [
-            "## Collection",
-            "`op mc` → view your cards",
-            "`op mc text` → text list of cards + boosts, 10 per page with Prev / Next",
-            "`op mc boost` → view your boost cards only",
-            "`op ci <card>` → global card viewer",
-            "`op mci <card/fruit/weapon>` → owned current info viewer",
-            "`op all` → all battle cards",
-            "`op all boost` → all boost cards",
-            "`op all weapon` → all weapons",
-            "`op all fruit` → all devil fruits",
-            "`op inventory` → check your items",
-            "`op finv` → check your fragments",
-            "`op profile` → check your profile",
-            "",
-            "## Equipment",
-            "`op wp <card> <weapon>` → equip a weapon to a card",
-            "`op unequip <weapon>` → unequip a weapon for 200 gems",
-            "`op wupgrade <weapon>` → upgrade a weapon globally with Enhancement Stone",
-            "`op df <card> <fruit>` → equip a Devil Fruit to a valid card",
-            "",
-            "## Progression / Travel",
-            "`op market` → open the market",
-            "`op market buy <item>` → buy an item from the market",
-            "`op ship` → view your ship",
-            "`op ship upgrade` → upgrade your current ship",
-            "`op shipupgrade` → standalone ship upgrade command",
-            "`op sail` → sail to the next sea route if requirements are met",
-            "`op travel` → view unlocked islands and route",
-            "`op travel <island>` → move to an unlocked island",
-            "",
-            "## Trade",
-            "`op trade @mention (your offer) (their offer)`",
-            "Tickets are untradeable",
-          ].join("\n")
-        )
-        .setFooter({ text: "One Piece Bot • 5/5" }),
-    ];
+      currentPage = interaction.values?.[0] || "main";
 
-    return message.reply({ embeds });
+      return interaction.update({
+        embeds: [buildEmbed(currentPage)],
+        components: buildMenu(currentPage),
+      });
+    });
+
+    collector.on("end", async () => {
+      try {
+        await sent.edit({ components: [] });
+      } catch {}
+    });
   },
 };
