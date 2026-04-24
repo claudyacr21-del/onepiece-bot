@@ -74,15 +74,26 @@ module.exports = {
       player.pullAccessSnapshot = snapshot;
     }
 
+    const isMotherFlame = hasRole(message, PREMIUM_ROLE_NAME);
+    const pityDrop = isMotherFlame
+      ? `${Number(player?.pity?.premiumSPity || 0)}/100`
+      : `${Number(player?.pity?.normalSPity || 0)}/150`;
     const boosts = getPassiveBoostSummary(player);
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
     const arena = getArenaSummary(player);
     const ship = getShipSummary(player);
 
-    const pityDrop =
-      Number(player?.pity?.premiumSPity || 0) > 0
-        ? `${Number(player.pity.premiumSPity)}/100`
-        : `${Number(player?.pity?.normalSPity || 0)}/150`;
+    const PREMIUM_ROLE_NAME = "Mother Flame";
+
+    function hasRole(message, roleName) {
+      return Boolean(
+        message?.member?.roles?.cache?.some(
+          (role) =>
+            String(role?.name || "").toLowerCase() ===
+            String(roleName || "").toLowerCase()
+        )
+      );
+    }
 
     const embed = new EmbedBuilder()
       .setColor(0x8e44ad)
