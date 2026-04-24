@@ -249,12 +249,10 @@ module.exports = {
               "",
               `Weapon Bonus Applied: +${shownPercent.atk}% ATK / +${shownPercent.hp}% HP / +${shownPercent.speed}% SPD`,
               `Total Weapon Bonus: +${totalWeaponPercent.atk}% ATK / +${totalWeaponPercent.hp}% HP / +${totalWeaponPercent.speed}% SPD`,
-              "",
-              "Weapons stay permanently equipped.",
             ].join("\n")
           )
           .setThumbnail(weaponBadge || null)
-          .setImage(weaponImage || synced.image || null),
+          .setImage(weaponImage || null),
       ],
     });
   },
