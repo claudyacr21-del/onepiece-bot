@@ -7,6 +7,11 @@ const {
 const { readPlayers, writePlayers, getPlayer } = require("../playerStore");
 const { hydrateCard, findCardTemplate } = require("../utils/evolution");
 const {
+  getPlayerCombatCards,
+  getPlayerCombatBoosts,
+  applyDamageBoost,
+} = require("../utils/combatStats");
+const {
   getRoom,
   hasActiveRoom,
   createRaidRoom,
@@ -116,12 +121,16 @@ function getSavedRaidTeam(player) {
 }
 
 function getBattleTeamCards(player) {
-  const cards = ensureArray(player?.cards).map(hydrateCard).filter(Boolean);
+  const cards = getPlayerCombatCards(player).filter(
+    (card) => String(card.cardRole || "").toLowerCase() === "battle"
+  );
+
   const slots = Array.isArray(player?.team?.slots) ? player.team.slots.slice(0, 3) : [];
 
   return slots
     .map((instanceId) => {
       if (!instanceId) return null;
+
       return (
         cards.find(
           (card) =>
@@ -135,6 +144,7 @@ function getBattleTeamCards(player) {
 
 function toRoomCard(card) {
   const synced = hydrateCard(card);
+
   return {
     instanceId: String(synced.instanceId || ""),
     code: String(synced.code || ""),
@@ -148,7 +158,9 @@ function toRoomCard(card) {
 
 function getFreshOwnedBattleCard(userId, username, picked) {
   const player = getPlayer(userId, username);
-  const cards = ensureArray(player?.cards).map(hydrateCard).filter(Boolean);
+  const cards = getPlayerCombatCards(player).filter(
+    (card) => String(card.cardRole || "").toLowerCase() === "battle"
+  );
 
   const byInstance = cards.find(
     (card) =>
@@ -160,7 +172,8 @@ function getFreshOwnedBattleCard(userId, username, picked) {
 
   const byCode = cards.find(
     (card) =>
-      String(card.code || "").toLowerCase() === String(picked?.code || "").toLowerCase() &&
+      String(card.code || "").toLowerCase() ===
+        String(picked?.code || "").toLowerCase() &&
       String(card.cardRole || "").toLowerCase() === "battle"
   );
 
@@ -183,6 +196,9 @@ function buildBattleRoster(room) {
 
         if (!fresh) return null;
 
+        const player = getPlayer(String(p.userId), String(p.username || "Unknown"));
+        const boosts = getPlayerCombatBoosts(player);
+
         return {
           userId: String(p.userId),
           username: String(p.username || "Unknown"),
@@ -197,6 +213,13 @@ function buildBattleRoster(room) {
           currentTier: String(fresh.currentTier || fresh.rarity || ""),
           evolutionStage: Number(fresh.evolutionStage || 1),
           image: String(fresh.image || ""),
+          passiveBoostsApplied: {
+            atk: Number(boosts.atk || 0),
+            hp: Number(boosts.hp || 0),
+            spd: Number(boosts.spd || 0),
+            dmg: Number(boosts.dmg || 0),
+            exp: Number(boosts.exp || 0),
+          },
           alive: true,
         };
       })
@@ -788,10 +811,12 @@ module.exports = {
             });
           }
 
-          const damage = randomInt(
+          const rawDamage = randomInt(
             Math.floor(Number(actor.atk || 0) * 0.85),
             Math.floor(Number(actor.atk || 0) * 1.15)
           );
+
+          const damage = applyDamageBoost(rawDamage, actor.passiveBoostsApplied || {});
 
           battleState.boss.hp = Math.max(0, battleState.boss.hp - damage);
           pushBattleLog(

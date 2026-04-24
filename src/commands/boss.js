@@ -10,7 +10,12 @@ const { incrementQuestCounter } = require("../utils/questProgress");
 const { getCurrentIsland } = require("../data/islands");
 const cardsDb = require("../data/cards");
 const { hydrateCard } = require("../utils/evolution");
-
+const {
+  getPlayerCombatCards,
+  getPlayerCombatBoosts,
+  applyDamageBoost,
+  applyExpBoost,
+} = require("../utils/combatStats");
 const BOSS_COOLDOWN_MS = 10 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -74,7 +79,7 @@ function formatEquippedWeapons(card) {
   return card?.equippedWeapon || "None";
 }
 
-function toBattleUnit(card, slotIndex) {
+function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   const synced = hydrateCard(card);
 
   return {
@@ -92,6 +97,13 @@ function toBattleUnit(card, slotIndex) {
     image: synced.image || "",
     equippedWeapon: formatEquippedWeapons(synced),
     equippedDevilFruit: synced.equippedDevilFruit || "None",
+    passiveBoostsApplied: {
+      atk: Number(combatBoosts.atk || 0),
+      hp: Number(combatBoosts.hp || 0),
+      spd: Number(combatBoosts.spd || 0),
+      dmg: Number(combatBoosts.dmg || 0),
+      exp: Number(combatBoosts.exp || 0),
+    },
   };
 }
 
@@ -109,14 +121,16 @@ function clampHp(value) {
   return Math.max(0, Math.floor(value));
 }
 
-function performAttack(attacker, defender) {
+function performAttack(attacker, defender, boosts = {}) {
   const rawDamage = Math.max(
     1,
     Number(attacker.atk || 0) - Math.floor(Number(defender.speed || 0) * 0.15)
   );
 
-  defender.hp = clampHp(Number(defender.hp || 0) - rawDamage);
-  return rawDamage;
+  const finalDamage = applyDamageBoost(rawDamage, boosts);
+
+  defender.hp = clampHp(Number(defender.hp || 0) - finalDamage);
+  return finalDamage;
 }
 
 function getAliveUnits(units) {
@@ -412,9 +426,8 @@ module.exports = {
 
     const phaseBoss = getActiveBossPhase(player, currentIsland);
 
-    const cards = (Array.isArray(player.cards) ? player.cards : [])
-      .map(hydrateCard)
-      .filter(Boolean);
+    const combatBoosts = getPlayerCombatBoosts(player);
+    const cards = getPlayerCombatCards(player);
 
     const teamSlots = Array.isArray(player?.team?.slots)
       ? player.team.slots
@@ -426,7 +439,7 @@ module.exports = {
         const found = cards.find(
           (card) => card.instanceId === instanceId && card.cardRole !== "boost"
         );
-        return found ? toBattleUnit(found, index) : null;
+        return found ? toBattleUnit(found, index, combatBoosts) : null;
       })
       .filter(Boolean);
 
@@ -542,7 +555,7 @@ module.exports = {
         });
       }
 
-      const damage = performAttack(attacker, boss);
+      const damage = performAttack(attacker, boss, attacker.passiveBoostsApplied || combatBoosts);
       logs.push(`⚔️ ${attacker.name} dealt **${damage}** damage to ${boss.name}.`);
 
       if (boss.hp <= 0) {
@@ -574,7 +587,8 @@ module.exports = {
           const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
           if (!unit) return card;
 
-          const gainedExp = unit.hp > 0 ? 45 + unit.kills * 10 : 30 + unit.kills * 10;
+          const rawExp = unit.hp > 0 ? 45 + unit.kills * 10 : 30 + unit.kills * 10;
+          const gainedExp = applyExpBoost(rawExp, unit.passiveBoostsApplied || combatBoosts);
           const nextCard = applyExpToCard(
             {
               ...card,
@@ -681,7 +695,7 @@ module.exports = {
 
       const bossTarget = getFirstAlive(alivePlayers);
       if (bossTarget) {
-        const bossDamage = performAttack(boss, bossTarget);
+        const bossDamage = performAttack(boss, bossTarget, {});
         logs.push(`💥 ${boss.name} dealt **${bossDamage}** damage to ${bossTarget.name}.`);
 
         if (bossTarget.hp <= 0) {
