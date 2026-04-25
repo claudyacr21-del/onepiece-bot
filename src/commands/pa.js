@@ -9,6 +9,7 @@ const {
 } = require("../utils/pullSlots");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { incrementQuestCounter } = require("../utils/questProgress");
+const { rollPremiumBaseTier } = require("../utils/pullRates");
 
 const PREMIUM_ROLE_NAME = "Mother Flame";
 const PREMIUM_PITY_TARGET = 100;
@@ -49,25 +50,17 @@ function createOwnedCardLocal(template) {
   });
 }
 
-function getPremiumRarity(pullChanceBonus = 0) {
-  const bonus = Math.max(0, Number(pullChanceBonus || 0));
-  const roll = Math.random() * 100;
-  const sRate = 10 + bonus * 0.25;
-  const aRate = 22;
-  const bRate = 28;
-
-  if (roll < sRate) return "S";
-  if (roll < sRate + aRate) return "A";
-  if (roll < sRate + aRate + bRate) return "B";
-  return "C";
+function getPremiumRarity() {
+  return rollPremiumBaseTier();
 }
 
 function getGuaranteedSRarity() {
-  return Math.random() * 100 < 8 ? "UR" : "S";
+  return "S";
 }
 
 function getContentType() {
   const roll = Math.random() * 100;
+
   if (roll < 70) return "battleCard";
   if (roll < 85) return "boostCard";
   if (roll < 93) return "weapon";
@@ -84,11 +77,13 @@ function getRewardPool(contentType) {
   }
 
   if (contentType === "weapon") return require("../data/weapons");
+
   return require("../data/devilFruits");
 }
 
 function pickRandomByRarity(pool, rarity) {
   const list = Array.isArray(pool) ? pool : [];
+
   if (!list.length) return null;
 
   const filtered = list.filter(
@@ -98,14 +93,14 @@ function pickRandomByRarity(pool, rarity) {
   );
 
   const source = filtered.length ? filtered : list;
+
   return source[Math.floor(Math.random() * source.length)] || null;
 }
 
 function hasOwnedCardByCode(cards, code) {
   return (Array.isArray(cards) ? cards : []).some(
     (entry) =>
-      String(entry.code || "").toLowerCase() ===
-      String(code || "").toLowerCase()
+      String(entry.code || "").toLowerCase() === String(code || "").toLowerCase()
   );
 }
 
@@ -123,6 +118,7 @@ function addFragment(list, card, amount = 1) {
       ...items[index],
       amount: Number(items[index].amount || 0) + Number(amount || 1),
     };
+
     return items;
   }
 
@@ -153,6 +149,7 @@ function addNamedItem(list, reward) {
         Number(reward.upgradeLevel || 0)
       ),
     };
+
     return items;
   }
 
@@ -186,6 +183,7 @@ function addTicket(list, ticket) {
       ...items[existingIndex],
       amount: Number(items[existingIndex].amount || 0) + 1,
     };
+
     return items;
   }
 
@@ -202,7 +200,11 @@ function rollTicketBonus() {
   const roll = Math.random() * 100;
 
   if (roll < 0.75) {
-    return { code: "raid_ticket", name: "Raid Ticket", rarity: "A" };
+    return {
+      code: "raid_ticket",
+      name: "Raid Ticket",
+      rarity: "A",
+    };
   }
 
   if (roll < 3.25) {
@@ -225,10 +227,16 @@ function getRewardResult(contentType, reward) {
   }
 
   if (contentType === "weapon") {
-    return { storageKey: "weapons", storedReward: reward };
+    return {
+      storageKey: "weapons",
+      storedReward: reward,
+    };
   }
 
-  return { storageKey: "devilFruits", storedReward: reward };
+  return {
+    storageKey: "devilFruits",
+    storedReward: reward,
+  };
 }
 
 function getTypeLabel(contentType) {
@@ -248,10 +256,13 @@ module.exports = {
     }
 
     const player = getPlayer(message.author.id, message.author.username);
-
     const resetState = applyGlobalPullReset(player);
+
     if (resetState?.wasReset) {
-      updatePlayer(message.author.id, { pulls: resetState.pulls });
+      updatePlayer(message.author.id, {
+        pulls: resetState.pulls,
+      });
+
       player.pulls = resetState.pulls;
     }
 
@@ -290,15 +301,13 @@ module.exports = {
 
     for (let i = 0; i < availableTotal; i++) {
       pityCounter += 1;
+
       const triggeredPity = pityCounter >= PREMIUM_PITY_TARGET;
       const contentType = getContentType();
       const pool = getRewardPool(contentType);
-
-      const rarity = triggeredPity
-        ? getGuaranteedSRarity()
-        : getPremiumRarity(passiveBoosts.pullChance);
-
+      const rarity = triggeredPity ? getGuaranteedSRarity() : getPremiumRarity();
       const reward = pickRandomByRarity(pool, rarity);
+
       if (!reward) continue;
 
       const rewardResult = getRewardResult(contentType, reward);
@@ -311,7 +320,8 @@ module.exports = {
         );
 
         if (alreadyOwned) {
-          const fragmentAmount = 1;
+          const fragmentAmount = getDuplicateFragmentAmount(reward);
+
           updatedFragments = addFragment(
             updatedFragments,
             reward,
@@ -339,7 +349,10 @@ module.exports = {
         summary.devilFruit += 1;
       }
 
-      const rewardRarity = String(reward.baseTier || reward.rarity || "C").toUpperCase();
+      const rewardRarity = String(
+        reward.baseTier || reward.rarity || "C"
+      ).toUpperCase();
+
       if (summary[rewardRarity] !== undefined) summary[rewardRarity] += 1;
 
       const ticketDrop = rollTicketBonus();
@@ -347,8 +360,15 @@ module.exports = {
 
       if (ticketDrop) {
         updatedTickets = addTicket(updatedTickets, ticketDrop);
-        if (ticketDrop.code === "common_raid_ticket") summary.commonRaidTicket += 1;
-        if (ticketDrop.code === "raid_ticket") summary.raidTicket += 1;
+
+        if (ticketDrop.code === "common_raid_ticket") {
+          summary.commonRaidTicket += 1;
+        }
+
+        if (ticketDrop.code === "raid_ticket") {
+          summary.raidTicket += 1;
+        }
+
         ticketNote = ` + ${ticketDrop.name}`;
       }
 
@@ -364,12 +384,19 @@ module.exports = {
     }
 
     const updatedPity = {
-      ...(player.pity || { normalSPity: 0, premiumSPity: 0 }),
+      ...(player.pity || {
+        normalSPity: 0,
+        premiumSPity: 0,
+      }),
       premiumSPity: pityCounter,
     };
 
     const updatedPulls = consumeAllActivePullSlots(player, message);
-    const updatedDailyState = incrementQuestCounter(player, "pullsUsed", availableTotal);
+    const updatedDailyState = incrementQuestCounter(
+      player,
+      "pullsUsed",
+      availableTotal
+    );
 
     updatePlayer(message.author.id, {
       cards: updatedCards,
@@ -387,16 +414,18 @@ module.exports = {
 
     const chunkSize = 20;
     const chunks = [];
+
     for (let i = 0; i < pullLines.length; i += chunkSize) {
       chunks.push(pullLines.slice(i, i + chunkSize).join("\n"));
     }
 
     const embeds = [];
+
     chunks.slice(0, 10).forEach((chunk, index) => {
       embeds.push(
         new EmbedBuilder()
           .setColor(0x8e44ad)
-          .setTitle(`📜 Pull Results ${index + 1}/${chunks.length}`)
+          .setTitle(`🎴 Pull Results ${index + 1}/${chunks.length}`)
           .setDescription(chunk || "No rewards rolled.")
           .setFooter({
             text: `One Piece Bot • Pull All • Pity ${updatedPity.premiumSPity}/${PREMIUM_PITY_TARGET}`,
@@ -408,11 +437,13 @@ module.exports = {
       embeds.push(
         new EmbedBuilder()
           .setColor(0x8e44ad)
-          .setTitle("📜 Pull Results")
+          .setTitle("🎴 Pull Results")
           .setDescription("No rewards rolled.")
       );
     }
 
-    return message.reply({ embeds });
+    return message.reply({
+      embeds,
+    });
   },
 };

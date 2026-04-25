@@ -12,6 +12,8 @@ const {
 const { rollStandardBaseTier } = require("../utils/pullRates");
 const { incrementQuestCounter } = require("../utils/questProgress");
 
+const NORMAL_PITY_TARGET = 150;
+
 function pickContentType() {
   const roll = Math.random() * 100;
   return roll < 82 ? "battle" : "boost";
@@ -27,6 +29,7 @@ function prettySlotName(key) {
     baccaratCard: "Baccarat Card Pull",
     baccaratFruit: "Baccarat Fruit Pull",
   };
+
   return map[key] || key;
 }
 
@@ -40,6 +43,7 @@ function addFragment(list, card) {
       ...arr[index],
       amount: Number(arr[index].amount || 0) + 1,
     };
+
     return arr;
   }
 
@@ -108,18 +112,23 @@ module.exports = {
 
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-
     const resetState = applyGlobalPullReset(player);
+
     if (resetState?.wasReset) {
-      updatePlayer(message.author.id, { pulls: resetState.pulls });
+      updatePlayer(message.author.id, {
+        pulls: resetState.pulls,
+      });
+
       player.pulls = resetState.pulls;
     }
 
     const snapshot = buildPullAccessSnapshot(player, message);
+
     if (message.guild) {
       updatePlayer(message.author.id, {
         pullAccessSnapshot: snapshot,
       });
+
       player.pullAccessSnapshot = snapshot;
     }
 
@@ -127,17 +136,25 @@ module.exports = {
     const available = Math.max(0, totalMax - totalUsed);
 
     if (available <= 0) {
-      return message.reply("You do not have any available pulls right now.\nUse `op pullinfo` to check your slots.");
+      return message.reply(
+        "You do not have any available pulls right now.\nUse `op pullinfo` to check your slots."
+      );
     }
 
     const pullKey = getNextAvailablePullKey(player, message);
     if (!pullKey) return message.reply("No pull slot is currently available.");
 
+    const pityCounter = Number(
+      player.pity?.normalAPity ?? player.pity?.normalSPity ?? 0
+    ) + 1;
+
+    const triggeredPity = pityCounter >= NORMAL_PITY_TARGET;
+
     const battlePool = rawCards.filter((c) => c.cardRole === "battle");
     const boostPool = rawCards.filter((c) => c.cardRole === "boost");
-
     const contentType = pickContentType();
-    const baseTier = rollStandardBaseTier();
+    const baseTier = triggeredPity ? "A" : rollStandardBaseTier();
+
     const pool = (contentType === "battle" ? battlePool : boostPool).filter(
       (c) => c.baseTier === baseTier
     );
@@ -150,7 +167,13 @@ module.exports = {
     const ticketDrop = rollTicketBonus();
     const updatedTickets = ticketDrop
       ? addTicket(player.tickets || [], ticketDrop)
-      : (player.tickets || []);
+      : player.tickets || [];
+
+    const updatedPity = {
+      ...(player.pity || {}),
+      normalAPity: triggeredPity ? 0 : pityCounter,
+      normalSPity: triggeredPity ? 0 : pityCounter,
+    };
 
     const alreadyOwned = (player.cards || []).some(
       (c) =>
@@ -165,6 +188,7 @@ module.exports = {
         pulls: updatedPulls,
         fragments: updatedFragments,
         tickets: updatedTickets,
+        pity: updatedPity,
         quests: {
           ...(player.quests || {}),
           dailyState: updatedDailyState,
@@ -180,9 +204,12 @@ module.exports = {
               [
                 `**Slot Used:** ${prettySlotName(pullKey)}`,
                 `**Remaining Pulls:** ${available - 1}/${totalMax}`,
+                `**Pity:** ${updatedPity.normalAPity}/${NORMAL_PITY_TARGET}`,
                 "",
                 `You already own **${picked.displayName || picked.name}**.`,
                 "Converted into **1 Fragment** instead.",
+                triggeredPity ? "",
+                triggeredPity ? "**Pity Triggered:** Guaranteed A" : null,
                 "",
                 buildTicketDropText(ticketDrop),
               ]
@@ -203,6 +230,7 @@ module.exports = {
       cards: [...(player.cards || []), owned],
       pulls: updatedPulls,
       tickets: updatedTickets,
+      pity: updatedPity,
       quests: {
         ...(player.quests || {}),
         dailyState: updatedDailyState,
@@ -218,11 +246,13 @@ module.exports = {
             [
               `**Slot Used:** ${prettySlotName(pullKey)}`,
               `**Remaining Pulls:** ${available - 1}/${totalMax}`,
+              `**Pity:** ${updatedPity.normalAPity}/${NORMAL_PITY_TARGET}`,
               "",
               `**${owned.displayName || owned.name}**`,
               `**Role:** ${owned.cardRole}`,
               `**Current Form:** ${owned.evolutionKey} • ${owned.evolutionForms[0].name}`,
               `**Base Tier:** ${picked.baseTier || picked.rarity || "C"}`,
+              triggeredPity ? "**Pity Triggered:** Guaranteed A" : null,
               "",
               `**ATK:** ${owned.atk}`,
               `**HP:** ${owned.hp}`,
