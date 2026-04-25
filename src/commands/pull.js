@@ -106,6 +106,18 @@ function buildTicketDropText(ticket) {
   return `🎟️ Bonus Drop: **${ticket.name}**`;
 }
 
+function getCardImage(card) {
+  return card?.image || null;
+}
+
+function getCardThumbnail(card) {
+  return card?.evolutionForms?.[0]?.badgeImage || card?.badgeImage || null;
+}
+
+function getCurrentFormName(card) {
+  return card?.evolutionForms?.[0]?.name || card?.evolutionKey || "M1";
+}
+
 module.exports = {
   name: "pull",
   aliases: ["gacha"],
@@ -144,10 +156,8 @@ module.exports = {
     const pullKey = getNextAvailablePullKey(player, message);
     if (!pullKey) return message.reply("No pull slot is currently available.");
 
-    const pityCounter = Number(
-      player.pity?.normalAPity ?? player.pity?.normalSPity ?? 0
-    ) + 1;
-
+    const pityCounter =
+      Number(player.pity?.normalAPity ?? player.pity?.normalSPity ?? 0) + 1;
     const triggeredPity = pityCounter >= NORMAL_PITY_TARGET;
 
     const battlePool = rawCards.filter((c) => c.cardRole === "battle");
@@ -156,10 +166,12 @@ module.exports = {
     const baseTier = triggeredPity ? "A" : rollStandardBaseTier();
 
     const pool = (contentType === "battle" ? battlePool : boostPool).filter(
-      (c) => c.baseTier === baseTier
+      (c) => String(c.baseTier || c.rarity || "").toUpperCase() === baseTier
     );
 
-    if (!pool.length) return message.reply("Pull pool is empty.");
+    if (!pool.length) {
+      return message.reply(`Pull pool is empty for ${contentType} ${baseTier}.`);
+    }
 
     const picked = pool[Math.floor(Math.random() * pool.length)];
     const updatedPulls = consumePullSlot(player, pullKey);
@@ -195,32 +207,33 @@ module.exports = {
         },
       });
 
+      const embed = new EmbedBuilder()
+        .setColor(0xf1c40f)
+        .setTitle("🎴 Pull Result")
+        .setDescription(
+          [
+            `**Slot Used:** ${prettySlotName(pullKey)}`,
+            `**Remaining Pulls:** ${available - 1}/${totalMax}`,
+            `**Pity:** ${updatedPity.normalAPity}/${NORMAL_PITY_TARGET}`,
+            triggeredPity ? "**Pity Triggered:** Guaranteed A" : null,
+            "",
+            `You already own **${picked.displayName || picked.name}**.`,
+            "Converted into **1 Fragment** instead.",
+            "",
+            buildTicketDropText(ticketDrop),
+          ]
+            .filter(Boolean)
+            .join("\n")
+        );
+
+      const thumb = getCardThumbnail(picked);
+      const image = getCardImage(picked);
+
+      if (thumb) embed.setThumbnail(thumb);
+      if (image) embed.setImage(image);
+
       return message.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(0xf1c40f)
-            .setTitle("🎴 Pull Result")
-            .setDescription(
-              [
-                `**Slot Used:** ${prettySlotName(pullKey)}`,
-                `**Remaining Pulls:** ${available - 1}/${totalMax}`,
-                `**Pity:** ${updatedPity.normalAPity}/${NORMAL_PITY_TARGET}`,
-                "",
-                `You already own **${picked.displayName || picked.name}**.`,
-                "Converted into **1 Fragment** instead.",
-                triggeredPity ? "",
-                triggeredPity ? "**Pity Triggered:** Guaranteed A" : null,
-                "",
-                buildTicketDropText(ticketDrop),
-              ]
-                .filter(Boolean)
-                .join("\n")
-            )
-            .setThumbnail(
-              picked.evolutionForms?.[0]?.badgeImage || picked.badgeImage || null
-            )
-            .setImage(picked.image || null),
-        ],
+        embeds: [embed],
       });
     }
 
@@ -237,37 +250,39 @@ module.exports = {
       },
     });
 
+    const embed = new EmbedBuilder()
+      .setColor(0xf1c40f)
+      .setTitle("🎴 Pull Result")
+      .setDescription(
+        [
+          `**Slot Used:** ${prettySlotName(pullKey)}`,
+          `**Remaining Pulls:** ${available - 1}/${totalMax}`,
+          `**Pity:** ${updatedPity.normalAPity}/${NORMAL_PITY_TARGET}`,
+          triggeredPity ? "**Pity Triggered:** Guaranteed A" : null,
+          "",
+          `**${owned.displayName || owned.name}**`,
+          `**Role:** ${owned.cardRole}`,
+          `**Current Form:** ${owned.evolutionKey || "M1"} • ${getCurrentFormName(owned)}`,
+          `**Base Tier:** ${picked.baseTier || picked.rarity || "C"}`,
+          "",
+          `**ATK:** ${owned.atk}`,
+          `**HP:** ${owned.hp}`,
+          `**SPD:** ${owned.speed}`,
+          "",
+          buildTicketDropText(ticketDrop),
+        ]
+          .filter(Boolean)
+          .join("\n")
+      );
+
+    const thumb = getCardThumbnail(owned);
+    const image = getCardImage(owned);
+
+    if (thumb) embed.setThumbnail(thumb);
+    if (image) embed.setImage(image);
+
     return message.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(0xf1c40f)
-          .setTitle("🎴 Pull Result")
-          .setDescription(
-            [
-              `**Slot Used:** ${prettySlotName(pullKey)}`,
-              `**Remaining Pulls:** ${available - 1}/${totalMax}`,
-              `**Pity:** ${updatedPity.normalAPity}/${NORMAL_PITY_TARGET}`,
-              "",
-              `**${owned.displayName || owned.name}**`,
-              `**Role:** ${owned.cardRole}`,
-              `**Current Form:** ${owned.evolutionKey} • ${owned.evolutionForms[0].name}`,
-              `**Base Tier:** ${picked.baseTier || picked.rarity || "C"}`,
-              triggeredPity ? "**Pity Triggered:** Guaranteed A" : null,
-              "",
-              `**ATK:** ${owned.atk}`,
-              `**HP:** ${owned.hp}`,
-              `**SPD:** ${owned.speed}`,
-              "",
-              buildTicketDropText(ticketDrop),
-            ]
-              .filter(Boolean)
-              .join("\n")
-          )
-          .setThumbnail(
-            owned.evolutionForms?.[0]?.badgeImage || owned.badgeImage || null
-          )
-          .setImage(owned.image || null),
-      ],
+      embeds: [embed],
     });
   },
 };
