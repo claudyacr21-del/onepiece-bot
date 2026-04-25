@@ -3,9 +3,13 @@ const { getPlayer } = require("../playerStore");
 
 const TOPGG_URL = "https://top.gg/bot/1492759342972407869/vote";
 
-function formatSince(timestamp) {
-  if (!timestamp) return "No vote recorded yet";
-  return new Date(timestamp).toLocaleString("en-GB");
+function formatCooldown(timestamp) {
+  const diff = Number(timestamp || 0) - Date.now();
+  if (diff <= 0) return "Ready now";
+
+  const hours = Math.floor(diff / 1000 / 60 / 60);
+  const minutes = Math.floor((diff / 1000 / 60) % 60);
+  return `${hours} hours ${minutes} minutes`;
 }
 
 module.exports = {
@@ -22,28 +26,23 @@ module.exports = {
     const milestoneLeft = 20 - (streak % 20 || 20);
 
     const embed = new EmbedBuilder()
-      .setColor(0xf1c40f)
-      .setTitle("🗳️ Vote Information")
+      .setColor(0x8e44ad)
+      .setTitle("Vote For One Piece Bot!")
       .setDescription(
         [
-          `↪ Vote Streak: ${streak}`,
-          `↪ Total Votes: ${Number(voteData.totalVotes || 0)}`,
-          `↪ Last Vote: ${formatSince(voteData.lastVoteAt)}`,
-          `↪ Milestone Bonus In: ${milestoneLeft} vote(s)`,
+          "Vote for us at Top.gg to gain 🎟️ Reset Token + 1000 Cursed Energy!",
           "",
-          "**Vote Reward**",
-          "↪ 5,000 Berries",
-          "↪ Pull Reset Ticket x1",
+          "**Can Vote Again In**",
+          formatCooldown(player?.cooldowns?.vote),
           "",
-          "**20 Streak Bonus**",
-          "↪ Random Box Reward",
+          "**Next Milestone**",
+          `${streak}/20`,
           "",
-          "**How it works**",
-          "↪ Vote using the button below.",
-          "↪ Rewards are claimed automatically after top.gg webhook is received.",
-          "↪ Reward notification will be sent by DM from the bot."
+          `You get a Random Box Reward every **20 Vote Streak**.`,
+          `Milestones Reset: **${milestoneLeft}** vote(s) remaining.`,
         ].join("\n")
       )
+      .setThumbnail(message.client.user.displayAvatarURL())
       .setFooter({ text: "One Piece Bot • Vote System" });
 
     const row = new ActionRowBuilder().addComponents(
