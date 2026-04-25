@@ -1,6 +1,138 @@
 const express = require("express");
+const { getPlayer, updatePlayer } = require("./playerStore");
 
 let serverStarted = false;
+
+const BOT_ID = "1492759342972407869";
+const VOTE_URL = `https://top.gg/bot/${BOT_ID}/vote`;
+
+function addOrIncrease(list, item) {
+  const arr = Array.isArray(list) ? [...list] : [];
+  const idx = arr.findIndex((x) => String(x.code) === String(item.code));
+
+  if (idx !== -1) {
+    arr[idx] = {
+      ...arr[idx],
+      amount: Number(arr[idx].amount || 0) + Number(item.amount || 1),
+    };
+    return arr;
+  }
+
+  arr.push({ ...item, amount: Number(item.amount || 1) });
+  return arr;
+}
+
+function getDiscordUserId(payload) {
+  return (
+    payload?.data?.user?.platform_id ||
+    payload?.data?.user?.id ||
+    payload?.user ||
+    payload?.userId ||
+    null
+  );
+}
+
+function getDiscordUsername(payload) {
+  return payload?.data?.user?.name || "Unknown";
+}
+
+function isTestWebhook(payload) {
+  return String(payload?.type || "").toLowerCase() === "webhook.test";
+}
+
+function isVoteWebhook(payload) {
+  return (
+    String(payload?.type || "").toLowerCase() === "vote.create" ||
+    Boolean(payload?.user) ||
+    Boolean(payload?.data?.user?.platform_id)
+  );
+}
+
+async function notifyUser(client, userId, message) {
+  try {
+    const user = await client.users.fetch(userId);
+    await user.send(message);
+  } catch (_) {}
+}
+
+function applyVoteReward(player, weight = 1) {
+  const vote = player.vote || {};
+  const now = Date.now();
+  const currentStreak = Number(vote.streak || 0) + Number(weight || 1);
+  const totalVotes = Number(vote.totalVotes || 0) + Number(weight || 1);
+
+  let tickets = [...(player.tickets || [])];
+  let boxes = [...(player.boxes || [])];
+
+  const baseBerries = 5000 * Number(weight || 1);
+
+  tickets = addOrIncrease(tickets, {
+    code: "pull_reset_ticket",
+    name: "Pull Reset Ticket",
+    amount: 1 * Number(weight || 1),
+    rarity: "A",
+    type: "Ticket",
+  });
+
+  let bonusText = "";
+
+  if (currentStreak > 0 && currentStreak % 20 === 0) {
+    const randomBoxes = [
+      {
+        code: "basic_resource_box",
+        name: "Basic Resource Box",
+        amount: 2,
+        rarity: "C",
+        type: "Box",
+      },
+      {
+        code: "treasure_material_pack",
+        name: "Treasure Material Pack",
+        amount: 2,
+        rarity: "B",
+        type: "Box",
+      },
+      {
+        code: "rare_resource_box",
+        name: "Rare Resource Box",
+        amount: 1,
+        rarity: "A",
+        type: "Box",
+      },
+    ];
+
+    const pickedBox = randomBoxes[Math.floor(Math.random() * randomBoxes.length)];
+    boxes = addOrIncrease(boxes, pickedBox);
+
+    bonusText = `\n🎁 20 vote streak bonus: ${pickedBox.name} x${pickedBox.amount}`;
+  }
+
+  return {
+    update: {
+      berries: Number(player.berries || 0) + baseBerries,
+      tickets,
+      boxes,
+      vote: {
+        streak: currentStreak,
+        totalVotes,
+        lastVoteAt: now,
+      },
+      cooldowns: {
+        ...(player.cooldowns || {}),
+        vote: now + 12 * 60 * 60 * 1000,
+      },
+    },
+    rewardText: [
+      "✅ Thanks for voting for One Piece Bot!",
+      "",
+      `💰 Berries: +${baseBerries.toLocaleString("en-US")}`,
+      `🎟️ Pull Reset Ticket: +${1 * Number(weight || 1)}`,
+      `🔥 Vote Streak: ${currentStreak}`,
+      `📊 Total Votes: ${totalVotes}`,
+      bonusText,
+    ].join("\n"),
+  };
+}
 
 function startTopggWebhookServer(client) {
   if (serverStarted) return;
@@ -20,13 +152,45 @@ function startTopggWebhookServer(client) {
     });
   });
 
-  app.post("/topgg", (req, res) => {
+  app.post("/topgg", async (req, res) => {
     try {
-      console.log("[TOPGG] Vote payload received:", req.body || {});
+      const expectedAuth = String(process.env.TOPGG_WEBHOOK_AUTH || "");
+      const incomingAuth = String(req.headers.authorization || "");
+
+      if (expectedAuth && incomingAuth !== expectedAuth) {
+        return res.status(401).json({ ok: false, error: "Invalid authorization" });
+      }
+
+      const payload = req.body || {};
+      console.log("[TOPGG] Payload:", payload);
+
+      if (isTestWebhook(payload)) {
+        return res.status(200).json({ ok: true, test: true });
+      }
+
+      if (!isVoteWebhook(payload)) {
+        return res.status(200).json({ ok: true, ignored: true });
+      }
+
+      const userId = getDiscordUserId(payload);
+      const username = getDiscordUsername(payload);
+      const weight = Number(payload?.data?.weight || payload?.weight || 1);
+
+      if (!userId) {
+        return res.status(200).json({ ok: true, ignored: "missing_user_id" });
+      }
+
+      const player = getPlayer(userId, username);
+      const reward = applyVoteReward(player, weight);
+
+      updatePlayer(userId, reward.update);
+
+      await notifyUser(client, userId, reward.rewardText);
+
       return res.status(200).json({ ok: true });
     } catch (error) {
       console.error("[TOPGG] Webhook error:", error);
-      return res.status(500).json({ ok: false });
+      return res.status(200).json({ ok: false });
     }
   });
 
@@ -38,6 +202,4 @@ function startTopggWebhookServer(client) {
   });
 }
 
-module.exports = {
-  startTopggWebhookServer,
-};
+module.exports = { startTopggWebhookServer };

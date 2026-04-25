@@ -1,7 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 
-const TOPGG_URL = "https://top.gg/";
+const TOPGG_URL = "https://top.gg/bot/1492759342972407869/vote";
 
 function formatSince(timestamp) {
   if (!timestamp) return "No vote recorded yet";
@@ -31,11 +31,17 @@ module.exports = {
           `↪ Last Vote: ${formatSince(voteData.lastVoteAt)}`,
           `↪ Milestone Bonus In: ${milestoneLeft} vote(s)`,
           "",
+          "**Vote Reward**",
+          "↪ 5,000 Berries",
+          "↪ Pull Reset Ticket x1",
+          "",
+          "**20 Streak Bonus**",
+          "↪ Random Box Reward",
+          "",
           "**How it works**",
           "↪ Vote using the button below.",
           "↪ Rewards are claimed automatically after top.gg webhook is received.",
-          "↪ Reward notification will be sent by DM from the bot.",
-          "↪ Every 20 streak votes gives an extra reward bonus."
+          "↪ Reward notification will be sent by DM from the bot."
         ].join("\n")
       )
       .setFooter({ text: "One Piece Bot • Vote System" });
