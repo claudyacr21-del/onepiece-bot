@@ -41,7 +41,6 @@ module.exports = {
           "",
           "**Vote Streak Bonus**",
           `Current Streak: **${streak}**`,
-          `Raid Ticket Bonus In: **${nextRaidTicketIn}** vote(s)`,
           "",
           "Every **25 Vote Streak** gives **Raid Ticket x1**.",
           "Daily claim rewards can also give a random box.",
