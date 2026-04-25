@@ -61,9 +61,9 @@ function getGuaranteedSRarity() {
 function getContentType() {
   const roll = Math.random() * 100;
 
-  if (roll < 70) return "battleCard";
-  if (roll < 85) return "boostCard";
-  if (roll < 93) return "weapon";
+  if (roll < 75) return "battleCard";
+  if (roll < 90) return "boostCard";
+  if (roll < 95) return "weapon";
   return "devilFruit";
 }
 
@@ -273,7 +273,7 @@ module.exports = {
       return message.reply("You do not have any available pulls right now.");
     }
 
-    const passiveBoosts = getPassiveBoostSummary(player);
+    getPassiveBoostSummary(player);
 
     let updatedCards = [...(player.cards || [])];
     let updatedWeapons = [...(player.weapons || [])];
