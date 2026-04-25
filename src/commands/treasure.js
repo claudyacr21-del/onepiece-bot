@@ -17,14 +17,15 @@ function addOrIncrease(list, item) {
   if (index !== -1) {
     arr[index] = {
       ...arr[index],
-      amount: Number(arr[index].amount || 1) + Number(item.amount || 1)
+      amount: Number(arr[index].amount || 1) + Number(item.amount || 1),
     };
+
     return arr;
   }
 
   arr.push({
     ...item,
-    amount: Number(item.amount || 1)
+    amount: Number(item.amount || 1),
   });
 
   return arr;
@@ -39,6 +40,7 @@ function formatRemaining(ms) {
 
   if (hours > 0) return `${hours}h ${minutes}m`;
   if (minutes > 0) return `${minutes}m`;
+
   return "Now";
 }
 
@@ -46,8 +48,8 @@ function rollTreasureRewards() {
   const berries = 12000 + Math.floor(Math.random() * 4000);
   const gems = 35 + Math.floor(Math.random() * 16);
 
-  const boxes = [cloneItem(ITEMS.rareResourceBox, 1)];
-  const materials = [cloneItem(ITEMS.treasureMaterialPack, 5)];
+  const boxes = [cloneItem(ITEMS.motherFlameTreasureBox, 1)];
+  const materials = [];
   const tickets = [];
 
   if (Math.random() < 0.5) {
@@ -58,11 +60,18 @@ function rollTreasureRewards() {
     materials.push(cloneItem(ITEMS.enhancementStone, 4));
   }
 
-  return { berries, gems, boxes, materials, tickets };
+  return {
+    berries,
+    gems,
+    boxes,
+    materials,
+    tickets,
+  };
 }
 
 module.exports = {
   name: "treasure",
+
   async execute(message) {
     if (!hasRole(message, PREMIUM_ROLE_NAME)) {
       return message.reply("Only Mother Flame users can claim `op treasure`.");
@@ -74,7 +83,11 @@ module.exports = {
     const nextTreasureAt = Number(cooldowns.treasure || 0);
 
     if (nextTreasureAt > now) {
-      return message.reply(`You already claimed your treasure. Next treasure: ${formatRemaining(nextTreasureAt - now)}`);
+      return message.reply(
+        `You already claimed your treasure.\nNext treasure: ${formatRemaining(
+          nextTreasureAt - now
+        )}`
+      );
     }
 
     const reward = rollTreasureRewards();
@@ -103,33 +116,45 @@ module.exports = {
       tickets: updatedTickets,
       cooldowns: {
         ...cooldowns,
-        treasure: now + TREASURE_COOLDOWN_MS
-      }
+        treasure: now + TREASURE_COOLDOWN_MS,
+      },
     });
 
     const lines = [
       `↪ Berries: +${Number(reward.berries).toLocaleString("en-US")}`,
-      `↪ Gems: +${Number(reward.gems).toLocaleString("en-US")}`
+      `↪ Gems: +${Number(reward.gems).toLocaleString("en-US")}`,
     ];
 
-    reward.boxes.forEach((item) => lines.push(`↪ ${item.name} x${item.amount}`));
-    reward.materials.forEach((item) => lines.push(`↪ ${item.name} x${item.amount}`));
-    reward.tickets.forEach((item) => lines.push(`↪ ${item.name} x${item.amount}`));
+    reward.boxes.forEach((item) =>
+      lines.push(`↪ ${item.name} x${item.amount}`)
+    );
+
+    reward.materials.forEach((item) =>
+      lines.push(`↪ ${item.name} x${item.amount}`)
+    );
+
+    reward.tickets.forEach((item) =>
+      lines.push(`↪ ${item.name} x${item.amount}`)
+    );
 
     const embed = new EmbedBuilder()
       .setColor(0xe67e22)
-      .setTitle("🔥 Mother Flame Treasure Claimed")
+      .setTitle("Mother Flame Treasure Claimed")
       .setDescription(
         [
           "Here are your premium treasure rewards:",
           "",
           ...lines,
           "",
-          `↪ Next Treasure: ${formatRemaining(TREASURE_COOLDOWN_MS)}`
+          `↪ Next Treasure: ${formatRemaining(TREASURE_COOLDOWN_MS)}`,
         ].join("\n")
       )
-      .setFooter({ text: "One Piece Bot • Mother Flame Treasure" });
+      .setFooter({
+        text: "One Piece Bot • Mother Flame Treasure",
+      });
 
-    return message.reply({ embeds: [embed] });
-  }
+    return message.reply({
+      embeds: [embed],
+    });
+  },
 };
