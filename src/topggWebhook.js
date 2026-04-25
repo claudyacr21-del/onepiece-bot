@@ -4,7 +4,8 @@ const { getPlayer, updatePlayer } = require("./playerStore");
 let serverStarted = false;
 
 const BOT_ID = "1492759342972407869";
-const VOTE_URL = `https://top.gg/bot/${BOT_ID}/vote`;
+const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
+const DUPLICATE_GUARD_MS = 11 * 60 * 60 * 1000;
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
@@ -55,21 +56,51 @@ async function notifyUser(client, userId, message) {
   } catch (_) {}
 }
 
+function pickRandomStreakBox() {
+  const randomBoxes = [
+    {
+      code: "basic_resource_box",
+      name: "Basic Resource Box",
+      amount: 2,
+      rarity: "C",
+      type: "Box",
+    },
+    {
+      code: "treasure_material_pack",
+      name: "Treasure Material Pack",
+      amount: 2,
+      rarity: "B",
+      type: "Box",
+    },
+    {
+      code: "rare_resource_box",
+      name: "Rare Resource Box",
+      amount: 1,
+      rarity: "A",
+      type: "Box",
+    },
+  ];
+
+  return randomBoxes[Math.floor(Math.random() * randomBoxes.length)];
+}
+
 function applyVoteReward(player, weight = 1) {
   const vote = player.vote || {};
   const now = Date.now();
-  const currentStreak = Number(vote.streak || 0) + Number(weight || 1);
-  const totalVotes = Number(vote.totalVotes || 0) + Number(weight || 1);
+  const safeWeight = Math.max(1, Number(weight || 1));
+
+  const currentStreak = Number(vote.streak || 0) + safeWeight;
+  const totalVotes = Number(vote.totalVotes || 0) + safeWeight;
 
   let tickets = [...(player.tickets || [])];
   let boxes = [...(player.boxes || [])];
 
-  const baseBerries = 5000 * Number(weight || 1);
+  const baseBerries = 5000 * safeWeight;
 
   tickets = addOrIncrease(tickets, {
     code: "pull_reset_ticket",
     name: "Pull Reset Ticket",
-    amount: 1 * Number(weight || 1),
+    amount: safeWeight,
     rarity: "A",
     type: "Ticket",
   });
@@ -77,33 +108,8 @@ function applyVoteReward(player, weight = 1) {
   let bonusText = "";
 
   if (currentStreak > 0 && currentStreak % 20 === 0) {
-    const randomBoxes = [
-      {
-        code: "basic_resource_box",
-        name: "Basic Resource Box",
-        amount: 2,
-        rarity: "C",
-        type: "Box",
-      },
-      {
-        code: "treasure_material_pack",
-        name: "Treasure Material Pack",
-        amount: 2,
-        rarity: "B",
-        type: "Box",
-      },
-      {
-        code: "rare_resource_box",
-        name: "Rare Resource Box",
-        amount: 1,
-        rarity: "A",
-        type: "Box",
-      },
-    ];
-
-    const pickedBox = randomBoxes[Math.floor(Math.random() * randomBoxes.length)];
+    const pickedBox = pickRandomStreakBox();
     boxes = addOrIncrease(boxes, pickedBox);
-
     bonusText = `\n🎁 20 vote streak bonus: ${pickedBox.name} x${pickedBox.amount}`;
   }
 
@@ -119,14 +125,14 @@ function applyVoteReward(player, weight = 1) {
       },
       cooldowns: {
         ...(player.cooldowns || {}),
-        vote: now + 12 * 60 * 60 * 1000,
+        vote: now + VOTE_COOLDOWN_MS,
       },
     },
     rewardText: [
       "✅ Thanks for voting for One Piece Bot!",
       "",
       `💰 Berries: +${baseBerries.toLocaleString("en-US")}`,
-      `🎟️ Pull Reset Ticket: +${1 * Number(weight || 1)}`,
+      `🎟️ Pull Reset Ticket: +${safeWeight}`,
       `🔥 Vote Streak: ${currentStreak}`,
       `📊 Total Votes: ${totalVotes}`,
       bonusText,
@@ -174,15 +180,26 @@ function startTopggWebhookServer(client) {
 
       const userId = getDiscordUserId(payload);
       const username = getDiscordUsername(payload);
-      const weight = Number(payload?.data?.weight || payload?.weight || 1);
+      const weight = Math.max(1, Number(payload?.data?.weight || payload?.weight || 1));
 
       if (!userId) {
         return res.status(200).json({ ok: true, ignored: "missing_user_id" });
       }
 
       const player = getPlayer(userId, username);
-      const reward = applyVoteReward(player, weight);
+      const now = Date.now();
+      const voteCooldown = Number(player?.cooldowns?.vote || 0);
+      const lastVoteAt = Number(player?.vote?.lastVoteAt || 0);
 
+      if (voteCooldown > now || (lastVoteAt > 0 && now - lastVoteAt < DUPLICATE_GUARD_MS)) {
+        console.log(`[TOPGG] Duplicate vote ignored for ${userId}.`);
+        return res.status(200).json({
+          ok: true,
+          ignored: "duplicate_vote",
+        });
+      }
+
+      const reward = applyVoteReward(player, weight);
       updatePlayer(userId, reward.update);
 
       await notifyUser(client, userId, reward.rewardText);
