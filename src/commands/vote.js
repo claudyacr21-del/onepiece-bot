@@ -43,7 +43,6 @@ module.exports = {
           `Current Streak: **${streak}**`,
           "",
           "Every **25 Vote Streak** gives **Raid Ticket x1**.",
-          "Daily claim rewards can also give a random box.",
         ].join("\n")
       )
       .setThumbnail(message.client.user.displayAvatarURL())
