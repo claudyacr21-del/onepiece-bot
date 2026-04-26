@@ -2,6 +2,7 @@ const { readPlayers, writePlayers } = require("../playerStore");
 const weaponsData = require("../data/weapons");
 const devilFruitsData = require("../data/devilFruits");
 const itemsData = require("../data/items");
+const cardsData = require("../data/cards");
 
 const VALID_BUCKETS = [
   "items",
@@ -30,11 +31,25 @@ function isAdmin(userId) {
 }
 
 function normalize(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[<@!>]/g, "")
+    .replace(/^model:\s*/i, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function normalizeCode(value) {
   return String(value || "").trim().toLowerCase();
 }
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function parseUserId(value) {
+  return String(value || "").replace(/[<@!>]/g, "").trim();
 }
 
 function collectCatalogEntries(source, out = []) {
@@ -70,13 +85,16 @@ function buildIndex(entries) {
     const keys = [
       entry?.code,
       entry?.name,
+      entry?.displayName,
       entry?.id,
       entry?.key,
       entry?.title,
+      entry?.variant,
     ].filter(Boolean);
 
     for (const key of keys) {
       map.set(normalize(key), entry);
+      map.set(normalizeCode(key), entry);
     }
   }
 
@@ -86,46 +104,85 @@ function buildIndex(entries) {
 const weaponIndex = buildIndex(collectCatalogEntries(weaponsData));
 const fruitIndex = buildIndex(collectCatalogEntries(devilFruitsData));
 const itemIndex = buildIndex(collectCatalogEntries(itemsData));
+const cardIndex = buildIndex(cardsData);
 
 function findCatalogEntry(bucket, query) {
   const q = normalize(query);
+  const qc = normalizeCode(query);
 
-  if (bucket === "weapons") return weaponIndex.get(q) || null;
-  if (bucket === "devilFruits") return fruitIndex.get(q) || null;
+  if (bucket === "weapons") return weaponIndex.get(q) || weaponIndex.get(qc) || null;
+  if (bucket === "devilFruits") return fruitIndex.get(q) || fruitIndex.get(qc) || null;
+
+  if (bucket === "fragments") {
+    return cardIndex.get(q) || cardIndex.get(qc) || null;
+  }
 
   if (
     bucket === "items" ||
     bucket === "boxes" ||
     bucket === "tickets" ||
-    bucket === "materials" ||
-    bucket === "fragments"
+    bucket === "materials"
   ) {
-    return itemIndex.get(q) || null;
+    return itemIndex.get(q) || itemIndex.get(qc) || null;
   }
 
   return null;
 }
 
 function buildStoredEntry(bucket, catalogEntry, amount) {
+  if (bucket === "fragments") {
+    return {
+      name: catalogEntry.displayName || catalogEntry.name || catalogEntry.code,
+      amount,
+      rarity: catalogEntry.baseTier || catalogEntry.rarity || "C",
+      category: catalogEntry.cardRole === "boost" ? "boost" : "battle",
+      code: catalogEntry.code,
+      image: catalogEntry.image || "",
+    };
+  }
+
   const base = {
-    name: catalogEntry.name || catalogEntry.code,
+    name: catalogEntry.name || catalogEntry.displayName || catalogEntry.code,
     amount,
   };
 
   if (catalogEntry.code) base.code = catalogEntry.code;
   if (catalogEntry.rarity) base.rarity = catalogEntry.rarity;
+  if (catalogEntry.baseTier && !base.rarity) base.rarity = catalogEntry.baseTier;
   if (catalogEntry.image) base.image = catalogEntry.image;
   if (catalogEntry.type) base.type = catalogEntry.type;
   if (catalogEntry.description) base.description = catalogEntry.description;
-  if (catalogEntry.statBonus) base.statBonus = { ...catalogEntry.statBonus };
-  if (catalogEntry.owners) base.owners = [...catalogEntry.owners];
+  if (catalogEntry.power) base.power = catalogEntry.power;
 
-  if (bucket === "boxes" || bucket === "tickets" || bucket === "materials" || bucket === "fragments") {
+  if (catalogEntry.statPercent) base.statPercent = { ...catalogEntry.statPercent };
+  if (catalogEntry.statBonus) base.statBonus = { ...catalogEntry.statBonus };
+  if (catalogEntry.ownerBonusPercent) {
+    base.ownerBonusPercent = { ...catalogEntry.ownerBonusPercent };
+  }
+  if (catalogEntry.owners) base.owners = [...catalogEntry.owners];
+  if (catalogEntry.boostBonus) base.boostBonus = catalogEntry.boostBonus;
+
+  if (bucket === "boxes" || bucket === "tickets" || bucket === "materials") {
+    delete base.statPercent;
     delete base.statBonus;
+    delete base.ownerBonusPercent;
     delete base.owners;
+    delete base.boostBonus;
+  }
+
+  if (bucket === "weapons") {
+    base.upgradeLevel = Number(catalogEntry.upgradeLevel || 0);
   }
 
   return base;
+}
+
+function sameEntry(a, b) {
+  if (a?.code && b?.code) {
+    return normalizeCode(a.code) === normalizeCode(b.code);
+  }
+
+  return normalize(a?.name) === normalize(b?.name);
 }
 
 module.exports = {
@@ -137,19 +194,17 @@ module.exports = {
       return message.reply("Owner only command.");
     }
 
-    const userId = String(args.shift() || "").trim();
+    const userId = parseUserId(args.shift());
     const bucket = String(args.shift() || "").trim();
     const amount = Number(args.shift() || 0);
     const query = args.join(" ").trim();
 
     if (!userId || !bucket || !Number.isFinite(amount) || amount <= 0 || !query) {
-      return message.reply(
-        "Usage: `op giveitem <userId> <bucket> <amount> <exact item/weapon/fruit name or code>`"
-      );
+      return message.reply("Usage: `op giveitem <userId/@user> <bucket> <amount> <name/code>`");
     }
 
     if (!VALID_BUCKETS.includes(bucket)) {
-      return message.reply(`Invalid bucket. Use: ${VALID_BUCKETS.join(", ")}`);
+      return message.reply(`Invalid bucket.\nUse: ${VALID_BUCKETS.join(", ")}`);
     }
 
     const players = readPlayers();
@@ -161,21 +216,13 @@ module.exports = {
     const catalogEntry = findCatalogEntry(bucket, query);
 
     if (!catalogEntry) {
-      return message.reply(
-        `Invalid ${bucket} entry. Must match data exactly by name or code.`
-      );
+      return message.reply(`Invalid ${bucket} entry.\nMust match data exactly by name or code.`);
     }
 
     players[userId][bucket] = ensureArray(players[userId][bucket]);
 
     const stored = buildStoredEntry(bucket, catalogEntry, amount);
-
-    const existing = players[userId][bucket].find((entry) => {
-      if (stored.code && entry?.code) {
-        return normalize(entry.code) === normalize(stored.code);
-      }
-      return normalize(entry?.name) === normalize(stored.name);
-    });
+    const existing = players[userId][bucket].find((entry) => sameEntry(entry, stored));
 
     if (existing) {
       existing.amount = Number(existing.amount || 0) + amount;

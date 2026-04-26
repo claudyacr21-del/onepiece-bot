@@ -18,11 +18,24 @@ function isAdmin(userId) {
 }
 
 function normalize(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[<@!>]/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function normalizeCode(value) {
   return String(value || "").trim().toLowerCase();
 }
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function parseUserId(value) {
+  return String(value || "").replace(/[<@!>]/g, "").trim();
 }
 
 function buildCardIndex(cards) {
@@ -33,11 +46,13 @@ function buildCardIndex(cards) {
       card?.code,
       card?.name,
       card?.displayName,
+      card?.variant,
       `${card?.name || ""} ${card?.title || ""}`.trim(),
     ].filter(Boolean);
 
     for (const key of keys) {
       map.set(normalize(key), card);
+      map.set(normalizeCode(key), card);
     }
   }
 
@@ -45,6 +60,13 @@ function buildCardIndex(cards) {
 }
 
 const cardIndex = buildCardIndex(cardsData);
+
+function findCardTemplate(query) {
+  const q = normalize(query);
+  const qc = normalizeCode(query);
+
+  return cardIndex.get(q) || cardIndex.get(qc) || null;
+}
 
 function makeInstanceId(cardCode) {
   const rand = Math.random().toString(36).slice(2, 8);
@@ -61,6 +83,7 @@ function getStageTier(template, stage) {
   return (
     template.evolutionForms?.[stage - 1]?.tier ||
     template.currentTier ||
+    template.baseTier ||
     template.rarity ||
     "C"
   );
@@ -77,6 +100,7 @@ function getStageName(template, stage) {
 
 function getStageImage(template, stage) {
   const stageKey = `M${stage}`;
+
   return (
     template.evolutionForms?.[stage - 1]?.image ||
     template.stageImages?.[stageKey] ||
@@ -98,7 +122,7 @@ function makeOwnedBoostCard(template, stage = 1) {
   const stageKey = `M${finalStage}`;
   const currentTier = getStageTier(template, finalStage);
 
-  return {
+  const ownedBoost = {
     ...template,
     instanceId: makeInstanceId(template.code),
     image: getStageImage(template, finalStage),
@@ -114,8 +138,74 @@ function makeOwnedBoostCard(template, stage = 1) {
     equippedWeapons: [],
     equippedDevilFruit: null,
     equippedDevilFruitCode: null,
-    weaponBonus: { atk: 0, hp: 0, speed: 0 },
+    weaponBonus: {
+      atk: 0,
+      hp: 0,
+      speed: 0,
+    },
   };
+
+  delete ownedBoost.level;
+  delete ownedBoost.exp;
+  delete ownedBoost.xp;
+  delete ownedBoost.kills;
+  delete ownedBoost.atk;
+  delete ownedBoost.hp;
+  delete ownedBoost.speed;
+
+  return ownedBoost;
+}
+
+function alreadyOwnsCard(player, template) {
+  const targetCode = normalizeCode(template.code);
+  const targetName = normalize(template.displayName || template.name);
+
+  return ensureArray(player.cards).some((card) => {
+    const code = normalizeCode(card.code);
+    const name = normalize(card.displayName || card.name);
+
+    return (
+      (targetCode && code === targetCode) ||
+      (targetName && name === targetName)
+    );
+  });
+}
+
+function addFragment(player, template, amount = 1) {
+  const fragments = ensureArray(player.fragments);
+  const targetCode = normalizeCode(template.code);
+  const targetName = normalize(template.displayName || template.name);
+
+  const existing = fragments.find((entry) => {
+    const code = normalizeCode(entry.code);
+    const name = normalize(entry.name || entry.displayName);
+
+    return (
+      (targetCode && code === targetCode) ||
+      (targetName && name === targetName)
+    );
+  });
+
+  if (existing) {
+    existing.amount = Number(existing.amount || 0) + Number(amount || 1);
+    existing.name = existing.name || template.displayName || template.name;
+    existing.rarity = existing.rarity || template.baseTier || template.rarity || "C";
+    existing.category = existing.category || "boost";
+    existing.code = existing.code || template.code;
+    existing.image = existing.image || template.image || "";
+    return fragments;
+  }
+
+  fragments.push({
+    name: template.displayName || template.name,
+    amount: Number(amount || 1),
+    rarity: template.baseTier || template.rarity || "C",
+    category: "boost",
+    code: template.code,
+    image: template.image || "",
+  });
+
+  return fragments;
 }
 
 module.exports = {
@@ -127,14 +217,12 @@ module.exports = {
       return message.reply("Owner only command.");
     }
 
-    const userId = String(args.shift() || "").trim();
+    const userId = parseUserId(args.shift());
     const query = String(args.shift() || "").trim();
     const stage = args[0] ? Number(args[0]) : 1;
 
     if (!userId || !query) {
-      return message.reply(
-        "Usage: `op giveboost <userId> <boost card code or exact name> [stage]`"
-      );
+      return message.reply("Usage: `op giveboost <userId/@user> <boostCode/boostName> [stage]`");
     }
 
     const players = readPlayers();
@@ -143,24 +231,25 @@ module.exports = {
       return message.reply(`User not found: \`${userId}\``);
     }
 
-    const template = cardIndex.get(normalize(query));
+    const template = findCardTemplate(query);
 
     if (!template || template.cardRole !== "boost") {
+      return message.reply("Invalid boost card.\nUse exact boost card code or exact boost card name.");
+    }
+
+    players[userId].cards = ensureArray(players[userId].cards);
+    players[userId].fragments = ensureArray(players[userId].fragments);
+
+    if (alreadyOwnsCard(players[userId], template)) {
+      players[userId].fragments = addFragment(players[userId], template, 1);
+      writePlayers(players);
+
       return message.reply(
-        "Invalid boost card. Use exact boost card code or exact boost card name."
+        `User already owns boost \`${template.displayName || template.name}\` (${template.code}). Converted admin give into **1 Fragment** for \`${userId}\`.`
       );
     }
 
     const ownedBoost = makeOwnedBoostCard(template, stage);
-
-    delete ownedBoost.level;
-    delete ownedBoost.exp;
-    delete ownedBoost.kills;
-    delete ownedBoost.atk;
-    delete ownedBoost.hp;
-    delete ownedBoost.speed;
-
-    players[userId].cards = ensureArray(players[userId].cards);
     players[userId].cards.push(ownedBoost);
 
     writePlayers(players);
