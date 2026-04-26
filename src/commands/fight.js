@@ -17,7 +17,6 @@ const {
 const {
   getCardExp,
   getCardLevelCap,
-  formatCardExp,
   applyExpToCard,
 } = require("../utils/cardExp");
 
@@ -54,7 +53,6 @@ function addOrIncrease(list, item) {
       ...arr[index],
       amount: Number(arr[index].amount || 1) + Number(item.amount || 1),
     };
-
     return arr;
   }
 
@@ -106,16 +104,6 @@ function mergeOwnedCardWithLatestTemplate(rawCard) {
   });
 }
 
-function formatEquippedWeapons(card) {
-  if (Array.isArray(card?.equippedWeapons) && card.equippedWeapons.length) {
-    return card.equippedWeapons
-      .map((w) => `${w.name}${Number(w.upgradeLevel || 0) > 0 ? ` +${w.upgradeLevel}` : ""}`)
-      .join(", ");
-  }
-
-  return card?.displayWeaponName || card?.equippedWeapon || "None";
-}
-
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   const displayAtk = Number(card.atk || 0);
   const displayHp = Number(card.hp || 0);
@@ -141,15 +129,8 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     level: Number(card.level || 1),
     levelCap: getCardLevelCap(card),
     exp: getCardExp(card),
-    expText: formatCardExp(card),
     kills: Number(card.kills || 0),
     image: card.image || "",
-    equippedWeapon: formatEquippedWeapons(card),
-    equippedDevilFruit:
-      card.displayFruitName ||
-      card.equippedDevilFruitName ||
-      card.equippedDevilFruit ||
-      "None",
     passiveBoostsApplied: {
       atk: Number(combatBoosts.atk || 0),
       hp: Number(combatBoosts.hp || 0),
@@ -271,13 +252,26 @@ function createIslandEnemyTemplates(island) {
   ];
 }
 
-function scaleEnemy(enemy) {
-  const level = randomInt(1, 100);
+function getAveragePlayerLevel(playerTeam) {
+  if (!Array.isArray(playerTeam) || !playerTeam.length) return 1;
+
+  const total = playerTeam.reduce((sum, unit) => sum + Math.max(1, Number(unit.level || 1)), 0);
+  return Math.max(1, Math.round(total / playerTeam.length));
+}
+
+function getEnemyLevelForSlot(baseLevel, slotIndex) {
+  const slotOffset = slotIndex === 0 ? -1 : slotIndex === 1 ? 0 : 2;
+  const randomOffset = randomInt(-3, 3);
+  return Math.max(1, Math.min(100, baseLevel + slotOffset + randomOffset));
+}
+
+function scaleEnemy(enemy, playerAverageLevel, slotIndex) {
+  const level = getEnemyLevelForSlot(playerAverageLevel, slotIndex);
   const levelMultiplier = 1 + (level - 1) * 0.012;
 
-  const atkMult = (randomInt(92, 112) / 100) * levelMultiplier;
-  const hpMult = (randomInt(95, 118) / 100) * levelMultiplier;
-  const speedMult = (randomInt(95, 110) / 100) * (1 + (level - 1) * 0.004);
+  const atkMult = (randomInt(95, 108) / 100) * levelMultiplier;
+  const hpMult = (randomInt(97, 112) / 100) * levelMultiplier;
+  const speedMult = (randomInt(96, 106) / 100) * (1 + (level - 1) * 0.004);
 
   return createEnemy(
     enemy.name,
@@ -289,11 +283,12 @@ function scaleEnemy(enemy) {
   );
 }
 
-function generateEnemyTeam(island) {
+function generateEnemyTeam(island, playerTeam) {
   const pool = createIslandEnemyTemplates(island);
+  const avgLevel = getAveragePlayerLevel(playerTeam);
 
   return pool.map((enemy, index) => ({
-    ...scaleEnemy(enemy),
+    ...scaleEnemy(enemy, avgLevel, index),
     instanceId: `enemy-${Date.now()}-${index}-${Math.floor(Math.random() * 1000)}`,
   }));
 }
@@ -332,6 +327,23 @@ function performAttack(attacker, defender, boosts = {}) {
   return finalDamage;
 }
 
+function resolveTurnOrder(playerUnit, enemyUnit) {
+  const playerSpeed = Number(playerUnit?.battleSpeed || playerUnit?.speed || 0);
+  const enemySpeed = Number(enemyUnit?.battleSpeed || enemyUnit?.speed || 0);
+
+  if (enemySpeed > playerSpeed) {
+    return [
+      { actor: enemyUnit, target: playerUnit, isPlayer: false },
+      { actor: playerUnit, target: enemyUnit, isPlayer: true },
+    ];
+  }
+
+  return [
+    { actor: playerUnit, target: enemyUnit, isPlayer: true },
+    { actor: enemyUnit, target: playerUnit, isPlayer: false },
+  ];
+}
+
 function renderHpBar(hp, maxHp, size = 10) {
   const current = Math.max(0, Number(hp || 0));
   const max = Math.max(1, Number(maxHp || 1));
@@ -345,9 +357,7 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode,
   const playerLines = playerTeam.map((unit) => {
     return [
       `**${unit.slot}. ${unit.name}**`,
-      `[${unit.rarity}] • ATK \`${formatAtkRange(unit.battleAtk)}\` • SPD \`${unit.battleSpeed}\` • LV \`${unit.level}/${unit.levelCap}\``,
-      `↪ Weapon: ${unit.equippedWeapon}`,
-      `↪ Fruit: ${unit.equippedDevilFruit}`,
+      `[${unit.rarity}] • ATK \`${formatAtkRange(unit.battleAtk)}\` • SPD \`${unit.battleSpeed}\` • LV \`${unit.level}\``,
       renderHpBar(unit.battleHp, unit.battleMaxHp),
     ].join("\n");
   });
@@ -611,7 +621,7 @@ module.exports = {
     });
 
     const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
-    const enemyTeam = generateEnemyTeam(currentIsland);
+    const enemyTeam = generateEnemyTeam(currentIsland, playerTeam);
     const logs = [];
     let battleEnded = false;
     let currentStreak = Number(player.fightStreak || 0);
@@ -677,18 +687,18 @@ module.exports = {
       }
 
       const index = Number(interaction.customId.replace("fight_attack_", ""));
-      const attacker = playerTeam[index];
+      const playerAttacker = playerTeam[index];
 
-      if (!attacker || Number(attacker.battleHp ?? attacker.hp) <= 0) {
+      if (!playerAttacker || Number(playerAttacker.battleHp ?? playerAttacker.hp) <= 0) {
         return interaction.reply({
           content: "That card cannot attack right now.",
           ephemeral: true,
         });
       }
 
-      const target = getFirstAlive(enemyTeam);
+      const enemyTarget = getFirstAlive(enemyTeam);
 
-      if (!target) {
+      if (!enemyTarget) {
         return interaction.reply({
           content: "No enemy is available to attack.",
           ephemeral: true,
@@ -697,18 +707,37 @@ module.exports = {
 
       logs.length = 0;
 
-      const damage = performAttack(
-        attacker,
-        target,
-        attacker.passiveBoostsApplied || combatBoosts
-      );
+      const turns = resolveTurnOrder(playerAttacker, enemyTarget);
 
-      logs.push(`⚔️ ${attacker.name} attacked ${target.name}.`);
-      logs.push(`➡️ ${attacker.name} dealt **${damage}** damage to ${target.name}.`);
+      for (const turn of turns) {
+        const actor = turn.actor;
+        const target = turn.target;
 
-      if (Number(target.battleHp ?? target.hp) <= 0) {
-        attacker.kills += 1;
-        logs.push(`☠️ ${target.name} was defeated and cannot counter.`);
+        if (Number(actor.battleHp ?? actor.hp) <= 0) continue;
+        if (Number(target.battleHp ?? target.hp) <= 0) continue;
+
+        const damage = performAttack(
+          actor,
+          target,
+          turn.isPlayer ? actor.passiveBoostsApplied || combatBoosts : {}
+        );
+
+        if (turn.isPlayer) {
+          logs.push(`⚡ ${actor.name} moved first with SPD ${actor.battleSpeed}.`);
+          logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
+          logs.push(`➡️ ${actor.name} dealt **${damage}** damage to ${target.name}.`);
+        } else {
+          logs.push(`⚡ ${actor.name} moved first with SPD ${actor.battleSpeed}.`);
+          logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
+          logs.push(`⬅️ ${actor.name} dealt **${damage}** damage to ${target.name}.`);
+        }
+
+        if (Number(target.battleHp ?? target.hp) <= 0) {
+          if (turn.isPlayer) {
+            playerAttacker.kills += 1;
+          }
+          logs.push(`☠️ ${target.name} was defeated.`);
+        }
       }
 
       if (!getAliveUnits(enemyTeam).length) {
@@ -799,20 +828,6 @@ module.exports = {
 
         collector.stop("win");
         return;
-      }
-
-      if (
-        Number(target.battleHp ?? target.hp) > 0 &&
-        Number(attacker.battleHp ?? attacker.hp) > 0
-      ) {
-        const retaliationDamage = performAttack(target, attacker, {});
-
-        logs.push(`💥 ${target.name} countered ${attacker.name}.`);
-        logs.push(`⬅️ ${target.name} dealt **${retaliationDamage}** damage to ${attacker.name}.`);
-
-        if (Number(attacker.battleHp ?? attacker.hp) <= 0) {
-          logs.push(`☠️ ${attacker.name} was defeated.`);
-        }
       }
 
       if (!getAliveUnits(playerTeam).length) {
