@@ -69,7 +69,6 @@ function buildCardEmbed(card, index, total, mode) {
     mode === "boost"
       ? [
           `Role: ${card.cardRole}`,
-          `Owner: ${card.displayName || card.name || "Unknown"}`,
           `Faction: ${card.faction || "Unknown"}`,
           `Effect: ${card.evolutionForms?.[2]?.effectText || card.effectText || "No effect text"}`,
           "",
