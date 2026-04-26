@@ -344,6 +344,61 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1497942550475051039/content.png?ex=69ef5b36&is=69ee09b6&hm=4be17df44100f3f5a5d567acd415a90533c504dfa342fe6209b4a6a1e053bb1e&",
   },
   beast_core: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1497947425472778341/content.png?ex=69ef5fc0&is=69ee0e40&hm=deb4bfea63a2601c7a90d105f4b992df29bde60986dbddee2d34d3477f5f9ae5&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1497947426135347370/content.png?ex=69ef5fc0&is=69ee0e40&hm=7e766879b039a3f3f2053b943b889242de8c7dc424124112203c55efe88850ee&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1497947426667888780/content.png?ex=69ef5fc1&is=69ee0e41&hm=af67c6651a98eacf0e843b9a0c661147f9366d21477ab39fd2716a155a7cda2d&",
+  },
+  oni_lineage: {
+    M1: "",
+    M2: "",
+    M3: "",
+  },
+  forest_core: {
+    M1: "",
+    M2: "",
+    M3: "",
+  },
+  nika_drums: {
+    M1: "",
+    M2: "",
+    M3: "",
+  },
+  supreme_haki: {
+    M1: "",
+    M2: "",
+    M3: "",
+  },
+  black_blade_yoru: {
+    M1: "",
+    M2: "",
+    M3: "",
+  },
+  chaos_core: {
+    M1: "",
+    M2: "",
+    M3: "",
+  },
+  storm_mandate: {
+    M1: "",
+    M2: "",
+    M3: "",
+  },
+  empty_throne_edict: {
+    M1: "",
+    M2: "",
+    M3: "",
+  },
+  holy_knight_sigil: {
+    M1: "",
+    M2: "",
+    M3: "",
+  },
+  giant_curse: {
+    M1: "",
+    M2: "",
+    M3: "",
+  },
+  samurai_spirit: {
     M1: "",
     M2: "",
     M3: "",
