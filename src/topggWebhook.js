@@ -6,6 +6,7 @@ let serverStarted = false;
 
 const VOTE_BERRY_REWARD = 5000;
 const VOTE_PULL_RESET_REWARD = 1;
+const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 
 function addTicket(list, ticket) {
   const arr = Array.isArray(list) ? [...list] : [];
@@ -148,6 +149,10 @@ async function handleVote(client, body) {
   updatePlayer(userId, {
     berries: Number(player.berries || 0) + VOTE_BERRY_REWARD,
     tickets: updatedTickets,
+    cooldowns: {
+      ...(player.cooldowns || {}),
+      vote: now + VOTE_COOLDOWN_MS,
+    },
     vote: {
       streak: nextStreak,
       totalVotes: nextTotalVotes,
@@ -170,6 +175,7 @@ async function handleVote(client, body) {
     berries: VOTE_BERRY_REWARD,
     pullResetTickets: VOTE_PULL_RESET_REWARD,
     ignoredWeight: body?.data?.weight || body?.isWeekend || null,
+    cooldownUntil: now + VOTE_COOLDOWN_MS,
   });
 }
 
