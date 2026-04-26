@@ -10,15 +10,14 @@ const HELP_PAGES = {
   main: {
     label: "Command List",
     description: "View the list of commands",
-    emoji: "",
-    title: " Command List",
+    title: "Command List",
     body: [
       "Review the command list below.",
       `**Prefix:** \`${PREFIX}\``,
       "",
       "## COMMANDS",
       "",
-      "** Items & More**",
+      "**Items & More**",
       "`inventory` | view consumable items, materials, tickets, boxes",
       "`finv` | view your fragments",
       "`all` | view all obtainable cards/items",
@@ -27,7 +26,7 @@ const HELP_PAGES = {
       "`all fruit` | view all devil fruits",
       "`market` | open the market",
       "",
-      "** Cards & Pulls**",
+      "**Cards & Pulls**",
       "`pull` | single pull",
       "`pa` | Mother Flame pull all",
       "`pullinfo` | check pull slots",
@@ -39,7 +38,7 @@ const HELP_PAGES = {
       "`mc weapon` | view your weapon collection",
       "`awaken <card>` | awaken card stage",
       "",
-      "**⚔️ Battle & Raid**",
+      "**Battle & Raid**",
       "`fight` | manual fight",
       "`boss` | fight island boss",
       "`raid <boss>` | A/S raid",
@@ -48,7 +47,7 @@ const HELP_PAGES = {
       "`arena` | ranked arena",
       "`challenge @user` | direct test battle",
       "",
-      "** Progression**",
+      "**Progression**",
       "`ship` | view ship",
       "`ship upgrade` | upgrade current ship",
       "`shipupgrade` | standalone ship upgrade",
@@ -56,7 +55,7 @@ const HELP_PAGES = {
       "`travel <island>` | move island",
       "`sail` | sail to next route",
       "",
-      "** Profile & Leaderboard**",
+      "**Profile & Leaderboard**",
       "`profile` | view profile",
       "`effect` | current effects/status",
       "`team` | view team",
@@ -69,8 +68,7 @@ const HELP_PAGES = {
   card: {
     label: "Cards / Pull Help",
     description: "Card, pull, awaken, and collection commands",
-    emoji: "",
-    title: " Cards / Pull Help",
+    title: "Cards / Pull Help",
     body: [
       "**Cards**",
       "`op ci <card>` → global card viewer",
@@ -100,8 +98,7 @@ const HELP_PAGES = {
   equipment: {
     label: "Equipment Help",
     description: "Weapon, fruit, upgrade, and unequip commands",
-    emoji: "️",
-    title: "️ Equipment Help",
+    title: "Equipment Help",
     body: [
       "**Weapon**",
       "`op wp <card> <weapon>` → equip weapon",
@@ -122,8 +119,7 @@ const HELP_PAGES = {
   battle: {
     label: "Battle Help",
     description: "Fight, boss, arena, and leaderboard commands",
-    emoji: "⚔️",
-    title: "⚔️ Battle Help",
+    title: "Battle Help",
     body: [
       "**PvE**",
       "`op fight` → manual fight",
@@ -147,8 +143,7 @@ const HELP_PAGES = {
   raid: {
     label: "Raid Help",
     description: "Raid, common raid, room, and party commands",
-    emoji: "",
-    title: " Raid Help",
+    title: "Raid Help",
     body: [
       "**Raid Rooms**",
       "`op craid <boss>` → C/B boss raid using Common Raid Ticket",
@@ -173,8 +168,7 @@ const HELP_PAGES = {
   quest: {
     label: "Quest / Daily Help",
     description: "Daily, quest, effect, and reward commands",
-    emoji: "✨",
-    title: "✨ Quest / Daily Help",
+    title: "Quest / Daily Help",
     body: [
       "**Daily / Quest**",
       "`op daily` → claim daily reward",
@@ -193,8 +187,7 @@ const HELP_PAGES = {
   travel: {
     label: "Travel / Ship Help",
     description: "Ship, travel, island, and route commands",
-    emoji: "",
-    title: " Travel / Ship Help",
+    title: "Travel / Ship Help",
     body: [
       "**Ship**",
       "`op ship` → view current ship",
@@ -215,8 +208,7 @@ const HELP_PAGES = {
   trade: {
     label: "Trade / Market Help",
     description: "Market and trade commands",
-    emoji: "",
-    title: " Trade / Market Help",
+    title: "Trade / Market Help",
     body: [
       "**Market**",
       "`op market` → open market",
@@ -255,7 +247,6 @@ function buildMenu(selected = "main") {
             label: page.label,
             description: page.description,
             value,
-            emoji: page.emoji,
             default: value === selected,
           }))
         )
