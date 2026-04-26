@@ -19,9 +19,9 @@ const NORMAL_PITY_TARGET = 150;
 function pickContentType() {
   const roll = Math.random() * 100;
 
-  if (roll < 75) return "battleCard";
-  if (roll < 90) return "boostCard";
-  if (roll < 95) return "weapon";
+  if (roll < 81) return "battleCard";
+  if (roll < 96) return "boostCard";
+  if (roll < 98) return "weapon";
   return "devilFruit";
 }
 
