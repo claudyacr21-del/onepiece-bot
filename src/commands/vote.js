@@ -37,7 +37,7 @@ function getNextRaidTicketIn(streak) {
 
 module.exports = {
   name: "vote",
-
+  aliases: ["v"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
     const voteData = player.vote || {
