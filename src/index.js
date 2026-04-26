@@ -10,6 +10,7 @@ const {
 } = require("discord.js");
 const { startTopggWebhookServer } = require("./topggWebhook");
 const { syncArenaRankRoles } = require("./utils/arenaRankRoles");
+const { syncExpiredPatreonRoles } = require("./utils/patreonRoleStore");
 
 const client = new Client({
   intents: [
@@ -55,6 +56,16 @@ client.once("clientReady", async () => {
   setInterval(() => {
     syncArenaRankRoles(client).catch((error) => {
       console.error("[ARENA RANK ROLES INTERVAL SYNC ERROR]", error);
+    });
+  }, 10 * 60 * 1000);
+
+  syncExpiredPatreonRoles(client).catch((error) => {
+    console.error("[PATREON ROLE READY SYNC ERROR]", error);
+  });
+
+  setInterval(() => {
+    syncExpiredPatreonRoles(client).catch((error) => {
+      console.error("[PATREON ROLE INTERVAL SYNC ERROR]", error);
     });
   }, 10 * 60 * 1000);
 });
