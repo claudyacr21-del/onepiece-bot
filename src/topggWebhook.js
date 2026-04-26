@@ -1,143 +1,176 @@
 const express = require("express");
+const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("./playerStore");
 
 let serverStarted = false;
 
-const BOT_ID = "1492759342972407869";
-const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
-const DUPLICATE_GUARD_MS = 11 * 60 * 60 * 1000;
+const VOTE_BERRY_REWARD = 5000;
+const VOTE_PULL_RESET_REWARD = 1;
 
-function addOrIncrease(list, item) {
+function addTicket(list, ticket) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const idx = arr.findIndex((x) => String(x.code) === String(item.code));
+  const index = arr.findIndex(
+    (entry) => String(entry.code) === String(ticket.code)
+  );
 
-  if (idx !== -1) {
-    arr[idx] = {
-      ...arr[idx],
-      amount: Number(arr[idx].amount || 0) + Number(item.amount || 1),
+  if (index !== -1) {
+    arr[index] = {
+      ...arr[index],
+      amount: Number(arr[index].amount || 0) + Number(ticket.amount || 1),
     };
+
     return arr;
   }
 
-  arr.push({ ...item, amount: Number(item.amount || 1) });
+  arr.push({
+    code: ticket.code,
+    name: ticket.name,
+    amount: Number(ticket.amount || 1),
+    rarity: ticket.rarity,
+    type: ticket.type,
+  });
+
   return arr;
 }
 
-function getDiscordUserId(payload) {
+function getVoteUserId(body) {
   return (
-    payload?.data?.user?.platform_id ||
-    payload?.data?.user?.id ||
-    payload?.user ||
-    payload?.userId ||
+    body?.data?.user?.platform_id ||
+    body?.data?.user?.id ||
+    body?.user ||
     null
   );
 }
 
-function getDiscordUsername(payload) {
-  return payload?.data?.user?.name || "Unknown";
-}
-
-function isTestWebhook(payload) {
-  return String(payload?.type || "").toLowerCase() === "webhook.test";
-}
-
-function isVoteWebhook(payload) {
+function getVoteEventId(body, userId) {
   return (
-    String(payload?.type || "").toLowerCase() === "vote.create" ||
-    Boolean(payload?.user) ||
-    Boolean(payload?.data?.user?.platform_id)
+    body?.data?.id ||
+    body?.id ||
+    `${userId}:${body?.data?.created_at || body?.query || Date.now()}`
   );
 }
 
-async function notifyUser(client, userId, message) {
+function isVotePayload(body) {
+  if (!body || typeof body !== "object") return false;
+
+  if (body.type === "vote.create") return true;
+  if (body.type === "upvote") return true;
+
+  return false;
+}
+
+function isTestPayload(body) {
+  if (!body || typeof body !== "object") return false;
+
+  if (body.type === "webhook.test") return true;
+  if (body.type === "test") return true;
+
+  return false;
+}
+
+function checkAuthorization(req) {
+  const expected = process.env.TOPGG_WEBHOOK_AUTH;
+
+  if (!expected) return true;
+
+  const received = req.get("Authorization") || req.get("authorization") || "";
+
+  return received === expected;
+}
+
+async function sendVoteDm(client, userId, reward) {
   try {
     const user = await client.users.fetch(userId);
-    await user.send(message);
-  } catch (_) {}
+
+    const embed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setDescription(
+        [
+          "✅ Thanks for voting for One Piece Bot!",
+          "",
+          `💰 Berries: +${reward.berries.toLocaleString("en-US")}`,
+          `🎟️ Pull Reset Ticket: +${reward.pullResetTickets}`,
+          `🔥 Vote Streak: ${reward.streak}`,
+          `📊 Total Votes: ${reward.totalVotes}`,
+        ].join("\n")
+      );
+
+    await user.send({ embeds: [embed] });
+  } catch (error) {
+    console.warn("[TOPGG] Failed to send vote DM:", error?.message || error);
+  }
 }
 
-function pickRandomStreakBox() {
-  const randomBoxes = [
-    {
-      code: "basic_resource_box",
-      name: "Basic Resource Box",
-      amount: 2,
-      rarity: "C",
-      type: "Box",
-    },
-    {
-      code: "treasure_material_pack",
-      name: "Treasure Material Pack",
-      amount: 2,
-      rarity: "B",
-      type: "Box",
-    },
-    {
-      code: "rare_resource_box",
-      name: "Rare Resource Box",
-      amount: 1,
-      rarity: "A",
-      type: "Box",
-    },
-  ];
+async function handleVote(client, body) {
+  const userId = getVoteUserId(body);
 
-  return randomBoxes[Math.floor(Math.random() * randomBoxes.length)];
-}
+  if (!userId) {
+    console.warn("[TOPGG] Missing user id:", body);
+    return;
+  }
 
-function applyVoteReward(player, weight = 1) {
-  const vote = player.vote || {};
+  const eventId = getVoteEventId(body, userId);
+  const player = getPlayer(userId, body?.data?.user?.name || "Unknown");
+
+  const previousVote = player.vote || {};
+  const processedIds = Array.isArray(previousVote.processedIds)
+    ? previousVote.processedIds
+    : [];
+
+  if (eventId && processedIds.includes(eventId)) {
+    console.log("[TOPGG] Duplicate vote ignored:", eventId);
+    return;
+  }
+
   const now = Date.now();
-  const safeWeight = Math.max(1, Number(weight || 1));
+  const lastVoteAt = Number(previousVote.lastVoteAt || 0);
+  const streakExpired =
+    lastVoteAt > 0 && now - lastVoteAt > 36 * 60 * 60 * 1000;
 
-  const currentStreak = Number(vote.streak || 0) + safeWeight;
-  const totalVotes = Number(vote.totalVotes || 0) + safeWeight;
+  const nextStreak = streakExpired
+    ? 1
+    : Number(previousVote.streak || 0) + 1;
 
-  let tickets = [...(player.tickets || [])];
-  let boxes = [...(player.boxes || [])];
+  const nextTotalVotes = Number(previousVote.totalVotes || 0) + 1;
 
-  const baseBerries = 5000 * safeWeight;
-
-  tickets = addOrIncrease(tickets, {
+  const updatedTickets = addTicket(player.tickets || [], {
     code: "pull_reset_ticket",
     name: "Pull Reset Ticket",
-    amount: safeWeight,
+    amount: VOTE_PULL_RESET_REWARD,
     rarity: "A",
     type: "Ticket",
   });
 
-  let bonusText = "";
+  const nextProcessedIds = eventId
+    ? [...processedIds, eventId].slice(-50)
+    : processedIds.slice(-50);
 
-  if (currentStreak > 0 && currentStreak % 20 === 0) {
-    const pickedBox = pickRandomStreakBox();
-    boxes = addOrIncrease(boxes, pickedBox);
-    bonusText = `\n🎁 20 vote streak bonus: ${pickedBox.name} x${pickedBox.amount}`;
-  }
-
-  return {
-    update: {
-      berries: Number(player.berries || 0) + baseBerries,
-      tickets,
-      boxes,
-      vote: {
-        streak: currentStreak,
-        totalVotes,
-        lastVoteAt: now,
-      },
-      cooldowns: {
-        ...(player.cooldowns || {}),
-        vote: now + VOTE_COOLDOWN_MS,
-      },
+  updatePlayer(userId, {
+    berries: Number(player.berries || 0) + VOTE_BERRY_REWARD,
+    tickets: updatedTickets,
+    vote: {
+      streak: nextStreak,
+      totalVotes: nextTotalVotes,
+      lastVoteAt: now,
+      processedIds: nextProcessedIds,
+      lastEventId: eventId,
     },
-    rewardText: [
-      "✅ Thanks for voting for One Piece Bot!",
-      "",
-      `💰 Berries: +${baseBerries.toLocaleString("en-US")}`,
-      `🎟️ Pull Reset Ticket: +${safeWeight}`,
-      `🔥 Vote Streak: ${currentStreak}`,
-      `📊 Total Votes: ${totalVotes}`,
-      bonusText,
-    ].join("\n"),
-  };
+  });
+
+  await sendVoteDm(client, userId, {
+    berries: VOTE_BERRY_REWARD,
+    pullResetTickets: VOTE_PULL_RESET_REWARD,
+    streak: nextStreak,
+    totalVotes: nextTotalVotes,
+  });
+
+  console.log("[TOPGG] Vote reward granted:", {
+    userId,
+    eventId,
+    berries: VOTE_BERRY_REWARD,
+    pullResetTickets: VOTE_PULL_RESET_REWARD,
+    ignoredWeight: body?.data?.weight || body?.isWeekend || null,
+  });
 }
 
 function startTopggWebhookServer(client) {
@@ -145,6 +178,7 @@ function startTopggWebhookServer(client) {
   serverStarted = true;
 
   const app = express();
+
   app.use(express.json());
 
   app.get("/", (_, res) => {
@@ -160,54 +194,28 @@ function startTopggWebhookServer(client) {
 
   app.post("/topgg", async (req, res) => {
     try {
-      const expectedAuth = String(process.env.TOPGG_WEBHOOK_AUTH || "");
-      const incomingAuth = String(req.headers.authorization || "");
-
-      if (expectedAuth && incomingAuth !== expectedAuth) {
-        return res.status(401).json({ ok: false, error: "Invalid authorization" });
+      if (!checkAuthorization(req)) {
+        return res.status(401).json({ ok: false, error: "unauthorized" });
       }
 
-      const payload = req.body || {};
-      console.log("[TOPGG] Payload:", payload);
+      const body = req.body || {};
 
-      if (isTestWebhook(payload)) {
+      console.log("[TOPGG] Vote payload received:", body);
+
+      if (isTestPayload(body)) {
         return res.status(200).json({ ok: true, test: true });
       }
 
-      if (!isVoteWebhook(payload)) {
+      if (!isVotePayload(body)) {
         return res.status(200).json({ ok: true, ignored: true });
       }
 
-      const userId = getDiscordUserId(payload);
-      const username = getDiscordUsername(payload);
-      const weight = Math.max(1, Number(payload?.data?.weight || payload?.weight || 1));
-
-      if (!userId) {
-        return res.status(200).json({ ok: true, ignored: "missing_user_id" });
-      }
-
-      const player = getPlayer(userId, username);
-      const now = Date.now();
-      const voteCooldown = Number(player?.cooldowns?.vote || 0);
-      const lastVoteAt = Number(player?.vote?.lastVoteAt || 0);
-
-      if (voteCooldown > now || (lastVoteAt > 0 && now - lastVoteAt < DUPLICATE_GUARD_MS)) {
-        console.log(`[TOPGG] Duplicate vote ignored for ${userId}.`);
-        return res.status(200).json({
-          ok: true,
-          ignored: "duplicate_vote",
-        });
-      }
-
-      const reward = applyVoteReward(player, weight);
-      updatePlayer(userId, reward.update);
-
-      await notifyUser(client, userId, reward.rewardText);
+      await handleVote(client, body);
 
       return res.status(200).json({ ok: true });
     } catch (error) {
       console.error("[TOPGG] Webhook error:", error);
-      return res.status(200).json({ ok: false });
+      return res.status(200).json({ ok: false, error: "handled" });
     }
   });
 
@@ -219,4 +227,6 @@ function startTopggWebhookServer(client) {
   });
 }
 
-module.exports = { startTopggWebhookServer };
+module.exports = {
+  startTopggWebhookServer,
+};

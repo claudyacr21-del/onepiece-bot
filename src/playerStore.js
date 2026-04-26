@@ -244,6 +244,10 @@ function normalizeVote(vote) {
     streak: Number(vote?.streak) >= 0 ? Number(vote.streak) : 0,
     totalVotes: Number(vote?.totalVotes) >= 0 ? Number(vote.totalVotes) : 0,
     lastVoteAt: vote?.lastVoteAt || null,
+    lastEventId: vote?.lastEventId || null,
+    processedIds: Array.isArray(vote?.processedIds)
+      ? vote.processedIds.map(String).slice(-50)
+      : [],
   };
 }
 
