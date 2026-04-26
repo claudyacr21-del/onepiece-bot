@@ -5,15 +5,21 @@ const {
   EmbedBuilder,
 } = require("discord.js");
 const { getPlayer } = require("../playerStore");
-const { hydrateCard, getWeaponPower } = require("../utils/evolution");
+const {
+  hydrateCard,
+  findCardTemplate,
+  getWeaponPower,
+} = require("../utils/evolution");
+const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const {
   getCardImage,
   getWeaponImage,
   getRarityBadge,
 } = require("../config/assetLinks");
-const { formatCardLevelLine, getCardExpProgress } = require("../utils/cardExp");
 const weaponsDb = require("../data/weapons");
+
+const FLAT_EXP_CAP = 1000;
 
 function normalize(text) {
   return String(text || "")
@@ -27,9 +33,28 @@ function getPower(card) {
   return Number(card.currentPower || 0);
 }
 
+function getFlatExp(card) {
+  return Math.max(0, Math.min(FLAT_EXP_CAP, Number(card?.exp ?? card?.xp ?? 0)));
+}
+
+function formatLevelExpLine(card) {
+  return `Level: ${Number(card.level || 1)} (${getFlatExp(card)}/${FLAT_EXP_CAP})`;
+}
+
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
+function applyBoostedDisplayStats(card, boosts = {}) {
+  if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
+
+  return {
+    ...card,
+    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+  };
 }
 
 function getSafeForm(card) {
@@ -57,9 +82,41 @@ function getStageImage(card) {
   );
 }
 
-function buildViewerEmbed(ownerName, card, index, total, label = "Card Collection") {
+function mergeOwnedCardWithLatestTemplate(rawCard) {
+  const template = findCardTemplate(rawCard.code || rawCard.name || "");
+
+  if (!template) return hydrateCard(rawCard);
+
+  return hydrateCard({
+    ...template,
+    instanceId: rawCard.instanceId,
+    ownerId: rawCard.ownerId,
+    level: rawCard.level,
+    xp: rawCard.xp,
+    exp: rawCard.exp,
+    kills: rawCard.kills,
+    fragments: rawCard.fragments,
+    evolutionStage: rawCard.evolutionStage,
+    evolutionKey: rawCard.evolutionKey,
+    currentTier: rawCard.currentTier || template.currentTier,
+    rarity: rawCard.rarity || template.rarity,
+    equippedWeapons: Array.isArray(rawCard.equippedWeapons)
+      ? rawCard.equippedWeapons
+      : [],
+    equippedWeapon: rawCard.equippedWeapon || null,
+    equippedWeaponName: rawCard.equippedWeaponName || null,
+    equippedWeaponCode: rawCard.equippedWeaponCode || null,
+    equippedWeaponLevel: rawCard.equippedWeaponLevel || 0,
+    equippedDevilFruit: rawCard.equippedDevilFruit || null,
+    equippedDevilFruitName: rawCard.equippedDevilFruitName || null,
+    cardRole: rawCard.cardRole || template.cardRole,
+  });
+}
+
+function buildViewerEmbed(ownerName, card, index, total, label = "Collection") {
   const form = getSafeForm(card);
   const stageImage = getStageImage(card);
+  const atkRange = formatAtkRange(card.atk);
 
   const extraLines =
     card.cardRole === "boost"
@@ -75,11 +132,11 @@ function buildViewerEmbed(ownerName, card, index, total, label = "Card Collectio
       : [
           `Form: ${card.evolutionKey || `M${form.stage}`}`,
           `Tier: ${card.currentTier || card.rarity || "C"}`,
-          formatCardLevelLine(card),
+          formatLevelExpLine(card),
           `Power: ${getPower(card)}`,
           `Health: ${card.hp || 0}`,
           `Speed: ${card.speed || 0}`,
-          `Attack: ${formatAtkRange(card.atk)}`,
+          `Attack: ${atkRange}`,
           `Weapons: ${card.displayWeaponName || "None"}`,
           `Devil Fruit: ${card.displayFruitName || "None"}`,
           `Type: ${card.type || card.cardRole || "Unknown"}`,
@@ -100,7 +157,7 @@ function buildViewerEmbed(ownerName, card, index, total, label = "Card Collectio
   });
 }
 
-function buildRows(prevId, nextId, index, total) {
+function buildRows(index, total, prevId = "mc_prev", nextId = "mc_next") {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -147,7 +204,7 @@ function dedupeCollection(cards) {
   return [...map.values()];
 }
 
-function buildCardTextLines(cards) {
+function buildTextLines(cards) {
   const uniqueCards = dedupeCollection(cards);
 
   return uniqueCards.map((card, i) => {
@@ -155,6 +212,8 @@ function buildCardTextLines(cards) {
     const name = card.displayName || card.name || "Unknown Card";
     const stage = card.evolutionKey || `M${card.evolutionStage || 1}`;
     const power = getPower(card);
+    const level = Number(card.level || 1);
+    const exp = getFlatExp(card);
 
     if (card.cardRole === "boost") {
       return [
@@ -166,38 +225,37 @@ function buildCardTextLines(cards) {
     const currentHp = Number(card.hp || 0);
     const currentSpd = Number(card.speed || 0);
     const atkRange = formatAtkRange(card.atk);
-    const expProgress = getCardExpProgress(card);
 
     return [
       `${i + 1}. **${name}** | ${stage} | ${power} | ${currentHp}/${currentHp} | ${currentSpd} | ${atkRange}`,
-      `${rarity} | Lv.${expProgress.level} (${expProgress.exp}/1000)`,
+      `${rarity} | Lv.${level} (${exp}/${FLAT_EXP_CAP})`,
     ].join("\n");
   });
 }
 
-function buildTextPageEmbed(ownerName, title, lines, pageIndex, pageSize = 10) {
+function buildTextPageEmbed(ownerName, lines, pageIndex, pageSize = 10) {
   const start = pageIndex * pageSize;
   const pageLines = lines.slice(start, start + pageSize);
 
   return new EmbedBuilder()
     .setColor(0x3498db)
-    .setTitle(`${ownerName}'s ${title}`)
+    .setTitle(`${ownerName}'s Card Collection`)
     .setDescription(pageLines.join("\n\n"))
     .setFooter({
       text: `Showing ${start + 1}-${Math.min(start + pageSize, lines.length)} of ${lines.length} unique entries`,
     });
 }
 
-function buildTextRows(pageIndex, totalPages, prevId = "mc_text_prev", nextId = "mc_text_next") {
+function buildTextRows(pageIndex, totalPages) {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(prevId)
+        .setCustomId("mc_text_prev")
         .setLabel("Prev")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(pageIndex <= 0),
       new ButtonBuilder()
-        .setCustomId(nextId)
+        .setCustomId("mc_text_next")
         .setLabel("Next")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(pageIndex >= totalPages - 1)
@@ -316,7 +374,11 @@ function buildWeaponEmbed(ownerName, weapon, index, total) {
         `ATK: +${Number(percent.atk || 0)}%`,
         `HP: +${Number(percent.hp || 0)}%`,
         `SPD: +${Number(percent.speed || 0)}%`,
-        `Owned Amount: ${Math.max(0, Number(weapon.amount || 0))}`,
+        `Owner Signature: ${
+          Array.isArray(weapon.owners) && weapon.owners.length
+            ? weapon.owners.join(", ")
+            : "None"
+        }`,
         `Best Upgrade: +${Math.max(0, Number(weapon.bestUpgradeLevel || 0))}`,
         `Equipped On: ${equippedText}`,
         "",
@@ -330,37 +392,14 @@ function buildWeaponEmbed(ownerName, weapon, index, total) {
     });
 }
 
-function buildWeaponTextLines(weapons) {
-  return weapons.map((weapon, i) => {
-    const percent = getWeaponPercentAtLevel(
-      weapon.statPercent || weapon.statBonus || { atk: 0, hp: 0, speed: 0 },
-      weapon.bestUpgradeLevel || 0
-    );
-
-    return [
-      `${i + 1}. **${weapon.name}** | ${String(weapon.rarity || "B").toUpperCase()} | ${Number(
-        getWeaponPower(weapon, weapon.bestUpgradeLevel || 0) || 0
-      )}`,
-      `+${Number(percent.atk || 0)}% ATK | +${Number(percent.hp || 0)}% HP | +${Number(
-        percent.speed || 0
-      )}% SPD | x${Math.max(0, Number(weapon.amount || 0))} | +${Math.max(
-        0,
-        Number(weapon.bestUpgradeLevel || 0)
-      )}`,
-    ].join("\n");
-  });
-}
-
 module.exports = {
   name: "mc",
   aliases: ["mycards"],
 
   async execute(message, args) {
     const player = getPlayer(message.author.id, message.author.username);
-    const cards = (player.cards || []).map(hydrateCard).filter(Boolean);
-
+    const boosts = getPassiveBoostSummary(player);
     const sub1 = String(args?.[0] || "").toLowerCase();
-    const sub2 = String(args?.[1] || "").toLowerCase();
 
     if (sub1 === "weapon") {
       const weapons = buildOwnedWeaponCollection(player);
@@ -369,71 +408,11 @@ module.exports = {
         return message.reply("You do not own any weapons yet.");
       }
 
-      const wantsText = sub2 === "text";
-
-      if (wantsText) {
-        const lines = buildWeaponTextLines(weapons);
-        const pageSize = 10;
-        const totalPages = Math.max(1, Math.ceil(lines.length / pageSize));
-        let pageIndex = 0;
-
-        const sent = await message.reply({
-          embeds: [
-            buildTextPageEmbed(
-              message.author.username,
-              "Weapon Collection",
-              lines,
-              pageIndex,
-              pageSize
-            ),
-          ],
-          components: buildTextRows(pageIndex, totalPages, "mc_weapon_text_prev", "mc_weapon_text_next"),
-        });
-
-        const collector = sent.createMessageComponentCollector({
-          time: 10 * 60 * 1000,
-        });
-
-        collector.on("collect", async (i) => {
-          if (i.user.id !== message.author.id) {
-            return i.reply({
-              content: "Only you can control this text viewer.",
-              ephemeral: true,
-            });
-          }
-
-          if (i.customId === "mc_weapon_text_prev") pageIndex = Math.max(0, pageIndex - 1);
-          if (i.customId === "mc_weapon_text_next")
-            pageIndex = Math.min(totalPages - 1, pageIndex + 1);
-
-          return i.update({
-            embeds: [
-              buildTextPageEmbed(
-                message.author.username,
-                "Weapon Collection",
-                lines,
-                pageIndex,
-                pageSize
-              ),
-            ],
-            components: buildTextRows(pageIndex, totalPages, "mc_weapon_text_prev", "mc_weapon_text_next"),
-          });
-        });
-
-        collector.on("end", async () => {
-          try {
-            await sent.edit({ components: [] });
-          } catch {}
-        });
-
-        return;
-      }
-
       let index = 0;
 
       const sent = await message.reply({
         embeds: [buildWeaponEmbed(message.author.username, weapons[index], index, weapons.length)],
-        components: buildRows("mc_weapon_prev", "mc_weapon_next", index, weapons.length),
+        components: buildRows(index, weapons.length, "mc_weapon_prev", "mc_weapon_next"),
       });
 
       const collector = sent.createMessageComponentCollector({
@@ -453,7 +432,7 @@ module.exports = {
 
         return i.update({
           embeds: [buildWeaponEmbed(message.author.username, weapons[index], index, weapons.length)],
-          components: buildRows("mc_weapon_prev", "mc_weapon_next", index, weapons.length),
+          components: buildRows(index, weapons.length, "mc_weapon_prev", "mc_weapon_next"),
         });
       });
 
@@ -465,6 +444,11 @@ module.exports = {
 
       return;
     }
+
+    const cards = (player.cards || [])
+      .map(mergeOwnedCardWithLatestTemplate)
+      .filter(Boolean)
+      .map((card) => applyBoostedDisplayStats(card, boosts));
 
     if (!cards.length) {
       return message.reply("You do not own any cards yet.");
@@ -496,16 +480,14 @@ module.exports = {
       );
     });
 
-    const wantsText = sub1 === "text" || sub2 === "text";
-
-    if (wantsText) {
-      const lines = buildCardTextLines(working);
+    if (sub1 === "text") {
+      const lines = buildTextLines(working);
       const pageSize = 10;
       const totalPages = Math.max(1, Math.ceil(lines.length / pageSize));
       let pageIndex = 0;
 
       const sent = await message.reply({
-        embeds: [buildTextPageEmbed(message.author.username, title, lines, pageIndex, pageSize)],
+        embeds: [buildTextPageEmbed(message.author.username, lines, pageIndex, pageSize)],
         components: buildTextRows(pageIndex, totalPages),
       });
 
@@ -525,7 +507,7 @@ module.exports = {
         if (i.customId === "mc_text_next") pageIndex = Math.min(totalPages - 1, pageIndex + 1);
 
         return i.update({
-          embeds: [buildTextPageEmbed(message.author.username, title, lines, pageIndex, pageSize)],
+          embeds: [buildTextPageEmbed(message.author.username, lines, pageIndex, pageSize)],
           components: buildTextRows(pageIndex, totalPages),
         });
       });
@@ -551,7 +533,7 @@ module.exports = {
           title
         ),
       ],
-      components: buildRows("mc_prev", "mc_next", index, working.length),
+      components: buildRows(index, working.length),
     });
 
     const collector = sent.createMessageComponentCollector({
@@ -579,7 +561,7 @@ module.exports = {
             title
           ),
         ],
-        components: buildRows("mc_prev", "mc_next", index, working.length),
+        components: buildRows(index, working.length),
       });
     });
 

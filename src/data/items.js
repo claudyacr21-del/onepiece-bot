@@ -80,15 +80,6 @@ const ITEMS = {
     description: "Resets your pull usage manually.",
   },
 
-  treasureMaterialPack: {
-    name: "Treasure Material Pack",
-    amount: 1,
-    rarity: "B",
-    code: "treasure_material_pack",
-    type: "Material",
-    description: "A set of useful treasure materials.",
-  },
-
   enhancementStone: {
     name: "Enhancement Stone",
     amount: 1,
