@@ -461,61 +461,24 @@ function calculateWinReward(streakAfterWin, premiumMode) {
 }
 
 function calculateFightExp(playerTeam, won, premiumMode, island) {
-  const eligible = playerTeam.filter((unit) => {
-    const level = Number(unit.level || 1);
-    const cap = Number(unit.levelCap || 50);
-    return level < cap;
-  });
-
-  if (!eligible.length) {
-    return playerTeam.map((unit) => ({
-      instanceId: unit.instanceId,
-      expGain: 0,
-      locked: true,
-      level: Number(unit.level || 1),
-      cap: Number(unit.levelCap || 50),
-    }));
-  }
-
-  const islandOrder = Number(island?.order || 0);
-  const aliveCount = eligible.filter(
-    (unit) => Number(unit.battleHp ?? unit.hp) > 0
-  ).length;
-
-  let totalExp;
-
-  if (won) {
-    totalExp = premiumMode ? 120 : 90;
-    totalExp += islandOrder * (premiumMode ? 5 : 4);
-    totalExp += aliveCount * (premiumMode ? 12 : 9);
-  } else {
-    totalExp = premiumMode ? 72 : 54;
-    totalExp += islandOrder * (premiumMode ? 3 : 2);
-    totalExp += aliveCount * (premiumMode ? 8 : 6);
-  }
-
-  const sharedExp = Math.max(12, Math.floor(totalExp / eligible.length));
+  const BASE_WIN_EXP = 150;
+  const BASE_LOSE_EXP = 95;
 
   return playerTeam.map((unit) => {
     const level = Number(unit.level || 1);
-    const cap = Number(unit.levelCap || 50);
 
-    if (level >= cap) {
+    if (level >= 100) {
       return {
         instanceId: unit.instanceId,
         expGain: 0,
-        locked: true,
-        level,
-        cap,
       };
     }
 
+    const baseExp = won ? BASE_WIN_EXP : BASE_LOSE_EXP;
+
     return {
       instanceId: unit.instanceId,
-      expGain: applyExpBoost(sharedExp, unit.passiveBoostsApplied || {}),
-      locked: false,
-      level,
-      cap,
+      expGain: applyExpBoost(baseExp, unit.passiveBoostsApplied || {}),
     };
   });
 }
