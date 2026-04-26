@@ -15,27 +15,58 @@ function formatAtkRange(atk) {
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
+function prettifyCode(value) {
+  return String(value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
 function formatReqEntry(entry) {
   if (!entry) return "Unknown";
 
-  if (typeof entry === "string") return entry;
+  if (typeof entry === "string") {
+    return prettifyCode(entry);
+  }
 
-  return `${entry.code} M${Number(entry.stage || 1)}`;
+  const name = entry.name || entry.displayName || prettifyCode(entry.code);
+  const stage = Number(entry.stage || 1);
+
+  return `${name} M${stage}`;
+}
+
+function getReqLines(req, key, textKey) {
+  if (Array.isArray(req?.[key]) && req[key].length) {
+    return req[key].map((entry) => `↪ ${formatReqEntry(entry)}`);
+  }
+
+  if (Array.isArray(req?.[textKey]) && req[textKey].length) {
+    return req[textKey].map((entry) => `↪ ${entry}`);
+  }
+
+  return ["↪ None"];
 }
 
 function buildReqEmbed(card, stage) {
-  const req = card.awakenRequirements?.[`M${stage}`];
+  const stageCard = getStageCard(card, stage);
+  const req = stageCard.awakenRequirements?.[`M${stage}`] || card.awakenRequirements?.[`M${stage}`];
 
   if (!req) {
     return new EmbedBuilder()
       .setColor(0x2ecc71)
-      .setTitle(`ℹ️ Requirement • ${card.displayName || card.name} • M${stage}`)
+      .setTitle(`ℹ️ Requirement • ${stageCard.displayName || card.displayName || card.name} • M${stage}`)
       .setDescription("Base form.\nNo requirement.");
   }
 
+  const levelText =
+    stageCard.cardRole === "battle"
+      ? Number(req.minLevel || 0)
+      : "Not required";
+
   return new EmbedBuilder()
     .setColor(0x2ecc71)
-    .setTitle(`ℹ️ Requirement • ${card.displayName || card.name} • M${stage}`)
+    .setTitle(`ℹ️ Requirement • ${stageCard.displayName || card.displayName || card.name} • M${stage}`)
     .setDescription(
       [
         "**Requirement Panel**",
@@ -44,16 +75,16 @@ function buildReqEmbed(card, stage) {
         `↪ ${Number(req.berries || 0).toLocaleString("en-US")}`,
         "",
         "**Self Fragments Required**",
-        `↪ ${Number(req.selfFragments || 0)}x ${card.displayName || card.name}`,
+        `↪ ${Number(req.selfFragments || 0)}x ${stageCard.displayName || card.displayName || card.name}`,
         "",
         "**Level Requirement**",
-        `↪ ${card.cardRole === "battle" ? Number(req.minLevel || 0) : "Not required"}`,
+        `↪ ${levelText}`,
         "",
         "**Cards Required**",
-        ...(req.cards?.length ? req.cards.map((x) => `↪ ${formatReqEntry(x)}`) : ["↪ None"]),
+        ...getReqLines(req, "cards", "cardsText"),
         "",
         "✨ **Boosts Required**",
-        ...(req.boosts?.length ? req.boosts.map((x) => `↪ ${formatReqEntry(x)}`) : ["↪ None"]),
+        ...getReqLines(req, "boosts", "boostsText"),
       ].join("\n")
     );
 }

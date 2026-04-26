@@ -10,9 +10,13 @@ const { findOwnedCard, awakenOwnedCard } = require("../utils/evolution");
 function formatReqEntry(entry) {
   if (!entry) return "Unknown";
 
-  if (typeof entry === "string") return entry;
+  if (typeof entry === "string") {
+    return entry
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (m) => m.toUpperCase());
+  }
 
-  return `${entry.code} M${Number(entry.stage || 1)}`;
+  return `${entry.name || entry.code} M${Number(entry.stage || 1)}`;
 }
 
 function reqText(card, req) {

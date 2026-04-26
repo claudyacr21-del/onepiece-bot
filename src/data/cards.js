@@ -303,6 +303,51 @@ function reqBoost(code, m2Stage = 1, m3Stage = 2) {
   };
 }
 
+const BOOST_CANON_CARD_REQUIREMENTS = {
+  nika_drums: [reqCard("luffy_straw_hat", 1, 2)],
+  wado_ichimonji_spirit: [reqCard("zoro_pirate_hunter", 1, 2)],
+  weather_science: [reqCard("nami_cat_burglar", 1, 2)],
+  sniper_focus: [reqCard("usopp_sniper", 1, 2)],
+  germa_lineage_factor: [reqCard("sanji_black_leg", 1, 2)],
+  tsuru_tactical_support: [reqCard("smoker_white_hunter", 1, 2)],
+  suna_suna_core: [reqCard("crocodile_desert_king", 1, 2)],
+  ohara_will: [reqCard("nico_robin_devil_child", 1, 2)],
+  goro_goro_core: [reqCard("enel_god", 1, 2)],
+  cola_engine: [reqCard("franky_cyborg", 1, 2)],
+  rokushiki_manual: [reqCard("lucci_cp9", 1, 2)],
+  soul_solid: [reqCard("brook_soul_king", 1, 2)],
+  shadow_core: [reqCard("gecko_moria", 1, 2)],
+  kuja_haki: [reqCard("boa_hancock", 1, 2)],
+  fishman_karate_scroll: [reqCard("jinbe_first_son_of_the_sea", 1, 2)],
+  mera_mera_will: [reqCard("ace_fire_fist", 1, 2)],
+  gura_gura_will: [reqCard("whitebeard_strongest_man", 1, 2)],
+  fist_of_love: [reqCard("garp_hero_of_the_marines", 1, 2)],
+  golden_buddha_mandate: [reqCard("sengoku_buddha", 1, 2)],
+  magma_core: [reqCard("akainu", 1, 2)],
+  ice_core: [reqCard("aokiji", 1, 2)],
+  light_core: [reqCard("kizaru", 1, 2)],
+  darkness_core: [reqCard("blackbeard_emperor_of_darkness", 1, 2)],
+  ope_ope_notes: [reqCard("law_surgeon_of_death", 1, 2)],
+  magnet_core: [reqCard("kid_captain", 1, 2)],
+  ito_ito_awakening: [reqCard("doflamingo_heavenly_demon", 1, 2)],
+  gravity_sheath: [reqCard("fujitora", 1, 2)],
+  future_sight: [reqCard("katakuri_strongest_sweet_commander", 1, 2)],
+  soru_soru_soul: [reqCard("big_mom_emperor", 1, 2)],
+  lunarian_flame: [reqCard("king_wildfire", 1, 2)],
+  plague_tech: [reqCard("queen_the_plague", 1, 2)],
+  beast_core: [reqCard("kaido_strongest_creature", 1, 2)],
+  oni_lineage: [reqCard("yamato_oni_princess", 1, 2)],
+  forest_core: [reqCard("greenbull", 1, 2)],
+  supreme_haki: [reqCard("shanks_red_hair", 1, 2)],
+  black_blade_yoru: [reqCard("mihawk_hawk_eyes", 1, 2)],
+  chaos_core: [reqCard("xebec_captain_of_rocks", 1, 2)],
+  storm_mandate: [reqCard("dragon_revolutionary_leader", 1, 2)],
+  empty_throne_edict: [reqCard("imu", 1, 2)],
+  holy_knight_sigil: [reqCard("garling", 1, 2)],
+  giant_curse: [reqCard("loki", 1, 2)],
+  samurai_spirit: [reqCard("oden", 1, 2)],
+};
+
 const CANON_LINKS = {
   luffy_straw_hat: {
     cards: [
@@ -756,18 +801,45 @@ function inferForms(card) {
   return SPECIAL_FORMS[card.code] || [card.variant || card.title || "Base", `${card.variant || card.title || "Base"} Awakened`, `${card.variant || card.title || "Base"} Final`];
 }
 
+function getAllCardTemplatesForReqName() {
+  return [
+    ...BASE_CARDS,
+    ...EXTRA_CANON_CARDS,
+    ...EXTRA_REQ_SUPPORT,
+    ...EXTRA_CHARACTER_CARDS,
+  ];
+}
+
+function prettifyCode(code) {
+  return String(code || "")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function getReqDisplayName(code) {
+  const found = getAllCardTemplatesForReqName().find(
+    (card) => String(card.code || "").toLowerCase() === String(code || "").toLowerCase()
+  );
+
+  return found?.displayName || found?.name || found?.title || prettifyCode(code);
+}
+
 function normalizeReqEntry(entry, stage) {
   if (!entry) return null;
 
   if (typeof entry === "string") {
     return {
       code: entry,
+      name: getReqDisplayName(entry),
       stage: stage === 2 ? 1 : 2,
     };
   }
 
   return {
     code: entry.code,
+    name: entry.name || getReqDisplayName(entry.code),
     stage: Number(entry[`M${stage}`] || entry.stage || (stage === 2 ? 1 : 2)),
   };
 }
@@ -775,9 +847,9 @@ function normalizeReqEntry(entry, stage) {
 function formatReqEntry(entry) {
   if (!entry) return "";
 
-  if (typeof entry === "string") return entry;
+  if (typeof entry === "string") return getReqDisplayName(entry);
 
-  return `${entry.code} M${Number(entry.stage || 1)}`;
+  return `${entry.name || getReqDisplayName(entry.code)} M${Number(entry.stage || 1)}`;
 }
 
 function getRequirementCost(baseTier, stage, cardRole) {
@@ -817,30 +889,34 @@ function inferRequirements(card, stage) {
 
   const baseTier = cleanBaseTier(card);
   const costs = getRequirementCost(baseTier, stage, card.cardRole);
+  const isBoost = card.cardRole === "boost";
 
-  if (baseTier === "C") {
+  const links = isBoost
+    ? {
+        cards: BOOST_CANON_CARD_REQUIREMENTS[card.code] || [],
+        boosts: [],
+      }
+    : CANON_LINKS[card.code] || {
+        cards: [],
+        boosts: [],
+      };
+
+  if (baseTier === "C" && !isBoost) {
     return {
       berries: costs.berries,
       selfFragments: costs.fragments,
-      minLevel: card.cardRole === "battle" ? costs.minLevel : 0,
+      minLevel: costs.minLevel,
       cards: [],
       boosts: [],
       cardsText: [],
       boostsText: [],
-      text:
-        card.cardRole === "boost"
-          ? "Low-tier boost path needs berries and fragments."
-          : "Low-tier battle path needs berries, fragments, and level.",
+      text: "Low-tier battle path needs berries, fragments, and level.",
     };
   }
 
-  const links = CANON_LINKS[card.code] || {
-    cards: [],
-    boosts: [],
-  };
-
-  const cardCount =
-    baseTier === "B"
+  const cardCount = isBoost
+    ? 1
+    : baseTier === "B"
       ? stage === 2
         ? 1
         : 2
@@ -848,20 +924,14 @@ function inferRequirements(card, stage) {
         ? 2
         : 3;
 
-  const boostCount = baseTier === "B" ? 1 : stage === 2 ? 1 : 2;
-
-  const fallbackBoost = {
-    code: `${card.code}_legacy`,
-    M2: 1,
-    M3: 2,
-  };
+  const boostCount = isBoost ? 0 : baseTier === "B" ? 1 : stage === 2 ? 1 : 2;
 
   const cardsRequired = (links.cards || [])
     .slice(0, cardCount)
     .map((entry) => normalizeReqEntry(entry, stage))
     .filter((entry) => entry?.code);
 
-  const boostsRequired = (links.boosts?.length ? links.boosts : [fallbackBoost])
+  const boostsRequired = (links.boosts || [])
     .slice(0, boostCount)
     .map((entry) => normalizeReqEntry(entry, stage))
     .filter((entry) => entry?.code);
@@ -869,13 +939,14 @@ function inferRequirements(card, stage) {
   return {
     berries: costs.berries,
     selfFragments: costs.fragments,
-    minLevel: card.cardRole === "battle" ? costs.minLevel : 0,
+    minLevel: isBoost ? 0 : costs.minLevel,
     cards: cardsRequired,
     boosts: boostsRequired,
     cardsText: cardsRequired.map(formatReqEntry),
     boostsText: boostsRequired.map(formatReqEntry),
-    text:
-      baseTier === "B"
+    text: isBoost
+      ? "Canon-linked boost awaken path with 1 staged character requirement."
+      : baseTier === "B"
         ? "Canon-linked B-tier awaken path with staged card/boost requirements."
         : baseTier === "A"
           ? "Canon-linked advanced awaken path with staged card/boost requirements."
