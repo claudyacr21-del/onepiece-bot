@@ -110,6 +110,38 @@ function findWeaponTemplate(value) {
   );
 }
 
+function getFragmentAmount(player, target) {
+  const code = normalize(target?.code);
+  const name = normalize(target?.displayName || target?.name);
+  const fragments = Array.isArray(player?.fragments) ? player.fragments : [];
+
+  const found = fragments.find((entry) => {
+    const entryCode = normalize(entry.code);
+    const entryName = normalize(entry.name || entry.displayName);
+
+    return (
+      (code && entryCode && entryCode === code) ||
+      (name && entryName && entryName === name) ||
+      (code && entryName && entryName === code) ||
+      (name && entryCode && entryCode === name)
+    );
+  });
+
+  return Math.max(0, Number(found?.amount || 0));
+}
+
+function getOwnerSignature(item) {
+  const owners = Array.isArray(item?.owners) ? item.owners.filter(Boolean) : [];
+
+  if (owners.length) return owners.join(", ");
+
+  if (item?.ownerSignature) return String(item.ownerSignature);
+  if (item?.signature) return String(item.signature);
+  if (item?.owner) return String(item.owner);
+
+  return "None";
+}
+
 function getWeaponPercentAtLevel(basePercent, level) {
   const lv = Math.max(0, Number(level || 0));
 
@@ -232,7 +264,7 @@ function findOwnedWeapon(player, query) {
   return scored.length ? scored[0].weapon : null;
 }
 
-function buildOwnedFruitEmbed(ownerName, fruit) {
+function buildOwnedFruitEmbed(ownerName, player, fruit) {
   const percent = fruit.statPercent || fruit.statBonus || {
     atk: 0,
     hp: 0,
@@ -243,6 +275,8 @@ function buildOwnedFruitEmbed(ownerName, fruit) {
     Array.isArray(fruit.equippedOn) && fruit.equippedOn.length
       ? fruit.equippedOn.join(", ")
       : "Not equipped";
+
+  const fragments = getFragmentAmount(player, fruit);
 
   return new EmbedBuilder()
     .setColor(0x9b59b6)
@@ -257,10 +291,12 @@ function buildOwnedFruitEmbed(ownerName, fruit) {
         `ATK: +${Number(percent.atk || 0)}%`,
         `HP: +${Number(percent.hp || 0)}%`,
         `SPD: +${Number(percent.speed || 0)}%`,
-        `Owned Amount: ${Math.max(0, Number(fruit.amount || 0))}`,
+        `Owner Signature: ${getOwnerSignature(fruit)}`,
         `Equipped On: ${equippedText}`,
         "",
         `${fruit.description || "No description."}`,
+        "",
+        `Fragment: ${fragments}`,
       ].join("\n")
     )
     .setThumbnail(getRarityBadge(fruit.rarity || "B") || null)
@@ -270,7 +306,7 @@ function buildOwnedFruitEmbed(ownerName, fruit) {
     });
 }
 
-function buildOwnedWeaponEmbed(ownerName, weapon) {
+function buildOwnedWeaponEmbed(ownerName, player, weapon) {
   const percent = getWeaponPercentAtLevel(
     weapon.statPercent || weapon.statBonus || {
       atk: 0,
@@ -285,6 +321,8 @@ function buildOwnedWeaponEmbed(ownerName, weapon) {
       ? weapon.equippedOn.join(", ")
       : "Not equipped";
 
+  const fragments = getFragmentAmount(player, weapon);
+
   return new EmbedBuilder()
     .setColor(0x3498db)
     .setTitle(`${ownerName}'s Weapon`)
@@ -298,11 +336,13 @@ function buildOwnedWeaponEmbed(ownerName, weapon) {
         `ATK: +${Number(percent.atk || 0)}%`,
         `HP: +${Number(percent.hp || 0)}%`,
         `SPD: +${Number(percent.speed || 0)}%`,
-        `Owned Amount: ${Math.max(0, Number(weapon.amount || 0))}`,
+        `Owner Signature: ${getOwnerSignature(weapon)}`,
         `Best Upgrade: +${Math.max(0, Number(weapon.bestUpgradeLevel || 0))}`,
         `Equipped On: ${equippedText}`,
         "",
         `${weapon.description || "No description."}`,
+        "",
+        `Fragment: ${fragments}`,
       ].join("\n")
     )
     .setThumbnail(getRarityBadge(weapon.rarity || "B") || null)
@@ -312,11 +352,12 @@ function buildOwnedWeaponEmbed(ownerName, weapon) {
     });
 }
 
-function buildOwnedCardEmbed(ownerName, card) {
+function buildOwnedCardEmbed(ownerName, player, card) {
   const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
   const form = getCurrentForm(card);
   const stageImage = getCurrentStageImage(card);
   const atkRange = formatAtkRange(card.atk);
+  const syncedFragments = getFragmentAmount(player, card);
 
   const extraLines =
     card.cardRole === "boost"
@@ -327,7 +368,7 @@ function buildOwnedCardEmbed(ownerName, card) {
           `Effect: ${card.effectText || "No effect text"}`,
           `Target: ${card.boostTarget || "team"}`,
           `Boost Type: ${card.boostType || "unknown"}`,
-          `Fragments: ${Number(card.fragments || 0)}`,
+          `Fragments: ${syncedFragments}`,
         ]
       : [
           `Form: ${card.evolutionKey || `M${stage}`}`,
@@ -341,7 +382,7 @@ function buildOwnedCardEmbed(ownerName, card) {
           `Devil Fruit: ${card.displayFruitName || "None"}`,
           `Type: ${card.type || card.cardRole}`,
           `Kills: ${Number(card.kills || 0)}`,
-          `Fragments: ${Number(card.fragments || 0)}`,
+          `Fragments: ${syncedFragments}`,
         ];
 
   return buildCardStyleEmbed({
@@ -372,7 +413,7 @@ module.exports = {
 
     if (card) {
       return message.reply({
-        embeds: [buildOwnedCardEmbed(message.author.username, card)],
+        embeds: [buildOwnedCardEmbed(message.author.username, player, card)],
       });
     }
 
@@ -380,7 +421,7 @@ module.exports = {
 
     if (ownedFruit) {
       return message.reply({
-        embeds: [buildOwnedFruitEmbed(message.author.username, ownedFruit)],
+        embeds: [buildOwnedFruitEmbed(message.author.username, player, ownedFruit)],
       });
     }
 
@@ -388,7 +429,7 @@ module.exports = {
 
     if (ownedWeapon) {
       return message.reply({
-        embeds: [buildOwnedWeaponEmbed(message.author.username, ownedWeapon)],
+        embeds: [buildOwnedWeaponEmbed(message.author.username, player, ownedWeapon)],
       });
     }
 
