@@ -780,21 +780,57 @@ function formatReqEntry(entry) {
   return `${entry.code} M${Number(entry.stage || 1)}`;
 }
 
+function getRequirementCost(baseTier, stage, cardRole) {
+  const isBoost = cardRole === "boost";
+  const stageKey = `M${stage}`;
+
+  const berryTable = {
+    C: {
+      M2: isBoost ? 75000 : 100000,
+      M3: isBoost ? 180000 : 250000,
+    },
+    B: {
+      M2: isBoost ? 120000 : 175000,
+      M3: isBoost ? 280000 : 400000,
+    },
+    A: {
+      M2: isBoost ? 180000 : 250000,
+      M3: isBoost ? 350000 : 450000,
+    },
+    S: {
+      M2: isBoost ? 250000 : 350000,
+      M3: isBoost ? 400000 : 500000,
+    },
+  };
+
+  const tierCost = berryTable[baseTier] || berryTable.C;
+
+  return {
+    berries: tierCost[stageKey] || tierCost.M2,
+    fragments: stage === 2 ? 25 : 35,
+    minLevel: stage === 2 ? 35 : 75,
+  };
+}
+
 function inferRequirements(card, stage) {
   if (stage === 1) return null;
 
   const baseTier = cleanBaseTier(card);
+  const costs = getRequirementCost(baseTier, stage, card.cardRole);
 
   if (baseTier === "C") {
     return {
-      berries: stage === 2 ? 6000 : 15000,
-      selfFragments: stage === 2 ? 10 : 25,
-      minLevel: card.cardRole === "battle" ? (stage === 2 ? 50 : 85) : 0,
+      berries: costs.berries,
+      selfFragments: costs.fragments,
+      minLevel: card.cardRole === "battle" ? costs.minLevel : 0,
       cards: [],
       boosts: [],
-      text: card.cardRole === "boost"
-        ? "Low-tier boost path only needs berries and fragments."
-        : "Low-tier battle path only needs berries, fragments, and level.",
+      cardsText: [],
+      boostsText: [],
+      text:
+        card.cardRole === "boost"
+          ? "Low-tier boost path needs berries and fragments."
+          : "Low-tier battle path needs berries, fragments, and level.",
     };
   }
 
@@ -813,7 +849,12 @@ function inferRequirements(card, stage) {
         : 3;
 
   const boostCount = baseTier === "B" ? 1 : stage === 2 ? 1 : 2;
-  const fallbackBoost = reqBoost(`${card.code}_legacy`, 1, 2);
+
+  const fallbackBoost = {
+    code: `${card.code}_legacy`,
+    M2: 1,
+    M3: 2,
+  };
 
   const cardsRequired = (links.cards || [])
     .slice(0, cardCount)
@@ -826,40 +867,13 @@ function inferRequirements(card, stage) {
     .filter((entry) => entry?.code);
 
   return {
-    berries:
-      baseTier === "B"
-        ? stage === 2
-          ? 18000
-          : 42000
-        : baseTier === "A"
-          ? stage === 2
-            ? 32000
-            : 76000
-          : stage === 2
-            ? 55000
-            : 130000,
-
-    selfFragments:
-      baseTier === "B"
-        ? stage === 2
-          ? 20
-          : 45
-        : baseTier === "A"
-          ? stage === 2
-            ? 35
-            : 75
-          : stage === 2
-            ? 50
-            : 110,
-
-    minLevel: card.cardRole === "battle" ? (stage === 2 ? 50 : 85) : 0,
-
+    berries: costs.berries,
+    selfFragments: costs.fragments,
+    minLevel: card.cardRole === "battle" ? costs.minLevel : 0,
     cards: cardsRequired,
     boosts: boostsRequired,
-
     cardsText: cardsRequired.map(formatReqEntry),
     boostsText: boostsRequired.map(formatReqEntry),
-
     text:
       baseTier === "B"
         ? "Canon-linked B-tier awaken path with staged card/boost requirements."
