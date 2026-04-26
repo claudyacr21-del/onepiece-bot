@@ -48,9 +48,7 @@ function getBoostEffectText(card, stage = 1) {
   const boostType = String(card.boostType || "").toLowerCase();
   const target = card.boostTarget || "team";
   const stageValue = getBoostStageValue(card, stage);
-  const suffix = ["atk", "hp", "spd", "exp", "dmg"].includes(boostType)
-    ? "%"
-    : "";
+  const suffix = ["atk", "hp", "spd", "exp", "dmg"].includes(boostType) ? "%" : "";
 
   if (boostType === "fragmentstorage" || boostType === "fragment_storage") {
     return `Increase ${target} fragment storage by ${stageValue}.`;
@@ -80,21 +78,88 @@ function getLuffySpecialPath(card) {
       3: 4.745,
     },
     forms: [
-      { name: "Base", tier: "A" },
-      { name: "Gear 4", tier: "SS" },
-      { name: "Gear 5", tier: "UR" },
+      {
+        name: "Base",
+        tier: "A",
+      },
+      {
+        name: "Gear 4",
+        tier: "SS",
+      },
+      {
+        name: "Gear 5",
+        tier: "UR",
+      },
     ],
   };
 }
 
 function getStageMultiplier(card, stage) {
   const special = getLuffySpecialPath(card);
+
   if (special) return special.mults[stage] || 1;
 
   if (stage === 1) return 1;
   if (stage === 2) return 3;
 
   return 3.8;
+}
+
+const LEVEL_RANGES_BY_STAGE = {
+  1: {
+    min: 1,
+    max: 50,
+    fromStage: 1,
+    toStage: 2,
+  },
+  2: {
+    min: 50,
+    max: 85,
+    fromStage: 2,
+    toStage: 3,
+  },
+  3: {
+    min: 85,
+    max: 100,
+    fromStage: 3,
+    toStage: 3,
+    finalBonus: 1.18,
+  },
+};
+
+function getCardLevel(card) {
+  return Math.max(1, Math.min(100, Number(card?.level || 1)));
+}
+
+function getLevelProgressForStage(card, stage) {
+  const range = LEVEL_RANGES_BY_STAGE[stage] || LEVEL_RANGES_BY_STAGE[1];
+  const level = getCardLevel(card);
+
+  if (level <= range.min) return 0;
+  if (level >= range.max) return 1;
+
+  return (level - range.min) / (range.max - range.min);
+}
+
+function getLevelScaledMultiplier(card, stage) {
+  const range = LEVEL_RANGES_BY_STAGE[stage] || LEVEL_RANGES_BY_STAGE[1];
+  const progress = getLevelProgressForStage(card, stage);
+
+  const fromMult = getStageMultiplier(card, range.fromStage);
+  const toMult =
+    stage === 3
+      ? getStageMultiplier(card, 3) * Number(range.finalBonus || 1)
+      : getStageMultiplier(card, range.toStage);
+
+  return fromMult + (toMult - fromMult) * progress;
+}
+
+function scaleStatByLevel(base, card, stage) {
+  return Math.floor(Number(base || 0) * getLevelScaledMultiplier(card, stage));
+}
+
+function scalePowerByLevel(basePower, card, stage) {
+  return Math.floor(Number(basePower || 0) * getLevelScaledMultiplier(card, stage));
 }
 
 function getRarityPower(rarity) {
@@ -131,13 +196,7 @@ function findCardTemplate(query) {
 
   return (
     cards.find((card) => {
-      const fields = [
-        card.code,
-        card.name,
-        card.displayName,
-        card.title,
-        card.variant,
-      ]
+      const fields = [card.code, card.name, card.displayName, card.title, card.variant]
         .filter(Boolean)
         .map(normalize);
 
@@ -150,6 +209,7 @@ function findCardTemplate(query) {
 
 function findTemplateByCode(code) {
   const q = normalize(code);
+
   return safeArray(cards).find((card) => normalize(card.code) === q) || null;
 }
 
@@ -215,12 +275,11 @@ function resolveEquippedWeapons(card) {
           hp: 0,
           speed: 0,
         },
-        ownerBonusPercent: found?.ownerBonusPercent ||
-          entry?.ownerBonusPercent || {
-            atk: 0,
-            hp: 0,
-            speed: 0,
-          },
+        ownerBonusPercent: found?.ownerBonusPercent || entry?.ownerBonusPercent || {
+          atk: 0,
+          hp: 0,
+          speed: 0,
+        },
       });
     }
 
@@ -363,25 +422,23 @@ function getBasePower(card) {
     return Number(card.basePower);
   }
 
-  return card.cardRole === "boost"
-    ? computeBoostBasePower(card)
-    : computeBattleBasePower(card);
+  return card.cardRole === "boost" ? computeBoostBasePower(card) : computeBattleBasePower(card);
 }
 
 function getPowerCaps(card) {
   const base = getBasePower(card);
 
   return {
-    M1: Math.floor(base),
+    M1: Math.floor(base * getStageMultiplier(card, 1)),
     M2: Math.floor(base * getStageMultiplier(card, 2)),
-    M3: Math.floor(base * getStageMultiplier(card, 3)),
+    M3: Math.floor(base * getStageMultiplier(card, 3) * 1.18),
   };
 }
 
 function getCurrentPower(card) {
   const stage = Math.max(1, Math.min(3, Number(card?.evolutionStage || 1)));
-  const caps = card.powerCaps || getPowerCaps(card);
-  const stagePower = Number(caps[`M${stage}`] || caps.M1 || 0);
+  const base = getBasePower(card);
+  const stagePower = scalePowerByLevel(base, card, stage);
   const equippedWeapons = card.equippedWeaponsResolved || resolveEquippedWeapons(card);
   const equippedFruit = card.equippedDevilFruitData || resolveEquippedFruit(card);
   const equipPower = getEquipmentPowerBonus(card, equippedWeapons, equippedFruit);
@@ -399,6 +456,7 @@ function hydrateCard(card) {
   const special = getLuffySpecialPath(next);
   const stage = Math.max(1, Math.min(3, Number(next.evolutionStage || 1)));
 
+  next.level = Math.max(1, Math.min(100, Number(next.level || 1)));
   next.baseAtk = Number(next.baseAtk ?? next.atk ?? 0);
   next.baseHp = Number(next.baseHp ?? next.hp ?? 0);
   next.baseSpeed = Number(next.baseSpeed ?? next.speed ?? 0);
@@ -408,8 +466,6 @@ function hydrateCard(card) {
   let scaledSpeed = 0;
 
   if (special) {
-    const mult = special.mults[stage];
-
     next.evolutionForms = [
       {
         ...special.forms[0],
@@ -434,12 +490,10 @@ function hydrateCard(card) {
     next.currentTier = special.forms[stage - 1].tier;
     next.rarity = special.forms[stage - 1].tier;
 
-    scaledAtk = Math.floor(next.baseAtk * mult);
-    scaledHp = Math.floor(next.baseHp * mult);
-    scaledSpeed = Math.floor(next.baseSpeed * mult);
+    scaledAtk = scaleStatByLevel(next.baseAtk, next, stage);
+    scaledHp = scaleStatByLevel(next.baseHp, next, stage);
+    scaledSpeed = scaleStatByLevel(next.baseSpeed, next, stage);
   } else {
-    const mult = getStageMultiplier(next, stage);
-
     next.evolutionStage = stage;
     next.evolutionKey = `M${stage}`;
 
@@ -449,9 +503,9 @@ function hydrateCard(card) {
     next.currentTier = activeForm?.tier || next.currentTier || next.rarity;
     next.rarity = next.currentTier || next.rarity;
 
-    scaledAtk = Math.floor(next.baseAtk * mult);
-    scaledHp = Math.floor(next.baseHp * mult);
-    scaledSpeed = Math.floor(next.baseSpeed * mult);
+    scaledAtk = scaleStatByLevel(next.baseAtk, next, stage);
+    scaledHp = scaleStatByLevel(next.baseHp, next, stage);
+    scaledSpeed = scaleStatByLevel(next.baseSpeed, next, stage);
   }
 
   const weaponPercent = getWeaponPercentFromData(next);
@@ -493,11 +547,7 @@ function hydrateCard(card) {
   next.displayWeaponName = getDisplayWeaponName(next, weaponPercent.equipped);
   next.displayFruitName = getDisplayFruitName(next, fruitPercent.fruit);
 
-  const equipmentPower = getEquipmentPowerBonus(
-    next,
-    weaponPercent.equipped,
-    fruitPercent.fruit
-  );
+  const equipmentPower = getEquipmentPowerBonus(next, weaponPercent.equipped, fruitPercent.fruit);
 
   next.weaponPowerBonus = equipmentPower.weaponPower;
   next.fruitPowerBonus = equipmentPower.fruitPower;
@@ -522,13 +572,7 @@ function findOwnedCard(cardsOwned, query) {
   const q = normalize(query);
 
   const found = safeArray(cardsOwned).find((card) => {
-    const fields = [
-      card.code,
-      card.name,
-      card.displayName,
-      card.title,
-      card.variant,
-    ]
+    const fields = [card.code, card.name, card.displayName, card.title, card.variant]
       .filter(Boolean)
       .map(normalize);
 
@@ -550,6 +594,7 @@ function getAllCards() {
       ...card,
       evolutionStage: 3,
       evolutionKey: "M3",
+      level: 100,
     })
   );
 }
@@ -557,9 +602,7 @@ function getAllCards() {
 function createOwnedCard(template) {
   const owned = hydrateCard({
     ...clone(template),
-    instanceId: `${template.code}_${Date.now()}_${Math.random()
-      .toString(36)
-      .slice(2, 8)}`,
+    instanceId: `${template.code}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     level: 1,
     xp: 0,
     exp: 0,
@@ -603,6 +646,9 @@ module.exports = {
   findOwnedCard,
   getAllCards,
   getStageMultiplier,
+  getLevelScaledMultiplier,
+  scaleStatByLevel,
+  scalePowerByLevel,
   getBasePower,
   getPowerCaps,
   getCurrentPower,

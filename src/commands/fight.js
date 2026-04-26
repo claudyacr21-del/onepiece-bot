@@ -35,7 +35,12 @@ function formatExpResults(playerTeam, expResults) {
         return `🔒 ${unit.name} is level locked at **${entry.level}/${entry.cap}**. Awaken to continue.`;
       }
 
-      return `✨ ${unit.name} gained **${entry.expGain} EXP**.`;
+      const levelUpText =
+        Number(entry.leveledUp || 0) > 0
+          ? ` • Level Up +${Number(entry.leveledUp || 0)}`
+          : "";
+
+      return `✨ ${unit.name} gained **${entry.expGain} EXP**${levelUpText}.`;
     })
     .filter(Boolean);
 }
@@ -104,9 +109,7 @@ function mergeOwnedCardWithLatestTemplate(rawCard) {
 function formatEquippedWeapons(card) {
   if (Array.isArray(card?.equippedWeapons) && card.equippedWeapons.length) {
     return card.equippedWeapons
-      .map((w) =>
-        `${w.name}${Number(w.upgradeLevel || 0) > 0 ? ` +${w.upgradeLevel}` : ""}`
-      )
+      .map((w) => `${w.name}${Number(w.upgradeLevel || 0) > 0 ? ` +${w.upgradeLevel}` : ""}`)
       .join(", ");
   }
 
@@ -157,10 +160,11 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   };
 }
 
-function createEnemy(name, rarity, atk, hp, speed) {
+function createEnemy(name, rarity, atk, hp, speed, level = 1) {
   return {
     name,
     rarity,
+    level: Math.max(1, Math.min(100, Number(level || 1))),
     atk,
     hp,
     maxHp: hp,
@@ -268,16 +272,20 @@ function createIslandEnemyTemplates(island) {
 }
 
 function scaleEnemy(enemy) {
-  const atkMult = randomInt(92, 112) / 100;
-  const hpMult = randomInt(95, 118) / 100;
-  const speedMult = randomInt(95, 110) / 100;
+  const level = randomInt(1, 100);
+  const levelMultiplier = 1 + (level - 1) * 0.012;
+
+  const atkMult = (randomInt(92, 112) / 100) * levelMultiplier;
+  const hpMult = (randomInt(95, 118) / 100) * levelMultiplier;
+  const speedMult = (randomInt(95, 110) / 100) * (1 + (level - 1) * 0.004);
 
   return createEnemy(
     enemy.name,
     enemy.rarity,
     Math.floor(enemy.atk * atkMult),
     Math.floor(enemy.hp * hpMult),
-    Math.floor(enemy.speed * speedMult)
+    Math.floor(enemy.speed * speedMult),
+    level
   );
 }
 
@@ -338,7 +346,6 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode,
     return [
       `**${unit.slot}. ${unit.name}**`,
       `[${unit.rarity}] • ATK \`${formatAtkRange(unit.battleAtk)}\` • SPD \`${unit.battleSpeed}\` • LV \`${unit.level}/${unit.levelCap}\``,
-      `↪ EXP: ${unit.expText}`,
       `↪ Weapon: ${unit.equippedWeapon}`,
       `↪ Fruit: ${unit.equippedDevilFruit}`,
       renderHpBar(unit.battleHp, unit.battleMaxHp),
@@ -348,7 +355,7 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode,
   const enemyLines = enemyTeam.map((unit, index) => {
     return [
       `**${index + 1}. ${unit.name}**`,
-      `[${unit.rarity}] • ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
+      `[${unit.rarity}] • LV \`${unit.level || 1}\` • ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
       renderHpBar(unit.hp, unit.maxHp),
     ].join("\n");
   });
@@ -460,17 +467,22 @@ function calculateWinReward(streakAfterWin, premiumMode) {
   return reward;
 }
 
-function calculateFightExp(playerTeam, won, premiumMode, island) {
+function calculateFightExp(playerTeam, won) {
   const BASE_WIN_EXP = 150;
   const BASE_LOSE_EXP = 95;
 
   return playerTeam.map((unit) => {
     const level = Number(unit.level || 1);
+    const cap = Number(unit.levelCap || 50);
 
-    if (level >= 100) {
+    if (level >= cap) {
       return {
         instanceId: unit.instanceId,
         expGain: 0,
+        locked: true,
+        level,
+        cap,
+        leveledUp: 0,
       };
     }
 
@@ -479,6 +491,10 @@ function calculateFightExp(playerTeam, won, premiumMode, island) {
     return {
       instanceId: unit.instanceId,
       expGain: applyExpBoost(baseExp, unit.passiveBoostsApplied || {}),
+      locked: false,
+      level,
+      cap,
+      leveledUp: 0,
     };
   });
 }
@@ -498,8 +514,8 @@ function isMotherFlamePremium(player) {
   return Number(player?.boosts?.motherFlameFight || 0) > 0;
 }
 
-function applyFightLoss(message, player, playerTeam, premiumMode, island) {
-  const expResults = calculateFightExp(playerTeam, false, premiumMode, island);
+function applyFightLoss(message, player, playerTeam) {
+  const expResults = calculateFightExp(playerTeam, false);
 
   const updatedCards = [...(player.cards || [])].map((card) => {
     const expEntry = expResults.find((entry) => entry.instanceId === card.instanceId);
@@ -517,6 +533,8 @@ function applyFightLoss(message, player, playerTeam, premiumMode, island) {
       },
       expEntry.expGain
     );
+
+    expEntry.leveledUp = Number(nextCard.leveledUp || 0);
 
     return {
       ...nextCard,
@@ -540,7 +558,7 @@ function applyFightLoss(message, player, playerTeam, premiumMode, island) {
 
 module.exports = {
   name: "fight",
-  aliases: ["f"],
+  aliases: ["battle"],
 
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
@@ -635,15 +653,10 @@ module.exports = {
 
       if (interaction.customId === "fight_run") {
         battleEnded = true;
-
+        logs.length = 0;
         logs.push("🏃 You ran away from the fight.");
-        const expResults = applyFightLoss(
-          message,
-          player,
-          playerTeam,
-          premiumMode,
-          currentIsland
-        );
+
+        const expResults = applyFightLoss(message, player, playerTeam);
         const expLines = formatExpResults(playerTeam, expResults);
 
         await interaction.update({
@@ -709,16 +722,11 @@ module.exports = {
           updatedBoxes = addOrIncrease(updatedBoxes, item);
         });
 
-        const expResults = calculateFightExp(playerTeam, true, premiumMode, currentIsland);
-        const expLines = formatExpResults(playerTeam, expResults);
+        const expResults = calculateFightExp(playerTeam, true);
 
         const updatedCards = [...(player.cards || [])].map((card) => {
-          const expEntry = expResults.find(
-            (entry) => entry.instanceId === card.instanceId
-          );
-          const unit = playerTeam.find(
-            (entry) => entry.instanceId === card.instanceId
-          );
+          const expEntry = expResults.find((entry) => entry.instanceId === card.instanceId);
+          const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
 
           if (!expEntry || !unit) return card;
 
@@ -733,11 +741,15 @@ module.exports = {
             expEntry.expGain
           );
 
+          expEntry.leveledUp = Number(nextCard.leveledUp || 0);
+
           return {
             ...nextCard,
             kills: Number(unit.kills || 0),
           };
         });
+
+        const expLines = formatExpResults(playerTeam, expResults);
 
         let updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
 
@@ -806,13 +818,7 @@ module.exports = {
       if (!getAliveUnits(playerTeam).length) {
         battleEnded = true;
 
-        const expResults = applyFightLoss(
-          message,
-          player,
-          playerTeam,
-          premiumMode,
-          currentIsland
-        );
+        const expResults = applyFightLoss(message, player, playerTeam);
         const expLines = formatExpResults(playerTeam, expResults);
 
         logs.push("💀 You lost the fight.");
@@ -855,16 +861,10 @@ module.exports = {
       if (reason === "time" && !battleEnded) {
         try {
           battleEnded = true;
-
+          logs.length = 0;
           logs.push("⌛ No interaction for 5 minutes. You lost the fight.");
 
-          const expResults = applyFightLoss(
-            message,
-            player,
-            playerTeam,
-            premiumMode,
-            currentIsland
-          );
+          const expResults = applyFightLoss(message, player, playerTeam);
           const expLines = formatExpResults(playerTeam, expResults);
 
           await reply.edit({
