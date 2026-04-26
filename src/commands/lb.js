@@ -8,17 +8,46 @@ const { hydrateCard } = require("../utils/evolution");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 
+const ARENA_START_RANK = 500;
+const ARENA_POINTS_PER_RANK = 10;
+
 function normalize(value) {
   return String(value || "").toLowerCase().trim();
 }
 
 function getArenaRankFromPoints(points) {
   const safePoints = Math.max(0, Number(points || 0));
-  return Math.max(1, 1000 - Math.floor(safePoints / 10));
+  return Math.max(1, ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK));
 }
 
 function formatArenaRank(points) {
   return `#${getArenaRankFromPoints(points)}`;
+}
+
+function getArenaBotRows() {
+  return [
+    {
+      username: "Pirate King Bot",
+      points: (ARENA_START_RANK - 1) * ARENA_POINTS_PER_RANK,
+      wins: 999,
+      losses: 0,
+      isBot: true,
+    },
+    {
+      username: "Yonko Bot",
+      points: (ARENA_START_RANK - 2) * ARENA_POINTS_PER_RANK,
+      wins: 850,
+      losses: 12,
+      isBot: true,
+    },
+    {
+      username: "Grand Champion Bot",
+      points: (ARENA_START_RANK - 3) * ARENA_POINTS_PER_RANK,
+      wins: 700,
+      losses: 25,
+      isBot: true,
+    },
+  ];
 }
 
 function getRarityPower(rarity) {
@@ -122,6 +151,7 @@ function getInventoryFruitsPower(player) {
     if (!template) return sum;
 
     const amount = Math.max(0, Number(entry.amount || 0));
+
     return sum + getFruitPowerByRarity(template.rarity) * amount;
   }, 0);
 }
@@ -135,6 +165,7 @@ function getEquippedFruitsPower(player) {
     const template = findFruitTemplate(
       rawCard.equippedDevilFruitName || rawCard.equippedDevilFruit
     );
+
     if (!template) return sum;
 
     return sum + getFruitPowerByRarity(template.rarity);
@@ -158,24 +189,37 @@ function getPlayerCollectionPower(player) {
 }
 
 function getArenaRows(players) {
-  return players
+  const realPlayers = players
     .map((player) => ({
       username: player.username || "Unknown",
       points: Number(player?.arena?.points || 0),
       wins: Number(player?.arena?.wins || 0),
       losses: Number(player?.arena?.losses || 0),
+      matches: Number(player?.arena?.matches || 0),
+      isBot: false,
     }))
+    .filter((entry) => entry.matches > 0 || entry.points > 0 || entry.wins > 0 || entry.losses > 0);
+
+  const rows = [...getArenaBotRows(), ...realPlayers]
     .sort((a, b) => {
+      const rankA = getArenaRankFromPoints(a.points);
+      const rankB = getArenaRankFromPoints(b.points);
+
+      if (rankA !== rankB) return rankA - rankB;
       if (b.points !== a.points) return b.points - a.points;
       if (b.wins !== a.wins) return b.wins - a.wins;
       if (a.losses !== b.losses) return a.losses - b.losses;
+      if (a.isBot !== b.isBot) return a.isBot ? -1 : 1;
+
       return String(a.username).localeCompare(String(b.username));
     })
-    .slice(0, 10)
-    .map(
-      (entry, index) =>
-        `${index + 1}. ${formatArenaRank(entry.points)} **${entry.username}** • ${entry.points} pts • ${entry.wins}W/${entry.losses}L`
-    );
+    .slice(0, 10);
+
+  return rows.map((entry) => {
+    const tag = entry.isBot ? "BOT" : "PLAYER";
+
+    return `${formatArenaRank(entry.points)} **${entry.username}** • ${entry.points} pts • ${entry.wins}W/${entry.losses}L • ${tag}`;
+  });
 }
 
 function getPowerRows(players) {
@@ -203,9 +247,16 @@ function buildLeaderboardEmbed(mode = null) {
     return new EmbedBuilder()
       .setColor(0x5865f2)
       .setTitle("Arena Leaderboard")
-      .setDescription(rows.length ? rows.join("\n") : "No arena data yet.")
+      .setDescription(
+        [
+          rows.length ? rows.join("\n") : "No arena data yet.",
+          "",
+          `Arena starts at **#${ARENA_START_RANK}** and climbs upward with points.`,
+          "Top ranks are guarded by Arena Bots until players overtake them.",
+        ].join("\n")
+      )
       .setFooter({
-        text: "Arena starts from rank #1000 and climbs upward with points",
+        text: "One Piece Bot • Arena Leaderboard",
       });
   }
 

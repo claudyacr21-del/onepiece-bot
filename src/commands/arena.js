@@ -26,9 +26,12 @@ function getDateKey() {
   ).padStart(2, "0")}`;
 }
 
+const ARENA_START_RANK = 500;
+const ARENA_POINTS_PER_RANK = 10;
+
 function getArenaRankFromPoints(points) {
   const safePoints = Math.max(0, Number(points || 0));
-  return Math.max(1, 1000 - Math.floor(safePoints / 10));
+  return Math.max(1, ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK));
 }
 
 function formatArenaRank(points) {
@@ -309,9 +312,9 @@ function buildArenaLobbyEmbed(player, opponents) {
   const usesLeft = getArenaUsesLeft(arena);
   const playerPoints = Number(arena.points || 0);
 
-  const rows = opponents.slice(0, 10).map((entry, index) => {
+  const rows = opponents.slice(0, 10).map((entry) => {
     const tag = entry.isBot ? "BOT" : "PLAYER";
-    return `${index + 1}. ${formatArenaRank(entry.points)} • **${entry.username}** • ${entry.points} pts • ${tag}`;
+    return `${formatArenaRank(entry.points)} • **${entry.username}** • ${entry.points} pts • ${tag}`;
   });
 
   return new EmbedBuilder()
@@ -534,19 +537,33 @@ function buildBotTeam(points, botIndex) {
   );
 }
 
-function buildBotOpponents(playerPoints, count = 6) {
-  const offsets = [-20, -10, 0, 10, 30, 50, 70, 90, 120, 150];
+function getPointsForArenaRank(rank) {
+  return Math.max(0, (ARENA_START_RANK - Number(rank || ARENA_START_RANK)) * ARENA_POINTS_PER_RANK);
+}
 
-  return Array.from({ length: count }).map((_, index) => {
-    const offset = offsets[index % offsets.length];
-    const botPoints = Math.max(0, playerPoints + offset);
+function buildBotOpponents(playerPoints, count = 6) {
+  const playerRank = getArenaRankFromPoints(playerPoints);
+
+  const rankTargets =
+    playerRank >= 450
+      ? [500, 499, 498, 495, 490, 480, 450, 400]
+      : [playerRank - 2, playerRank - 1, playerRank, playerRank + 1, playerRank + 2, 250, 100, 1];
+
+  return rankTargets.slice(0, count).map((rank, index) => {
+    const safeRank = Math.max(1, Math.min(ARENA_START_RANK, Number(rank || ARENA_START_RANK)));
+    const botPoints = getPointsForArenaRank(safeRank);
 
     return {
       userId: `bot-${index}`,
-      username: `Arena Bot ${index + 1}`,
+      username:
+        safeRank === 1
+          ? "Pirate King Bot"
+          : safeRank <= 10
+            ? `Yonko Arena Bot ${index + 1}`
+            : `Arena Bot ${index + 1}`,
       points: botPoints,
-      wins: 0,
-      losses: 0,
+      wins: safeRank === 1 ? 999 : Math.max(0, ARENA_START_RANK - safeRank),
+      losses: safeRank === 1 ? 0 : Math.floor(index * 2),
       isBot: true,
       teamUnits: buildBotTeam(botPoints, index),
     };
