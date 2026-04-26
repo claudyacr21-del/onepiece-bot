@@ -334,7 +334,9 @@ function buildOpponentMenu(opponents) {
         .addOptions(
           opponents.slice(0, 25).map((opponent, index) => ({
             label: `${formatArenaRank(opponent.points)} • ${opponent.username}`.slice(0, 100),
-            description: `${opponent.points} pts • ${opponent.isBot ? "Bot opponent" : "Player opponent"}`.slice(0, 100),
+            description: `${opponent.points} pts • ${
+              opponent.isBot ? "Bot opponent" : "Player opponent"
+            }`.slice(0, 100),
             value: String(index),
           }))
         )
@@ -370,7 +372,9 @@ function buildArenaDescription({
     teamSummary(enemyTeam),
     "",
     "## Battle Log",
-    ...(recentLogs.length ? recentLogs : ["Choose one of your cards to attack. The target starts from opponent slot 1. SPD decides turn order."]),
+    ...(recentLogs.length
+      ? recentLogs
+      : ["Choose one of your cards to attack. Target starts from opponent slot 1. SPD decides turn order."]),
   ].join("\n");
 }
 
@@ -640,6 +644,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
     if (interaction.customId === "arena_forfeit") {
       ended = true;
       result = "lose";
+      logs.length = 0;
       logs.push("🏳️ You forfeited the arena battle.");
       currentArena = updateArenaPlayer(message, result);
 
@@ -679,13 +684,16 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       });
     }
 
+    logs.length = 0;
+
     const [first, second] = resolveSpeedOrder(playerAttacker, enemyTarget);
     const firstIsPlayer = first.ownerTag !== "opponent" && first.ownerTag !== "bot";
     const firstTarget = firstIsPlayer ? enemyTarget : playerAttacker;
     const firstDamage = performAttack(first, firstTarget);
 
     logs.push(`⚡ ${first.name} moved first by SPD.`);
-    logs.push(`⚔️ ${first.name} dealt **${firstDamage}** damage to ${firstTarget.name}.`);
+    logs.push(`⚔️ ${first.name} attacked ${firstTarget.name}.`);
+    logs.push(`➡️ ${first.name} dealt **${firstDamage}** damage to ${firstTarget.name}.`);
 
     if (Number(firstTarget.hp || 0) <= 0) {
       logs.push(`☠️ ${firstTarget.name} was defeated and cannot counter.`);
@@ -737,11 +745,12 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       return;
     }
 
-    if (Number(second.hp || 0) > 0) {
+    if (Number(second.hp || 0) > 0 && Number(firstTarget.hp || 0) > 0) {
       const secondTarget = firstIsPlayer ? playerAttacker : enemyTarget;
       const secondDamage = performAttack(second, secondTarget);
 
-      logs.push(`💥 ${second.name} countered for **${secondDamage}** damage to ${secondTarget.name}.`);
+      logs.push(`💥 ${second.name} countered ${secondTarget.name}.`);
+      logs.push(`⬅️ ${second.name} dealt **${secondDamage}** damage to ${secondTarget.name}.`);
 
       if (Number(secondTarget.hp || 0) <= 0) {
         logs.push(`☠️ ${secondTarget.name} was defeated.`);
@@ -817,6 +826,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
     if (reason === "time") {
       ended = true;
       result = resolveNoDrawResult(myTeam, enemyTeam);
+      logs.length = 0;
       logs.push("⌛ Arena battle timed out. Result decided by remaining units and HP.");
       currentArena = updateArenaPlayer(message, result);
 

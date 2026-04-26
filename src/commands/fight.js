@@ -719,17 +719,20 @@ module.exports = {
         });
       }
 
+      logs.length = 0;
+
       const damage = performAttack(
         attacker,
         target,
         attacker.passiveBoostsApplied || combatBoosts
       );
 
-      logs.push(`⚔️ ${attacker.name} dealt **${damage}** damage to ${target.name}.`);
+      logs.push(`⚔️ ${attacker.name} attacked ${target.name}.`);
+      logs.push(`➡️ ${attacker.name} dealt **${damage}** damage to ${target.name}.`);
 
       if (Number(target.battleHp ?? target.hp) <= 0) {
         attacker.kills += 1;
-        logs.push(`☠️ ${target.name} was defeated.`);
+        logs.push(`☠️ ${target.name} was defeated and cannot counter.`);
       }
 
       if (!getAliveUnits(enemyTeam).length) {
@@ -823,23 +826,17 @@ module.exports = {
         return;
       }
 
-      const retaliationPool = getAliveUnits(enemyTeam);
+      if (
+        Number(target.battleHp ?? target.hp) > 0 &&
+        Number(attacker.battleHp ?? attacker.hp) > 0
+      ) {
+        const retaliationDamage = performAttack(target, attacker, {});
 
-      for (const enemy of retaliationPool) {
-        const retaliationTarget =
-          Number(attacker.battleHp ?? attacker.hp) > 0
-            ? attacker
-            : getFirstAlive(playerTeam);
+        logs.push(`💥 ${target.name} countered ${attacker.name}.`);
+        logs.push(`⬅️ ${target.name} dealt **${retaliationDamage}** damage to ${attacker.name}.`);
 
-        if (!retaliationTarget) break;
-
-        const retaliationDamage = performAttack(enemy, retaliationTarget, {});
-        logs.push(
-          `💥 ${enemy.name} dealt **${retaliationDamage}** damage to ${retaliationTarget.name}.`
-        );
-
-        if (Number(retaliationTarget.battleHp ?? retaliationTarget.hp) <= 0) {
-          logs.push(`☠️ ${retaliationTarget.name} was defeated.`);
+        if (Number(attacker.battleHp ?? attacker.hp) <= 0) {
+          logs.push(`☠️ ${attacker.name} was defeated.`);
         }
       }
 

@@ -41,11 +41,12 @@ function formatDevilFruit(card) {
   );
 }
 
-function buildBattleUnit(card, slot) {
+function buildBattleUnit(card, slot, ownerTag = "player") {
   const synced = hydrateCard(card);
 
   return {
     slot: slot + 1,
+    ownerTag,
     instanceId: synced.instanceId,
     name: synced.displayName || synced.name || "Unknown",
     rarity: synced.currentTier || synced.rarity || "C",
@@ -60,7 +61,7 @@ function buildBattleUnit(card, slot) {
   };
 }
 
-function getTeamUnits(player) {
+function getTeamUnits(player, ownerTag = "player") {
   const cards = (Array.isArray(player.cards) ? player.cards : [])
     .map(hydrateCard)
     .filter(Boolean);
@@ -79,7 +80,7 @@ function getTeamUnits(player) {
           String(card.cardRole || "").toLowerCase() !== "boost"
       );
 
-      return found ? buildBattleUnit(found, index) : null;
+      return found ? buildBattleUnit(found, index, ownerTag) : null;
     })
     .filter(Boolean);
 }
@@ -96,20 +97,6 @@ function getFirstAlive(units) {
   return units.find((unit) => Number(unit.hp || 0) > 0) || null;
 }
 
-function pickTarget(units) {
-  const alive = getAliveUnits(units);
-
-  if (!alive.length) return null;
-
-  alive.sort((a, b) => {
-    if (b.speed !== a.speed) return b.speed - a.speed;
-    if (b.power !== a.power) return b.power - a.power;
-    return a.slot - b.slot;
-  });
-
-  return alive[0];
-}
-
 function performAttack(attacker, defender) {
   const atk = Number(attacker.atk || 0);
   const defSpeed = Number(defender.speed || 0);
@@ -119,6 +106,21 @@ function performAttack(attacker, defender) {
   defender.hp = Math.max(0, Number(defender.hp || 0) - rawDamage);
 
   return rawDamage;
+}
+
+function resolveSpeedOrder(playerUnit, enemyUnit) {
+  const playerSpeed = Number(playerUnit?.speed || 0);
+  const enemySpeed = Number(enemyUnit?.speed || 0);
+
+  if (playerSpeed > enemySpeed) return [playerUnit, enemyUnit];
+  if (enemySpeed > playerSpeed) return [enemyUnit, playerUnit];
+
+  const playerPower = Number(playerUnit?.power || 0);
+  const enemyPower = Number(enemyUnit?.power || 0);
+
+  if (playerPower >= enemyPower) return [playerUnit, enemyUnit];
+
+  return [enemyUnit, playerUnit];
 }
 
 function renderHpBar(hp, maxHp, size = 10) {
@@ -198,7 +200,9 @@ function buildChallengeEmbed({ player, targetPlayer, myTeam, enemyTeam, logs, re
         teamSummary(enemyTeam),
         "",
         "## Battle Log",
-        ...(recentLogs.length ? recentLogs : ["Choose one of your cards to attack."]),
+        ...(recentLogs.length
+          ? recentLogs
+          : ["Choose one of your cards to attack. Target starts from opponent slot 1. SPD decides turn order."]),
       ].join("\n")
     )
     .setFooter({
@@ -267,8 +271,8 @@ module.exports = {
 
     const player = getPlayer(message.author.id, message.author.username);
     const targetPlayer = getPlayer(targetUser.id, targetUser.username);
-    const myTeam = getTeamUnits(player);
-    const enemyTeam = getTeamUnits(targetPlayer);
+    const myTeam = getTeamUnits(player, "player");
+    const enemyTeam = getTeamUnits(targetPlayer, "opponent");
 
     if (myTeam.length < 3) {
       return message.reply("You need a full team of 3 battle cards to use `op challenge`.");
@@ -319,6 +323,7 @@ module.exports = {
       if (interaction.customId === "challenge_forfeit") {
         ended = true;
         result = "lose";
+        logs.length = 0;
         logs.push("🏳️ You forfeited the challenge.");
 
         await interaction.update({
@@ -347,7 +352,7 @@ module.exports = {
         });
       }
 
-      const target = pickTarget(enemyTeam);
+      const target = getFirstAlive(enemyTeam);
 
       if (!target) {
         return interaction.reply({
@@ -356,12 +361,19 @@ module.exports = {
         });
       }
 
-      const damage = performAttack(attacker, target);
+      logs.length = 0;
 
-      logs.push(`⚔️ ${attacker.name} dealt **${damage}** damage to ${target.name}.`);
+      const [first, second] = resolveSpeedOrder(attacker, target);
+      const firstIsPlayer = first.ownerTag !== "opponent" && first.ownerTag !== "bot";
+      const firstTarget = firstIsPlayer ? target : attacker;
+      const firstDamage = performAttack(first, firstTarget);
 
-      if (Number(target.hp || 0) <= 0) {
-        logs.push(`☠️ ${target.name} was defeated.`);
+      logs.push(`⚡ ${first.name} moved first by SPD.`);
+      logs.push(`⚔️ ${first.name} attacked ${firstTarget.name}.`);
+      logs.push(`➡️ ${first.name} dealt **${firstDamage}** damage to ${firstTarget.name}.`);
+
+      if (Number(firstTarget.hp || 0) <= 0) {
+        logs.push(`☠️ ${firstTarget.name} was defeated and cannot counter.`);
       }
 
       if (aliveCount(enemyTeam) <= 0) {
@@ -385,27 +397,58 @@ module.exports = {
         return;
       }
 
-      const enemyAttackers = getAliveUnits(enemyTeam).sort((a, b) => {
-        if (b.speed !== a.speed) return b.speed - a.speed;
-        if (b.power !== a.power) return b.power - a.power;
-        return a.slot - b.slot;
-      });
+      if (aliveCount(myTeam) <= 0) {
+        ended = true;
+        result = "lose";
+        logs.push("💀 You lost the challenge.");
 
-      for (const enemy of enemyAttackers) {
-        const retaliationTarget =
-          Number(attacker.hp || 0) > 0 ? attacker : getFirstAlive(myTeam);
+        await interaction.update({
+          embeds: [
+            buildChallengeResultEmbed({
+              result,
+              player,
+              targetPlayer,
+              logs,
+            }),
+          ],
+          components: [],
+        });
 
-        if (!retaliationTarget) break;
+        collector.stop("lose");
+        return;
+      }
 
-        const retaliationDamage = performAttack(enemy, retaliationTarget);
+      if (Number(second.hp || 0) > 0 && Number(firstTarget.hp || 0) > 0) {
+        const secondTarget = firstIsPlayer ? attacker : target;
+        const secondDamage = performAttack(second, secondTarget);
 
-        logs.push(
-          `💥 ${enemy.name} dealt **${retaliationDamage}** damage to ${retaliationTarget.name}.`
-        );
+        logs.push(`💥 ${second.name} countered ${secondTarget.name}.`);
+        logs.push(`⬅️ ${second.name} dealt **${secondDamage}** damage to ${secondTarget.name}.`);
 
-        if (Number(retaliationTarget.hp || 0) <= 0) {
-          logs.push(`☠️ ${retaliationTarget.name} was defeated.`);
+        if (Number(secondTarget.hp || 0) <= 0) {
+          logs.push(`☠️ ${secondTarget.name} was defeated.`);
         }
+      }
+
+      if (aliveCount(enemyTeam) <= 0) {
+        ended = true;
+        result = "win";
+        logs.push("🏆 You won the challenge!");
+
+        await interaction.update({
+          embeds: [
+            buildChallengeResultEmbed({
+              result,
+              player,
+              targetPlayer,
+              logs,
+            }),
+          ],
+          components: [],
+        });
+
+        collector.stop("win");
+        return;
       }
 
       if (aliveCount(myTeam) <= 0) {
@@ -451,6 +494,7 @@ module.exports = {
       if (reason === "time") {
         ended = true;
         result = resolveResult(myTeam, enemyTeam);
+        logs.length = 0;
         logs.push("⌛ Challenge timed out. Result decided by remaining HP.");
 
         try {

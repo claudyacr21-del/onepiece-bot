@@ -234,9 +234,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1497175061277311036/content.png?ex=69ec906e&is=69eb3eee&hm=dfbddc3f2652f45f9c94c87837604fcb1c783247106bc53258eb9b838920c31d&",
   },
   goro_goro_core: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1497180360897859744/content.png?ex=69ee8f9e&is=69ed3e1e&hm=cecf68ad8da7820174c99cbf6f51936b6747b758fe3398e5889c0ce2edc19a23&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1497180361531064463/content.png?ex=69ee8f9e&is=69ed3e1e&hm=5ed963a70e8a2ff875551eebbc11ed2312ab3a8e80f103450ad4f55368711f22&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1497180362105684069/content.png?ex=69ee8f9e&is=69ed3e1e&hm=700ae574b6bc2bdfe2c7ca8b8bf7c9b564d99e72bb2d20e7ea99d098751a0bb2&",
   },
   cola_engine: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1497144715852906626/content.png?ex=69ec742b&is=69eb22ab&hm=da696883a6cf06a7e3dd2bab3b7f9f54fe95ec021a1d27f49d51f5a3d07ec437&",
@@ -289,9 +289,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1497607428248830122/content.png?ex=69eecbdb&is=69ed7a5b&hm=e5dee84802e87fad7f0abab2963c7cb9388111b8ea0e825ac0ef7b46aebe00e7&",
   },
   magma_core: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1497836383019073586/content.png?ex=69eef856&is=69eda6d6&hm=b477e4ae590d00fd58fd580ee43e55a4d465e5751106c7a2af41580a6368574e&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1497836383706812527/content.png?ex=69eef856&is=69eda6d6&hm=5110e1ca599e34d4cbd05c29c99cdbf462a36a725fde52ed4e53ea07adf86d1f&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1497836384462045355/content.png?ex=69eef856&is=69eda6d6&hm=621ffe52a2d8dc2ae72d57bfcde8f54a04927e9ea7e0afe563edf3d2f7a0a0c8&",
   },
   ice_core: {
     M1: "",
@@ -299,19 +299,19 @@ const CARD_IMAGES = {
     M3: "",
   },
   light_core: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1497844505695485973/content.png?ex=69eeffe6&is=69edae66&hm=1a883d9cbcd565b856e2f7146500794839a3b6e0590b9d432e182c6daf99ee8b&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1497844506110988368/content.png?ex=69eeffe6&is=69edae66&hm=643067956d83b84c1f1a31666df2ba365396017b4e8073e38b7b36e567bf4dd8&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1497844506702254110/content.png?ex=69eeffe7&is=69edae67&hm=25f6478d26b3946ffe2636c4e3ca588fae037c98609f0bf23694343440fbe0f5&",
   },
   darkness_core: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1497862736049082388/content.png?ex=69ef10e1&is=69edbf61&hm=7787be96fe50318c02d9c66ed1a7aeee56510bbc84e3cb31ca58f0bd436ce45e&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1497862736892399686/content.png?ex=69ef10e1&is=69edbf61&hm=ddbf8e69d279a521959623a76596d4e0c67cf18361cd279ff5501e3bf82be158&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1497862737529671680/content.png?ex=69ef10e1&is=69edbf61&hm=7a58a0cfaabbed94be7ba71f6bafff826d756717ff14cf6bffcee4e115502649&",
   },
   ope_ope_notes: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1497873917937848412/content.png?ex=69ef1b4b&is=69edc9cb&hm=e0cefd32d3be1a7cabc5eb8e44d06c0792d6ea121fc6a0d155b940730aa66b51&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1497873918369988672/content.png?ex=69ef1b4b&is=69edc9cb&hm=04a3a7a3b611100f746d7217bd9a44658f276b6a9cdeaa1792319648f1be7abf&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1497873918763995247/content.png?ex=69ef1b4b&is=69edc9cb&hm=688ff147b17025e3386e637724a0f99e427b53ef9d49dcbad25704e65837bc5f&",
   },
   magnet_core: {
     M1: "",
