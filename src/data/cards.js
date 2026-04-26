@@ -259,13 +259,19 @@ const SPECIAL_FORMS = {
   mera_mera_will: ["Alabasta", "Dressrosa", "Flame Inheritance"],
   gura_gura_will: ["Marineford", "Blackbeard", "Earthquake Legacy"],
   fist_of_love: ["Garp Training", "Marine HQ", "Hero Punch Legacy"],
-  golden_buddha_mandate: ["Sengoku Arc", "Marineford Arc", "Buddha Justice Arc"],
-  magma_core: ["Marineford Arc", "Sakazuki Arc", "Volcanic Justice Arc"],
-  ice_core: ["Marineford Arc", "Aokiji Arc", "Frozen Justice Arc"],
-  light_core: ["Sabaody Arc", "Kizaru Arc", "Photon Speed Arc"],
-  darkness_core: ["Jaya Arc", "Blackbeard Arc", "Void Devourer Arc"],
-  ope_ope_notes: ["Punk Hazard Arc", "Dressrosa Arc", "Immortality Surgery Arc"],
-  magnet_core: ["Punk Hazard Arc", "Dressrosa Arc", "Immortality Surgery Arc"],
+  golden_buddha_mandate: ["Sengoku", "Marineford", "Buddha Justice"],
+  magma_core: ["Marineford", "Sakazuki", "Volcanic Justice"],
+  ice_core: ["Marineford", "Aokiji", "Frozen Justice"],
+  light_core: ["Sabaody", "Kizaru", "Photon Speed"],
+  darkness_core: ["Jaya", "Blackbeard", "Void Devourer"],
+  ope_ope_notes: ["Punk Hazard", "Dressrosa", "Immortality Surgery"],
+  magnet_core: ["Punk Hazard", "Dressrosa", "Immortality Surgery"],
+  ito_ito_awakening: ["Dressrosa", "Doflamingo", "Puppet Kingdom"],
+  future_sight: ["Whole Cake Island", "Katakuri", "Advanced Observation"],
+  soru_soru_soul: ["Whole Cake Island", "Big Mom", "Soul Kingdom"],
+  lunarian_flame: ["King Flashback", "Wano", "Lunar Race"],
+  plague_tech: ["Queen", "Beast Pirates", "Bio Warfare"],
+  beast_core: ["Zoan Awakening", "Wano", "Beast Dominion"],
   crocodile_desert_king: ["Desert Tyrant", "Awakened Sand", "Underworld King"],
   nico_robin_devil_child: ["Archaeologist", "Demonio Fleur", "Ohara's Flame"],
   brook_soul_king: ["Soul Prelude", "Soul Parade", "Underworld Maestro"],
@@ -281,60 +287,458 @@ const SPECIAL_FORMS = {
   imu: ["Hidden Sovereign", "Empty Throne Shadow", "World Silence"]
 };
 
+function reqCard(code, m2Stage = 1, m3Stage = 2) {
+  return {
+    code,
+    M2: m2Stage,
+    M3: m3Stage,
+  };
+}
+
+function reqBoost(code, m2Stage = 1, m3Stage = 2) {
+  return {
+    code,
+    M2: m2Stage,
+    M3: m3Stage,
+  };
+}
+
 const CANON_LINKS = {
-  luffy_straw_hat: { cards: ["zoro_pirate_hunter", "nami_cat_burglar", "sanji_black_leg"], boosts: ["nika_drums"] },
-  zoro_pirate_hunter: { cards: ["luffy_straw_hat", "mihawk_hawk_eyes", "oden"], boosts: ["wado_ichimonji_spirit"] },
-  nami_cat_burglar: { cards: ["luffy_straw_hat", "usopp_sniper"], boosts: ["weather_science"] },
-  usopp_sniper: { cards: ["luffy_straw_hat", "yasopp", "nami_cat_burglar"], boosts: ["sniper_focus"] },
-  sanji_black_leg: { cards: ["luffy_straw_hat", "zoro_pirate_hunter", "reiju"], boosts: ["germa_lineage_factor"] },
-  smoker_white_hunter: { cards: ["tashigi_swordswoman", "koby_aspiring_marine"], boosts: ["tsuru_tactical_support"] },
-  crocodile_desert_king: { cards: ["nico_robin_devil_child", "daz_bonez"], boosts: ["suna_suna_core"] },
-  nico_robin_devil_child: { cards: ["luffy_straw_hat", "saul"], boosts: ["ohara_will"] },
-  enel_god: { cards: ["wyper_shandian_warrior", "gan_fall"], boosts: ["goro_goro_core"] },
-  franky_cyborg: { cards: ["iceburg", "brook_soul_king"], boosts: ["cola_engine"] },
-  lucci_cp9: { cards: ["kaku_cp9", "kalifa_cp9_support"], boosts: ["rokushiki_manual"] },
-  brook_soul_king: { cards: ["laboon", "franky_cyborg"], boosts: ["soul_solid"] },
-  gecko_moria: { cards: ["bartholomew_kuma", "brook_soul_king"], boosts: ["shadow_core"] },
-  boa_hancock: { cards: ["jinbe_first_son_of_the_sea", "luffy_straw_hat"], boosts: ["kuja_haki"] },
-  jinbe_first_son_of_the_sea: { cards: ["ace_fire_fist", "luffy_straw_hat"], boosts: ["fishman_karate_scroll"] },
-  ace_fire_fist: { cards: ["luffy_straw_hat", "sabo_flame_emperor"], boosts: ["mera_mera_will"] },
-  whitebeard_strongest_man: { cards: ["ace_fire_fist", "marco_phoenix"], boosts: ["gura_gura_will"] },
-  garp_hero_of_the_marines: { cards: ["koby_aspiring_marine", "luffy_straw_hat"], boosts: ["fist_of_love"] },
-  sengoku_buddha: { cards: ["garp_hero_of_the_marines", "tsuru_tactical_support"], boosts: ["golden_buddha_mandate"] },
-  akainu: { cards: ["aokiji", "kizaru"], boosts: ["magma_core"] },
-  aokiji: { cards: ["akainu", "garp_hero_of_the_marines"], boosts: ["ice_core"] },
-  kizaru: { cards: ["akainu", "sentomaru"], boosts: ["light_core"] },
-  blackbeard_emperor_of_darkness: { cards: ["doc_q_sickly_support", "shiryu"], boosts: ["darkness_core"] },
-  law_surgeon_of_death: { cards: ["bepo_navigator_support", "corazon"], boosts: ["ope_ope_notes"] },
-  kid_captain: { cards: ["killer_massacre_soldier", "law_surgeon_of_death"], boosts: ["magnet_core"] },
-  doflamingo_heavenly_demon: { cards: ["trebol_underworld_support", "law_surgeon_of_death"], boosts: ["ito_ito_awakening"] },
-  sabo_flame_emperor: { cards: ["luffy_straw_hat", "ace_fire_fist", "dragon_revolutionary_leader"], boosts: ["mera_mera_will"] },
-  fujitora: { cards: ["akainu", "greenbull"], boosts: ["gravity_sheath"] },
-  katakuri_strongest_sweet_commander: { cards: ["big_mom_emperor", "charlotte_pudding"], boosts: ["future_sight"] },
-  big_mom_emperor: { cards: ["katakuri_strongest_sweet_commander", "perospero"], boosts: ["soru_soru_soul"] },
-  king_wildfire: { cards: ["queen_the_plague", "kaido_strongest_creature"], boosts: ["lunarian_flame"] },
-  queen_the_plague: { cards: ["king_wildfire", "jack_the_drought"], boosts: ["plague_tech"] },
-  jack_the_drought: { cards: ["kaido_strongest_creature", "king_wildfire"], boosts: ["beast_core"] },
-  yamato_oni_princess: { cards: ["luffy_straw_hat", "kaido_strongest_creature"], boosts: ["oni_lineage"] },
-  kaido_strongest_creature: { cards: ["king_wildfire", "yamato_oni_princess", "big_mom_emperor"], boosts: ["oni_lineage"] },
-  greenbull: { cards: ["akainu", "fujitora"], boosts: ["forest_core"] },
-  shanks_red_hair: { cards: ["ben_beckman", "luffy_straw_hat", "rayleigh_dark_king"], boosts: ["supreme_haki"] },
-  mihawk_hawk_eyes: { cards: ["zoro_pirate_hunter", "shanks_red_hair"], boosts: ["black_blade_yoru"] },
-  roger_king_of_the_pirates: { cards: ["rayleigh_dark_king", "oden"], boosts: ["supreme_haki"] },
-  xebec_captain_of_rocks: { cards: ["whitebeard_strongest_man", "big_mom_emperor", "kaido_strongest_creature"], boosts: ["chaos_core"] },
-  dragon_revolutionary_leader: { cards: ["sabo_flame_emperor", "luffy_straw_hat"], boosts: ["storm_mandate"] },
-  saturn: { cards: ["mars", "warcury"], boosts: ["empty_throne_edict"] },
-  mars: { cards: ["saturn", "warcury"], boosts: ["empty_throne_edict"] },
-  warcury: { cards: ["mars", "nusjuro"], boosts: ["empty_throne_edict"] },
-  nusjuro: { cards: ["warcury", "ju_peter"], boosts: ["empty_throne_edict"] },
-  ju_peter: { cards: ["nusjuro", "saturn"], boosts: ["empty_throne_edict"] },
-  imu: { cards: ["saturn", "mars", "warcury"], boosts: ["empty_throne_edict", "supreme_haki"] },
-  garling: { cards: ["shanks_red_hair", "imu"], boosts: ["holy_knight_sigil"] },
-  loki: { cards: ["imu", "shanks_red_hair"], boosts: ["giant_curse"] },
-  rayleigh_dark_king: { cards: ["roger_king_of_the_pirates", "shanks_red_hair"], boosts: ["supreme_haki"] },
-  oden: { cards: ["roger_king_of_the_pirates", "whitebeard_strongest_man"], boosts: ["samurai_spirit"] },
-  boa_seraphim: { cards: ["boa_hancock", "vegapunk_stella"], boosts: ["empty_throne_edict"] },
-  mihawk_seraphim: { cards: ["mihawk_hawk_eyes", "vegapunk_stella"], boosts: ["black_blade_yoru"] }
+  luffy_straw_hat: {
+    cards: [
+      reqCard("zoro_pirate_hunter", 1, 2),
+      reqCard("nami_cat_burglar", 1, 2),
+      reqCard("sanji_black_leg", 1, 2),
+    ],
+    boosts: [reqBoost("nika_drums", 1, 2)],
+  },
+
+  zoro_pirate_hunter: {
+    cards: [
+      reqCard("luffy_straw_hat", 1, 2),
+      reqCard("mihawk_hawk_eyes", 1, 2),
+      reqCard("oden", 1, 2),
+    ],
+    boosts: [reqBoost("wado_ichimonji_spirit", 1, 2)],
+  },
+
+  nami_cat_burglar: {
+    cards: [
+      reqCard("luffy_straw_hat", 1, 2),
+      reqCard("usopp_sniper", 1, 2),
+    ],
+    boosts: [reqBoost("weather_science", 1, 2)],
+  },
+
+  usopp_sniper: {
+    cards: [
+      reqCard("luffy_straw_hat", 1, 2),
+      reqCard("yasopp", 1, 2),
+      reqCard("nami_cat_burglar", 1, 2),
+    ],
+    boosts: [reqBoost("sniper_focus", 1, 2)],
+  },
+
+  sanji_black_leg: {
+    cards: [
+      reqCard("luffy_straw_hat", 1, 2),
+      reqCard("zoro_pirate_hunter", 1, 2),
+      reqCard("reiju", 1, 2),
+    ],
+    boosts: [reqBoost("germa_lineage_factor", 1, 2)],
+  },
+
+  smoker_white_hunter: {
+    cards: [
+      reqCard("tashigi_swordswoman", 1, 2),
+      reqCard("koby_aspiring_marine", 1, 2),
+    ],
+    boosts: [reqBoost("tsuru_tactical_support", 1, 2)],
+  },
+
+  crocodile_desert_king: {
+    cards: [
+      reqCard("nico_robin_devil_child", 1, 2),
+      reqCard("daz_bonez", 1, 2),
+    ],
+    boosts: [reqBoost("suna_suna_core", 1, 2)],
+  },
+
+  nico_robin_devil_child: {
+    cards: [
+      reqCard("luffy_straw_hat", 1, 2),
+      reqCard("saul", 1, 2),
+    ],
+    boosts: [reqBoost("ohara_will", 1, 2)],
+  },
+
+  enel_god: {
+    cards: [
+      reqCard("wyper_shandian_warrior", 1, 2),
+      reqCard("gan_fall", 1, 2),
+    ],
+    boosts: [reqBoost("goro_goro_core", 1, 2)],
+  },
+
+  franky_cyborg: {
+    cards: [
+      reqCard("iceburg", 1, 2),
+      reqCard("brook_soul_king", 1, 2),
+    ],
+    boosts: [reqBoost("cola_engine", 1, 2)],
+  },
+
+  lucci_cp9: {
+    cards: [
+      reqCard("kaku_cp9", 1, 2),
+      reqCard("kalifa_cp9_support", 1, 2),
+    ],
+    boosts: [reqBoost("rokushiki_manual", 1, 2)],
+  },
+
+  brook_soul_king: {
+    cards: [
+      reqCard("laboon", 1, 2),
+      reqCard("franky_cyborg", 1, 2),
+    ],
+    boosts: [reqBoost("soul_solid", 1, 2)],
+  },
+
+  gecko_moria: {
+    cards: [
+      reqCard("bartholomew_kuma", 1, 2),
+      reqCard("brook_soul_king", 1, 2),
+    ],
+    boosts: [reqBoost("shadow_core", 1, 2)],
+  },
+
+  boa_hancock: {
+    cards: [
+      reqCard("jinbe_first_son_of_the_sea", 1, 2),
+      reqCard("luffy_straw_hat", 1, 2),
+    ],
+    boosts: [reqBoost("kuja_haki", 1, 2)],
+  },
+
+  jinbe_first_son_of_the_sea: {
+    cards: [
+      reqCard("ace_fire_fist", 1, 2),
+      reqCard("luffy_straw_hat", 1, 2),
+    ],
+    boosts: [reqBoost("fishman_karate_scroll", 1, 2)],
+  },
+
+  ace_fire_fist: {
+    cards: [
+      reqCard("luffy_straw_hat", 1, 2),
+      reqCard("sabo_flame_emperor", 1, 2),
+    ],
+    boosts: [reqBoost("mera_mera_will", 1, 2)],
+  },
+
+  whitebeard_strongest_man: {
+    cards: [
+      reqCard("ace_fire_fist", 1, 2),
+      reqCard("marco_phoenix", 1, 2),
+    ],
+    boosts: [reqBoost("gura_gura_will", 1, 2)],
+  },
+
+  garp_hero_of_the_marines: {
+    cards: [
+      reqCard("koby_aspiring_marine", 1, 2),
+      reqCard("luffy_straw_hat", 1, 2),
+    ],
+    boosts: [reqBoost("fist_of_love", 1, 2)],
+  },
+
+  sengoku_buddha: {
+    cards: [
+      reqCard("garp_hero_of_the_marines", 1, 2),
+      reqCard("tsuru_tactical_support", 1, 2),
+    ],
+    boosts: [reqBoost("golden_buddha_mandate", 1, 2)],
+  },
+
+  akainu: {
+    cards: [
+      reqCard("aokiji", 1, 2),
+      reqCard("kizaru", 1, 2),
+    ],
+    boosts: [reqBoost("magma_core", 1, 2)],
+  },
+
+  aokiji: {
+    cards: [
+      reqCard("akainu", 1, 2),
+      reqCard("garp_hero_of_the_marines", 1, 2),
+    ],
+    boosts: [reqBoost("ice_core", 1, 2)],
+  },
+
+  kizaru: {
+    cards: [
+      reqCard("akainu", 1, 2),
+      reqCard("sentomaru", 1, 2),
+    ],
+    boosts: [reqBoost("light_core", 1, 2)],
+  },
+
+  blackbeard_emperor_of_darkness: {
+    cards: [
+      reqCard("doc_q_sickly_support", 1, 2),
+      reqCard("shiryu", 1, 2),
+    ],
+    boosts: [reqBoost("darkness_core", 1, 2)],
+  },
+
+  law_surgeon_of_death: {
+    cards: [
+      reqCard("bepo_navigator_support", 1, 2),
+      reqCard("corazon", 1, 2),
+    ],
+    boosts: [reqBoost("ope_ope_notes", 1, 2)],
+  },
+
+  kid_captain: {
+    cards: [
+      reqCard("killer_massacre_soldier", 1, 2),
+      reqCard("law_surgeon_of_death", 1, 2),
+    ],
+    boosts: [reqBoost("magnet_core", 1, 2)],
+  },
+
+  doflamingo_heavenly_demon: {
+    cards: [
+      reqCard("trebol_underworld_support", 1, 2),
+      reqCard("law_surgeon_of_death", 1, 2),
+    ],
+    boosts: [reqBoost("ito_ito_awakening", 1, 2)],
+  },
+
+  sabo_flame_emperor: {
+    cards: [
+      reqCard("luffy_straw_hat", 1, 2),
+      reqCard("ace_fire_fist", 1, 2),
+      reqCard("dragon_revolutionary_leader", 1, 2),
+    ],
+    boosts: [reqBoost("mera_mera_will", 1, 2)],
+  },
+
+  fujitora: {
+    cards: [
+      reqCard("akainu", 1, 2),
+      reqCard("greenbull", 1, 2),
+    ],
+    boosts: [reqBoost("gravity_sheath", 1, 2)],
+  },
+
+  katakuri_strongest_sweet_commander: {
+    cards: [
+      reqCard("big_mom_emperor", 1, 2),
+      reqCard("charlotte_pudding", 1, 2),
+    ],
+    boosts: [reqBoost("future_sight", 1, 2)],
+  },
+
+  big_mom_emperor: {
+    cards: [
+      reqCard("katakuri_strongest_sweet_commander", 1, 2),
+      reqCard("perospero", 1, 2),
+    ],
+    boosts: [reqBoost("soru_soru_soul", 1, 2)],
+  },
+
+  king_wildfire: {
+    cards: [
+      reqCard("queen_the_plague", 1, 2),
+      reqCard("kaido_strongest_creature", 1, 2),
+    ],
+    boosts: [reqBoost("lunarian_flame", 1, 2)],
+  },
+
+  queen_the_plague: {
+    cards: [
+      reqCard("king_wildfire", 1, 2),
+      reqCard("jack_the_drought", 1, 2),
+    ],
+    boosts: [reqBoost("plague_tech", 1, 2)],
+  },
+
+  jack_the_drought: {
+    cards: [
+      reqCard("kaido_strongest_creature", 1, 2),
+      reqCard("king_wildfire", 1, 2),
+    ],
+    boosts: [reqBoost("beast_core", 1, 2)],
+  },
+
+  yamato_oni_princess: {
+    cards: [
+      reqCard("luffy_straw_hat", 1, 2),
+      reqCard("kaido_strongest_creature", 1, 2),
+    ],
+    boosts: [reqBoost("oni_lineage", 1, 2)],
+  },
+
+  kaido_strongest_creature: {
+    cards: [
+      reqCard("king_wildfire", 1, 2),
+      reqCard("yamato_oni_princess", 1, 2),
+      reqCard("big_mom_emperor", 1, 2),
+    ],
+    boosts: [reqBoost("oni_lineage", 1, 2)],
+  },
+
+  greenbull: {
+    cards: [
+      reqCard("akainu", 1, 2),
+      reqCard("fujitora", 1, 2),
+    ],
+    boosts: [reqBoost("forest_core", 1, 2)],
+  },
+
+  shanks_red_hair: {
+    cards: [
+      reqCard("ben_beckman", 1, 2),
+      reqCard("luffy_straw_hat", 1, 2),
+      reqCard("rayleigh_dark_king", 1, 2),
+    ],
+    boosts: [reqBoost("supreme_haki", 1, 2)],
+  },
+
+  mihawk_hawk_eyes: {
+    cards: [
+      reqCard("zoro_pirate_hunter", 1, 2),
+      reqCard("shanks_red_hair", 1, 2),
+    ],
+    boosts: [reqBoost("black_blade_yoru", 1, 2)],
+  },
+
+  roger_king_of_the_pirates: {
+    cards: [
+      reqCard("rayleigh_dark_king", 1, 2),
+      reqCard("oden", 1, 2),
+    ],
+    boosts: [reqBoost("supreme_haki", 1, 2)],
+  },
+
+  xebec_captain_of_rocks: {
+    cards: [
+      reqCard("whitebeard_strongest_man", 1, 2),
+      reqCard("big_mom_emperor", 1, 2),
+      reqCard("kaido_strongest_creature", 1, 2),
+    ],
+    boosts: [reqBoost("chaos_core", 1, 2)],
+  },
+
+  dragon_revolutionary_leader: {
+    cards: [
+      reqCard("sabo_flame_emperor", 1, 2),
+      reqCard("luffy_straw_hat", 1, 2),
+    ],
+    boosts: [reqBoost("storm_mandate", 1, 2)],
+  },
+
+  saturn: {
+    cards: [
+      reqCard("mars", 1, 2),
+      reqCard("warcury", 1, 2),
+    ],
+    boosts: [reqBoost("empty_throne_edict", 1, 2)],
+  },
+
+  mars: {
+    cards: [
+      reqCard("saturn", 1, 2),
+      reqCard("warcury", 1, 2),
+    ],
+    boosts: [reqBoost("empty_throne_edict", 1, 2)],
+  },
+
+  warcury: {
+    cards: [
+      reqCard("mars", 1, 2),
+      reqCard("nusjuro", 1, 2),
+    ],
+    boosts: [reqBoost("empty_throne_edict", 1, 2)],
+  },
+
+  nusjuro: {
+    cards: [
+      reqCard("warcury", 1, 2),
+      reqCard("ju_peter", 1, 2),
+    ],
+    boosts: [reqBoost("empty_throne_edict", 1, 2)],
+  },
+
+  ju_peter: {
+    cards: [
+      reqCard("nusjuro", 1, 2),
+      reqCard("saturn", 1, 2),
+    ],
+    boosts: [reqBoost("empty_throne_edict", 1, 2)],
+  },
+
+  imu: {
+    cards: [
+      reqCard("saturn", 1, 2),
+      reqCard("mars", 1, 2),
+      reqCard("warcury", 1, 2),
+    ],
+    boosts: [
+      reqBoost("empty_throne_edict", 1, 2),
+      reqBoost("supreme_haki", 1, 2),
+    ],
+  },
+
+  garling: {
+    cards: [
+      reqCard("shanks_red_hair", 1, 2),
+      reqCard("imu", 1, 2),
+    ],
+    boosts: [reqBoost("holy_knight_sigil", 1, 2)],
+  },
+
+  loki: {
+    cards: [
+      reqCard("imu", 1, 2),
+      reqCard("shanks_red_hair", 1, 2),
+    ],
+    boosts: [reqBoost("giant_curse", 1, 2)],
+  },
+
+  rayleigh_dark_king: {
+    cards: [
+      reqCard("roger_king_of_the_pirates", 1, 2),
+      reqCard("shanks_red_hair", 1, 2),
+    ],
+    boosts: [reqBoost("supreme_haki", 1, 2)],
+  },
+
+  oden: {
+    cards: [
+      reqCard("roger_king_of_the_pirates", 1, 2),
+      reqCard("whitebeard_strongest_man", 1, 2),
+    ],
+    boosts: [reqBoost("samurai_spirit", 1, 2)],
+  },
+
+  boa_seraphim: {
+    cards: [
+      reqCard("boa_hancock", 1, 2),
+      reqCard("vegapunk_stella", 1, 2),
+    ],
+    boosts: [reqBoost("empty_throne_edict", 1, 2)],
+  },
+
+  mihawk_seraphim: {
+    cards: [
+      reqCard("mihawk_hawk_eyes", 1, 2),
+      reqCard("vegapunk_stella", 1, 2),
+    ],
+    boosts: [reqBoost("black_blade_yoru", 1, 2)],
+  },
 };
 
 const STAGE_MULTIPLIERS = { 1: 1, 2: 1.2, 3: 1.45 };
@@ -352,36 +756,116 @@ function inferForms(card) {
   return SPECIAL_FORMS[card.code] || [card.variant || card.title || "Base", `${card.variant || card.title || "Base"} Awakened`, `${card.variant || card.title || "Base"} Final`];
 }
 
+function normalizeReqEntry(entry, stage) {
+  if (!entry) return null;
+
+  if (typeof entry === "string") {
+    return {
+      code: entry,
+      stage: stage === 2 ? 1 : 2,
+    };
+  }
+
+  return {
+    code: entry.code,
+    stage: Number(entry[`M${stage}`] || entry.stage || (stage === 2 ? 1 : 2)),
+  };
+}
+
+function formatReqEntry(entry) {
+  if (!entry) return "";
+
+  if (typeof entry === "string") return entry;
+
+  return `${entry.code} M${Number(entry.stage || 1)}`;
+}
+
 function inferRequirements(card, stage) {
   if (stage === 1) return null;
+
   const baseTier = cleanBaseTier(card);
 
   if (baseTier === "C") {
     return {
       berries: stage === 2 ? 6000 : 15000,
+      selfFragments: stage === 2 ? 10 : 25,
+      minLevel: card.cardRole === "battle" ? (stage === 2 ? 50 : 85) : 0,
       cards: [],
       boosts: [],
-      text: card.cardRole === "boost" ? "Low-tier boost path only needs berries." : "Low-tier battle path only needs berries.",
+      text: card.cardRole === "boost"
+        ? "Low-tier boost path only needs berries and fragments."
+        : "Low-tier battle path only needs berries, fragments, and level.",
     };
   }
 
-  const links = CANON_LINKS[card.code] || { cards: [], boosts: [] };
-  const cardCount = baseTier === "B" ? (stage === 2 ? 1 : 2) : stage === 2 ? 2 : 3;
+  const links = CANON_LINKS[card.code] || {
+    cards: [],
+    boosts: [],
+  };
+
+  const cardCount =
+    baseTier === "B"
+      ? stage === 2
+        ? 1
+        : 2
+      : stage === 2
+        ? 2
+        : 3;
+
   const boostCount = baseTier === "B" ? 1 : stage === 2 ? 1 : 2;
-  const fallbackBoost = `${card.code}_legacy`;
-  const boosts = links.boosts?.length ? links.boosts.slice(0, boostCount) : [fallbackBoost].slice(0, boostCount);
+  const fallbackBoost = reqBoost(`${card.code}_legacy`, 1, 2);
+
+  const cardsRequired = (links.cards || [])
+    .slice(0, cardCount)
+    .map((entry) => normalizeReqEntry(entry, stage))
+    .filter((entry) => entry?.code);
+
+  const boostsRequired = (links.boosts?.length ? links.boosts : [fallbackBoost])
+    .slice(0, boostCount)
+    .map((entry) => normalizeReqEntry(entry, stage))
+    .filter((entry) => entry?.code);
 
   return {
     berries:
-      baseTier === "B" ? (stage === 2 ? 18000 : 42000)
-      : baseTier === "A" ? (stage === 2 ? 32000 : 76000)
-      : (stage === 2 ? 55000 : 130000),
-    cards: (links.cards || []).slice(0, cardCount),
-    boosts,
+      baseTier === "B"
+        ? stage === 2
+          ? 18000
+          : 42000
+        : baseTier === "A"
+          ? stage === 2
+            ? 32000
+            : 76000
+          : stage === 2
+            ? 55000
+            : 130000,
+
+    selfFragments:
+      baseTier === "B"
+        ? stage === 2
+          ? 20
+          : 45
+        : baseTier === "A"
+          ? stage === 2
+            ? 35
+            : 75
+          : stage === 2
+            ? 50
+            : 110,
+
+    minLevel: card.cardRole === "battle" ? (stage === 2 ? 50 : 85) : 0,
+
+    cards: cardsRequired,
+    boosts: boostsRequired,
+
+    cardsText: cardsRequired.map(formatReqEntry),
+    boostsText: boostsRequired.map(formatReqEntry),
+
     text:
-      baseTier === "B" ? "Canon-linked B-tier awaken path."
-      : baseTier === "A" ? "Canon-linked advanced awaken path."
-      : "Canon-linked emperor/top-tier awaken path.",
+      baseTier === "B"
+        ? "Canon-linked B-tier awaken path with staged card/boost requirements."
+        : baseTier === "A"
+          ? "Canon-linked advanced awaken path with staged card/boost requirements."
+          : "Canon-linked emperor/top-tier awaken path with staged card/boost requirements.",
   };
 }
 

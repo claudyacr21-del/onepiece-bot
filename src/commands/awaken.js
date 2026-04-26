@@ -7,13 +7,21 @@ const {
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { findOwnedCard, awakenOwnedCard } = require("../utils/evolution");
 
+function formatReqEntry(entry) {
+  if (!entry) return "Unknown";
+
+  if (typeof entry === "string") return entry;
+
+  return `${entry.code} M${Number(entry.stage || 1)}`;
+}
+
 function reqText(card, req) {
   return [
     `Berries: ${Number(req.berries || 0).toLocaleString("en-US")}`,
     `Self Fragments: ${Number(req.selfFragments || 0)}x ${card.displayName || card.name}`,
     card.cardRole === "battle" ? `Min Level: ${Number(req.minLevel || 0)}` : "Min Level: Not required",
-    req.cards?.length ? `Battle Cards: ${req.cards.join(", ")}` : null,
-    req.boosts?.length ? `Boost Cards: ${req.boosts.join(", ")}` : null,
+    req.cards?.length ? `Battle Cards: ${req.cards.map(formatReqEntry).join(", ")}` : null,
+    req.boosts?.length ? `Boost Cards: ${req.boosts.map(formatReqEntry).join(", ")}` : null,
     req.text || null,
   ].filter(Boolean).join("\n");
 }

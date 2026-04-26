@@ -15,6 +15,14 @@ function formatAtkRange(atk) {
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
+function formatReqEntry(entry) {
+  if (!entry) return "Unknown";
+
+  if (typeof entry === "string") return entry;
+
+  return `${entry.code} M${Number(entry.stage || 1)}`;
+}
+
 function buildReqEmbed(card, stage) {
   const req = card.awakenRequirements?.[`M${stage}`];
 
@@ -42,10 +50,10 @@ function buildReqEmbed(card, stage) {
         `↪ ${card.cardRole === "battle" ? Number(req.minLevel || 0) : "Not required"}`,
         "",
         "**Cards Required**",
-        ...(req.cards?.length ? req.cards.map((x) => `↪ ${x}`) : ["↪ None"]),
+        ...(req.cards?.length ? req.cards.map((x) => `↪ ${formatReqEntry(x)}`) : ["↪ None"]),
         "",
         "✨ **Boosts Required**",
-        ...(req.boosts?.length ? req.boosts.map((x) => `↪ ${x}`) : ["↪ None"]),
+        ...(req.boosts?.length ? req.boosts.map((x) => `↪ ${formatReqEntry(x)}`) : ["↪ None"]),
       ].join("\n")
     );
 }
