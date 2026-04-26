@@ -4,6 +4,8 @@ const LEVEL_CAPS_BY_STAGE = {
   3: 100,
 };
 
+const FLAT_EXP_CAP = 1000;
+
 function getCardStage(card) {
   return Math.max(1, Math.min(3, Number(card?.evolutionStage || 1)));
 }
@@ -13,12 +15,11 @@ function getCardLevelCap(card) {
 }
 
 function getCardExp(card) {
-  return Number(card?.exp ?? card?.xp ?? 0);
+  return Math.max(0, Number(card?.exp ?? card?.xp ?? 0));
 }
 
-function getExpToNextLevel(level) {
-  const safeLevel = Math.max(1, Math.min(100, Number(level || 1)));
-  return 100 + (safeLevel - 1) * 50;
+function getExpToNextLevel() {
+  return FLAT_EXP_CAP;
 }
 
 function isCardLevelLocked(card) {
@@ -27,42 +28,33 @@ function isCardLevelLocked(card) {
 }
 
 function getCardExpProgress(card) {
-  const level = Number(card?.level || 1);
+  const level = Math.max(1, Number(card?.level || 1));
   const cap = getCardLevelCap(card);
-  const exp = getCardExp(card);
+  const exp = Math.max(0, Math.min(FLAT_EXP_CAP, getCardExp(card)));
   const locked = level >= cap;
-  const needed = locked ? 0 : getExpToNextLevel(level);
 
   return {
     level,
     cap,
     exp: locked ? 0 : exp,
-    needed,
+    needed: FLAT_EXP_CAP,
     locked,
   };
 }
 
 function formatCardExp(card) {
   const progress = getCardExpProgress(card);
-
-  if (progress.locked) {
-    if (progress.cap >= 100) {
-      return `MAX • Level ${progress.level}/${progress.cap}`;
-    }
-
-    return `LOCKED • Level ${progress.level}/${progress.cap} • Awaken to continue`;
-  }
-
-  return `${progress.exp}/${progress.needed}`;
+  return `${progress.exp}/${FLAT_EXP_CAP}`;
 }
 
 function formatCardLevelLine(card) {
   const progress = getCardExpProgress(card);
-  return `Level: ${progress.level}/${progress.cap}`;
+  return `Level: ${progress.level} (${progress.exp}/${FLAT_EXP_CAP})`;
 }
 
 function formatCardExpLine(card) {
-  return `EXP: ${formatCardExp(card)}`;
+  const progress = getCardExpProgress(card);
+  return `EXP: ${progress.exp}/${FLAT_EXP_CAP}`;
 }
 
 function applyExpToCard(card, gainedExp) {
@@ -88,12 +80,8 @@ function applyExpToCard(card, gainedExp) {
 
   exp += gain;
 
-  while (level < cap) {
-    const needed = getExpToNextLevel(level);
-
-    if (exp < needed) break;
-
-    exp -= needed;
+  while (level < cap && exp >= FLAT_EXP_CAP) {
+    exp -= FLAT_EXP_CAP;
     level += 1;
     leveledUp += 1;
   }
@@ -117,6 +105,7 @@ function applyExpToCard(card, gainedExp) {
 
 module.exports = {
   LEVEL_CAPS_BY_STAGE,
+  FLAT_EXP_CAP,
   getCardStage,
   getCardLevelCap,
   getCardExp,

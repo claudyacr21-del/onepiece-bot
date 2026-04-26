@@ -8,10 +8,7 @@ const { getPlayer } = require("../playerStore");
 const { findCardTemplate, findOwnedCard, hydrateCard } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
-const {
-  formatCardLevelLine,
-  formatCardExpLine,
-} = require("../utils/cardExp");
+const { formatCardLevelLine } = require("../utils/cardExp");
 
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
@@ -131,7 +128,6 @@ function buildEmbed(card, owned, stage) {
           `Devil Fruit: ${stageCard.devilFruit || "None"}`,
           getOwnedStageText(owned),
           owned ? formatCardLevelLine(owned) : "Level: Not owned",
-          owned ? formatCardExpLine(owned) : "EXP: Not owned",
         ];
 
   return buildCardStyleEmbed({

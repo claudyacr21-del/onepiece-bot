@@ -13,10 +13,7 @@ const {
   getWeaponImage,
   getRarityBadge,
 } = require("../config/assetLinks");
-const {
-  formatCardLevelLine,
-  formatCardExpLine,
-} = require("../utils/cardExp");
+const { formatCardLevelLine } = require("../utils/cardExp");
 const devilFruitsDb = require("../data/devilFruits");
 const weaponsDb = require("../data/weapons");
 
@@ -336,7 +333,6 @@ function buildOwnedCardEmbed(ownerName, card) {
           `Form: ${card.evolutionKey || `M${stage}`}`,
           `Tier: ${card.currentTier || card.rarity}`,
           formatCardLevelLine(card),
-          formatCardExpLine(card),
           `Power: ${Number(card.currentPower || 0)}`,
           `Health: ${Number(card.hp || 0)}`,
           `Speed: ${Number(card.speed || 0)}`,
