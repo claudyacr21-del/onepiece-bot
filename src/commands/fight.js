@@ -419,6 +419,31 @@ function buildFightEmbed(
     });
 }
 
+function buildFightResultEmbed({ title, color, result, rewardLines = [], expLines = [], logs = [] }) {
+  return new EmbedBuilder()
+    .setColor(color)
+    .setTitle(title)
+    .setDescription(
+      [
+        `**Result:** ${result}`,
+        "",
+        rewardLines.length ? "## Rewards" : null,
+        ...rewardLines,
+        rewardLines.length ? "" : null,
+        expLines.length ? "## EXP" : null,
+        ...expLines,
+        expLines.length ? "" : null,
+        "## Final Log",
+        ...(logs.length ? logs.slice(-8) : ["No final log."]),
+      ]
+        .filter(Boolean)
+        .join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Fight Result",
+    });
+}
+
 function calculateWinReward(streakAfterWin, premiumMode) {
   const reward = {
     berries: premiumMode ? 3500 : 2500,
@@ -656,22 +681,19 @@ module.exports = {
           premiumMode,
           currentIsland
         );
-        logs.push(...formatExpResults(playerTeam, expResults));
+        const expLines = formatExpResults(playerTeam, expResults);
 
         await interaction.update({
           embeds: [
-            buildFightEmbed(
-              player.username || message.author.username,
-              playerTeam,
-              enemyTeam,
+            buildFightResultEmbed({
+              title: "🏃 Fight Escaped",
+              color: 0xf1c40f,
+              result: "RUN AWAY",
+              expLines,
               logs,
-              0,
-              true,
-              premiumMode,
-              currentIsland
-            ),
+            }),
           ],
-          components: buildActionRows(playerTeam, true),
+          components: [],
         });
 
         collector.stop("run");
@@ -722,7 +744,7 @@ module.exports = {
         });
 
         const expResults = calculateFightExp(playerTeam, true, premiumMode, currentIsland);
-        logs.push(...formatExpResults(playerTeam, expResults));
+        const expLines = formatExpResults(playerTeam, expResults);
 
         const updatedCards = [...(player.cards || [])].map((card) => {
           const expEntry = expResults.find(
@@ -778,24 +800,23 @@ module.exports = {
         });
 
         logs.push("🏆 You won the fight!");
-        logs.push(`💰 +${reward.berries.toLocaleString("en-US")} berries`);
-        logs.push(`💎 +${reward.gems} gems`);
-        if (reward.boxes.length) logs.push("📦 Basic Resource Box x1");
 
         await interaction.update({
           embeds: [
-            buildFightEmbed(
-              player.username || message.author.username,
-              playerTeam,
-              enemyTeam,
+            buildFightResultEmbed({
+              title: "🏆 Fight Victory",
+              color: 0x2ecc71,
+              result: "WIN",
+              rewardLines: [
+                `💰 +${reward.berries.toLocaleString("en-US")} berries`,
+                `💎 +${reward.gems} gems`,
+                reward.boxes.length ? "📦 Basic Resource Box x1" : null,
+              ].filter(Boolean),
+              expLines,
               logs,
-              currentStreak,
-              true,
-              premiumMode,
-              currentIsland
-            ),
+            }),
           ],
-          components: buildActionRows(playerTeam, true),
+          components: [],
         });
 
         collector.stop("win");
@@ -805,7 +826,11 @@ module.exports = {
       const retaliationPool = getAliveUnits(enemyTeam);
 
       for (const enemy of retaliationPool) {
-        const retaliationTarget = getFirstAlive(playerTeam);
+        const retaliationTarget =
+          Number(attacker.battleHp ?? attacker.hp) > 0
+            ? attacker
+            : getFirstAlive(playerTeam);
+
         if (!retaliationTarget) break;
 
         const retaliationDamage = performAttack(enemy, retaliationTarget, {});
@@ -828,24 +853,21 @@ module.exports = {
           premiumMode,
           currentIsland
         );
+        const expLines = formatExpResults(playerTeam, expResults);
 
         logs.push("💀 You lost the fight.");
-        logs.push(...formatExpResults(playerTeam, expResults));
 
         await interaction.update({
           embeds: [
-            buildFightEmbed(
-              player.username || message.author.username,
-              playerTeam,
-              enemyTeam,
+            buildFightResultEmbed({
+              title: "💀 Fight Defeat",
+              color: 0xe74c3c,
+              result: "LOSE",
+              expLines,
               logs,
-              0,
-              true,
-              premiumMode,
-              currentIsland
-            ),
+            }),
           ],
-          components: buildActionRows(playerTeam, true),
+          components: [],
         });
 
         collector.stop("lose");
@@ -883,23 +905,19 @@ module.exports = {
             premiumMode,
             currentIsland
           );
-
-          logs.push(...formatExpResults(playerTeam, expResults));
+          const expLines = formatExpResults(playerTeam, expResults);
 
           await reply.edit({
             embeds: [
-              buildFightEmbed(
-                player.username || message.author.username,
-                playerTeam,
-                enemyTeam,
+              buildFightResultEmbed({
+                title: "⌛ Fight Timeout",
+                color: 0xe74c3c,
+                result: "LOSE",
+                expLines,
                 logs,
-                0,
-                true,
-                premiumMode,
-                currentIsland
-              ),
+              }),
             ],
-            components: buildActionRows(playerTeam, true),
+            components: [],
           });
         } catch (_) {}
       }

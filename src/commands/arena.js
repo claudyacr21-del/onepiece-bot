@@ -184,9 +184,9 @@ function applyArenaResult(arena, result) {
 }
 
 function getResultTitle(result) {
-  if (result === "win") return "Arena Victory";
-  if (result === "lose") return "Arena Defeat";
-  return "Arena Draw";
+  if (result === "win") return "🏆 Arena Victory";
+  if (result === "lose") return "💀 Arena Defeat";
+  return "🤝 Arena Draw";
 }
 
 function getResultColor(result, ended) {
@@ -239,7 +239,7 @@ function buildArenaEmbed({
 }) {
   return new EmbedBuilder()
     .setColor(getResultColor(result, ended))
-    .setTitle(ended ? getResultTitle(result) : "Arena Battle")
+    .setTitle(ended ? getResultTitle(result) : "⚔️ Arena Battle")
     .setDescription(
       buildArenaDescription({
         player,
@@ -256,6 +256,29 @@ function buildArenaEmbed({
       text: ended
         ? "One Piece Bot • Arena Ranked"
         : "One Piece Bot • Manual Arena Ranked",
+    });
+}
+
+function buildArenaResultEmbed({ result, player, opponent, arena, logs }) {
+  return new EmbedBuilder()
+    .setColor(getResultColor(result, true))
+    .setTitle(getResultTitle(result))
+    .setDescription(
+      [
+        `**You:** ${player.username || "Unknown"}`,
+        `**Opponent:** ${opponent.username || "Unknown"}`,
+        "",
+        `**Result:** ${String(result || "draw").toUpperCase()}`,
+        `**Arena Points:** ${Number(arena?.points || 0)}`,
+        `**Record:** ${Number(arena?.wins || 0)}W / ${Number(arena?.losses || 0)}L / ${Number(arena?.draws || 0)}D`,
+        `**Streak:** ${Number(arena?.streak || 0)}`,
+        "",
+        "## Final Log",
+        ...(logs.length ? logs.slice(-10) : ["No final log."]),
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Arena Result",
     });
 }
 
@@ -425,18 +448,15 @@ module.exports = {
 
         await interaction.update({
           embeds: [
-            buildArenaEmbed({
+            buildArenaResultEmbed({
+              result,
               player,
               opponent,
-              myTeam,
-              enemyTeam,
-              logs,
               arena: currentArena,
-              result,
-              ended,
+              logs,
             }),
           ],
-          components: buildActionRows(myTeam, ended),
+          components: [],
         });
 
         collector.stop("forfeit");
@@ -478,18 +498,15 @@ module.exports = {
 
         await interaction.update({
           embeds: [
-            buildArenaEmbed({
+            buildArenaResultEmbed({
+              result,
               player,
               opponent,
-              myTeam,
-              enemyTeam,
-              logs,
               arena: currentArena,
-              result,
-              ended,
+              logs,
             }),
           ],
-          components: buildActionRows(myTeam, ended),
+          components: [],
         });
 
         collector.stop("win");
@@ -503,7 +520,8 @@ module.exports = {
       });
 
       for (const enemy of enemyAttackers) {
-        const retaliationTarget = getFirstAlive(myTeam);
+        const retaliationTarget =
+          Number(attacker.hp || 0) > 0 ? attacker : getFirstAlive(myTeam);
 
         if (!retaliationTarget) break;
 
@@ -526,18 +544,15 @@ module.exports = {
 
         await interaction.update({
           embeds: [
-            buildArenaEmbed({
+            buildArenaResultEmbed({
+              result,
               player,
               opponent,
-              myTeam,
-              enemyTeam,
-              logs,
               arena: currentArena,
-              result,
-              ended,
+              logs,
             }),
           ],
-          components: buildActionRows(myTeam, ended),
+          components: [],
         });
 
         collector.stop("lose");
@@ -573,18 +588,15 @@ module.exports = {
         try {
           await sent.edit({
             embeds: [
-              buildArenaEmbed({
+              buildArenaResultEmbed({
+                result,
                 player,
                 opponent,
-                myTeam,
-                enemyTeam,
-                logs,
                 arena: currentArena,
-                result,
-                ended,
+                logs,
               }),
             ],
-            components: buildActionRows(myTeam, ended),
+            components: [],
           });
         } catch {}
       }
