@@ -19,6 +19,15 @@ function getDateKey() {
   ).padStart(2, "0")}`;
 }
 
+function getArenaRankFromPoints(points) {
+  const safePoints = Math.max(0, Number(points || 0));
+  return Math.max(1, 1000 - Math.floor(safePoints / 10));
+}
+
+function formatArenaRank(points) {
+  return `#${getArenaRankFromPoints(points)}`;
+}
+
 function getArenaDailyUses(arena) {
   const today = getDateKey();
 
@@ -88,9 +97,7 @@ function getTeamUnits(player, ownerTag = "player") {
     .map(hydrateCard)
     .filter(Boolean);
 
-  const slots = Array.isArray(player?.team?.slots)
-    ? player.team.slots
-    : [null, null, null];
+  const slots = Array.isArray(player?.team?.slots) ? player.team.slots : [null, null, null];
 
   return slots
     .map((instanceId, index) => {
@@ -115,22 +122,16 @@ function aliveCount(units) {
   return getAliveUnits(units).length;
 }
 
-function getFirstAlive(units) {
-  return units.find((unit) => Number(unit.hp || 0) > 0) || null;
-}
-
-function pickTarget(units) {
+function pickEnemyActor(units) {
   const alive = getAliveUnits(units);
 
   if (!alive.length) return null;
 
-  alive.sort((a, b) => {
+  return alive.sort((a, b) => {
     if (b.speed !== a.speed) return b.speed - a.speed;
     if (b.power !== a.power) return b.power - a.power;
     return a.slot - b.slot;
-  });
-
-  return alive[0];
+  })[0];
 }
 
 function performAttack(attacker, defender) {
@@ -175,14 +176,14 @@ function formatAtkRange(atk) {
 
 function teamSummary(units) {
   return units
-    .map((unit) =>
-      [
-        `**${unit.slot}. ${unit.name}** [${unit.rarity}]`,
-        `PWR \`${unit.power}\` • LV \`${unit.level}\` • ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
-        `↪ Weapon: ${unit.equippedWeapon}`,
-        `↪ Fruit: ${unit.equippedDevilFruit}`,
-        renderHpBar(unit.hp, unit.maxHp),
-      ].join("\n")
+    .map(
+      (unit) =>
+        [
+          `**${unit.slot}. ${unit.name}** [${unit.rarity}]`,
+          `RANK ${formatArenaRank(unit.power)} • PWR \`${unit.power}\` • LV \`${unit.level}\``,
+          `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
+          renderHpBar(unit.hp, unit.maxHp),
+        ].join("\n")
     )
     .join("\n\n");
 }
@@ -210,45 +211,46 @@ function applyArenaResult(arena, result) {
     if (current.streak > current.bestStreak) {
       current.bestStreak = current.streak;
     }
-  } else if (result === "lose") {
+  } else {
     current.points = Math.max(0, current.points - 5);
     current.losses += 1;
     current.streak = 0;
-  } else {
-    current.points += 2;
-    current.draws += 1;
   }
 
   return current;
 }
 
 function getResultTitle(result) {
-  if (result === "win") return "🏆 Arena Victory";
-  if (result === "lose") return "💀 Arena Defeat";
-  return "🤝 Arena Draw";
+  return result === "win" ? "🏆 Arena Victory" : "💀 Arena Defeat";
 }
 
 function getResultColor(result, ended) {
   if (!ended) return 0x5865f2;
-  if (result === "win") return 0x2ecc71;
-  if (result === "lose") return 0xe74c3c;
-  return 0xf1c40f;
+  return result === "win" ? 0x2ecc71 : 0xe74c3c;
 }
 
-function resolveResult(myTeam, enemyTeam) {
+function resolveNoDrawResult(myTeam, enemyTeam) {
   const myAlive = aliveCount(myTeam);
   const enemyAlive = aliveCount(enemyTeam);
 
-  if (myAlive > 0 && enemyAlive <= 0) return "win";
-  if (enemyAlive > 0 && myAlive <= 0) return "lose";
+  if (myAlive !== enemyAlive) return myAlive > enemyAlive ? "win" : "lose";
 
   const myTotalHp = myTeam.reduce((sum, unit) => sum + Math.max(0, Number(unit.hp || 0)), 0);
   const enemyTotalHp = enemyTeam.reduce((sum, unit) => sum + Math.max(0, Number(unit.hp || 0)), 0);
 
-  if (myTotalHp > enemyTotalHp) return "win";
-  if (enemyTotalHp > myTotalHp) return "lose";
+  if (myTotalHp !== enemyTotalHp) return myTotalHp > enemyTotalHp ? "win" : "lose";
 
-  return "draw";
+  const myPower = myTeam.reduce((sum, unit) => sum + Number(unit.power || 0), 0);
+  const enemyPower = enemyTeam.reduce((sum, unit) => sum + Number(unit.power || 0), 0);
+
+  if (myPower !== enemyPower) return myPower > enemyPower ? "win" : "lose";
+
+  const mySpeed = myTeam.reduce((sum, unit) => sum + Number(unit.speed || 0), 0);
+  const enemySpeed = enemyTeam.reduce((sum, unit) => sum + Number(unit.speed || 0), 0);
+
+  if (mySpeed !== enemySpeed) return mySpeed > enemySpeed ? "win" : "lose";
+
+  return "win";
 }
 
 function updateArenaPlayer(message, player, result) {
@@ -284,9 +286,11 @@ function updateArenaPlayer(message, player, result) {
 function buildArenaLobbyEmbed(player, opponents) {
   const arena = player.arena || {};
   const usesLeft = getArenaUsesLeft(arena);
+  const playerPoints = Number(arena.points || 0);
+
   const rows = opponents.slice(0, 10).map((entry, index) => {
     const tag = entry.isBot ? "BOT" : "PLAYER";
-    return `${index + 1}. **${entry.username}** • ${entry.points} pts • ${tag}`;
+    return `${index + 1}. ${formatArenaRank(entry.points)} • **${entry.username}** • ${entry.points} pts • ${tag}`;
   });
 
   return new EmbedBuilder()
@@ -296,7 +300,8 @@ function buildArenaLobbyEmbed(player, opponents) {
       [
         "Select your arena opponent below.",
         "",
-        `**Your Points:** ${Number(arena.points || 0)}`,
+        `**Your Rank:** ${formatArenaRank(playerPoints)}`,
+        `**Your Points:** ${playerPoints}`,
         `**Daily Battles Left:** ${usesLeft}/${ARENA_DAILY_LIMIT}`,
         "",
         "## Available Opponents",
@@ -316,8 +321,11 @@ function buildOpponentMenu(opponents) {
         .setPlaceholder("Select arena opponent")
         .addOptions(
           opponents.slice(0, 25).map((opponent, index) => ({
-            label: opponent.username.slice(0, 100),
-            description: `${opponent.points} pts • ${opponent.isBot ? "Bot opponent" : "Player opponent"}`,
+            label: `${formatArenaRank(opponent.points)} • ${opponent.username}`.slice(0, 100),
+            description: `${opponent.points} pts • ${opponent.isBot ? "Bot opponent" : "Player opponent"}`.slice(
+              0,
+              100
+            ),
             value: String(index),
           }))
         )
@@ -338,12 +346,12 @@ function buildArenaDescription({
   const recentLogs = logs.slice(-8);
 
   return [
-    `**You:** ${player.username || "Unknown"}`,
-    `**Opponent:** ${opponent.username || "Unknown"}`,
-    ended ? `**Result:** ${String(result || "draw").toUpperCase()}` : "**Result:** In Progress",
+    `**You:** ${player.username || "Unknown"} • ${formatArenaRank(arena?.points || 0)}`,
+    `**Opponent:** ${opponent.username || "Unknown"} • ${formatArenaRank(opponent?.points || 0)}`,
+    ended ? `**Result:** ${String(result || "lose").toUpperCase()}` : "**Result:** In Progress",
     `**Arena Points:** ${Number(arena?.points || 0)}`,
     `**Daily Battles Left:** ${getArenaUsesLeft(arena)}/${ARENA_DAILY_LIMIT}`,
-    `**Record:** ${Number(arena?.wins || 0)}W / ${Number(arena?.losses || 0)}L / ${Number(arena?.draws || 0)}D`,
+    `**Record:** ${Number(arena?.wins || 0)}W / ${Number(arena?.losses || 0)}L`,
     `**Streak:** ${Number(arena?.streak || 0)}`,
     "",
     "## Your Team",
@@ -383,9 +391,7 @@ function buildArenaEmbed({
       })
     )
     .setFooter({
-      text: ended
-        ? "One Piece Bot • Arena Ranked"
-        : "One Piece Bot • Manual Arena Ranked",
+      text: ended ? "One Piece Bot • Arena Ranked" : "One Piece Bot • Manual Arena Ranked",
     });
 }
 
@@ -398,10 +404,10 @@ function buildArenaResultEmbed({ result, player, opponent, arena, logs }) {
         `**You:** ${player.username || "Unknown"}`,
         `**Opponent:** ${opponent.username || "Unknown"}`,
         "",
-        `**Result:** ${String(result || "draw").toUpperCase()}`,
+        `**Your Rank:** ${formatArenaRank(arena?.points || 0)}`,
         `**Arena Points:** ${Number(arena?.points || 0)}`,
         `**Daily Battles Left:** ${getArenaUsesLeft(arena)}/${ARENA_DAILY_LIMIT}`,
-        `**Record:** ${Number(arena?.wins || 0)}W / ${Number(arena?.losses || 0)}L / ${Number(arena?.draws || 0)}D`,
+        `**Record:** ${Number(arena?.wins || 0)}W / ${Number(arena?.losses || 0)}L`,
         `**Streak:** ${Number(arena?.streak || 0)}`,
         "",
         "## Final Log",
@@ -463,7 +469,7 @@ function makeBotCard({ code, name, rarity, atk, hp, speed, power, slot }) {
 }
 
 function buildBotTeam(points, botIndex) {
-  const scale = 1 + Math.max(0, Number(points || 0)) / 250;
+  const scale = 1 + Math.max(0, Number(points || 0)) / 220;
   const base = [
     {
       code: `bot_marine_${botIndex}`,
@@ -507,8 +513,11 @@ function buildBotTeam(points, botIndex) {
 }
 
 function buildBotOpponents(playerPoints, count = 6) {
+  const offsets = [-20, -10, 0, 10, 30, 50, 70, 90, 120, 150];
+
   return Array.from({ length: count }).map((_, index) => {
-    const botPoints = Math.max(0, playerPoints + (index - 2) * 20);
+    const offset = offsets[index % offsets.length];
+    const botPoints = Math.max(0, playerPoints + offset);
 
     return {
       userId: `bot-${index}`,
@@ -538,18 +547,14 @@ function buildOpponentPool(message, player) {
         slots: [null, null, null],
       },
       points: Number(entry?.arena?.points || 0),
+      wins: Number(entry?.arena?.wins || 0),
+      losses: Number(entry?.arena?.losses || 0),
       isBot: false,
     }))
     .filter((entry) => {
       const team = getTeamUnits(entry, "opponent");
       return team.length === 3;
     })
-    .sort((a, b) => {
-      const diffA = Math.abs(Number(a.points || 0) - playerPoints);
-      const diffB = Math.abs(Number(b.points || 0) - playerPoints);
-      return diffA - diffB;
-    })
-    .slice(0, 15)
     .map((entry) => ({
       ...entry,
       teamUnits: getTeamUnits(entry, "opponent"),
@@ -558,7 +563,16 @@ function buildOpponentPool(message, player) {
   const botsNeeded = Math.max(0, 6 - realOpponents.length);
   const bots = buildBotOpponents(playerPoints, botsNeeded || 3);
 
-  return [...realOpponents, ...bots].slice(0, 25);
+  return [...realOpponents, ...bots]
+    .sort((a, b) => {
+      const diffA = Math.abs(Number(a.points || 0) - playerPoints);
+      const diffB = Math.abs(Number(b.points || 0) - playerPoints);
+
+      if (diffA !== diffB) return diffA - diffB;
+      if (b.points !== a.points) return b.points - a.points;
+      return String(a.username).localeCompare(String(b.username));
+    })
+    .slice(0, 25);
 }
 
 async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, lobbyMessage }) {
@@ -645,19 +659,18 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       });
     }
 
-    const enemyTarget = pickTarget(enemyTeam);
+    const enemyActor = pickEnemyActor(enemyTeam);
 
-    if (!enemyTarget) {
+    if (!enemyActor) {
       return interaction.reply({
-        content: "No opponent card is available to attack.",
+        content: "No opponent card is available to fight.",
         ephemeral: true,
       });
     }
 
-    const [first, second] = resolveSpeedOrder(playerAttacker, enemyTarget);
+    const [first, second] = resolveSpeedOrder(playerAttacker, enemyActor);
     const firstIsPlayer = first.ownerTag !== "opponent" && first.ownerTag !== "bot";
-
-    const firstTarget = firstIsPlayer ? enemyTarget : playerAttacker;
+    const firstTarget = firstIsPlayer ? enemyActor : playerAttacker;
     const firstDamage = performAttack(first, firstTarget);
 
     logs.push(`⚡ ${first.name} moved first by SPD.`);
@@ -714,7 +727,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
     }
 
     if (Number(second.hp || 0) > 0) {
-      const secondTarget = firstIsPlayer ? playerAttacker : enemyTarget;
+      const secondTarget = firstIsPlayer ? playerAttacker : enemyActor;
       const secondDamage = performAttack(second, secondTarget);
 
       logs.push(`💥 ${second.name} countered for **${secondDamage}** damage to ${secondTarget.name}.`);
@@ -792,8 +805,8 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
 
     if (reason === "time") {
       ended = true;
-      result = resolveResult(myTeam, enemyTeam);
-      logs.push("⌛ Arena battle timed out. Result decided by remaining HP.");
+      result = resolveNoDrawResult(myTeam, enemyTeam);
+      logs.push("⌛ Arena battle timed out. Result decided by remaining units and HP.");
       currentArena = updateArenaPlayer(message, player, result);
 
       try {

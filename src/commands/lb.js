@@ -12,6 +12,15 @@ function normalize(value) {
   return String(value || "").toLowerCase().trim();
 }
 
+function getArenaRankFromPoints(points) {
+  const safePoints = Math.max(0, Number(points || 0));
+  return Math.max(1, 1000 - Math.floor(safePoints / 10));
+}
+
+function formatArenaRank(points) {
+  return `#${getArenaRankFromPoints(points)}`;
+}
+
 function getRarityPower(rarity) {
   return (
     {
@@ -113,7 +122,6 @@ function getInventoryFruitsPower(player) {
     if (!template) return sum;
 
     const amount = Math.max(0, Number(entry.amount || 0));
-
     return sum + getFruitPowerByRarity(template.rarity) * amount;
   }, 0);
 }
@@ -127,7 +135,6 @@ function getEquippedFruitsPower(player) {
     const template = findFruitTemplate(
       rawCard.equippedDevilFruitName || rawCard.equippedDevilFruit
     );
-
     if (!template) return sum;
 
     return sum + getFruitPowerByRarity(template.rarity);
@@ -157,13 +164,17 @@ function getArenaRows(players) {
       points: Number(player?.arena?.points || 0),
       wins: Number(player?.arena?.wins || 0),
       losses: Number(player?.arena?.losses || 0),
-      draws: Number(player?.arena?.draws || 0),
     }))
-    .sort((a, b) => b.points - a.points)
+    .sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (a.losses !== b.losses) return a.losses - b.losses;
+      return String(a.username).localeCompare(String(b.username));
+    })
     .slice(0, 10)
     .map(
       (entry, index) =>
-        `${index + 1}. **${entry.username}** • ${entry.points} pts • ${entry.wins}W/${entry.losses}L/${entry.draws}D`
+        `${index + 1}. ${formatArenaRank(entry.points)} **${entry.username}** • ${entry.points} pts • ${entry.wins}W/${entry.losses}L`
     );
 }
 
@@ -194,7 +205,7 @@ function buildLeaderboardEmbed(mode = null) {
       .setTitle("Arena Leaderboard")
       .setDescription(rows.length ? rows.join("\n") : "No arena data yet.")
       .setFooter({
-        text: "One Piece Bot • Leaderboards",
+        text: "Arena starts from rank #1000 and climbs upward with points",
       });
   }
 
@@ -230,7 +241,7 @@ function buildLeaderboardMenu(selected = null) {
         .addOptions([
           {
             label: "Arena Leaderboard",
-            description: "View arena points, wins, losses, and draws",
+            description: "View arena rank, points, wins, and losses",
             value: "arena",
             default: selected === "arena",
           },
