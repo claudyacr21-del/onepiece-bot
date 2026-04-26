@@ -13,6 +13,10 @@ const {
   getWeaponImage,
   getRarityBadge,
 } = require("../config/assetLinks");
+const {
+  formatCardLevelLine,
+  formatCardExpLine,
+} = require("../utils/cardExp");
 const devilFruitsDb = require("../data/devilFruits");
 const weaponsDb = require("../data/weapons");
 
@@ -111,6 +115,7 @@ function findWeaponTemplate(value) {
 
 function getWeaponPercentAtLevel(basePercent, level) {
   const lv = Math.max(0, Number(level || 0));
+
   return {
     atk: Number(basePercent?.atk || 0) + lv * 1,
     hp: Number(basePercent?.hp || 0) + lv * 1,
@@ -156,41 +161,47 @@ function buildOwnedWeaponPool(player) {
     if (!template) continue;
 
     const key = String(template.code);
-    const existing = pool.get(key) || {
-      ...template,
-      amount: 0,
-      equippedOn: [],
-      bestUpgradeLevel: 0,
-    };
-
-    existing.amount += Math.max(1, Number(entry.amount || 1));
-    existing.bestUpgradeLevel = Math.max(
-      existing.bestUpgradeLevel,
-      Number(entry.upgradeLevel || 0)
-    );
-    pool.set(key, existing);
-  }
-
-  for (const rawCard of Array.isArray(player.cards) ? player.cards : []) {
-    const equipped = Array.isArray(rawCard.equippedWeapons) ? rawCard.equippedWeapons : [];
-
-    for (const entry of equipped) {
-      const template = findWeaponTemplate(entry.code || entry.name);
-      if (!template) continue;
-
-      const key = String(template.code);
-      const existing = pool.get(key) || {
+    const existing =
+      pool.get(key) || {
         ...template,
         amount: 0,
         equippedOn: [],
         bestUpgradeLevel: 0,
       };
 
+    existing.amount += Math.max(1, Number(entry.amount || 1));
+    existing.bestUpgradeLevel = Math.max(
+      existing.bestUpgradeLevel,
+      Number(entry.upgradeLevel || 0)
+    );
+
+    pool.set(key, existing);
+  }
+
+  for (const rawCard of Array.isArray(player.cards) ? player.cards : []) {
+    const equipped = Array.isArray(rawCard.equippedWeapons)
+      ? rawCard.equippedWeapons
+      : [];
+
+    for (const entry of equipped) {
+      const template = findWeaponTemplate(entry.code || entry.name);
+      if (!template) continue;
+
+      const key = String(template.code);
+      const existing =
+        pool.get(key) || {
+          ...template,
+          amount: 0,
+          equippedOn: [],
+          bestUpgradeLevel: 0,
+        };
+
       existing.equippedOn.push(rawCard.displayName || rawCard.name || rawCard.code);
       existing.bestUpgradeLevel = Math.max(
         existing.bestUpgradeLevel,
         Number(entry.upgradeLevel || 0)
       );
+
       pool.set(key, existing);
     }
   }
@@ -200,7 +211,6 @@ function buildOwnedWeaponPool(player) {
 
 function findOwnedFruit(player, query) {
   const pool = buildOwnedFruitPool(player);
-
   const scored = pool
     .map((fruit) => ({
       fruit,
@@ -214,7 +224,6 @@ function findOwnedFruit(player, query) {
 
 function findOwnedWeapon(player, query) {
   const pool = buildOwnedWeaponPool(player);
-
   const scored = pool
     .map((weapon) => ({
       weapon,
@@ -227,7 +236,12 @@ function findOwnedWeapon(player, query) {
 }
 
 function buildOwnedFruitEmbed(ownerName, fruit) {
-  const percent = fruit.statPercent || fruit.statBonus || { atk: 0, hp: 0, speed: 0 };
+  const percent = fruit.statPercent || fruit.statBonus || {
+    atk: 0,
+    hp: 0,
+    speed: 0,
+  };
+
   const equippedText =
     Array.isArray(fruit.equippedOn) && fruit.equippedOn.length
       ? fruit.equippedOn.join(", ")
@@ -254,12 +268,18 @@ function buildOwnedFruitEmbed(ownerName, fruit) {
     )
     .setThumbnail(getRarityBadge(fruit.rarity || "B") || null)
     .setImage(getDevilFruitImage(fruit.code, fruit.image || "") || null)
-    .setFooter({ text: `Owned devil fruit info • ${ownerName}` });
+    .setFooter({
+      text: `Owned devil fruit info • ${ownerName}`,
+    });
 }
 
 function buildOwnedWeaponEmbed(ownerName, weapon) {
   const percent = getWeaponPercentAtLevel(
-    weapon.statPercent || weapon.statBonus || { atk: 0, hp: 0, speed: 0 },
+    weapon.statPercent || weapon.statBonus || {
+      atk: 0,
+      hp: 0,
+      speed: 0,
+    },
     weapon.bestUpgradeLevel || 0
   );
 
@@ -290,7 +310,9 @@ function buildOwnedWeaponEmbed(ownerName, weapon) {
     )
     .setThumbnail(getRarityBadge(weapon.rarity || "B") || null)
     .setImage(getWeaponImage(weapon.code, weapon.image || "") || null)
-    .setFooter({ text: `Owned weapon info • ${ownerName}` });
+    .setFooter({
+      text: `Owned weapon info • ${ownerName}`,
+    });
 }
 
 function buildOwnedCardEmbed(ownerName, card) {
@@ -313,7 +335,8 @@ function buildOwnedCardEmbed(ownerName, card) {
       : [
           `Form: ${card.evolutionKey || `M${stage}`}`,
           `Tier: ${card.currentTier || card.rarity}`,
-          `Level: ${Number(card.level || 1)}`,
+          formatCardLevelLine(card),
+          formatCardExpLine(card),
           `Power: ${Number(card.currentPower || 0)}`,
           `Health: ${Number(card.hp || 0)}`,
           `Speed: ${Number(card.speed || 0)}`,
@@ -344,10 +367,9 @@ module.exports = {
 
   async execute(message, args) {
     const query = args.join(" ").trim();
-    if (!query) return message.reply("Usage: `op mci <card, devil fruit, or weapon>`");
+    if (!query) return message.reply("Usage: `op mci <card/fruit/weapon>`");
 
     const player = getPlayer(message.author.id, message.author.username);
-
     const boosts = getPassiveBoostSummary(player);
     const ownedCard = findOwnedCard(player.cards || [], query);
     const card = applyBoostedDisplayStats(ownedCard, boosts);
@@ -359,6 +381,7 @@ module.exports = {
     }
 
     const ownedFruit = findOwnedFruit(player, query);
+
     if (ownedFruit) {
       return message.reply({
         embeds: [buildOwnedFruitEmbed(message.author.username, ownedFruit)],
@@ -366,6 +389,7 @@ module.exports = {
     }
 
     const ownedWeapon = findOwnedWeapon(player, query);
+
     if (ownedWeapon) {
       return message.reply({
         embeds: [buildOwnedWeaponEmbed(message.author.username, ownedWeapon)],
@@ -373,9 +397,5 @@ module.exports = {
     }
 
     return message.reply("You do not own that card, devil fruit, or weapon.");
-
-    return message.reply({
-      embeds: [buildOwnedCardEmbed(message.author.username, card)],
-    });
   },
 };

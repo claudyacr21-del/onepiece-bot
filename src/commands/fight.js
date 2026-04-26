@@ -14,6 +14,12 @@ const {
   applyDamageBoost,
   applyExpBoost,
 } = require("../utils/combatStats");
+const {
+  getCardExp,
+  getCardLevelCap,
+  formatCardExp,
+  applyExpToCard,
+} = require("../utils/cardExp");
 
 const FIGHT_COOLDOWN_MS = 8 * 60 * 1000;
 const MOTHER_FLAME_FIGHT_COOLDOWN_MS = 4 * 60 * 1000;
@@ -24,6 +30,11 @@ function formatExpResults(playerTeam, expResults) {
     .map((entry) => {
       const unit = playerTeam.find((card) => card.instanceId === entry.instanceId);
       if (!unit) return null;
+
+      if (entry.locked) {
+        return `🔒 ${unit.name} is level locked at **${entry.level}/${entry.cap}**. Awaken to continue.`;
+      }
+
       return `✨ ${unit.name} gained **${entry.expGain} EXP**.`;
     })
     .filter(Boolean);
@@ -48,34 +59,6 @@ function addOrIncrease(list, item) {
   });
 
   return arr;
-}
-
-function getCardExp(card) {
-  return Number(card.exp ?? card.xp ?? 0);
-}
-
-function getExpToNextLevel(level) {
-  const safeLevel = Math.max(1, Number(level || 1));
-  return 100 + (safeLevel - 1) * 50;
-}
-
-function applyExpToCard(card, gainedExp) {
-  let level = Number(card.level || 1);
-  let exp = Number(card.exp ?? card.xp ?? 0) + Number(gainedExp || 0);
-  let leveledUp = 0;
-
-  while (exp >= getExpToNextLevel(level)) {
-    exp -= getExpToNextLevel(level);
-    level += 1;
-    leveledUp += 1;
-  }
-
-  return {
-    ...card,
-    level,
-    exp,
-    leveledUp,
-  };
 }
 
 function formatAtkRange(atk) {
@@ -153,7 +136,9 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     battleMaxHp,
     battleSpeed,
     level: Number(card.level || 1),
-    exp: Number(card.exp ?? card.xp ?? 0),
+    levelCap: getCardLevelCap(card),
+    exp: getCardExp(card),
+    expText: formatCardExp(card),
     kills: Number(card.kills || 0),
     image: card.image || "",
     equippedWeapon: formatEquippedWeapons(card),
@@ -224,7 +209,11 @@ function scaleByIsland(value, island, roleMultiplier = 1) {
 }
 
 function getIslandBossName(island) {
-  if (island?.boss && island.boss !== "Egghead Boss Route" && island.boss !== "Elbaf Boss Route") {
+  if (
+    island?.boss &&
+    island.boss !== "Egghead Boss Route" &&
+    island.boss !== "Elbaf Boss Route"
+  ) {
     return island.boss;
   }
 
@@ -348,7 +337,8 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode,
   const playerLines = playerTeam.map((unit) => {
     return [
       `**${unit.slot}. ${unit.name}**`,
-      `[${unit.rarity}] • ATK \`${formatAtkRange(unit.battleAtk)}\` • SPD \`${unit.battleSpeed}\` • LV \`${unit.level}\``,
+      `[${unit.rarity}] • ATK \`${formatAtkRange(unit.battleAtk)}\` • SPD \`${unit.battleSpeed}\` • LV \`${unit.level}/${unit.levelCap}\``,
+      `↪ EXP: ${unit.expText}`,
       `↪ Weapon: ${unit.equippedWeapon}`,
       `↪ Fruit: ${unit.equippedDevilFruit}`,
       renderHpBar(unit.battleHp, unit.battleMaxHp),
@@ -446,12 +436,19 @@ function calculateWinReward(streakAfterWin, premiumMode) {
 }
 
 function calculateFightExp(playerTeam, won, premiumMode, island) {
-  const eligible = playerTeam.filter((unit) => Number(unit.level || 1) < 100);
+  const eligible = playerTeam.filter((unit) => {
+    const level = Number(unit.level || 1);
+    const cap = Number(unit.levelCap || 50);
+    return level < cap;
+  });
 
   if (!eligible.length) {
     return playerTeam.map((unit) => ({
       instanceId: unit.instanceId,
       expGain: 0,
+      locked: true,
+      level: Number(unit.level || 1),
+      cap: Number(unit.levelCap || 50),
     }));
   }
 
@@ -463,27 +460,37 @@ function calculateFightExp(playerTeam, won, premiumMode, island) {
   let totalExp;
 
   if (won) {
-    totalExp = premiumMode ? 65 : 45;
-    totalExp += islandOrder * (premiumMode ? 4 : 3);
-    totalExp += aliveCount * (premiumMode ? 8 : 5);
+    totalExp = premiumMode ? 120 : 90;
+    totalExp += islandOrder * (premiumMode ? 5 : 4);
+    totalExp += aliveCount * (premiumMode ? 12 : 9);
   } else {
-    totalExp = premiumMode ? 24 : 16;
-    totalExp += islandOrder * (premiumMode ? 2 : 1);
+    totalExp = premiumMode ? 72 : 54;
+    totalExp += islandOrder * (premiumMode ? 3 : 2);
+    totalExp += aliveCount * (premiumMode ? 8 : 6);
   }
 
-  const sharedExp = Math.max(1, Math.floor(totalExp / eligible.length));
+  const sharedExp = Math.max(12, Math.floor(totalExp / eligible.length));
 
   return playerTeam.map((unit) => {
-    if (Number(unit.level || 1) >= 100) {
+    const level = Number(unit.level || 1);
+    const cap = Number(unit.levelCap || 50);
+
+    if (level >= cap) {
       return {
         instanceId: unit.instanceId,
         expGain: 0,
+        locked: true,
+        level,
+        cap,
       };
     }
 
     return {
       instanceId: unit.instanceId,
       expGain: applyExpBoost(sharedExp, unit.passiveBoostsApplied || {}),
+      locked: false,
+      level,
+      cap,
     };
   });
 }
@@ -518,6 +525,7 @@ function applyFightLoss(message, player, playerTeam, premiumMode, island) {
         kills: Number(unit.kills || 0),
         level: Number(card.level || 1),
         exp: getCardExp(card),
+        xp: getCardExp(card),
       },
       expEntry.expGain
     );
@@ -732,6 +740,7 @@ module.exports = {
               kills: Number(unit.kills || 0),
               level: Number(card.level || 1),
               exp: getCardExp(card),
+              xp: getCardExp(card),
             },
             expEntry.expGain
           );

@@ -8,6 +8,10 @@ const { getPlayer } = require("../playerStore");
 const { findCardTemplate, findOwnedCard, hydrateCard } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
+const {
+  formatCardLevelLine,
+  formatCardExpLine,
+} = require("../utils/cardExp");
 
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
@@ -59,6 +63,7 @@ function getStageCard(card, stage) {
 
 function getStageImage(card, stageCard, stage) {
   const stageKey = `M${stage}`;
+
   return (
     stageCard?.evolutionForms?.[stage - 1]?.image ||
     card.evolutionForms?.[stage - 1]?.image ||
@@ -81,7 +86,16 @@ function getStageImage(card, stageCard, stage) {
 
 function getStageBadge(card, stageCard, stage) {
   const form = stageCard?.evolutionForms?.[stage - 1] || card.evolutionForms?.[stage - 1];
+
   return form?.badgeImage || getRarityBadge(form?.tier || stageCard?.currentTier || card.rarity);
+}
+
+function getOwnedStageText(owned) {
+  if (!owned) return "Owned Stage: Not owned";
+
+  return `Owned Stage: M${owned.evolutionStage} • ${
+    owned.evolutionForms?.[owned.evolutionStage - 1]?.name || owned.variant
+  }`;
 }
 
 function buildEmbed(card, owned, stage) {
@@ -101,9 +115,7 @@ function buildEmbed(card, owned, stage) {
           `Target: ${stageCard.boostTarget || "team"}`,
           `Boost Type: ${stageCard.boostType || "unknown"}`,
           `Fragments: ${Number(owned?.fragments || 0)}`,
-          owned
-            ? `Owned Stage: M${owned.evolutionStage} • ${owned.evolutionForms?.[owned.evolutionStage - 1]?.name || owned.variant}`
-            : "Owned Stage: Not owned",
+          getOwnedStageText(owned),
         ]
       : [
           `Form: ${stageCard.evolutionKey || `M${stage}`}`,
@@ -117,9 +129,9 @@ function buildEmbed(card, owned, stage) {
           `SPD: ${Number(stageCard.speed || 0)}`,
           `Weapon Set: ${stageCard.weapon || "None"}`,
           `Devil Fruit: ${stageCard.devilFruit || "None"}`,
-          owned
-            ? `Owned Stage: M${owned.evolutionStage} • ${owned.evolutionForms?.[owned.evolutionStage - 1]?.name || owned.variant}`
-            : "Owned Stage: Not owned",
+          getOwnedStageText(owned),
+          owned ? formatCardLevelLine(owned) : "Level: Not owned",
+          owned ? formatCardExpLine(owned) : "EXP: Not owned",
         ];
 
   return buildCardStyleEmbed({
@@ -169,6 +181,7 @@ module.exports = {
 
     const player = getPlayer(message.author.id, message.author.username);
     const globalCard = findCardTemplate(query);
+
     if (!globalCard) return message.reply("Card not found in global database.");
 
     const owned = findOwnedCard(player.cards || [], query);

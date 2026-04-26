@@ -48,7 +48,9 @@ function getBoostEffectText(card, stage = 1) {
   const boostType = String(card.boostType || "").toLowerCase();
   const target = card.boostTarget || "team";
   const stageValue = getBoostStageValue(card, stage);
-  const suffix = ["atk", "hp", "spd", "exp", "dmg"].includes(boostType) ? "%" : "";
+  const suffix = ["atk", "hp", "spd", "exp", "dmg"].includes(boostType)
+    ? "%"
+    : "";
 
   if (boostType === "fragmentstorage" || boostType === "fragment_storage") {
     return `Increase ${target} fragment storage by ${stageValue}.`;
@@ -88,8 +90,10 @@ function getLuffySpecialPath(card) {
 function getStageMultiplier(card, stage) {
   const special = getLuffySpecialPath(card);
   if (special) return special.mults[stage] || 1;
+
   if (stage === 1) return 1;
   if (stage === 2) return 3;
+
   return 3.8;
 }
 
@@ -108,18 +112,23 @@ function getRarityPower(rarity) {
 
 function getWeaponPower(weapon, level = 0) {
   const explicit = Number(weapon?.power || 0);
+
   if (explicit > 0) return explicit + Math.max(0, Number(level || 0)) * 250;
+
   return getRarityPower(weapon?.rarity) + Math.max(0, Number(level || 0)) * 250;
 }
 
 function getFruitPower(fruit) {
   const explicit = Number(fruit?.power || 0);
+
   if (explicit > 0) return explicit;
+
   return getRarityPower(fruit?.rarity);
 }
 
 function findCardTemplate(query) {
   const q = normalize(query);
+
   return (
     cards.find((card) => {
       const fields = [
@@ -148,39 +157,36 @@ function mergeOwnedCardWithTemplate(ownedCard) {
   if (!ownedCard) return null;
 
   const template = findTemplateByCode(ownedCard.code);
+
   if (!template) return clone(ownedCard);
 
   return {
     ...clone(template),
-
     instanceId: ownedCard.instanceId,
     ownerId: ownedCard.ownerId,
-
     level: ownedCard.level,
     xp: ownedCard.xp,
+    exp: ownedCard.exp,
     kills: ownedCard.kills,
     fragments: ownedCard.fragments,
-
     evolutionStage: ownedCard.evolutionStage,
     evolutionKey: ownedCard.evolutionKey,
     currentTier: ownedCard.currentTier || template.currentTier,
     rarity: ownedCard.rarity || template.rarity,
-
     equippedWeapons: clone(ownedCard.equippedWeapons || []),
     equippedWeapon: ownedCard.equippedWeapon || null,
     equippedWeaponName: ownedCard.equippedWeaponName || null,
     equippedWeaponCode: ownedCard.equippedWeaponCode || null,
     equippedWeaponLevel: ownedCard.equippedWeaponLevel || 0,
-
     equippedDevilFruit: ownedCard.equippedDevilFruit || null,
     equippedDevilFruitName: ownedCard.equippedDevilFruitName || null,
-
     cardRole: ownedCard.cardRole || template.cardRole,
   };
 }
 
 function findByCodeOrName(list, value) {
   const q = normalize(value);
+
   if (!q) return null;
 
   return (
@@ -198,26 +204,46 @@ function resolveEquippedWeapons(card) {
   if (Array.isArray(card?.equippedWeapons) && card.equippedWeapons.length) {
     for (const entry of card.equippedWeapons) {
       const found = findByCodeOrName(weapons, entry?.code || entry?.name) || null;
+
       if (!found) continue;
 
       equipped.push({
         ...found,
         upgradeLevel: Number(entry?.upgradeLevel || 0),
-        baseStatPercent: entry?.baseStatPercent || found?.statPercent || { atk: 0, hp: 0, speed: 0 },
-        ownerBonusPercent: found?.ownerBonusPercent || entry?.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
+        baseStatPercent: entry?.baseStatPercent || found?.statPercent || {
+          atk: 0,
+          hp: 0,
+          speed: 0,
+        },
+        ownerBonusPercent: found?.ownerBonusPercent ||
+          entry?.ownerBonusPercent || {
+            atk: 0,
+            hp: 0,
+            speed: 0,
+          },
       });
     }
+
     return equipped;
   }
 
   if (card?.equippedWeapon && card.equippedWeapon !== "None") {
     const found = findByCodeOrName(weapons, card.equippedWeapon);
+
     if (found) {
       equipped.push({
         ...found,
         upgradeLevel: Number(card?.equippedWeaponLevel || 0),
-        baseStatPercent: found?.statPercent || { atk: 0, hp: 0, speed: 0 },
-        ownerBonusPercent: found?.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
+        baseStatPercent: found?.statPercent || {
+          atk: 0,
+          hp: 0,
+          speed: 0,
+        },
+        ownerBonusPercent: found?.ownerBonusPercent || {
+          atk: 0,
+          hp: 0,
+          speed: 0,
+        },
       });
     }
   }
@@ -227,6 +253,7 @@ function resolveEquippedWeapons(card) {
 
 function resolveEquippedFruit(card) {
   if (!card?.equippedDevilFruit || card.equippedDevilFruit === "None") return null;
+
   return findByCodeOrName(devilFruits, card.equippedDevilFruit);
 }
 
@@ -236,7 +263,6 @@ function isWeaponOwnerBonusActive(card, weapon) {
 
 function getWeaponPercentFromData(card) {
   const equipped = resolveEquippedWeapons(card);
-
   let atk = 0;
   let hp = 0;
   let speed = 0;
@@ -252,7 +278,12 @@ function getWeaponPercentFromData(card) {
     speed += Number(base.speed || 0) + (ownerActive ? Number(ownerBonus.speed || 0) : 0);
   }
 
-  return { atk, hp, speed, equipped };
+  return {
+    atk,
+    hp,
+    speed,
+    equipped,
+  };
 }
 
 function getFruitPercentFromData(card) {
@@ -282,7 +313,6 @@ function getEquipmentPowerBonus(card, equippedWeapons, equippedFruit) {
     (sum, weapon) => sum + getWeaponPower(weapon, weapon?.upgradeLevel || 0),
     0
   );
-
   const fruitPower = equippedFruit ? getFruitPower(equippedFruit) : 0;
 
   return {
@@ -310,7 +340,9 @@ function getDisplayFruitName(card, equippedFruit) {
   const fruit = equippedFruit || resolveEquippedFruit(card);
 
   if (fruit?.name) return fruit.name;
+
   if (card?.equippedDevilFruitName) return String(card.equippedDevilFruitName);
+
   if (card?.equippedDevilFruit && card.equippedDevilFruit !== "None") {
     return titleCaseWords(card.equippedDevilFruit);
   }
@@ -338,6 +370,7 @@ function getBasePower(card) {
 
 function getPowerCaps(card) {
   const base = getBasePower(card);
+
   return {
     M1: Math.floor(base),
     M2: Math.floor(base * getStageMultiplier(card, 2)),
@@ -349,7 +382,6 @@ function getCurrentPower(card) {
   const stage = Math.max(1, Math.min(3, Number(card?.evolutionStage || 1)));
   const caps = card.powerCaps || getPowerCaps(card);
   const stagePower = Number(caps[`M${stage}`] || caps.M1 || 0);
-
   const equippedWeapons = card.equippedWeaponsResolved || resolveEquippedWeapons(card);
   const equippedFruit = card.equippedDevilFruitData || resolveEquippedFruit(card);
   const equipPower = getEquipmentPowerBonus(card, equippedWeapons, equippedFruit);
@@ -361,6 +393,7 @@ function hydrateCard(card) {
   if (!card) return null;
 
   let next = normalizeRequirementPair(clone(card));
+
   next.image = getCardImage(next.code, next.image || "");
 
   const special = getLuffySpecialPath(next);
@@ -378,9 +411,21 @@ function hydrateCard(card) {
     const mult = special.mults[stage];
 
     next.evolutionForms = [
-      { ...special.forms[0], require: null, badgeImage: getRarityBadge(special.forms[0].tier) },
-      { ...special.forms[1], require: next.awakenRequirements?.M2 || null, badgeImage: getRarityBadge(special.forms[1].tier) },
-      { ...special.forms[2], require: next.awakenRequirements?.M3 || null, badgeImage: getRarityBadge(special.forms[2].tier) },
+      {
+        ...special.forms[0],
+        require: null,
+        badgeImage: getRarityBadge(special.forms[0].tier),
+      },
+      {
+        ...special.forms[1],
+        require: next.awakenRequirements?.M2 || null,
+        badgeImage: getRarityBadge(special.forms[1].tier),
+      },
+      {
+        ...special.forms[2],
+        require: next.awakenRequirements?.M3 || null,
+        badgeImage: getRarityBadge(special.forms[2].tier),
+      },
     ];
 
     next.baseTier = "A";
@@ -413,15 +458,15 @@ function hydrateCard(card) {
   const fruitPercent = getFruitPercentFromData(next);
 
   const weaponBonus = {
-    atk: Math.floor(scaledAtk * Number(weaponPercent.atk || 0) / 100),
-    hp: Math.floor(scaledHp * Number(weaponPercent.hp || 0) / 100),
-    speed: Math.floor(scaledSpeed * Number(weaponPercent.speed || 0) / 100),
+    atk: Math.floor((scaledAtk * Number(weaponPercent.atk || 0)) / 100),
+    hp: Math.floor((scaledHp * Number(weaponPercent.hp || 0)) / 100),
+    speed: Math.floor((scaledSpeed * Number(weaponPercent.speed || 0)) / 100),
   };
 
   const fruitBonus = {
-    atk: Math.floor(scaledAtk * Number(fruitPercent.atk || 0) / 100),
-    hp: Math.floor(scaledHp * Number(fruitPercent.hp || 0) / 100),
-    speed: Math.floor(scaledSpeed * Number(fruitPercent.speed || 0) / 100),
+    atk: Math.floor((scaledAtk * Number(fruitPercent.atk || 0)) / 100),
+    hp: Math.floor((scaledHp * Number(fruitPercent.hp || 0)) / 100),
+    speed: Math.floor((scaledSpeed * Number(fruitPercent.speed || 0)) / 100),
   };
 
   next.weaponBonus = weaponBonus;
@@ -453,10 +498,10 @@ function hydrateCard(card) {
     weaponPercent.equipped,
     fruitPercent.fruit
   );
+
   next.weaponPowerBonus = equipmentPower.weaponPower;
   next.fruitPowerBonus = equipmentPower.fruitPower;
   next.totalEquipmentPowerBonus = equipmentPower.total;
-
   next.badgeImage = getRarityBadge(next.currentTier || next.rarity || "");
 
   next.evolutionForms = (next.evolutionForms || []).map((form, index) => ({
@@ -475,6 +520,7 @@ function hydrateCard(card) {
 
 function findOwnedCard(cardsOwned, query) {
   const q = normalize(query);
+
   const found = safeArray(cardsOwned).find((card) => {
     const fields = [
       card.code,
@@ -494,6 +540,7 @@ function findOwnedCard(cardsOwned, query) {
   if (!found) return null;
 
   const merged = mergeOwnedCardWithTemplate(found);
+
   return hydrateCard(merged);
 }
 
@@ -510,9 +557,12 @@ function getAllCards() {
 function createOwnedCard(template) {
   const owned = hydrateCard({
     ...clone(template),
-    instanceId: `${template.code}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    instanceId: `${template.code}_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 8)}`,
     level: 1,
     xp: 0,
+    exp: 0,
     kills: 0,
     fragments: 0,
     evolutionStage: 1,
@@ -534,7 +584,6 @@ function createOwnedCard(template) {
 function getBoostStageValue(card, stage = 1) {
   const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
   const base = Number(card?.boostValue || 0);
-
   const explicitValues = card?.boostValues || card?.stageBoostValues || null;
   const key = `M${safeStage}`;
 
@@ -544,6 +593,7 @@ function getBoostStageValue(card, stage = 1) {
 
   if (safeStage === 1) return base;
   if (safeStage === 2) return Number(card?.boostValueM2 ?? card?.m2BoostValue ?? base + 2);
+
   return Number(card?.boostValueM3 ?? card?.m3BoostValue ?? base + 4);
 }
 
