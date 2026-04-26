@@ -280,6 +280,8 @@ function normalizeArena(arena) {
     streak: Number(arena?.streak) >= 0 ? Number(arena.streak) : 0,
     bestStreak: Number(arena?.bestStreak) >= 0 ? Number(arena.bestStreak) : 0,
     matches: Number(arena?.matches) >= 0 ? Number(arena.matches) : 0,
+    dailyDateKey: arena?.dailyDateKey || null,
+    dailyUses: Number(arena?.dailyUses) >= 0 ? Number(arena.dailyUses) : 0,
   };
 }
 

@@ -3,12 +3,33 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  StringSelectMenuBuilder,
 } = require("discord.js");
 const { getPlayer, updatePlayer, readPlayers } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestCounter } = require("../utils/questProgress");
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
+const ARENA_DAILY_LIMIT = 5;
+
+function getDateKey() {
+  const now = new Date();
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    now.getUTCDate()
+  ).padStart(2, "0")}`;
+}
+
+function getArenaDailyUses(arena) {
+  const today = getDateKey();
+
+  if (arena?.dailyDateKey !== today) return 0;
+
+  return Math.max(0, Number(arena?.dailyUses || 0));
+}
+
+function getArenaUsesLeft(arena) {
+  return Math.max(0, ARENA_DAILY_LIMIT - getArenaDailyUses(arena));
+}
 
 function getPower(card) {
   return Number(
@@ -42,12 +63,13 @@ function formatDevilFruit(card) {
   );
 }
 
-function buildBattleUnit(card, slot) {
+function buildBattleUnit(card, slot, ownerTag = "player") {
   const synced = hydrateCard(card);
 
   return {
     slot: slot + 1,
-    instanceId: synced.instanceId,
+    ownerTag,
+    instanceId: synced.instanceId || `${ownerTag}-${slot}-${Date.now()}`,
     name: synced.displayName || synced.name || "Unknown",
     rarity: synced.currentTier || synced.rarity || "C",
     atk: Number(synced.atk || 0),
@@ -61,7 +83,7 @@ function buildBattleUnit(card, slot) {
   };
 }
 
-function getTeamUnits(player) {
+function getTeamUnits(player, ownerTag = "player") {
   const cards = (Array.isArray(player.cards) ? player.cards : [])
     .map(hydrateCard)
     .filter(Boolean);
@@ -80,17 +102,17 @@ function getTeamUnits(player) {
           String(card.cardRole || "").toLowerCase() !== "boost"
       );
 
-      return found ? buildBattleUnit(found, index) : null;
+      return found ? buildBattleUnit(found, index, ownerTag) : null;
     })
     .filter(Boolean);
 }
 
-function aliveCount(units) {
-  return units.filter((unit) => Number(unit.hp || 0) > 0).length;
-}
-
 function getAliveUnits(units) {
   return units.filter((unit) => Number(unit.hp || 0) > 0);
+}
+
+function aliveCount(units) {
+  return getAliveUnits(units).length;
 }
 
 function getFirstAlive(units) {
@@ -120,6 +142,21 @@ function performAttack(attacker, defender) {
   defender.hp = Math.max(0, Number(defender.hp || 0) - rawDamage);
 
   return rawDamage;
+}
+
+function resolveSpeedOrder(playerUnit, enemyUnit) {
+  const playerSpeed = Number(playerUnit?.speed || 0);
+  const enemySpeed = Number(enemyUnit?.speed || 0);
+
+  if (playerSpeed > enemySpeed) return [playerUnit, enemyUnit];
+  if (enemySpeed > playerSpeed) return [enemyUnit, playerUnit];
+
+  const playerPower = Number(playerUnit?.power || 0);
+  const enemyPower = Number(enemyUnit?.power || 0);
+
+  if (playerPower >= enemyPower) return [playerUnit, enemyUnit];
+
+  return [enemyUnit, playerUnit];
 }
 
 function renderHpBar(hp, maxHp, size = 10) {
@@ -159,6 +196,8 @@ function applyArenaResult(arena, result) {
     streak: Number(arena?.streak || 0),
     bestStreak: Number(arena?.bestStreak || 0),
     matches: Number(arena?.matches || 0),
+    dailyDateKey: getDateKey(),
+    dailyUses: getArenaDailyUses(arena) + 1,
   };
 
   current.matches += 1;
@@ -194,118 +233,6 @@ function getResultColor(result, ended) {
   if (result === "win") return 0x2ecc71;
   if (result === "lose") return 0xe74c3c;
   return 0xf1c40f;
-}
-
-function buildArenaDescription({
-  player,
-  opponent,
-  myTeam,
-  enemyTeam,
-  logs,
-  arena,
-  result,
-  ended,
-}) {
-  const recentLogs = logs.slice(-8);
-
-  return [
-    `**You:** ${player.username || "Unknown"}`,
-    `**Opponent:** ${opponent.username || "Unknown"}`,
-    ended ? `**Result:** ${String(result || "draw").toUpperCase()}` : "**Result:** In Progress",
-    `**Arena Points:** ${Number(arena?.points || 0)}`,
-    `**Record:** ${Number(arena?.wins || 0)}W / ${Number(arena?.losses || 0)}L / ${Number(arena?.draws || 0)}D`,
-    `**Streak:** ${Number(arena?.streak || 0)}`,
-    "",
-    "## Your Team",
-    teamSummary(myTeam),
-    "",
-    "## Opponent Team",
-    teamSummary(enemyTeam),
-    "",
-    "## Battle Log",
-    ...(recentLogs.length ? recentLogs : ["Choose one of your cards to attack."]),
-  ].join("\n");
-}
-
-function buildArenaEmbed({
-  player,
-  opponent,
-  myTeam,
-  enemyTeam,
-  logs,
-  arena,
-  result,
-  ended,
-}) {
-  return new EmbedBuilder()
-    .setColor(getResultColor(result, ended))
-    .setTitle(ended ? getResultTitle(result) : "⚔️ Arena Battle")
-    .setDescription(
-      buildArenaDescription({
-        player,
-        opponent,
-        myTeam,
-        enemyTeam,
-        logs,
-        arena,
-        result,
-        ended,
-      })
-    )
-    .setFooter({
-      text: ended
-        ? "One Piece Bot • Arena Ranked"
-        : "One Piece Bot • Manual Arena Ranked",
-    });
-}
-
-function buildArenaResultEmbed({ result, player, opponent, arena, logs }) {
-  return new EmbedBuilder()
-    .setColor(getResultColor(result, true))
-    .setTitle(getResultTitle(result))
-    .setDescription(
-      [
-        `**You:** ${player.username || "Unknown"}`,
-        `**Opponent:** ${opponent.username || "Unknown"}`,
-        "",
-        `**Result:** ${String(result || "draw").toUpperCase()}`,
-        `**Arena Points:** ${Number(arena?.points || 0)}`,
-        `**Record:** ${Number(arena?.wins || 0)}W / ${Number(arena?.losses || 0)}L / ${Number(arena?.draws || 0)}D`,
-        `**Streak:** ${Number(arena?.streak || 0)}`,
-        "",
-        "## Final Log",
-        ...(logs.length ? logs.slice(-10) : ["No final log."]),
-      ].join("\n")
-    )
-    .setFooter({
-      text: "One Piece Bot • Arena Result",
-    });
-}
-
-function buildActionRows(myTeam, ended) {
-  const attackRow = new ActionRowBuilder();
-
-  for (let i = 0; i < 3; i++) {
-    const unit = myTeam[i];
-
-    attackRow.addComponents(
-      new ButtonBuilder()
-        .setCustomId(`arena_attack_${i}`)
-        .setLabel(unit ? unit.name.slice(0, 20) : `Slot ${i + 1}`)
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(ended || !unit || Number(unit.hp || 0) <= 0)
-    );
-  }
-
-  const controlRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("arena_forfeit")
-      .setLabel("Forfeit")
-      .setStyle(ButtonStyle.Danger)
-      .setDisabled(ended)
-  );
-
-  return [attackRow, controlRow];
 }
 
 function resolveResult(myTeam, enemyTeam) {
@@ -354,58 +281,496 @@ function updateArenaPlayer(message, player, result) {
   return updatedArena;
 }
 
-module.exports = {
-  name: "arena",
-  aliases: ["pvp", "ranked"],
+function buildArenaLobbyEmbed(player, opponents) {
+  const arena = player.arena || {};
+  const usesLeft = getArenaUsesLeft(arena);
+  const rows = opponents.slice(0, 10).map((entry, index) => {
+    const tag = entry.isBot ? "BOT" : "PLAYER";
+    return `${index + 1}. **${entry.username}** • ${entry.points} pts • ${tag}`;
+  });
 
-  async execute(message) {
-    const player = getPlayer(message.author.id, message.author.username);
-    const myTeam = getTeamUnits(player);
+  return new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle("Global Arena")
+    .setDescription(
+      [
+        "Select your arena opponent below.",
+        "",
+        `**Your Points:** ${Number(arena.points || 0)}`,
+        `**Daily Battles Left:** ${usesLeft}/${ARENA_DAILY_LIMIT}`,
+        "",
+        "## Available Opponents",
+        ...(rows.length ? rows : ["No opponent available."]),
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Arena Lobby",
+    });
+}
 
-    if (myTeam.length < 3) {
-      return message.reply("You need a full team of 3 battle cards to use `op arena`.");
+function buildOpponentMenu(opponents) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("arena_select_opponent")
+        .setPlaceholder("Select arena opponent")
+        .addOptions(
+          opponents.slice(0, 25).map((opponent, index) => ({
+            label: opponent.username.slice(0, 100),
+            description: `${opponent.points} pts • ${opponent.isBot ? "Bot opponent" : "Player opponent"}`,
+            value: String(index),
+          }))
+        )
+    ),
+  ];
+}
+
+function buildArenaDescription({
+  player,
+  opponent,
+  myTeam,
+  enemyTeam,
+  logs,
+  arena,
+  result,
+  ended,
+}) {
+  const recentLogs = logs.slice(-8);
+
+  return [
+    `**You:** ${player.username || "Unknown"}`,
+    `**Opponent:** ${opponent.username || "Unknown"}`,
+    ended ? `**Result:** ${String(result || "draw").toUpperCase()}` : "**Result:** In Progress",
+    `**Arena Points:** ${Number(arena?.points || 0)}`,
+    `**Daily Battles Left:** ${getArenaUsesLeft(arena)}/${ARENA_DAILY_LIMIT}`,
+    `**Record:** ${Number(arena?.wins || 0)}W / ${Number(arena?.losses || 0)}L / ${Number(arena?.draws || 0)}D`,
+    `**Streak:** ${Number(arena?.streak || 0)}`,
+    "",
+    "## Your Team",
+    teamSummary(myTeam),
+    "",
+    "## Opponent Team",
+    teamSummary(enemyTeam),
+    "",
+    "## Battle Log",
+    ...(recentLogs.length ? recentLogs : ["Choose one of your cards to attack. SPD decides attack order."]),
+  ].join("\n");
+}
+
+function buildArenaEmbed({
+  player,
+  opponent,
+  myTeam,
+  enemyTeam,
+  logs,
+  arena,
+  result,
+  ended,
+}) {
+  return new EmbedBuilder()
+    .setColor(getResultColor(result, ended))
+    .setTitle(ended ? getResultTitle(result) : "⚔️ Arena Battle")
+    .setDescription(
+      buildArenaDescription({
+        player,
+        opponent,
+        myTeam,
+        enemyTeam,
+        logs,
+        arena,
+        result,
+        ended,
+      })
+    )
+    .setFooter({
+      text: ended
+        ? "One Piece Bot • Arena Ranked"
+        : "One Piece Bot • Manual Arena Ranked",
+    });
+}
+
+function buildArenaResultEmbed({ result, player, opponent, arena, logs }) {
+  return new EmbedBuilder()
+    .setColor(getResultColor(result, true))
+    .setTitle(getResultTitle(result))
+    .setDescription(
+      [
+        `**You:** ${player.username || "Unknown"}`,
+        `**Opponent:** ${opponent.username || "Unknown"}`,
+        "",
+        `**Result:** ${String(result || "draw").toUpperCase()}`,
+        `**Arena Points:** ${Number(arena?.points || 0)}`,
+        `**Daily Battles Left:** ${getArenaUsesLeft(arena)}/${ARENA_DAILY_LIMIT}`,
+        `**Record:** ${Number(arena?.wins || 0)}W / ${Number(arena?.losses || 0)}L / ${Number(arena?.draws || 0)}D`,
+        `**Streak:** ${Number(arena?.streak || 0)}`,
+        "",
+        "## Final Log",
+        ...(logs.length ? logs.slice(-10) : ["No final log."]),
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Arena Result",
+    });
+}
+
+function buildActionRows(myTeam, ended) {
+  const attackRow = new ActionRowBuilder();
+
+  for (let i = 0; i < 3; i++) {
+    const unit = myTeam[i];
+
+    attackRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`arena_attack_${i}`)
+        .setLabel(unit ? unit.name.slice(0, 20) : `Slot ${i + 1}`)
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(ended || !unit || Number(unit.hp || 0) <= 0)
+    );
+  }
+
+  const controlRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("arena_forfeit")
+      .setLabel("Forfeit")
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(ended)
+  );
+
+  return [attackRow, controlRow];
+}
+
+function makeBotCard({ code, name, rarity, atk, hp, speed, power, slot }) {
+  return buildBattleUnit(
+    {
+      code,
+      instanceId: `arena_bot_${code}_${Date.now()}_${slot}`,
+      name,
+      displayName: name,
+      rarity,
+      currentTier: rarity,
+      cardRole: "battle",
+      atk,
+      hp,
+      speed,
+      level: 1,
+      currentPower: power,
+      equippedWeapons: [],
+      equippedDevilFruit: null,
+    },
+    slot,
+    "bot"
+  );
+}
+
+function buildBotTeam(points, botIndex) {
+  const scale = 1 + Math.max(0, Number(points || 0)) / 250;
+  const base = [
+    {
+      code: `bot_marine_${botIndex}`,
+      name: "Arena Marine",
+      rarity: "C",
+      atk: 95,
+      hp: 900,
+      speed: 55,
+      power: 450,
+    },
+    {
+      code: `bot_swordsman_${botIndex}`,
+      name: "Arena Swordsman",
+      rarity: "C",
+      atk: 120,
+      hp: 780,
+      speed: 68,
+      power: 500,
+    },
+    {
+      code: `bot_captain_${botIndex}`,
+      name: "Arena Captain",
+      rarity: points >= 100 ? "B" : "C",
+      atk: 145,
+      hp: 1100,
+      speed: 72,
+      power: points >= 100 ? 820 : 600,
+    },
+  ];
+
+  return base.map((entry, index) =>
+    makeBotCard({
+      ...entry,
+      atk: Math.floor(entry.atk * scale),
+      hp: Math.floor(entry.hp * scale),
+      speed: Math.floor(entry.speed * Math.min(1.5, scale)),
+      power: Math.floor(entry.power * scale),
+      slot: index,
+    })
+  );
+}
+
+function buildBotOpponents(playerPoints, count = 6) {
+  return Array.from({ length: count }).map((_, index) => {
+    const botPoints = Math.max(0, playerPoints + (index - 2) * 20);
+
+    return {
+      userId: `bot-${index}`,
+      username: `Arena Bot ${index + 1}`,
+      points: botPoints,
+      isBot: true,
+      teamUnits: buildBotTeam(botPoints, index),
+    };
+  });
+}
+
+function buildOpponentPool(message, player) {
+  const allPlayers = readPlayers();
+  const playerPoints = Number(player?.arena?.points || 0);
+
+  const realOpponents = Object.entries(allPlayers)
+    .filter(([userId]) => userId !== message.author.id)
+    .map(([userId, raw]) => ({
+      userId,
+      ...raw,
+    }))
+    .map((entry) => ({
+      ...entry,
+      username: entry.username || "Unknown",
+      cards: Array.isArray(entry.cards) ? entry.cards : [],
+      team: entry.team || {
+        slots: [null, null, null],
+      },
+      points: Number(entry?.arena?.points || 0),
+      isBot: false,
+    }))
+    .filter((entry) => {
+      const team = getTeamUnits(entry, "opponent");
+      return team.length === 3;
+    })
+    .sort((a, b) => {
+      const diffA = Math.abs(Number(a.points || 0) - playerPoints);
+      const diffB = Math.abs(Number(b.points || 0) - playerPoints);
+      return diffA - diffB;
+    })
+    .slice(0, 15)
+    .map((entry) => ({
+      ...entry,
+      teamUnits: getTeamUnits(entry, "opponent"),
+    }));
+
+  const botsNeeded = Math.max(0, 6 - realOpponents.length);
+  const bots = buildBotOpponents(playerPoints, botsNeeded || 3);
+
+  return [...realOpponents, ...bots].slice(0, 25);
+}
+
+async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, lobbyMessage }) {
+  const logs = [];
+  let ended = false;
+  let result = null;
+  let currentArena = {
+    points: Number(player?.arena?.points || 0),
+    wins: Number(player?.arena?.wins || 0),
+    losses: Number(player?.arena?.losses || 0),
+    draws: Number(player?.arena?.draws || 0),
+    streak: Number(player?.arena?.streak || 0),
+    bestStreak: Number(player?.arena?.bestStreak || 0),
+    matches: Number(player?.arena?.matches || 0),
+    dailyDateKey: player?.arena?.dailyDateKey || null,
+    dailyUses: getArenaDailyUses(player?.arena || {}),
+  };
+
+  await lobbyMessage.edit({
+    embeds: [
+      buildArenaEmbed({
+        player,
+        opponent,
+        myTeam,
+        enemyTeam,
+        logs,
+        arena: currentArena,
+        result,
+        ended,
+      }),
+    ],
+    components: buildActionRows(myTeam, ended),
+  });
+
+  const collector = lobbyMessage.createMessageComponentCollector({
+    time: SESSION_TIMEOUT_MS,
+  });
+
+  collector.on("collect", async (interaction) => {
+    if (interaction.user.id !== message.author.id) {
+      return interaction.reply({
+        content: "Only the command user can control this arena battle.",
+        ephemeral: true,
+      });
     }
 
-    const allPlayers = readPlayers();
+    if (ended) {
+      return interaction.reply({
+        content: "This arena battle has already ended.",
+        ephemeral: true,
+      });
+    }
 
-    const candidates = Object.entries(allPlayers)
-      .filter(([userId]) => userId !== message.author.id)
-      .map(([userId, raw]) => ({
-        userId,
-        ...raw,
-      }))
-      .map((entry) => ({
-        ...entry,
-        cards: Array.isArray(entry.cards) ? entry.cards : [],
-        team: entry.team || {
-          slots: [null, null, null],
-        },
-      }))
-      .filter((entry) => {
-        const team = getTeamUnits(entry);
-        return team.length === 3;
+    if (interaction.customId === "arena_forfeit") {
+      ended = true;
+      result = "lose";
+      logs.push("🏳️ You forfeited the arena battle.");
+      currentArena = updateArenaPlayer(message, player, result);
+
+      await interaction.update({
+        embeds: [
+          buildArenaResultEmbed({
+            result,
+            player,
+            opponent,
+            arena: currentArena,
+            logs,
+          }),
+        ],
+        components: [],
       });
 
-    if (!candidates.length) {
-      return message.reply("No arena opponent with a full team was found yet.");
+      collector.stop("forfeit");
+      return;
     }
 
-    const opponent = candidates[Math.floor(Math.random() * candidates.length)];
-    const enemyTeam = getTeamUnits(opponent);
-    const logs = [];
-    let ended = false;
-    let result = null;
-    let currentArena = {
-      points: Number(player?.arena?.points || 0),
-      wins: Number(player?.arena?.wins || 0),
-      losses: Number(player?.arena?.losses || 0),
-      draws: Number(player?.arena?.draws || 0),
-      streak: Number(player?.arena?.streak || 0),
-      bestStreak: Number(player?.arena?.bestStreak || 0),
-      matches: Number(player?.arena?.matches || 0),
-    };
+    const index = Number(interaction.customId.replace("arena_attack_", ""));
+    const playerAttacker = myTeam[index];
 
-    const sent = await message.reply({
+    if (!playerAttacker || Number(playerAttacker.hp || 0) <= 0) {
+      return interaction.reply({
+        content: "That card cannot attack right now.",
+        ephemeral: true,
+      });
+    }
+
+    const enemyTarget = pickTarget(enemyTeam);
+
+    if (!enemyTarget) {
+      return interaction.reply({
+        content: "No opponent card is available to attack.",
+        ephemeral: true,
+      });
+    }
+
+    const [first, second] = resolveSpeedOrder(playerAttacker, enemyTarget);
+    const firstIsPlayer = first.ownerTag !== "opponent" && first.ownerTag !== "bot";
+
+    const firstTarget = firstIsPlayer ? enemyTarget : playerAttacker;
+    const firstDamage = performAttack(first, firstTarget);
+
+    logs.push(`⚡ ${first.name} moved first by SPD.`);
+    logs.push(`⚔️ ${first.name} dealt **${firstDamage}** damage to ${firstTarget.name}.`);
+
+    if (Number(firstTarget.hp || 0) <= 0) {
+      logs.push(`☠️ ${firstTarget.name} was defeated and cannot counter.`);
+    }
+
+    if (aliveCount(enemyTeam) <= 0) {
+      ended = true;
+      result = "win";
+      logs.push("🏆 You won the arena battle!");
+      currentArena = updateArenaPlayer(message, player, result);
+
+      await interaction.update({
+        embeds: [
+          buildArenaResultEmbed({
+            result,
+            player,
+            opponent,
+            arena: currentArena,
+            logs,
+          }),
+        ],
+        components: [],
+      });
+
+      collector.stop("win");
+      return;
+    }
+
+    if (aliveCount(myTeam) <= 0) {
+      ended = true;
+      result = "lose";
+      logs.push("💀 You lost the arena battle.");
+      currentArena = updateArenaPlayer(message, player, result);
+
+      await interaction.update({
+        embeds: [
+          buildArenaResultEmbed({
+            result,
+            player,
+            opponent,
+            arena: currentArena,
+            logs,
+          }),
+        ],
+        components: [],
+      });
+
+      collector.stop("lose");
+      return;
+    }
+
+    if (Number(second.hp || 0) > 0) {
+      const secondTarget = firstIsPlayer ? playerAttacker : enemyTarget;
+      const secondDamage = performAttack(second, secondTarget);
+
+      logs.push(`💥 ${second.name} countered for **${secondDamage}** damage to ${secondTarget.name}.`);
+
+      if (Number(secondTarget.hp || 0) <= 0) {
+        logs.push(`☠️ ${secondTarget.name} was defeated.`);
+      }
+    }
+
+    if (aliveCount(enemyTeam) <= 0) {
+      ended = true;
+      result = "win";
+      logs.push("🏆 You won the arena battle!");
+      currentArena = updateArenaPlayer(message, player, result);
+
+      await interaction.update({
+        embeds: [
+          buildArenaResultEmbed({
+            result,
+            player,
+            opponent,
+            arena: currentArena,
+            logs,
+          }),
+        ],
+        components: [],
+      });
+
+      collector.stop("win");
+      return;
+    }
+
+    if (aliveCount(myTeam) <= 0) {
+      ended = true;
+      result = "lose";
+      logs.push("💀 You lost the arena battle.");
+      currentArena = updateArenaPlayer(message, player, result);
+
+      await interaction.update({
+        embeds: [
+          buildArenaResultEmbed({
+            result,
+            player,
+            opponent,
+            arena: currentArena,
+            logs,
+          }),
+        ],
+        components: [],
+      });
+
+      collector.stop("lose");
+      return;
+    }
+
+    await interaction.update({
       embeds: [
         buildArenaEmbed({
           player,
@@ -420,186 +785,118 @@ module.exports = {
       ],
       components: buildActionRows(myTeam, ended),
     });
+  });
 
-    const collector = sent.createMessageComponentCollector({
+  collector.on("end", async (_collected, reason) => {
+    if (ended) return;
+
+    if (reason === "time") {
+      ended = true;
+      result = resolveResult(myTeam, enemyTeam);
+      logs.push("⌛ Arena battle timed out. Result decided by remaining HP.");
+      currentArena = updateArenaPlayer(message, player, result);
+
+      try {
+        await lobbyMessage.edit({
+          embeds: [
+            buildArenaResultEmbed({
+              result,
+              player,
+              opponent,
+              arena: currentArena,
+              logs,
+            }),
+          ],
+          components: [],
+        });
+      } catch {}
+    }
+  });
+}
+
+module.exports = {
+  name: "arena",
+  aliases: ["pvp", "ranked"],
+
+  async execute(message) {
+    const player = getPlayer(message.author.id, message.author.username);
+    const myTeam = getTeamUnits(player, "player");
+
+    if (myTeam.length < 3) {
+      return message.reply("You need a full team of 3 battle cards to use `op arena`.");
+    }
+
+    const usesLeft = getArenaUsesLeft(player.arena || {});
+
+    if (usesLeft <= 0) {
+      return message.reply(`You already used all **${ARENA_DAILY_LIMIT}/5** arena battles today.`);
+    }
+
+    const opponents = buildOpponentPool(message, player);
+
+    if (!opponents.length) {
+      return message.reply("No arena opponent was found.");
+    }
+
+    const lobbyMessage = await message.reply({
+      embeds: [buildArenaLobbyEmbed(player, opponents)],
+      components: buildOpponentMenu(opponents),
+    });
+
+    const lobbyCollector = lobbyMessage.createMessageComponentCollector({
       time: SESSION_TIMEOUT_MS,
     });
 
-    collector.on("collect", async (interaction) => {
+    lobbyCollector.on("collect", async (interaction) => {
       if (interaction.user.id !== message.author.id) {
         return interaction.reply({
-          content: "Only the command user can control this arena battle.",
+          content: "Only the command user can select an arena opponent.",
           ephemeral: true,
         });
       }
 
-      if (ended) {
+      const selectedIndex = Number(interaction.values?.[0] || 0);
+      const opponent = opponents[selectedIndex];
+
+      if (!opponent) {
         return interaction.reply({
-          content: "This arena battle has already ended.",
+          content: "That opponent is no longer available.",
           ephemeral: true,
         });
       }
 
-      if (interaction.customId === "arena_forfeit") {
-        ended = true;
-        result = "lose";
-        logs.push("🏳️ You forfeited the arena battle.");
-        currentArena = updateArenaPlayer(message, player, result);
+      const freshPlayer = getPlayer(message.author.id, message.author.username);
+      const freshUsesLeft = getArenaUsesLeft(freshPlayer.arena || {});
 
-        await interaction.update({
-          embeds: [
-            buildArenaResultEmbed({
-              result,
-              player,
-              opponent,
-              arena: currentArena,
-              logs,
-            }),
-          ],
-          components: [],
-        });
-
-        collector.stop("forfeit");
-        return;
-      }
-
-      const index = Number(interaction.customId.replace("arena_attack_", ""));
-      const attacker = myTeam[index];
-
-      if (!attacker || Number(attacker.hp || 0) <= 0) {
+      if (freshUsesLeft <= 0) {
         return interaction.reply({
-          content: "That card cannot attack right now.",
+          content: `You already used all **${ARENA_DAILY_LIMIT}/5** arena battles today.`,
           ephemeral: true,
         });
       }
 
-      const target = pickTarget(enemyTeam);
+      lobbyCollector.stop("selected");
 
-      if (!target) {
-        return interaction.reply({
-          content: "No opponent card is available to attack.",
-          ephemeral: true,
-        });
-      }
+      await interaction.deferUpdate();
 
-      const damage = performAttack(attacker, target);
-
-      logs.push(`⚔️ ${attacker.name} dealt **${damage}** damage to ${target.name}.`);
-
-      if (Number(target.hp || 0) <= 0) {
-        logs.push(`☠️ ${target.name} was defeated.`);
-      }
-
-      if (aliveCount(enemyTeam) <= 0) {
-        ended = true;
-        result = "win";
-        logs.push("🏆 You won the arena battle!");
-        currentArena = updateArenaPlayer(message, player, result);
-
-        await interaction.update({
-          embeds: [
-            buildArenaResultEmbed({
-              result,
-              player,
-              opponent,
-              arena: currentArena,
-              logs,
-            }),
-          ],
-          components: [],
-        });
-
-        collector.stop("win");
-        return;
-      }
-
-      const enemyAttackers = getAliveUnits(enemyTeam).sort((a, b) => {
-        if (b.speed !== a.speed) return b.speed - a.speed;
-        if (b.power !== a.power) return b.power - a.power;
-        return a.slot - b.slot;
-      });
-
-      for (const enemy of enemyAttackers) {
-        const retaliationTarget =
-          Number(attacker.hp || 0) > 0 ? attacker : getFirstAlive(myTeam);
-
-        if (!retaliationTarget) break;
-
-        const retaliationDamage = performAttack(enemy, retaliationTarget);
-
-        logs.push(
-          `💥 ${enemy.name} dealt **${retaliationDamage}** damage to ${retaliationTarget.name}.`
-        );
-
-        if (Number(retaliationTarget.hp || 0) <= 0) {
-          logs.push(`☠️ ${retaliationTarget.name} was defeated.`);
-        }
-      }
-
-      if (aliveCount(myTeam) <= 0) {
-        ended = true;
-        result = "lose";
-        logs.push("💀 You lost the arena battle.");
-        currentArena = updateArenaPlayer(message, player, result);
-
-        await interaction.update({
-          embeds: [
-            buildArenaResultEmbed({
-              result,
-              player,
-              opponent,
-              arena: currentArena,
-              logs,
-            }),
-          ],
-          components: [],
-        });
-
-        collector.stop("lose");
-        return;
-      }
-
-      await interaction.update({
-        embeds: [
-          buildArenaEmbed({
-            player,
-            opponent,
-            myTeam,
-            enemyTeam,
-            logs,
-            arena: currentArena,
-            result,
-            ended,
-          }),
-        ],
-        components: buildActionRows(myTeam, ended),
+      await startArenaBattle({
+        message,
+        player: freshPlayer,
+        opponent,
+        myTeam: getTeamUnits(freshPlayer, "player"),
+        enemyTeam: opponent.teamUnits,
+        lobbyMessage,
       });
     });
 
-    collector.on("end", async (_collected, reason) => {
-      if (ended) return;
+    lobbyCollector.on("end", async (_collected, reason) => {
+      if (reason === "selected") return;
 
-      if (reason === "time") {
-        ended = true;
-        result = resolveResult(myTeam, enemyTeam);
-        logs.push("⌛ Arena battle timed out. Result decided by remaining HP.");
-        currentArena = updateArenaPlayer(message, player, result);
-
-        try {
-          await sent.edit({
-            embeds: [
-              buildArenaResultEmbed({
-                result,
-                player,
-                opponent,
-                arena: currentArena,
-                logs,
-              }),
-            ],
-            components: [],
-          });
-        } catch {}
-      }
+      try {
+        await lobbyMessage.edit({
+          components: [],
+        });
+      } catch {}
     });
   },
 };
