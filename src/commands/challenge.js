@@ -20,27 +20,6 @@ function getPower(card) {
   );
 }
 
-function formatWeapons(card) {
-  if (Array.isArray(card?.equippedWeapons) && card.equippedWeapons.length) {
-    return card.equippedWeapons
-      .map((weapon) =>
-        `${weapon.name}${Number(weapon.upgradeLevel || 0) > 0 ? ` +${weapon.upgradeLevel}` : ""}`
-      )
-      .join(", ");
-  }
-
-  return card?.displayWeaponName || card?.equippedWeapon || "None";
-}
-
-function formatDevilFruit(card) {
-  return (
-    card?.displayFruitName ||
-    card?.equippedDevilFruitName ||
-    card?.equippedDevilFruit ||
-    "None"
-  );
-}
-
 function buildBattleUnit(card, slot, ownerTag = "player") {
   const synced = hydrateCard(card);
 
@@ -56,8 +35,6 @@ function buildBattleUnit(card, slot, ownerTag = "player") {
     speed: Number(synced.speed || 0),
     level: Number(synced.level || 1),
     power: getPower(synced),
-    equippedWeapon: formatWeapons(synced),
-    equippedDevilFruit: formatDevilFruit(synced),
   };
 }
 
@@ -89,10 +66,6 @@ function aliveCount(units) {
   return units.filter((unit) => Number(unit.hp || 0) > 0).length;
 }
 
-function getAliveUnits(units) {
-  return units.filter((unit) => Number(unit.hp || 0) > 0);
-}
-
 function getFirstAlive(units) {
   return units.find((unit) => Number(unit.hp || 0) > 0) || null;
 }
@@ -112,15 +85,15 @@ function resolveSpeedOrder(playerUnit, enemyUnit) {
   const playerSpeed = Number(playerUnit?.speed || 0);
   const enemySpeed = Number(enemyUnit?.speed || 0);
 
-  if (playerSpeed > enemySpeed) return [playerUnit, enemyUnit];
   if (enemySpeed > playerSpeed) return [enemyUnit, playerUnit];
+  if (playerSpeed > enemySpeed) return [playerUnit, enemyUnit];
 
   const playerPower = Number(playerUnit?.power || 0);
   const enemyPower = Number(enemyUnit?.power || 0);
 
-  if (playerPower >= enemyPower) return [playerUnit, enemyUnit];
+  if (enemyPower > playerPower) return [enemyUnit, playerUnit];
 
-  return [enemyUnit, playerUnit];
+  return [playerUnit, enemyUnit];
 }
 
 function renderHpBar(hp, maxHp, size = 10) {
@@ -142,9 +115,8 @@ function teamSummary(units) {
     .map((unit) =>
       [
         `**${unit.slot}. ${unit.name}** [${unit.rarity}]`,
-        `PWR \`${unit.power}\` • LV \`${unit.level}\` • ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
-        `↪ Weapon: ${unit.equippedWeapon}`,
-        `↪ Fruit: ${unit.equippedDevilFruit}`,
+        `PWR \`${unit.power}\` • LV \`${unit.level}\``,
+        `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
         renderHpBar(unit.hp, unit.maxHp),
       ].join("\n")
     )
@@ -153,31 +125,33 @@ function teamSummary(units) {
 
 function getResultColor(result, ended) {
   if (!ended) return 0x5865f2;
-  if (result === "win") return 0x2ecc71;
-  if (result === "lose") return 0xe74c3c;
-  return 0xf1c40f;
+  return result === "win" ? 0x2ecc71 : 0xe74c3c;
 }
 
 function getResultTitle(result) {
-  if (result === "win") return "🏆 Challenge Victory";
-  if (result === "lose") return "💀 Challenge Defeat";
-  return "🤝 Challenge Draw";
+  return result === "win" ? "🏆 Challenge Victory" : "💀 Challenge Defeat";
 }
 
 function resolveResult(myTeam, enemyTeam) {
   const myAlive = aliveCount(myTeam);
   const enemyAlive = aliveCount(enemyTeam);
 
-  if (myAlive > 0 && enemyAlive <= 0) return "win";
-  if (enemyAlive > 0 && myAlive <= 0) return "lose";
+  if (myAlive !== enemyAlive) return myAlive > enemyAlive ? "win" : "lose";
 
   const myTotalHp = myTeam.reduce((sum, unit) => sum + Math.max(0, Number(unit.hp || 0)), 0);
   const enemyTotalHp = enemyTeam.reduce((sum, unit) => sum + Math.max(0, Number(unit.hp || 0)), 0);
 
-  if (myTotalHp > enemyTotalHp) return "win";
-  if (enemyTotalHp > myTotalHp) return "lose";
+  if (myTotalHp !== enemyTotalHp) return myTotalHp > enemyTotalHp ? "win" : "lose";
 
-  return "draw";
+  const myPower = myTeam.reduce((sum, unit) => sum + Number(unit.power || 0), 0);
+  const enemyPower = enemyTeam.reduce((sum, unit) => sum + Number(unit.power || 0), 0);
+
+  if (myPower !== enemyPower) return myPower > enemyPower ? "win" : "lose";
+
+  const mySpeed = myTeam.reduce((sum, unit) => sum + Number(unit.speed || 0), 0);
+  const enemySpeed = enemyTeam.reduce((sum, unit) => sum + Number(unit.speed || 0), 0);
+
+  return mySpeed >= enemySpeed ? "win" : "lose";
 }
 
 function buildChallengeEmbed({ player, targetPlayer, myTeam, enemyTeam, logs, result, ended }) {
@@ -190,7 +164,7 @@ function buildChallengeEmbed({ player, targetPlayer, myTeam, enemyTeam, logs, re
       [
         `**You:** ${player.username || "Unknown"}`,
         `**Opponent:** ${targetPlayer.username || "Unknown"}`,
-        ended ? `**Result:** ${String(result || "draw").toUpperCase()}` : "**Result:** In Progress",
+        ended ? `**Result:** ${String(result || "lose").toUpperCase()}` : "**Result:** In Progress",
         "**Mode:** Friendly test match",
         "",
         "## Your Team",
@@ -221,7 +195,7 @@ function buildChallengeResultEmbed({ result, player, targetPlayer, logs }) {
         `**You:** ${player.username || "Unknown"}`,
         `**Opponent:** ${targetPlayer.username || "Unknown"}`,
         "",
-        `**Result:** ${String(result || "draw").toUpperCase()}`,
+        `**Result:** ${String(result || "lose").toUpperCase()}`,
         "**Mode:** Friendly test match",
         "",
         "## Final Log",
@@ -370,7 +344,7 @@ module.exports = {
 
       logs.push(`⚡ ${first.name} moved first by SPD.`);
       logs.push(`⚔️ ${first.name} attacked ${firstTarget.name}.`);
-      logs.push(`➡️ ${first.name} dealt **${firstDamage}** damage to ${firstTarget.name}.`);
+      logs.push(`${firstIsPlayer ? "➡️" : "⬅️"} ${first.name} dealt **${firstDamage}** damage to ${firstTarget.name}.`);
 
       if (Number(firstTarget.hp || 0) <= 0) {
         logs.push(`☠️ ${firstTarget.name} was defeated and cannot counter.`);
@@ -423,7 +397,7 @@ module.exports = {
         const secondDamage = performAttack(second, secondTarget);
 
         logs.push(`💥 ${second.name} countered ${secondTarget.name}.`);
-        logs.push(`⬅️ ${second.name} dealt **${secondDamage}** damage to ${secondTarget.name}.`);
+        logs.push(`${firstIsPlayer ? "⬅️" : "➡️"} ${second.name} dealt **${secondDamage}** damage to ${secondTarget.name}.`);
 
         if (Number(secondTarget.hp || 0) <= 0) {
           logs.push(`☠️ ${secondTarget.name} was defeated.`);

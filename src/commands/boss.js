@@ -19,7 +19,6 @@ const {
 const {
   getCardExp,
   getCardLevelCap,
-  formatCardExp,
   applyExpToCard,
 } = require("../utils/cardExp");
 
@@ -57,21 +56,14 @@ function formatExpResults(playerTeam, expResults) {
         return `🔒 ${unit.name} is level locked at **${entry.level}/${entry.cap}**. Awaken to continue.`;
       }
 
-      return `✨ ${unit.name} gained **${entry.expGain} EXP**.`;
+      const levelUpText =
+        Number(entry.leveledUp || 0) > 0
+          ? ` • Level Up +${Number(entry.leveledUp || 0)}`
+          : "";
+
+      return `✨ ${unit.name} gained **${entry.expGain} EXP**${levelUpText}.`;
     })
     .filter(Boolean);
-}
-
-function formatEquippedWeapons(card) {
-  if (Array.isArray(card?.equippedWeapons) && card.equippedWeapons.length) {
-    return card.equippedWeapons
-      .map(
-        (w) => `${w.name}${Number(w.upgradeLevel || 0) > 0 ? ` +${w.upgradeLevel}` : ""}`
-      )
-      .join(", ");
-  }
-
-  return card?.displayWeaponName || card?.equippedWeapon || "None";
 }
 
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {
@@ -89,15 +81,8 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     level: Number(synced.level || 1),
     levelCap: getCardLevelCap(synced),
     exp: getCardExp(synced),
-    expText: formatCardExp(synced),
     kills: Number(synced.kills || 0),
     image: synced.image || "",
-    equippedWeapon: formatEquippedWeapons(synced),
-    equippedDevilFruit:
-      synced.displayFruitName ||
-      synced.equippedDevilFruitName ||
-      synced.equippedDevilFruit ||
-      "None",
     passiveBoostsApplied: {
       atk: Number(combatBoosts.atk || 0),
       hp: Number(combatBoosts.hp || 0),
@@ -135,12 +120,41 @@ function performAttack(attacker, defender, boosts = {}) {
   return finalDamage;
 }
 
-function getAliveUnits(units) {
-  return units.filter((unit) => Number(unit.hp) > 0);
+function resolveTurnOrder(playerUnit, bossUnit) {
+  const playerSpeed = Number(playerUnit?.speed || 0);
+  const bossSpeed = Number(bossUnit?.speed || 0);
+
+  if (bossSpeed > playerSpeed) {
+    return [
+      {
+        actor: bossUnit,
+        target: playerUnit,
+        isPlayer: false,
+      },
+      {
+        actor: playerUnit,
+        target: bossUnit,
+        isPlayer: true,
+      },
+    ];
+  }
+
+  return [
+    {
+      actor: playerUnit,
+      target: bossUnit,
+      isPlayer: true,
+    },
+    {
+      actor: bossUnit,
+      target: playerUnit,
+      isPlayer: false,
+    },
+  ];
 }
 
-function getFirstAlive(units) {
-  return units.find((unit) => Number(unit.hp) > 0) || null;
+function getAliveUnits(units) {
+  return units.filter((unit) => Number(unit.hp) > 0);
 }
 
 function renderHpBar(hp, maxHp, size = 12) {
@@ -374,10 +388,8 @@ function getBossTemplate(currentIsland, phaseBoss = null) {
 function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, ended) {
   const teamLines = playerTeam.map((unit) => {
     return [
-      `**${unit.slot}. ${unit.name}** [${unit.rarity}] • LV \`${unit.level}/${unit.levelCap}\``,
-      `↪ EXP: ${unit.expText}`,
-      `↪ Weapon: ${unit.equippedWeapon}`,
-      `↪ Fruit: ${unit.equippedDevilFruit}`,
+      `**${unit.slot}. ${unit.name}** [${unit.rarity}] • LV \`${unit.level}\``,
+      `ATK \`${unit.atk}\` • SPD \`${unit.speed}\``,
       renderHpBar(unit.hp, unit.maxHp),
     ].join("\n");
   });
@@ -399,7 +411,7 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
         ...teamLines,
         "",
         "## Battle Log",
-        ...(recentLogs.length ? recentLogs : ["Choose a card to attack the island boss."]),
+        ...(recentLogs.length ? recentLogs : ["Choose a card to attack the island boss. SPD decides turn order."]),
       ].join("\n")
     )
     .setImage(boss.image || null)
@@ -408,7 +420,15 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
     });
 }
 
-function buildBossResultEmbed({ title, color, result, rewardLines = [], expLines = [], storyLines = [], logs = [] }) {
+function buildBossResultEmbed({
+  title,
+  color,
+  result,
+  rewardLines = [],
+  expLines = [],
+  storyLines = [],
+  logs = [],
+}) {
   return new EmbedBuilder()
     .setColor(color)
     .setTitle(title)
@@ -474,16 +494,17 @@ function calculateBossExp(playerTeam, won, combatBoosts) {
         locked: true,
         level,
         cap,
+        leveledUp: 0,
       };
     }
 
     const rawExp = won
       ? unit.hp > 0
-        ? 90 + unit.kills * 15
-        : 65 + unit.kills * 10
+        ? 180 + unit.kills * 15
+        : 135 + unit.kills * 10
       : unit.hp > 0
-        ? 45 + unit.kills * 8
-        : 35 + unit.kills * 5;
+        ? 105 + unit.kills * 8
+        : 95 + unit.kills * 5;
 
     return {
       instanceId: unit.instanceId,
@@ -491,6 +512,7 @@ function calculateBossExp(playerTeam, won, combatBoosts) {
       locked: false,
       level,
       cap,
+      leveledUp: 0,
     };
   });
 }
@@ -512,6 +534,8 @@ function applyBossExpToCards(player, playerTeam, expResults) {
       },
       expEntry.expGain
     );
+
+    expEntry.leveledUp = Number(nextCard.leveledUp || 0);
 
     return {
       ...nextCard,
@@ -564,9 +588,7 @@ module.exports = {
       .filter(Boolean);
 
     if (teamCards.length < 3) {
-      return message.reply(
-        "You need a full battle team of 3 cards to challenge the island boss."
-      );
+      return message.reply("You need a full battle team of 3 cards to challenge the island boss.");
     }
 
     updatePlayer(message.author.id, {
@@ -617,10 +639,12 @@ module.exports = {
 
       if (interaction.customId === "boss_run") {
         ended = true;
+        logs.length = 0;
+        logs.push("🏃 You ran away from the boss battle.");
 
         const expResults = calculateBossExp(playerTeam, false, combatBoosts);
-        const expLines = formatExpResults(playerTeam, expResults);
         const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
+        const expLines = formatExpResults(playerTeam, expResults);
         const updatedDailyState = incrementQuestCounter(player, "bossFights", 1);
 
         updatePlayer(message.author.id, {
@@ -630,8 +654,6 @@ module.exports = {
             dailyState: updatedDailyState,
           },
         });
-
-        logs.push("🏃 You ran away from the boss battle.");
 
         await interaction.update({
           embeds: [
@@ -662,18 +684,33 @@ module.exports = {
 
       logs.length = 0;
 
-      const damage = performAttack(attacker, boss, attacker.passiveBoostsApplied || combatBoosts);
+      const turns = resolveTurnOrder(attacker, boss);
 
-      logs.push(`⚔️ ${attacker.name} attacked ${boss.name}.`);
-      logs.push(`➡️ ${attacker.name} dealt **${damage}** damage to ${boss.name}.`);
+      for (const turn of turns) {
+        const actor = turn.actor;
+        const target = turn.target;
 
-      if (boss.hp <= 0) {
-        logs.push(`☠️ ${boss.name} was defeated and cannot counter.`);
+        if (Number(actor.hp || 0) <= 0) continue;
+        if (Number(target.hp || 0) <= 0) continue;
+
+        const damage = performAttack(
+          actor,
+          target,
+          turn.isPlayer ? actor.passiveBoostsApplied || combatBoosts : {}
+        );
+
+        logs.push(`⚡ ${actor.name} moved first with SPD ${actor.speed}.`);
+        logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
+        logs.push(`${turn.isPlayer ? "➡️" : "⬅️"} ${actor.name} dealt **${damage}** damage to ${target.name}.`);
+
+        if (Number(target.hp || 0) <= 0) {
+          if (turn.isPlayer) attacker.kills += 1;
+          logs.push(`☠️ ${target.name} was defeated.`);
+        }
       }
 
       if (boss.hp <= 0) {
         ended = true;
-        attacker.kills += 1;
 
         let updatedDailyState = incrementQuestCounter(player, "bossFights", 1);
 
@@ -702,8 +739,8 @@ module.exports = {
         });
 
         const expResults = calculateBossExp(playerTeam, true, combatBoosts);
-        const expLines = formatExpResults(playerTeam, expResults);
         const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
+        const expLines = formatExpResults(playerTeam, expResults);
 
         const nextStory = {
           ...(player.story || {}),
@@ -794,25 +831,12 @@ module.exports = {
         return;
       }
 
-      if (boss.hp > 0 && attacker.hp > 0) {
-        const bossDamage = performAttack(boss, attacker, {});
-
-        logs.push(`💥 ${boss.name} countered ${attacker.name}.`);
-        logs.push(`⬅️ ${boss.name} dealt **${bossDamage}** damage to ${attacker.name}.`);
-
-        if (attacker.hp <= 0) {
-          logs.push(`☠️ ${attacker.name} was defeated.`);
-        }
-      }
-
-      const remainingPlayers = getAliveUnits(playerTeam);
-
-      if (!remainingPlayers.length) {
+      if (!getAliveUnits(playerTeam).length) {
         ended = true;
 
         const expResults = calculateBossExp(playerTeam, false, combatBoosts);
-        const expLines = formatExpResults(playerTeam, expResults);
         const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
+        const expLines = formatExpResults(playerTeam, expResults);
         const updatedDailyState = incrementQuestCounter(player, "bossFights", 1);
 
         updatePlayer(message.author.id, {
@@ -865,8 +889,8 @@ module.exports = {
         ended = true;
 
         const expResults = calculateBossExp(playerTeam, false, combatBoosts);
-        const expLines = formatExpResults(playerTeam, expResults);
         const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
+        const expLines = formatExpResults(playerTeam, expResults);
         const updatedDailyState = incrementQuestCounter(player, "bossFights", 1);
 
         updatePlayer(message.author.id, {
@@ -877,6 +901,7 @@ module.exports = {
           },
         });
 
+        logs.length = 0;
         logs.push("⌛ No interaction for 10 minutes. You lost the boss battle.");
 
         try {
