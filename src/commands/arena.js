@@ -97,7 +97,9 @@ function getTeamUnits(player, ownerTag = "player") {
     .map(hydrateCard)
     .filter(Boolean);
 
-  const slots = Array.isArray(player?.team?.slots) ? player.team.slots : [null, null, null];
+  const slots = Array.isArray(player?.team?.slots)
+    ? player.team.slots
+    : [null, null, null];
 
   return slots
     .map((instanceId, index) => {
@@ -122,16 +124,8 @@ function aliveCount(units) {
   return getAliveUnits(units).length;
 }
 
-function pickEnemyActor(units) {
-  const alive = getAliveUnits(units);
-
-  if (!alive.length) return null;
-
-  return alive.sort((a, b) => {
-    if (b.speed !== a.speed) return b.speed - a.speed;
-    if (b.power !== a.power) return b.power - a.power;
-    return a.slot - b.slot;
-  })[0];
+function getFirstAlive(units) {
+  return units.find((unit) => Number(unit.hp || 0) > 0) || null;
 }
 
 function performAttack(attacker, defender) {
@@ -176,14 +170,13 @@ function formatAtkRange(atk) {
 
 function teamSummary(units) {
   return units
-    .map(
-      (unit) =>
-        [
-          `**${unit.slot}. ${unit.name}** [${unit.rarity}]`,
-          `RANK ${formatArenaRank(unit.power)} • PWR \`${unit.power}\` • LV \`${unit.level}\``,
-          `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
-          renderHpBar(unit.hp, unit.maxHp),
-        ].join("\n")
+    .map((unit) =>
+      [
+        `**${unit.slot}. ${unit.name}** [${unit.rarity}]`,
+        `RANK ${formatArenaRank(unit.power)} • PWR \`${unit.power}\` • LV \`${unit.level}\``,
+        `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
+        renderHpBar(unit.hp, unit.maxHp),
+      ].join("\n")
     )
     .join("\n\n");
 }
@@ -253,17 +246,18 @@ function resolveNoDrawResult(myTeam, enemyTeam) {
   return "win";
 }
 
-function updateArenaPlayer(message, player, result) {
-  const updatedArena = applyArenaResult(player.arena, result);
+function updateArenaPlayer(message, result) {
+  const freshPlayer = getPlayer(message.author.id, message.author.username);
+  const updatedArena = applyArenaResult(freshPlayer.arena, result);
 
-  let updatedDailyState = incrementQuestCounter(player, "arenaMatches", 1);
+  let updatedDailyState = incrementQuestCounter(freshPlayer, "arenaMatches", 1);
 
   if (result === "win") {
     updatedDailyState = incrementQuestCounter(
       {
-        ...player,
+        ...freshPlayer,
         quests: {
-          ...(player.quests || {}),
+          ...(freshPlayer.quests || {}),
           dailyState: updatedDailyState,
         },
       },
@@ -272,11 +266,29 @@ function updateArenaPlayer(message, player, result) {
     );
   }
 
+  const completed = Array.isArray(updatedDailyState.quests)
+    ? updatedDailyState.quests.filter((quest) => {
+        const progress = Number(updatedDailyState.progress?.[quest.key] || 0);
+        return progress >= Number(quest.target || 0);
+      }).length
+    : 0;
+
+  const total = Array.isArray(updatedDailyState.quests)
+    ? updatedDailyState.quests.length
+    : 0;
+
   updatePlayer(message.author.id, {
     arena: updatedArena,
     quests: {
-      ...(player.quests || {}),
+      ...(freshPlayer.quests || {}),
       dailyState: updatedDailyState,
+      daily: {
+        ...(freshPlayer?.quests?.daily || {}),
+        total,
+        completed,
+        left: Math.max(0, total - completed),
+        lastSyncedAt: Date.now(),
+      },
     },
   });
 
@@ -322,10 +334,7 @@ function buildOpponentMenu(opponents) {
         .addOptions(
           opponents.slice(0, 25).map((opponent, index) => ({
             label: `${formatArenaRank(opponent.points)} • ${opponent.username}`.slice(0, 100),
-            description: `${opponent.points} pts • ${opponent.isBot ? "Bot opponent" : "Player opponent"}`.slice(
-              0,
-              100
-            ),
+            description: `${opponent.points} pts • ${opponent.isBot ? "Bot opponent" : "Player opponent"}`.slice(0, 100),
             value: String(index),
           }))
         )
@@ -361,7 +370,7 @@ function buildArenaDescription({
     teamSummary(enemyTeam),
     "",
     "## Battle Log",
-    ...(recentLogs.length ? recentLogs : ["Choose one of your cards to attack. SPD decides attack order."]),
+    ...(recentLogs.length ? recentLogs : ["Choose one of your cards to attack. The target starts from opponent slot 1. SPD decides turn order."]),
   ].join("\n");
 }
 
@@ -523,6 +532,8 @@ function buildBotOpponents(playerPoints, count = 6) {
       userId: `bot-${index}`,
       username: `Arena Bot ${index + 1}`,
       points: botPoints,
+      wins: 0,
+      losses: 0,
       isBot: true,
       teamUnits: buildBotTeam(botPoints, index),
     };
@@ -630,7 +641,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       ended = true;
       result = "lose";
       logs.push("🏳️ You forfeited the arena battle.");
-      currentArena = updateArenaPlayer(message, player, result);
+      currentArena = updateArenaPlayer(message, result);
 
       await interaction.update({
         embeds: [
@@ -659,18 +670,18 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       });
     }
 
-    const enemyActor = pickEnemyActor(enemyTeam);
+    const enemyTarget = getFirstAlive(enemyTeam);
 
-    if (!enemyActor) {
+    if (!enemyTarget) {
       return interaction.reply({
         content: "No opponent card is available to fight.",
         ephemeral: true,
       });
     }
 
-    const [first, second] = resolveSpeedOrder(playerAttacker, enemyActor);
+    const [first, second] = resolveSpeedOrder(playerAttacker, enemyTarget);
     const firstIsPlayer = first.ownerTag !== "opponent" && first.ownerTag !== "bot";
-    const firstTarget = firstIsPlayer ? enemyActor : playerAttacker;
+    const firstTarget = firstIsPlayer ? enemyTarget : playerAttacker;
     const firstDamage = performAttack(first, firstTarget);
 
     logs.push(`⚡ ${first.name} moved first by SPD.`);
@@ -684,7 +695,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       ended = true;
       result = "win";
       logs.push("🏆 You won the arena battle!");
-      currentArena = updateArenaPlayer(message, player, result);
+      currentArena = updateArenaPlayer(message, result);
 
       await interaction.update({
         embeds: [
@@ -707,7 +718,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       ended = true;
       result = "lose";
       logs.push("💀 You lost the arena battle.");
-      currentArena = updateArenaPlayer(message, player, result);
+      currentArena = updateArenaPlayer(message, result);
 
       await interaction.update({
         embeds: [
@@ -727,7 +738,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
     }
 
     if (Number(second.hp || 0) > 0) {
-      const secondTarget = firstIsPlayer ? playerAttacker : enemyActor;
+      const secondTarget = firstIsPlayer ? playerAttacker : enemyTarget;
       const secondDamage = performAttack(second, secondTarget);
 
       logs.push(`💥 ${second.name} countered for **${secondDamage}** damage to ${secondTarget.name}.`);
@@ -741,7 +752,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       ended = true;
       result = "win";
       logs.push("🏆 You won the arena battle!");
-      currentArena = updateArenaPlayer(message, player, result);
+      currentArena = updateArenaPlayer(message, result);
 
       await interaction.update({
         embeds: [
@@ -764,7 +775,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       ended = true;
       result = "lose";
       logs.push("💀 You lost the arena battle.");
-      currentArena = updateArenaPlayer(message, player, result);
+      currentArena = updateArenaPlayer(message, result);
 
       await interaction.update({
         embeds: [
@@ -807,7 +818,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       ended = true;
       result = resolveNoDrawResult(myTeam, enemyTeam);
       logs.push("⌛ Arena battle timed out. Result decided by remaining units and HP.");
-      currentArena = updateArenaPlayer(message, player, result);
+      currentArena = updateArenaPlayer(message, result);
 
       try {
         await lobbyMessage.edit({
