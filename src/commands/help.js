@@ -10,15 +10,15 @@ const HELP_PAGES = {
   main: {
     label: "Command List",
     description: "View the list of commands",
-    emoji: "📜",
-    title: "📜 Command List",
+    emoji: "",
+    title: " Command List",
     body: [
       "Review the command list below.",
       `**Prefix:** \`${PREFIX}\``,
       "",
       "## COMMANDS",
       "",
-      "**🎒 Items & More**",
+      "** Items & More**",
       "`inventory` | view consumable items, materials, tickets, boxes",
       "`finv` | view your fragments",
       "`all` | view all obtainable cards/items",
@@ -27,7 +27,7 @@ const HELP_PAGES = {
       "`all fruit` | view all devil fruits",
       "`market` | open the market",
       "",
-      "**🎴 Cards & Pulls**",
+      "** Cards & Pulls**",
       "`pull` | single pull",
       "`pa` | Mother Flame pull all",
       "`pullinfo` | check pull slots",
@@ -36,6 +36,7 @@ const HELP_PAGES = {
       "`mc` | view your card collection",
       "`mc text` | compact text collection",
       "`mc boost` | view boost cards only",
+      "`mc weapon` | view your weapon collection",
       "`awaken <card>` | awaken card stage",
       "",
       "**⚔️ Battle & Raid**",
@@ -47,7 +48,7 @@ const HELP_PAGES = {
       "`arena` | ranked arena",
       "`challenge @user` | direct test battle",
       "",
-      "**🚢 Progression**",
+      "** Progression**",
       "`ship` | view ship",
       "`ship upgrade` | upgrade current ship",
       "`shipupgrade` | standalone ship upgrade",
@@ -55,12 +56,11 @@ const HELP_PAGES = {
       "`travel <island>` | move island",
       "`sail` | sail to next route",
       "",
-      "**📊 Profile & Leaderboard**",
+      "** Profile & Leaderboard**",
       "`profile` | view profile",
       "`effect` | current effects/status",
       "`team` | view team",
-      "`lb arena` | arena leaderboard",
-      "`lb power` | collection power leaderboard",
+      "`lb` | open leaderboard menu",
       "",
       "**Use the dropdown below for more details.**",
     ],
@@ -69,8 +69,8 @@ const HELP_PAGES = {
   card: {
     label: "Cards / Pull Help",
     description: "Card, pull, awaken, and collection commands",
-    emoji: "🎴",
-    title: "🎴 Cards / Pull Help",
+    emoji: "",
+    title: " Cards / Pull Help",
     body: [
       "**Cards**",
       "`op ci <card>` → global card viewer",
@@ -80,6 +80,7 @@ const HELP_PAGES = {
       "`op mc` → card collection viewer",
       "`op mc text` → compact card list",
       "`op mc boost` → boost card collection only",
+      "`op mc weapon` → weapon collection viewer",
       "",
       "**Pulls**",
       "`op pull` → single pull",
@@ -99,12 +100,12 @@ const HELP_PAGES = {
   equipment: {
     label: "Equipment Help",
     description: "Weapon, fruit, upgrade, and unequip commands",
-    emoji: "🗡️",
-    title: "🗡️ Equipment Help",
+    emoji: "️",
+    title: "️ Equipment Help",
     body: [
       "**Weapon**",
       "`op wp <card> <weapon>` → equip weapon",
-      "`op unequip <weapon>` → unequip weapon for 200 gems",
+      "`op unequip <card>` → unequip weapon for 200 gems",
       "`op wupgrade <weapon>` → upgrade weapon globally",
       "",
       "**Devil Fruit**",
@@ -134,8 +135,7 @@ const HELP_PAGES = {
       "`op challenge @user` → direct test battle",
       "",
       "**Leaderboard**",
-      "`op lb arena` → arena ranking",
-      "`op lb power` → collection power ranking",
+      "`op lb` → open leaderboard menu",
       "",
       "**Notes**",
       "Fight stats use your synced card stats plus active boost card effects.",
@@ -147,8 +147,8 @@ const HELP_PAGES = {
   raid: {
     label: "Raid Help",
     description: "Raid, common raid, room, and party commands",
-    emoji: "👥",
-    title: "👥 Raid Help",
+    emoji: "",
+    title: " Raid Help",
     body: [
       "**Raid Rooms**",
       "`op craid <boss>` → C/B boss raid using Common Raid Ticket",
@@ -193,8 +193,8 @@ const HELP_PAGES = {
   travel: {
     label: "Travel / Ship Help",
     description: "Ship, travel, island, and route commands",
-    emoji: "🚢",
-    title: "🚢 Travel / Ship Help",
+    emoji: "",
+    title: " Travel / Ship Help",
     body: [
       "**Ship**",
       "`op ship` → view current ship",
@@ -215,8 +215,8 @@ const HELP_PAGES = {
   trade: {
     label: "Trade / Market Help",
     description: "Market and trade commands",
-    emoji: "💰",
-    title: "💰 Trade / Market Help",
+    emoji: "",
+    title: " Trade / Market Help",
     body: [
       "**Market**",
       "`op market` → open market",
@@ -239,7 +239,9 @@ function buildEmbed(pageKey = "main") {
     .setColor(0x8e44ad)
     .setTitle(page.title)
     .setDescription(page.body.join("\n"))
-    .setFooter({ text: "One Piece Bot • Help Menu" });
+    .setFooter({
+      text: "One Piece Bot • Help Menu",
+    });
 }
 
 function buildMenu(selected = "main") {
@@ -295,7 +297,9 @@ module.exports = {
 
     collector.on("end", async () => {
       try {
-        await sent.edit({ components: [] });
+        await sent.edit({
+          components: [],
+        });
       } catch {}
     });
   },
