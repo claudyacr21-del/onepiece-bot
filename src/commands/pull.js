@@ -14,7 +14,37 @@ const {
 const { rollStandardBaseTier } = require("../utils/pullRates");
 const { incrementQuestCounter } = require("../utils/questProgress");
 
+const PREMIUM_ROLE_NAME = "Mother Flame";
+const PREMIUM_PITY_TARGET = 100;
 const NORMAL_PITY_TARGET = 150;
+
+function hasRole(message, roleName) {
+  return Boolean(
+    message?.member?.roles?.cache?.some(
+      (role) =>
+        String(role?.name || "").toLowerCase() ===
+        String(roleName || "").toLowerCase()
+    )
+  );
+}
+
+function getSharedPity(player) {
+  const pity = player?.pity || {};
+
+  return Number(
+    pity.pullPity ??
+      Math.max(Number(pity.normalSPity || 0), Number(pity.premiumSPity || 0)) ??
+      0
+  );
+}
+
+function getPityLimit(isPremium) {
+  return isPremium ? PREMIUM_PITY_TARGET : NORMAL_PITY_TARGET;
+}
+
+function getPityGuarantee(isPremium) {
+  return isPremium ? "S" : "A";
+}
 
 function pickContentType() {
   const roll = Math.random() * 100;
@@ -22,6 +52,7 @@ function pickContentType() {
   if (roll < 81) return "battleCard";
   if (roll < 96) return "boostCard";
   if (roll < 98) return "weapon";
+
   return "devilFruit";
 }
 
@@ -37,6 +68,36 @@ function prettySlotName(key) {
   };
 
   return map[key] || key;
+}
+
+function getRewardPool(contentType) {
+  if (contentType === "battleCard") {
+    return rawCards.filter((card) => card.cardRole === "battle");
+  }
+
+  if (contentType === "boostCard") {
+    return rawCards.filter((card) => card.cardRole === "boost");
+  }
+
+  if (contentType === "weapon") return rawWeapons;
+
+  return rawDevilFruits;
+}
+
+function pickRandomByRarity(pool, rarity) {
+  const list = Array.isArray(pool) ? pool : [];
+
+  if (!list.length) return null;
+
+  const filtered = list.filter(
+    (entry) =>
+      String(entry.baseTier || entry.rarity || "").toUpperCase() ===
+      String(rarity || "").toUpperCase()
+  );
+
+  const source = filtered.length ? filtered : list;
+
+  return source[Math.floor(Math.random() * source.length)] || null;
 }
 
 function addFragment(list, card) {
@@ -67,9 +128,8 @@ function addFragment(list, card) {
 
 function addNamedItem(list, reward) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const index = arr.findIndex(
-    (entry) => String(entry.code) === String(reward.code)
-  );
+  const code = String(reward.code || "");
+  const index = arr.findIndex((entry) => String(entry.code || "") === code);
 
   if (index !== -1) {
     arr[index] = {
@@ -87,17 +147,25 @@ function addNamedItem(list, reward) {
   arr.push({
     name: reward.name,
     amount: 1,
-    rarity: reward.rarity || reward.baseTier || "C",
+    rarity: reward.rarity,
     code: reward.code,
     image: reward.image || "",
     type: reward.type,
-    statPercent: reward.statPercent || { atk: 0, hp: 0, speed: 0 },
-    ownerBonusPercent: reward.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
+    statPercent: reward.statPercent || {
+      atk: 0,
+      hp: 0,
+      speed: 0,
+    },
+    ownerBonusPercent: reward.ownerBonusPercent || {
+      atk: 0,
+      hp: 0,
+      speed: 0,
+    },
     owners: reward.owners || [],
     boostBonus: reward.boostBonus,
     description: reward.description || "",
     power: reward.power || undefined,
-    upgradeLevel: 0,
+    upgradeLevel: Number(reward.upgradeLevel || 0),
   });
 
   return arr;
@@ -112,6 +180,8 @@ function addTicket(list, ticket) {
       code: ticket.code,
       name: ticket.name,
       amount: 1,
+      rarity: ticket.rarity,
+      type: "Ticket",
     });
   } else {
     arr[idx] = {
@@ -147,74 +217,16 @@ function rollTicketBonus() {
 
 function buildTicketDropText(ticket) {
   if (!ticket) return null;
+
   return `🎟️ Bonus Drop: **${ticket.name}**`;
-}
-
-function getCardImage(card) {
-  return card?.image || null;
-}
-
-function getCardThumbnail(card) {
-  return card?.evolutionForms?.[0]?.badgeImage || card?.badgeImage || null;
-}
-
-function getCurrentFormName(card) {
-  return card?.evolutionForms?.[0]?.name || card?.evolutionKey || "M1";
-}
-
-function getRewardPool(contentType) {
-  if (contentType === "battleCard") {
-    return rawCards.filter((c) => c.cardRole === "battle");
-  }
-
-  if (contentType === "boostCard") {
-    return rawCards.filter((c) => c.cardRole === "boost");
-  }
-
-  if (contentType === "weapon") return rawWeapons;
-
-  return rawDevilFruits;
-}
-
-function pickRandomByRarity(pool, rarity) {
-  const list = Array.isArray(pool) ? pool : [];
-
-  if (!list.length) return null;
-
-  const filtered = list.filter(
-    (entry) =>
-      String(entry.baseTier || entry.rarity || "").toUpperCase() ===
-      String(rarity || "").toUpperCase()
-  );
-
-  const source = filtered.length ? filtered : list;
-
-  return source[Math.floor(Math.random() * source.length)] || null;
 }
 
 function getTypeLabel(contentType) {
   if (contentType === "battleCard") return "Battle Card";
   if (contentType === "boostCard") return "Boost Card";
   if (contentType === "weapon") return "Weapon";
+
   return "Devil Fruit";
-}
-
-function buildRewardStatsText(contentType, reward) {
-  if (contentType === "battleCard" || contentType === "boostCard") {
-    return [
-      `**ATK:** ${reward.atk ?? 0}`,
-      `**HP:** ${reward.hp ?? 0}`,
-      `**SPD:** ${reward.speed ?? 0}`,
-    ];
-  }
-
-  const stat = reward.statPercent || { atk: 0, hp: 0, speed: 0 };
-
-  return [
-    `**ATK Bonus:** ${Number(stat.atk || 0)}%`,
-    `**HP Bonus:** ${Number(stat.hp || 0)}%`,
-    `**SPD Bonus:** ${Number(stat.speed || 0)}%`,
-  ];
 }
 
 module.exports = {
@@ -235,13 +247,11 @@ module.exports = {
 
     const snapshot = buildPullAccessSnapshot(player, message);
 
-    if (message.guild) {
-      updatePlayer(message.author.id, {
-        pullAccessSnapshot: snapshot,
-      });
+    updatePlayer(message.author.id, {
+      pullAccessSnapshot: snapshot,
+    });
 
-      player.pullAccessSnapshot = snapshot;
-    }
+    player.pullAccessSnapshot = snapshot;
 
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
     const available = Math.max(0, totalMax - totalUsed);
@@ -253,19 +263,24 @@ module.exports = {
     }
 
     const pullKey = getNextAvailablePullKey(player, message);
-    if (!pullKey) return message.reply("No pull slot is currently available.");
 
-    const pityCounter =
-      Number(player.pity?.normalAPity ?? player.pity?.normalSPity ?? 0) + 1;
-    const triggeredPity = pityCounter >= NORMAL_PITY_TARGET;
+    if (!pullKey) {
+      return message.reply("No pull slot is currently available.");
+    }
+
+    const isPremium = hasRole(message, PREMIUM_ROLE_NAME);
+    const pityLimit = getPityLimit(isPremium);
+    const pityGuarantee = getPityGuarantee(isPremium);
+    let pityCounter = getSharedPity(player) + 1;
+    const triggeredPity = pityCounter >= pityLimit;
 
     const contentType = pickContentType();
-    const baseTier = triggeredPity ? "A" : rollStandardBaseTier();
     const pool = getRewardPool(contentType);
-    const picked = pickRandomByRarity(pool, baseTier);
+    const rarity = triggeredPity ? pityGuarantee : rollStandardBaseTier();
+    const reward = pickRandomByRarity(pool, rarity);
 
-    if (!picked) {
-      return message.reply(`Pull pool is empty for ${contentType} ${baseTier}.`);
+    if (!reward) {
+      return message.reply("Pull pool is empty.");
     }
 
     const updatedPulls = consumePullSlot(player, pullKey);
@@ -275,130 +290,73 @@ module.exports = {
       ? addTicket(player.tickets || [], ticketDrop)
       : player.tickets || [];
 
-    const updatedPity = {
-      ...(player.pity || {}),
-      normalAPity: triggeredPity ? 0 : pityCounter,
-      normalSPity: triggeredPity ? 0 : pityCounter,
-    };
+    let updatedCards = [...(player.cards || [])];
+    let updatedWeapons = [...(player.weapons || [])];
+    let updatedDevilFruits = [...(player.devilFruits || [])];
+    let updatedFragments = [...(player.fragments || [])];
+
+    let resultLine = "";
+    let duplicateLine = "";
 
     if (contentType === "battleCard" || contentType === "boostCard") {
-      const alreadyOwned = (player.cards || []).some(
-        (c) =>
-          String(c.code || "").toLowerCase() ===
-          String(picked.code || "").toLowerCase()
+      const ownedCard = createOwnedCard(reward);
+      const alreadyOwned = updatedCards.some(
+        (card) =>
+          String(card.code || "").toLowerCase() ===
+          String(ownedCard.code || "").toLowerCase()
       );
 
       if (alreadyOwned) {
-        const updatedFragments = addFragment(player.fragments || [], picked);
-
-        updatePlayer(message.author.id, {
-          pulls: updatedPulls,
-          fragments: updatedFragments,
-          tickets: updatedTickets,
-          pity: updatedPity,
-          quests: {
-            ...(player.quests || {}),
-            dailyState: updatedDailyState,
-          },
-        });
-
-        const embed = new EmbedBuilder()
-          .setColor(0xf1c40f)
-          .setTitle("🎴 Pull Result")
-          .setDescription(
-            [
-              `**Slot Used:** ${prettySlotName(pullKey)}`,
-              `**Remaining Pulls:** ${available - 1}/${totalMax}`,
-              `**Pity:** ${updatedPity.normalAPity}/${NORMAL_PITY_TARGET}`,
-              triggeredPity ? "**Pity Triggered:** Guaranteed A" : null,
-              "",
-              `You already own **${picked.displayName || picked.name}**.`,
-              "Converted into **1 Fragment** instead.",
-              "",
-              buildTicketDropText(ticketDrop),
-            ]
-              .filter(Boolean)
-              .join("\n")
-          );
-
-        const thumb = getCardThumbnail(picked);
-        const image = getCardImage(picked);
-
-        if (thumb) embed.setThumbnail(thumb);
-        if (image) embed.setImage(image);
-
-        return message.reply({
-          embeds: [embed],
-        });
+        updatedFragments = addFragment(updatedFragments, reward);
+        duplicateLine = `You already own **${reward.displayName || reward.name}**.\nConverted into **1 Fragment** instead.`;
+      } else {
+        updatedCards.push(ownedCard);
       }
 
-      const owned = createOwnedCard(picked);
-
-      updatePlayer(message.author.id, {
-        cards: [...(player.cards || []), owned],
-        pulls: updatedPulls,
-        tickets: updatedTickets,
-        pity: updatedPity,
-        quests: {
-          ...(player.quests || {}),
-          dailyState: updatedDailyState,
-        },
-      });
-
-      const embed = new EmbedBuilder()
-        .setColor(0xf1c40f)
-        .setTitle("🎴 Pull Result")
-        .setDescription(
-          [
-            `**Slot Used:** ${prettySlotName(pullKey)}`,
-            `**Remaining Pulls:** ${available - 1}/${totalMax}`,
-            `**Pity:** ${updatedPity.normalAPity}/${NORMAL_PITY_TARGET}`,
-            triggeredPity ? "**Pity Triggered:** Guaranteed A" : null,
-            "",
-            `**${owned.displayName || owned.name}**`,
-            `**Type:** ${getTypeLabel(contentType)}`,
-            `**Current Form:** ${owned.evolutionKey || "M1"} • ${getCurrentFormName(owned)}`,
-            `**Base Tier:** ${picked.baseTier || picked.rarity || "C"}`,
-            "",
-            ...buildRewardStatsText(contentType, owned),
-            "",
-            buildTicketDropText(ticketDrop),
-          ]
-            .filter(Boolean)
-            .join("\n")
-        );
-
-      const thumb = getCardThumbnail(owned);
-      const image = getCardImage(owned);
-
-      if (thumb) embed.setThumbnail(thumb);
-      if (image) embed.setImage(image);
-
-      return message.reply({
-        embeds: [embed],
-      });
+      resultLine = `[${String(reward.baseTier || reward.rarity || "C").toUpperCase()}] ${
+        reward.displayName || reward.name
+      } (${getTypeLabel(contentType)})`;
+    } else if (contentType === "weapon") {
+      updatedWeapons = addNamedItem(updatedWeapons, reward);
+      resultLine = `[${String(reward.rarity || "C").toUpperCase()}] ${
+        reward.name
+      } (Weapon)`;
+    } else {
+      updatedDevilFruits = addNamedItem(updatedDevilFruits, reward);
+      resultLine = `[${String(reward.rarity || "C").toUpperCase()}] ${
+        reward.name
+      } (Devil Fruit)`;
     }
 
-    const updatedWeapons =
-      contentType === "weapon"
-        ? addNamedItem(player.weapons || [], picked)
-        : player.weapons || [];
-    const updatedDevilFruits =
-      contentType === "devilFruit"
-        ? addNamedItem(player.devilFruits || [], picked)
-        : player.devilFruits || [];
+    if (triggeredPity) {
+      pityCounter = 0;
+    }
+
+    const updatedPity = {
+      ...(player.pity || {}),
+      pullPity: pityCounter,
+      normalSPity: pityCounter,
+      premiumSPity: pityCounter,
+    };
 
     updatePlayer(message.author.id, {
+      cards: updatedCards,
       weapons: updatedWeapons,
       devilFruits: updatedDevilFruits,
-      pulls: updatedPulls,
+      fragments: updatedFragments,
       tickets: updatedTickets,
+      pulls: updatedPulls,
       pity: updatedPity,
       quests: {
         ...(player.quests || {}),
         dailyState: updatedDailyState,
       },
     });
+
+    const ticketText = buildTicketDropText(ticketDrop);
+    const pityText = triggeredPity
+      ? `Pity triggered: **${pityGuarantee} Guarantee**`
+      : `Pity: ${updatedPity.pullPity}/${pityLimit}`;
 
     const embed = new EmbedBuilder()
       .setColor(0xf1c40f)
@@ -407,23 +365,18 @@ module.exports = {
         [
           `**Slot Used:** ${prettySlotName(pullKey)}`,
           `**Remaining Pulls:** ${available - 1}/${totalMax}`,
-          `**Pity:** ${updatedPity.normalAPity}/${NORMAL_PITY_TARGET}`,
-          triggeredPity ? "**Pity Triggered:** Guaranteed A" : null,
+          `**${pityText}**`,
           "",
-          `**${picked.displayName || picked.name}**`,
-          `**Type:** ${getTypeLabel(contentType)}`,
-          `**Rarity:** ${picked.baseTier || picked.rarity || "C"}`,
-          picked.type ? `**Category:** ${picked.type}` : null,
-          "",
-          ...buildRewardStatsText(contentType, picked),
-          "",
-          buildTicketDropText(ticketDrop),
+          resultLine,
+          duplicateLine,
+          ticketText,
         ]
           .filter(Boolean)
           .join("\n")
-      );
-
-    if (picked.image) embed.setImage(picked.image);
+      )
+      .setFooter({
+        text: "One Piece Bot • Pull",
+      });
 
     return message.reply({
       embeds: [embed],

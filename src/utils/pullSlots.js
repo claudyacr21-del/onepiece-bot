@@ -1,35 +1,63 @@
-const { getBoostCards } = require("./passiveBoosts");
-const { PREMIUM_ROLE_NAME } = require("./pullAccess");
+const SUPPORT_SERVER_ROLE = "Support Server";
+const BOOSTER_ROLE = "Server Booster";
+const PREMIUM_ROLE_NAME = "Mother Flame";
 
-const SUPPORT_SERVER_ROLE = "Nakama";
-const BOOSTER_ROLE = "New World";
-
-function hasNamedRole(message, roleName) {
-  if (!message?.member?.roles?.cache) return false;
-  return message.member.roles.cache.some((role) => role.name === roleName);
+function normalize(value) {
+  return String(value || "").toLowerCase().trim();
 }
 
 function hasRole(message, roleName) {
-  if (!message?.member?.roles?.cache || !roleName) return false;
-  return message.member.roles.cache.some((role) => role.name === roleName);
+  const target = normalize(roleName);
+
+  return Boolean(
+    message?.member?.roles?.cache?.some(
+      (role) => normalize(role?.name) === target
+    )
+  );
+}
+
+function hasNamedRole(message, roleName) {
+  return hasRole(message, roleName);
+}
+
+function isCurrentGuildOwner(message) {
+  return Boolean(
+    message?.guild?.ownerId &&
+      message?.author?.id &&
+      String(message.guild.ownerId) === String(message.author.id)
+  );
+}
+
+function isOwnerOfAnyBotGuild(message) {
+  const userId = message?.author?.id;
+  const guilds = message?.client?.guilds?.cache;
+
+  if (!userId || !guilds) return false;
+
+  return guilds.some((guild) => String(guild?.ownerId || "") === String(userId));
 }
 
 function isServerOwner(message) {
-  return Boolean(message?.guild && message.author?.id === message.guild.ownerId);
+  return isCurrentGuildOwner(message) || isOwnerOfAnyBotGuild(message);
 }
 
 function hasBaccaratCard(player) {
-  const ownedCards = Array.isArray(player?.cards) ? player.cards : [];
-  return ownedCards.some((card) => card.code === "baccarat_lucky_draw");
+  return (Array.isArray(player?.cards) ? player.cards : []).some((card) => {
+    const code = normalize(card?.code);
+    const name = normalize(card?.name || card?.displayName);
+
+    return code.includes("baccarat") || name.includes("baccarat");
+  });
 }
 
 function hasBaccaratFruitEquipped(player) {
-  const boostCards = getBoostCards(player);
-  return boostCards.some(
-    (card) =>
-      card.code === "baccarat_lucky_draw" &&
-      String(card.equippedDevilFruitCode || card.equippedDevilFruit || "").toLowerCase() === "raki_raki_no_mi"
-  );
+  return (Array.isArray(player?.cards) ? player.cards : []).some((card) => {
+    const fruit = normalize(
+      card?.equippedDevilFruitName || card?.equippedDevilFruit || ""
+    );
+
+    return fruit.includes("baccarat");
+  });
 }
 
 function getSavedAccess(player) {
@@ -58,12 +86,20 @@ function resolveAccessFlags(player, message) {
 }
 
 function buildPullAccessSnapshot(player, message) {
-  return resolveAccessFlags(player, message);
+  const current = resolveAccessFlags(player, message);
+  const saved = getSavedAccess(player);
+
+  return {
+    supportMember: Boolean(current.supportMember || saved.supportMember),
+    booster: Boolean(current.booster || saved.booster),
+    owner: Boolean(current.owner || saved.owner),
+    patreon: Boolean(current.patreon || saved.patreon),
+  };
 }
 
 function getPullSlotStatus(player, message) {
   const pulls = player?.pulls || {};
-  const access = resolveAccessFlags(player, message);
+  const access = buildPullAccessSnapshot(player, message);
 
   return {
     base: {
@@ -111,11 +147,16 @@ function getTotalPullUsage(player, message) {
 
   for (const slot of Object.values(slots)) {
     if (!slot.enabled) continue;
+
     totalMax += Number(slot.max || 0);
     totalUsed += Math.min(Number(slot.used || 0), Number(slot.max || 0));
   }
 
-  return { totalUsed, totalMax, slots };
+  return {
+    totalUsed,
+    totalMax,
+    slots,
+  };
 }
 
 function getNextAvailablePullKey(player, message) {
@@ -132,8 +173,11 @@ function getNextAvailablePullKey(player, message) {
 
   for (const key of order) {
     const slot = slots[key];
+
     if (!slot?.enabled) continue;
+
     const remaining = Math.max(0, Number(slot.max || 0) - Number(slot.used || 0));
+
     if (remaining > 0) return key;
   }
 
@@ -141,8 +185,14 @@ function getNextAvailablePullKey(player, message) {
 }
 
 function consumePullSlot(player, key) {
-  const pulls = { ...(player.pulls || {}) };
-  const current = pulls[key] || { used: 0, max: 1 };
+  const pulls = {
+    ...(player.pulls || {}),
+  };
+
+  const current = pulls[key] || {
+    used: 0,
+    max: 1,
+  };
 
   pulls[key] = {
     ...current,
@@ -153,13 +203,20 @@ function consumePullSlot(player, key) {
 }
 
 function consumeAllActivePullSlots(player, message) {
-  const pulls = { ...(player.pulls || {}) };
+  const pulls = {
+    ...(player.pulls || {}),
+  };
+
   const slots = getPullSlotStatus(player, message);
 
   for (const [key, slot] of Object.entries(slots)) {
     if (!slot.enabled) continue;
+
     pulls[key] = {
-      ...(pulls[key] || { used: 0, max: slot.max }),
+      ...(pulls[key] || {
+        used: 0,
+        max: slot.max,
+      }),
       used: Number(slot.max || 0),
       max: Number(slot.max || 0),
     };
@@ -169,17 +226,47 @@ function consumeAllActivePullSlots(player, message) {
 }
 
 function resetAllPullSlots(player) {
-  const pulls = { ...(player.pulls || {}) };
+  const pulls = {
+    ...(player.pulls || {}),
+  };
 
   return {
     ...pulls,
-    base: { ...(pulls.base || {}), used: 0, max: 6 },
-    supportMember: { ...(pulls.supportMember || {}), used: 0, max: 1 },
-    booster: { ...(pulls.booster || {}), used: 0, max: 1 },
-    owner: { ...(pulls.owner || {}), used: 0, max: 1 },
-    patreon: { ...(pulls.patreon || {}), used: 0, max: 3 },
-    baccaratCard: { ...(pulls.baccaratCard || {}), used: 0, max: 1 },
-    baccaratFruit: { ...(pulls.baccaratFruit || {}), used: 0, max: 1 },
+    base: {
+      ...(pulls.base || {}),
+      used: 0,
+      max: 6,
+    },
+    supportMember: {
+      ...(pulls.supportMember || {}),
+      used: 0,
+      max: 1,
+    },
+    booster: {
+      ...(pulls.booster || {}),
+      used: 0,
+      max: 1,
+    },
+    owner: {
+      ...(pulls.owner || {}),
+      used: 0,
+      max: 1,
+    },
+    patreon: {
+      ...(pulls.patreon || {}),
+      used: 0,
+      max: 3,
+    },
+    baccaratCard: {
+      ...(pulls.baccaratCard || {}),
+      used: 0,
+      max: 1,
+    },
+    baccaratFruit: {
+      ...(pulls.baccaratFruit || {}),
+      used: 0,
+      max: 1,
+    },
   };
 }
 
