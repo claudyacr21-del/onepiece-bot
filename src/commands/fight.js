@@ -568,7 +568,7 @@ function applyFightLoss(message, player, playerTeam) {
 
 module.exports = {
   name: "fight",
-  aliases: ["battle"],
+  aliases: ["f"],
 
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
