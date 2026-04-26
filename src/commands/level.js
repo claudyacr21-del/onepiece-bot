@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
+const { incrementQuestCounter } = require("../utils/questProgress");
 
 const LEVEL_CAPS_BY_STAGE = {
   1: 50,
@@ -164,10 +165,15 @@ module.exports = {
     };
 
     const updatedFragments = fragments.filter((fragment) => Number(fragment.amount || 0) > 0);
+    const updatedDailyState = incrementQuestCounter(player, "cardLevels", possibleLevelGain);
 
     updatePlayer(message.author.id, {
       cards: updatedCards,
       fragments: updatedFragments,
+      quests: {
+        ...(player.quests || {}),
+        dailyState: updatedDailyState,
+      },
     });
 
     const embed = new EmbedBuilder()

@@ -58,18 +58,18 @@ const QUEST_POOL = [
     target: 1,
   },
   {
-    id: "ship_upgrade_1",
-    key: "shipUpgrades",
-    category: "ship",
-    title: "Upgrade ship 1 time",
-    target: 1,
-  },
-  {
     id: "pull_5",
     key: "pullsUsed",
     category: "pull",
     title: "Use 5 pulls",
     target: 5,
+  },
+  {
+    id: "level_card_3",
+    key: "cardLevels",
+    category: "level",
+    title: "Level up cards 3 times",
+    target: 3,
   },
 ];
 
@@ -78,15 +78,18 @@ function getTodayKey() {
   const y = now.getUTCFullYear();
   const m = String(now.getUTCMonth() + 1).padStart(2, "0");
   const d = String(now.getUTCDate()).padStart(2, "0");
+
   return `${y}-${m}-${d}`;
 }
 
 function shuffle(array) {
   const arr = [...array];
+
   for (let i = arr.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
+
   return arr;
 }
 
@@ -96,7 +99,9 @@ function buildQuestSet() {
 
   for (const quest of shuffle(QUEST_POOL)) {
     if (usedCategories.has(quest.category)) continue;
+
     usedCategories.add(quest.category);
+
     picked.push({
       id: quest.id,
       key: quest.key,
@@ -104,6 +109,7 @@ function buildQuestSet() {
       title: quest.title,
       target: quest.target,
     });
+
     if (picked.length >= DAILY_QUEST_COUNT) break;
   }
 
@@ -114,16 +120,30 @@ function normalizeDailyState(state) {
   return {
     dayKey: state?.dayKey || getTodayKey(),
     quests: Array.isArray(state?.quests) ? state.quests : [],
-    progress: typeof state?.progress === "object" && state?.progress ? { ...state.progress } : {},
+    progress:
+      typeof state?.progress === "object" && state?.progress
+        ? { ...state.progress }
+        : {},
     rewardClaimed: Boolean(state?.rewardClaimed),
   };
 }
 
+function sanitizeDailyState(state) {
+  const current = normalizeDailyState(state);
+  const validQuestIds = new Set(QUEST_POOL.map((quest) => quest.id));
+  const quests = current.quests.filter((quest) => validQuestIds.has(quest.id));
+
+  return {
+    ...current,
+    quests,
+  };
+}
+
 function ensureDailyQuestState(player) {
-  const current = normalizeDailyState(player?.quests?.dailyState);
+  const current = sanitizeDailyState(player?.quests?.dailyState);
   const todayKey = getTodayKey();
 
-  if (current.dayKey !== todayKey || !current.quests.length) {
+  if (current.dayKey !== todayKey || current.quests.length < DAILY_QUEST_COUNT) {
     return {
       dayKey: todayKey,
       quests: buildQuestSet(),
@@ -147,6 +167,7 @@ function getQuestCompletionSummary(dailyState) {
   const quests = Array.isArray(dailyState?.quests) ? dailyState.quests : [];
   const completed = quests.filter((quest) => isQuestDone(dailyState, quest)).length;
   const total = quests.length;
+
   return {
     completed,
     total,
@@ -156,14 +177,14 @@ function getQuestCompletionSummary(dailyState) {
 
 function incrementQuestCounter(player, key, amount = 1) {
   const dailyState = ensureDailyQuestState(player);
-  const next = {
+
+  return {
     ...dailyState,
     progress: {
       ...(dailyState.progress || {}),
       [key]: Number(dailyState.progress?.[key] || 0) + Number(amount || 0),
     },
   };
-  return next;
 }
 
 module.exports = {
