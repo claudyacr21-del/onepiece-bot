@@ -1,4 +1,5 @@
 require("dotenv").config();
+
 const fs = require("fs");
 const path = require("path");
 const {
@@ -8,10 +9,12 @@ const {
   Partials,
 } = require("discord.js");
 const { startTopggWebhookServer } = require("./topggWebhook");
+const { syncArenaRankRoles } = require("./utils/arenaRankRoles");
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
@@ -20,13 +23,17 @@ const client = new Client({
 });
 
 const PREFIX = String(process.env.PREFIX || "op").toLowerCase();
+
 client.commands = new Collection();
 
 const commandsPath = path.join(__dirname, "commands");
-const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith(".js"));
+const commandFiles = fs
+  .readdirSync(commandsPath)
+  .filter((file) => file.endsWith(".js"));
 
 for (const file of commandFiles) {
   const command = require(path.join(commandsPath, file));
+
   client.commands.set(command.name, command);
 
   if (Array.isArray(command.aliases)) {
@@ -38,29 +45,46 @@ for (const file of commandFiles) {
 
 client.once("clientReady", async () => {
   console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
+
   startTopggWebhookServer(client);
+
+  syncArenaRankRoles(client).catch((error) => {
+    console.error("[ARENA RANK ROLES READY SYNC ERROR]", error);
+  });
+
+  setInterval(() => {
+    syncArenaRankRoles(client).catch((error) => {
+      console.error("[ARENA RANK ROLES INTERVAL SYNC ERROR]", error);
+    });
+  }, 10 * 60 * 1000);
 });
 
 client.on("messageCreate", async (message) => {
   try {
     if (message.partial) {
-      try { await message.fetch(); } catch (_) {}
+      try {
+        await message.fetch();
+      } catch (_) {}
     }
 
     if (message.channel?.partial) {
-      try { await message.channel.fetch(); } catch (_) {}
+      try {
+        await message.channel.fetch();
+      } catch (_) {}
     }
 
     if (!message.author || message.author.bot) return;
     if (typeof message.content !== "string") return;
 
     const content = message.content.trim();
+
     if (!content) return;
     if (!content.toLowerCase().startsWith(PREFIX)) return;
 
     const sliced = content.slice(PREFIX.length).trim();
+
     if (!sliced) {
-      await message.reply("Type a command after the prefix. Example: `op help`");
+      await message.reply("Type a command after the prefix.\nExample: `op help`");
       return;
     }
 
@@ -76,6 +100,7 @@ client.on("messageCreate", async (message) => {
     await command.execute(message, args);
   } catch (error) {
     console.error("[COMMAND ERROR]", error);
+
     try {
       await message.reply("An error occurred while running that command.");
     } catch (_) {}

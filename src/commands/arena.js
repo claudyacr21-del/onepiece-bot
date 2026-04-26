@@ -8,9 +8,16 @@ const {
 const { getPlayer, updatePlayer, readPlayers } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestCounter } = require("../utils/questProgress");
+const { syncArenaRankRoles } = require("../utils/arenaRankRoles");
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const ARENA_DAILY_LIMIT = 5;
+
+function queueArenaRankRoleSync(message) {
+  syncArenaRankRoles(message.client, message.guild).catch((error) => {
+    console.error("[ARENA RANK ROLES SYNC ERROR]", error);
+  });
+}
 
 function getDateKey() {
   const now = new Date();
@@ -291,6 +298,8 @@ function updateArenaPlayer(message, result) {
       },
     },
   });
+
+  queueArenaRankRoleSync(message);
 
   return updatedArena;
 }
