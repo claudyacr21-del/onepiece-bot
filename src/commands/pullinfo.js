@@ -35,11 +35,11 @@ module.exports = {
           "Non-premium users guarantee **A** at 150 pity.",
           "",
           `↪ Base Pulls: ${fmtInfo(true, slots.base.max)}`,
-          `↪ Bonus Pull For Support Server Members: ${fmtInfo(
+          `↪ Bonus Pull For Main Server Members: ${fmtInfo(
             slots.supportMember.enabled,
             slots.supportMember.max
           )}`,
-          `↪ Bonus Pull For Support Server Boosters: ${fmtInfo(
+          `↪ Bonus Pull For Main Server Boosters: ${fmtInfo(
             slots.booster.enabled,
             slots.booster.max
           )}`,

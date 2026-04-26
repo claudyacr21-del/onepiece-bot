@@ -10,23 +10,20 @@ const {
   consumePullSlot,
   getTotalPullUsage,
   buildPullAccessSnapshot,
+  hasMainServerRole,
+  PREMIUM_ROLE_NAME,
 } = require("../utils/pullSlots");
 const { rollStandardBaseTier } = require("../utils/pullRates");
 const { incrementQuestCounter } = require("../utils/questProgress");
+const {
+  getCardImage,
+  getWeaponImage,
+  getDevilFruitImage,
+  getRarityBadge,
+} = require("../config/assetLinks");
 
-const PREMIUM_ROLE_NAME = "Mother Flame";
 const PREMIUM_PITY_TARGET = 100;
 const NORMAL_PITY_TARGET = 150;
-
-function hasRole(message, roleName) {
-  return Boolean(
-    message?.member?.roles?.cache?.some(
-      (role) =>
-        String(role?.name || "").toLowerCase() ===
-        String(roleName || "").toLowerCase()
-    )
-  );
-}
 
 function getSharedPity(player) {
   const pity = player?.pity || {};
@@ -59,9 +56,9 @@ function pickContentType() {
 function prettySlotName(key) {
   const map = {
     base: "Base Pull",
-    supportMember: "Support Member Pull",
-    booster: "Booster Pull",
-    owner: "Owner Pull",
+    supportMember: "Main Server Member Pull",
+    booster: "Main Server Booster Pull",
+    owner: "Server Owner Pull",
     patreon: "Mother Flame Pull",
     baccaratCard: "Baccarat Card Pull",
     baccaratFruit: "Baccarat Fruit Pull",
@@ -229,6 +226,69 @@ function getTypeLabel(contentType) {
   return "Devil Fruit";
 }
 
+function getRewardImage(contentType, reward, ownedCard = null) {
+  if (contentType === "battleCard" || contentType === "boostCard") {
+    return (
+      ownedCard?.evolutionForms?.[0]?.image ||
+      ownedCard?.stageImages?.M1 ||
+      ownedCard?.image ||
+      reward?.evolutionForms?.[0]?.image ||
+      reward?.stageImages?.M1 ||
+      getCardImage(reward?.code, "M1", reward?.image || "") ||
+      reward?.image ||
+      null
+    );
+  }
+
+  if (contentType === "weapon") {
+    return getWeaponImage(reward?.code, reward?.image || "") || reward?.image || null;
+  }
+
+  return getDevilFruitImage(reward?.code, reward?.image || "") || reward?.image || null;
+}
+
+function getRewardBadge(contentType, reward, ownedCard = null) {
+  const rarity =
+    ownedCard?.currentTier ||
+    ownedCard?.rarity ||
+    reward?.baseTier ||
+    reward?.rarity ||
+    "C";
+
+  if (contentType === "battleCard" || contentType === "boostCard") {
+    return (
+      ownedCard?.evolutionForms?.[0]?.badgeImage ||
+      ownedCard?.badgeImage ||
+      getRarityBadge(rarity) ||
+      null
+    );
+  }
+
+  return getRarityBadge(rarity) || null;
+}
+
+function buildRewardStatsText(contentType, reward) {
+  if (contentType === "battleCard" || contentType === "boostCard") {
+    return [
+      `**ATK:** ${reward.atk ?? 0}`,
+      `**HP:** ${reward.hp ?? 0}`,
+      `**SPD:** ${reward.speed ?? 0}`,
+    ];
+  }
+
+  const stat = reward.statPercent || {
+    atk: 0,
+    hp: 0,
+    speed: 0,
+  };
+
+  return [
+    `**ATK Bonus:** ${Number(stat.atk || 0)}%`,
+    `**HP Bonus:** ${Number(stat.hp || 0)}%`,
+    `**SPD Bonus:** ${Number(stat.speed || 0)}%`,
+  ];
+}
+
 module.exports = {
   name: "pull",
   aliases: ["gacha"],
@@ -268,19 +328,19 @@ module.exports = {
       return message.reply("No pull slot is currently available.");
     }
 
-    const isPremium = hasRole(message, PREMIUM_ROLE_NAME);
+    const isPremium = hasMainServerRole(message, PREMIUM_ROLE_NAME);
     const pityLimit = getPityLimit(isPremium);
     const pityGuarantee = getPityGuarantee(isPremium);
     let pityCounter = getSharedPity(player) + 1;
     const triggeredPity = pityCounter >= pityLimit;
 
     const contentType = pickContentType();
+    const baseTier = triggeredPity ? pityGuarantee : rollStandardBaseTier();
     const pool = getRewardPool(contentType);
-    const rarity = triggeredPity ? pityGuarantee : rollStandardBaseTier();
-    const reward = pickRandomByRarity(pool, rarity);
+    const picked = pickRandomByRarity(pool, baseTier);
 
-    if (!reward) {
-      return message.reply("Pull pool is empty.");
+    if (!picked) {
+      return message.reply(`Pull pool is empty for ${contentType} ${baseTier}.`);
     }
 
     const updatedPulls = consumePullSlot(player, pullKey);
@@ -295,37 +355,27 @@ module.exports = {
     let updatedDevilFruits = [...(player.devilFruits || [])];
     let updatedFragments = [...(player.fragments || [])];
 
-    let resultLine = "";
-    let duplicateLine = "";
+    let ownedCard = null;
+    let duplicateLine = null;
 
     if (contentType === "battleCard" || contentType === "boostCard") {
-      const ownedCard = createOwnedCard(reward);
       const alreadyOwned = updatedCards.some(
         (card) =>
           String(card.code || "").toLowerCase() ===
-          String(ownedCard.code || "").toLowerCase()
+          String(picked.code || "").toLowerCase()
       );
 
       if (alreadyOwned) {
-        updatedFragments = addFragment(updatedFragments, reward);
-        duplicateLine = `You already own **${reward.displayName || reward.name}**.\nConverted into **1 Fragment** instead.`;
+        updatedFragments = addFragment(updatedFragments, picked);
+        duplicateLine = `You already own **${picked.displayName || picked.name}**.\nConverted into **1 Fragment** instead.`;
       } else {
+        ownedCard = createOwnedCard(picked);
         updatedCards.push(ownedCard);
       }
-
-      resultLine = `[${String(reward.baseTier || reward.rarity || "C").toUpperCase()}] ${
-        reward.displayName || reward.name
-      } (${getTypeLabel(contentType)})`;
     } else if (contentType === "weapon") {
-      updatedWeapons = addNamedItem(updatedWeapons, reward);
-      resultLine = `[${String(reward.rarity || "C").toUpperCase()}] ${
-        reward.name
-      } (Weapon)`;
+      updatedWeapons = addNamedItem(updatedWeapons, picked);
     } else {
-      updatedDevilFruits = addNamedItem(updatedDevilFruits, reward);
-      resultLine = `[${String(reward.rarity || "C").toUpperCase()}] ${
-        reward.name
-      } (Devil Fruit)`;
+      updatedDevilFruits = addNamedItem(updatedDevilFruits, picked);
     }
 
     if (triggeredPity) {
@@ -335,6 +385,7 @@ module.exports = {
     const updatedPity = {
       ...(player.pity || {}),
       pullPity: pityCounter,
+      normalAPity: pityCounter,
       normalSPity: pityCounter,
       premiumSPity: pityCounter,
     };
@@ -353,10 +404,14 @@ module.exports = {
       },
     });
 
+    const rewardName = picked.displayName || picked.name || "Unknown";
+    const rewardRarity = String(picked.baseTier || picked.rarity || "C").toUpperCase();
     const ticketText = buildTicketDropText(ticketDrop);
     const pityText = triggeredPity
       ? `Pity triggered: **${pityGuarantee} Guarantee**`
       : `Pity: ${updatedPity.pullPity}/${pityLimit}`;
+    const image = getRewardImage(contentType, picked, ownedCard);
+    const badge = getRewardBadge(contentType, picked, ownedCard);
 
     const embed = new EmbedBuilder()
       .setColor(0xf1c40f)
@@ -367,8 +422,17 @@ module.exports = {
           `**Remaining Pulls:** ${available - 1}/${totalMax}`,
           `**${pityText}**`,
           "",
-          resultLine,
-          duplicateLine,
+          duplicateLine || `**${rewardName}**`,
+          duplicateLine ? null : `**Type:** ${getTypeLabel(contentType)}`,
+          duplicateLine ? null : `**Rarity:** ${rewardRarity}`,
+          duplicateLine || contentType === "weapon" || contentType === "devilFruit"
+            ? picked.type
+              ? `**Category:** ${picked.type}`
+              : null
+            : `**Current Form:** ${ownedCard?.evolutionKey || "M1"}`,
+          duplicateLine ? null : "",
+          duplicateLine ? null : buildRewardStatsText(contentType, ownedCard || picked).join("\n"),
+          "",
           ticketText,
         ]
           .filter(Boolean)
@@ -377,6 +441,9 @@ module.exports = {
       .setFooter({
         text: "One Piece Bot • Pull",
       });
+
+    if (badge) embed.setThumbnail(badge);
+    if (image) embed.setImage(image);
 
     return message.reply({
       embeds: [embed],

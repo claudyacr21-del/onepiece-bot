@@ -2,22 +2,112 @@ const SUPPORT_SERVER_ROLE = "Support Server";
 const BOOSTER_ROLE = "Server Booster";
 const PREMIUM_ROLE_NAME = "Mother Flame";
 
+const MAIN_SERVER_IDS = [
+  process.env.ONEPIECE_MAIN_GUILD_ID,
+  process.env.MAIN_SERVER_ID,
+  process.env.SUPPORT_GUILD_ID,
+  process.env.SUPPORT_SERVER_ID,
+].filter(Boolean);
+
 function normalize(value) {
   return String(value || "").toLowerCase().trim();
 }
 
-function hasRole(message, roleName) {
+function hasRoleOnMember(member, roleName) {
   const target = normalize(roleName);
 
   return Boolean(
-    message?.member?.roles?.cache?.some(
-      (role) => normalize(role?.name) === target
-    )
+    member?.roles?.cache?.some((role) => normalize(role?.name) === target)
   );
+}
+
+function isBoosterMember(member) {
+  if (!member) return false;
+
+  if (member.premiumSince || member.premiumSinceTimestamp) return true;
+
+  return Boolean(
+    member.roles?.cache?.some((role) => {
+      if (normalize(role?.name) === normalize(BOOSTER_ROLE)) return true;
+      if (role?.tags?.premiumSubscriberRole) return true;
+      return false;
+    })
+  );
+}
+
+function getConfiguredMainGuild(message) {
+  const guilds = message?.client?.guilds?.cache;
+
+  if (!guilds) return null;
+
+  for (const id of MAIN_SERVER_IDS) {
+    const guild = guilds.get(String(id));
+    if (guild) return guild;
+  }
+
+  const byName =
+    guilds.find((guild) => normalize(guild?.name) === "one piece bot") ||
+    guilds.find((guild) => normalize(guild?.name).includes("one piece"));
+
+  if (byName) return byName;
+
+  return message?.guild || null;
+}
+
+function getMainGuildMember(message) {
+  const userId = message?.author?.id;
+  const mainGuild = getConfiguredMainGuild(message);
+
+  if (!userId || !mainGuild) return null;
+
+  if (mainGuild.members?.cache?.has(userId)) {
+    return mainGuild.members.cache.get(userId);
+  }
+
+  if (message?.guild?.id === mainGuild.id && message?.member) {
+    return message.member;
+  }
+
+  return null;
+}
+
+function hasRole(message, roleName) {
+  if (message?.member && hasRoleOnMember(message.member, roleName)) return true;
+
+  const mainMember = getMainGuildMember(message);
+  return hasRoleOnMember(mainMember, roleName);
+}
+
+function hasMainServerRole(message, roleName) {
+  const mainMember = getMainGuildMember(message);
+  return hasRoleOnMember(mainMember, roleName);
 }
 
 function hasNamedRole(message, roleName) {
   return hasRole(message, roleName);
+}
+
+function isSupportServerMember(message) {
+  const mainGuild = getConfiguredMainGuild(message);
+  const mainMember = getMainGuildMember(message);
+
+  if (mainMember) return true;
+
+  if (message?.guild && mainGuild && message.guild.id === mainGuild.id) return true;
+
+  return false;
+}
+
+function isSupportServerBooster(message) {
+  const mainMember = getMainGuildMember(message);
+
+  if (isBoosterMember(mainMember)) return true;
+
+  if (message?.guild && getConfiguredMainGuild(message)?.id === message.guild.id) {
+    return isBoosterMember(message.member);
+  }
+
+  return false;
 }
 
 function isCurrentGuildOwner(message) {
@@ -71,30 +161,17 @@ function getSavedAccess(player) {
 
 function resolveAccessFlags(player, message) {
   const saved = getSavedAccess(player);
-  const inGuild = Boolean(message?.guild && message?.member);
-
-  if (!inGuild) {
-    return saved;
-  }
 
   return {
-    supportMember: hasNamedRole(message, SUPPORT_SERVER_ROLE),
-    booster: hasNamedRole(message, BOOSTER_ROLE),
-    owner: isServerOwner(message),
-    patreon: hasRole(message, PREMIUM_ROLE_NAME),
+    supportMember: Boolean(isSupportServerMember(message) || saved.supportMember),
+    booster: Boolean(isSupportServerBooster(message) || saved.booster),
+    owner: Boolean(isServerOwner(message) || saved.owner),
+    patreon: Boolean(hasRole(message, PREMIUM_ROLE_NAME) || saved.patreon),
   };
 }
 
 function buildPullAccessSnapshot(player, message) {
-  const current = resolveAccessFlags(player, message);
-  const saved = getSavedAccess(player);
-
-  return {
-    supportMember: Boolean(current.supportMember || saved.supportMember),
-    booster: Boolean(current.booster || saved.booster),
-    owner: Boolean(current.owner || saved.owner),
-    patreon: Boolean(current.patreon || saved.patreon),
-  };
+  return resolveAccessFlags(player, message);
 }
 
 function getPullSlotStatus(player, message) {
@@ -273,7 +350,11 @@ function resetAllPullSlots(player) {
 module.exports = {
   SUPPORT_SERVER_ROLE,
   BOOSTER_ROLE,
+  PREMIUM_ROLE_NAME,
   hasNamedRole,
+  hasMainServerRole,
+  isSupportServerMember,
+  isSupportServerBooster,
   isServerOwner,
   hasBaccaratCard,
   hasBaccaratFruitEquipped,
