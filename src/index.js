@@ -190,11 +190,11 @@ client.on("messageCreate", async (message) => {
 
     if (!channelCheck.allowed) {
       if (channelCheck.mode === "blocklist") {
-        await message.reply("Command ini diblokir di channel ini.");
+        await message.reply("This command is not allowed on this channel.");
         return;
       }
 
-      await message.reply("Command ini tidak boleh dipakai di channel ini.");
+      await message.reply("This command is not allowed on this channel.");
       return;
     }
 
