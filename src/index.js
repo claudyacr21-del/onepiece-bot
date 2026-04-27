@@ -193,13 +193,12 @@ client.on("messageCreate", async (message) => {
 
     if (!channelCheck.allowed) {
       if (channelCheck.mode === "blocklist") {
-        const blockedText = channelCheck.commands
-          .map((cmd) => `\`${PREFIX} ${cmd}\``)
-          .join(", ");
-
-        await message.reply("This command is not allowed on this channel.");
+        await message.reply("Command ini diblokir di channel ini.");
         return;
       }
+
+      await message.reply("Command ini tidak boleh dipakai di channel ini.");
+      return;
     }
 
     await command.execute(message, args);
