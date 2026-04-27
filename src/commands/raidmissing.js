@@ -1,6 +1,22 @@
 const { EmbedBuilder } = require("discord.js");
-const { listRooms, getMissingUsers } = require("../utils/partyRooms");
-const { getPlayer } = require("../playerStore");
+const { readPlayers } = require("../playerStore");
+const { getRoom, listRooms, getMissingUsers } = require("../utils/partyRooms");
+
+function getAdminIds() {
+  return String(
+    process.env.ADMIN_USER_IDS ||
+      process.env.DISCORD_OWNER_ID ||
+      process.env.BOT_OWNER_ID ||
+      ""
+  )
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function isAdmin(userId) {
+  return getAdminIds().includes(String(userId));
+}
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -8,6 +24,10 @@ function ensureArray(value) {
 
 function findRelevantRoom(userId) {
   const uid = String(userId || "");
+  const direct = getRoom(uid);
+
+  if (direct) return direct;
+
   const rooms = listRooms();
 
   return (
@@ -22,8 +42,38 @@ function findRelevantRoom(userId) {
   );
 }
 
-function formatUserMention(userId) {
-  return `<@${String(userId)}>`;
+async function resolveUsername(message, userId) {
+  const id = String(userId);
+
+  try {
+    const cachedMember = message.guild?.members?.cache?.get(id);
+
+    if (cachedMember?.user?.username) {
+      return cachedMember.user.username;
+    }
+
+    const fetchedMember = message.guild
+      ? await message.guild.members.fetch(id).catch(() => null)
+      : null;
+
+    if (fetchedMember?.user?.username) {
+      return fetchedMember.user.username;
+    }
+
+    const cachedUser = message.client?.users?.cache?.get(id);
+
+    if (cachedUser?.username) {
+      return cachedUser.username;
+    }
+
+    const fetchedUser = await message.client.users.fetch(id).catch(() => null);
+
+    if (fetchedUser?.username) {
+      return fetchedUser.username;
+    }
+  } catch (_) {}
+
+  return id;
 }
 
 module.exports = {
@@ -31,23 +81,44 @@ module.exports = {
   aliases: ["rm", "missing"],
 
   async execute(message) {
-    const userId = String(message.author.id);
-    const room = findRelevantRoom(userId);
+    if (!isAdmin(message.author.id)) {
+      return message.reply("Owner only command.");
+    }
+
+    const hostId = String(message.author.id);
+    const room = findRelevantRoom(hostId);
 
     if (!room) {
-      const player = getPlayer(message.author.id, message.author.username);
-      const savedTeam = ensureArray(player?.raidTeam?.members);
+      const players = readPlayers();
+      const savedMembers = ensureArray(players?.[hostId]?.raidTeam?.members).map(String);
 
-      if (savedTeam.length) {
-        return message.reply(
-          [
-            "You have a saved raid team, but there is no active raid/party room right now.",
-            "Start a raid first with `op raid <boss>` or `op craid <boss>`.",
-          ].join("\n")
-        );
+      if (!savedMembers.length) {
+        return message.reply("You do not have an active raid/party room or saved raid team.");
       }
 
-      return message.reply("You do not have an active raid/party room.");
+      const savedLines = await Promise.all(
+        savedMembers.map(async (id, i) => `${i + 1}. ${await resolveUsername(message, id)}`)
+      );
+
+      return message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xe67e22)
+            .setTitle("Saved Raid Team • No Active Room")
+            .setDescription(
+              [
+                "You have saved raid team members, but no active raid/party room.",
+                "Start a room with `op raid <boss>` or `op craid <boss>`.",
+                "",
+                `**Saved Members:** ${savedMembers.length}/9`,
+                ...savedLines,
+              ].join("\n")
+            )
+            .setFooter({
+              text: "One Piece Bot • Raid Missing",
+            }),
+        ],
+      });
     }
 
     let missingIds = [];
@@ -55,47 +126,50 @@ module.exports = {
     try {
       missingIds = getMissingUsers(room.hostId);
     } catch (_) {
-      missingIds = ensureArray(room.whitelist).filter((id) => {
-        return !ensureArray(room.participants).some((p) => String(p.userId) === String(id));
-      });
+      const joined = new Set(
+        ensureArray(room.participants).map((p) => String(p.userId))
+      );
+
+      missingIds = ensureArray(room.whitelist).filter((id) => !joined.has(String(id)));
     }
 
-    const joinedIds = new Set(
-      ensureArray(room.participants).map((p) => String(p.userId))
-    );
-
     const joinedLines = ensureArray(room.participants).length
-      ? ensureArray(room.participants).map((p) => {
-          const cards = ensureArray(p.selectedCards)
-            .map((card) => card.name || card.code)
-            .filter(Boolean)
-            .join(", ");
+      ? await Promise.all(
+          ensureArray(room.participants).map(async (p, i) => {
+            const username = await resolveUsername(message, p.userId);
+            const cards = ensureArray(p.selectedCards)
+              .map((card) => card.name || card.code)
+              .filter(Boolean)
+              .join(", ");
 
-          return `✅ ${formatUserMention(p.userId)}${cards ? ` • ${cards}` : ""}`;
-        })
+            return `✅ ${i + 1}. ${username}${cards ? ` • ${cards}` : ""}`;
+          })
+        )
       : ["None"];
 
     const missingLines = missingIds.length
-      ? missingIds.map((id) => `❌ ${formatUserMention(id)}`)
-      : ["None"];
+      ? await Promise.all(
+          missingIds.map(async (id, i) => `❌ ${i + 1}. ${await resolveUsername(message, id)}`)
+        )
+      : ["Everyone in the team has already joined battle."];
 
     return message.reply({
       embeds: [
         new EmbedBuilder()
-          .setColor(0x5865f2)
-          .setTitle("🧭 Raid Missing Members")
+          .setColor(0xe67e22)
+          .setTitle(`Missing Users • ${room.bossName || "Raid Room"}`)
           .setDescription(
             [
-              `**Host:** ${formatUserMention(room.hostId)}`,
               `**Boss:** ${room.bossName || "Unknown"}`,
               `**Status:** ${room.status || "waiting"}`,
-              `**Joined:** ${joinedIds.size}/${ensureArray(room.whitelist).length + 1}`,
-              "",
-              "## Joined",
-              ...joinedLines,
+              `**Invited:** ${ensureArray(room.whitelist).length}`,
+              `**Joined:** ${ensureArray(room.participants).length}`,
               "",
               "## Missing",
               ...missingLines,
+              "",
+              "## Joined",
+              ...joinedLines,
             ].join("\n")
           )
           .setFooter({

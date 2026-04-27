@@ -287,6 +287,14 @@ function normalizeCooldowns(cooldowns) {
   };
 }
 
+function normalizeRaidTeam(raidTeam) {
+  return {
+    members: Array.isArray(raidTeam?.members)
+      ? [...new Set(raidTeam.members.map(String).filter(Boolean))].slice(0, 9)
+      : [],
+  };
+}
+
 function normalizeVote(vote) {
   return {
     streak: Number(vote?.streak) >= 0 ? Number(vote.streak) : 0,
@@ -406,6 +414,7 @@ function normalizePlayer(player, username = "Unknown") {
     cooldowns: normalizeCooldowns(player.cooldowns),
     vote: normalizeVote(player.vote),
     team: normalizeTeam(player.team),
+    raidTeam: normalizeRaidTeam(player.raidTeam),
     stats: normalizeStats(player.stats),
     arena: normalizeArena(player.arena),
     ship: normalizeShip(player.ship, currentIsland),
@@ -507,6 +516,9 @@ function getDefaultPlayer(username) {
 
     team: {
       slots: [null, null, null],
+    },
+    raidTeam: {
+      members: [],
     },
 
     stats: {

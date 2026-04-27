@@ -49,7 +49,10 @@ module.exports = {
 
   blockedCommands: {
     // islands
-    "1497549266896421085": ["raid", "craid"],
+    "1497574337421639680": ["raid"],
+    "1497574788401725562": ["raid"],
+    "1497574814762663936": ["raid"],
+    "1497574860942086335": ["raid"],
   },
 
   alwaysAllowedCommands: [],
