@@ -36,7 +36,7 @@ module.exports = {
         [
           "**Welcome to One Piece Bot!**",
           "",
-          "To start your journey, go to the command channel and use:",
+          "To start your journey, go to the islands channel and use:",
           "`op pull`",
           "",
           "You can pull cards, build your team, fight enemies, upgrade your units, and progress through islands.",
