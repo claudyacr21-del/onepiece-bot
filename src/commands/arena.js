@@ -538,6 +538,7 @@ function buildBotTeam(points, botIndex) {
 
 function buildBotOpponents(playerPoints, count = 6) {
   const safePlayerPoints = Math.max(0, Number(playerPoints || 0));
+  const playerRank = getArenaRankFromPoints(safePlayerPoints);
 
   const botTemplates = [
     {
@@ -578,7 +579,27 @@ function buildBotOpponents(playerPoints, count = 6) {
     },
   ];
 
-  return botTemplates.slice(0, count).map((bot, index) => ({
+  const usedRanks = new Set([playerRank]);
+  const bots = [];
+
+  for (const bot of botTemplates) {
+    let nextBot = { ...bot };
+    let rank = getArenaRankFromPoints(nextBot.points);
+
+    while (usedRanks.has(rank) && nextBot.points > 0) {
+      nextBot.points = Math.max(0, nextBot.points - ARENA_POINTS_PER_RANK);
+      rank = getArenaRankFromPoints(nextBot.points);
+    }
+
+    if (usedRanks.has(rank)) continue;
+
+    usedRanks.add(rank);
+    bots.push(nextBot);
+
+    if (bots.length >= count) break;
+  }
+
+  return bots.map((bot, index) => ({
     userId: `bot-${index}`,
     username: bot.username,
     points: bot.points,

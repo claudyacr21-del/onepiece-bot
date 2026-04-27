@@ -1,5 +1,8 @@
 const { readPlayers } = require("../playerStore");
 
+const ARENA_START_RANK = 500;
+const ARENA_POINTS_PER_RANK = 10;
+
 const ROLE_CONFIG = [
   {
     rank: 1,
@@ -15,26 +18,61 @@ const ROLE_CONFIG = [
   },
 ];
 
-function getArenaLeaderboardTop3() {
+function getArenaRankFromPoints(points) {
+  const safePoints = Math.max(0, Number(points || 0));
+
+  return Math.max(
+    1,
+    ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK)
+  );
+}
+
+function getRequiredPointsForRank(rank) {
+  const safeRank = Math.max(1, Math.min(ARENA_START_RANK, Number(rank || ARENA_START_RANK)));
+
+  return Math.max(0, (ARENA_START_RANK - safeRank) * ARENA_POINTS_PER_RANK);
+}
+
+function getEligibleArenaRankRolePlayers() {
   const players = readPlayers() || {};
 
-  return Object.entries(players)
-    .map(([userId, player]) => ({
-      userId,
-      username: player.username || "Unknown",
-      points: Number(player?.arena?.points || 0),
-      wins: Number(player?.arena?.wins || 0),
-      losses: Number(player?.arena?.losses || 0),
-      matches: Number(player?.arena?.matches || 0),
-    }))
-    .filter((entry) => entry.matches > 0 || entry.points > 0 || entry.wins > 0)
+  const realPlayers = Object.entries(players)
+    .map(([userId, player]) => {
+      const points = Number(player?.arena?.points || 0);
+      const wins = Number(player?.arena?.wins || 0);
+      const losses = Number(player?.arena?.losses || 0);
+      const matches = Number(player?.arena?.matches || 0);
+      const rank = getArenaRankFromPoints(points);
+
+      return {
+        userId,
+        username: player.username || "Unknown",
+        points,
+        wins,
+        losses,
+        matches,
+        rank,
+      };
+    })
+    .filter((entry) => entry.matches > 0 || entry.points > 0 || entry.wins > 0 || entry.losses > 0)
+    .filter((entry) => entry.rank >= 1 && entry.rank <= 3)
     .sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank;
       if (b.points !== a.points) return b.points - a.points;
       if (b.wins !== a.wins) return b.wins - a.wins;
       if (a.losses !== b.losses) return a.losses - b.losses;
       return String(a.username).localeCompare(String(b.username));
-    })
-    .slice(0, 3);
+    });
+
+  const byRank = new Map();
+
+  for (const player of realPlayers) {
+    if (!byRank.has(player.rank)) {
+      byRank.set(player.rank, player);
+    }
+  }
+
+  return byRank;
 }
 
 function getConfiguredRoleIds() {
@@ -76,16 +114,16 @@ async function syncArenaRankRoles(client, preferredGuild = null) {
     return;
   }
 
-  const top3 = getArenaLeaderboardTop3();
+  const eligibleByRank = getEligibleArenaRankRolePlayers();
   const topRoleByUserId = new Map();
 
-  top3.forEach((entry, index) => {
-    const config = roleConfigs.find((item) => item.rank === index + 1);
+  for (const config of roleConfigs) {
+    const player = eligibleByRank.get(config.rank);
 
-    if (config?.roleId) {
-      topRoleByUserId.set(String(entry.userId), String(config.roleId));
-    }
-  });
+    if (!player) continue;
+
+    topRoleByUserId.set(String(player.userId), String(config.roleId));
+  }
 
   const allRankRoleIds = new Set(roleConfigs.map((config) => String(config.roleId)));
   const guilds = await resolveGuilds(client, preferredGuild);
@@ -126,6 +164,10 @@ async function syncArenaRankRoles(client, preferredGuild = null) {
 }
 
 module.exports = {
-  getArenaLeaderboardTop3,
+  ARENA_START_RANK,
+  ARENA_POINTS_PER_RANK,
+  getArenaRankFromPoints,
+  getRequiredPointsForRank,
+  getEligibleArenaRankRolePlayers,
   syncArenaRankRoles,
 };

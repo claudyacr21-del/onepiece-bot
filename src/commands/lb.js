@@ -17,14 +17,22 @@ function normalize(value) {
 
 function getArenaRankFromPoints(points) {
   const safePoints = Math.max(0, Number(points || 0));
-  return Math.max(1, ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK));
+
+  return Math.max(
+    1,
+    ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK)
+  );
 }
 
 function formatArenaRank(points) {
   return `#${getArenaRankFromPoints(points)}`;
 }
 
-function getArenaBotRows(realPlayersCount = 0) {
+function isRankUsedByRealPlayer(rank, realPlayers) {
+  return realPlayers.some((player) => getArenaRankFromPoints(player.points) === rank);
+}
+
+function getArenaBotRows(realPlayers = []) {
   const botRows = [
     {
       username: "Pirate King Bot",
@@ -49,9 +57,14 @@ function getArenaBotRows(realPlayersCount = 0) {
     },
   ];
 
-  const botCount = Math.max(0, 3 - realPlayersCount);
+  const availableBots = botRows.filter((bot) => {
+    const botRank = getArenaRankFromPoints(bot.points);
+    return !isRankUsedByRealPlayer(botRank, realPlayers);
+  });
 
-  return botRows.slice(0, botCount);
+  const botCount = Math.max(0, 3 - realPlayers.length);
+
+  return availableBots.slice(0, botCount);
 }
 
 function getRarityPower(rarity) {
@@ -204,8 +217,12 @@ function getArenaRows(players) {
     }))
     .filter((entry) => entry.matches > 0 || entry.points > 0 || entry.wins > 0 || entry.losses > 0);
 
-  const rows = [...getArenaBotRows(realPlayers.length), ...realPlayers]
+  const rows = [...getArenaBotRows(realPlayers), ...realPlayers]
     .sort((a, b) => {
+      const rankA = getArenaRankFromPoints(a.points);
+      const rankB = getArenaRankFromPoints(b.points);
+
+      if (rankA !== rankB) return rankA - rankB;
       if (b.points !== a.points) return b.points - a.points;
       if (b.wins !== a.wins) return b.wins - a.wins;
       if (a.losses !== b.losses) return a.losses - b.losses;
@@ -252,7 +269,8 @@ function buildLeaderboardEmbed(mode = null) {
           rows.length ? rows.join("\n") : "No arena data yet.",
           "",
           `Arena starts at **#${ARENA_START_RANK}** and climbs upward with points.`,
-          "Arena Bots are temporary placeholders and disappear as real players join.",
+          "Arena Bots are temporary placeholders and will disappear as real players climb.",
+          "Arena rank roles are only given to real players at **#1 / #2 / #3**.",
         ].join("\n")
       )
       .setFooter({
