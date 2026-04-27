@@ -210,9 +210,11 @@ function getActiveBossPhase(player, island) {
 
 function getIslandBossImage(currentIsland, phaseBoss = null, fromDb = null) {
   return (
+    phaseBoss?.bossImage ||
     phaseBoss?.image ||
-    currentIsland?.image ||
+    currentIsland?.bossImage ||
     fromDb?.image ||
+    currentIsland?.image ||
     ""
   );
 }
@@ -249,7 +251,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 125,
       hp: 1400,
       speed: 42,
-      image: currentIsland?.image || "",
+      image: getIslandBossImage(currentIsland, null, null),
     },
     reverse_mountain: {
       name: "Laboon",
@@ -257,7 +259,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 285,
       hp: 4700,
       speed: 72,
-      image: currentIsland?.image || "",
+      image: getIslandBossImage(currentIsland, null, null),
     },
     whiskey_peak: {
       name: "Baroque Works Agents",
@@ -265,7 +267,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 245,
       hp: 3900,
       speed: 78,
-      image: currentIsland?.image || "",
+      image: getIslandBossImage(currentIsland, null, null),
     },
     long_ring_long_land: {
       name: "Foxy",
@@ -273,7 +275,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 310,
       hp: 4800,
       speed: 88,
-      image: currentIsland?.image || "",
+      image: getIslandBossImage(currentIsland, null, null),
     },
     water_7: {
       name: "CP9 Lead Fight",
@@ -281,7 +283,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 390,
       hp: 6500,
       speed: 106,
-      image: currentIsland?.image || "",
+      image: getIslandBossImage(currentIsland, null, null),
     },
     sabaody: {
       name: "Pacifista Survival",
@@ -289,7 +291,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 430,
       hp: 7600,
       speed: 112,
-      image: currentIsland?.image || "",
+      image: getIslandBossImage(currentIsland, null, null),
     },
     impel_down: {
       name: "Magellan",
@@ -297,7 +299,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 520,
       hp: 9200,
       speed: 122,
-      image: currentIsland?.image || "",
+      image: getIslandBossImage(currentIsland, null, null),
     },
   };
 
@@ -313,7 +315,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
     hp,
     maxHp: hp,
     speed: Math.floor(Number(base.speed) + order * 1.1),
-    image: currentIsland?.image || base.image || "",
+    image: getIslandBossImage(currentIsland, null, null),
   };
 }
 

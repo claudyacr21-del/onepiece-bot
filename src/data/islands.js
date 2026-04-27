@@ -91,7 +91,19 @@ const ISLANDS = [
 },
 ].map((island) => ({
   ...island,
-  image: getIslandImage(island.code, island.image || ""),
+
+  // image asli dari list island kamu adalah boss GIF / boss image
+  bossImage: island.bossImage || island.image || "",
+
+  // image ini khusus island/background route dari assetLinks
+  image: getIslandImage(island.code, ""),
+
+  bossPhases: Array.isArray(island.bossPhases)
+    ? island.bossPhases.map((phase) => ({
+        ...phase,
+        bossImage: phase.bossImage || phase.image || "",
+      }))
+    : island.bossPhases,
 }));
 
 function normalize(text) {
