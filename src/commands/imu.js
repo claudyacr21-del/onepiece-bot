@@ -169,7 +169,7 @@ module.exports = {
           "",
           granted.length
             ? `Role added: ${granted.map((name) => `\`${name}\``).join(", ")}`
-            : "Role lu sudah sesuai, tidak ada role baru yang ditambahkan.",
+            : "Your role is already correct, no new roles are added..",
         ].join("\n")
       )
       .setFooter({ text: "One Piece Bot" });

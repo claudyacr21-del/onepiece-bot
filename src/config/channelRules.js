@@ -19,6 +19,7 @@ module.exports = {
       "open",
       "daily",
       "treasure",
+      "imu",
     ],
 
     // trade-discuss
@@ -38,6 +39,7 @@ module.exports = {
       "equipfruit",
       "all",
       "level",
+      "imu",
     ],
 
     // news-coo
