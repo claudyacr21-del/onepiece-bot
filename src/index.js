@@ -68,7 +68,7 @@ function getBlockedCommandsForChannel(channelId) {
 }
 
 function isCommandAllowedInChannel({ message, commandName, command }) {
-  const channelId = message.channel?.id;
+  const channelId = String(message.channel?.id || "");
   const allowedCommands = getAllowedCommandsForChannel(channelId);
   const blockedCommands = getBlockedCommandsForChannel(channelId);
 
@@ -80,13 +80,13 @@ function isCommandAllowedInChannel({ message, commandName, command }) {
   const realCommandName = normalizeCommandName(command?.name);
 
   const isAlwaysAllowed =
-    alwaysAllowed.includes(typedCommand) || alwaysAllowed.includes(realCommandName);
+    alwaysAllowed.includes(typedCommand) ||
+    alwaysAllowed.includes(realCommandName);
 
   if (isAlwaysAllowed) {
     return {
       allowed: true,
       mode: "always",
-      commands: null,
     };
   }
 
@@ -98,7 +98,6 @@ function isCommandAllowedInChannel({ message, commandName, command }) {
     return {
       allowed,
       mode: "allowlist",
-      commands: allowedCommands,
     };
   }
 
@@ -110,14 +109,12 @@ function isCommandAllowedInChannel({ message, commandName, command }) {
     return {
       allowed: !blocked,
       mode: "blocklist",
-      commands: blockedCommands,
     };
   }
 
   return {
     allowed: true,
     mode: "none",
-    commands: null,
   };
 }
 

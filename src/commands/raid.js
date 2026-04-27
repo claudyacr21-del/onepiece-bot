@@ -371,34 +371,6 @@ function buildPickRows(roomId, cards) {
   return [row];
 }
 
-function buildBattleRoster(room) {
-  const participants = ensureArray(room?.participants);
-
-  return participants
-    .flatMap((p) =>
-      ensureArray(p.selectedCards).map((card) => ({
-        userId: String(p.userId),
-        username: String(p.username || "Unknown"),
-        instanceId: String(card.instanceId || ""),
-        code: String(card.code || ""),
-        name: String(card.name || card.code || "Unknown"),
-        atk: Number(card.atk || 0),
-        maxHp: Number(card.hp || 1),
-        hp: Number(card.hp || 1),
-        speed: Number(card.speed || 0),
-        currentPower: Number(card.currentPower || 0),
-        currentTier: String(card.currentTier || ""),
-        evolutionStage: Number(card.evolutionStage || 1),
-        alive: true,
-      }))
-    )
-    .sort((a, b) => {
-      const spd = Number(b.speed || 0) - Number(a.speed || 0);
-      if (spd !== 0) return spd;
-      return Number(b.currentPower || 0) - Number(a.currentPower || 0);
-    });
-}
-
 function buildBattleState(room, bossTemplate) {
   const members = buildBattleRoster(room);
 
@@ -744,8 +716,8 @@ module.exports = {
             deleteRoom(hostId);
           } catch {}
 
-          return interaction.followUp({
-            content: "Failed to sync raid participants from latest card data. Please re-open raid and join again.",
+          return interaction.reply({
+            content: "Failed to sync raid participants from latest card data.\nPlease re-open raid and join again.",
             ephemeral: true,
           });
         }
@@ -759,8 +731,8 @@ module.exports = {
             deleteRoom(hostId);
           } catch {}
 
-          return interaction.followUp({
-            content: "A raid card failed to sync correctly. Please re-open raid and join again.",
+          return interaction.reply({
+            content: "A raid card failed to sync correctly.\nPlease re-open raid and join again.",
             ephemeral: true,
           });
         }
