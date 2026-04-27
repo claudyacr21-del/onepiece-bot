@@ -57,7 +57,7 @@ module.exports = {
           "",
           "🗳️ **Top.gg Vote**",
           "Vote for One Piece Bot on **Top.gg** to support the bot and receive vote rewards.",
-          "After voting, use the available vote reward command if the server has it enabled.",
+          "You can only pull up to 6 cards every 8 hours, for more use a reset token or vote for the OP Bot on Top.GG",
           "",
           "📖 **Need Help?**",
           "Use `op help` in the command channel to open the full help menu.",
