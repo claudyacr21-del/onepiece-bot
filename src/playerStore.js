@@ -169,6 +169,7 @@ function normalizeCards(value) {
       equippedWeapons: finalEquippedWeapons,
       equippedWeapon: finalEquippedWeapons.length ? finalEquippedWeapons.map((w) => w.name).join(", ") : null,
       equippedWeaponCode: finalEquippedWeapons.length === 1 ? finalEquippedWeapons[0].code : null,
+      equippedWeaponLevel: finalEquippedWeapons.length === 1 ? Number(finalEquippedWeapons[0].upgradeLevel || 0) : Number(card.equippedWeaponLevel || 0),
       weaponBonus: totalWeaponBonus,
       equippedDevilFruit: card.equippedDevilFruit || null,
       equippedDevilFruitCode: card.equippedDevilFruitCode || null,
