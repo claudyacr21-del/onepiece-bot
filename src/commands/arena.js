@@ -12,6 +12,8 @@ const { syncArenaRankRoles } = require("../utils/arenaRankRoles");
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const ARENA_DAILY_LIMIT = 5;
+const ARENA_START_RANK = 500;
+const ARENA_POINTS_PER_RANK = 10;
 
 function queueArenaRankRoleSync(message) {
   syncArenaRankRoles(message.client, message.guild).catch((error) => {
@@ -25,9 +27,6 @@ function getDateKey() {
     now.getUTCDate()
   ).padStart(2, "0")}`;
 }
-
-const ARENA_START_RANK = 500;
-const ARENA_POINTS_PER_RANK = 10;
 
 function getArenaRankFromPoints(points) {
   const safePoints = Math.max(0, Number(points || 0));
@@ -494,7 +493,7 @@ function makeBotCard({ code, name, rarity, atk, hp, speed, power, slot }) {
 }
 
 function buildBotTeam(points, botIndex) {
-  const scale = 1 + Math.max(0, Number(points || 0)) / 220;
+  const scale = 1 + Math.max(0, Number(points || 0)) / 250;
   const base = [
     {
       code: `bot_marine_${botIndex}`,
@@ -517,11 +516,11 @@ function buildBotTeam(points, botIndex) {
     {
       code: `bot_captain_${botIndex}`,
       name: "Arena Captain",
-      rarity: points >= 100 ? "B" : "C",
+      rarity: points >= 35 ? "B" : "C",
       atk: 145,
       hp: 1100,
       speed: 72,
-      power: points >= 100 ? 820 : 600,
+      power: points >= 35 ? 820 : 600,
     },
   ];
 
@@ -530,44 +529,64 @@ function buildBotTeam(points, botIndex) {
       ...entry,
       atk: Math.floor(entry.atk * scale),
       hp: Math.floor(entry.hp * scale),
-      speed: Math.floor(entry.speed * Math.min(1.5, scale)),
+      speed: Math.floor(entry.speed * Math.min(1.35, scale)),
       power: Math.floor(entry.power * scale),
       slot: index,
     })
   );
 }
 
-function getPointsForArenaRank(rank) {
-  return Math.max(0, (ARENA_START_RANK - Number(rank || ARENA_START_RANK)) * ARENA_POINTS_PER_RANK);
-}
-
 function buildBotOpponents(playerPoints, count = 6) {
-  const playerRank = getArenaRankFromPoints(playerPoints);
+  const safePlayerPoints = Math.max(0, Number(playerPoints || 0));
 
-  const rankTargets =
-    playerRank >= 450
-      ? [500, 499, 498, 495, 490, 480, 450, 400]
-      : [playerRank - 2, playerRank - 1, playerRank, playerRank + 1, playerRank + 2, 250, 100, 1];
+  const botTemplates = [
+    {
+      username: "Pirate King Bot",
+      points: 35,
+      wins: 3,
+      losses: 0,
+    },
+    {
+      username: "Yonko Bot",
+      points: 25,
+      wins: 2,
+      losses: 1,
+    },
+    {
+      username: "Grand Champion Bot",
+      points: 15,
+      wins: 1,
+      losses: 1,
+    },
+    {
+      username: "Arena Bot 1",
+      points: Math.max(0, safePlayerPoints + 10),
+      wins: 0,
+      losses: 0,
+    },
+    {
+      username: "Arena Bot 2",
+      points: safePlayerPoints,
+      wins: 0,
+      losses: 0,
+    },
+    {
+      username: "Arena Bot 3",
+      points: Math.max(0, safePlayerPoints - 10),
+      wins: 0,
+      losses: 0,
+    },
+  ];
 
-  return rankTargets.slice(0, count).map((rank, index) => {
-    const safeRank = Math.max(1, Math.min(ARENA_START_RANK, Number(rank || ARENA_START_RANK)));
-    const botPoints = getPointsForArenaRank(safeRank);
-
-    return {
-      userId: `bot-${index}`,
-      username:
-        safeRank === 1
-          ? "Pirate King Bot"
-          : safeRank <= 10
-            ? `Yonko Arena Bot ${index + 1}`
-            : `Arena Bot ${index + 1}`,
-      points: botPoints,
-      wins: safeRank === 1 ? 999 : Math.max(0, ARENA_START_RANK - safeRank),
-      losses: safeRank === 1 ? 0 : Math.floor(index * 2),
-      isBot: true,
-      teamUnits: buildBotTeam(botPoints, index),
-    };
-  });
+  return botTemplates.slice(0, count).map((bot, index) => ({
+    userId: `bot-${index}`,
+    username: bot.username,
+    points: bot.points,
+    wins: bot.wins,
+    losses: bot.losses,
+    isBot: true,
+    teamUnits: buildBotTeam(bot.points, index),
+  }));
 }
 
 function buildOpponentPool(message, player) {
@@ -611,6 +630,7 @@ function buildOpponentPool(message, player) {
 
       if (diffA !== diffB) return diffA - diffB;
       if (b.points !== a.points) return b.points - a.points;
+      if (a.isBot !== b.isBot) return a.isBot ? 1 : -1;
       return String(a.username).localeCompare(String(b.username));
     })
     .slice(0, 25);

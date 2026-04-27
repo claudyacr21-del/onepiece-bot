@@ -24,30 +24,34 @@ function formatArenaRank(points) {
   return `#${getArenaRankFromPoints(points)}`;
 }
 
-function getArenaBotRows() {
-  return [
+function getArenaBotRows(realPlayersCount = 0) {
+  const botRows = [
     {
       username: "Pirate King Bot",
-      points: (ARENA_START_RANK - 1) * ARENA_POINTS_PER_RANK,
-      wins: 999,
+      points: 35,
+      wins: 3,
       losses: 0,
       isBot: true,
     },
     {
       username: "Yonko Bot",
-      points: (ARENA_START_RANK - 2) * ARENA_POINTS_PER_RANK,
-      wins: 850,
-      losses: 12,
+      points: 25,
+      wins: 2,
+      losses: 1,
       isBot: true,
     },
     {
       username: "Grand Champion Bot",
-      points: (ARENA_START_RANK - 3) * ARENA_POINTS_PER_RANK,
-      wins: 700,
-      losses: 25,
+      points: 15,
+      wins: 1,
+      losses: 1,
       isBot: true,
     },
   ];
+
+  const botCount = Math.max(0, 3 - realPlayersCount);
+
+  return botRows.slice(0, botCount);
 }
 
 function getRarityPower(rarity) {
@@ -200,12 +204,8 @@ function getArenaRows(players) {
     }))
     .filter((entry) => entry.matches > 0 || entry.points > 0 || entry.wins > 0 || entry.losses > 0);
 
-  const rows = [...getArenaBotRows(), ...realPlayers]
+  const rows = [...getArenaBotRows(realPlayers.length), ...realPlayers]
     .sort((a, b) => {
-      const rankA = getArenaRankFromPoints(a.points);
-      const rankB = getArenaRankFromPoints(b.points);
-
-      if (rankA !== rankB) return rankA - rankB;
       if (b.points !== a.points) return b.points - a.points;
       if (b.wins !== a.wins) return b.wins - a.wins;
       if (a.losses !== b.losses) return a.losses - b.losses;
@@ -252,7 +252,7 @@ function buildLeaderboardEmbed(mode = null) {
           rows.length ? rows.join("\n") : "No arena data yet.",
           "",
           `Arena starts at **#${ARENA_START_RANK}** and climbs upward with points.`,
-          "Top ranks are guarded by Arena Bots until players overtake them.",
+          "Arena Bots are temporary placeholders and disappear as real players join.",
         ].join("\n")
       )
       .setFooter({
