@@ -35,7 +35,9 @@ function ensureArray(value) {
 function randomInt(min, max) {
   const a = Math.floor(Number(min || 0));
   const b = Math.floor(Number(max || 0));
+
   if (b <= a) return a;
+
   return Math.floor(Math.random() * (b - a + 1)) + a;
 }
 
@@ -44,7 +46,8 @@ function makeHpBar(current, max, size = 16) {
   const safeCur = Math.max(0, Math.min(safeMax, Number(current || 0)));
   const filled = Math.round((safeCur / safeMax) * size);
   const empty = Math.max(0, size - filled);
-  return `${"🟩".repeat(filled)}${"⬛".repeat(empty)}`;
+
+  return `${"█".repeat(filled)}${"░".repeat(empty)}`;
 }
 
 function formatAtkRange(atk) {
@@ -77,6 +80,7 @@ function findTicketEntry(tickets = [], raidMode) {
     ensureArray(tickets).find((entry) => {
       const code = normalize(entry?.code);
       const name = normalize(entry?.name);
+
       return (
         code === normalize(raidMode.ticketCode) ||
         name === normalize(raidMode.ticketName)
@@ -87,9 +91,11 @@ function findTicketEntry(tickets = [], raidMode) {
 
 function consumeOneTicket(player, raidMode) {
   const tickets = ensureArray(player?.tickets).map((t) => ({ ...t }));
+
   const idx = tickets.findIndex((entry) => {
     const code = normalize(entry?.code);
     const name = normalize(entry?.name);
+
     return (
       code === normalize(raidMode.ticketCode) ||
       name === normalize(raidMode.ticketName)
@@ -97,12 +103,19 @@ function consumeOneTicket(player, raidMode) {
   });
 
   if (idx === -1) {
-    return { ok: false, tickets: ensureArray(player?.tickets) };
+    return {
+      ok: false,
+      tickets: ensureArray(player?.tickets),
+    };
   }
 
   const current = Number(tickets[idx].amount || 0);
+
   if (current <= 0) {
-    return { ok: false, tickets: ensureArray(player?.tickets) };
+    return {
+      ok: false,
+      tickets: ensureArray(player?.tickets),
+    };
   }
 
   if (current === 1) {
@@ -111,7 +124,10 @@ function consumeOneTicket(player, raidMode) {
     tickets[idx].amount = current - 1;
   }
 
-  return { ok: true, tickets };
+  return {
+    ok: true,
+    tickets,
+  };
 }
 
 function getSavedRaidTeam(player) {
@@ -125,7 +141,9 @@ function getBattleTeamCards(player) {
     (card) => String(card.cardRole || "").toLowerCase() === "battle"
   );
 
-  const slots = Array.isArray(player?.team?.slots) ? player.team.slots.slice(0, 3) : [];
+  const slots = Array.isArray(player?.team?.slots)
+    ? player.team.slots.slice(0, 3)
+    : [];
 
   return slots
     .map((instanceId) => {
@@ -228,6 +246,7 @@ function buildBattleRoster(room) {
     .sort((a, b) => {
       const spd = Number(b.speed || 0) - Number(a.speed || 0);
       if (spd !== 0) return spd;
+
       return Number(b.currentPower || 0) - Number(a.currentPower || 0);
     });
 }
@@ -238,6 +257,7 @@ function getRaidBossImage(code) {
 
 function resolveRaidBoss(query) {
   const template = findCardTemplate(query);
+
   if (!template || String(template.cardRole || "").toLowerCase() !== "battle") {
     return null;
   }
@@ -256,17 +276,45 @@ function deriveRaidBossStats(template) {
 
   const profile =
     {
-      C: { hp: 9000, speed: 180, atkMin: 180, atkMax: 360 },
-      B: { hp: 12500, speed: 240, atkMin: 260, atkMax: 520 },
-      A: { hp: 17500, speed: 340, atkMin: 380, atkMax: 760 },
-      S: { hp: 24000, speed: 460, atkMin: 520, atkMax: 1020 },
-    }[tier] || { hp: 12500, speed: 240, atkMin: 260, atkMax: 520 };
+      C: {
+        hp: 9000,
+        speed: 180,
+        atkMin: 180,
+        atkMax: 360,
+      },
+      B: {
+        hp: 12500,
+        speed: 240,
+        atkMin: 260,
+        atkMax: 520,
+      },
+      A: {
+        hp: 17500,
+        speed: 340,
+        atkMin: 380,
+        atkMax: 760,
+      },
+      S: {
+        hp: 24000,
+        speed: 460,
+        atkMin: 520,
+        atkMax: 1020,
+      },
+    }[tier] || {
+      hp: 12500,
+      speed: 240,
+      atkMin: 260,
+      atkMax: 520,
+    };
 
   const baseAtk = Number(hydrated.atk || 120);
   const baseHp = Number(hydrated.hp || 900);
   const baseSpeed = Number(hydrated.speed || 60);
   const basePower = Number(
-    hydrated.powerCaps?.M3 || hydrated.currentPower || hydrated.basePower || 0
+    hydrated.powerCaps?.M3 ||
+      hydrated.currentPower ||
+      hydrated.basePower ||
+      0
   );
 
   const maxHp = Math.floor(profile.hp + baseHp * 2.8 + basePower * 1.2);
@@ -295,6 +343,7 @@ function buildLobbyEmbed(hostName, room, ended = false, bossStats = null) {
         const picked = ensureArray(p.selectedCards)
           .map((c) => c.name || c.code)
           .join(", ");
+
         return `${i + 1}. ${p.username} • ${picked || "No card selected"}`;
       })
     : ["None"];
@@ -302,14 +351,14 @@ function buildLobbyEmbed(hostName, room, ended = false, bossStats = null) {
   const bossStatLine = bossStats
     ? `❤️ ${Number(bossStats.maxHp || bossStats.hp || 0)}/${Number(
         bossStats.maxHp || bossStats.hp || 0
-      )} | 👟 ${Number(bossStats.speed || 0)} | ⚔️ ${Number(
+      )} | SPD ${Number(bossStats.speed || 0)} | ATK ${Number(
         bossStats.atkMin || 0
       )}-${Number(bossStats.atkMax || 0)}`
     : "Not loaded";
 
   return new EmbedBuilder()
     .setColor(0x8e44ad)
-    .setTitle("🤝 Raid Room")
+    .setTitle("👹 Raid Room")
     .setDescription(
       [
         `**Host:** ${hostName}`,
@@ -331,9 +380,7 @@ function buildLobbyEmbed(hostName, room, ended = false, bossStats = null) {
     )
     .setImage(room.bossImage || null)
     .setFooter({
-      text: ended
-        ? "Raid room closed"
-        : "Join Battle to enter • Host only can Start Raid",
+      text: ended ? "Raid room closed" : "Join Battle to enter • Host only can Start Raid",
     });
 }
 
@@ -359,10 +406,19 @@ function buildPickRows(roomId, cards) {
 
   for (let i = 0; i < 3; i++) {
     const card = cards[i];
+
     row.addComponents(
       new ButtonBuilder()
-        .setCustomId(card ? `raid_pick_${roomId}_${card.instanceId}` : `raid_pick_${roomId}_empty_${i}`)
-        .setLabel(card ? `${i + 1} ${card.displayName || card.name}`.slice(0, 80) : `Empty Slot ${i + 1}`)
+        .setCustomId(
+          card
+            ? `raid_pick_${roomId}_${card.instanceId}`
+            : `raid_pick_${roomId}_empty_${i}`
+        )
+        .setLabel(
+          card
+            ? `${i + 1} ${card.displayName || card.name}`.slice(0, 80)
+            : `Empty Slot ${i + 1}`
+        )
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(!card)
     );
@@ -389,6 +445,7 @@ function buildBattleState(room, bossTemplate) {
 
 function pushBattleLog(state, line) {
   state.log.push(line);
+
   if (state.log.length > 8) {
     state.log = state.log.slice(state.log.length - 8);
   }
@@ -405,32 +462,28 @@ function buildBattleEmbed(state) {
   const raidLines = state.members.length
     ? state.members.map((m, i) => {
         const isDead = Number(m.hp || 0) <= 0;
-        const label = isDead ? "☠️" : "❤️";
+        const hpIcon = isDead ? "☠️" : "❤️";
+        const status = isDead ? "DEFEATED" : "READY";
+
         return [
           `**${i + 1}. ${m.name}** • ${m.username}`,
-          `${label} ${Math.max(0, Number(m.hp || 0))}/${Number(m.maxHp || 0)} | 👟 ${Number(
+          `${hpIcon} ${Math.max(0, Number(m.hp || 0))}/${Number(m.maxHp || 0)} | SPD ${Number(
             m.speed || 0
-          )} | ⚔️ ${formatAtkRange(m.atk)}`,
+          )} | ATK ${formatAtkRange(m.atk)} | ${status}`,
         ].join("\n");
       })
     : ["None"];
 
-  const statusText = state.finished
-    ? state.winner === "players"
-      ? "Raid Cleared!"
-      : "Raid Failed!"
-    : "Selection Phase\nSelect a character to deploy for battle!";
-
   return new EmbedBuilder()
-    .setColor(state.finished ? (state.winner === "players" ? 0x2ecc71 : 0xe74c3c) : 0xe67e22)
-    .setTitle(`${boss.name}'s Boss Battle`)
-    .setDescription(statusText)
+    .setColor(0xe67e22)
+    .setTitle(`${boss.name}'s Raid Battle`)
+    .setDescription("Selection Phase\nSelect a character to attack!")
     .addFields(
       {
         name: "Boss",
         value: [
           `${makeHpBar(boss.hp, boss.maxHp)}`,
-          `❤️ ${Math.max(0, boss.hp)}/${boss.maxHp} | 👟 ${boss.speed} | ⚔️ ${boss.atkMin}-${boss.atkMax}`,
+          `❤️ ${Math.max(0, boss.hp)}/${boss.maxHp} | SPD ${boss.speed} | ATK ${boss.atkMin}-${boss.atkMax}`,
         ].join("\n"),
       },
       {
@@ -439,38 +492,80 @@ function buildBattleEmbed(state) {
       },
       {
         name: "Battle Log",
-        value: state.log.length ? state.log.map((x) => `• ${x}`).join("\n").slice(0, 1024) : "No actions yet.",
+        value: state.log.length
+          ? state.log.map((x) => `• ${x}`).join("\n").slice(0, 1024)
+          : "No actions yet.",
       }
     )
     .setImage(boss.image || null)
     .setFooter({
-      text: state.finished
-        ? state.winner === "players"
-          ? "Raid complete"
-          : "Raid failed"
-        : `Round ${state.round} • Choose 1 card to attack`,
+      text: `Round ${state.round} • Choose 1 card to attack`,
+    });
+}
+
+function buildResultEmbed(state) {
+  const boss = state.boss;
+  const playersWon = state.winner === "players";
+  const alive = getAliveMembers(state);
+
+  const raidLines = state.members.length
+    ? state.members.map((m, i) => {
+        const isDead = Number(m.hp || 0) <= 0;
+        const hpIcon = isDead ? "☠️" : "❤️";
+        const status = isDead ? "DEFEATED" : "SURVIVED";
+
+        return [
+          `**${i + 1}. ${m.name}** • ${m.username}`,
+          `${hpIcon} ${Math.max(0, Number(m.hp || 0))}/${Number(m.maxHp || 0)} • ${status}`,
+        ].join("\n");
+      })
+    : ["None"];
+
+  return new EmbedBuilder()
+    .setColor(playersWon ? 0x2ecc71 : 0xe74c3c)
+    .setTitle(playersWon ? "🏆 Raid Victory" : "💀 Raid Defeat")
+    .setDescription(
+      [
+        `**Result:** ${playersWon ? "WIN" : "LOSE"}`,
+        `**Boss:** ${boss.name}`,
+        `**Final Boss HP:** ${Math.max(0, Number(boss.hp || 0))}/${Number(boss.maxHp || 0)}`,
+        `**Survivors:** ${alive.length}/${state.members.length}`,
+        "",
+        "## Raid Team Result",
+        ...raidLines,
+        "",
+        "## Final Log",
+        ...(state.log.length ? state.log.slice(-8).map((x) => `• ${x}`) : ["No final log."]),
+      ].join("\n")
+    )
+    .setImage(boss.image || null)
+    .setFooter({
+      text: playersWon ? "One Piece Bot • Raid Complete" : "One Piece Bot • Raid Failed",
     });
 }
 
 function buildBattleRows(state) {
   if (state.finished) return [];
 
-  const alive = getAliveMembers(state);
   const rows = [];
   let chunk = [];
 
-  for (let i = 0; i < alive.length; i++) {
-    chunk.push(alive[i]);
+  for (let i = 0; i < state.members.length; i++) {
+    chunk.push(state.members[i]);
 
-    if (chunk.length === 5 || i === alive.length - 1) {
+    if (chunk.length === 5 || i === state.members.length - 1) {
       const row = new ActionRowBuilder();
 
       for (const member of chunk) {
+        const index = state.members.indexOf(member);
+        const isDead = Number(member.hp || 0) <= 0;
+
         row.addComponents(
           new ButtonBuilder()
             .setCustomId(`raid_act_${state.roomId}_${member.instanceId}`)
-            .setLabel(`${state.members.indexOf(member) + 1} ${member.name}`.slice(0, 80))
-            .setStyle(ButtonStyle.Success)
+            .setLabel(`${index + 1} ${member.name}`.slice(0, 80))
+            .setStyle(isDead ? ButtonStyle.Secondary : ButtonStyle.Success)
+            .setDisabled(isDead)
         );
       }
 
@@ -484,7 +579,9 @@ function buildBattleRows(state) {
 
 function chooseBossTarget(state) {
   const alive = getAliveMembers(state);
+
   if (!alive.length) return null;
+
   return alive[randomInt(0, alive.length - 1)];
 }
 
@@ -510,12 +607,14 @@ module.exports = {
 
   async execute(message, args) {
     const query = args.join(" ").trim();
-    if (!query) return message.reply("Usage: `op raid <boss>` or `op craid <boss>`");
+
+    if (!query) {
+      return message.reply("Usage: `op raid <boss>` or `op craid <boss>`");
+    }
 
     const raw = String(message.content || "").trim().split(/\s+/);
     const usedCommand = String(raw[1] || "").toLowerCase() === "craid" ? "craid" : "raid";
     const raidMode = getRaidModeConfig(usedCommand);
-
     const hostId = String(message.author.id);
     const host = getPlayer(hostId, message.author.username);
 
@@ -524,6 +623,7 @@ module.exports = {
     }
 
     const bossInfo = resolveRaidBoss(query);
+
     if (!bossInfo) {
       return message.reply("Raid boss not found.");
     }
@@ -541,20 +641,24 @@ module.exports = {
     }
 
     const ticketEntry = findTicketEntry(host.tickets, raidMode);
+
     if (!ticketEntry || Number(ticketEntry.amount || 0) <= 0) {
       return message.reply(`You do not have any ${raidMode.label}.`);
     }
 
     const consumed = consumeOneTicket(host, raidMode);
+
     if (!consumed.ok) {
       return message.reply(`Failed to consume ${raidMode.label}.`);
     }
 
     const players = readPlayers();
+
     players[hostId] = {
       ...players[hostId],
       tickets: consumed.tickets,
     };
+
     writePlayers(players);
 
     const whitelist = getSavedRaidTeam(host);
@@ -624,8 +728,8 @@ module.exports = {
         });
 
         const pickReply = await interaction.fetchReply();
-
         let pickInteraction;
+
         try {
           pickInteraction = await pickReply.awaitMessageComponent({
             time: RAID_PICK_TIMEOUT_MS,
@@ -642,9 +746,7 @@ module.exports = {
           ""
         );
 
-        const picked = teamCards.find(
-          (card) => String(card.instanceId) === pickedId
-        );
+        const picked = teamCards.find((card) => String(card.instanceId) === pickedId);
 
         if (!picked) {
           return pickInteraction.update({
@@ -692,6 +794,7 @@ module.exports = {
         }
 
         let startedRoom;
+
         try {
           startedRoom = startRoom(hostId);
         } catch (error) {
@@ -702,6 +805,7 @@ module.exports = {
         }
 
         const joinedCount = ensureArray(startedRoom.participants).length;
+
         if (joinedCount < 1) {
           return interaction.reply({
             content: "No participants have joined yet.",
@@ -717,7 +821,8 @@ module.exports = {
           } catch {}
 
           return interaction.reply({
-            content: "Failed to sync raid participants from latest card data.\nPlease re-open raid and join again.",
+            content:
+              "Failed to sync raid participants from latest card data.\nPlease re-open raid and join again.",
             ephemeral: true,
           });
         }
@@ -732,7 +837,8 @@ module.exports = {
           } catch {}
 
           return interaction.reply({
-            content: "A raid card failed to sync correctly.\nPlease re-open raid and join again.",
+            content:
+              "A raid card failed to sync correctly.\nPlease re-open raid and join again.",
             ephemeral: true,
           });
         }
@@ -773,8 +879,7 @@ module.exports = {
           }
 
           const canControl =
-            String(btn.user.id) === String(actor.userId) ||
-            String(btn.user.id) === hostId;
+            String(btn.user.id) === String(actor.userId) || String(btn.user.id) === hostId;
 
           if (!canControl) {
             return btn.reply({
@@ -791,6 +896,7 @@ module.exports = {
           const damage = applyDamageBoost(rawDamage, actor.passiveBoostsApplied || {});
 
           battleState.boss.hp = Math.max(0, battleState.boss.hp - damage);
+
           pushBattleLog(
             battleState,
             `${actor.username} used ${actor.name} and dealt ${damage} damage.`
@@ -825,40 +931,50 @@ module.exports = {
 
           if (!battleState.finished) {
             battleState.round += 1;
-          } else if (battleState.winner === "players") {
+
+            return btn.update({
+              embeds: [buildBattleEmbed(battleState)],
+              components: buildBattleRows(battleState),
+            });
+          }
+
+          if (battleState.winner === "players") {
             pushBattleLog(battleState, "Raid cleared.");
-            try {
-              deleteRoom(hostId);
-            } catch {}
           } else {
             pushBattleLog(battleState, "All raid members have been defeated.");
-            try {
-              deleteRoom(hostId);
-            } catch {}
           }
+
+          try {
+            deleteRoom(hostId);
+          } catch {}
 
           await btn.update({
-            embeds: [buildBattleEmbed(battleState)],
-            components: buildBattleRows(battleState),
+            embeds: [buildResultEmbed(battleState)],
+            components: [],
           });
 
-          if (battleState.finished) {
-            battleCollector.stop("finished");
-          }
+          battleCollector.stop("finished");
         });
 
-        battleCollector.on("end", async () => {
+        battleCollector.on("end", async (_collected, reason) => {
           try {
             deleteRoom(hostId);
           } catch {}
 
           if (!battleMessage) return;
+          if (reason === "finished") return;
 
           try {
             await battleMessage.edit({
-              embeds: battleMessage.embeds?.length
-                ? battleMessage.embeds
-                : undefined,
+              embeds: [buildResultEmbed({
+                ...battleState,
+                finished: true,
+                winner: battleState.winner || "boss",
+                log: [
+                  ...battleState.log,
+                  "Raid timed out.",
+                ],
+              })],
               components: [],
             });
           } catch {}
@@ -868,10 +984,13 @@ module.exports = {
       }
     });
 
-    lobbyCollector.on("end", async () => {
+    lobbyCollector.on("end", async (_collected, reason) => {
+      if (reason === "started") return;
+
       try {
         if (!battleMessage) {
           const activeRoom = getRoom(hostId) || room;
+
           await lobbyMessage.edit({
             embeds: [buildLobbyEmbed(message.author.username, activeRoom, true, bossPreviewStats)],
             components: buildLobbyRows(activeRoom, true),
