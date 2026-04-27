@@ -665,9 +665,7 @@ module.exports = {
         battleEnded = true;
         logs.length = 0;
         logs.push("🏃 You ran away from the fight.");
-
-        const expResults = applyFightLoss(message, player, playerTeam);
-        const expLines = formatExpResults(playerTeam, expResults);
+        logs.push("🚫 No EXP gained from running away.");
 
         await interaction.update({
           embeds: [
@@ -675,7 +673,8 @@ module.exports = {
               title: "🏃 Fight Escaped",
               color: 0xf1c40f,
               result: "RUN AWAY",
-              expLines,
+              rewardLines: ["🚫 No rewards."],
+              expLines: ["🚫 No EXP gained."],
               logs,
             }),
           ],

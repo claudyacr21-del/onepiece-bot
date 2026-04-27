@@ -679,14 +679,11 @@ module.exports = {
         ended = true;
         logs.length = 0;
         logs.push("🏃 You ran away from the boss battle.");
+        logs.push("🚫 No EXP gained from running away.");
 
-        const expResults = calculateBossExp(playerTeam, false, combatBoosts);
-        const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
-        const expLines = formatExpResults(playerTeam, expResults);
         const updatedQuests = applyBossQuestProgress(player, ["bossFights"]);
 
         updatePlayer(message.author.id, {
-          cards: updatedCards,
           quests: updatedQuests,
         });
 
@@ -696,7 +693,8 @@ module.exports = {
               title: "🏃 Boss Battle Escaped",
               color: 0xf1c40f,
               result: "RUN AWAY",
-              expLines,
+              rewardLines: ["🚫 No rewards."],
+              expLines: ["🚫 No EXP gained."],
               logs,
             }),
           ],
