@@ -117,6 +117,14 @@ function normalizeCards(value) {
       ? card.equippedWeapons.map((w) => ({
           name: w?.name || "Unknown Weapon",
           code: w?.code || null,
+          rarity: w?.rarity || undefined,
+          type: w?.type || undefined,
+          image: w?.image || "",
+          description: w?.description || undefined,
+          owners: Array.isArray(w?.owners) ? w.owners : undefined,
+          upgradeLevel: Number(w?.upgradeLevel || 0),
+          statPercent: w?.statPercent || w?.baseStatPercent || undefined,
+          baseStatPercent: w?.baseStatPercent || w?.statPercent || undefined,
           statBonus: {
             atk: Number(w?.statBonus?.atk || 0),
             hp: Number(w?.statBonus?.hp || 0),
@@ -125,18 +133,18 @@ function normalizeCards(value) {
         }))
       : [];
 
-    const legacySingleWeapon =
-      !equippedWeapons.length && (card.equippedWeapon || card.equippedWeaponCode)
-        ? [{
-            name: card.equippedWeapon || "Unknown Weapon",
-            code: card.equippedWeaponCode || null,
-            statBonus: {
-              atk: Number(card?.weaponBonus?.atk || 0),
-              hp: Number(card?.weaponBonus?.hp || 0),
-              speed: Number(card?.weaponBonus?.speed || 0),
-            },
-          }]
-        : [];
+    const legacySingleWeapon = !equippedWeapons.length && (card.equippedWeapon || card.equippedWeaponCode)
+      ? [{
+          name: card.equippedWeaponName || card.equippedWeapon || "Unknown Weapon",
+          code: card.equippedWeaponCode || null,
+          upgradeLevel: Number(card.equippedWeaponLevel || 0),
+          statBonus: {
+            atk: Number(card?.weaponBonus?.atk || 0),
+            hp: Number(card?.weaponBonus?.hp || 0),
+            speed: Number(card?.weaponBonus?.speed || 0),
+          },
+        }]
+      : [];
 
     const finalEquippedWeapons = equippedWeapons.length ? equippedWeapons : legacySingleWeapon;
 
