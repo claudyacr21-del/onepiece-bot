@@ -130,8 +130,21 @@ function normalizeDailyState(state) {
 
 function sanitizeDailyState(state) {
   const current = normalizeDailyState(state);
-  const validQuestIds = new Set(QUEST_POOL.map((quest) => quest.id));
-  const quests = current.quests.filter((quest) => validQuestIds.has(quest.id));
+  const questById = new Map(QUEST_POOL.map((quest) => [quest.id, quest]));
+
+  const quests = current.quests
+    .filter((quest) => questById.has(quest.id))
+    .map((quest) => {
+      const fresh = questById.get(quest.id);
+
+      return {
+        id: fresh.id,
+        key: fresh.key,
+        category: fresh.category,
+        title: fresh.title,
+        target: fresh.target,
+      };
+    });
 
   return {
     ...current,
@@ -175,16 +188,40 @@ function getQuestCompletionSummary(dailyState) {
   };
 }
 
+function buildQuestSavePayload(player, dailyState) {
+  const summary = getQuestCompletionSummary(dailyState);
+
+  return {
+    ...(player.quests || {}),
+    dailyState,
+    daily: {
+      ...(player?.quests?.daily || {}),
+      total: summary.total,
+      completed: summary.completed,
+      left: summary.left,
+      lastSyncedAt: Date.now(),
+    },
+  };
+}
+
 function incrementQuestCounter(player, key, amount = 1) {
   const dailyState = ensureDailyQuestState(player);
+  const safeAmount = Number(amount || 0);
+
+  if (!key || !safeAmount) return dailyState;
 
   return {
     ...dailyState,
     progress: {
       ...(dailyState.progress || {}),
-      [key]: Number(dailyState.progress?.[key] || 0) + Number(amount || 0),
+      [key]: Number(dailyState.progress?.[key] || 0) + safeAmount,
     },
   };
+}
+
+function incrementQuestPayload(player, key, amount = 1) {
+  const dailyState = incrementQuestCounter(player, key, amount);
+  return buildQuestSavePayload(player, dailyState);
 }
 
 module.exports = {
@@ -194,5 +231,7 @@ module.exports = {
   getQuestProgress,
   isQuestDone,
   getQuestCompletionSummary,
+  buildQuestSavePayload,
   incrementQuestCounter,
+  incrementQuestPayload,
 };
