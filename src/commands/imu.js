@@ -15,73 +15,83 @@ function normalize(value) {
     .trim();
 }
 
-function entryText(entry) {
-  if (!entry || typeof entry !== "object") return "";
+function normalizeCode(value) {
+  return String(value || "").toLowerCase().trim();
+}
 
+function getCardText(card) {
   return normalize(
     [
-      entry.name,
-      entry.displayName,
-      entry.code,
-      entry.id,
-      entry.key,
-      entry.title,
-      entry.variant,
-      entry.rarity,
-      entry.type,
-      entry.description,
+      card?.name,
+      card?.displayName,
+      card?.code,
+      card?.id,
+      card?.key,
+      card?.title,
+      card?.variant,
+      card?.rarity,
+      card?.currentTier,
+      card?.evolutionKey,
+      card?.type,
+      card?.description,
     ]
       .filter(Boolean)
       .join(" ")
   );
 }
 
-function collectPlayerEntries(player) {
-  const buckets = [
-    "items",
-    "materials",
-    "tickets",
-    "boxes",
-    "weapons",
-    "devilFruits",
-    "fragments",
-    "cards",
-  ];
+function isImuCard(card) {
+  const text = getCardText(card);
+  const code = normalizeCode(card?.code);
 
-  const entries = [];
-
-  for (const bucket of buckets) {
-    const value = player?.[bucket];
-    if (Array.isArray(value)) {
-      entries.push(...value);
-    }
-  }
-
-  return entries;
+  return (
+    text.includes("imu") ||
+    text.includes("saint nerona") ||
+    code === "imu" ||
+    code.includes("imu")
+  );
 }
 
-function hasImuTier(player, tier) {
-  const targetTier = normalize(tier);
+function getImuStage(card) {
+  const evolutionStage = Number(card?.evolutionStage || 0);
+  if (Number.isFinite(evolutionStage) && evolutionStage > 0) {
+    return evolutionStage;
+  }
 
-  return collectPlayerEntries(player).some((entry) => {
-    const text = entryText(entry);
+  const evolutionKey = normalizeCode(card?.evolutionKey);
+  if (evolutionKey === "m3") return 3;
+  if (evolutionKey === "m2") return 2;
+  if (evolutionKey === "m1") return 1;
 
-    if (!text.includes("imu")) return false;
+  const text = getCardText(card);
+  if (text.includes("m3") || text.includes("imu m3")) return 3;
+  if (text.includes("m2") || text.includes("imu m2")) return 2;
+  if (text.includes("m1") || text.includes("imu m1")) return 1;
 
-    return (
-      text.includes(targetTier) ||
-      text.includes(`imu ${targetTier}`) ||
-      text.includes(`imu${targetTier}`)
-    );
-  });
+  return 1;
+}
+
+function getOwnedImuStage(player) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+
+  let highestStage = 0;
+
+  for (const card of cards) {
+    if (!isImuCard(card)) continue;
+
+    const stage = getImuStage(card);
+    if (stage > highestStage) highestStage = stage;
+  }
+
+  return highestStage;
 }
 
 function findRole(guild, roleId, roleName) {
   if (!guild?.roles?.cache) return null;
 
   if (roleId) {
-    const byId = guild.roles.cache.get(roleId);
-    if (byId) return byId;
+    const roleById = guild.roles.cache.get(roleId);
+    if (roleById) return roleById;
   }
 
   return guild.roles.cache.find(
@@ -103,28 +113,28 @@ module.exports = {
 
   async execute(message) {
     if (!message.guild || !message.member) {
-      return message.reply("This command can only be used on the server.");
+      return message.reply("This command can only be used in a server.");
     }
 
     const botMember = message.guild.members.me;
+
     if (
       !botMember ||
       !botMember.permissions.has(PermissionsBitField.Flags.ManageRoles)
     ) {
       return message.reply(
-        "The bot doesn't have the 'Manage Roles' permission yet, so it can't give it the IMU role yet.."
+        "The bot does not have the `Manage Roles` permission yet."
       );
     }
 
     const player = getPlayer(message.author.id, message.author.username);
+    const ownedImuStage = getOwnedImuStage(player);
 
-    const hasM1 = hasImuTier(player, "m1");
-    const hasM3 = hasImuTier(player, "m3");
+    const hasM1 = ownedImuStage >= 1;
+    const hasM3 = ownedImuStage >= 3;
 
     if (!hasM1 && !hasM3) {
-      return message.reply(
-        "You don't have one yet `IMU M1` or `IMU M3`"
-      );
+      return message.reply("You do not own `IMU M1` or `IMU M3` yet.");
     }
 
     const m1Role = findRole(message.guild, IMU_M1_ROLE_ID, IMU_M1_ROLE_NAME);
@@ -132,22 +142,32 @@ module.exports = {
 
     if (!m1Role) {
       return message.reply(
-        "IMU M1 role not found yet. Set `IMU_M1_ROLE_ID` on Railway, or make sure the role name `IMU M1`."
+        "The IMU M1 role was not found. Set `IMU_M1_ROLE_ID` on Railway or make sure the role name is `IMU M1`."
       );
     }
 
     if (hasM3 && !m3Role) {
       return message.reply(
-        "IMU M3 role not found yet. Set `IMU_M3_ROLE_ID` on Railway, or make sure the role name `IMU M3`."
+        "The IMU M3 role was not found. Set `IMU_M3_ROLE_ID` on Railway or make sure the role name is `IMU M3`."
+      );
+    }
+
+    if (!m1Role.editable) {
+      return message.reply(
+        "The bot cannot manage the IMU M1 role. Move the bot role above the IMU M1 role."
+      );
+    }
+
+    if (hasM3 && !m3Role.editable) {
+      return message.reply(
+        "The bot cannot manage the IMU M3 role. Move the bot role above the IMU M3 role."
       );
     }
 
     const granted = [];
 
-    if (hasM1 || hasM3) {
-      const addedM1 = await addRoleIfNeeded(message.member, m1Role);
-      if (addedM1) granted.push(m1Role.name);
-    }
+    const addedM1 = await addRoleIfNeeded(message.member, m1Role);
+    if (addedM1) granted.push(m1Role.name);
 
     if (hasM3) {
       const addedM3 = await addRoleIfNeeded(message.member, m3Role);
@@ -155,7 +175,7 @@ module.exports = {
     }
 
     const ownedText = hasM3 ? "IMU M3" : "IMU M1";
-    const roleText = hasM3
+    const eligibleRoleText = hasM3
       ? `${m1Role.name} + ${m3Role.name}`
       : m1Role.name;
 
@@ -165,11 +185,11 @@ module.exports = {
       .setDescription(
         [
           `**Owned:** \`${ownedText}\``,
-          `**Eligible Role:** \`${roleText}\``,
+          `**Eligible Role:** \`${eligibleRoleText}\``,
           "",
           granted.length
             ? `Role added: ${granted.map((name) => `\`${name}\``).join(", ")}`
-            : "Your role is already correct, no new roles are added..",
+            : "Your roles are already synced.",
         ].join("\n")
       )
       .setFooter({ text: "One Piece Bot" });
