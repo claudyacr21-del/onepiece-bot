@@ -116,14 +116,26 @@ function buildQuestSet() {
   return picked;
 }
 
+function migrateCountersToProgress(state) {
+  return {
+    ...(state?.counters || {}),
+    ...(state?.progress || {}),
+  };
+}
+
 function normalizeDailyState(state) {
   return {
-    dayKey: state?.dayKey || getTodayKey(),
+    dayKey: state?.dayKey || state?.dateKey || getTodayKey(),
+    dateKey: state?.dayKey || state?.dateKey || getTodayKey(),
     quests: Array.isArray(state?.quests) ? state.quests : [],
     progress:
       typeof state?.progress === "object" && state?.progress
         ? { ...state.progress }
-        : {},
+        : migrateCountersToProgress(state),
+    counters:
+      typeof state?.counters === "object" && state?.counters
+        ? { ...state.counters }
+        : { ...(state?.progress || {}) },
     rewardClaimed: Boolean(state?.rewardClaimed),
   };
 }
@@ -159,8 +171,10 @@ function ensureDailyQuestState(player) {
   if (current.dayKey !== todayKey || current.quests.length < DAILY_QUEST_COUNT) {
     return {
       dayKey: todayKey,
+      dateKey: todayKey,
       quests: buildQuestSet(),
       progress: {},
+      counters: {},
       rewardClaimed: false,
     };
   }
@@ -169,7 +183,11 @@ function ensureDailyQuestState(player) {
 }
 
 function getQuestProgress(dailyState, quest) {
-  return Number(dailyState?.progress?.[quest.key] || 0);
+  return Number(
+    dailyState?.progress?.[quest.key] ??
+      dailyState?.counters?.[quest.key] ??
+      0
+  );
 }
 
 function isQuestDone(dailyState, quest) {
@@ -193,7 +211,13 @@ function buildQuestSavePayload(player, dailyState) {
 
   return {
     ...(player.quests || {}),
-    dailyState,
+    dailyState: {
+      ...dailyState,
+      counters: {
+        ...(dailyState.counters || {}),
+        ...(dailyState.progress || {}),
+      },
+    },
     daily: {
       ...(player?.quests?.daily || {}),
       total: summary.total,
@@ -210,11 +234,21 @@ function incrementQuestCounter(player, key, amount = 1) {
 
   if (!key || !safeAmount) return dailyState;
 
+  const nextValue = Number(
+    dailyState.progress?.[key] ??
+      dailyState.counters?.[key] ??
+      0
+  ) + safeAmount;
+
   return {
     ...dailyState,
     progress: {
       ...(dailyState.progress || {}),
-      [key]: Number(dailyState.progress?.[key] || 0) + safeAmount,
+      [key]: nextValue,
+    },
+    counters: {
+      ...(dailyState.counters || {}),
+      [key]: nextValue,
     },
   };
 }

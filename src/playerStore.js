@@ -210,26 +210,65 @@ function normalizeBoosts(boosts) {
 }
 
 function normalizeQuests(quests) {
+  const rawDailyState = quests?.dailyState || {};
+  const dayKey = rawDailyState.dayKey || rawDailyState.dateKey || null;
+
+  const progress = {
+    ...(rawDailyState.counters || {}),
+    ...(rawDailyState.progress || {}),
+  };
+
+  const normalizedDailyState = {
+    dayKey,
+    dateKey: dayKey,
+    rewardClaimed: Boolean(rawDailyState.rewardClaimed),
+    quests: Array.isArray(rawDailyState.quests) ? rawDailyState.quests : [],
+    progress: {
+      dailyClaims: Number(progress.dailyClaims || 0),
+      pullsUsed: Number(progress.pullsUsed || 0),
+      boxesOpened: Number(progress.boxesOpened || 0),
+      resetTicketsUsed: Number(progress.resetTicketsUsed || 0),
+      fightsPlayed: Number(progress.fightsPlayed || 0),
+      fightsWon: Number(progress.fightsWon || 0),
+      bossFights: Number(progress.bossFights || 0),
+      bossesDefeated: Number(progress.bossesDefeated || 0),
+      craftsDone: Number(progress.craftsDone || 0),
+      weaponUpgrades: Number(progress.weaponUpgrades || 0),
+      arenaMatches: Number(progress.arenaMatches || 0),
+      arenaWins: Number(progress.arenaWins || 0),
+      cardLevels: Number(progress.cardLevels || 0),
+    },
+    counters: {
+      dailyClaims: Number(progress.dailyClaims || 0),
+      pullsUsed: Number(progress.pullsUsed || 0),
+      boxesOpened: Number(progress.boxesOpened || 0),
+      resetTicketsUsed: Number(progress.resetTicketsUsed || 0),
+      fightsPlayed: Number(progress.fightsPlayed || 0),
+      fightsWon: Number(progress.fightsWon || 0),
+      bossFights: Number(progress.bossFights || 0),
+      bossesDefeated: Number(progress.bossesDefeated || 0),
+      craftsDone: Number(progress.craftsDone || 0),
+      weaponUpgrades: Number(progress.weaponUpgrades || 0),
+      arenaMatches: Number(progress.arenaMatches || 0),
+      arenaWins: Number(progress.arenaWins || 0),
+      cardLevels: Number(progress.cardLevels || 0),
+    },
+  };
+
   return {
     daily: {
       total: Number(quests?.daily?.total) > 0 ? Number(quests.daily.total) : 5,
       completed: Number(quests?.daily?.completed) >= 0 ? Number(quests.daily.completed) : 0,
+      left: Number(quests?.daily?.left) >= 0 ? Number(quests.daily.left) : undefined,
+      lastSyncedAt: Number(quests?.daily?.lastSyncedAt || 0),
     },
-    dailyState: {
-      dateKey: quests?.dailyState?.dateKey || null,
-      rewardClaimed: Boolean(quests?.dailyState?.rewardClaimed),
-      quests: Array.isArray(quests?.dailyState?.quests) ? quests.dailyState.quests : [],
-      counters: {
-        dailyClaims: Number(quests?.dailyState?.counters?.dailyClaims || 0),
-        pullsUsed: Number(quests?.dailyState?.counters?.pullsUsed || 0),
-        boxesOpened: Number(quests?.dailyState?.counters?.boxesOpened || 0),
-        resetTicketsUsed: Number(quests?.dailyState?.counters?.resetTicketsUsed || 0),
-        fightsPlayed: Number(quests?.dailyState?.counters?.fightsPlayed || 0),
-        fightsWon: Number(quests?.dailyState?.counters?.fightsWon || 0),
-        bossFights: Number(quests?.dailyState?.counters?.bossFights || 0),
-        bossesDefeated: Number(quests?.dailyState?.counters?.bossesDefeated || 0),
-        craftsDone: Number(quests?.dailyState?.counters?.craftsDone || 0),
-      },
+    dailyState: normalizedDailyState,
+    instantQuest: {
+      dayKey: quests?.instantQuest?.dayKey || null,
+      used: Number(quests?.instantQuest?.used || 0),
+      completedQuestIds: Array.isArray(quests?.instantQuest?.completedQuestIds)
+        ? quests.instantQuest.completedQuestIds
+        : [],
     },
     totalClears: Number(quests?.totalClears) >= 0 ? Number(quests.totalClears) : 0,
   };

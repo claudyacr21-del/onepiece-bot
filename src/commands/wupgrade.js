@@ -389,17 +389,19 @@ function getEquippedOwners(cards, weaponCode) {
       return normalize(template?.code || weapon.code) === normalize(weaponCode);
     });
 
+    const legacyCodeOrName = raw.equippedWeaponCode || raw.equippedWeaponName || raw.equippedWeapon;
+    const legacyTemplate = findWeaponTemplate(legacyCodeOrName);
+
     const hasLegacy =
       !equipped.length &&
-      normalize(raw.equippedWeaponCode || raw.equippedWeaponName || raw.equippedWeapon) ===
-        normalize(weaponCode);
+      normalize(legacyTemplate?.code || legacyCodeOrName) === normalize(weaponCode);
 
     if (hasWeapon || hasLegacy) {
       owners.push(raw.displayName || raw.name || raw.code || "Unknown");
     }
   }
 
-  return owners;
+  return [...new Set(owners)];
 }
 
 module.exports = {
