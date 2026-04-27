@@ -110,10 +110,11 @@ async function resolveTargetUser(message, raw) {
     };
   }
 
-  const users = [...message.client.users.cache.values()];
+  const cachedUsers = [...message.client.users.cache.values()];
+
   const exactUser =
-    users.find((u) => normalize(u.username) === q) ||
-    users.find((u) => normalize(u.globalName) === q);
+    cachedUsers.find((u) => normalize(u.username) === q) ||
+    cachedUsers.find((u) => normalize(u.globalName) === q);
 
   if (exactUser) {
     return {
@@ -135,8 +136,11 @@ function getOrCreateHostPlayer(players, hostId, username) {
     };
   }
 
+  players[hostId].username = players[hostId].username || username;
   players[hostId].raidTeam = players[hostId].raidTeam || {};
-  players[hostId].raidTeam.members = ensureArray(players[hostId].raidTeam.members).map(String);
+  players[hostId].raidTeam.members = ensureArray(players[hostId].raidTeam.members)
+    .map(String)
+    .filter(Boolean);
 
   return players[hostId];
 }
@@ -145,13 +149,24 @@ function addToSavedRaidTeam(hostId, hostUsername, targetId) {
   const players = readPlayers();
   const host = getOrCreateHostPlayer(players, hostId, hostUsername);
 
-  if (!host.raidTeam.members.includes(String(targetId))) {
-    host.raidTeam.members.push(String(targetId));
+  if (host.raidTeam.members.includes(String(targetId))) {
+    return {
+      added: false,
+      total: host.raidTeam.members.length,
+    };
   }
 
+  if (host.raidTeam.members.length >= 9) {
+    throw new Error("Saved raid team is already full. Max 9 members.");
+  }
+
+  host.raidTeam.members.push(String(targetId));
   writePlayers(players);
 
-  return host.raidTeam.members.length;
+  return {
+    added: true,
+    total: host.raidTeam.members.length,
+  };
 }
 
 module.exports = {
@@ -181,7 +196,7 @@ module.exports = {
       }
 
       const hostId = String(message.author.id);
-      const totalSaved = addToSavedRaidTeam(hostId, message.author.username, target.id);
+      const saved = addToSavedRaidTeam(hostId, message.author.username, target.id);
       const activeRoom = getRoom(hostId);
 
       if (activeRoom) {
@@ -190,16 +205,21 @@ module.exports = {
 
           return message.reply(
             [
+              saved.added
+                ? `Added ${target.username} to your saved raid team.`
+                : `${target.username} is already in your saved raid team.`,
+              `Saved Raid Team: ${saved.total}/9`,
               `Added ${target.username} to active ${updated.mode} room whitelist.`,
-              `Saved Raid Team: ${totalSaved}/9`,
               `Active Room Invited: ${updated.whitelist.length}`,
             ].join("\n")
           );
         } catch (error) {
           return message.reply(
             [
-              `Added ${target.username} to your saved raid team.`,
-              `Saved Raid Team: ${totalSaved}/9`,
+              saved.added
+                ? `Added ${target.username} to your saved raid team.`
+                : `${target.username} is already in your saved raid team.`,
+              `Saved Raid Team: ${saved.total}/9`,
               "",
               `Active room sync failed: ${error.message || "Unknown error"}`,
             ].join("\n")
@@ -208,11 +228,13 @@ module.exports = {
       }
 
       return message.reply(
-        `Added ${target.username} to your saved raid team.\nTotal members: ${totalSaved}/9`
+        saved.added
+          ? `Added ${target.username} to your saved raid team.\nTotal members: ${saved.total}/9`
+          : `${target.username} is already in your saved raid team.\nTotal members: ${saved.total}/9`
       );
     } catch (error) {
       console.error("raidteamadd error:", error);
-      return message.reply("Failed to add user to raid team.");
+      return message.reply(error.message || "Failed to add user to raid team.");
     }
   },
 };

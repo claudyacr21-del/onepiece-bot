@@ -1,9 +1,5 @@
 const { readPlayers, writePlayers } = require("../playerStore");
-const {
-  getRoom,
-  listRooms,
-  removeWhitelistUser,
-} = require("../utils/partyRooms");
+const { getRoom, removeWhitelistUser } = require("../utils/partyRooms");
 
 function getAdminIds() {
   return String(
@@ -114,10 +110,11 @@ async function resolveTargetUser(message, raw) {
     };
   }
 
-  const users = [...message.client.users.cache.values()];
+  const cachedUsers = [...message.client.users.cache.values()];
+
   const exactUser =
-    users.find((u) => normalize(u.username) === q) ||
-    users.find((u) => normalize(u.globalName) === q);
+    cachedUsers.find((u) => normalize(u.username) === q) ||
+    cachedUsers.find((u) => normalize(u.globalName) === q);
 
   if (exactUser) {
     return {
@@ -127,42 +124,6 @@ async function resolveTargetUser(message, raw) {
   }
 
   return null;
-}
-
-function findRelevantRoom(userId, guildId = null, channelId = null) {
-  const uid = String(userId || "");
-  const gid = guildId ? String(guildId) : null;
-  const cid = channelId ? String(channelId) : null;
-
-  const directRoom = getRoom(uid);
-  if (directRoom) return directRoom;
-
-  const rooms = listRooms();
-
-  return (
-    rooms.find((room) => String(room.hostId) === uid) ||
-    rooms.find((room) => {
-      const sameGuild = !gid || String(room.guildId || "") === gid;
-      const sameChannel = !cid || String(room.channelId || "") === cid;
-
-      return (
-        sameGuild &&
-        sameChannel &&
-        ensureArray(room.participants).some((p) => String(p.userId) === uid)
-      );
-    }) ||
-    rooms.find((room) => {
-      const sameGuild = !gid || String(room.guildId || "") === gid;
-      const sameChannel = !cid || String(room.channelId || "") === cid;
-
-      return (
-        sameGuild &&
-        sameChannel &&
-        ensureArray(room.whitelist).some((id) => String(id) === uid)
-      );
-    }) ||
-    null
-  );
 }
 
 function removeFromSavedRaidTeam(hostId, targetId) {
@@ -176,7 +137,9 @@ function removeFromSavedRaidTeam(hostId, targetId) {
   }
 
   players[hostId].raidTeam = players[hostId].raidTeam || {};
-  players[hostId].raidTeam.members = ensureArray(players[hostId].raidTeam.members).map(String);
+  players[hostId].raidTeam.members = ensureArray(players[hostId].raidTeam.members)
+    .map(String)
+    .filter(Boolean);
 
   const before = players[hostId].raidTeam.members.length;
 
@@ -218,18 +181,12 @@ module.exports = {
 
       const hostId = String(message.author.id);
       const savedResult = removeFromSavedRaidTeam(hostId, target.id);
-      const activeRoom = findRelevantRoom(hostId, message.guildId, message.channelId);
+      const activeRoom = getRoom(hostId);
       let activeText = "";
-
-      if (activeRoom && String(activeRoom.hostId) !== hostId) {
-        return message.reply(
-          `Only the raid host can remove users from this active room.\nRaid host: <@${activeRoom.hostId}>`
-        );
-      }
 
       if (activeRoom) {
         try {
-          removeWhitelistUser(activeRoom.hostId, target.id);
+          removeWhitelistUser(hostId, target.id);
           activeText = `Removed ${target.username} from active ${activeRoom.mode || "raid"} room whitelist.`;
         } catch (error) {
           activeText = `Active room remove skipped: ${error.message || "Unknown error"}`;
