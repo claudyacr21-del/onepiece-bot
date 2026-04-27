@@ -11,6 +11,7 @@ const {
 const { startTopggWebhookServer } = require("./topggWebhook");
 const { syncArenaRankRoles } = require("./utils/arenaRankRoles");
 const { syncExpiredPatreonRoles } = require("./utils/patreonRoleStore");
+const channelRules = require("./config/channelRules");
 
 const client = new Client({
   intents: [
@@ -42,6 +43,82 @@ for (const file of commandFiles) {
       client.commands.set(alias, command);
     }
   }
+}
+
+function normalizeCommandName(value) {
+  return String(value || "").toLowerCase().trim();
+}
+
+function getAllowedCommandsForChannel(channelId) {
+  const rules = channelRules?.restrictedChannels || {};
+  const allowed = rules[String(channelId)] || null;
+
+  return Array.isArray(allowed)
+    ? allowed.map(normalizeCommandName).filter(Boolean)
+    : null;
+}
+
+function getBlockedCommandsForChannel(channelId) {
+  const rules = channelRules?.blockedCommands || {};
+  const blocked = rules[String(channelId)] || null;
+
+  return Array.isArray(blocked)
+    ? blocked.map(normalizeCommandName).filter(Boolean)
+    : null;
+}
+
+function isCommandAllowedInChannel({ message, commandName, command }) {
+  const channelId = message.channel?.id;
+  const allowedCommands = getAllowedCommandsForChannel(channelId);
+  const blockedCommands = getBlockedCommandsForChannel(channelId);
+
+  const alwaysAllowed = Array.isArray(channelRules?.alwaysAllowedCommands)
+    ? channelRules.alwaysAllowedCommands.map(normalizeCommandName).filter(Boolean)
+    : [];
+
+  const typedCommand = normalizeCommandName(commandName);
+  const realCommandName = normalizeCommandName(command?.name);
+
+  const isAlwaysAllowed =
+    alwaysAllowed.includes(typedCommand) || alwaysAllowed.includes(realCommandName);
+
+  if (isAlwaysAllowed) {
+    return {
+      allowed: true,
+      mode: "always",
+      commands: null,
+    };
+  }
+
+  if (Array.isArray(allowedCommands)) {
+    const allowed =
+      allowedCommands.includes(typedCommand) ||
+      allowedCommands.includes(realCommandName);
+
+    return {
+      allowed,
+      mode: "allowlist",
+      commands: allowedCommands,
+    };
+  }
+
+  if (Array.isArray(blockedCommands)) {
+    const blocked =
+      blockedCommands.includes(typedCommand) ||
+      blockedCommands.includes(realCommandName);
+
+    return {
+      allowed: !blocked,
+      mode: "blocklist",
+      commands: blockedCommands,
+    };
+  }
+
+  return {
+    allowed: true,
+    mode: "none",
+    commands: null,
+  };
 }
 
 client.once("clientReady", async () => {
@@ -106,6 +183,23 @@ client.on("messageCreate", async (message) => {
     if (!command) {
       await message.reply(`Unknown command: \`${commandName}\``);
       return;
+    }
+
+    const channelCheck = isCommandAllowedInChannel({
+      message,
+      commandName,
+      command,
+    });
+
+    if (!channelCheck.allowed) {
+      if (channelCheck.mode === "blocklist") {
+        const blockedText = channelCheck.commands
+          .map((cmd) => `\`${PREFIX} ${cmd}\``)
+          .join(", ");
+
+        await message.reply("This command is not allowed on this channel.");
+        return;
+      }
     }
 
     await command.execute(message, args);
