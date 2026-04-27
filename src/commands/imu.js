@@ -103,7 +103,7 @@ module.exports = {
 
   async execute(message) {
     if (!message.guild || !message.member) {
-      return message.reply("Command ini hanya bisa dipakai di server.");
+      return message.reply("This command can only be used on the server.");
     }
 
     const botMember = message.guild.members.me;
@@ -112,7 +112,7 @@ module.exports = {
       !botMember.permissions.has(PermissionsBitField.Flags.ManageRoles)
     ) {
       return message.reply(
-        "Bot belum punya permission `Manage Roles`, jadi belum bisa kasih role IMU."
+        "The bot doesn't have the 'Manage Roles' permission yet, so it can't give it the IMU role yet.."
       );
     }
 
@@ -123,7 +123,7 @@ module.exports = {
 
     if (!hasM1 && !hasM3) {
       return message.reply(
-        "Lu belum punya `IMU M1` atau `IMU M3` di data player."
+        "You don't have one yet `IMU M1` or `IMU M3`"
       );
     }
 
@@ -132,13 +132,13 @@ module.exports = {
 
     if (!m1Role) {
       return message.reply(
-        "Role IMU M1 belum ketemu. Set `IMU_M1_ROLE_ID` di Railway, atau pastikan nama role-nya `IMU M1`."
+        "IMU M1 role not found yet. Set `IMU_M1_ROLE_ID` on Railway, or make sure the role name `IMU M1`."
       );
     }
 
     if (hasM3 && !m3Role) {
       return message.reply(
-        "Role IMU M3 belum ketemu. Set `IMU_M3_ROLE_ID` di Railway, atau pastikan nama role-nya `IMU M3`."
+        "IMU M3 role not found yet. Set `IMU_M3_ROLE_ID` on Railway, or make sure the role name `IMU M3`."
       );
     }
 

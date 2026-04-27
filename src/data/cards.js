@@ -295,7 +295,7 @@ const SPECIAL_FORMS = {
   sabo_flame_emperor: ["Revolutionary Chief", "Flame Successor", "Flame Emperor"],
   katakuri_strongest_sweet_commander: ["Sweet Commander", "Future Sight", "Mochi Emperor"],
   kaido_strongest_creature: ["Strongest Creature", "Azure Dragon", "Flaming Drum Dragon"],
-  imu: ["Hidden Sovereign", "Empty Throne Shadow", "World Silence"]
+  imu: ["Hidden Sovereign", "Empty Throne Shadow", "King Of The World"]
 };
 
 function reqCard(code, m2Stage = 1, m3Stage = 2) {

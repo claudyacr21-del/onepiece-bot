@@ -115,7 +115,6 @@ module.exports = {
         [
           "## Captain Info",
           `- Current Island: \`${player.currentIsland || DEFAULT_START_ISLAND}\``,
-          `- Username: \`${player.username}\``,
           `- Premium: \`${isMotherFlame ? "Mother Flame" : "Normal"}\``,
           `- Clan: \`${player?.clan?.name || "None"}\``,
           `- Ship: \`${ship.name}\``,

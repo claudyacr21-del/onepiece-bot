@@ -359,14 +359,14 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1498252037719330866/content.png?ex=69f07b71&is=69ef29f1&hm=bb6768427bcdec4fb0707c041f2ba3e9d90cf5393e6d1710826cb1fef3480263&",
   },
   nika_drums: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1498265231208743032/content.png?ex=69f087bb&is=69ef363b&hm=a18c81d47c83a6244de8c794aeab40c9cf03d71ed41c5ae50bc18264f9c43eb4&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1498265231791755264/content.png?ex=69f087bb&is=69ef363b&hm=1b49a97770821e9821fefaeba0564dc363b4e535304ce51df259467a19f92ba3&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1498265232332554310/content.png?ex=69f087bb&is=69ef363b&hm=3ad512e01649deffdda2a847861baaec4f3ffb5e352aa8001308c3449cb29d44&",
   },
   supreme_haki: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1498283844116287488/content.png?ex=69f09911&is=69ef4791&hm=936c7ad2c85450ccd324b12dbf43f6274e94d041a3b4317afeeec7b304704a2f&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1498283844644900924/content.png?ex=69f09911&is=69ef4791&hm=657b62eab608b4b0ddfccb9bd180fe15d4e3d8a3bf0ec26299ff67b7e8e49627&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1498283845202477216/content.png?ex=69f09911&is=69ef4791&hm=36f346f62cf508042287ad1e81d54547f4fb6b2c951293b19eeb9963f3d8b155&",
   },
   black_blade_yoru: {
     M1: "",
