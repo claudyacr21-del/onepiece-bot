@@ -1,23 +1,14 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { ITEMS } = require("../data/items");
-const { incrementQuestCounter } = require("../utils/questProgress");
+const { incrementQuestPayload } = require("../utils/questProgress");
 
 function normalize(text) {
-  return String(text || "").toLowerCase().trim().replace(/\s+/g, " ");
-}
-
-function removeOneBox(list, code) {
-  const arr = Array.isArray(list) ? [...list] : [];
-  const index = arr.findIndex((entry) => entry.code === code);
-
-  if (index === -1) return null;
-  if (Number(arr[index].amount || 0) <= 0) return null;
-
-  if (Number(arr[index].amount || 0) === 1) arr.splice(index, 1);
-  else arr[index] = { ...arr[index], amount: Number(arr[index].amount || 0) - 1 };
-
-  return arr;
+  return String(text || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
 }
 
 function addOrIncrease(list, item) {
@@ -40,6 +31,11 @@ function addOrIncrease(list, item) {
   return arr;
 }
 
+function addRewardLine(rewardMap, label, amount) {
+  const current = Number(rewardMap.get(label) || 0);
+  rewardMap.set(label, current + Number(amount || 0));
+}
+
 function getBoxByQuery(query) {
   const all = Object.values(ITEMS).filter((item) => item.type === "Box");
   const q = normalize(query);
@@ -48,118 +44,263 @@ function getBoxByQuery(query) {
     all.find((item) => normalize(item.name) === q) ||
     all.find((item) => normalize(item.code) === q) ||
     all.find((item) => normalize(item.name).includes(q)) ||
+    all.find((item) => normalize(item.code).includes(q)) ||
     null
   );
+}
+
+function parseOpenArgs(args) {
+  const rawArgs = [...args];
+
+  if (!rawArgs.length) {
+    return {
+      query: "",
+      requestedAmount: 1,
+      all: false,
+    };
+  }
+
+  const lastArg = String(rawArgs[rawArgs.length - 1] || "").toLowerCase();
+
+  if (lastArg === "all") {
+    rawArgs.pop();
+
+    return {
+      query: rawArgs.join(" ").trim(),
+      requestedAmount: null,
+      all: true,
+    };
+  }
+
+  const numericAmount = Number(lastArg);
+
+  if (Number.isInteger(numericAmount) && numericAmount > 0) {
+    rawArgs.pop();
+
+    return {
+      query: rawArgs.join(" ").trim(),
+      requestedAmount: numericAmount,
+      all: false,
+    };
+  }
+
+  return {
+    query: rawArgs.join(" ").trim(),
+    requestedAmount: 1,
+    all: false,
+  };
+}
+
+function getOwnedBoxAmount(boxes, code) {
+  const found = (Array.isArray(boxes) ? boxes : []).find((entry) => entry.code === code);
+  return Math.max(0, Number(found?.amount || 0));
+}
+
+function removeBoxes(list, code, amount) {
+  const arr = Array.isArray(list) ? [...list] : [];
+  const index = arr.findIndex((entry) => entry.code === code);
+
+  if (index === -1) return null;
+
+  const current = Number(arr[index].amount || 0);
+
+  if (current < amount) return null;
+
+  if (current === amount) {
+    arr.splice(index, 1);
+  } else {
+    arr[index] = {
+      ...arr[index],
+      amount: current - amount,
+    };
+  }
+
+  return arr;
+}
+
+function grantBoxRewards(box, amount, state, rewardMap) {
+  let nextMaterials = state.materials;
+  let nextBerries = state.berries;
+  let nextGems = state.gems;
+  let nextTickets = state.tickets;
+
+  function addMaterial(item, qty) {
+    const totalAmount = Number(qty || 0) * amount;
+
+    nextMaterials = addOrIncrease(nextMaterials, {
+      ...item,
+      amount: totalAmount,
+    });
+
+    addRewardLine(rewardMap, item.name, totalAmount);
+  }
+
+  function addBerries(qty) {
+    const totalAmount = Number(qty || 0) * amount;
+    nextBerries += totalAmount;
+    addRewardLine(rewardMap, "Berries", totalAmount);
+  }
+
+  function addGems(qty) {
+    const totalAmount = Number(qty || 0) * amount;
+    nextGems += totalAmount;
+    addRewardLine(rewardMap, "Gems", totalAmount);
+  }
+
+  if (box.code === "wooden_material_box") {
+    addMaterial(ITEMS.hardwood, 3);
+    addMaterial(ITEMS.sailCloth, 2);
+    addMaterial(ITEMS.enhancementStone, 8);
+  } else if (box.code === "iron_material_box") {
+    addMaterial(ITEMS.hardwood, 4);
+    addMaterial(ITEMS.ironPlating, 2);
+    addMaterial(ITEMS.sailCloth, 2);
+    addMaterial(ITEMS.enhancementStone, 15);
+  } else if (box.code === "royal_material_box") {
+    addMaterial(ITEMS.hardwood, 5);
+    addMaterial(ITEMS.ironPlating, 3);
+    addMaterial(ITEMS.sailCloth, 3);
+    addMaterial(ITEMS.colaEnginePart, 1);
+    addMaterial(ITEMS.enhancementStone, 25);
+  } else if (box.code === "basic_resource_box") {
+    addBerries(2000);
+    addGems(10);
+    addMaterial(ITEMS.enhancementStone, 3);
+  } else if (box.code === "rare_resource_box") {
+    addBerries(5000);
+    addGems(20);
+    addMaterial(ITEMS.ironPlating, 2);
+    addMaterial(ITEMS.enhancementStone, 10);
+  } else if (box.code === "mother_flame_treasure_box") {
+    addBerries(15000);
+    addGems(50);
+    addMaterial(ITEMS.colaEnginePart, 2);
+    addMaterial(ITEMS.enhancementStone, 30);
+  } else {
+    return null;
+  }
+
+  return {
+    materials: nextMaterials,
+    berries: nextBerries,
+    gems: nextGems,
+    tickets: nextTickets,
+  };
+}
+
+function formatRewardLines(rewardMap) {
+  const lines = [];
+
+  for (const [name, amount] of rewardMap.entries()) {
+    if (name === "Berries") {
+      lines.push(`💰 Berries +${Number(amount || 0).toLocaleString("en-US")}`);
+    } else if (name === "Gems") {
+      lines.push(`💎 Gems +${Number(amount || 0).toLocaleString("en-US")}`);
+    } else {
+      lines.push(`📦 ${name} x${Number(amount || 0).toLocaleString("en-US")}`);
+    }
+  }
+
+  return lines;
 }
 
 module.exports = {
   name: "open",
   aliases: ["obox", "openbox"],
+
   async execute(message, args) {
-    const query = args.join(" ").trim();
-    if (!query) return message.reply("Usage: `op open <box name>`");
+    const parsed = parseOpenArgs(args);
+
+    if (!parsed.query) {
+      return message.reply(
+        [
+          "Usage:",
+          "`op open <box>`",
+          "`op open <box> <amount>`",
+          "`op open <box> all`",
+          "",
+          "Example:",
+          "`op open rare`",
+          "`op open rare 2`",
+          "`op open rare all`",
+        ].join("\n")
+      );
+    }
 
     const player = getPlayer(message.author.id, message.author.username);
-    const box = getBoxByQuery(query);
+    const box = getBoxByQuery(parsed.query);
 
     if (!box) {
       return message.reply("That box was not found.");
     }
 
-    const updatedBoxes = removeOneBox(player.boxes || [], box.code);
-    if (!updatedBoxes) {
+    const ownedAmount = getOwnedBoxAmount(player.boxes || [], box.code);
+
+    if (ownedAmount <= 0) {
       return message.reply(`You do not own **${box.name}**.`);
     }
 
-    let resultLines = [];
-    let nextMaterials = [...(player.materials || [])];
-    let nextBerries = Number(player.berries || 0);
-    let nextGems = Number(player.gems || 0);
-    let nextTickets = [...(player.tickets || [])];
+    const openAmount = parsed.all ? ownedAmount : Number(parsed.requestedAmount || 1);
 
-    if (box.code === "wooden_material_box") {
-      const rewards = [
-        { ...ITEMS.hardwood, amount: 3 },
-        { ...ITEMS.sailCloth, amount: 2 },
-        { ...ITEMS.enhancementStone, amount: 8 },
-      ];
-      rewards.forEach((item) => {
-        nextMaterials = addOrIncrease(nextMaterials, item);
-        resultLines.push(`📦 ${item.name} x${item.amount}`);
-      });
-    } else if (box.code === "iron_material_box") {
-      const rewards = [
-        { ...ITEMS.hardwood, amount: 4 },
-        { ...ITEMS.ironPlating, amount: 2 },
-        { ...ITEMS.sailCloth, amount: 2 },
-        { ...ITEMS.enhancementStone, amount: 15 },
-      ];
-      rewards.forEach((item) => {
-        nextMaterials = addOrIncrease(nextMaterials, item);
-        resultLines.push(`📦 ${item.name} x${item.amount}`);
-      });
-    } else if (box.code === "royal_material_box") {
-      const rewards = [
-        { ...ITEMS.hardwood, amount: 5 },
-        { ...ITEMS.ironPlating, amount: 3 },
-        { ...ITEMS.sailCloth, amount: 3 },
-        { ...ITEMS.colaEnginePart, amount: 1 },
-        { ...ITEMS.enhancementStone, amount: 25 },
-      ];
-      rewards.forEach((item) => {
-        nextMaterials = addOrIncrease(nextMaterials, item);
-        resultLines.push(`📦 ${item.name} x${item.amount}`);
-      });
-    } else if (box.code === "basic_resource_box") {
-      nextBerries += 2000;
-      nextGems += 10;
-      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.enhancementStone, amount: 3 });
-      resultLines.push("💰 Berries +2000");
-      resultLines.push("💎 Gems +10");
-      resultLines.push("🧱 Enhancement Stone x3");
-    } else if (box.code === "rare_resource_box") {
-      nextBerries += 5000;
-      nextGems += 20;
-      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.ironPlating, amount: 2 });
-      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.enhancementStone, amount: 10 });
-      resultLines.push("💰 Berries +5000");
-      resultLines.push("💎 Gems +20");
-      resultLines.push("📦 Iron Plating x2");
-      resultLines.push("🧱 Enhancement Stone x10");
-    } else if (box.code === "mother_flame_treasure_box") {
-      nextBerries += 15000;
-      nextGems += 50;
-      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.colaEnginePart, amount: 2 });
-      nextMaterials = addOrIncrease(nextMaterials, { ...ITEMS.enhancementStone, amount: 30 });
-      resultLines.push("💰 Berries +15000");
-      resultLines.push("💎 Gems +50");
-      resultLines.push("📦 Cola Engine Part x2");
-      resultLines.push("🧱 Enhancement Stone x30");
-    } else {
+    if (!Number.isInteger(openAmount) || openAmount <= 0) {
+      return message.reply("Open amount must be a positive number.");
+    }
+
+    if (openAmount > ownedAmount) {
+      return message.reply(
+        `You only own **${ownedAmount}x ${box.name}**.\nUse \`op open ${parsed.query} all\` to open all owned boxes.`
+      );
+    }
+
+    const updatedBoxes = removeBoxes(player.boxes || [], box.code, openAmount);
+
+    if (!updatedBoxes) {
+      return message.reply(`You do not own enough **${box.name}**.`);
+    }
+
+    const rewardMap = new Map();
+
+    const rewardState = grantBoxRewards(
+      box,
+      openAmount,
+      {
+        materials: [...(player.materials || [])],
+        berries: Number(player.berries || 0),
+        gems: Number(player.gems || 0),
+        tickets: [...(player.tickets || [])],
+      },
+      rewardMap
+    );
+
+    if (!rewardState) {
       return message.reply("This box is not configured yet.");
     }
 
-    const updatedDailyState = incrementQuestCounter(player, "boxesOpened", 1);
+    const updatedQuests = incrementQuestPayload(player, "boxesOpened", openAmount);
+    const rewardLines = formatRewardLines(rewardMap);
 
     updatePlayer(message.author.id, {
       boxes: updatedBoxes,
-      materials: nextMaterials,
-      tickets: nextTickets,
-      berries: nextBerries,
-      gems: nextGems,
-      quests: {
-        ...(player.quests || {}),
-        dailyState: updatedDailyState,
-      },
+      materials: rewardState.materials,
+      tickets: rewardState.tickets,
+      berries: rewardState.berries,
+      gems: rewardState.gems,
+      quests: updatedQuests,
     });
 
     return message.reply({
       embeds: [
         new EmbedBuilder()
           .setColor(0x3498db)
-          .setTitle(`🎁 Opened ${box.name}`)
-          .setDescription(resultLines.join("\n"))
-          .setFooter({ text: "One Piece Bot • Open Box" }),
+          .setTitle(`📦 Opened ${box.name} x${openAmount}`)
+          .setDescription(
+            rewardLines.length
+              ? rewardLines.join("\n")
+              : "No rewards were generated."
+          )
+          .setFooter({
+            text: "One Piece Bot • Open Box",
+          }),
       ],
     });
   },
