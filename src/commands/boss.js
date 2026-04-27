@@ -25,6 +25,9 @@ const {
 const BOSS_COOLDOWN_MS = 10 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
 
+const BOSS_WIN_EXP_PER_CARD = 180;
+const BOSS_LOSE_EXP_PER_CARD = 95;
+
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
   const index = arr.findIndex((entry) => entry.code === item.code);
@@ -243,6 +246,7 @@ function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
 function getSpecialIslandBossTemplate(currentIsland) {
   const code = String(currentIsland?.code || "").toLowerCase();
   const order = Number(currentIsland?.order || 0);
+  const image = getIslandBossImage(currentIsland, null, null);
 
   const specials = {
     foosha_village: {
@@ -251,7 +255,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 125,
       hp: 1400,
       speed: 42,
-      image: getIslandBossImage(currentIsland, null, null),
+      image,
     },
     reverse_mountain: {
       name: "Laboon",
@@ -259,7 +263,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 285,
       hp: 4700,
       speed: 72,
-      image: getIslandBossImage(currentIsland, null, null),
+      image,
     },
     whiskey_peak: {
       name: "Baroque Works Agents",
@@ -267,7 +271,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 245,
       hp: 3900,
       speed: 78,
-      image: getIslandBossImage(currentIsland, null, null),
+      image,
     },
     long_ring_long_land: {
       name: "Foxy",
@@ -275,7 +279,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 310,
       hp: 4800,
       speed: 88,
-      image: getIslandBossImage(currentIsland, null, null),
+      image,
     },
     water_7: {
       name: "CP9 Lead Fight",
@@ -283,7 +287,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 390,
       hp: 6500,
       speed: 106,
-      image: getIslandBossImage(currentIsland, null, null),
+      image,
     },
     sabaody: {
       name: "Pacifista Survival",
@@ -291,7 +295,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 430,
       hp: 7600,
       speed: 112,
-      image: getIslandBossImage(currentIsland, null, null),
+      image,
     },
     impel_down: {
       name: "Magellan",
@@ -299,7 +303,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
       atk: 520,
       hp: 9200,
       speed: 122,
-      image: getIslandBossImage(currentIsland, null, null),
+      image,
     },
   };
 
@@ -315,7 +319,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
     hp,
     maxHp: hp,
     speed: Math.floor(Number(base.speed) + order * 1.1),
-    image: getIslandBossImage(currentIsland, null, null),
+    image,
   };
 }
 
@@ -495,6 +499,8 @@ function buildButtons(playerTeam, ended) {
 }
 
 function calculateBossExp(playerTeam, won, combatBoosts) {
+  const baseExp = won ? BOSS_WIN_EXP_PER_CARD : BOSS_LOSE_EXP_PER_CARD;
+
   return playerTeam.map((unit) => {
     const level = Number(unit.level || 1);
     const cap = Number(unit.levelCap || 50);
@@ -510,17 +516,9 @@ function calculateBossExp(playerTeam, won, combatBoosts) {
       };
     }
 
-    const rawExp = won
-      ? unit.hp > 0
-        ? 180 + unit.kills * 15
-        : 135 + unit.kills * 10
-      : unit.hp > 0
-        ? 105 + unit.kills * 8
-        : 95 + unit.kills * 5;
-
     return {
       instanceId: unit.instanceId,
-      expGain: applyExpBoost(rawExp, unit.passiveBoostsApplied || combatBoosts),
+      expGain: applyExpBoost(baseExp, unit.passiveBoostsApplied || combatBoosts),
       locked: false,
       level,
       cap,
