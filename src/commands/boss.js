@@ -6,7 +6,7 @@ const {
 } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
-const { incrementQuestCounter } = require("../utils/questProgress");
+const { incrementQuestPayload } = require("../utils/questProgress");
 const { getCurrentIsland } = require("../data/islands");
 const cardsDb = require("../data/cards");
 const { hydrateCard } = require("../utils/evolution");
@@ -208,6 +208,15 @@ function getActiveBossPhase(player, island) {
   return null;
 }
 
+function getIslandBossImage(currentIsland, phaseBoss = null, fromDb = null) {
+  return (
+    phaseBoss?.image ||
+    currentIsland?.image ||
+    fromDb?.image ||
+    ""
+  );
+}
+
 function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
   const code = String(phaseBoss?.bossCode || "").toLowerCase();
   const order = Number(currentIsland?.order || 0);
@@ -222,7 +231,7 @@ function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
       hp,
       maxHp: hp,
       speed: 145 + Math.floor(order * 1.2),
-      image: phaseBoss?.image || "",
+      image: getIslandBossImage(currentIsland, phaseBoss, null),
     };
   }
 
@@ -304,6 +313,7 @@ function getSpecialIslandBossTemplate(currentIsland) {
     hp,
     maxHp: hp,
     speed: Math.floor(Number(base.speed) + order * 1.1),
+    image: currentIsland?.image || base.image || "",
   };
 }
 
@@ -366,7 +376,7 @@ function getBossTemplate(currentIsland, phaseBoss = null) {
       hp: Math.floor(baseHp * hpMul),
       maxHp: Math.floor(baseHp * hpMul),
       speed: Math.floor(baseSpeed * spdMul),
-      image: phaseBoss?.image || currentIsland.image || fromDb.image || "",
+      image: getIslandBossImage(currentIsland, phaseBoss, fromDb),
     };
   }
 
@@ -381,7 +391,7 @@ function getBossTemplate(currentIsland, phaseBoss = null) {
     hp: fallbackHp,
     maxHp: fallbackHp,
     speed: fallbackSpeed,
-    image: phaseBoss?.image || currentIsland?.image || "",
+    image: getIslandBossImage(currentIsland, phaseBoss, null),
   };
 }
 
@@ -544,6 +554,32 @@ function applyBossExpToCards(player, playerTeam, expResults) {
   });
 }
 
+function applyBossQuestProgress(player, keys) {
+  let nextPlayer = {
+    ...player,
+  };
+
+  let nextQuests = player.quests || {};
+
+  for (const key of keys) {
+    nextQuests = incrementQuestPayload(
+      {
+        ...nextPlayer,
+        quests: nextQuests,
+      },
+      key,
+      1
+    );
+
+    nextPlayer = {
+      ...nextPlayer,
+      quests: nextQuests,
+    };
+  }
+
+  return nextQuests;
+}
+
 module.exports = {
   name: "boss",
   aliases: ["islandboss"],
@@ -645,14 +681,11 @@ module.exports = {
         const expResults = calculateBossExp(playerTeam, false, combatBoosts);
         const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
         const expLines = formatExpResults(playerTeam, expResults);
-        const updatedDailyState = incrementQuestCounter(player, "bossFights", 1);
+        const updatedQuests = applyBossQuestProgress(player, ["bossFights"]);
 
         updatePlayer(message.author.id, {
           cards: updatedCards,
-          quests: {
-            ...(player.quests || {}),
-            dailyState: updatedDailyState,
-          },
+          quests: updatedQuests,
         });
 
         await interaction.update({
@@ -711,20 +744,6 @@ module.exports = {
 
       if (boss.hp <= 0) {
         ended = true;
-
-        let updatedDailyState = incrementQuestCounter(player, "bossFights", 1);
-
-        updatedDailyState = incrementQuestCounter(
-          {
-            ...player,
-            quests: {
-              ...(player.quests || {}),
-              dailyState: updatedDailyState,
-            },
-          },
-          "bossesDefeated",
-          1
-        );
 
         const reward = {
           berries: 12000,
@@ -794,16 +813,15 @@ module.exports = {
           storyLines.push(`✅ ${currentIsland.name} boss route is now cleared.`);
         }
 
+        const updatedQuests = applyBossQuestProgress(player, ["bossFights", "bossesDefeated"]);
+
         updatePlayer(message.author.id, {
           cards: updatedCards,
           boxes: updatedBoxes,
           berries: Number(player.berries || 0) + reward.berries,
           gems: Number(player.gems || 0) + reward.gems,
           story: nextStory,
-          quests: {
-            ...(player.quests || {}),
-            dailyState: updatedDailyState,
-          },
+          quests: updatedQuests,
         });
 
         logs.push(`🏆 ${boss.name} was defeated!`);
@@ -837,14 +855,11 @@ module.exports = {
         const expResults = calculateBossExp(playerTeam, false, combatBoosts);
         const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
         const expLines = formatExpResults(playerTeam, expResults);
-        const updatedDailyState = incrementQuestCounter(player, "bossFights", 1);
+        const updatedQuests = applyBossQuestProgress(player, ["bossFights"]);
 
         updatePlayer(message.author.id, {
           cards: updatedCards,
-          quests: {
-            ...(player.quests || {}),
-            dailyState: updatedDailyState,
-          },
+          quests: updatedQuests,
         });
 
         logs.push(`💀 Your team was wiped out by ${boss.name}.`);
@@ -891,14 +906,11 @@ module.exports = {
         const expResults = calculateBossExp(playerTeam, false, combatBoosts);
         const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
         const expLines = formatExpResults(playerTeam, expResults);
-        const updatedDailyState = incrementQuestCounter(player, "bossFights", 1);
+        const updatedQuests = applyBossQuestProgress(player, ["bossFights"]);
 
         updatePlayer(message.author.id, {
           cards: updatedCards,
-          quests: {
-            ...(player.quests || {}),
-            dailyState: updatedDailyState,
-          },
+          quests: updatedQuests,
         });
 
         logs.length = 0;
