@@ -120,19 +120,16 @@ module.exports = {
           `- Ship: \`${ship.name}\``,
           `- Ship Tier: \`${ship.tier}\``,
           "",
-
           "## Wallet",
           `- Berries: \`${Number(player.berries || 0).toLocaleString("en-US")}\``,
           `- Gems: \`${Number(player.gems || 0).toLocaleString("en-US")}\``,
           "",
-
           "## Card Statistics",
           `- Battle Cards: \`${battleCards.length}\``,
           `- Boost Cards: \`${boostCards.length}\``,
           `- Total Cards Owned: \`${cards.length}\``,
           `- Total Fragments: \`${totalFragments}\``,
           "",
-
           "## Inventory Stats",
           `- Total Resources: \`${totalResources}\``,
           `- Boxes: \`${totalBoxes}\``,
@@ -141,13 +138,11 @@ module.exports = {
           `- Materials: \`${totalMaterials}\``,
           `- Tickets: \`${totalTickets}\``,
           "",
-
           "## Game Stats",
           `- Team Power: \`${teamPower.toLocaleString("en-US")}\``,
           `- Story Progress: \`${storyProgress}\``,
           `- Fight Win Streak: \`${Number(player?.fightStreak || 0)}\``,
           "",
-
           "## Arena Stats",
           `- Arena Points: \`${arena.points}\``,
           `- Arena Record: \`${arena.wins}W / ${arena.losses}L / ${arena.draws}D\``,
