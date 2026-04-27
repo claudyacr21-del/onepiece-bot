@@ -732,7 +732,6 @@ module.exports = {
           turn.isPlayer ? actor.passiveBoostsApplied || combatBoosts : {}
         );
 
-        logs.push(`⚡ ${actor.name} moved first with SPD ${actor.speed}.`);
         logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
         logs.push(`${turn.isPlayer ? "➡️" : "⬅️"} ${actor.name} dealt **${damage}** damage to ${target.name}.`);
 

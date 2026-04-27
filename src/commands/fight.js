@@ -722,11 +722,9 @@ module.exports = {
         );
 
         if (turn.isPlayer) {
-          logs.push(`⚡ ${actor.name} moved first with SPD ${actor.battleSpeed}.`);
           logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
           logs.push(`➡️ ${actor.name} dealt **${damage}** damage to ${target.name}.`);
         } else {
-          logs.push(`⚡ ${actor.name} moved first with SPD ${actor.battleSpeed}.`);
           logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
           logs.push(`⬅️ ${actor.name} dealt **${damage}** damage to ${target.name}.`);
         }
