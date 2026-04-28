@@ -5,7 +5,7 @@ module.exports = [
     rarity: "UR",
     owners: ["roger_king_of_the_pirates"],
     type: "Supreme Grade Sword",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "Roger's legendary saber."
@@ -16,7 +16,7 @@ module.exports = [
     rarity: "UR",
     owners: ["oden"],
     type: "Great Grade Sword",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "One of Oden's legendary swords."
@@ -82,7 +82,7 @@ module.exports = [
     rarity: "S",
     owners: ["bartholomew_kuma"],
     type: "Book",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "Kuma's massive Bible used in battle."
@@ -93,7 +93,7 @@ module.exports = [
     rarity: "UR",
     owners: ["whitebeard_strongest_man"],
     type: "Polearm",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "Whitebeard's colossal bisento."
@@ -181,7 +181,7 @@ module.exports = [
     rarity: "S",
     owners: ["sabo_flame_emperor"],
     type: "Gloves",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "Martial gloves for the Dragon Claw technique."
@@ -203,7 +203,7 @@ module.exports = [
     rarity: "UR",
     owners: ["xebec_captain_of_rocks"],
     type: "Legendary Blade",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A terrifying blade fit for the captain of the Rocks Pirates."
@@ -214,7 +214,7 @@ module.exports = [
     rarity: "UR",
     owners: ["oden", "zoro_pirate_hunter"],
     type: "Great Grade Sword",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A blade that draws out its wielder's haki."
@@ -236,7 +236,7 @@ module.exports = [
     rarity: "UR",
     owners: ["garp_hero_of_the_marines"],
     type: "Martial Art",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "Pure overwhelming fist power."
@@ -258,7 +258,7 @@ module.exports = [
     rarity: "UR",
     owners: ["loki"],
     type: "Hammer",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "Loki's massive legendary weapon from Elbaf."
@@ -269,7 +269,7 @@ module.exports = [
     rarity: "S",
     owners: ["crocodile_desert_king"],
     type: "Hook",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "Crocodile's signature golden hook."
@@ -280,7 +280,7 @@ module.exports = [
     rarity: "S",
     owners: ["enel_god"],
     type: "Staff",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A staff amplified by thunder powers."
@@ -302,7 +302,7 @@ module.exports = [
     rarity: "UR",
     owners: ["shanks_red_hair"],
     type: "Sword",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "Shanks's signature saber."
@@ -324,7 +324,7 @@ module.exports = [
     rarity: "S",
     owners: ["aokiji"],
     type: "Sword",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A blade forged from solid ice."
@@ -335,7 +335,7 @@ module.exports = [
     rarity: "S",
     owners: ["king_wildfire"],
     type: "Sword",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A blazing sword wielded by King."
@@ -357,7 +357,7 @@ module.exports = [
     rarity: "S",
     owners: ["yamato_oni_princess"],
     type: "Club",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A heavy kanabo used in overwhelming close combat."
@@ -390,7 +390,7 @@ module.exports = [
     rarity: "S",
     owners: ["yasopp"],
     type: "Rifle",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A deadeye long rifle."
@@ -401,7 +401,7 @@ module.exports = [
     rarity: "UR",
     owners: ["rayleigh_dark_king"],
     type: "Sword",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A perfectly balanced sword of a master."
@@ -412,7 +412,7 @@ module.exports = [
     rarity: "UR",
     owners: ["akainu"],
     type: "Elemental Weapon",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A fist coated in devastating magma."
@@ -423,7 +423,7 @@ module.exports = [
     rarity: "S",
     owners: ["katakuri_strongest_sweet_commander"],
     type: "Trident",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "Katakuri's powerful trident."
@@ -434,7 +434,7 @@ module.exports = [
     rarity: "UR",
     owners: ["big_mom_emperor"],
     type: "Living Sword",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "Big Mom's soul-infused living blade."
@@ -445,7 +445,7 @@ module.exports = [
   rarity: "UR",
   owners: ["kaido_strongest_creature"],
   type: "Kanabo",
-  statPercent: { atk: 9, hp: 5, speed: 3 },
+  statPercent: { atk: 7, hp: 5, speed: 3 },
   ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
   image: "",
   description: "Kaido's massive kanabo, used to crush enemies with monstrous force."
@@ -456,7 +456,7 @@ module.exports = [
     rarity: "S",
     owners: ["boa_hancock"],
     type: "Kick Technique",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A devastating perfume-infused kicking style."
@@ -467,7 +467,7 @@ module.exports = [
     rarity: "S",
     owners: ["queen_the_plague"],
     type: "Cyborg Arsenal",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "Queen's plague-loaded mechanical arsenal."
@@ -478,7 +478,7 @@ module.exports = [
     rarity: "S",
     owners: ["shiryu"],
     type: "Sword",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "Shiryu's infamous blade."
@@ -487,18 +487,18 @@ module.exports = [
     code: "rokushiki",
     name: "Rokushiki",
     rarity: "S",
-    owners: ["lucci_cp9"],
+    owners: ["lucci_cp7"],
     type: "Martial Art",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
-    description: "The lethal six powers mastered by CP9."
+    description: "The lethal six powers mastered by CP7."
   },
   {
     code: "rokushiki_blades",
     name: "Rokushiki Blades",
     rarity: "A",
-    owners: ["kaku_cp9"],
+    owners: ["kaku_cp7"],
     type: "Blades",
     statPercent: { atk: 5, hp: 3, speed: 2 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
@@ -511,7 +511,7 @@ module.exports = [
     rarity: "S",
     owners: ["garling"],
     type: "Saber",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A refined saber used by Holy Knights."
@@ -522,7 +522,7 @@ module.exports = [
     rarity: "S",
     owners: ["zoro_pirate_hunter"],
     type: "Grade Sword",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A cursed blade with fierce cutting force."
@@ -544,7 +544,7 @@ module.exports = [
     rarity: "S",
     owners: ["fujitora"],
     type: "Cane Sword",
-    statPercent: { atk: 7, hp: 4, speed: 3 },
+    statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A hidden blade carried in a cane."
@@ -555,7 +555,7 @@ module.exports = [
     rarity: "UR",
     owners: ["nusjuro"],
     type: "Supreme Grade Sword",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "One of the cursed supreme blades."
@@ -654,7 +654,7 @@ module.exports = [
     rarity: "UR",
     owners: ["zoro_pirate_hunter"],
     type: "Great Grade Sword",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "One of Zoro's treasured swords."
@@ -687,7 +687,7 @@ module.exports = [
     rarity: "UR",
     owners: ["mihawk_hawk_eyes"],
     type: "Black Blade",
-    statPercent: { atk: 9, hp: 5, speed: 3 },
+    statPercent: { atk: 7, hp: 5, speed: 3 },
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "The strongest black blade in the world."
