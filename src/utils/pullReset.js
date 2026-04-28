@@ -1,5 +1,5 @@
 const RESET_INTERVAL_MS = 8 * 60 * 60 * 1000;
-const PULL_SLOT_SCHEMA_VERSION = 2;
+const PULL_SLOT_SCHEMA_VERSION = 3;
 
 function getCurrentResetBucket(now = Date.now()) {
   return Math.floor(now / RESET_INTERVAL_MS);

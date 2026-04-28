@@ -16,7 +16,7 @@ function resolveFilePath() {
 }
 
 const filePath = resolveFilePath();
-const PULL_SLOT_SCHEMA_VERSION = 2;
+const PULL_SLOT_SCHEMA_VERSION = 3;
 
 function ensureFile() {
   const dir = path.dirname(filePath);
@@ -196,7 +196,7 @@ function normalizePulls(pulls) {
     lastResetBucket: Number.isInteger(pulls?.lastResetBucket)
       ? pulls.lastResetBucket
       : null,
-    slotSchemaVersion: Number(pulls?.slotSchemaVersion || 0) || 0,
+    slotSchemaVersion: Number(pulls?.slotSchemaVersion || 0),
   };
 }
 
