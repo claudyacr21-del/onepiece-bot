@@ -5,6 +5,7 @@ const rawCards = require("../data/cards");
 const rawWeapons = require("../data/weapons");
 const rawDevilFruits = require("../data/devilFruits");
 const { applyGlobalPullReset } = require("../utils/pullReset");
+const { applyAutoLevelForDuplicate } = require("../utils/autoLevel");
 const {
   getTotalPullUsage,
   consumeAllActivePullSlots,
@@ -339,9 +340,23 @@ module.exports = {
         );
 
         if (alreadyOwned) {
-          updatedFragments = addFragment(updatedFragments, reward, 1);
-          summary.fragments += 1;
-          duplicateNote = " → Duplicate (+1 fragments)";
+          const autoLevelResult = applyAutoLevelForDuplicate({
+            cards: updatedCards,
+            fragments: updatedFragments,
+            autoLevel: player.autoLevel,
+            pulledCard: reward,
+            amount: 1,
+          });
+
+          updatedCards = autoLevelResult.cards;
+          updatedFragments = autoLevelResult.fragments;
+
+          if (autoLevelResult.levelGained > 0) {
+            duplicateNote = ` → Auto Level +${autoLevelResult.levelGained}`;
+          } else {
+            summary.fragments += 1;
+            duplicateNote = " → Duplicate (+1 fragments)";
+          }
         } else {
           updatedCards.push(rewardResult.storedReward);
         }

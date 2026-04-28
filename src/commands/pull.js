@@ -5,6 +5,7 @@ const rawCards = require("../data/cards");
 const rawWeapons = require("../data/weapons");
 const rawDevilFruits = require("../data/devilFruits");
 const { applyGlobalPullReset } = require("../utils/pullReset");
+const { applyAutoLevelForDuplicate } = require("../utils/autoLevel");
 const {
   getNextAvailablePullKey,
   consumePullSlot,
@@ -366,10 +367,25 @@ module.exports = {
       );
 
       if (alreadyOwned) {
-        updatedFragments = addFragment(updatedFragments, picked);
-        duplicateLine = `You already own **${picked.displayName || picked.name}**.\nConverted into **1 Fragment** instead.`;
+        const autoLevelResult = applyAutoLevelForDuplicate({
+          cards: updatedCards,
+          fragments: updatedFragments,
+          autoLevel: player.autoLevel,
+          pulledCard: picked,
+          amount: 1,
+        });
+
+        updatedCards = autoLevelResult.cards;
+        updatedFragments = autoLevelResult.fragments;
+
+        if (autoLevelResult.levelGained > 0) {
+          duplicateLine = `You already own **${picked.displayName || picked.name}**.\nAuto-level used **1 Fragment** → **+${autoLevelResult.levelGained} Level**.`;
+        } else {
+          duplicateLine = `You already own **${picked.displayName || picked.name}**.\nConverted into **1 Fragment** instead.`;
+        }
       } else {
         ownedCard = createOwnedCard(picked);
+
         updatedCards.push(ownedCard);
       }
     } else if (contentType === "weapon") {

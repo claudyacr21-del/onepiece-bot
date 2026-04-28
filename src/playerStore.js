@@ -110,6 +110,34 @@ function normalizeFragmentList(value) {
     .filter(Boolean);
 }
 
+function normalizeAutoLevel(autoLevel) {
+  const rawCards = Array.isArray(autoLevel?.cards)
+    ? autoLevel.cards
+    : Array.isArray(autoLevel)
+      ? autoLevel
+      : [];
+
+  return {
+    cards: rawCards
+      .map((entry) => {
+        if (typeof entry === "string") {
+          return {
+            code: null,
+            name: entry,
+          };
+        }
+
+        if (!entry || typeof entry !== "object") return null;
+
+        return {
+          code: entry.code || null,
+          name: entry.name || entry.displayName || "Unknown Card",
+        };
+      })
+      .filter(Boolean),
+  };
+}
+
 function normalizeCards(value) {
   if (!Array.isArray(value)) return [];
 
@@ -402,6 +430,7 @@ function normalizePlayer(player, username = "Unknown") {
     dailyLastClaim: player.dailyLastClaim || null,
     cards: normalizeCards(player.cards),
     fragments: normalizeFragmentList(player.fragments),
+    autoLevel: normalizeAutoLevel(player.autoLevel),
     items: normalizeNamedList(player.items),
     weapons: normalizeNamedList(player.weapons),
     devilFruits: normalizeNamedList(player.devilFruits),
@@ -440,6 +469,9 @@ function getDefaultPlayer(username) {
 
     cards: [],
     fragments: [],
+    autoLevel: {
+      cards: [],
+    },
     items: [],
     weapons: [],
     devilFruits: [],

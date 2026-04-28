@@ -39,6 +39,8 @@ const HELP_PAGES = {
       "`mc weapon` | view your weapon collection",
       "`awaken <card>` | awaken card stage",
       "`level frag <count> <card>` | use fragments to level up a card",
+      "`autolevel` | view auto-leveling list",
+      "`aladd <card>` | add or remove a card from auto-leveling",
       "",
       "**⚔️ Battle & Raid**",
       "`fight` | manual fight",
