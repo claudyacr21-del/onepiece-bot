@@ -1,4 +1,5 @@
 const RESET_INTERVAL_MS = 8 * 60 * 60 * 1000;
+const PULL_SLOT_SCHEMA_VERSION = 2;
 
 function getCurrentResetBucket(now = Date.now()) {
   return Math.floor(now / RESET_INTERVAL_MS);
@@ -12,33 +13,34 @@ function buildResetPullState(existingPulls = {}) {
   return {
     base: {
       used: 0,
-      max: Number(existingPulls?.base?.max || 6)
+      max: 6,
     },
     supportMember: {
       used: 0,
-      max: Number(existingPulls?.supportMember?.max || 1)
+      max: 1,
     },
     booster: {
       used: 0,
-      max: Number(existingPulls?.booster?.max || 1)
+      max: 1,
     },
     owner: {
       used: 0,
-      max: Number(existingPulls?.owner?.max || 1)
+      max: 1,
     },
     patreon: {
       used: 0,
-      max: Number(existingPulls?.patreon?.max || 3)
+      max: 3,
     },
     baccaratCard: {
       used: 0,
-      max: Number(existingPulls?.baccaratCard?.max || 1)
+      max: 3,
     },
     baccaratFruit: {
       used: 0,
-      max: Number(existingPulls?.baccaratFruit?.max || 1)
+      max: 2,
     },
-    lastResetBucket: getCurrentResetBucket()
+    lastResetBucket: getCurrentResetBucket(),
+    slotSchemaVersion: PULL_SLOT_SCHEMA_VERSION,
   };
 }
 
@@ -48,79 +50,87 @@ function buildManualTicketResetPullState(existingPulls = {}) {
     base: {
       ...(existingPulls?.base || {}),
       used: 0,
-      max: Number(existingPulls?.base?.max || 6)
+      max: 6,
     },
     supportMember: {
       ...(existingPulls?.supportMember || {}),
       used: 0,
-      max: Number(existingPulls?.supportMember?.max || 1)
+      max: 1,
     },
     booster: {
       ...(existingPulls?.booster || {}),
       used: 0,
-      max: Number(existingPulls?.booster?.max || 1)
+      max: 1,
     },
     owner: {
       ...(existingPulls?.owner || {}),
       used: 0,
-      max: Number(existingPulls?.owner?.max || 1)
+      max: 1,
     },
     patreon: {
       ...(existingPulls?.patreon || {}),
       used: 0,
-      max: Number(existingPulls?.patreon?.max || 3)
+      max: 3,
     },
     baccaratCard: {
       ...(existingPulls?.baccaratCard || {}),
       used: 0,
-      max: Number(existingPulls?.baccaratCard?.max || 1)
+      max: 3,
     },
     baccaratFruit: {
       ...(existingPulls?.baccaratFruit || {}),
       used: 0,
-      max: Number(existingPulls?.baccaratFruit?.max || 1)
+      max: 2,
     },
     lastResetBucket: Number.isInteger(existingPulls?.lastResetBucket)
       ? existingPulls.lastResetBucket
-      : getCurrentResetBucket()
+      : getCurrentResetBucket(),
+    slotSchemaVersion: PULL_SLOT_SCHEMA_VERSION,
   };
 }
 
 function applyGlobalPullReset(player) {
   const currentBucket = getCurrentResetBucket();
   const pulls = player?.pulls || {};
+
   const savedBucket = Number.isInteger(pulls?.lastResetBucket)
     ? pulls.lastResetBucket
     : null;
 
-  if (savedBucket === currentBucket) {
+  const savedSchemaVersion = Number(pulls?.slotSchemaVersion || 0);
+
+  if (
+    savedBucket === currentBucket &&
+    savedSchemaVersion === PULL_SLOT_SCHEMA_VERSION
+  ) {
     return {
       wasReset: false,
       pulls,
-      nextResetAt: getNextResetTime()
+      nextResetAt: getNextResetTime(),
     };
   }
 
   return {
     wasReset: true,
     pulls: buildResetPullState(pulls),
-    nextResetAt: getNextResetTime()
+    nextResetAt: getNextResetTime(),
   };
 }
 
 function applyManualPullReset(existingPulls = {}) {
   return {
     pulls: buildManualTicketResetPullState(existingPulls),
-    nextResetAt: getNextResetTime()
+    nextResetAt: getNextResetTime(),
   };
 }
 
 module.exports = {
   RESET_INTERVAL_MS,
+  PULL_SLOT_SCHEMA_VERSION,
   getCurrentResetBucket,
   getNextResetTime,
   buildResetPullState,
   buildManualTicketResetPullState,
   applyGlobalPullReset,
-  applyManualPullReset
+  applyManualPullReset,
 };
