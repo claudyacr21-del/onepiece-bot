@@ -378,18 +378,33 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode,
     `**Current Win Streak:** \`${streak}\``,
     `**Mode:** \`${premiumMode ? "Mother Flame Premium" : "Normal Fight"}\``,
     "",
-    "## Your Team",
-    ...playerLines,
+    "## Battle Log",
+    ...(recentLogs.length ? recentLogs : ["No actions yet. Choose your first attacker."]),
     "",
     "## Enemy Team",
     ...enemyLines,
     "",
-    "## Battle Log",
-    ...(recentLogs.length ? recentLogs : ["No actions yet. Choose your first attacker."]),
+    "## Your Team",
+    ...playerLines,
   ].join("\n");
 }
 
-function buildActionRows(playerTeam, battleEnded) {
+function buildActionRows(playerTeam, battleEnded, confirmingRunAway = false) {
+  if (confirmingRunAway && !battleEnded) {
+    const confirmButtons = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("fight_run_confirm")
+        .setLabel("Confirm Run Away")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId("fight_run_cancel")
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    return [confirmButtons];
+  }
+
   const attackButtons = new ActionRowBuilder();
 
   for (let i = 0; i < 3; i++) {
@@ -444,14 +459,14 @@ function buildFightResultEmbed({ title, color, result, rewardLines = [], expLine
       [
         `**Result:** ${result}`,
         "",
+        "## Final Log",
+        ...(logs.length ? logs.slice(-8) : ["No final log."]),
+        "",
         rewardLines.length ? "## Rewards" : null,
         ...rewardLines,
         rewardLines.length ? "" : null,
         expLines.length ? "## EXP" : null,
         ...expLines,
-        expLines.length ? "" : null,
-        "## Final Log",
-        ...(logs.length ? logs.slice(-8) : ["No final log."]),
       ]
         .filter(Boolean)
         .join("\n")
@@ -624,6 +639,7 @@ module.exports = {
     const enemyTeam = generateEnemyTeam(currentIsland, playerTeam);
     const logs = [];
     let battleEnded = false;
+    let confirmingRunAway = false;
     let currentStreak = Number(player.fightStreak || 0);
 
     const reply = await message.reply({
@@ -661,11 +677,62 @@ module.exports = {
         });
       }
 
-      if (interaction.customId === "fight_run") {
+if (interaction.customId === "fight_run") {
+  confirmingRunAway = true;
+  logs.length = 0;
+  logs.push("⚠️ Run away confirmation requested.");
+  logs.push("Choose **Confirm Run Away** to leave the fight, or **Cancel** to continue.");
+
+  await interaction.update({
+    embeds: [
+      buildFightEmbed(
+        player.username || message.author.username,
+        playerTeam,
+        enemyTeam,
+        logs,
+        currentStreak,
+        false,
+        premiumMode,
+        currentIsland
+      ),
+    ],
+    components: buildActionRows(playerTeam, false, true),
+  });
+
+  return;
+}
+
+if (interaction.customId === "fight_run_cancel") {
+  confirmingRunAway = false;
+  logs.length = 0;
+  logs.push("✅ Run away cancelled.");
+  logs.push("Choose one of your cards to continue the fight.");
+
+  await interaction.update({
+    embeds: [
+      buildFightEmbed(
+        player.username || message.author.username,
+        playerTeam,
+        enemyTeam,
+        logs,
+        currentStreak,
+        false,
+        premiumMode,
+        currentIsland
+      ),
+    ],
+    components: buildActionRows(playerTeam, false, false),
+  });
+
+  return;
+}
+
+      if (interaction.customId === "fight_run_confirm") {
         battleEnded = true;
+        confirmingRunAway = false;
         logs.length = 0;
         logs.push("🏃 You ran away from the fight.");
-        logs.push("🚫 No EXP gained from running away.");
+        logs.push("No EXP gained from running away.");
 
         await interaction.update({
           embeds: [
@@ -673,8 +740,8 @@ module.exports = {
               title: "🏃 Fight Escaped",
               color: 0xf1c40f,
               result: "RUN AWAY",
-              rewardLines: ["🚫 No rewards."],
-              expLines: ["🚫 No EXP gained."],
+              rewardLines: ["No rewards."],
+              expLines: ["No EXP gained."],
               logs,
             }),
           ],
@@ -684,6 +751,8 @@ module.exports = {
         collector.stop("run");
         return;
       }
+
+      confirmingRunAway = false;
 
       const index = Number(interaction.customId.replace("fight_attack_", ""));
       const playerAttacker = playerTeam[index];
@@ -865,7 +934,7 @@ module.exports = {
             currentIsland
           ),
         ],
-        components: buildActionRows(playerTeam, false),
+        components: buildActionRows(playerTeam, false, confirmingRunAway),
       });
     });
 
