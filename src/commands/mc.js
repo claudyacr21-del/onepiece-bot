@@ -265,32 +265,41 @@ function dedupeCollection(cards) {
   return [...map.values()];
 }
 
+function getRoleEmoji(card) {
+  return card.cardRole === "boost" ? "✨" : "⚔️";
+}
+
+function getRarityEmoji(rarity) {
+  const tier = String(rarity || "C").toUpperCase();
+
+  if (tier === "UR") return "🌈";
+  if (tier === "SS") return "💎";
+  if (tier === "S") return "🔴";
+  if (tier === "A") return "🟣";
+  if (tier === "B") return "🔵";
+
+  return "⚪";
+}
+
 function buildTextLines(cards) {
   const uniqueCards = dedupeCollection(cards);
 
-  return uniqueCards.map((card, i) => {
+  return uniqueCards.map((card) => {
     const rarity = String(card.currentTier || card.rarity || "C").toUpperCase();
     const name = card.displayName || card.name || "Unknown Card";
     const stage = card.evolutionKey || `M${card.evolutionStage || 1}`;
     const power = getPower(card);
     const level = Number(card.level || 1);
-    const exp = getFlatExp(card);
 
     if (card.cardRole === "boost") {
-      return [
-        `${i + 1}. **${name}** | ${stage} | ${power}`,
-        `${card.effectText || "No effect text"} | ${rarity}`,
-      ].join("\n");
+      return `**${rarity} ${name} | ${stage} | 💠 ${power} | Lv: ${level}**`;
     }
 
-    const currentHp = Number(card.hp || 0);
-    const currentSpd = Number(card.speed || 0);
+    const hp = Number(card.hp || 0);
+    const speed = Number(card.speed || 0);
     const atkRange = formatAtkRange(card.atk);
 
-    return [
-      `${i + 1}. **${name}** | ${stage} | ${power} | ${currentHp}/${currentHp} | ${currentSpd} | ${atkRange}`,
-      `${rarity} | Lv.${level} (${exp}/${FLAT_EXP_CAP})`,
-    ].join("\n");
+    return `**${rarity} ${name} | ${stage} | 💠 ${power} | ❤️ ${hp}/${hp} | 🌀 ${speed} | ⚔️ ${atkRange} | Lv: ${level}**`;
   });
 }
 
