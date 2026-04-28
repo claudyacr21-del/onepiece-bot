@@ -28,7 +28,7 @@ function findMatchingCards(cards, query) {
 
 module.exports = {
   name: "add",
-  aliases: ["equip"],
+  
   async execute(message, args) {
     if (!args.length) {
       return message.reply("Usage: `op add <card name>`");
