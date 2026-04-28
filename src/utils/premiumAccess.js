@@ -46,28 +46,35 @@ async function fetchMainGuildMember(message) {
   const userId = message?.author?.id;
   if (!userId) return null;
 
-  if (message?.member) return message.member;
+  const mainGuild = await findMainGuild(message?.client);
+  if (!mainGuild) return null;
 
-  const guild = await findMainGuild(message?.client);
-  if (!guild) return null;
+  if (
+    message?.guild &&
+    String(message.guild.id) === String(mainGuild.id) &&
+    message?.member
+  ) {
+    return message.member;
+  }
 
-  return guild.members.fetch(userId).catch(() => null);
+  const cachedMember = mainGuild.members?.cache?.get(userId);
+  if (cachedMember) return cachedMember;
+
+  return mainGuild.members.fetch(userId).catch(() => null);
 }
 
 async function isPremiumUser(message) {
   const roleName = PREMIUM_ROLE_NAME;
 
-  if (hasRoleOnMember(message?.member, roleName)) {
-    return true;
-  }
+  const mainMember = await fetchMainGuildMember(message);
+  if (hasRoleOnMember(mainMember, roleName)) return true;
 
-  const member = await fetchMainGuildMember(message);
-
-  return hasRoleOnMember(member, roleName);
+  return hasRoleOnMember(message?.member, roleName);
 }
 
 module.exports = {
   PREMIUM_ROLE_NAME,
   isPremiumUser,
   fetchMainGuildMember,
+  hasRoleOnMember,
 };

@@ -253,11 +253,22 @@ module.exports = {
   aliases: ["pullall"],
 
   async execute(message) {
-    if (!(await isPremiumUser(message))) {
+    const premiumAccess = await isPremiumUser(message);
+
+    if (!premiumAccess) {
       return message.reply(`Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`);
     }
 
     const player = getPlayer(message.author.id, message.author.username);
+
+    player.pullAccessSnapshot = {
+      ...(player.pullAccessSnapshot || {}),
+      patreon: true,
+    };
+
+    updatePlayer(message.author.id, {
+      pullAccessSnapshot: player.pullAccessSnapshot,
+    });
     const resetState = applyGlobalPullReset(player);
 
     if (resetState?.wasReset) {
