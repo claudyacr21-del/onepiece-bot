@@ -634,8 +634,20 @@ function getBoostStageValue(card, stage = 1) {
     return Number(explicitValues[key]);
   }
 
+  const cardCode = String(card?.code || "").toLowerCase();
+  const cardName = String(card?.name || card?.displayName || "").toLowerCase();
+
+  const isBaccarat =
+    cardCode.includes("baccarat") || cardName.includes("baccarat");
+
+  if (isBaccarat) {
+    return safeStage;
+  }
+
   if (safeStage === 1) return base;
-  if (safeStage === 2) return Number(card?.boostValueM2 ?? card?.m2BoostValue ?? base + 2);
+  if (safeStage === 2) {
+    return Number(card?.boostValueM2 ?? card?.m2BoostValue ?? base + 2);
+  }
 
   return Number(card?.boostValueM3 ?? card?.m3BoostValue ?? base + 4);
 }
