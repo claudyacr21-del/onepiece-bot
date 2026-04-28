@@ -11,6 +11,7 @@ const {
 const { startTopggWebhookServer } = require("./topggWebhook");
 const { syncArenaRankRoles } = require("./utils/arenaRankRoles");
 const { syncExpiredPatreonRoles } = require("./utils/patreonRoleStore");
+const { startResetReminderService } = require("./utils/resetReminderService");
 const channelRules = require("./config/channelRules");
 
 const client = new Client({
@@ -122,6 +123,7 @@ client.once("clientReady", async () => {
   console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
 
   startTopggWebhookServer(client);
+  startResetReminderService(client);
 
   syncArenaRankRoles(client).catch((error) => {
     console.error("[ARENA RANK ROLES READY SYNC ERROR]", error);
