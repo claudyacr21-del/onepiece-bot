@@ -474,7 +474,6 @@ function tradeEmbed(owner, target, ownerOffer, targetOffer, status = "pending", 
 
 module.exports = {
   name: "trade",
-  aliases: ["swap"],
 
   async execute(message) {
     const targetUser = message.mentions.users.first();
