@@ -80,8 +80,6 @@ module.exports = {
           "Premium users guarantee **S** at 100 pity.",
           "Non-premium users guarantee **A** at 150 pity.",
           "",
-          `↪ Pulls Available: ${remainingPulls}/${activeMax}`,
-          "",
           `↪ Base Pulls: ${fmtSlot(slots.base)}`,
           `↪ Bonus Pull For Main Server Members: ${fmtSlot(slots.supportMember)}`,
           `↪ Bonus Pull For Main Server Boosters: ${fmtSlot(slots.booster)}`,
