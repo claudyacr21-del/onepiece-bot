@@ -4,6 +4,7 @@ const {
   ButtonStyle,
   EmbedBuilder,
 } = require("discord.js");
+
 const { getPlayer } = require("../playerStore");
 const {
   hydrateCard,
@@ -19,10 +20,20 @@ const {
   getDevilFruitImage,
   getRarityBadge,
 } = require("../config/assetLinks");
+
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 
 const FLAT_EXP_CAP = 1000;
+
+const RARITY_EMOJIS = {
+  C: process.env.RARITY_EMOJI_C || "C",
+  B: process.env.RARITY_EMOJI_B || "B",
+  A: process.env.RARITY_EMOJI_A || "A",
+  S: process.env.RARITY_EMOJI_S || "S",
+  SS: process.env.RARITY_EMOJI_SS || "SS",
+  UR: process.env.RARITY_EMOJI_UR || "UR",
+};
 
 function normalize(text) {
   return String(text || "")
@@ -31,6 +42,12 @@ function normalize(text) {
     .replace(/^model:\s*/i, "")
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ");
+}
+
+function getRarityEmoji(rarity) {
+  const tier = String(rarity || "C").toUpperCase();
+
+  return RARITY_EMOJIS[tier] || tier;
 }
 
 function getPower(card) {
@@ -47,17 +64,22 @@ function formatLevelExpLine(card) {
 
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
+
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
 function applyBoostedDisplayStats(card, boosts = {}) {
-  if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
+  if (!card || String(card.cardRole || "").toLowerCase() === "boost") {
+    return card;
+  }
 
   return {
     ...card,
     atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
     hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
-    speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+    speed: Math.floor(
+      Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)
+    ),
   };
 }
 
@@ -71,10 +93,13 @@ function scoreQuery(query, candidates) {
     const candidate = normalize(raw);
     if (!candidate) continue;
 
-    if (candidate === q) best = Math.max(best, 1000 + candidate.length);
-    else if (candidate.startsWith(q)) best = Math.max(best, 700 + q.length);
-    else if (candidate.includes(q)) best = Math.max(best, 400 + q.length);
-    else {
+    if (candidate === q) {
+      best = Math.max(best, 1000 + candidate.length);
+    } else if (candidate.startsWith(q)) {
+      best = Math.max(best, 700 + q.length);
+    } else if (candidate.includes(q)) {
+      best = Math.max(best, 400 + q.length);
+    } else {
       const qWords = q.split(" ").filter(Boolean);
 
       if (qWords.length && qWords.every((word) => candidate.includes(word))) {
@@ -265,41 +290,29 @@ function dedupeCollection(cards) {
   return [...map.values()];
 }
 
-function getRoleEmoji(card) {
-  return card.cardRole === "boost" ? "✨" : "⚔️";
-}
-
-function getRarityEmoji(rarity) {
-  const tier = String(rarity || "C").toUpperCase();
-
-  if (tier === "UR") return "🌈";
-  if (tier === "SS") return "💎";
-  if (tier === "S") return "🔴";
-  if (tier === "A") return "🟣";
-  if (tier === "B") return "🔵";
-
-  return "⚪";
-}
-
 function buildTextLines(cards) {
   const uniqueCards = dedupeCollection(cards);
 
-  return uniqueCards.map((card) => {
+  return uniqueCards.map((card, i) => {
     const rarity = String(card.currentTier || card.rarity || "C").toUpperCase();
+    const rarityIcon = getRarityEmoji(rarity);
     const name = card.displayName || card.name || "Unknown Card";
     const stage = card.evolutionKey || `M${card.evolutionStage || 1}`;
     const power = getPower(card);
     const level = Number(card.level || 1);
 
     if (card.cardRole === "boost") {
-      return `**${rarity} ${name} | ${stage} | 🔥 ${power} | Lv: ${level}**`;
+      const effect = card.effectText || "No effect text";
+
+      return `${i + 1}. ${rarityIcon} **${name}** | ${stage} | 🔥 ${power} | ✨ ${effect}`;
     }
 
-    const hp = Number(card.hp || 0);
-    const speed = Number(card.speed || 0);
+    const exp = getFlatExp(card);
+    const currentHp = Number(card.hp || 0);
+    const currentSpd = Number(card.speed || 0);
     const atkRange = formatAtkRange(card.atk);
 
-    return `**${rarity} ${name} | ${stage} | 🔥 ${power} | ❤️ ${hp}/${hp} | 💨 ${speed} | ⚔️ ${atkRange} | Lv: ${level}**`;
+    return `${i + 1}. ${rarityIcon} **${name}** | ${stage} | 🔥 ${power} | ❤️ ${currentHp}/${currentHp} | 💨 ${currentSpd} | ⚔️ ${atkRange} | Lv.${level} (${exp}/${FLAT_EXP_CAP})`;
   });
 }
 
@@ -312,7 +325,10 @@ function buildTextPageEmbed(ownerName, lines, pageIndex, pageSize = 10) {
     .setTitle(`${ownerName}'s Card Collection`)
     .setDescription(pageLines.join("\n\n"))
     .setFooter({
-      text: `Showing ${start + 1}-${Math.min(start + pageSize, lines.length)} of ${lines.length} unique entries`,
+      text: `Showing ${start + 1}-${Math.min(
+        start + pageSize,
+        lines.length
+      )} of ${lines.length} unique entries`,
     });
 }
 
@@ -377,13 +393,13 @@ function buildOwnedWeaponCollection(player) {
     if (!template) continue;
 
     const key = String(template.code);
-    const existing =
-      pool.get(key) || {
-        ...template,
-        amount: 0,
-        equippedOn: [],
-        bestUpgradeLevel: 0,
-      };
+
+    const existing = pool.get(key) || {
+      ...template,
+      amount: 0,
+      equippedOn: [],
+      bestUpgradeLevel: 0,
+    };
 
     existing.amount += Math.max(1, Number(entry.amount || 1));
     existing.bestUpgradeLevel = Math.max(
@@ -404,13 +420,13 @@ function buildOwnedWeaponCollection(player) {
       if (!template) continue;
 
       const key = String(template.code);
-      const existing =
-        pool.get(key) || {
-          ...template,
-          amount: 0,
-          equippedOn: [],
-          bestUpgradeLevel: 0,
-        };
+
+      const existing = pool.get(key) || {
+        ...template,
+        amount: 0,
+        equippedOn: [],
+        bestUpgradeLevel: 0,
+      };
 
       existing.equippedOn.push(rawCard.displayName || rawCard.name || rawCard.code);
       existing.bestUpgradeLevel = Math.max(
@@ -441,6 +457,7 @@ function buildOwnedFruitCollection(player) {
     if (!template) continue;
 
     const key = String(template.code);
+
     const existing = pool.get(key) || {
       ...template,
       amount: 0,
@@ -448,7 +465,6 @@ function buildOwnedFruitCollection(player) {
     };
 
     existing.amount += Math.max(1, Number(entry.amount || 1));
-
     pool.set(key, existing);
   }
 
@@ -462,6 +478,7 @@ function buildOwnedFruitCollection(player) {
     if (!template) continue;
 
     const key = String(template.code);
+
     const existing = pool.get(key) || {
       ...template,
       amount: 0,
@@ -469,12 +486,13 @@ function buildOwnedFruitCollection(player) {
     };
 
     existing.equippedOn.push(rawCard.displayName || rawCard.name || rawCard.code);
-
     pool.set(key, existing);
   }
 
   return [...pool.values()].sort((a, b) => {
-    const powerDiff = Number(getFruitPower(b) || 0) - Number(getFruitPower(a) || 0);
+    const powerDiff =
+      Number(getFruitPower(b) || 0) - Number(getFruitPower(a) || 0);
+
     if (powerDiff !== 0) return powerDiff;
 
     return String(a.name || "").localeCompare(String(b.name || ""));
@@ -483,6 +501,7 @@ function buildOwnedFruitCollection(player) {
 
 function findOwnedWeapon(player, query) {
   const pool = buildOwnedWeaponCollection(player);
+
   const scored = pool
     .map((weapon) => ({
       weapon,
@@ -496,6 +515,7 @@ function findOwnedWeapon(player, query) {
 
 function findOwnedFruit(player, query) {
   const pool = buildOwnedFruitCollection(player);
+
   const scored = pool
     .map((fruit) => ({
       fruit,
@@ -634,7 +654,15 @@ module.exports = {
       let index = 0;
 
       const sent = await message.reply({
-        embeds: [buildWeaponEmbed(message.author.username, player, weapons[index], index, weapons.length)],
+        embeds: [
+          buildWeaponEmbed(
+            message.author.username,
+            player,
+            weapons[index],
+            index,
+            weapons.length
+          ),
+        ],
         components: buildRows(index, weapons.length, "mc_weapon_prev", "mc_weapon_next"),
       });
 
@@ -651,11 +679,26 @@ module.exports = {
         }
 
         if (i.customId === "mc_weapon_prev") index = Math.max(0, index - 1);
-        if (i.customId === "mc_weapon_next") index = Math.min(weapons.length - 1, index + 1);
+        if (i.customId === "mc_weapon_next") {
+          index = Math.min(weapons.length - 1, index + 1);
+        }
 
         return i.update({
-          embeds: [buildWeaponEmbed(message.author.username, player, weapons[index], index, weapons.length)],
-          components: buildRows(index, weapons.length, "mc_weapon_prev", "mc_weapon_next"),
+          embeds: [
+            buildWeaponEmbed(
+              message.author.username,
+              player,
+              weapons[index],
+              index,
+              weapons.length
+            ),
+          ],
+          components: buildRows(
+            index,
+            weapons.length,
+            "mc_weapon_prev",
+            "mc_weapon_next"
+          ),
         });
       });
 
@@ -689,7 +732,16 @@ module.exports = {
 
       if (ownedCard) {
         return message.reply({
-          embeds: [buildViewerEmbed(message.author.username, player, ownedCard, 0, 1, "Card Info")],
+          embeds: [
+            buildViewerEmbed(
+              message.author.username,
+              player,
+              ownedCard,
+              0,
+              1,
+              "Card Info"
+            ),
+          ],
         });
       }
 
@@ -706,6 +758,9 @@ module.exports = {
     if (sub1 === "boost") {
       working = working.filter((card) => card.cardRole === "boost");
       title = "Boost Collection";
+    } else if (sub1 === "text") {
+      working = [...cards];
+      title = "Card Collection";
     } else {
       working = working.filter((card) => card.cardRole !== "boost");
       title = "Card Collection";
@@ -713,7 +768,9 @@ module.exports = {
 
     if (!working.length) {
       return message.reply(
-        sub1 === "boost" ? "You do not own any boost cards yet." : "You do not own any cards yet."
+        sub1 === "boost"
+          ? "You do not own any boost cards yet."
+          : "You do not own any cards yet."
       );
     }
 
@@ -750,10 +807,14 @@ module.exports = {
         }
 
         if (i.customId === "mc_text_prev") pageIndex = Math.max(0, pageIndex - 1);
-        if (i.customId === "mc_text_next") pageIndex = Math.min(totalPages - 1, pageIndex + 1);
+        if (i.customId === "mc_text_next") {
+          pageIndex = Math.min(totalPages - 1, pageIndex + 1);
+        }
 
         return i.update({
-          embeds: [buildTextPageEmbed(message.author.username, lines, pageIndex, pageSize)],
+          embeds: [
+            buildTextPageEmbed(message.author.username, lines, pageIndex, pageSize),
+          ],
           components: buildTextRows(pageIndex, totalPages),
         });
       });
