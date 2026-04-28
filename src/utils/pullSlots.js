@@ -1,3 +1,5 @@
+const devilFruits = require("../data/devilFruits");
+
 const SUPPORT_SERVER_ROLE = "Support Server";
 const BOOSTER_ROLE = "Server Booster";
 const PREMIUM_ROLE_NAME = "Mother Flame";
@@ -9,8 +11,15 @@ const MAIN_SERVER_IDS = [
   process.env.SUPPORT_SERVER_ID,
 ].filter(Boolean);
 
+const BACCARAT_CARD_MAX_PULLS = 3;
+const DEFAULT_BACCARAT_FRUIT_MAX_PULLS = 2;
+
 function normalize(value) {
   return String(value || "").toLowerCase().trim();
+}
+
+function normalizeKey(value) {
+  return normalize(value).replace(/[_-]+/g, "").replace(/\s+/g, "");
 }
 
 function hasRoleOnMember(member, roleName) {
@@ -23,13 +32,13 @@ function hasRoleOnMember(member, roleName) {
 
 function isBoosterMember(member) {
   if (!member) return false;
-
   if (member.premiumSince || member.premiumSinceTimestamp) return true;
 
   return Boolean(
     member.roles?.cache?.some((role) => {
       if (normalize(role?.name) === normalize(BOOSTER_ROLE)) return true;
       if (role?.tags?.premiumSubscriberRole) return true;
+
       return false;
     })
   );
@@ -37,7 +46,6 @@ function isBoosterMember(member) {
 
 function getConfiguredMainGuild(message) {
   const guilds = message?.client?.guilds?.cache;
-
   if (!guilds) return null;
 
   for (const id of MAIN_SERVER_IDS) {
@@ -75,11 +83,13 @@ function hasRole(message, roleName) {
   if (message?.member && hasRoleOnMember(message.member, roleName)) return true;
 
   const mainMember = getMainGuildMember(message);
+
   return hasRoleOnMember(mainMember, roleName);
 }
 
 function hasMainServerRole(message, roleName) {
   const mainMember = getMainGuildMember(message);
+
   return hasRoleOnMember(mainMember, roleName);
 }
 
@@ -92,7 +102,6 @@ function isSupportServerMember(message) {
   const mainMember = getMainGuildMember(message);
 
   if (mainMember) return true;
-
   if (message?.guild && mainGuild && message.guild.id === mainGuild.id) return true;
 
   return false;
@@ -131,23 +140,107 @@ function isServerOwner(message) {
   return isCurrentGuildOwner(message) || isOwnerOfAnyBotGuild(message);
 }
 
-function hasBaccaratCard(player) {
-  return (Array.isArray(player?.cards) ? player.cards : []).some((card) => {
-    const code = normalize(card?.code);
-    const name = normalize(card?.name || card?.displayName);
+function isBaccaratCard(card) {
+  const code = normalizeKey(card?.code);
+  const name = normalize(card?.name || card?.displayName);
 
-    return code.includes("baccarat") || name.includes("baccarat");
-  });
+  return code.includes("baccarat") || name.includes("baccarat");
+}
+
+function getBaccaratCardStage(card) {
+  const stageFromNumber = Number(card?.evolutionStage || 0);
+
+  if (Number.isFinite(stageFromNumber) && stageFromNumber > 0) {
+    return Math.max(1, Math.min(BACCARAT_CARD_MAX_PULLS, stageFromNumber));
+  }
+
+  const stageFromKey = normalizeKey(card?.evolutionKey);
+
+  if (stageFromKey === "m3") return 3;
+  if (stageFromKey === "m2") return 2;
+  if (stageFromKey === "m1") return 1;
+
+  return 1;
+}
+
+function getBaccaratCardPullBonus(player) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+
+  let highestStage = 0;
+
+  for (const card of cards) {
+    if (!isBaccaratCard(card)) continue;
+
+    highestStage = Math.max(highestStage, getBaccaratCardStage(card));
+  }
+
+  return Math.max(0, Math.min(BACCARAT_CARD_MAX_PULLS, highestStage));
+}
+
+function hasBaccaratCard(player) {
+  return getBaccaratCardPullBonus(player) > 0;
+}
+
+function findDevilFruitData(value) {
+  const target = normalizeKey(value);
+  if (!target) return null;
+
+  return (
+    devilFruits.find((fruit) => normalizeKey(fruit.code) === target) ||
+    devilFruits.find((fruit) => normalizeKey(fruit.name) === target) ||
+    devilFruits.find((fruit) => normalizeKey(fruit.code).includes(target)) ||
+    devilFruits.find((fruit) => normalizeKey(fruit.name).includes(target)) ||
+    null
+  );
+}
+
+function isBaccaratFruitData(fruit) {
+  if (!fruit) return false;
+
+  const code = normalizeKey(fruit.code);
+  const name = normalize(fruit.name);
+  const owners = Array.isArray(fruit.owners) ? fruit.owners.map(normalizeKey) : [];
+
+  return (
+    code.includes("baccarat") ||
+    name.includes("baccarat") ||
+    owners.includes("baccarat") ||
+    Number(fruit.resetPullBonus || 0) > 0
+  );
+}
+
+function getEquippedFruitData(card) {
+  return (
+    findDevilFruitData(card?.equippedDevilFruit) ||
+    findDevilFruitData(card?.equippedDevilFruitCode) ||
+    findDevilFruitData(card?.equippedDevilFruitName) ||
+    null
+  );
+}
+
+function getBaccaratFruitPullBonus(player) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+
+  let highestBonus = 0;
+
+  for (const card of cards) {
+    if (!isBaccaratCard(card)) continue;
+    if (!card?.equippedDevilFruit && !card?.equippedDevilFruitName) continue;
+
+    const fruit = getEquippedFruitData(card);
+    if (!isBaccaratFruitData(fruit)) continue;
+
+    highestBonus = Math.max(
+      highestBonus,
+      Number(fruit?.resetPullBonus || DEFAULT_BACCARAT_FRUIT_MAX_PULLS)
+    );
+  }
+
+  return Math.max(0, highestBonus);
 }
 
 function hasBaccaratFruitEquipped(player) {
-  return (Array.isArray(player?.cards) ? player.cards : []).some((card) => {
-    const fruit = normalize(
-      card?.equippedDevilFruitName || card?.equippedDevilFruit || ""
-    );
-
-    return fruit.includes("baccarat");
-  });
+  return getBaccaratFruitPullBonus(player) > 0;
 }
 
 function getSavedAccess(player) {
@@ -178,40 +271,50 @@ function getPullSlotStatus(player, message) {
   const pulls = player?.pulls || {};
   const access = buildPullAccessSnapshot(player, message);
 
+  const baccaratCardBonus = getBaccaratCardPullBonus(player);
+  const baccaratFruitBonus = getBaccaratFruitPullBonus(player);
+
   return {
     base: {
       enabled: true,
       max: 6,
+      displayMax: 6,
       used: Number(pulls.base?.used || 0),
     },
     supportMember: {
       enabled: access.supportMember,
-      max: 1,
+      max: access.supportMember ? 1 : 0,
+      displayMax: 1,
       used: Number(pulls.supportMember?.used || 0),
     },
     booster: {
       enabled: access.booster,
-      max: 1,
+      max: access.booster ? 1 : 0,
+      displayMax: 1,
       used: Number(pulls.booster?.used || 0),
     },
     owner: {
       enabled: access.owner,
-      max: 1,
+      max: access.owner ? 1 : 0,
+      displayMax: 1,
       used: Number(pulls.owner?.used || 0),
     },
     patreon: {
       enabled: access.patreon,
-      max: 3,
+      max: access.patreon ? 3 : 0,
+      displayMax: 3,
       used: Number(pulls.patreon?.used || 0),
     },
     baccaratCard: {
-      enabled: hasBaccaratCard(player),
-      max: 1,
+      enabled: baccaratCardBonus > 0,
+      max: baccaratCardBonus,
+      displayMax: BACCARAT_CARD_MAX_PULLS,
       used: Number(pulls.baccaratCard?.used || 0),
     },
     baccaratFruit: {
-      enabled: hasBaccaratFruitEquipped(player),
-      max: 1,
+      enabled: baccaratFruitBonus > 0,
+      max: baccaratFruitBonus,
+      displayMax: Math.max(DEFAULT_BACCARAT_FRUIT_MAX_PULLS, baccaratFruitBonus),
       used: Number(pulls.baccaratFruit?.used || 0),
     },
   };
@@ -219,6 +322,7 @@ function getPullSlotStatus(player, message) {
 
 function getTotalPullUsage(player, message) {
   const slots = getPullSlotStatus(player, message);
+
   let totalMax = 0;
   let totalUsed = 0;
 
@@ -238,6 +342,7 @@ function getTotalPullUsage(player, message) {
 
 function getNextAvailablePullKey(player, message) {
   const slots = getPullSlotStatus(player, message);
+
   const order = [
     "base",
     "supportMember",
@@ -250,11 +355,9 @@ function getNextAvailablePullKey(player, message) {
 
   for (const key of order) {
     const slot = slots[key];
-
     if (!slot?.enabled) continue;
 
     const remaining = Math.max(0, Number(slot.max || 0) - Number(slot.used || 0));
-
     if (remaining > 0) return key;
   }
 
@@ -337,12 +440,12 @@ function resetAllPullSlots(player) {
     baccaratCard: {
       ...(pulls.baccaratCard || {}),
       used: 0,
-      max: 1,
+      max: BACCARAT_CARD_MAX_PULLS,
     },
     baccaratFruit: {
       ...(pulls.baccaratFruit || {}),
       used: 0,
-      max: 1,
+      max: DEFAULT_BACCARAT_FRUIT_MAX_PULLS,
     },
   };
 }
@@ -358,6 +461,8 @@ module.exports = {
   isServerOwner,
   hasBaccaratCard,
   hasBaccaratFruitEquipped,
+  getBaccaratCardPullBonus,
+  getBaccaratFruitPullBonus,
   buildPullAccessSnapshot,
   getPullSlotStatus,
   getTotalPullUsage,
