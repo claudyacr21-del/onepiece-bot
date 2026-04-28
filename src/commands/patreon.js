@@ -12,10 +12,10 @@ const TICKET_RESET_URL = process.env.PATREON_TICKET_RESET_URL || PATREON_URL;
 
 const PACKAGES = {
   mother_flame: {
-    label: "Mother Flame 25$",
+    label: "Mother Flame 15$",
     emoji: "🔥",
     url: MOTHER_FLAME_URL,
-    title: "Mother Flame | 25$/Month",
+    title: "Mother Flame | 15$/Month",
     description: [
       "**Global Perks**",
       "",
@@ -47,10 +47,10 @@ const PACKAGES = {
   },
 
   ticket_reset: {
-    label: "Ticket Reset 10$",
+    label: "10 Ticket Reset 5$",
     emoji: "🎟️",
     url: TICKET_RESET_URL,
-    title: "Ticket Reset | 10$",
+    title: "10 Ticket Reset | 5$",
     description: [
       "**Purchase Details**",
       "",
