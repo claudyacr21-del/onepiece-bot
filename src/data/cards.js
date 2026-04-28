@@ -285,6 +285,7 @@ const SPECIAL_FORMS = {
   samurai_spirit: ["Wano Country", "Kozuki Legacy", "Sword Soul"],
   crocodile_desert_king: ["Desert Tyrant", "Awakened Sand", "Underworld King"],
   nico_robin_devil_child: ["Archaeologist", "Demonio Fleur", "Ohara's Flame"],
+  daz_bonez: ["Alabasta", "Impel Down", "Underworld"],
   brook_soul_king: ["Soul Prelude", "Soul Parade", "Underworld Maestro"],
   jinbe_first_son_of_the_sea: ["First Son of the Sea", "Helmsman", "Ocean Vanguard"],
   ace_fire_fist: ["Fire Fist", "Inherited Flame", "Flame Emperor"],
