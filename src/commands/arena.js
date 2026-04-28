@@ -376,16 +376,20 @@ function buildArenaDescription({
     `**Record:** ${Number(arena?.wins || 0)}W / ${Number(arena?.losses || 0)}L`,
     `**Streak:** ${Number(arena?.streak || 0)}`,
     "",
-    "## Your Team",
-    teamSummary(myTeam),
+    "## Battle Log",
+    ...(recentLogs.length
+      ? recentLogs
+      : [
+          "Choose one of your cards to attack.",
+          "Target starts from opponent slot 1.",
+          "SPD decides turn order.",
+        ]),
     "",
     "## Opponent Team",
     teamSummary(enemyTeam),
     "",
-    "## Battle Log",
-    ...(recentLogs.length
-      ? recentLogs
-      : ["Choose one of your cards to attack. Target starts from opponent slot 1. SPD decides turn order."]),
+    "## Your Team",
+    teamSummary(myTeam),
   ].join("\n");
 }
 
@@ -542,37 +546,37 @@ function buildBotOpponents(playerPoints, count = 6) {
 
   const botTemplates = [
     {
-      username: "Pirate King Bot",
-      points: 35,
+      username: "NitroSlayer",
+      points: Math.max(35, safePlayerPoints + 20),
       wins: 3,
       losses: 0,
     },
     {
-      username: "Yonko Bot",
-      points: 25,
+      username: "IronPhantom",
+      points: Math.max(25, safePlayerPoints + 10),
       wins: 2,
       losses: 1,
     },
     {
-      username: "Grand Champion Bot",
-      points: 15,
+      username: "ApexPredator",
+      points: Math.max(15, safePlayerPoints),
       wins: 1,
       losses: 1,
     },
     {
-      username: "Arena Bot 1",
-      points: Math.max(0, safePlayerPoints + 10),
+      username: "Trafalgar Law",
+      points: Math.max(0, safePlayerPoints + 5),
       wins: 0,
       losses: 0,
     },
     {
-      username: "Arena Bot 2",
+      username: "VoidWalker",
       points: safePlayerPoints,
       wins: 0,
       losses: 0,
     },
     {
-      username: "Arena Bot 3",
+      username: "GhostProtocol",
       points: Math.max(0, safePlayerPoints - 10),
       wins: 0,
       losses: 0,

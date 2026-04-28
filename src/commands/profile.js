@@ -59,13 +59,28 @@ function getStoryProgress(player) {
   return `${cleared} bosses cleared • Current island: ${currentIsland}`;
 }
 
+const ARENA_START_RANK = 500;
+const ARENA_POINTS_PER_RANK = 10;
+
+function getArenaRankFromPoints(points) {
+  const safePoints = Math.max(0, Number(points || 0));
+
+  return Math.max(1, ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK));
+}
+
+function formatArenaRank(points) {
+  return `#${getArenaRankFromPoints(points)}`;
+}
+
 function getArenaSummary(player) {
   const arena = player?.arena || {};
+  const points = Number(arena.points || 0);
+
   return {
-    points: Number(arena.points || 0),
+    points,
+    rank: formatArenaRank(points),
     wins: Number(arena.wins || 0),
     losses: Number(arena.losses || 0),
-    draws: Number(arena.draws || 0),
     streak: Number(arena.streak || 0),
     bestStreak: Number(arena.bestStreak || 0),
   };
@@ -145,7 +160,7 @@ module.exports = {
           "",
           "## Arena Stats",
           `- Arena Points: \`${arena.points}\``,
-          `- Arena Record: \`${arena.wins}W / ${arena.losses}L / ${arena.draws}D\``,
+          `- Arena Record: \`${arena.wins}W / ${arena.losses}L\``,
           `- Arena Streak: \`${arena.streak}\``,
           `- Best Arena Streak: \`${arena.bestStreak}\``,
         ].join("\n")
