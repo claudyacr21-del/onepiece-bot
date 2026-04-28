@@ -6,25 +6,9 @@ const {
   isQuestDone,
   getQuestCompletionSummary,
 } = require("../utils/questProgress");
-
-const PREMIUM_ROLE_NAME =
-  process.env.PATREON_PREMIUM_ROLE_NAME ||
-  process.env.PREMIUM_ROLE_NAME ||
-  "Mother Flame";
+const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 
 const MAX_INSTANT_QUEST_PER_DAY = 2;
-
-function normalize(value) {
-  return String(value || "").toLowerCase().trim();
-}
-
-function hasRole(message, roleName) {
-  const target = normalize(roleName);
-
-  return Boolean(
-    message?.member?.roles?.cache?.some((role) => normalize(role?.name) === target)
-  );
-}
 
 function getTodayKey() {
   const now = new Date();
@@ -73,7 +57,7 @@ module.exports = {
   aliases: ["iq"],
 
   async execute(message, args) {
-    if (!hasRole(message, PREMIUM_ROLE_NAME)) {
+    if (!(await isPremiumUser(message))) {
       return message.reply(
         [
           `This command is only for **${PREMIUM_ROLE_NAME}** users.`,
@@ -95,11 +79,11 @@ module.exports = {
     const quests = Array.isArray(dailyState.quests) ? dailyState.quests : [];
 
     if (!quests.length) {
-      return message.reply("No daily quest is available right now. Use `op quest` first.");
+      return message.reply("No daily quest is available right now.\nUse `op quest` first.");
     }
 
     if (questNumber > quests.length) {
-      return message.reply(`Invalid quest number. Choose between **1-${quests.length}**.`);
+      return message.reply(`Invalid quest number.\nChoose between **1-${quests.length}**.`);
     }
 
     const instantQuestState = getInstantQuestState(player);
@@ -162,7 +146,9 @@ module.exports = {
       .setDescription(
         [
           `**Completed Quest:** #${questNumber} • ${selectedQuest.title || "Quest"}`,
-          `**Progress:** ${Number(selectedQuest.target || 0)}/${Number(selectedQuest.target || 0)}`,
+          `**Progress:** ${Number(selectedQuest.target || 0)}/${Number(
+            selectedQuest.target || 0
+          )}`,
           "",
           `**Instant Quest Used:** ${updatedInstantQuestState.used}/${MAX_INSTANT_QUEST_PER_DAY}`,
           `**Quest Left:** ${summary.left}/${summary.total}`,

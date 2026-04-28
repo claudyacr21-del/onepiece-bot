@@ -1,14 +1,9 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
+const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 const { ITEMS, cloneItem } = require("../data/items");
 
 const TREASURE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
-
-function hasRole(message, roleName) {
-  if (!message.member?.roles?.cache || !roleName) return false;
-  return message.member.roles.cache.some((role) => role.name === roleName);
-}
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
@@ -47,7 +42,6 @@ function formatRemaining(ms) {
 function rollTreasureRewards() {
   const berries = 12000 + Math.floor(Math.random() * 4000);
   const gems = 35 + Math.floor(Math.random() * 16);
-
   const boxes = [cloneItem(ITEMS.motherFlameTreasureBox, 1)];
   const materials = [];
   const tickets = [];
@@ -73,8 +67,10 @@ module.exports = {
   name: "treasure",
 
   async execute(message) {
-    if (!hasRole(message, PREMIUM_ROLE_NAME)) {
-      return message.reply("Only Mother Flame users can claim `op treasure`.");
+    if (!(await isPremiumUser(message))) {
+      return message.reply(
+        `Only ${PREMIUM_ROLE_NAME} users can claim \`op treasure\`.`
+      );
     }
 
     const player = getPlayer(message.author.id, message.author.username);
@@ -125,17 +121,17 @@ module.exports = {
       `↪ Gems: +${Number(reward.gems).toLocaleString("en-US")}`,
     ];
 
-    reward.boxes.forEach((item) =>
-      lines.push(`↪ ${item.name} x${item.amount}`)
-    );
+    reward.boxes.forEach((item) => {
+      lines.push(`↪ ${item.name} x${item.amount}`);
+    });
 
-    reward.materials.forEach((item) =>
-      lines.push(`↪ ${item.name} x${item.amount}`)
-    );
+    reward.materials.forEach((item) => {
+      lines.push(`↪ ${item.name} x${item.amount}`);
+    });
 
-    reward.tickets.forEach((item) =>
-      lines.push(`↪ ${item.name} x${item.amount}`)
-    );
+    reward.tickets.forEach((item) => {
+      lines.push(`↪ ${item.name} x${item.amount}`);
+    });
 
     const embed = new EmbedBuilder()
       .setColor(0xe67e22)

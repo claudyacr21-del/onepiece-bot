@@ -12,19 +12,9 @@ const {
 } = require("../utils/pullSlots");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { rollPremiumBaseTier } = require("../utils/pullRates");
+const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 
-const PREMIUM_ROLE_NAME = "Mother Flame";
 const PREMIUM_PITY_TARGET = 100;
-
-function hasRole(message, roleName) {
-  return Boolean(
-    message?.member?.roles?.cache?.some(
-      (role) =>
-        String(role?.name || "").toLowerCase() ===
-        String(roleName || "").toLowerCase()
-    )
-  );
-}
 
 function getSharedPity(player) {
   const pity = player?.pity || {};
@@ -89,7 +79,6 @@ function getRewardPool(contentType) {
 
 function pickRandomByRarity(pool, rarity) {
   const list = Array.isArray(pool) ? pool : [];
-
   if (!list.length) return null;
 
   const filtered = list.filter(
@@ -264,8 +253,8 @@ module.exports = {
   aliases: ["pullall"],
 
   async execute(message) {
-    if (!hasRole(message, PREMIUM_ROLE_NAME)) {
-      return message.reply("Only Mother Flame users can use `op pa`.");
+    if (!(await isPremiumUser(message))) {
+      return message.reply(`Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`);
     }
 
     const player = getPlayer(message.author.id, message.author.username);
@@ -348,7 +337,10 @@ module.exports = {
       } else if (rewardResult.storageKey === "weapons") {
         updatedWeapons = addNamedItem(updatedWeapons, rewardResult.storedReward);
       } else {
-        updatedDevilFruits = addNamedItem(updatedDevilFruits, rewardResult.storedReward);
+        updatedDevilFruits = addNamedItem(
+          updatedDevilFruits,
+          rewardResult.storedReward
+        );
       }
 
       if (contentType === "battleCard" || contentType === "boostCard") {
@@ -432,7 +424,7 @@ module.exports = {
       embeds.push(
         new EmbedBuilder()
           .setColor(0x8e44ad)
-          .setTitle(`🎴 Pull Results ${index + 1}/${chunks.length}`)
+          .setTitle(`Pull Results ${index + 1}/${chunks.length}`)
           .setDescription(chunk || "No rewards rolled.")
           .setFooter({
             text: `One Piece Bot • Pull All • Pity ${updatedPity.pullPity}/${PREMIUM_PITY_TARGET}`,
@@ -444,7 +436,7 @@ module.exports = {
       embeds.push(
         new EmbedBuilder()
           .setColor(0x8e44ad)
-          .setTitle("🎴 Pull Results")
+          .setTitle("Pull Results")
           .setDescription("No rewards rolled.")
       );
     }
