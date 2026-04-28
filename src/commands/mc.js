@@ -292,14 +292,14 @@ function buildTextLines(cards) {
     const level = Number(card.level || 1);
 
     if (card.cardRole === "boost") {
-      return `**${rarity} ${name} | ${stage} | 💠 ${power} | Lv: ${level}**`;
+      return `**${rarity} ${name} | ${stage} | 🔥 ${power} | Lv: ${level}**`;
     }
 
     const hp = Number(card.hp || 0);
     const speed = Number(card.speed || 0);
     const atkRange = formatAtkRange(card.atk);
 
-    return `**${rarity} ${name} | ${stage} | 💠 ${power} | ❤️ ${hp}/${hp} | 🌀 ${speed} | ⚔️ ${atkRange} | Lv: ${level}**`;
+    return `**${rarity} ${name} | ${stage} | 🔥 ${power} | ❤️ ${hp}/${hp} | 💨 ${speed} | ⚔️ ${atkRange} | Lv: ${level}**`;
   });
 }
 
