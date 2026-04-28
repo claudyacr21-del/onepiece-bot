@@ -1,7 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const {
-  findOwnedCard,
+  hydrateCard,
   getWeaponPower,
   getFruitPower,
 } = require("../utils/evolution");
@@ -82,6 +82,26 @@ function scoreQuery(query, candidates) {
   }
 
   return best;
+}
+
+function findOwnedCardByNameOnly(cardsOwned, query) {
+  const q = normalize(query);
+  if (!q) return null;
+
+  const scored = (Array.isArray(cardsOwned) ? cardsOwned : [])
+    .map((card) => ({
+      card,
+      score: scoreQuery(q, [
+        card.name,
+        card.displayName,
+      ]),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (!scored.length) return null;
+
+  return hydrateCard(scored[0].card);
 }
 
 function findFruitTemplate(value) {
@@ -408,7 +428,7 @@ module.exports = {
 
     const player = getPlayer(message.author.id, message.author.username);
     const boosts = getPassiveBoostSummary(player);
-    const ownedCard = findOwnedCard(player.cards || [], query);
+    const ownedCard = findOwnedCardByNameOnly(player.cards || [], query);
     const card = applyBoostedDisplayStats(ownedCard, boosts);
 
     if (card) {
