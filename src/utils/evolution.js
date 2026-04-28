@@ -55,7 +55,7 @@ function getBoostEffectText(card, stage = 1) {
   }
 
   if (boostType === "pullchance" || boostType === "pull_chance") {
-    return `Increase ${target} pull chance by ${stageValue}%.`;
+    return `Increase ${target} pull chance by ${stageValue}.`;
   }
 
   if (boostType === "daily") {

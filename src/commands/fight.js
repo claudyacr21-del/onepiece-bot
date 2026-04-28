@@ -31,6 +31,13 @@ function formatExpResults(playerTeam, expResults) {
       if (!unit) return null;
 
       if (entry.locked) {
+        if (
+          Number(entry.level || 0) >= Number(entry.cap || 0) &&
+          Number(entry.cap || 0) >= 100
+        ) {
+          return `🔒 ${unit.name} is already MAX LEVEL (**${entry.level}/${entry.cap}**).`;
+        }
+
         return `🔒 ${unit.name} is level locked at **${entry.level}/${entry.cap}**. Awaken to continue.`;
       }
 

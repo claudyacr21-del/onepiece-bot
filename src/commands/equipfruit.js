@@ -223,7 +223,11 @@ async function equipFruitToCard(message, player, card, fruit) {
     equippedDevilFruitName: fruit.name,
   });
 
+  const syncedCard = hydrateCard(cards[cardIndex]);
+  cards[cardIndex] = syncedCard;
+
   const currentAmount = Number(ownedFruits[fruitIndex].amount || 1);
+
   if (currentAmount <= 1) {
     ownedFruits.splice(fruitIndex, 1);
   } else {
@@ -238,16 +242,26 @@ async function equipFruitToCard(message, player, card, fruit) {
     devilFruits: ownedFruits,
   });
 
-  const equippedFruitData = findBoostFruitByCode(fruit.code);
-  const syncedCard = cards[cardIndex];
+  const boostFruitData = findBoostFruitByCode(fruit.code);
+
+  const resolvedFruitData =
+    syncedCard.equippedDevilFruitData ||
+    devilFruits.find((entry) => entry.code === fruit.code) ||
+    fruit;
+
   const isBoost = syncedCard.cardRole === "boost";
   const effectiveValue = isBoost ? getEffectiveBoostValue(syncedCard) : null;
+
   const suffix =
     isBoost && ["atk", "hp", "spd", "exp", "dmg"].includes(syncedCard.boostType)
       ? "%"
       : "";
 
-  const percent = fruit.statPercent || { atk: 0, hp: 0, speed: 0 };
+  const percent = resolvedFruitData?.statPercent || {
+    atk: 0,
+    hp: 0,
+    speed: 0,
+  };
 
   const embed = new EmbedBuilder()
     .setColor(isBoost ? 0x9b59b6 : 0x2ecc71)
@@ -255,7 +269,7 @@ async function equipFruitToCard(message, player, card, fruit) {
     .setDescription(
       [
         `**Card:** ${syncedCard.displayName || syncedCard.name}`,
-        `**Fruit:** ${fruit.name}`,
+        `**Fruit:** ${resolvedFruitData?.name || fruit.name}`,
         !isBoost
           ? `**ATK:** ${Math.floor(Number(syncedCard.atk || 0) * 0.85)}-${Math.floor(Number(syncedCard.atk || 0) * 1.15)}`
           : null,
@@ -266,8 +280,8 @@ async function equipFruitToCard(message, player, card, fruit) {
           : null,
         isBoost ? `**Boost Type:** \`${syncedCard.boostType}\`` : null,
         isBoost ? `**Final Boost Value:** \`${effectiveValue}${suffix}\`` : null,
-        isBoost && equippedFruitData?.boostBonus
-          ? `**Fruit Bonus Applied:** \`${Number(equippedFruitData.boostBonus[syncedCard.boostType] || 0)}${suffix}\``
+        isBoost && boostFruitData?.boostBonus
+          ? `**Fruit Bonus Applied:** \`${Number(boostFruitData.boostBonus[syncedCard.boostType] || 0)}${suffix}\``
           : null,
         "",
         "This equip is permanent and cannot be removed.",
