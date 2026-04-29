@@ -292,13 +292,17 @@ function getActiveBossPhase(player, island) {
 
 function getPartyMemberIds(player, fallbackUserId) {
   const party = player?.party || {};
-  const rawMembers =
+  const rawPartyMembers =
     party.members ||
     party.memberIds ||
     party.players ||
     party.userIds ||
     player?.partyMembers ||
     [];
+
+  const rawRaidMembers = Array.isArray(player?.raidTeam?.members)
+    ? player.raidTeam.members
+    : [];
 
   const ids = new Set();
 
@@ -314,23 +318,46 @@ function getPartyMemberIds(player, fallbackUserId) {
     ids.add(String(party.ownerId));
   }
 
-  if (Array.isArray(rawMembers)) {
-    for (const member of rawMembers) {
-      if (!member) continue;
+  if (player?.raidTeam?.leaderId) {
+    ids.add(String(player.raidTeam.leaderId));
+  }
 
-      if (typeof member === "string") {
-        ids.add(member);
-        continue;
-      }
+  if (player?.raidTeam?.ownerId) {
+    ids.add(String(player.raidTeam.ownerId));
+  }
 
-      if (member.id) {
-        ids.add(String(member.id));
-        continue;
-      }
+  function addMember(member) {
+    if (!member) return;
 
-      if (member.userId) {
-        ids.add(String(member.userId));
-      }
+    if (typeof member === "string") {
+      ids.add(String(member));
+      return;
+    }
+
+    if (member.id) {
+      ids.add(String(member.id));
+      return;
+    }
+
+    if (member.userId) {
+      ids.add(String(member.userId));
+      return;
+    }
+
+    if (member.memberId) {
+      ids.add(String(member.memberId));
+    }
+  }
+
+  if (Array.isArray(rawPartyMembers)) {
+    for (const member of rawPartyMembers) {
+      addMember(member);
+    }
+  }
+
+  if (Array.isArray(rawRaidMembers)) {
+    for (const member of rawRaidMembers) {
+      addMember(member);
     }
   }
 
@@ -348,12 +375,14 @@ function requiresPartyForBossPhase(island, phaseBoss) {
   return ["egghead", "elbaf"].includes(islandCode) && phase === 2;
 }
 
+function getBossPartyTotal(player, message) {
+  return getPartyMemberIds(player, message.author.id).length;
+}
+
 function hasRequiredBossParty(player, message, phaseBoss) {
   if (!phaseBoss) return true;
 
-  const memberIds = getPartyMemberIds(player, message.author.id);
-
-  return memberIds.length >= 2;
+  return getBossPartyTotal(player, message) >= 2;
 }
 
 function getIslandBossImage(currentIsland, phaseBoss = null, fromDb = null) {
@@ -763,19 +792,24 @@ module.exports = {
     }
 
     const phaseBoss = getActiveBossPhase(player, currentIsland);
+
     if (
       requiresPartyForBossPhase(currentIsland, phaseBoss) &&
       !hasRequiredBossParty(player, message, phaseBoss)
     ) {
+      const currentTotal = getBossPartyTotal(player, message);
+
       return message.reply(
         [
           `\`${currentIsland.name} Phase ${phaseBoss.phase}\` requires a party.`,
-          "You need at least **2 users** in your party before starting this boss phase.",
+          `Current party: **${currentTotal}/2 total users**.`,
           "",
-          "Make a party first, then try `op boss` again.",
+          "The party leader counts as 1 user.",
+          "Use `op rtadd @user` to add at least 1 member, then try `op boss` again.",
         ].join("\n")
       );
     }
+
     const combatBoosts = getPassiveBoostSummary(player);
 
     const rawCards = Array.isArray(player.cards) ? player.cards : [];
