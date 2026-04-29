@@ -652,6 +652,249 @@ function getBoostStageValue(card, stage = 1) {
   return Number(card?.boostValueM3 ?? card?.m3BoostValue ?? base + 4);
 }
 
+function getOwnedFragmentAmount(player, targetCard) {
+  const code = normalize(targetCard?.code);
+  const name = normalize(targetCard?.displayName || targetCard?.name);
+
+  const globalAmount = safeArray(player?.fragments)
+    .filter((entry) => {
+      const entryCode = normalize(entry.code);
+      const entryName = normalize(entry.name || entry.displayName);
+
+      return (
+        (code && entryCode === code) ||
+        (name && entryName === name) ||
+        (code && entryName === code) ||
+        (name && entryCode === name)
+      );
+    })
+    .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+  return globalAmount + Number(targetCard?.fragments || 0);
+}
+
+function consumeOwnedFragments(player, targetIndex, targetCard, amount) {
+  let remaining = Number(amount || 0);
+  const code = normalize(targetCard?.code);
+  const name = normalize(targetCard?.displayName || targetCard?.name);
+
+  const updatedFragments = safeArray(player?.fragments).map((entry) => {
+    if (remaining <= 0) return entry;
+
+    const entryCode = normalize(entry.code);
+    const entryName = normalize(entry.name || entry.displayName);
+
+    const matched =
+      (code && entryCode === code) ||
+      (name && entryName === name) ||
+      (code && entryName === code) ||
+      (name && entryCode === name);
+
+    if (!matched) return entry;
+
+    const current = Number(entry.amount || 0);
+    const taken = Math.min(current, remaining);
+    remaining -= taken;
+
+    return {
+      ...entry,
+      amount: current - taken,
+    };
+  }).filter((entry) => Number(entry.amount || 0) > 0);
+
+  const updatedCards = safeArray(player?.cards).map((card, index) => {
+    if (index !== targetIndex) return card;
+    if (remaining <= 0) return card;
+
+    const current = Number(card.fragments || 0);
+    const taken = Math.min(current, remaining);
+    remaining -= taken;
+
+    return {
+      ...card,
+      fragments: current - taken,
+    };
+  });
+
+  if (remaining > 0) {
+    throw new Error("Not enough self fragments.");
+  }
+
+  return {
+    updatedCards,
+    updatedFragments,
+  };
+}
+
+function findOwnedCardIndexForAwaken(cardsOwned, query) {
+  const q = normalize(query);
+
+  return safeArray(cardsOwned).findIndex((card) => {
+    const fields = [
+      card.code,
+      card.name,
+      card.displayName,
+      card.title,
+      card.variant,
+    ]
+      .filter(Boolean)
+      .map(normalize);
+
+    return fields.some(
+      (field) => field === q || field.includes(q) || q.includes(field)
+    );
+  });
+}
+
+function findOwnedRequirementCard(player, code) {
+  const q = normalize(code);
+
+  return safeArray(player?.cards)
+    .map((card) => hydrateCard(mergeOwnedCardWithTemplate(card)))
+    .filter(Boolean)
+    .find((card) => normalize(card.code) === q) || null;
+}
+
+function validateAwakenRequirement(player, targetCard, req) {
+  const missing = [];
+
+  const berriesNeed = Number(req?.berries || 0);
+  const berriesOwned = Number(player?.berries || 0);
+
+  if (berriesOwned < berriesNeed) {
+    missing.push(
+      `Berries ${berriesOwned.toLocaleString("en-US")}/${berriesNeed.toLocaleString("en-US")}`
+    );
+  }
+
+  const fragmentsNeed = Number(req?.selfFragments || 0);
+  const fragmentsOwned = getOwnedFragmentAmount(player, targetCard);
+
+  if (fragmentsOwned < fragmentsNeed) {
+    missing.push(
+      `Self fragments ${fragmentsOwned}/${fragmentsNeed}x ${targetCard.displayName || targetCard.name}`
+    );
+  }
+
+  if (targetCard.cardRole === "battle") {
+    const levelNeed = Number(req?.minLevel || 0);
+    const levelOwned = Number(targetCard.level || 1);
+
+    if (levelOwned < levelNeed) {
+      missing.push(`Level ${levelOwned}/${levelNeed}`);
+    }
+  }
+
+  for (const entry of safeArray(req?.cards)) {
+    const owned = findOwnedRequirementCard(player, entry.code);
+    const stageNeed = Number(entry.stage || 1);
+
+    if (!owned) {
+      missing.push(`${entry.name || entry.code} M${stageNeed}`);
+      continue;
+    }
+
+    if (Number(owned.evolutionStage || 1) < stageNeed) {
+      missing.push(
+        `${owned.displayName || owned.name} M${Number(owned.evolutionStage || 1)}/M${stageNeed}`
+      );
+    }
+  }
+
+  for (const entry of safeArray(req?.boosts)) {
+    const owned = findOwnedRequirementCard(player, entry.code);
+    const stageNeed = Number(entry.stage || 1);
+
+    if (!owned) {
+      missing.push(`${entry.name || entry.code} M${stageNeed}`);
+      continue;
+    }
+
+    if (Number(owned.evolutionStage || 1) < stageNeed) {
+      missing.push(
+        `${owned.displayName || owned.name} M${Number(owned.evolutionStage || 1)}/M${stageNeed}`
+      );
+    }
+  }
+
+  if (missing.length) {
+    throw new Error(`Missing requirements:\n${missing.map((line) => `↪ ${line}`).join("\n")}`);
+  }
+}
+
+function awakenOwnedCard(player, query) {
+  const cardsOwned = safeArray(player?.cards);
+  const targetIndex = findOwnedCardIndexForAwaken(cardsOwned, query);
+
+  if (targetIndex === -1) {
+    throw new Error("You do not own that card.");
+  }
+
+  const originalCard = cardsOwned[targetIndex];
+  const target = hydrateCard(mergeOwnedCardWithTemplate(originalCard));
+
+  if (!target) {
+    throw new Error("Card data could not be loaded.");
+  }
+
+  const currentStage = Math.max(1, Math.min(3, Number(target.evolutionStage || 1)));
+
+  if (currentStage >= 3) {
+    throw new Error("This card is already at M3.");
+  }
+
+  const nextStage = currentStage + 1;
+  const req = target.awakenRequirements?.[`M${nextStage}`];
+
+  if (!req) {
+    throw new Error("No awaken requirement found.");
+  }
+
+  validateAwakenRequirement(player, target, req);
+
+  const afterFragmentConsume = consumeOwnedFragments(
+    player,
+    targetIndex,
+    target,
+    Number(req.selfFragments || 0)
+  );
+
+  const nextCards = afterFragmentConsume.updatedCards.map((card, index) => {
+    if (index !== targetIndex) return card;
+
+    const awakened = hydrateCard({
+      ...card,
+      evolutionStage: nextStage,
+      evolutionKey: `M${nextStage}`,
+    });
+
+    return {
+      ...card,
+      evolutionStage: nextStage,
+      evolutionKey: `M${nextStage}`,
+      currentTier: awakened.currentTier,
+      rarity: awakened.rarity,
+      baseAtk: awakened.baseAtk,
+      baseHp: awakened.baseHp,
+      baseSpeed: awakened.baseSpeed,
+      atk: awakened.atk,
+      hp: awakened.hp,
+      speed: awakened.speed,
+      currentPower: awakened.currentPower,
+      powerCaps: awakened.powerCaps,
+    };
+  });
+
+  const updatedTarget = hydrateCard(mergeOwnedCardWithTemplate(nextCards[targetIndex]));
+
+  return {
+    updatedCards: nextCards,
+    updatedFragments: afterFragmentConsume.updatedFragments,
+    berries: Number(player.berries || 0) - Number(req.berries || 0),
+    target: updatedTarget,
+  };
+}
+
 module.exports = {
   hydrateCard,
   findCardTemplate,
@@ -669,4 +912,5 @@ module.exports = {
   getFruitPower,
   createOwnedCard,
   getBoostStageValue,
+  awakenOwnedCard,
 };
