@@ -597,8 +597,13 @@ module.exports = {
   async execute(message, args) {
     const player = getPlayer(message.author.id, message.author.username);
     const boosts = getPassiveBoostSummary(player);
-    const sub1 = String(args?.[0] || "").toLowerCase();
-    const query = args.join(" ").trim();
+    let sub1 = String(args?.[0] || "").toLowerCase();
+    let query = args.join(" ").trim();
+
+    if (query && sub1 !== "text" && sub1 !== "boost" && sub1 !== "weapon") {
+      sub1 = "";
+      query = "";
+    }
 
     const cards = (player.cards || [])
       .map(mergeOwnedCardWithLatestTemplate)
@@ -672,41 +677,8 @@ module.exports = {
       return;
     }
 
-    if (query && sub1 !== "text" && sub1 !== "boost") {
-      const ownedWeapon = findOwnedWeapon(player, query);
-
-      if (ownedWeapon) {
-        return message.reply({
-          embeds: [buildWeaponEmbed(message.author.username, player, ownedWeapon)],
-        });
-      }
-
-      const ownedFruit = findOwnedFruit(player, query);
-
-      if (ownedFruit) {
-        return message.reply({
-          embeds: [buildFruitEmbed(message.author.username, player, ownedFruit)],
-        });
-      }
-
-      const ownedCard = findOwnedCardByQuery(cards, query);
-
-      if (ownedCard) {
-        return message.reply({
-          embeds: [
-            buildViewerEmbed(
-              message.author.username,
-              player,
-              ownedCard,
-              0,
-              1,
-              "Card Info"
-            ),
-          ],
-        });
-      }
-
-      return message.reply("You do not own that card, devil fruit, or weapon.");
+    if (query && sub1 !== "text" && sub1 !== "boost" && sub1 !== "weapon") {
+      args.length = 0;
     }
 
     if (!cards.length) {
