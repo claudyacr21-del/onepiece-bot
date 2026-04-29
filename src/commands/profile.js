@@ -2,6 +2,7 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
 const { hydrateCard } = require("../utils/evolution");
+const { getShipByCode, SHIPS } = require("../data/ships");
 
 const DEFAULT_START_ISLAND = "Foosha Village";
 const ARENA_START_RANK = 500;
@@ -90,11 +91,20 @@ function getArenaSummary(player) {
 }
 
 function getShipSummary(player) {
-  const ship = player?.ship || {};
+  const shipState = player?.ship || {};
+  const tier = Number(shipState.tier || 1);
+
+  const shipByCode = getShipByCode(shipState.shipCode || "");
+  const shipByTier = SHIPS.find((ship) => Number(ship.tier || 1) === tier);
+
+  const resolvedShip =
+    shipByCode && shipByCode.code !== "small_boat"
+      ? shipByCode
+      : shipByTier || shipByCode;
 
   return {
-    name: ship.name || "Small Boat",
-    tier: Number(ship.tier || 1),
+    name: resolvedShip?.name || shipState.name || "Small Boat",
+    tier: Number(resolvedShip?.tier || tier || 1),
   };
 }
 
