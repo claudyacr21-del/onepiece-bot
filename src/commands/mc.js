@@ -327,14 +327,14 @@ function buildTextLines(cards) {
   });
 }
 
-function buildTextPageEmbed(ownerName, lines, pageIndex, pageSize = 10) {
+function buildTextPageEmbed(ownerName, lines, pageIndex, pageSize = 7) {
   const start = pageIndex * pageSize;
   const pageLines = lines.slice(start, start + pageSize);
 
   return new EmbedBuilder()
     .setColor(0x3498db)
     .setTitle(`${ownerName}'s Card Collection`)
-    .setDescription(pageLines.join("\n\n"))
+    .setDescription(pageLines.join("\n"))
     .setFooter({
       text: `Showing ${start + 1}-${Math.min(
         start + pageSize,
@@ -796,7 +796,7 @@ module.exports = {
 
     if (sub1 === "text") {
       const lines = buildTextLines(working);
-      const pageSize = 10;
+      const pageSize = 7;
       const totalPages = Math.max(1, Math.ceil(lines.length / pageSize));
       let pageIndex = 0;
 
