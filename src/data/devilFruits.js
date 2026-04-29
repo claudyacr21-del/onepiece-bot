@@ -579,5 +579,15 @@ module.exports = [
   statPercent: { atk: 10, hp: 8, speed: 5 },
   image: "",
   description: "A paramecia fruit that lets the user create and manipulate arrow-like strips for offense, control, mobility, and restraint."
+  },
+  {
+  code: "jiki_jiki_no_mi",
+  name: "Jiki Jiki no Mi",
+  rarity: "S",
+  owners: ["kid_captain"],
+  type: "Paramecia Fruit",
+  statPercent: { atk: 7, hp: 6, speed: 4 },
+  image: "",
+  description: "A magnetic devil fruit that lets the user control metal, create massive constructs, and unleash powerful electromagnetic attacks."
   }
 ];
