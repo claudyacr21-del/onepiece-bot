@@ -5,7 +5,7 @@ const {
   ButtonStyle,
 } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { hydrateCard, findCardTemplate } = require("../utils/evolution");
+const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
 const { getCurrentIsland, getIslandByCode } = require("../data/islands");
@@ -89,34 +89,7 @@ function applyBoostToNumber(value, percent) {
 }
 
 function mergeOwnedCardWithLatestTemplate(rawCard) {
-  const template = findCardTemplate(rawCard.code || rawCard.name || "");
-
-  if (!template) return hydrateCard(rawCard);
-
-  return hydrateCard({
-    ...template,
-    instanceId: rawCard.instanceId,
-    ownerId: rawCard.ownerId,
-    level: rawCard.level,
-    xp: rawCard.xp,
-    exp: rawCard.exp,
-    kills: rawCard.kills,
-    fragments: rawCard.fragments,
-    evolutionStage: rawCard.evolutionStage,
-    evolutionKey: rawCard.evolutionKey,
-    currentTier: rawCard.currentTier || template.currentTier,
-    rarity: rawCard.rarity || template.rarity,
-    equippedWeapons: Array.isArray(rawCard.equippedWeapons)
-      ? rawCard.equippedWeapons
-      : [],
-    equippedWeapon: rawCard.equippedWeapon || null,
-    equippedWeaponName: rawCard.equippedWeaponName || null,
-    equippedWeaponCode: rawCard.equippedWeaponCode || null,
-    equippedWeaponLevel: rawCard.equippedWeaponLevel || 0,
-    equippedDevilFruit: rawCard.equippedDevilFruit || null,
-    equippedDevilFruitName: rawCard.equippedDevilFruitName || null,
-    cardRole: rawCard.cardRole || template.cardRole,
-  });
+  return hydrateCard(rawCard);
 }
 
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {

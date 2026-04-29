@@ -11,7 +11,7 @@ const SHIPS = [
     travelCooldownReduction: 0,
     image: "",
     upgradeCost: {
-      berries: 5000,
+      berries: 50000,
       materials: [
         { code: "hardwood", name: "Hardwood", amount: 10 },
         { code: "sail_cloth", name: "Sail Cloth", amount: 5 },
@@ -29,7 +29,7 @@ const SHIPS = [
     travelCooldownReduction: 0,
     image: "",
     upgradeCost: {
-      berries: 15000,
+      berries: 150000,
       materials: [
         { code: "hardwood", name: "Hardwood", amount: 20 },
         { code: "iron_plating", name: "Iron Plating", amount: 10 },
@@ -48,7 +48,7 @@ const SHIPS = [
     travelCooldownReduction: 1,
     image: "",
     upgradeCost: {
-      berries: 40000,
+      berries: 400000,
       materials: [
         { code: "hardwood", name: "Hardwood", amount: 35 },
         { code: "iron_plating", name: "Iron Plating", amount: 20 },
@@ -68,7 +68,7 @@ const SHIPS = [
     travelCooldownReduction: 2,
     image: "",
     upgradeCost: {
-      berries: 90000,
+      berries: 1000000,
       materials: [
         { code: "hardwood", name: "Hardwood", amount: 50 },
         { code: "iron_plating", name: "Iron Plating", amount: 35 },
