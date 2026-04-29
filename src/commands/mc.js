@@ -26,14 +26,31 @@ const devilFruitsDb = require("../data/devilFruits");
 
 const FLAT_EXP_CAP = 1000;
 
+function cleanEmoji(value, fallback) {
+  const raw = String(value || "").trim();
+
+  if (!raw) return fallback;
+
+  return raw
+    .replace(/^["']+/, "")
+    .replace(/["']+$/, "")
+    .trim();
+}
+
 const RARITY_EMOJIS = {
-  C: process.env.RARITY_EMOJI_C || "C",
-  B: process.env.RARITY_EMOJI_B || "B",
-  A: process.env.RARITY_EMOJI_A || "A",
-  S: process.env.RARITY_EMOJI_S || "S",
-  SS: process.env.RARITY_EMOJI_SS || "SS",
-  UR: process.env.RARITY_EMOJI_UR || "UR",
+  C: cleanEmoji(process.env.RARITY_EMOJI_C, "C"),
+  B: cleanEmoji(process.env.RARITY_EMOJI_B, "B"),
+  A: cleanEmoji(process.env.RARITY_EMOJI_A, "A"),
+  S: cleanEmoji(process.env.RARITY_EMOJI_S, "S"),
+  SS: cleanEmoji(process.env.RARITY_EMOJI_SS, "SS"),
+  UR: cleanEmoji(process.env.RARITY_EMOJI_UR, "UR"),
 };
+
+function getRarityEmoji(rarity) {
+  const tier = String(rarity || "C").toUpperCase();
+
+  return RARITY_EMOJIS[tier] || tier;
+}
 
 function normalize(text) {
   return String(text || "")
@@ -42,12 +59,6 @@ function normalize(text) {
     .replace(/^model:\s*/i, "")
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ");
-}
-
-function getRarityEmoji(rarity) {
-  const tier = String(rarity || "C").toUpperCase();
-
-  return RARITY_EMOJIS[tier] || tier;
 }
 
 function getPower(card) {

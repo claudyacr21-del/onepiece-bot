@@ -27,7 +27,15 @@ const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 function formatExpResults(playerTeam, expResults) {
   return expResults
     .map((entry) => {
-      const unit = playerTeam.find((card) => card.instanceId === entry.instanceId);
+      const unit =
+        playerTeam.find(
+          (card) =>
+            Number.isInteger(entry.sourceIndex) &&
+            Number.isInteger(card.sourceIndex) &&
+            card.sourceIndex === entry.sourceIndex
+        ) ||
+        playerTeam.find((card) => card.instanceId === entry.instanceId);
+
       if (!unit) return null;
 
       if (entry.locked) {
@@ -122,22 +130,27 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
 
   return {
     slot: slotIndex + 1,
+    sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
     instanceId: card.instanceId,
     name: card.displayName || card.name || "Unknown",
     rarity: card.currentTier || card.rarity || "C",
+
     atk: displayAtk,
     hp: displayHp,
     maxHp: displayHp,
     speed: displaySpeed,
+
     battleAtk,
     battleHp: battleMaxHp,
     battleMaxHp,
     battleSpeed,
+
     level: Number(card.level || 1),
     levelCap: getCardLevelCap(card),
     exp: getCardExp(card),
     kills: Number(card.kills || 0),
     image: card.image || "",
+
     passiveBoostsApplied: {
       atk: Number(combatBoosts.atk || 0),
       hp: Number(combatBoosts.hp || 0),
@@ -509,6 +522,7 @@ function calculateFightExp(playerTeam, won) {
 
     if (level >= cap) {
       return {
+        sourceIndex: Number.isInteger(unit.sourceIndex) ? unit.sourceIndex : null,
         instanceId: unit.instanceId,
         expGain: 0,
         locked: true,
@@ -521,6 +535,7 @@ function calculateFightExp(playerTeam, won) {
     const baseExp = won ? BASE_WIN_EXP : BASE_LOSE_EXP;
 
     return {
+      sourceIndex: Number.isInteger(unit.sourceIndex) ? unit.sourceIndex : null,
       instanceId: unit.instanceId,
       expGain: applyExpBoost(baseExp, unit.passiveBoostsApplied || {}),
       locked: false,
@@ -549,9 +564,18 @@ function isMotherFlamePremium(player) {
 function applyFightLoss(message, player, playerTeam) {
   const expResults = calculateFightExp(playerTeam, false);
 
-  const updatedCards = [...(player.cards || [])].map((card) => {
-    const expEntry = expResults.find((entry) => entry.instanceId === card.instanceId);
-    const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
+  const updatedCards = [...(player.cards || [])].map((card, index) => {
+    const expEntry =
+      expResults.find(
+        (entry) =>
+          Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
+      ) || expResults.find((entry) => entry.instanceId === card.instanceId);
+
+    const unit =
+      playerTeam.find(
+        (entry) =>
+          Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
+      ) || playerTeam.find((entry) => entry.instanceId === card.instanceId);
 
     if (!expEntry || !unit) return card;
 
@@ -609,8 +633,18 @@ module.exports = {
     }
 
     const combatBoosts = getPlayerCombatBoosts(player);
-    const cards = (Array.isArray(player.cards) ? player.cards : [])
-      .map(mergeOwnedCardWithLatestTemplate)
+    const rawCards = Array.isArray(player.cards) ? player.cards : [];
+
+    const cards = rawCards
+      .map((rawCard, sourceIndex) => {
+        const merged = mergeOwnedCardWithLatestTemplate(rawCard);
+        if (!merged) return null;
+
+        return {
+          ...merged,
+          sourceIndex,
+        };
+      })
       .filter(Boolean);
 
     const teamSlots = Array.isArray(player?.team?.slots)
@@ -826,9 +860,18 @@ if (interaction.customId === "fight_run_cancel") {
 
         const expResults = calculateFightExp(playerTeam, true);
 
-        const updatedCards = [...(player.cards || [])].map((card) => {
-          const expEntry = expResults.find((entry) => entry.instanceId === card.instanceId);
-          const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
+        const updatedCards = [...(player.cards || [])].map((card, index) => {
+          const expEntry =
+            expResults.find(
+              (entry) =>
+                Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
+            ) || expResults.find((entry) => entry.instanceId === card.instanceId);
+
+          const unit =
+            playerTeam.find(
+              (entry) =>
+                Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
+            ) || playerTeam.find((entry) => entry.instanceId === card.instanceId);
 
           if (!expEntry || !unit) return card;
 
