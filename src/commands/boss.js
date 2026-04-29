@@ -11,9 +11,8 @@ const { incrementQuestPayload } = require("../utils/questProgress");
 const { getCurrentIsland } = require("../data/islands");
 const cardsDb = require("../data/cards");
 const { hydrateCard } = require("../utils/evolution");
+const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
-  getPlayerCombatCards,
-  getPlayerCombatBoosts,
   applyDamageBoost,
   applyExpBoost,
 } = require("../utils/combatStats");
@@ -48,6 +47,16 @@ function addOrIncrease(list, item) {
   });
 
   return arr;
+}
+
+function formatAtkRange(atk) {
+  const value = Number(atk || 0);
+
+  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
+function applyBoostToNumber(value, percent) {
+  return Math.floor(Number(value || 0) * (1 + Number(percent || 0) / 100));
 }
 
 function formatExpResults(playerTeam, expResults) {
@@ -87,9 +96,13 @@ function formatExpResults(playerTeam, expResults) {
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   const synced = hydrateCard(card);
 
-  const atk = Number(synced.atk || 0);
-  const hp = Number(synced.hp || 0);
-  const speed = Number(synced.speed || 0);
+  const displayAtk = Number(synced.atk || 0);
+  const displayHp = Number(synced.hp || 0);
+  const displaySpeed = Number(synced.speed || 0);
+
+  const battleAtk = applyBoostToNumber(displayAtk, combatBoosts.atk);
+  const battleMaxHp = applyBoostToNumber(displayHp, combatBoosts.hp);
+  const battleSpeed = applyBoostToNumber(displaySpeed, combatBoosts.spd);
 
   return {
     slot: slotIndex + 1,
@@ -98,15 +111,15 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     name: synced.displayName || synced.name || "Unknown",
     rarity: synced.currentTier || synced.rarity || "C",
 
-    atk,
-    hp,
-    maxHp: hp,
-    speed,
+    atk: displayAtk,
+    hp: displayHp,
+    maxHp: displayHp,
+    speed: displaySpeed,
 
-    battleAtk: atk,
-    battleHp: hp,
-    battleMaxHp: hp,
-    battleSpeed: speed,
+    battleAtk,
+    battleHp: battleMaxHp,
+    battleMaxHp,
+    battleSpeed,
 
     level: Number(synced.level || 1),
     levelCap: getCardLevelCap(synced),
@@ -159,32 +172,26 @@ function clampHp(value) {
 }
 
 function syncDisplayHp(unit) {
-  const maxHp = Math.max(1, Number(unit.battleMaxHp ?? unit.maxHp ?? 1));
-  const currentHp = clampHp(Number(unit.battleHp ?? unit.hp ?? 0));
+  const battleHp = Number(unit.battleHp ?? unit.hp ?? 0);
+  const battleMaxHp = Math.max(1, Number(unit.battleMaxHp ?? unit.maxHp ?? 1));
+  const ratio = Math.max(0, battleHp) / battleMaxHp;
 
-  unit.battleHp = Math.max(0, Math.min(currentHp, maxHp));
-  unit.hp = unit.battleHp;
-
-  if (!Number.isFinite(Number(unit.maxHp)) || Number(unit.maxHp) <= 0) {
-    unit.maxHp = maxHp;
-  }
+  unit.battleHp = clampHp(battleHp);
+  unit.hp = clampHp(Number(unit.maxHp || 0) * ratio);
 }
 
 function performAttack(attacker, defender, boosts = {}) {
   const atk = Number(attacker.battleAtk || attacker.atk || 0);
-  const defenderSpeed = Number(defender.battleSpeed || defender.speed || 0);
-
+  const defSpeed = Number(defender.battleSpeed || defender.speed || 0);
   const rolledAtk = Math.floor(atk * (0.85 + Math.random() * 0.3));
-  const rawDamage = Math.max(1, rolledAtk - Math.floor(defenderSpeed * 0.15));
+  const rawDamage = Math.max(1, rolledAtk - Math.floor(defSpeed * 0.15));
 
-  const isBossAttacker = String(attacker.instanceId || "").startsWith("boss-");
+  const isBossUnit = String(attacker.instanceId || "").startsWith("boss-");
+  const finalDamage = isBossUnit ? rawDamage : applyDamageBoost(rawDamage, boosts);
 
-  const finalDamage = isBossAttacker
-    ? rawDamage
-    : applyDamageBoost(rawDamage, boosts);
-
-  const currentHp = Number(defender.battleHp ?? defender.hp ?? 0);
-  defender.battleHp = clampHp(currentHp - finalDamage);
+  defender.battleHp = clampHp(
+    Number(defender.battleHp ?? defender.hp ?? 0) - finalDamage
+  );
 
   syncDisplayHp(defender);
 
@@ -477,7 +484,7 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
   const teamLines = playerTeam.map((unit) => {
     return [
       `**${unit.slot}. ${unit.name}** [${unit.rarity}] • LV \`${unit.level}\``,
-      `ATK \`${unit.battleAtk || unit.atk}\` • SPD \`${unit.battleSpeed || unit.speed}\``,
+      `ATK \`${formatAtkRange(unit.battleAtk || unit.atk)}\` • SPD \`${unit.battleSpeed || unit.speed}\``,
       renderHpBar(unit.battleHp ?? unit.hp, unit.battleMaxHp ?? unit.maxHp),
     ].join("\n");
   });
@@ -492,7 +499,7 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
       [
         `**Island:** \`${island.name}${phaseLabel}\``,
         `**Boss:** \`${boss.name}\` [${boss.rarity}]`,
-        `**ATK:** \`${boss.battleAtk || boss.atk}\` • **SPD:** \`${boss.battleSpeed || boss.speed}\``,
+        `**ATK:** \`${formatAtkRange(boss.battleAtk || boss.atk)}\` • **SPD:** \`${boss.battleSpeed || boss.speed}\``,
         renderHpBar(boss.battleHp ?? boss.hp, boss.battleMaxHp ?? boss.maxHp),
         "",
         "## Battle Log",
@@ -690,19 +697,20 @@ module.exports = {
     }
 
     const phaseBoss = getActiveBossPhase(player, currentIsland);
-    const combatBoosts = getPlayerCombatBoosts(player);
+    const combatBoosts = getPassiveBoostSummary(player);
 
     const rawCards = Array.isArray(player.cards) ? player.cards : [];
-    const combatCards = getPlayerCombatCards(player).map((card) => {
-      const sourceIndex = rawCards.findIndex(
-        (rawCard) => rawCard.instanceId === card.instanceId
-      );
+    const cards = rawCards
+      .map((rawCard, sourceIndex) => {
+        const card = hydrateCard(rawCard);
+        if (!card) return null;
 
-      return {
-        ...card,
-        sourceIndex: sourceIndex >= 0 ? sourceIndex : null,
-      };
-    });
+        return {
+          ...card,
+          sourceIndex,
+        };
+      })
+      .filter(Boolean);
 
     const teamSlots = Array.isArray(player?.team?.slots)
       ? player.team.slots
@@ -712,7 +720,7 @@ module.exports = {
       .map((instanceId, index) => {
         if (!instanceId) return null;
 
-        const found = combatCards.find(
+        const found = cards.find(
           (card) => card.instanceId === instanceId && card.cardRole !== "boost"
         );
 
