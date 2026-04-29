@@ -6,160 +6,12 @@ const {
 } = require("discord.js");
 
 const { getPlayer, updatePlayer } = require("../playerStore");
-const {
-  findOwnedCard,
-  awakenOwnedCard,
-  hydrateCard,
-} = require("../utils/evolution");
+const { findOwnedCard, awakenOwnedCard } = require("../utils/evolution");
 
-function normalize(value) {
-  return String(value || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
-}
-
-function formatReqEntry(entry) {
-  if (!entry) return "Unknown";
-
-  if (typeof entry === "string") {
-    return entry
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (m) => m.toUpperCase());
-  }
-
-  return `${entry.name || entry.code} M${Number(entry.stage || 1)}`;
-}
-
-function findOwnedByCode(player, code) {
-  const targetCode = normalize(code);
-
-  return (Array.isArray(player.cards) ? player.cards : [])
-    .map(hydrateCard)
-    .filter(Boolean)
-    .find((card) => normalize(card.code) === targetCode) || null;
-}
-
-function getFragmentAmount(player, card) {
-  const code = normalize(card?.code);
-  const name = normalize(card?.displayName || card?.name);
-
-  const globalAmount = (Array.isArray(player.fragments) ? player.fragments : [])
-    .filter((entry) => {
-      const entryCode = normalize(entry.code);
-      const entryName = normalize(entry.name || entry.displayName);
-
-      return (
-        (code && entryCode === code) ||
-        (name && entryName === name) ||
-        (code && entryName === code) ||
-        (name && entryCode === name)
-      );
-    })
-    .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-
-  const cardAmount = Number(card?.fragments || 0);
-
-  return globalAmount + cardAmount;
-}
-
-function checkRequirement(player, card, req) {
-  const missing = [];
-
-  const berriesOwned = Number(player.berries || 0);
-  const berriesNeed = Number(req.berries || 0);
-
-  if (berriesOwned < berriesNeed) {
-    missing.push(
-      `Berries: ${berriesOwned.toLocaleString("en-US")}/${berriesNeed.toLocaleString("en-US")}`
-    );
-  }
-
-  const fragmentsOwned = getFragmentAmount(player, card);
-  const fragmentsNeed = Number(req.selfFragments || 0);
-
-  if (fragmentsOwned < fragmentsNeed) {
-    missing.push(
-      `Self Fragments: ${fragmentsOwned}/${fragmentsNeed}x ${card.displayName || card.name}`
-    );
-  }
-
-  if (card.cardRole === "battle") {
-    const levelOwned = Number(card.level || 1);
-    const levelNeed = Number(req.minLevel || 0);
-
-    if (levelOwned < levelNeed) {
-      missing.push(`Min Level: ${levelOwned}/${levelNeed}`);
-    }
-  }
-
-  for (const entry of Array.isArray(req.cards) ? req.cards : []) {
-    const owned = findOwnedByCode(player, entry.code);
-    const stageNeed = Number(entry.stage || 1);
-
-    if (!owned) {
-      missing.push(`Battle Card: ${formatReqEntry(entry)} not owned`);
-      continue;
-    }
-
-    if (Number(owned.evolutionStage || 1) < stageNeed) {
-      missing.push(
-        `Battle Card: ${owned.displayName || owned.name} M${Number(owned.evolutionStage || 1)}/M${stageNeed}`
-      );
-    }
-  }
-
-  for (const entry of Array.isArray(req.boosts) ? req.boosts : []) {
-    const owned = findOwnedByCode(player, entry.code);
-    const stageNeed = Number(entry.stage || 1);
-
-    if (!owned) {
-      missing.push(`Boost Card: ${formatReqEntry(entry)} not owned`);
-      continue;
-    }
-
-    if (Number(owned.evolutionStage || 1) < stageNeed) {
-      missing.push(
-        `Boost Card: ${owned.displayName || owned.name} M${Number(owned.evolutionStage || 1)}/M${stageNeed}`
-      );
-    }
-  }
-
-  return {
-    canProceed: missing.length === 0,
-    missing,
-  };
-}
-
-function reqText(player, card, req) {
-  const berriesOwned = Number(player.berries || 0);
-  const berriesNeed = Number(req.berries || 0);
-
-  const fragmentsOwned = getFragmentAmount(player, card);
-  const fragmentsNeed = Number(req.selfFragments || 0);
-
-  const lines = [
-    `Berries: ${berriesOwned.toLocaleString("en-US")}/${berriesNeed.toLocaleString("en-US")}`,
-    `Self Fragments: ${fragmentsOwned}/${fragmentsNeed}x ${card.displayName || card.name}`,
-    card.cardRole === "battle"
-      ? `Min Level: ${Number(card.level || 1)}/${Number(req.minLevel || 0)}`
-      : "Min Level: Not required",
-  ];
-
-  if (Array.isArray(req.cards) && req.cards.length) {
-    lines.push(`Battle Cards: ${req.cards.map(formatReqEntry).join(", ")}`);
-  }
-
-  if (Array.isArray(req.boosts) && req.boosts.length) {
-    lines.push(`Boost Cards: ${req.boosts.map(formatReqEntry).join(", ")}`);
-  }
-
-  if (req.text) {
-    lines.push(req.text);
-  }
-
-  return lines.join("\n");
+function formatMissingError(message) {
+  return String(message || "Missing requirements.")
+    .replace(/^Missing requirements:\n?/i, "")
+    .trim();
 }
 
 module.exports = {
@@ -184,51 +36,63 @@ module.exports = {
       return message.reply("This card is already at M3.");
     }
 
-    const nextStage = Number(owned.evolutionStage || 1) + 1;
-    const req = owned.awakenRequirements?.[`M${nextStage}`];
+    const currentStage = Number(owned.evolutionStage || 1);
+    const nextStage = currentStage + 1;
 
-    if (!req) {
-      return message.reply("No awaken requirement found.");
+    try {
+      // Dry-run validation only. If requirements are missing, awakenOwnedCard throws here.
+      awakenOwnedCard(player, query);
+    } catch (err) {
+      return message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle("Awaken Failed")
+            .setDescription(
+              [
+                `**${owned.displayName || owned.name}** cannot awaken to **M${nextStage}** yet.`,
+                "",
+                "**Missing Requirements**",
+                formatMissingError(err.message)
+                  .split("\n")
+                  .filter(Boolean)
+                  .map((line) => line.startsWith("↪") ? line : `↪ ${line}`)
+                  .join("\n"),
+                "",
+                `Use \`op ci ${owned.displayName || owned.name}\` to check full awaken requirements.`,
+              ].join("\n")
+            ),
+        ],
+      });
     }
-
-    const check = checkRequirement(player, owned, req);
-
-    const description = [
-      `Current: **M${owned.evolutionStage}**`,
-      `Next: **M${nextStage}** • ${owned.evolutionForms?.[nextStage - 1]?.name || "Unknown"}`,
-      "",
-      reqText(player, owned, req),
-      "",
-      check.canProceed
-        ? "Press **Yes** to proceed or **Cancel** to stop."
-        : [
-            "**Missing Requirements**",
-            ...check.missing.map((line) => `↪ ${line}`),
-            "",
-            "You cannot awaken this card yet.",
-          ].join("\n"),
-    ].join("\n");
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("awaken_yes")
-        .setLabel("Yes")
-        .setStyle(ButtonStyle.Success)
-        .setDisabled(!check.canProceed),
-      new ButtonBuilder()
-        .setCustomId("awaken_cancel")
-        .setLabel("Cancel")
-        .setStyle(ButtonStyle.Danger)
-    );
 
     const sent = await message.reply({
       embeds: [
         new EmbedBuilder()
-          .setColor(check.canProceed ? 0xf1c40f : 0xe74c3c)
+          .setColor(0xf1c40f)
           .setTitle(`✨ Awaken ${owned.displayName || owned.name}`)
-          .setDescription(description),
+          .setDescription(
+            [
+              `Current: **M${currentStage}**`,
+              `Next: **M${nextStage}** • ${owned.evolutionForms?.[nextStage - 1]?.name || "Unknown"}`,
+              "",
+              "All requirements are ready.",
+              "Press **Yes** to awaken or **Cancel** to stop.",
+            ].join("\n")
+          ),
       ],
-      components: [row],
+      components: [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("awaken_yes")
+            .setLabel("Yes")
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId("awaken_cancel")
+            .setLabel("Cancel")
+            .setStyle(ButtonStyle.Danger)
+        ),
+      ],
     });
 
     const collector = sent.createMessageComponentCollector({
