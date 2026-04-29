@@ -4,14 +4,18 @@ const { PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
 const { hydrateCard } = require("../utils/evolution");
 
 const DEFAULT_START_ISLAND = "Foosha Village";
+const ARENA_START_RANK = 500;
+const ARENA_POINTS_PER_RANK = 10;
 
 function hasRole(message, roleName) {
   if (!message.member?.roles?.cache || !roleName) return false;
+
   return message.member.roles.cache.some((role) => role.name === roleName);
 }
 
 function countTotalAmount(list) {
   if (!Array.isArray(list)) return 0;
+
   return list.reduce((sum, item) => sum + Number(item?.amount || 0), 0);
 }
 
@@ -34,6 +38,7 @@ function getTeamUnits(player) {
   return slots
     .map((instanceId) => {
       if (!instanceId) return null;
+
       return (
         cards.find(
           (card) => card.instanceId === instanceId && card.cardRole !== "boost"
@@ -56,11 +61,9 @@ function getStoryProgress(player) {
     : 0;
 
   const currentIsland = player.currentIsland || DEFAULT_START_ISLAND;
-  return `${cleared} bosses cleared • Current island: ${currentIsland}`;
-}
 
-const ARENA_START_RANK = 500;
-const ARENA_POINTS_PER_RANK = 10;
+  return `${cleared} bosses • ${currentIsland}`;
+}
 
 function getArenaRankFromPoints(points) {
   const safePoints = Math.max(0, Number(points || 0));
@@ -88,10 +91,15 @@ function getArenaSummary(player) {
 
 function getShipSummary(player) {
   const ship = player?.ship || {};
+
   return {
     name: ship.name || "Small Boat",
     tier: Number(ship.tier || 1),
   };
+}
+
+function line(label, value) {
+  return `↪ ${label}: \`${value}\``;
 }
 
 module.exports = {
@@ -119,55 +127,64 @@ module.exports = {
     const storyProgress = getStoryProgress(player);
     const arena = getArenaSummary(player);
     const ship = getShipSummary(player);
+    const avatar = getProfileImage(message);
 
     const embed = new EmbedBuilder()
       .setColor(0x3498db)
       .setAuthor({
-        name: `${player.username}'s One Piece Profile`,
-        iconURL: getProfileImage(message),
+        name: `${player.username}'s Profile`,
+        iconURL: avatar,
       })
       .setDescription(
         [
-          "## Captain Info",
-          `- Current Island: \`${player.currentIsland || DEFAULT_START_ISLAND}\``,
-          `- Premium: \`${isMotherFlame ? "Mother Flame" : "Normal"}\``,
-          `- Clan: \`${player?.clan?.name || "None"}\``,
-          `- Ship: \`${ship.name}\``,
-          `- Ship Tier: \`${ship.tier}\``,
+          "**👤 Captain**",
+          line("Island", player.currentIsland || DEFAULT_START_ISLAND),
+          line("Premium", isMotherFlame ? "Mother Flame" : "Normal"),
+          line("Clan", player?.clan?.name || "None"),
+          line("Ship", `${ship.name} • Tier ${ship.tier}`),
+
           "",
-          "## Wallet",
-          `- Berries: \`${Number(player.berries || 0).toLocaleString("en-US")}\``,
-          `- Gems: \`${Number(player.gems || 0).toLocaleString("en-US")}\``,
+          "**💰 Wallet**",
+          line("Berries", Number(player.berries || 0).toLocaleString("en-US")),
+          line("Gems", Number(player.gems || 0).toLocaleString("en-US")),
+
           "",
-          "## Card Statistics",
-          `- Battle Cards: \`${battleCards.length}\``,
-          `- Boost Cards: \`${boostCards.length}\``,
-          `- Total Cards Owned: \`${cards.length}\``,
-          `- Total Fragments: \`${totalFragments}\``,
+          "**🃏 Cards**",
+          line("Battle / Boost", `${battleCards.length} / ${boostCards.length}`),
+          line("Total Owned", cards.length),
+          line("Fragments", totalFragments),
+
           "",
-          "## Inventory Stats",
-          `- Total Resources: \`${totalResources}\``,
-          `- Boxes: \`${totalBoxes}\``,
-          `- Weapons: \`${totalWeapons}\``,
-          `- Devil Fruits: \`${totalFruits}\``,
-          `- Materials: \`${totalMaterials}\``,
-          `- Tickets: \`${totalTickets}\``,
+          "**🎒 Inventory**",
+          line("Resources", totalResources),
+          line("Boxes", totalBoxes),
+          line("Weapons", totalWeapons),
+          line("Devil Fruits", totalFruits),
+          line("Materials", totalMaterials),
+          line("Tickets", totalTickets),
+
           "",
-          "## Game Stats",
-          `- Team Power: \`${teamPower.toLocaleString("en-US")}\``,
-          `- Story Progress: \`${storyProgress}\``,
-          `- Fight Win Streak: \`${Number(player?.fightStreak || 0)}\``,
+          "**🎮 Progress**",
+          line("Team Power", teamPower.toLocaleString("en-US")),
+          line("Story", storyProgress),
+          line("Fight Streak", Number(player?.fightStreak || 0)),
+
           "",
-          "## Arena Stats",
-          `- Arena Points: \`${arena.points}\``,
-          `- Arena Record: \`${arena.wins}W / ${arena.losses}L\``,
-          `- Arena Streak: \`${arena.streak}\``,
-          `- Best Arena Streak: \`${arena.bestStreak}\``,
+          "**🏟️ Arena**",
+          line("Rank", arena.rank),
+          line("Points", arena.points),
+          line("Record", `${arena.wins}W / ${arena.losses}L`),
+          line("Streak", arena.streak),
+          line("Best Streak", arena.bestStreak),
         ].join("\n")
       )
-      .setThumbnail(getProfileImage(message))
-      .setFooter({ text: "One Piece Bot" });
+      .setThumbnail(avatar)
+      .setFooter({
+        text: "One Piece Bot • Profile",
+      });
 
-    return message.reply({ embeds: [embed] });
+    return message.reply({
+      embeds: [embed],
+    });
   },
 };
