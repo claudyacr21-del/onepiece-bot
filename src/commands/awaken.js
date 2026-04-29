@@ -8,12 +8,6 @@ const {
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { findOwnedCard, awakenOwnedCard } = require("../utils/evolution");
 
-function formatMissingError(message) {
-  return String(message || "Missing requirements.")
-    .replace(/^Missing requirements:\n?/i, "")
-    .trim();
-}
-
 module.exports = {
   name: "awaken",
   aliases: ["evolve"],
@@ -40,9 +34,10 @@ module.exports = {
     const nextStage = currentStage + 1;
 
     try {
-      // Dry-run validation only. If requirements are missing, awakenOwnedCard throws here.
+      // Requirement validation only.
+      // If anything is missing, awakenOwnedCard will throw and no UI will be shown.
       awakenOwnedCard(player, query);
-    } catch (err) {
+    } catch (_) {
       return message.reply({
         embeds: [
           new EmbedBuilder()
@@ -52,14 +47,7 @@ module.exports = {
               [
                 `**${owned.displayName || owned.name}** cannot awaken to **M${nextStage}** yet.`,
                 "",
-                "**Missing Requirements**",
-                formatMissingError(err.message)
-                  .split("\n")
-                  .filter(Boolean)
-                  .map((line) => line.startsWith("↪") ? line : `↪ ${line}`)
-                  .join("\n"),
-                "",
-                `Use \`op ci ${owned.displayName || owned.name}\` to check full awaken requirements.`,
+                `Use \`op ci ${owned.displayName || owned.name}\` to check the full requirements.`,
               ].join("\n")
             ),
         ],
@@ -154,13 +142,19 @@ module.exports = {
         });
 
         collector.stop("done");
-      } catch (err) {
+      } catch (_) {
         await interaction.update({
           embeds: [
             new EmbedBuilder()
               .setColor(0xe74c3c)
               .setTitle("Awaken Failed")
-              .setDescription(err.message || "Unknown awaken error."),
+              .setDescription(
+                [
+                  `**${owned.displayName || owned.name}** cannot awaken right now.`,
+                  "",
+                  `Use \`op ci ${owned.displayName || owned.name}\` to check the full requirements.`,
+                ].join("\n")
+              ),
           ],
           components: [],
         });
