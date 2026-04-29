@@ -4,6 +4,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require("discord.js");
+
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
 const { incrementQuestPayload } = require("../utils/questProgress");
@@ -52,10 +53,24 @@ function addOrIncrease(list, item) {
 function formatExpResults(playerTeam, expResults) {
   return expResults
     .map((entry) => {
-      const unit = playerTeam.find((card) => card.instanceId === entry.instanceId);
+      const unit =
+        playerTeam.find(
+          (card) =>
+            Number.isInteger(entry.sourceIndex) &&
+            Number.isInteger(card.sourceIndex) &&
+            card.sourceIndex === entry.sourceIndex
+        ) || playerTeam.find((card) => card.instanceId === entry.instanceId);
+
       if (!unit) return null;
 
       if (entry.locked) {
+        if (
+          Number(entry.level || 0) >= Number(entry.cap || 0) &&
+          Number(entry.cap || 0) >= 100
+        ) {
+          return `🔒 ${unit.name} is already MAX LEVEL (**${entry.level}/${entry.cap}**).`;
+        }
+
         return `🔒 ${unit.name} is level locked at **${entry.level}/${entry.cap}**. Awaken to continue.`;
       }
 
@@ -72,20 +87,33 @@ function formatExpResults(playerTeam, expResults) {
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   const synced = hydrateCard(card);
 
+  const atk = Number(synced.atk || 0);
+  const hp = Number(synced.hp || 0);
+  const speed = Number(synced.speed || 0);
+
   return {
     slot: slotIndex + 1,
+    sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
     instanceId: synced.instanceId,
     name: synced.displayName || synced.name || "Unknown",
     rarity: synced.currentTier || synced.rarity || "C",
-    atk: Number(synced.atk || 0),
-    hp: Number(synced.hp || 0),
-    maxHp: Number(synced.hp || 0),
-    speed: Number(synced.speed || 0),
+
+    atk,
+    hp,
+    maxHp: hp,
+    speed,
+
+    battleAtk: atk,
+    battleHp: hp,
+    battleMaxHp: hp,
+    battleSpeed: speed,
+
     level: Number(synced.level || 1),
     levelCap: getCardLevelCap(synced),
     exp: getCardExp(synced),
     kills: Number(synced.kills || 0),
     image: synced.image || "",
+
     passiveBoostsApplied: {
       atk: Number(combatBoosts.atk || 0),
       hp: Number(combatBoosts.hp || 0),
@@ -93,6 +121,25 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
       dmg: Number(combatBoosts.dmg || 0),
       exp: Number(combatBoosts.exp || 0),
     },
+  };
+}
+
+function toBossBattleUnit(template) {
+  const atk = Number(template.atk || 0);
+  const hp = Number(template.hp || template.maxHp || 1);
+  const speed = Number(template.speed || 0);
+
+  return {
+    ...template,
+    instanceId: `boss-${Date.now()}`,
+    atk,
+    hp,
+    maxHp: Number(template.maxHp || hp),
+    speed,
+    battleAtk: atk,
+    battleHp: hp,
+    battleMaxHp: Number(template.maxHp || hp),
+    battleSpeed: speed,
   };
 }
 
@@ -111,21 +158,42 @@ function clampHp(value) {
   return Math.max(0, Math.floor(value));
 }
 
-function performAttack(attacker, defender, boosts = {}) {
-  const rawDamage = Math.max(
-    1,
-    Number(attacker.atk || 0) - Math.floor(Number(defender.speed || 0) * 0.15)
-  );
-  const finalDamage = applyDamageBoost(rawDamage, boosts);
+function syncDisplayHp(unit) {
+  const maxHp = Math.max(1, Number(unit.battleMaxHp ?? unit.maxHp ?? 1));
+  const currentHp = clampHp(Number(unit.battleHp ?? unit.hp ?? 0));
 
-  defender.hp = clampHp(Number(defender.hp || 0) - finalDamage);
+  unit.battleHp = Math.max(0, Math.min(currentHp, maxHp));
+  unit.hp = unit.battleHp;
+
+  if (!Number.isFinite(Number(unit.maxHp)) || Number(unit.maxHp) <= 0) {
+    unit.maxHp = maxHp;
+  }
+}
+
+function performAttack(attacker, defender, boosts = {}) {
+  const atk = Number(attacker.battleAtk || attacker.atk || 0);
+  const defenderSpeed = Number(defender.battleSpeed || defender.speed || 0);
+
+  const rolledAtk = Math.floor(atk * (0.85 + Math.random() * 0.3));
+  const rawDamage = Math.max(1, rolledAtk - Math.floor(defenderSpeed * 0.15));
+
+  const isBossAttacker = String(attacker.instanceId || "").startsWith("boss-");
+
+  const finalDamage = isBossAttacker
+    ? rawDamage
+    : applyDamageBoost(rawDamage, boosts);
+
+  const currentHp = Number(defender.battleHp ?? defender.hp ?? 0);
+  defender.battleHp = clampHp(currentHp - finalDamage);
+
+  syncDisplayHp(defender);
 
   return finalDamage;
 }
 
 function resolveTurnOrder(playerUnit, bossUnit) {
-  const playerSpeed = Number(playerUnit?.speed || 0);
-  const bossSpeed = Number(bossUnit?.speed || 0);
+  const playerSpeed = Number(playerUnit?.battleSpeed || playerUnit?.speed || 0);
+  const bossSpeed = Number(bossUnit?.battleSpeed || bossUnit?.speed || 0);
 
   if (bossSpeed > playerSpeed) {
     return [
@@ -157,7 +225,7 @@ function resolveTurnOrder(playerUnit, bossUnit) {
 }
 
 function getAliveUnits(units) {
-  return units.filter((unit) => Number(unit.hp) > 0);
+  return units.filter((unit) => Number(unit.battleHp ?? unit.hp) > 0);
 }
 
 function renderHpBar(hp, maxHp, size = 12) {
@@ -192,7 +260,11 @@ function isIslandBossRouteCleared(player, island) {
 
   const phaseState = getBossPhaseState(player, island.code);
 
-  return Boolean(phaseState.phase1Cleared && phaseState.phase2Cleared && phaseState.completed);
+  return Boolean(
+    phaseState.phase1Cleared &&
+      phaseState.phase2Cleared &&
+      phaseState.completed
+  );
 }
 
 function getActiveBossPhase(player, island) {
@@ -201,11 +273,11 @@ function getActiveBossPhase(player, island) {
   const phaseState = getBossPhaseState(player, island.code);
 
   if (!phaseState.phase1Cleared) {
-    return island.bossPhases.find((p) => Number(p.phase) === 1) || null;
+    return island.bossPhases.find((phase) => Number(phase.phase) === 1) || null;
   }
 
   if (!phaseState.phase2Cleared) {
-    return island.bossPhases.find((p) => Number(p.phase) === 2) || null;
+    return island.bossPhases.find((phase) => Number(phase.phase) === 2) || null;
   }
 
   return null;
@@ -405,8 +477,8 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
   const teamLines = playerTeam.map((unit) => {
     return [
       `**${unit.slot}. ${unit.name}** [${unit.rarity}] • LV \`${unit.level}\``,
-      `ATK \`${unit.atk}\` • SPD \`${unit.speed}\``,
-      renderHpBar(unit.hp, unit.maxHp),
+      `ATK \`${unit.battleAtk || unit.atk}\` • SPD \`${unit.battleSpeed || unit.speed}\``,
+      renderHpBar(unit.battleHp ?? unit.hp, unit.battleMaxHp ?? unit.maxHp),
     ].join("\n");
   });
 
@@ -420,14 +492,16 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
       [
         `**Island:** \`${island.name}${phaseLabel}\``,
         `**Boss:** \`${boss.name}\` [${boss.rarity}]`,
-        `**ATK:** \`${boss.atk}\` • **SPD:** \`${boss.speed}\``,
-        renderHpBar(boss.hp, boss.maxHp),
+        `**ATK:** \`${boss.battleAtk || boss.atk}\` • **SPD:** \`${boss.battleSpeed || boss.speed}\``,
+        renderHpBar(boss.battleHp ?? boss.hp, boss.battleMaxHp ?? boss.maxHp),
+        "",
+        "## Battle Log",
+        ...(recentLogs.length
+          ? recentLogs
+          : ["Choose a card to attack the island boss. SPD decides turn order."]),
         "",
         "## Your Team",
         ...teamLines,
-        "",
-        "## Battle Log",
-        ...(recentLogs.length ? recentLogs : ["Choose a card to attack the island boss. SPD decides turn order."]),
       ].join("\n")
     )
     .setImage(boss.image || null)
@@ -452,6 +526,9 @@ function buildBossResultEmbed({
       [
         `**Result:** ${result}`,
         "",
+        "## Final Log",
+        ...(logs.length ? logs.slice(-8) : ["No final log."]),
+        "",
         rewardLines.length ? "## Rewards" : null,
         ...rewardLines,
         rewardLines.length ? "" : null,
@@ -460,9 +537,6 @@ function buildBossResultEmbed({
         expLines.length ? "" : null,
         storyLines.length ? "## Story Progress" : null,
         ...storyLines,
-        storyLines.length ? "" : null,
-        "## Final Log",
-        ...(logs.length ? logs.slice(-8) : ["No final log."]),
       ]
         .filter(Boolean)
         .join("\n")
@@ -483,7 +557,7 @@ function buildButtons(playerTeam, ended) {
         .setCustomId(`boss_attack_${i}`)
         .setLabel(unit ? unit.name.slice(0, 20) : `Slot ${i + 1}`)
         .setStyle(ButtonStyle.Primary)
-        .setDisabled(ended || !unit || unit.hp <= 0)
+        .setDisabled(ended || !unit || Number(unit.battleHp ?? unit.hp) <= 0)
     );
   }
 
@@ -507,6 +581,7 @@ function calculateBossExp(playerTeam, won, combatBoosts) {
 
     if (level >= cap) {
       return {
+        sourceIndex: Number.isInteger(unit.sourceIndex) ? unit.sourceIndex : null,
         instanceId: unit.instanceId,
         expGain: 0,
         locked: true,
@@ -517,6 +592,7 @@ function calculateBossExp(playerTeam, won, combatBoosts) {
     }
 
     return {
+      sourceIndex: Number.isInteger(unit.sourceIndex) ? unit.sourceIndex : null,
       instanceId: unit.instanceId,
       expGain: applyExpBoost(baseExp, unit.passiveBoostsApplied || combatBoosts),
       locked: false,
@@ -528,9 +604,18 @@ function calculateBossExp(playerTeam, won, combatBoosts) {
 }
 
 function applyBossExpToCards(player, playerTeam, expResults) {
-  return [...(player.cards || [])].map((card) => {
-    const unit = playerTeam.find((entry) => entry.instanceId === card.instanceId);
-    const expEntry = expResults.find((entry) => entry.instanceId === card.instanceId);
+  return [...(player.cards || [])].map((card, index) => {
+    const unit =
+      playerTeam.find(
+        (entry) =>
+          Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
+      ) || playerTeam.find((entry) => entry.instanceId === card.instanceId);
+
+    const expEntry =
+      expResults.find(
+        (entry) =>
+          Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
+      ) || expResults.find((entry) => entry.instanceId === card.instanceId);
 
     if (!unit || !expEntry) return card;
 
@@ -606,7 +691,19 @@ module.exports = {
 
     const phaseBoss = getActiveBossPhase(player, currentIsland);
     const combatBoosts = getPlayerCombatBoosts(player);
-    const cards = getPlayerCombatCards(player);
+
+    const rawCards = Array.isArray(player.cards) ? player.cards : [];
+    const combatCards = getPlayerCombatCards(player).map((card) => {
+      const sourceIndex = rawCards.findIndex(
+        (rawCard) => rawCard.instanceId === card.instanceId
+      );
+
+      return {
+        ...card,
+        sourceIndex: sourceIndex >= 0 ? sourceIndex : null,
+      };
+    });
+
     const teamSlots = Array.isArray(player?.team?.slots)
       ? player.team.slots
       : [null, null, null];
@@ -615,7 +712,7 @@ module.exports = {
       .map((instanceId, index) => {
         if (!instanceId) return null;
 
-        const found = cards.find(
+        const found = combatCards.find(
           (card) => card.instanceId === instanceId && card.cardRole !== "boost"
         );
 
@@ -635,7 +732,7 @@ module.exports = {
     });
 
     const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
-    const boss = getBossTemplate(currentIsland, phaseBoss);
+    const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
     const logs = [];
     let ended = false;
 
@@ -706,7 +803,7 @@ module.exports = {
       const index = Number(interaction.customId.replace("boss_attack_", ""));
       const attacker = playerTeam[index];
 
-      if (!attacker || attacker.hp <= 0) {
+      if (!attacker || Number(attacker.battleHp ?? attacker.hp) <= 0) {
         return interaction.reply({
           content: "That card cannot attack right now.",
           ephemeral: true,
@@ -721,8 +818,8 @@ module.exports = {
         const actor = turn.actor;
         const target = turn.target;
 
-        if (Number(actor.hp || 0) <= 0) continue;
-        if (Number(target.hp || 0) <= 0) continue;
+        if (Number(actor.battleHp ?? actor.hp) <= 0) continue;
+        if (Number(target.battleHp ?? target.hp) <= 0) continue;
 
         const damage = performAttack(
           actor,
@@ -731,15 +828,17 @@ module.exports = {
         );
 
         logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
-        logs.push(`${turn.isPlayer ? "➡️" : "⬅️"} ${actor.name} dealt **${damage}** damage to ${target.name}.`);
+        logs.push(
+          `${turn.isPlayer ? "➡️" : "⬅️"} ${actor.name} dealt **${damage}** damage to ${target.name}.`
+        );
 
-        if (Number(target.hp || 0) <= 0) {
+        if (Number(target.battleHp ?? target.hp) <= 0) {
           if (turn.isPlayer) attacker.kills += 1;
           logs.push(`☠️ ${target.name} was defeated.`);
         }
       }
 
-      if (boss.hp <= 0) {
+      if (Number(boss.battleHp ?? boss.hp) <= 0) {
         ended = true;
 
         const reward = {
@@ -810,7 +909,10 @@ module.exports = {
           storyLines.push(`✅ ${currentIsland.name} boss route is now cleared.`);
         }
 
-        const updatedQuests = applyBossQuestProgress(player, ["bossFights", "bossesDefeated"]);
+        const updatedQuests = applyBossQuestProgress(player, [
+          "bossFights",
+          "bossesDefeated",
+        ]);
 
         updatePlayer(message.author.id, {
           cards: updatedCards,
