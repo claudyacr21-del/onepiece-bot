@@ -13,14 +13,15 @@ function addOrIncrease(list, item) {
   if (index !== -1) {
     arr[index] = {
       ...arr[index],
-      amount: Number(arr[index].amount || 1) + Number(item.amount || 1)
+      amount: Number(arr[index].amount || 1) + Number(item.amount || 1),
     };
+
     return arr;
   }
 
   arr.push({
     ...item,
-    amount: Number(item.amount || 1)
+    amount: Number(item.amount || 1),
   });
 
   return arr;
@@ -39,7 +40,16 @@ function formatRemaining(ms) {
 
   if (hours > 0) return `${hours}h ${minutes}m`;
   if (minutes > 0) return `${minutes}m`;
+
   return "Now";
+}
+
+function getGlobalDailyReadyAt(player) {
+  const cooldownReadyAt = Number(player?.cooldowns?.daily || 0);
+  const lastClaimAt = Number(player?.dailyLastClaim || 0);
+  const legacyReadyAt = lastClaimAt > 0 ? lastClaimAt + DAILY_COOLDOWN_MS : 0;
+
+  return Math.max(cooldownReadyAt, legacyReadyAt);
 }
 
 function getDailyTierRewards(dailyTier) {
@@ -48,6 +58,7 @@ function getDailyTierRewards(dailyTier) {
 
   let berries = baseBerries;
   let gems = baseGems;
+
   const rewards = [];
 
   if (dailyTier <= 0) {
@@ -62,7 +73,7 @@ function getDailyTierRewards(dailyTier) {
       rewards.push(
         randomPick([
           cloneItem(ITEMS.basicResourceBox, 1),
-          cloneItem(ITEMS.enhancementStone, 2)
+          cloneItem(ITEMS.enhancementStone, 2),
         ])
       );
     }
@@ -78,7 +89,7 @@ function getDailyTierRewards(dailyTier) {
       randomPick([
         cloneItem(ITEMS.basicResourceBox, 1),
         cloneItem(ITEMS.treasureMaterialPack, 3),
-        cloneItem(ITEMS.pullResetTicket, 1)
+        cloneItem(ITEMS.pullResetTicket, 1),
       ])
     );
 
@@ -93,7 +104,7 @@ function getDailyTierRewards(dailyTier) {
       randomPick([
         cloneItem(ITEMS.rareResourceBox, 1),
         cloneItem(ITEMS.treasureMaterialPack, 5),
-        cloneItem(ITEMS.pullResetTicket, 1)
+        cloneItem(ITEMS.pullResetTicket, 1),
       ])
     );
 
@@ -111,14 +122,14 @@ function getDailyTierRewards(dailyTier) {
     randomPick([
       cloneItem(ITEMS.rareResourceBox, 1),
       cloneItem(ITEMS.treasureMaterialPack, 6),
-      cloneItem(ITEMS.pullResetTicket, 2)
+      cloneItem(ITEMS.pullResetTicket, 2),
     ])
   );
 
   rewards.push(
     randomPick([
       cloneItem(ITEMS.basicResourceBox, 1),
-      cloneItem(ITEMS.enhancementStone, 4)
+      cloneItem(ITEMS.enhancementStone, 4),
     ])
   );
 
@@ -127,29 +138,49 @@ function getDailyTierRewards(dailyTier) {
 
 function applyRewardToInventory(player, reward) {
   if (reward.type === "Box") {
-    return { boxes: addOrIncrease(player.boxes, reward) };
+    return {
+      boxes: addOrIncrease(player.boxes, reward),
+    };
   }
 
   if (reward.type === "Ticket") {
-    return { tickets: addOrIncrease(player.tickets, reward) };
+    return {
+      tickets: addOrIncrease(player.tickets, reward),
+    };
   }
 
-  return { materials: addOrIncrease(player.materials, reward) };
+  return {
+    materials: addOrIncrease(player.materials, reward),
+  };
 }
 
 module.exports = {
   name: "daily",
+
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
     const boosts = getPassiveBoostSummary(player);
     const dailyTier = Number(boosts.daily || 0);
-
     const cooldowns = player.cooldowns || {};
     const now = Date.now();
-    const nextDailyAt = Number(cooldowns.daily || 0);
+
+    const nextDailyAt = getGlobalDailyReadyAt(player);
 
     if (nextDailyAt > now) {
-      return message.reply(`You already claimed your daily reward. Next daily: ${formatRemaining(nextDailyAt - now)}`);
+      if (Number(cooldowns.daily || 0) !== nextDailyAt) {
+        updatePlayer(message.author.id, {
+          cooldowns: {
+            ...cooldowns,
+            daily: nextDailyAt,
+          },
+        });
+      }
+
+      return message.reply(
+        `You already claimed your daily reward.\nNext daily: ${formatRemaining(
+          nextDailyAt - now
+        )}`
+      );
     }
 
     const rewardBundle = getDailyTierRewards(dailyTier);
@@ -163,7 +194,7 @@ module.exports = {
         {
           boxes: updatedBoxes,
           tickets: updatedTickets,
-          materials: updatedMaterials
+          materials: updatedMaterials,
         },
         reward
       );
@@ -173,6 +204,7 @@ module.exports = {
       if (result.materials) updatedMaterials = result.materials;
     }
 
+    const nextReadyAt = now + DAILY_COOLDOWN_MS;
     const updatedDailyState = incrementQuestCounter(player, "dailyClaims", 1);
 
     updatePlayer(message.author.id, {
@@ -184,12 +216,12 @@ module.exports = {
       dailyLastClaim: now,
       quests: {
         ...(player.quests || {}),
-        dailyState: updatedDailyState
+        dailyState: updatedDailyState,
       },
       cooldowns: {
         ...cooldowns,
-        daily: now + DAILY_COOLDOWN_MS
-      }
+        daily: nextReadyAt,
+      },
     });
 
     const extraLines = rewardBundle.rewards.length
@@ -208,11 +240,15 @@ module.exports = {
           "**Extra Rewards**",
           ...extraLines,
           "",
-          `↪ Next Daily: ${formatRemaining(DAILY_COOLDOWN_MS)}`
+          `↪ Next Daily: ${formatRemaining(DAILY_COOLDOWN_MS)}`,
         ].join("\n")
       )
-      .setFooter({ text: "One Piece Bot • Daily Reward" });
+      .setFooter({
+        text: "One Piece Bot • Daily Reward",
+      });
 
-    return message.reply({ embeds: [embed] });
-  }
+    return message.reply({
+      embeds: [embed],
+    });
+  },
 };

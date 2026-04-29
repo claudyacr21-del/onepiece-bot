@@ -299,11 +299,18 @@ function clampHp(value) {
 }
 
 function syncDisplayHp(unit) {
-  const battleHp = Number(unit.battleHp ?? unit.hp ?? 0);
-  const battleMaxHp = Math.max(1, Number(unit.battleMaxHp ?? unit.maxHp ?? 1));
-  const ratio = Math.max(0, battleHp) / battleMaxHp;
+  const currentBattleHp = clampHp(Number(unit.battleHp ?? unit.hp ?? 0));
+  const maxBattleHp = Math.max(1, Number(unit.battleMaxHp ?? unit.maxHp ?? 1));
 
-  unit.hp = clampHp(Number(unit.maxHp || 0) * ratio);
+  unit.battleHp = Math.max(0, Math.min(currentBattleHp, maxBattleHp));
+
+  if (Number.isFinite(Number(unit.hp))) {
+    unit.hp = unit.battleHp;
+  }
+
+  if (!Number.isFinite(Number(unit.maxHp)) || Number(unit.maxHp) <= 0) {
+    unit.maxHp = maxBattleHp;
+  }
 }
 
 function performAttack(attacker, defender, boosts = {}) {
@@ -314,7 +321,9 @@ function performAttack(attacker, defender, boosts = {}) {
   const isPlayerUnit = !String(attacker.instanceId || "").startsWith("enemy-");
   const finalDamage = isPlayerUnit ? applyDamageBoost(rawDamage, boosts) : rawDamage;
 
-  defender.battleHp = clampHp(Number(defender.battleHp ?? defender.hp ?? 0) - finalDamage);
+  const currentHp = Number(defender.battleHp ?? defender.hp ?? 0);
+  defender.battleHp = clampHp(currentHp - finalDamage);
+
   syncDisplayHp(defender);
 
   return finalDamage;
