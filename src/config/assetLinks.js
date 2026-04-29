@@ -414,19 +414,19 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1498650773704278117/content.png?ex=69f1eecc&is=69f09d4c&hm=e66f46b7ab65319c3df7b8062241a939a300ed0d0f855ef74d74592168ad9d30&",
   },
   daz_bonez: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1498676197490688060/content.png?ex=69f20679&is=69f0b4f9&hm=e8878d06105c235a382e50820d489cc79cd11587550eb58dfaf965f88a5600f1&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1498676197960192061/content.png?ex=69f20679&is=69f0b4f9&hm=91b29d6b8094cf2220ca7a2b2000397e178ddb1e5bb840c364804c310548cbcf&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1498676198409109544/content.png?ex=69f20679&is=69f0b4f9&hm=05ed790dd3edb038329c46fe3d98a402c4aae9350c72307ed64a6de679f483df&",
   },
   bellamy_hyena: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1498685243912228984/content.png?ex=69f20ee6&is=69f0bd66&hm=f7000224c632d4b53fd85e01e816633f89d64f8759726e3a937af46e8941b741&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1498685244327460894/content.png?ex=69f20ee6&is=69f0bd66&hm=3177c95250893a518a6838f77a063497b57765eaae47d9d02e8f5441b26ceeab&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1498685244906410184/content.png?ex=69f20ee6&is=69f0bd66&hm=4e295b30c849fdb8b0af3fc6a7e78e4bf3bcde508682c428b60ae5682d960594&",
   },
   wyper_shandian_warrior: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1498687068585590824/content.png?ex=69f21099&is=69f0bf19&hm=8e5a66f9821578d17f611a2164ccb663018b72b4d37f72cfd7c1b59fcd955bc5&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1498687069197697136/content.png?ex=69f21099&is=69f0bf19&hm=ac99dbb3e5e5cce2996a3af196634047755fcecb54ecf3d7cc9f9adde9fd08cb&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1498687069566926970/content.png?ex=69f21099&is=69f0bf19&hm=ed75f603473fcb3c7e23f2901b21d09b28c6fb1f9b97a1d4a4ccf9f469a2f1aa&",
   },
   enel_god: {
     M1: "",
