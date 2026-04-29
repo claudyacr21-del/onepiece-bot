@@ -290,6 +290,72 @@ function getActiveBossPhase(player, island) {
   return null;
 }
 
+function getPartyMemberIds(player, fallbackUserId) {
+  const party = player?.party || {};
+  const rawMembers =
+    party.members ||
+    party.memberIds ||
+    party.players ||
+    party.userIds ||
+    player?.partyMembers ||
+    [];
+
+  const ids = new Set();
+
+  if (fallbackUserId) {
+    ids.add(String(fallbackUserId));
+  }
+
+  if (party.leaderId) {
+    ids.add(String(party.leaderId));
+  }
+
+  if (party.ownerId) {
+    ids.add(String(party.ownerId));
+  }
+
+  if (Array.isArray(rawMembers)) {
+    for (const member of rawMembers) {
+      if (!member) continue;
+
+      if (typeof member === "string") {
+        ids.add(member);
+        continue;
+      }
+
+      if (member.id) {
+        ids.add(String(member.id));
+        continue;
+      }
+
+      if (member.userId) {
+        ids.add(String(member.userId));
+      }
+    }
+  }
+
+  return [...ids].filter(Boolean);
+}
+
+function requiresPartyForBossPhase(island, phaseBoss) {
+  if (!phaseBoss) return false;
+
+  const islandCode = String(island?.code || "").toLowerCase();
+  const phase = Number(phaseBoss?.phase || 0);
+
+  if (phaseBoss.requiresParty) return true;
+
+  return ["egghead", "elbaf"].includes(islandCode) && phase === 2;
+}
+
+function hasRequiredBossParty(player, message, phaseBoss) {
+  if (!phaseBoss) return true;
+
+  const memberIds = getPartyMemberIds(player, message.author.id);
+
+  return memberIds.length >= 2;
+}
+
 function getIslandBossImage(currentIsland, phaseBoss = null, fromDb = null) {
   return (
     phaseBoss?.bossImage ||
@@ -697,6 +763,19 @@ module.exports = {
     }
 
     const phaseBoss = getActiveBossPhase(player, currentIsland);
+    if (
+      requiresPartyForBossPhase(currentIsland, phaseBoss) &&
+      !hasRequiredBossParty(player, message, phaseBoss)
+    ) {
+      return message.reply(
+        [
+          `\`${currentIsland.name} Phase ${phaseBoss.phase}\` requires a party.`,
+          "You need at least **2 users** in your party before starting this boss phase.",
+          "",
+          "Make a party first, then try `op boss` again.",
+        ].join("\n")
+      );
+    }
     const combatBoosts = getPassiveBoostSummary(player);
 
     const rawCards = Array.isArray(player.cards) ? player.cards : [];
