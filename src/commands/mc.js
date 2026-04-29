@@ -147,35 +147,14 @@ function getStageImage(card) {
   );
 }
 
-function mergeOwnedCardWithLatestTemplate(rawCard) {
-  const template = findCardTemplate(rawCard.code || rawCard.name || "");
+function mergeOwnedCardWithLatestTemplate(rawCard, sourceIndex = null) {
+  const card = hydrateCard(rawCard);
+  if (!card) return null;
 
-  if (!template) return hydrateCard(rawCard);
-
-  return hydrateCard({
-    ...template,
-    instanceId: rawCard.instanceId,
-    ownerId: rawCard.ownerId,
-    level: rawCard.level,
-    xp: rawCard.xp,
-    exp: rawCard.exp,
-    kills: rawCard.kills,
-    fragments: rawCard.fragments,
-    evolutionStage: rawCard.evolutionStage,
-    evolutionKey: rawCard.evolutionKey,
-    currentTier: rawCard.currentTier || template.currentTier,
-    rarity: rawCard.rarity || template.rarity,
-    equippedWeapons: Array.isArray(rawCard.equippedWeapons)
-      ? rawCard.equippedWeapons
-      : [],
-    equippedWeapon: rawCard.equippedWeapon || null,
-    equippedWeaponName: rawCard.equippedWeaponName || null,
-    equippedWeaponCode: rawCard.equippedWeaponCode || null,
-    equippedWeaponLevel: rawCard.equippedWeaponLevel || 0,
-    equippedDevilFruit: rawCard.equippedDevilFruit || null,
-    equippedDevilFruitName: rawCard.equippedDevilFruitName || null,
-    cardRole: rawCard.cardRole || template.cardRole,
-  });
+  return {
+    ...card,
+    sourceIndex: Number.isInteger(sourceIndex) ? sourceIndex : null,
+  };
 }
 
 function getFragmentAmount(player, target) {
@@ -272,33 +251,7 @@ function buildRows(index, total, prevId = "mc_prev", nextId = "mc_next") {
 }
 
 function dedupeCollection(cards) {
-  const map = new Map();
-
-  for (const card of cards) {
-    const key = String(card.code || "").toLowerCase();
-    if (!key) continue;
-
-    const existing = map.get(key);
-
-    if (!existing) {
-      map.set(key, card);
-      continue;
-    }
-
-    if (getPower(card) > getPower(existing)) {
-      map.set(key, card);
-      continue;
-    }
-
-    if (
-      getPower(card) === getPower(existing) &&
-      Number(card.evolutionStage || 1) > Number(existing.evolutionStage || 1)
-    ) {
-      map.set(key, card);
-    }
-  }
-
-  return [...map.values()];
+  return (Array.isArray(cards) ? cards : []).filter(Boolean);
 }
 
 function buildTextLines(cards) {
@@ -545,9 +498,6 @@ function findOwnedCardByQuery(cards, query) {
       score: scoreQuery(query, [
         card.name,
         card.displayName,
-        card.code,
-        card.variant,
-        card.type,
       ]),
     }))
     .filter((entry) => entry.score > 0)

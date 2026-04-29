@@ -2,7 +2,6 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const {
   hydrateCard,
-  findCardTemplate,
   getWeaponPower,
   getFruitPower,
 } = require("../utils/evolution");
@@ -16,7 +15,6 @@ const {
 } = require("../config/assetLinks");
 const { formatCardLevelLine } = require("../utils/cardExp");
 
-const cardsDb = require("../data/cards");
 const devilFruitsDb = require("../data/devilFruits");
 const weaponsDb = require("../data/weapons");
 
@@ -27,13 +25,6 @@ function normalize(text) {
     .replace(/^model:\s*/i, "")
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ");
-}
-
-function normalizeCode(text) {
-  return String(text || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[\s-]+/g, "_");
 }
 
 function formatAtkRange(atk) {
@@ -85,7 +76,8 @@ function scoreQuery(query, candidates) {
     else if (candidate.includes(q)) best = Math.max(best, 400 + q.length);
     else {
       const qWords = q.split(" ").filter(Boolean);
-      if (qWords.length && qWords.every((w) => candidate.includes(w))) {
+
+      if (qWords.length && qWords.every((word) => candidate.includes(word))) {
         best = Math.max(best, 250 + qWords.join("").length);
       }
     }
@@ -94,135 +86,35 @@ function scoreQuery(query, candidates) {
   return best;
 }
 
-function findExactTemplateByCode(code) {
-  const key = normalizeCode(code);
-  if (!key) return null;
-
-  return (
-    cardsDb.find((card) => normalizeCode(card.code) === key) ||
-    findCardTemplate(code) ||
-    null
-  );
-}
-
-function findExactTemplateByName(name) {
-  const q = normalize(name);
-  if (!q) return null;
-
-  return (
-    cardsDb.find((card) => normalize(card.name) === q) ||
-    cardsDb.find((card) => normalize(card.displayName) === q) ||
-    null
-  );
-}
-
-function isTemplateCompatibleWithRawName(template, rawCard) {
-  if (!template) return false;
-
-  const rawNames = [rawCard?.name, rawCard?.displayName]
-    .filter(Boolean)
-    .map(normalize);
-
-  if (!rawNames.length) return true;
-
-  const templateNames = [template.name, template.displayName]
-    .filter(Boolean)
-    .map(normalize);
-
-  return rawNames.some((rawName) => templateNames.includes(rawName));
-}
-
-function resolveOwnedCardForSearch(rawCard, query) {
-  const q = normalize(query);
-
-  const rawNameScore = scoreQuery(q, [rawCard.name, rawCard.displayName]);
-  const exactNameTemplate =
-    findExactTemplateByName(rawCard.name) ||
-    findExactTemplateByName(rawCard.displayName);
-
-  if (rawNameScore > 0 && exactNameTemplate) {
-    return hydrateCard({
-      ...exactNameTemplate,
-      instanceId: rawCard.instanceId,
-      ownerId: rawCard.ownerId,
-      level: rawCard.level,
-      xp: rawCard.xp,
-      exp: rawCard.exp,
-      kills: rawCard.kills,
-      fragments: rawCard.fragments,
-      evolutionStage: rawCard.evolutionStage,
-      evolutionKey: rawCard.evolutionKey,
-      currentTier: rawCard.currentTier || exactNameTemplate.currentTier,
-      rarity: rawCard.rarity || exactNameTemplate.rarity,
-      equippedWeapons: Array.isArray(rawCard.equippedWeapons)
-        ? rawCard.equippedWeapons
-        : [],
-      equippedWeapon: rawCard.equippedWeapon || null,
-      equippedWeaponName: rawCard.equippedWeaponName || null,
-      equippedWeaponCode: rawCard.equippedWeaponCode || null,
-      equippedWeaponLevel: rawCard.equippedWeaponLevel || 0,
-      equippedDevilFruit: rawCard.equippedDevilFruit || null,
-      equippedDevilFruitName: rawCard.equippedDevilFruitName || null,
-      cardRole: rawCard.cardRole || exactNameTemplate.cardRole,
-    });
-  }
-
-  const codeTemplate = findExactTemplateByCode(rawCard.code);
-
-  if (codeTemplate && isTemplateCompatibleWithRawName(codeTemplate, rawCard)) {
-    return hydrateCard({
-      ...codeTemplate,
-      instanceId: rawCard.instanceId,
-      ownerId: rawCard.ownerId,
-      level: rawCard.level,
-      xp: rawCard.xp,
-      exp: rawCard.exp,
-      kills: rawCard.kills,
-      fragments: rawCard.fragments,
-      evolutionStage: rawCard.evolutionStage,
-      evolutionKey: rawCard.evolutionKey,
-      currentTier: rawCard.currentTier || codeTemplate.currentTier,
-      rarity: rawCard.rarity || codeTemplate.rarity,
-      equippedWeapons: Array.isArray(rawCard.equippedWeapons)
-        ? rawCard.equippedWeapons
-        : [],
-      equippedWeapon: rawCard.equippedWeapon || null,
-      equippedWeaponName: rawCard.equippedWeaponName || null,
-      equippedWeaponCode: rawCard.equippedWeaponCode || null,
-      equippedWeaponLevel: rawCard.equippedWeaponLevel || 0,
-      equippedDevilFruit: rawCard.equippedDevilFruit || null,
-      equippedDevilFruitName: rawCard.equippedDevilFruitName || null,
-      cardRole: rawCard.cardRole || codeTemplate.cardRole,
-    });
-  }
-
-  return hydrateCard(rawCard);
-}
-
-function findOwnedCardByNameOnly(cardsOwned, query) {
-  const q = normalize(query);
-  if (!q) return null;
-
-  const scored = (Array.isArray(cardsOwned) ? cardsOwned : [])
-    .map((rawCard) => {
-      const card = resolveOwnedCardForSearch(rawCard, query);
+function getOwnedCards(player) {
+  return (Array.isArray(player.cards) ? player.cards : [])
+    .map((rawCard, sourceIndex) => {
+      const card = hydrateCard(rawCard);
+      if (!card) return null;
 
       return {
-        card,
-        score: scoreQuery(q, [
-          rawCard.name,
-          rawCard.displayName,
-          card?.name,
-          card?.displayName,
-        ]),
+        ...card,
+        sourceIndex,
       };
     })
-    .filter((entry) => entry.card && entry.score > 0)
+    .filter(Boolean);
+}
+
+function findOwnedCardByNameOnly(player, query) {
+  const cards = getOwnedCards(player);
+
+  const scored = cards
+    .map((card) => ({
+      card,
+      score: scoreQuery(query, [
+        card.name,
+        card.displayName,
+      ]),
+    }))
+    .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
 
-  if (!scored.length) return null;
-
-  return scored[0].card;
+  return scored.length ? scored[0].card : null;
 }
 
 function findFruitTemplate(value) {
@@ -300,7 +192,12 @@ function buildOwnedFruitPool(player) {
     if (!template) continue;
 
     const key = String(template.code);
-    const existing = fruits.get(key) || { ...template, amount: 0, equippedOn: [] };
+    const existing = fruits.get(key) || {
+      ...template,
+      amount: 0,
+      equippedOn: [],
+    };
+
     existing.amount += Math.max(1, Number(entry.amount || 1));
     fruits.set(key, existing);
   }
@@ -311,10 +208,16 @@ function buildOwnedFruitPool(player) {
     const template = findFruitTemplate(
       rawCard.equippedDevilFruitName || rawCard.equippedDevilFruit
     );
+
     if (!template) continue;
 
     const key = String(template.code);
-    const existing = fruits.get(key) || { ...template, amount: 0, equippedOn: [] };
+    const existing = fruits.get(key) || {
+      ...template,
+      amount: 0,
+      equippedOn: [],
+    };
+
     existing.equippedOn.push(rawCard.displayName || rawCard.name || rawCard.code);
     fruits.set(key, existing);
   }
@@ -380,12 +283,13 @@ function buildOwnedWeaponPool(player) {
 
 function findOwnedFruit(player, query) {
   const pool = buildOwnedFruitPool(player);
+
   const scored = pool
     .map((fruit) => ({
       fruit,
       score: scoreQuery(query, [fruit.name, fruit.code, fruit.type]),
     }))
-    .filter((x) => x.score > 0)
+    .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
 
   return scored.length ? scored[0].fruit : null;
@@ -393,12 +297,13 @@ function findOwnedFruit(player, query) {
 
 function findOwnedWeapon(player, query) {
   const pool = buildOwnedWeaponPool(player);
+
   const scored = pool
     .map((weapon) => ({
       weapon,
       score: scoreQuery(query, [weapon.name, weapon.code, weapon.type]),
     }))
-    .filter((x) => x.score > 0)
+    .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
 
   return scored.length ? scored[0].weapon : null;
@@ -544,11 +449,15 @@ module.exports = {
 
   async execute(message, args) {
     const query = args.join(" ").trim();
-    if (!query) return message.reply("Usage: `op mci <card/fruit/weapon>`");
+
+    if (!query) {
+      return message.reply("Usage: `op mci <card/fruit/weapon>`");
+    }
 
     const player = getPlayer(message.author.id, message.author.username);
     const boosts = getPassiveBoostSummary(player);
-    const ownedCard = findOwnedCardByNameOnly(player.cards || [], query);
+
+    const ownedCard = findOwnedCardByNameOnly(player, query);
     const card = applyBoostedDisplayStats(ownedCard, boosts);
 
     if (card) {
