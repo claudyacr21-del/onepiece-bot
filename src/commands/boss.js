@@ -5,7 +5,7 @@ const {
   ButtonStyle,
 } = require("discord.js");
 
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { readPlayers, getPlayer, updatePlayer } = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
 const { incrementQuestPayload } = require("../utils/questProgress");
 const { getCurrentIsland } = require("../data/islands");
@@ -878,11 +878,291 @@ function applyBossQuestProgress(player, keys) {
   return nextQuests;
 }
 
+function normalizePhaseArg(args = []) {
+  const raw = String(args[0] || "").toLowerCase().trim();
+  if (["1", "p1", "phase1", "phase-1"].includes(raw)) return 1;
+  if (["2", "p2", "phase2", "phase-2"].includes(raw)) return 2;
+  return null;
+}
+
+function getRequestedBossPhase(player, island, args = []) {
+  if (!isPhasedIsland(island)) return null;
+
+  const requestedPhase = normalizePhaseArg(args);
+  const phases = Array.isArray(island.bossPhases) ? island.bossPhases : [];
+
+  if (!requestedPhase) return getBossPhaseForBattle(player, island);
+
+  const phaseBoss = phases.find((phase) => Number(phase.phase) === requestedPhase);
+  if (!phaseBoss) return null;
+
+  const phaseState = getBossPhaseState(player, island.code);
+
+  if (requestedPhase === 2 && !phaseState.phase1Cleared) {
+    return {
+      error: `You must clear **${island.name} Phase 1** before challenging Phase 2.`,
+    };
+  }
+
+  return phaseBoss;
+}
+
+function isBossPhaseTwoParty(island, phaseBoss) {
+  return requiresJoinLobbyForBossPhase(island, phaseBoss);
+}
+
+function getFullTeamFromPlayer(player) {
+  const combatBoosts = getPassiveBoostSummary(player);
+  const rawCards = Array.isArray(player.cards) ? player.cards : [];
+
+  const cards = rawCards
+    .map((rawCard, sourceIndex) => {
+      const card = hydrateCard(rawCard);
+      if (!card) return null;
+      return { ...card, sourceIndex };
+    })
+    .filter(Boolean);
+
+  const teamSlots = Array.isArray(player?.team?.slots)
+    ? player.team.slots
+    : [null, null, null];
+
+  const teamCards = teamSlots
+    .map((instanceId, index) => {
+      if (!instanceId) return null;
+
+      const found = cards.find(
+        (card) => card.instanceId === instanceId && card.cardRole !== "boost"
+      );
+
+      return found ? toBattleUnit(found, index, combatBoosts) : null;
+    })
+    .filter(Boolean);
+
+  return {
+    combatBoosts,
+    teamCards: teamCards.sort((a, b) => a.slot - b.slot),
+  };
+}
+
+async function resolveUsernameSafe(message, userId) {
+  const id = String(userId);
+  const cachedMember = message.guild?.members?.cache?.get(id);
+  if (cachedMember?.user?.username) return cachedMember.user.username;
+
+  const fetchedMember = message.guild
+    ? await message.guild.members.fetch(id).catch(() => null)
+    : null;
+  if (fetchedMember?.user?.username) return fetchedMember.user.username;
+
+  const cachedUser = message.client?.users?.cache?.get(id);
+  if (cachedUser?.username) return cachedUser.username;
+
+  const fetchedUser = await message.client.users.fetch(id).catch(() => null);
+  if (fetchedUser?.username) return fetchedUser.username;
+
+  return id;
+}
+
+async function buildSavedRaidBossParticipants(message, hostPlayer) {
+  const players = readPlayers();
+  const hostId = String(message.author.id);
+  const savedMembers = Array.isArray(hostPlayer?.raidTeam?.members)
+    ? hostPlayer.raidTeam.members.map(String).filter(Boolean)
+    : [];
+
+  const participantIds = [hostId, ...savedMembers]
+    .filter((id, index, arr) => arr.indexOf(id) === index)
+    .slice(0, 4);
+
+  const participants = [];
+  const rejected = [];
+
+  for (const userId of participantIds) {
+    const player =
+      userId === hostId
+        ? hostPlayer
+        : players[userId];
+
+    const username =
+      userId === hostId
+        ? message.author.username
+        : await resolveUsernameSafe(message, userId);
+
+    if (!player) {
+      rejected.push(`${username} has no player data.`);
+      continue;
+    }
+
+    const { combatBoosts, teamCards } = getFullTeamFromPlayer(player);
+
+    if (teamCards.length < 3) {
+      rejected.push(`${username} does not have a full team of 3 cards.`);
+      continue;
+    }
+
+    participants.push({
+      userId,
+      username: player.username || username,
+      player,
+      combatBoosts,
+      units: teamCards.map((unit) => ({
+        ...unit,
+        ownerId: userId,
+        ownerName: player.username || username,
+        globalSlot: 0,
+      })),
+    });
+  }
+
+  participants.forEach((participant, participantIndex) => {
+    participant.units.forEach((unit, unitIndex) => {
+      unit.globalSlot = participantIndex * 3 + unitIndex;
+      unit.slot = unitIndex + 1;
+    });
+  });
+
+  return { participants, rejected };
+}
+
+function getBossReward(island, phaseBoss = null) {
+  const order = Number(island?.order || 0);
+  const phase = Number(phaseBoss?.phase || 0);
+
+  const base = {
+    berries: 6000 + order * 550,
+    gems: 10 + Math.floor(order / 2),
+    boxes: [cloneItem(ITEMS.rareResourceBox, 1)],
+  };
+
+  if (phase === 1) {
+    return {
+      berries: 9000 + order * 750,
+      gems: 18 + Math.floor(order / 2),
+      boxes: [cloneItem(ITEMS.rareResourceBox, 1)],
+    };
+  }
+
+  if (phase === 2) {
+    const specialByIsland = {
+      egghead: {
+        berries: 42000,
+        gems: 95,
+        boxes: [cloneItem(ITEMS.rareResourceBox, 3)],
+      },
+      elbaf: {
+        berries: 52000,
+        gems: 120,
+        boxes: [cloneItem(ITEMS.rareResourceBox, 4)],
+      },
+    };
+
+    return (
+      specialByIsland[String(island?.code || "").toLowerCase()] || {
+        berries: 30000 + order * 1200,
+        gems: 70 + Math.floor(order / 2),
+        boxes: [cloneItem(ITEMS.rareResourceBox, 2)],
+      }
+    );
+  }
+
+  return base;
+}
+
+function formatRewardLines(reward) {
+  const lines = [
+    `💰 +${Number(reward.berries || 0).toLocaleString("en-US")} berries`,
+    `💎 +${Number(reward.gems || 0)} gems`,
+  ];
+
+  for (const box of reward.boxes || []) {
+    lines.push(`🎁 ${box.name || "Reward Box"} x${Number(box.amount || 1)}`);
+  }
+
+  return lines;
+}
+
+function applyBoxes(currentBoxes, rewardBoxes) {
+  let updatedBoxes = [...(currentBoxes || [])];
+  for (const item of rewardBoxes || []) {
+    updatedBoxes = addOrIncrease(updatedBoxes, item);
+  }
+  return updatedBoxes;
+}
+
+function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended) {
+  const phaseLabel = phaseBoss ? `Phase ${phaseBoss.phase}` : "Boss";
+  const teamLines = [];
+
+  for (const participant of participants) {
+    teamLines.push(`## ${participant.username}`);
+    for (const unit of participant.units) {
+      teamLines.push(
+        [
+          `**${unit.slot}. ${unit.name}** [${unit.rarity}] • LV \`${unit.level}\``,
+          `ATK \`${formatAtkRange(unit.battleAtk || unit.atk)}\` • SPD \`${unit.battleSpeed || unit.speed}\``,
+          renderHpBar(unit.battleHp ?? unit.hp, unit.battleMaxHp ?? unit.maxHp),
+        ].join("\n")
+      );
+    }
+  }
+
+  return new EmbedBuilder()
+    .setColor(ended ? 0x2ecc71 : 0xe74c3c)
+    .setTitle(`${island.name} ${phaseLabel} Raid Boss`)
+    .setDescription(
+      [
+        `**Boss:** \`${boss.name}\` [${boss.rarity}]`,
+        `**ATK:** \`${formatAtkRange(boss.battleAtk || boss.atk)}\` • **SPD:** \`${boss.battleSpeed || boss.speed}\``,
+        renderHpBar(boss.battleHp ?? boss.hp, boss.battleMaxHp ?? boss.maxHp),
+        "",
+        "## Battle Log",
+        ...(logs.length ? logs.slice(-8) : ["Choose a card to attack. Host controls the raid."]),
+        "",
+        "## Raid Team",
+        ...teamLines,
+      ].join("\n")
+    )
+    .setImage(boss.image || null)
+    .setFooter({ text: "One Piece Bot • Boss Phase 2 Raid" });
+}
+
+function buildRaidBossButtons(participants, ended) {
+  const rows = [];
+
+  for (const participant of participants) {
+    const row = new ActionRowBuilder();
+
+    for (const unit of participant.units) {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`boss_raid_attack_${unit.globalSlot}`)
+          .setLabel(`${participant.username.slice(0, 7)} ${unit.slot}`)
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(ended || Number(unit.battleHp ?? unit.hp) <= 0)
+      );
+    }
+
+    rows.push(row);
+  }
+
+  rows.push(
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("boss_raid_run")
+        .setLabel("Run Away")
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(ended)
+    )
+  );
+
+  return rows.slice(0, 5);
+}
+
 module.exports = {
   name: "boss",
-  aliases: ["islandboss"],
 
-  async execute(message) {
+  async execute(message, args = []) {
     const player = getPlayer(message.author.id, message.author.username);
     const bossCooldownUntil = Number(player?.cooldowns?.boss || 0);
 
@@ -897,17 +1177,330 @@ module.exports = {
     const currentIsland = getCurrentIsland(player);
 
     const routeAlreadyCleared = isIslandBossRouteCleared(player, currentIsland);
-    const phaseBoss = getBossPhaseForBattle(player, currentIsland);
-    if (requiresJoinLobbyForBossPhase(currentIsland, phaseBoss)) {
-      const lobbyResult = await waitForBossJoinLobby(
+    const phaseBossResult = getRequestedBossPhase(player, currentIsland, args);
+
+    if (phaseBossResult?.error) {
+      return message.reply(phaseBossResult.error);
+    }
+
+    const phaseBoss = phaseBossResult;
+    if (isBossPhaseTwoParty(currentIsland, phaseBoss)) {
+      const { participants, rejected } = await buildSavedRaidBossParticipants(
         message,
-        currentIsland,
-        phaseBoss
+        player
       );
 
-      if (!lobbyResult.approved) {
-        return;
+      if (participants.length < 2) {
+        return message.reply(
+          [
+            "Boss Phase 2 wajib memakai saved raid team dari `op rtadd @user`.",
+            "Minimal **2 user total** harus valid: host + member raid team.",
+            "Max **4 orang**: host + 3 member pertama dari saved raid team.",
+            "",
+            rejected.length ? `Rejected:\n${rejected.map((x) => `- ${x}`).join("\n")}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n")
+        );
       }
+
+      const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
+      const logs = [];
+      let ended = false;
+
+      updatePlayer(message.author.id, {
+        cooldowns: {
+          ...(player.cooldowns || {}),
+          boss: Date.now() + BOSS_COOLDOWN_MS,
+        },
+      });
+
+      const reply = await message.reply({
+        embeds: [
+          buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, ended),
+        ],
+        components: buildRaidBossButtons(participants, ended),
+      });
+
+      const collector = reply.createMessageComponentCollector({
+        time: SESSION_TIMEOUT_MS,
+      });
+
+      collector.on("collect", async (interaction) => {
+        if (interaction.user.id !== message.author.id) {
+          return interaction.reply({
+            content: "Only the host can control this Boss Phase 2 raid.",
+            ephemeral: true,
+          });
+        }
+
+        if (ended) {
+          return interaction.reply({
+            content: "This boss raid has already ended.",
+            ephemeral: true,
+          });
+        }
+
+        const allUnits = participants.flatMap((p) => p.units);
+
+        if (interaction.customId === "boss_raid_run") {
+          ended = true;
+          logs.length = 0;
+          logs.push("🏃 The raid host ran away from Boss Phase 2.");
+          logs.push("No EXP gained from running away.");
+
+          const updatedQuests = applyBossQuestProgress(player, ["bossFights"]);
+
+          updatePlayer(message.author.id, {
+            quests: updatedQuests,
+          });
+
+          await interaction.update({
+            embeds: [
+              buildBossResultEmbed({
+                title: "Boss Phase 2 Raid Escaped",
+                color: 0xf1c40f,
+                result: "RUN AWAY",
+                rewardLines: ["No rewards."],
+                expLines: ["No EXP gained."],
+                logs,
+              }),
+            ],
+            components: [],
+          });
+
+          collector.stop("run");
+          return;
+        }
+
+        const index = Number(interaction.customId.replace("boss_raid_attack_", ""));
+        const attacker = allUnits.find((unit) => unit.globalSlot === index);
+
+        if (!attacker || Number(attacker.battleHp ?? attacker.hp) <= 0) {
+          return interaction.reply({
+            content: "That raid unit cannot attack right now.",
+            ephemeral: true,
+          });
+        }
+
+        const owner = participants.find((p) => p.userId === attacker.ownerId);
+        logs.length = 0;
+
+        const turns = resolveTurnOrder(attacker, boss);
+
+        for (const turn of turns) {
+          const actor = turn.actor;
+          const target = turn.target;
+
+          if (Number(actor.battleHp ?? actor.hp) <= 0) continue;
+          if (Number(target.battleHp ?? target.hp) <= 0) continue;
+
+          const damage = performAttack(
+            actor,
+            target,
+            turn.isPlayer ? attacker.passiveBoostsApplied || owner?.combatBoosts || {} : {}
+          );
+
+          logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
+          logs.push(
+            `${turn.isPlayer ? "➡️" : "⬅️"} ${actor.name} dealt **${damage}** damage to ${target.name}.`
+          );
+
+          if (Number(target.battleHp ?? target.hp) <= 0) {
+            if (turn.isPlayer) attacker.kills += 1;
+            logs.push(`☠️ ${target.name} was defeated.`);
+          }
+        }
+
+        if (Number(boss.battleHp ?? boss.hp) <= 0) {
+          ended = true;
+
+          const reward = getBossReward(currentIsland, phaseBoss);
+          const storyLines = [];
+          const rewardLines = formatRewardLines(reward);
+          const allExpLines = [];
+
+          for (const participant of participants) {
+            const expResults = calculateBossExp(
+              participant.units,
+              true,
+              participant.combatBoosts
+            );
+
+            const updatedCards = applyBossExpToCards(
+              participant.player,
+              participant.units,
+              expResults
+            );
+
+            const expLines = formatExpResults(participant.units, expResults);
+            allExpLines.push(`**${participant.username}**`);
+            allExpLines.push(...expLines);
+
+            const participantStory = {
+              ...(participant.player.story || {}),
+              clearedIslandBosses: Array.isArray(participant.player?.story?.clearedIslandBosses)
+                ? [...participant.player.story.clearedIslandBosses]
+                : [],
+              bossPhases: {
+                ...(participant.player?.story?.bossPhases || {}),
+              },
+            };
+
+            const participantIsland = getCurrentIsland(participant.player);
+            const sameIsland = participantIsland?.code === currentIsland.code;
+
+            if (sameIsland) {
+              const currentState = getBossPhaseState(
+                participant.player,
+                currentIsland.code
+              );
+
+              const nextPhaseState = {
+                ...currentState,
+                phase1Cleared:
+                  Number(phaseBoss.phase) === 1 ? true : Boolean(currentState.phase1Cleared),
+                phase2Cleared:
+                  Number(phaseBoss.phase) === 2 ? true : Boolean(currentState.phase2Cleared),
+              };
+
+              nextPhaseState.completed = Boolean(
+                nextPhaseState.phase1Cleared && nextPhaseState.phase2Cleared
+              );
+
+              participantStory.bossPhases[currentIsland.code] = nextPhaseState;
+
+              if (
+                nextPhaseState.completed &&
+                !participantStory.clearedIslandBosses.includes(currentIsland.code)
+              ) {
+                participantStory.clearedIslandBosses.push(currentIsland.code);
+              }
+            }
+
+            const updatedQuests = applyBossQuestProgress(participant.player, [
+              "bossFights",
+              "bossesDefeated",
+            ]);
+
+            updatePlayer(participant.userId, {
+              cards: updatedCards,
+              boxes: applyBoxes(participant.player.boxes, reward.boxes),
+              berries: Number(participant.player.berries || 0) + reward.berries,
+              gems: Number(participant.player.gems || 0) + reward.gems,
+              story: participantStory,
+              quests: updatedQuests,
+            });
+          }
+
+          storyLines.push(`✅ ${currentIsland.name} Phase ${phaseBoss.phase} cleared.`);
+          storyLines.push("Rewards were given to every valid raid participant.");
+
+          logs.push(`🏆 ${boss.name} was defeated by the raid team!`);
+
+          await interaction.update({
+            embeds: [
+              buildBossResultEmbed({
+                title: "Boss Phase 2 Raid Victory",
+                color: 0x2ecc71,
+                result: "WIN",
+                rewardLines,
+                expLines: allExpLines,
+                storyLines,
+                logs,
+              }),
+            ],
+            components: [],
+          });
+
+          collector.stop("win");
+          return;
+        }
+
+        if (!getAliveUnits(allUnits).length) {
+          ended = true;
+
+          const allExpLines = [];
+
+          for (const participant of participants) {
+            const expResults = calculateBossExp(
+              participant.units,
+              false,
+              participant.combatBoosts
+            );
+
+            const updatedCards = applyBossExpToCards(
+              participant.player,
+              participant.units,
+              expResults
+            );
+
+            const expLines = formatExpResults(participant.units, expResults);
+            allExpLines.push(`**${participant.username}**`);
+            allExpLines.push(...expLines);
+
+            const updatedQuests = applyBossQuestProgress(participant.player, [
+              "bossFights",
+            ]);
+
+            updatePlayer(participant.userId, {
+              cards: updatedCards,
+              quests: updatedQuests,
+            });
+          }
+
+          logs.push(`💀 The raid team was wiped out by ${boss.name}.`);
+
+          await interaction.update({
+            embeds: [
+              buildBossResultEmbed({
+                title: "Boss Phase 2 Raid Defeat",
+                color: 0xe74c3c,
+                result: "LOSE",
+                expLines: allExpLines,
+                logs,
+              }),
+            ],
+            components: [],
+          });
+
+          collector.stop("lose");
+          return;
+        }
+
+        await interaction.update({
+          embeds: [
+            buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false),
+          ],
+          components: buildRaidBossButtons(participants, false),
+        });
+      });
+
+      collector.on("end", async (_collected, reason) => {
+        if (ended) return;
+
+        if (reason === "time") {
+          ended = true;
+          logs.length = 0;
+          logs.push("⌛ No interaction for 10 minutes. Boss Phase 2 raid failed.");
+
+          try {
+            await reply.edit({
+              embeds: [
+                buildBossResultEmbed({
+                  title: "Boss Phase 2 Raid Timeout",
+                  color: 0xe74c3c,
+                  result: "LOSE",
+                  logs,
+                }),
+              ],
+              components: [],
+            });
+          } catch (_) {}
+        }
+      });
+
+      return;
     }
 
     const combatBoosts = getPassiveBoostSummary(player);
