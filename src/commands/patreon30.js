@@ -29,15 +29,15 @@ function normalize(value) {
 }
 
 function formatIndonesiaDate(timestamp) {
-  return new Date(Number(timestamp || Date.now())).toLocaleString("id-ID", {
-    timeZone: INDONESIA_TIMEZONE,
-    year: "numeric",
-    month: "long",
+  return new Date(Number(timestamp || Date.now())).toLocaleString("en-US", {
+    timeZone: "Asia/Jakarta",
     day: "2-digit",
+    month: "short",
+    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  });
+  })
 }
 
 async function resolveMotherFlameRole(message) {
@@ -134,8 +134,8 @@ module.exports = {
           `**User:** ${member.user.tag}`,
           `**Role:** ${role.name}`,
           `**Duration:** ${DEFAULT_DAYS} days`,
-          `**Granted At:** ${formatIndonesiaDate(grantedAt)} WIB`,
-          `**Expires At:** ${formatIndonesiaDate(expiresAt)} WIB`,
+          `**Granted At:** ${formatDateTime(grantedAt)} WIB`,
+          `**Expires At:** ${formatDateTime(expiresAt)} WIB`,
           "",
           "This Patreon role was activated manually after ticket proof verification.",
         ].join("\n")
