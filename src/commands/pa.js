@@ -254,7 +254,7 @@ module.exports = {
   aliases: ["pullall"],
 
   async execute(message, args = []) {
-    const useResetAfterPull = String(args[0] || "").toLowerCase() === "reset";
+    const useManualResetAfterPull = String(args[0] || "").toLowerCase() === "reset";
     const premiumAccess = await isPremiumUser(message);
 
     if (!premiumAccess) {
@@ -433,17 +433,9 @@ module.exports = {
 
     let updatedPulls = consumeAllActivePullSlots(player, message);
 
-    if (useResetAfterPull) {
-      const resetAfterPullPlayer = {
-        ...player,
-        pulls: updatedPulls,
-      };
-
-      const resetAfterPullState = applyGlobalPullReset(resetAfterPullPlayer);
-
-      if (resetAfterPullState?.wasReset) {
-        updatedPulls = resetAfterPullState.pulls;
-      }
+    if (useManualResetAfterPull) {
+      const manualResetState = applyManualPullReset(updatedPulls);
+      updatedPulls = manualResetState.pulls;
     }
     const updatedDailyState = incrementQuestCounter(player, "pullsUsed", availableTotal);
 
