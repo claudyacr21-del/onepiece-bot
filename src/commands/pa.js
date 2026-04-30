@@ -4,7 +4,7 @@ const { hydrateCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
 const rawWeapons = require("../data/weapons");
 const rawDevilFruits = require("../data/devilFruits");
-const { applyGlobalPullReset } = require("../utils/pullReset");
+const { applyGlobalPullReset, applyManualPullReset } = require("../utils/pullReset");
 const { applyAutoLevelForDuplicate } = require("../utils/autoLevel");
 const {
   getTotalPullUsage,
@@ -480,10 +480,11 @@ module.exports = {
       groupedLines.push(...pullGroups.devilFruits);
     }
 
-    if (useResetAfterPull) {
+    if (useManualResetAfterPull) {
       groupedLines.push("");
       groupedLines.push("## Reset");
-      groupedLines.push("Pull reset has been applied after Pull All.");
+      groupedLines.push("Pull slots have been reset after Pull All.");
+      groupedLines.push("You can use `op pa` again now.");
     }
 
     const chunkSize = 25;
