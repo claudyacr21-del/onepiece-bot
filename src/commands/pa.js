@@ -434,6 +434,7 @@ module.exports = {
 
     let updatedPulls = consumeAllActivePullSlots(player, message);
     let resetTicketUsed = false;
+    let resetFailedReason = "";
 
     if (useManualResetAfterPull) {
       const resetTicketCode = "pull_reset_ticket";
@@ -442,21 +443,21 @@ module.exports = {
       );
 
       if (ticketIndex === -1 || Number(updatedTickets[ticketIndex].amount || 0) <= 0) {
-        return message.reply("You need **Pull Reset Ticket x1** to use `op pa reset`.");
+        resetFailedReason = "You do not have Pull Reset Ticket left, so pull reset was not applied.";
+      } else {
+        updatedTickets[ticketIndex] = {
+          ...updatedTickets[ticketIndex],
+          amount: Number(updatedTickets[ticketIndex].amount || 0) - 1,
+        };
+
+        if (Number(updatedTickets[ticketIndex].amount || 0) <= 0) {
+          updatedTickets.splice(ticketIndex, 1);
+        }
+
+        const manualResetState = applyManualPullReset(updatedPulls);
+        updatedPulls = manualResetState.pulls;
+        resetTicketUsed = true;
       }
-
-      updatedTickets[ticketIndex] = {
-        ...updatedTickets[ticketIndex],
-        amount: Number(updatedTickets[ticketIndex].amount || 0) - 1,
-      };
-
-      if (Number(updatedTickets[ticketIndex].amount || 0) <= 0) {
-        updatedTickets.splice(ticketIndex, 1);
-      }
-
-      const manualResetState = applyManualPullReset(updatedPulls);
-      updatedPulls = manualResetState.pulls;
-      resetTicketUsed = true;
     }
 
     const updatedDailyState = incrementQuestCounter(player, "pullsUsed", availableTotal);
@@ -497,9 +498,15 @@ module.exports = {
     if (useManualResetAfterPull) {
       groupedLines.push("");
       groupedLines.push("## Reset");
-      groupedLines.push(resetTicketUsed ? "Pull Reset Ticket x1 used." : "Pull reset applied.");
-      groupedLines.push("Pull slots have been reset after Pull All.");
-      groupedLines.push("You can use `op pa` again now.");
+
+      if (resetTicketUsed) {
+        groupedLines.push("Pull Reset Ticket x1 used.");
+        groupedLines.push("Pull slots have been reset after Pull All.");
+        groupedLines.push("You can use `op pa` again now.");
+      } else {
+        groupedLines.push(resetFailedReason || "Pull reset was not applied.");
+        groupedLines.push("Pull All rewards were still saved.");
+      }
     }
     const chunkSize = 25;
     const chunks = [];
