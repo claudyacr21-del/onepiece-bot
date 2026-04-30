@@ -37,7 +37,7 @@ function formatRemaining(ms) {
 
 module.exports = {
   name: "resetpull",
-  aliases: ["rpull", "pr"],
+  aliases: ["reset"],
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
     const tickets = [...(player.tickets || [])];
