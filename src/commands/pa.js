@@ -433,26 +433,25 @@ module.exports = {
     };
 
     let updatedPulls = consumeAllActivePullSlots(player, message);
-    let updatedItems = [...(player.items || [])];
     let resetTicketUsed = false;
 
     if (useManualResetAfterPull) {
       const resetTicketCode = "pull_reset_ticket";
-      const ticketIndex = updatedItems.findIndex(
-        (item) => String(item.code || "").toLowerCase() === resetTicketCode
+      const ticketIndex = updatedTickets.findIndex(
+        (ticket) => String(ticket.code || "").toLowerCase() === resetTicketCode
       );
 
-      if (ticketIndex === -1 || Number(updatedItems[ticketIndex].amount || 0) <= 0) {
+      if (ticketIndex === -1 || Number(updatedTickets[ticketIndex].amount || 0) <= 0) {
         return message.reply("You need **Pull Reset Ticket x1** to use `op pa reset`.");
       }
 
-      updatedItems[ticketIndex] = {
-        ...updatedItems[ticketIndex],
-        amount: Number(updatedItems[ticketIndex].amount || 0) - 1,
+      updatedTickets[ticketIndex] = {
+        ...updatedTickets[ticketIndex],
+        amount: Number(updatedTickets[ticketIndex].amount || 0) - 1,
       };
 
-      if (updatedItems[ticketIndex].amount <= 0) {
-        updatedItems.splice(ticketIndex, 1);
+      if (Number(updatedTickets[ticketIndex].amount || 0) <= 0) {
+        updatedTickets.splice(ticketIndex, 1);
       }
 
       const manualResetState = applyManualPullReset(updatedPulls);
@@ -468,7 +467,6 @@ module.exports = {
       devilFruits: updatedDevilFruits,
       fragments: updatedFragments,
       tickets: updatedTickets,
-      items: updatedItems,
       pulls: updatedPulls,
       pity: updatedPity,
       quests: {
