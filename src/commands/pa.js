@@ -253,7 +253,8 @@ module.exports = {
   name: "pa",
   aliases: ["pullall"],
 
-  async execute(message) {
+  async execute(message, args = []) {
+    const useResetAfterPull = String(args[0] || "").toLowerCase() === "reset";
     const premiumAccess = await isPremiumUser(message);
 
     if (!premiumAccess) {
@@ -317,7 +318,11 @@ module.exports = {
       raidTicket: 0,
     };
 
-    const pullLines = [];
+    const pullGroups = {
+      cards: [],
+      weapons: [],
+      devilFruits: [],
+    };
 
     for (let i = 0; i < availableTotal; i++) {
       pityCounter += 1;
@@ -404,9 +409,15 @@ module.exports = {
       const typeLabel = getTypeLabel(contentType);
       const pityLabel = triggeredPity ? " [PITY]" : "";
 
-      pullLines.push(
-        `${i + 1}. [${rewardRarity}] ${rewardName} (${typeLabel})${pityLabel}${duplicateNote}${ticketNote}`
-      );
+      const line = `${i + 1}. [${rewardRarity}] ${rewardName}${pityLabel}${duplicateNote}${ticketNote}`;
+
+      if (contentType === "weapon") {
+        pullGroups.weapons.push(line);
+      } else if (contentType === "devilFruit") {
+        pullGroups.devilFruits.push(line);
+      } else {
+        pullGroups.cards.push(line);
+      }
 
       if (triggeredPity) {
         pityCounter = 0;
@@ -420,7 +431,20 @@ module.exports = {
       premiumSPity: pityCounter,
     };
 
-    const updatedPulls = consumeAllActivePullSlots(player, message);
+    let updatedPulls = consumeAllActivePullSlots(player, message);
+
+    if (useResetAfterPull) {
+      const resetAfterPullPlayer = {
+        ...player,
+        pulls: updatedPulls,
+      };
+
+      const resetAfterPullState = applyGlobalPullReset(resetAfterPullPlayer);
+
+      if (resetAfterPullState?.wasReset) {
+        updatedPulls = resetAfterPullState.pulls;
+      }
+    }
     const updatedDailyState = incrementQuestCounter(player, "pullsUsed", availableTotal);
 
     updatePlayer(message.author.id, {
@@ -437,11 +461,35 @@ module.exports = {
       },
     });
 
-    const chunkSize = 20;
-    const chunks = [];
+    const groupedLines = [];
 
-    for (let i = 0; i < pullLines.length; i += chunkSize) {
-      chunks.push(pullLines.slice(i, i + chunkSize).join("\n"));
+    if (pullGroups.cards.length) {
+      groupedLines.push("## Cards");
+      groupedLines.push(...pullGroups.cards);
+      groupedLines.push("");
+    }
+
+    if (pullGroups.weapons.length) {
+      groupedLines.push("## Weapons");
+      groupedLines.push(...pullGroups.weapons);
+      groupedLines.push("");
+    }
+
+    if (pullGroups.devilFruits.length) {
+      groupedLines.push("## Devil Fruits");
+      groupedLines.push(...pullGroups.devilFruits);
+    }
+
+    if (useResetAfterPull) {
+      groupedLines.push("");
+      groupedLines.push("## Reset");
+      groupedLines.push("Pull reset has been applied after Pull All.");
+    }
+
+    const chunkSize = 25;
+    const chunks = [];
+    for (let i = 0; i < groupedLines.length; i += chunkSize) {
+      chunks.push(groupedLines.slice(i, i + chunkSize).join("\n"));
     }
 
     const embeds = [];
