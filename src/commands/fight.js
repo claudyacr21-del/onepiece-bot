@@ -478,20 +478,48 @@ function buildFightResultEmbed({ title, color, result, rewardLines = [], expLine
     });
 }
 
-function calculateWinReward(streakAfterWin, premiumMode) {
+function calculateWinReward(streakAfterWin, premiumMode, island) {
+  const order = Math.max(1, Number(island?.order || 1));
+  const tier = Math.max(1, Number(island?.requiredShipTier || 1));
+
+  const islandBerries = 900 + order * 180 + tier * 250;
+  const islandGems = 3 + Math.floor(order / 4) + Math.floor(tier / 2);
+
+  const premiumMultiplier = premiumMode ? 1.45 : 1;
+
   const reward = {
-    berries: premiumMode ? 3500 : 2500,
-    gems: premiumMode ? 12 : 8,
+    berries: Math.floor(islandBerries * premiumMultiplier),
+    gems: Math.floor(islandGems * premiumMultiplier),
     boxes: [],
   };
 
-  if (streakAfterWin % 10 === 0) {
-    reward.berries += premiumMode ? 7000 : 5000;
-    reward.gems += premiumMode ? 20 : 15;
+  if (order >= 8 && streakAfterWin % 10 === 0) {
     reward.boxes.push(cloneItem(ITEMS.basicResourceBox, 1));
   }
 
+  if (order >= 18 && streakAfterWin % 15 === 0) {
+    reward.boxes.push(cloneItem(ITEMS.rareResourceBox, 1));
+  }
+
+  if (streakAfterWin % 10 === 0) {
+    reward.berries += Math.floor((2500 + order * 220) * premiumMultiplier);
+    reward.gems += Math.floor((8 + Math.floor(order / 3)) * premiumMultiplier);
+  }
+
   return reward;
+}
+
+function formatFightRewardLines(reward) {
+  const lines = [
+    `💰 +${Number(reward.berries || 0).toLocaleString("en-US")} berries`,
+    `💎 +${Number(reward.gems || 0)} gems`,
+  ];
+
+  for (const box of reward.boxes || []) {
+    lines.push(`🎁 ${box.name || "Resource Box"} x${Number(box.amount || 1)}`);
+  }
+
+  return lines;
 }
 
 function calculateFightExp(playerTeam, won) {
@@ -833,7 +861,7 @@ if (interaction.customId === "fight_run_cancel") {
         battleEnded = true;
         currentStreak += 1;
 
-        const reward = calculateWinReward(currentStreak, premiumMode);
+        const reward = calculateWinReward(currentStreak, premiumMode, currentIsland);
         let updatedBoxes = [...(player.boxes || [])];
 
         reward.boxes.forEach((item) => {
@@ -912,11 +940,7 @@ if (interaction.customId === "fight_run_cancel") {
               title: "🏆 Fight Victory",
               color: 0x2ecc71,
               result: "WIN",
-              rewardLines: [
-                `💰 +${reward.berries.toLocaleString("en-US")} berries`,
-                `💎 +${reward.gems} gems`,
-                reward.boxes.length ? "📦 Basic Resource Box x1" : null,
-              ].filter(Boolean),
+              rewardLines: formatFightRewardLines(reward),
               expLines,
               logs,
             }),
