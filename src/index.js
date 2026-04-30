@@ -27,6 +27,8 @@ const client = new Client({
 });
 
 const PREFIX = String(process.env.PREFIX || "op").toLowerCase();
+const COMMAND_COOLDOWN_MS = 1000;
+const commandCooldowns = new Map();
 
 client.commands = new Collection();
 
@@ -189,6 +191,22 @@ client.on("messageCreate", async (message) => {
       await message.reply(`Unknown command: \`${commandName}\``);
       return;
     }
+
+    const cooldownKey = `${message.author.id}:${command.name || commandName}`;
+    const now = Date.now();
+    const lastUsed = commandCooldowns.get(cooldownKey) || 0;
+
+    if (now - lastUsed < COMMAND_COOLDOWN_MS) {
+      return;
+    }
+
+    commandCooldowns.set(cooldownKey, now);
+
+    setTimeout(() => {
+      if (commandCooldowns.get(cooldownKey) === now) {
+        commandCooldowns.delete(cooldownKey);
+      }
+    }, COMMAND_COOLDOWN_MS + 250);
 
     const channelCheck = isCommandAllowedInChannel({
       message,
