@@ -356,22 +356,21 @@ function renderHpBar(hp, maxHp, size = 10) {
 }
 
 function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode, island) {
-  const playerLines = playerTeam.map((unit) => {
-    return [
-      `**${unit.slot}. ${unit.name}**`,
-      `[${unit.rarity}] • ATK \`${formatAtkRange(unit.battleAtk)}\` • SPD \`${unit.battleSpeed}\` • LV \`${unit.level}\``,
-      renderHpBar(unit.battleHp, unit.battleMaxHp),
-    ].join("\n");
-  });
+  const makeUnitLine = (unit, index, isEnemy = false) => {
+    const slot = isEnemy ? index + 1 : unit.slot;
+    const levelText = isEnemy
+      ? `LV \`${unit.level || 1}\` • ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``
+      : `ATK \`${formatAtkRange(unit.battleAtk)}\` • SPD \`${unit.battleSpeed}\` • LV \`${unit.level}\``;
 
-  const enemyLines = enemyTeam.map((unit, index) => {
-    return [
-      `**${index + 1}. ${unit.name}**`,
-      `[${unit.rarity}] • LV \`${unit.level || 1}\` • ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
-      renderHpBar(unit.hp, unit.maxHp),
-    ].join("\n");
-  });
+    const hp = isEnemy
+      ? renderHpBar(unit.hp, unit.maxHp)
+      : renderHpBar(unit.battleHp, unit.battleMaxHp);
 
+    return `**${slot}. ${unit.name}**\n[${unit.rarity}] • ${levelText}\n${hp}`;
+  };
+
+  const enemyLines = enemyTeam.map((unit, index) => makeUnitLine(unit, index, true));
+  const playerLines = playerTeam.map((unit, index) => makeUnitLine(unit, index, false));
   const recentLogs = logs.slice(-6);
 
   return [
@@ -384,10 +383,10 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode,
     ...(recentLogs.length ? recentLogs : ["No actions yet. Choose your first attacker."]),
     "",
     "## Enemy Team",
-    ...enemyLines,
+    enemyLines.join("\n"),
     "",
     "## Your Team",
-    ...playerLines,
+    playerLines.join("\n"),
   ].join("\n");
 }
 
