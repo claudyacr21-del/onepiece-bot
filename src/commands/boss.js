@@ -25,6 +25,9 @@ const {
 const BOSS_COOLDOWN_MS = 10 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
 
+const BOSS_PHASE_JOIN_REQUIRED = 2;
+const BOSS_JOIN_LOBBY_MS = 2 * 60 * 1000;
+
 const BOSS_WIN_EXP_PER_CARD = 180;
 const BOSS_LOSE_EXP_PER_CARD = 95;
 
@@ -290,81 +293,7 @@ function getActiveBossPhase(player, island) {
   return null;
 }
 
-function getPartyMemberIds(player, fallbackUserId) {
-  const party = player?.party || {};
-  const rawPartyMembers =
-    party.members ||
-    party.memberIds ||
-    party.players ||
-    party.userIds ||
-    player?.partyMembers ||
-    [];
-
-  const rawRaidMembers = Array.isArray(player?.raidTeam?.members)
-    ? player.raidTeam.members
-    : [];
-
-  const ids = new Set();
-
-  if (fallbackUserId) {
-    ids.add(String(fallbackUserId));
-  }
-
-  if (party.leaderId) {
-    ids.add(String(party.leaderId));
-  }
-
-  if (party.ownerId) {
-    ids.add(String(party.ownerId));
-  }
-
-  if (player?.raidTeam?.leaderId) {
-    ids.add(String(player.raidTeam.leaderId));
-  }
-
-  if (player?.raidTeam?.ownerId) {
-    ids.add(String(player.raidTeam.ownerId));
-  }
-
-  function addMember(member) {
-    if (!member) return;
-
-    if (typeof member === "string") {
-      ids.add(String(member));
-      return;
-    }
-
-    if (member.id) {
-      ids.add(String(member.id));
-      return;
-    }
-
-    if (member.userId) {
-      ids.add(String(member.userId));
-      return;
-    }
-
-    if (member.memberId) {
-      ids.add(String(member.memberId));
-    }
-  }
-
-  if (Array.isArray(rawPartyMembers)) {
-    for (const member of rawPartyMembers) {
-      addMember(member);
-    }
-  }
-
-  if (Array.isArray(rawRaidMembers)) {
-    for (const member of rawRaidMembers) {
-      addMember(member);
-    }
-  }
-
-  return [...ids].filter(Boolean);
-}
-
-function requiresPartyForBossPhase(island, phaseBoss) {
+function requiresJoinLobbyForBossPhase(island, phaseBoss) {
   if (!phaseBoss) return false;
 
   const islandCode = String(island?.code || "").toLowerCase();
@@ -375,14 +304,181 @@ function requiresPartyForBossPhase(island, phaseBoss) {
   return ["egghead", "elbaf"].includes(islandCode) && phase === 2;
 }
 
-function getBossPartyTotal(player, message) {
-  return getPartyMemberIds(player, message.author.id).length;
+function buildBossJoinEmbed(hostId, island, phaseBoss, joinedIds, statusText = "") {
+  const phaseLabel = phaseBoss ? `Phase ${phaseBoss.phase}` : "Boss Phase";
+  const joinedList = [...joinedIds].map((id, index) => `${index + 1}. <@${id}>`);
+
+  return new EmbedBuilder()
+    .setColor(joinedIds.size >= BOSS_PHASE_JOIN_REQUIRED ? 0x2ecc71 : 0xf1c40f)
+    .setTitle(`👥 ${island.name} ${phaseLabel} Lobby`)
+    .setDescription(
+      [
+        `**Host:** <@${hostId}>`,
+        `**Joined:** ${joinedIds.size}/${BOSS_PHASE_JOIN_REQUIRED}`,
+        "",
+        joinedList.length ? joinedList.join("\n") : "No one has joined yet.",
+        "",
+        statusText || "At least **2 users must join this boss lobby** before the fight can start.",
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Boss Join Lobby",
+    });
 }
 
-function hasRequiredBossParty(player, message, phaseBoss) {
-  if (!phaseBoss) return true;
+function buildBossJoinButtons(canStart = false) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("boss_lobby_join")
+        .setLabel("Join")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId("boss_lobby_start")
+        .setLabel("Start")
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(!canStart),
+      new ButtonBuilder()
+        .setCustomId("boss_lobby_cancel")
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Danger)
+    ),
+  ];
+}
 
-  return getBossPartyTotal(player, message) >= 2;
+async function waitForBossJoinLobby(message, island, phaseBoss) {
+  const joinedIds = new Set([String(message.author.id)]);
+  let approved = false;
+  let cancelled = false;
+
+  const lobbyMessage = await message.reply({
+    embeds: [
+      buildBossJoinEmbed(
+        message.author.id,
+        island,
+        phaseBoss,
+        joinedIds,
+        "Host is counted as joined. At least **1 more user** must press **Join**."
+      ),
+    ],
+    components: buildBossJoinButtons(joinedIds.size >= BOSS_PHASE_JOIN_REQUIRED),
+  });
+
+  const collector = lobbyMessage.createMessageComponentCollector({
+    time: BOSS_JOIN_LOBBY_MS,
+  });
+
+  await new Promise((resolve) => {
+    collector.on("collect", async (interaction) => {
+      if (interaction.customId === "boss_lobby_join") {
+        joinedIds.add(String(interaction.user.id));
+
+        await interaction.update({
+          embeds: [
+            buildBossJoinEmbed(
+              message.author.id,
+              island,
+              phaseBoss,
+              joinedIds,
+              joinedIds.size >= BOSS_PHASE_JOIN_REQUIRED
+                ? "Enough users joined. The host can press **Start**."
+                : "Waiting for more users to press **Join**."
+            ),
+          ],
+          components: buildBossJoinButtons(joinedIds.size >= BOSS_PHASE_JOIN_REQUIRED),
+        });
+
+        return;
+      }
+
+      if (interaction.user.id !== message.author.id) {
+        return interaction.reply({
+          content: "Only the host can start or cancel this boss lobby.",
+          ephemeral: true,
+        });
+      }
+
+      if (interaction.customId === "boss_lobby_cancel") {
+        cancelled = true;
+
+        await interaction.update({
+          embeds: [
+            buildBossJoinEmbed(
+              message.author.id,
+              island,
+              phaseBoss,
+              joinedIds,
+              "Boss lobby cancelled."
+            ),
+          ],
+          components: [],
+        });
+
+        collector.stop("cancelled");
+        resolve();
+        return;
+      }
+
+      if (interaction.customId === "boss_lobby_start") {
+        if (joinedIds.size < BOSS_PHASE_JOIN_REQUIRED) {
+          return interaction.reply({
+            content: `Need at least ${BOSS_PHASE_JOIN_REQUIRED} users joined before starting.`,
+            ephemeral: true,
+          });
+        }
+
+        approved = true;
+
+        await interaction.update({
+          embeds: [
+            buildBossJoinEmbed(
+              message.author.id,
+              island,
+              phaseBoss,
+              joinedIds,
+              "Boss lobby approved. Starting boss battle..."
+            ),
+          ],
+          components: [],
+        });
+
+        collector.stop("started");
+        resolve();
+      }
+    });
+
+    collector.on("end", async (_collected, reason) => {
+      if (approved || cancelled || reason === "started" || reason === "cancelled") {
+        resolve();
+        return;
+      }
+
+      cancelled = true;
+
+      try {
+        await lobbyMessage.edit({
+          embeds: [
+            buildBossJoinEmbed(
+              message.author.id,
+              island,
+              phaseBoss,
+              joinedIds,
+              "Boss lobby expired. Please run `op boss` again."
+            ),
+          ],
+          components: [],
+        });
+      } catch (_) {}
+
+      resolve();
+    });
+  });
+
+  return {
+    approved,
+    cancelled,
+    joinedIds: [...joinedIds],
+  };
 }
 
 function getIslandBossImage(currentIsland, phaseBoss = null, fromDb = null) {
@@ -793,21 +889,16 @@ module.exports = {
 
     const phaseBoss = getActiveBossPhase(player, currentIsland);
 
-    if (
-      requiresPartyForBossPhase(currentIsland, phaseBoss) &&
-      !hasRequiredBossParty(player, message, phaseBoss)
-    ) {
-      const currentTotal = getBossPartyTotal(player, message);
-
-      return message.reply(
-        [
-          `\`${currentIsland.name} Phase ${phaseBoss.phase}\` requires a party.`,
-          `Current party: **${currentTotal}/2 total users**.`,
-          "",
-          "The party leader counts as 1 user.",
-          "Use `op rtadd @user` to add at least 1 member, then try `op boss` again.",
-        ].join("\n")
+    if (requiresJoinLobbyForBossPhase(currentIsland, phaseBoss)) {
+      const lobbyResult = await waitForBossJoinLobby(
+        message,
+        currentIsland,
+        phaseBoss
       );
+
+      if (!lobbyResult.approved) {
+        return;
+      }
     }
 
     const combatBoosts = getPassiveBoostSummary(player);
