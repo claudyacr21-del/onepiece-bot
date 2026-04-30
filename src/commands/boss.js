@@ -326,7 +326,7 @@ function buildBossJoinEmbed(hostId, island, phaseBoss, joinedIds, statusText = "
     });
 }
 
-function buildBossJoinButtons(canStart = false) {
+function buildBossJoinButtons() {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -336,8 +336,7 @@ function buildBossJoinButtons(canStart = false) {
       new ButtonBuilder()
         .setCustomId("boss_lobby_start")
         .setLabel("Start")
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(!canStart),
+        .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId("boss_lobby_cancel")
         .setLabel("Cancel")
@@ -361,7 +360,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
         "Host is counted as joined. At least **1 more user** must press **Join**."
       ),
     ],
-    components: buildBossJoinButtons(joinedIds.size >= BOSS_PHASE_JOIN_REQUIRED),
+    components: buildBossJoinButtons(),
   });
 
   const collector = lobbyMessage.createMessageComponentCollector({
@@ -385,7 +384,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
                 : "Waiting for more users to press **Join**."
             ),
           ],
-          components: buildBossJoinButtons(joinedIds.size >= BOSS_PHASE_JOIN_REQUIRED),
+          components: buildBossJoinButtons(),
         });
 
         return;
@@ -422,7 +421,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
       if (interaction.customId === "boss_lobby_start") {
         if (joinedIds.size < BOSS_PHASE_JOIN_REQUIRED) {
           return interaction.reply({
-            content: `Need at least ${BOSS_PHASE_JOIN_REQUIRED} users joined before starting.`,
+            content:
+              "You need at least **2 users** to start this boss phase. Ask another user to press **Join** first.",
             ephemeral: true,
           });
         }
