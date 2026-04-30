@@ -28,7 +28,7 @@ function getPotentialSlotTotal(slots) {
 
 module.exports = {
   name: "pullinfo",
-  aliases: ["pullslots", "pullstatus", "pulli"],
+  aliases: ["pi"],
 
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
