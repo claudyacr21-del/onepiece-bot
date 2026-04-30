@@ -293,6 +293,21 @@ function getActiveBossPhase(player, island) {
   return null;
 }
 
+function getBossPhaseForBattle(player, island) {
+  if (!isPhasedIsland(island)) return null;
+
+  const activePhase = getActiveBossPhase(player, island);
+  if (activePhase) return activePhase;
+
+  const phases = Array.isArray(island.bossPhases) ? island.bossPhases : [];
+
+  return (
+    [...phases]
+      .sort((a, b) => Number(b.phase || 0) - Number(a.phase || 0))
+      .find(Boolean) || null
+  );
+}
+
 function requiresJoinLobbyForBossPhase(island, phaseBoss) {
   if (!phaseBoss) return false;
 
@@ -881,14 +896,8 @@ module.exports = {
 
     const currentIsland = getCurrentIsland(player);
 
-    if (isIslandBossRouteCleared(player, currentIsland)) {
-      return message.reply(
-        `You already cleared the boss route of \`${currentIsland.name}\`.\nUse \`op sail\` to continue.`
-      );
-    }
-
-    const phaseBoss = getActiveBossPhase(player, currentIsland);
-
+    const routeAlreadyCleared = isIslandBossRouteCleared(player, currentIsland);
+    const phaseBoss = getBossPhaseForBattle(player, currentIsland);
     if (requiresJoinLobbyForBossPhase(currentIsland, phaseBoss)) {
       const lobbyResult = await waitForBossJoinLobby(
         message,
@@ -1080,8 +1089,10 @@ module.exports = {
         };
 
         const storyLines = [];
-
-        if (phaseBoss) {
+        if (routeAlreadyCleared) {
+          storyLines.push(`🔁 ${currentIsland.name} boss route was already cleared. This was a grind rematch.`);
+        }
+        if (phaseBoss && !routeAlreadyCleared) {
           const currentState = getBossPhaseState(player, currentIsland.code);
           const nextPhaseState = {
             ...currentState,
@@ -1113,7 +1124,7 @@ module.exports = {
           if (nextPhaseState.completed) {
             storyLines.push(`🏁 ${currentIsland.name} boss route is now fully cleared.`);
           }
-        } else {
+        } else if (!routeAlreadyCleared) {
           if (!nextStory.clearedIslandBosses.includes(currentIsland.code)) {
             nextStory.clearedIslandBosses.push(currentIsland.code);
           }
