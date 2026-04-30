@@ -249,6 +249,39 @@ function getTypeLabel(contentType) {
   return "Devil Fruit";
 }
 
+function getCollectionStorageInfo(player) {
+  const cards = Array.isArray(player.cards) ? player.cards.length : 0;
+  const weapons = Array.isArray(player.weapons) ? player.weapons.length : 0;
+  const devilFruits = Array.isArray(player.devilFruits) ? player.devilFruits.length : 0;
+
+  const used = cards + weapons + devilFruits;
+  const max = Number(player?.storage?.max || player?.storageLimit || 250);
+
+  return { used, max };
+}
+
+function getConvertBerries(reward, contentType) {
+  const rarity = String(reward?.baseTier || reward?.rarity || "C").toUpperCase();
+
+  const rarityValue = {
+    C: 500,
+    B: 1000,
+    A: 2500,
+    S: 6000,
+    SS: 12000,
+    UR: 25000,
+  };
+
+  const typeBonus = {
+    battleCard: 1,
+    boostCard: 1,
+    weapon: 1.25,
+    devilFruit: 1.5,
+  };
+
+  return Math.floor((rarityValue[rarity] || 500) * (typeBonus[contentType] || 1));
+}
+
 module.exports = {
   name: "pa",
   aliases: ["pullall"],
@@ -302,6 +335,9 @@ module.exports = {
     let updatedFragments = [...(player.fragments || [])];
     let updatedTickets = [...(player.tickets || [])];
     let pityCounter = getSharedPity(player);
+    let convertedBerries = 0;
+    let convertedCount = 0;
+    let storageInfo = getCollectionStorageInfo(player);
 
     const summary = {
       card: 0,
@@ -337,6 +373,44 @@ module.exports = {
 
       const rewardResult = getRewardResult(contentType, reward);
       let duplicateNote = "";
+
+      const isDuplicateCard =
+        rewardResult.storageKey === "cards" &&
+        hasOwnedCardByCode(updatedCards, rewardResult.storedReward.code);
+
+      const needsStorageSlot =
+        rewardResult.storageKey !== "cards" || !isDuplicateCard;
+
+      if (needsStorageSlot && storageInfo.used >= storageInfo.max) {
+        const berryValue = getConvertBerries(reward, contentType);
+        convertedBerries += berryValue;
+        convertedCount += 1;
+
+        const rewardRarity = String(reward.baseTier || reward.rarity || "C").toUpperCase();
+        const rewardName = reward.displayName || reward.name || "Unknown";
+        const pityLabel = triggeredPity ? " [PITY]" : "";
+
+        const targetGroup =
+          contentType === "weapon"
+            ? pullGroups.weapons
+            : contentType === "devilFruit"
+              ? pullGroups.devilFruits
+              : pullGroups.cards;
+
+        targetGroup.push(
+          `${targetGroup.length + 1}. [${rewardRarity}] ${rewardName}${pityLabel} → Storage Full (+${berryValue.toLocaleString("en-US")} berries)`
+        );
+
+        if (triggeredPity) {
+          pityCounter = 0;
+        }
+
+        continue;
+      }
+
+      if (needsStorageSlot) {
+        storageInfo.used += 1;
+      }
 
       if (rewardResult.storageKey === "cards") {
         const alreadyOwned = hasOwnedCardByCode(
@@ -468,6 +542,7 @@ module.exports = {
       devilFruits: updatedDevilFruits,
       fragments: updatedFragments,
       tickets: updatedTickets,
+      berries: Number(player.berries || 0) + convertedBerries,
       pulls: updatedPulls,
       pity: updatedPity,
       quests: {
@@ -493,6 +568,14 @@ module.exports = {
     if (pullGroups.devilFruits.length) {
       groupedLines.push("## Devil Fruits");
       groupedLines.push(...pullGroups.devilFruits);
+    }
+
+    if (convertedCount > 0) {
+      groupedLines.push("");
+      groupedLines.push("## Storage Full Convert");
+      groupedLines.push(
+        `${convertedCount} reward(s) converted into **${convertedBerries.toLocaleString("en-US")} berries**.`
+      );
     }
 
     if (useManualResetAfterPull) {
