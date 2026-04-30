@@ -27,7 +27,7 @@ const client = new Client({
 });
 
 const PREFIX = String(process.env.PREFIX || "op").toLowerCase();
-const COMMAND_COOLDOWN_MS = 1000;
+const COMMAND_COOLDOWN_MS = 3000;
 const commandCooldowns = new Map();
 
 client.commands = new Collection();
