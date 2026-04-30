@@ -449,121 +449,121 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1499299518708187146/content.png?ex=69f44afc&is=69f2f97c&hm=be1f0e1c4fe741eaae0ec7b99a708953d84d1093a2efe5e5d2313df014d2a106&",
   },
   brook_soul_king: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499307326606151820/content.png?ex=69f45242&is=69f300c2&hm=cce049fd98c4e65cbc7180906106ab8c687523d411d1117138fc66184837bb2c&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1499307327088492585/content.png?ex=69f45242&is=69f300c2&hm=3effc5669502d7b818f46ac8cc14afb18477175de0decb532c46ab1838d5919f&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1499307327843733634/content.png?ex=69f45242&is=69f300c2&hm=bd5f556eda184d840eec11643b9bc534d56e46dc428a6d9669a1f111c84eb46a&",
   },
   gecko_moria: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499321141620117604/content.png?ex=69f45f20&is=69f30da0&hm=70c893c0089f2b3179ad4dbaac0983f89ec42d97a6f7fd7dd0ac0d766dce72f8&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1499321141989478440/content.png?ex=69f45f20&is=69f30da0&hm=42f181b7da21be7bbee7cca2f1ad6d05deb50cf6697d30db057a7630cb10263c&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1499321142328955012/content.png?ex=69f45f20&is=69f30da0&hm=7ec57c548066372bee451e058e1ab1389b417bd3116f8ba7484bd0320049f0e2&",
+  },
+  bartholomew_kuma: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499346233012125917/content.png?ex=69f4767e&is=69f324fe&hm=2ab205cc95fda03ca39d345bd936977f7ce2ea467920f81c70c79d349cdab6a6&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1499346233637081208/content.png?ex=69f4767e&is=69f324fe&hm=c6fa31e991682d7041a0053d36e24094b2d5e4725f4cc82f3aace498ac3fbcae&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1499346234165694525/content.png?ex=69f4767e&is=69f324fe&hm=7b75b72fcc0fb50d071790013c6396cea809323ac2c122cf11f1116bbbfd6ece&",
+  },
+  boa_hancock: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499361312726192302/content.png?ex=69f48489&is=69f33309&hm=69cddd8f7751b4a988e079866692e624d7db49ef63f22f7bfa919c05e812dda2&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1499361313409859584/content.png?ex=69f48489&is=69f33309&hm=d99e075d51ea219a63c4cad7c5e474ec455cc38d5a86f738ad8ed6ed3e88c398&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1499361314034679908/content.png?ex=69f4848a&is=69f3330a&hm=4f9b1344d03ff012ba72c0a811acc09cc0e3f12ae8b48df7d3dd4b21d6abd666&",
+  },
+  jinbe_first_son_of_the_sea: {
     M1: "",
     M2: "",
     M3: "",
   },
-  brook_soul_king: {
+  ace_fire_fist: {
     M1: "",
     M2: "",
     M3: "",
   },
-  gecko_moria: {
+  whitebeard_strongest_man: {
     M1: "",
     M2: "",
     M3: "",
   },
-  brook_soul_king: {
+  blackbeard_emperor_of_darkness: {
     M1: "",
     M2: "",
     M3: "",
   },
-  gecko_moria: {
+  garp_hero_of_the_marines: {
     M1: "",
     M2: "",
     M3: "",
   },
-  brook_soul_king: {
+  sengoku_buddha: {
     M1: "",
     M2: "",
     M3: "",
   },
-  gecko_moria: {
+  akainu: {
     M1: "",
     M2: "",
     M3: "",
   },
-  brook_soul_king: {
+  aokiji: {
     M1: "",
     M2: "",
     M3: "",
   },
-  gecko_moria: {
+  kizaru: {
     M1: "",
     M2: "",
     M3: "",
   },
-  brook_soul_king: {
+  shanks_red_hair: {
     M1: "",
     M2: "",
     M3: "",
   },
-  gecko_moria: {
+  mihawk_hawk_eyes: {
     M1: "",
     M2: "",
     M3: "",
   },
-  brook_soul_king: {
+  roger_king_of_the_pirates: {
     M1: "",
     M2: "",
     M3: "",
   },
-  gecko_moria: {
+  xebec_captain_of_rocks: {
     M1: "",
     M2: "",
     M3: "",
   },
-  brook_soul_king: {
+  dragon_revolutionary_leader: {
     M1: "",
     M2: "",
     M3: "",
   },
-  gecko_moria: {
+  saturn: {
     M1: "",
     M2: "",
     M3: "",
   },
-  brook_soul_king: {
+  mars: {
     M1: "",
     M2: "",
     M3: "",
   },
-  gecko_moria: {
+  warcury: {
     M1: "",
     M2: "",
     M3: "",
   },
-  brook_soul_king: {
+  nusjuro: {
     M1: "",
     M2: "",
     M3: "",
   },
-  gecko_moria: {
+  ju_peter: {
     M1: "",
     M2: "",
     M3: "",
   },
-  brook_soul_king: {
-    M1: "",
-    M2: "",
-    M3: "",
-  },
-  gecko_moria: {
-    M1: "",
-    M2: "",
-    M3: "",
-  },
-  brook_soul_king: {
-    M1: "",
-    M2: "",
-    M3: "",
-  },
-  gecko_moria: {
+  imu: {
     M1: "",
     M2: "",
     M3: "",
