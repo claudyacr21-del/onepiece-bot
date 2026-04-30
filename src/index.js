@@ -8,6 +8,7 @@ const {
   Collection,
   Partials,
 } = require("discord.js");
+
 const { startTopggWebhookServer } = require("./topggWebhook");
 const { syncArenaRankRoles } = require("./utils/arenaRankRoles");
 const { syncExpiredPatreonRoles } = require("./utils/patreonRoleStore");
@@ -81,42 +82,50 @@ function isCommandAllowedInChannel({ message, commandName, command }) {
   const realCommandName = normalizeCommandName(command?.name);
 
   const isAlwaysAllowed =
-    alwaysAllowed.includes(typedCommand) ||
-    alwaysAllowed.includes(realCommandName);
+    alwaysAllowed.includes(typedCommand) || alwaysAllowed.includes(realCommandName);
 
   if (isAlwaysAllowed) {
-    return {
-      allowed: true,
-      mode: "always",
-    };
+    return { allowed: true, mode: "always" };
   }
 
   if (Array.isArray(allowedCommands)) {
     const allowed =
-      allowedCommands.includes(typedCommand) ||
-      allowedCommands.includes(realCommandName);
+      allowedCommands.includes(typedCommand) || allowedCommands.includes(realCommandName);
 
-    return {
-      allowed,
-      mode: "allowlist",
-    };
+    return { allowed, mode: "allowlist" };
   }
 
   if (Array.isArray(blockedCommands)) {
     const blocked =
-      blockedCommands.includes(typedCommand) ||
-      blockedCommands.includes(realCommandName);
+      blockedCommands.includes(typedCommand) || blockedCommands.includes(realCommandName);
 
-    return {
-      allowed: !blocked,
-      mode: "blocklist",
-    };
+    return { allowed: !blocked, mode: "blocklist" };
   }
 
-  return {
-    allowed: true,
-    mode: "none",
-  };
+  return { allowed: true, mode: "none" };
+}
+
+function parsePrefixedCommand(content) {
+  const raw = String(content || "").trim();
+  if (!raw) return null;
+
+  const lower = raw.toLowerCase();
+
+  if (lower === PREFIX) {
+    return { commandName: "", args: [] };
+  }
+
+  const prefixWithSpace = `${PREFIX} `;
+
+  if (!lower.startsWith(prefixWithSpace)) {
+    return null;
+  }
+
+  const sliced = raw.slice(PREFIX.length).trim();
+  const parts = sliced.split(/\s+/).filter(Boolean);
+  const commandName = String(parts.shift() || "").toLowerCase();
+
+  return { commandName, args: parts };
 }
 
 client.once("clientReady", async () => {
@@ -163,20 +172,17 @@ client.on("messageCreate", async (message) => {
     if (!message.author || message.author.bot) return;
     if (typeof message.content !== "string") return;
 
-    const content = message.content.trim();
+    const parsed = parsePrefixedCommand(message.content);
 
-    if (!content) return;
-    if (!content.toLowerCase().startsWith(PREFIX)) return;
+    if (!parsed) return;
 
-    const sliced = content.slice(PREFIX.length).trim();
+    const { commandName, args } = parsed;
 
-    if (!sliced) {
+    if (!commandName) {
       await message.reply("Type a command after the prefix.\nExample: `op help`");
       return;
     }
 
-    const args = sliced.split(/\s+/);
-    const commandName = (args.shift() || "").toLowerCase();
     const command = client.commands.get(commandName);
 
     if (!command) {
@@ -191,11 +197,6 @@ client.on("messageCreate", async (message) => {
     });
 
     if (!channelCheck.allowed) {
-      if (channelCheck.mode === "blocklist") {
-        await message.reply("This command is not allowed on this channel.");
-        return;
-      }
-
       await message.reply("This command is not allowed on this channel.");
       return;
     }
