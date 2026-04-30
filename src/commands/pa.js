@@ -409,15 +409,16 @@ module.exports = {
       const typeLabel = getTypeLabel(contentType);
       const pityLabel = triggeredPity ? " [PITY]" : "";
 
-      const line = `${i + 1}. [${rewardRarity}] ${rewardName}${pityLabel}${duplicateNote}${ticketNote}`;
+      const targetGroup =
+        contentType === "weapon"
+          ? pullGroups.weapons
+          : contentType === "devilFruit"
+            ? pullGroups.devilFruits
+            : pullGroups.cards;
 
-      if (contentType === "weapon") {
-        pullGroups.weapons.push(line);
-      } else if (contentType === "devilFruit") {
-        pullGroups.devilFruits.push(line);
-      } else {
-        pullGroups.cards.push(line);
-      }
+      const line = `${targetGroup.length + 1}. [${rewardRarity}] ${rewardName}${pityLabel}${duplicateNote}${ticketNote}`;
+
+      targetGroup.push(line);
 
       if (triggeredPity) {
         pityCounter = 0;
@@ -432,11 +433,33 @@ module.exports = {
     };
 
     let updatedPulls = consumeAllActivePullSlots(player, message);
+    let updatedItems = [...(player.items || [])];
+    let resetTicketUsed = false;
 
     if (useManualResetAfterPull) {
+      const resetTicketCode = "pull_reset_ticket";
+      const ticketIndex = updatedItems.findIndex(
+        (item) => String(item.code || "").toLowerCase() === resetTicketCode
+      );
+
+      if (ticketIndex === -1 || Number(updatedItems[ticketIndex].amount || 0) <= 0) {
+        return message.reply("You need **Pull Reset Ticket x1** to use `op pa reset`.");
+      }
+
+      updatedItems[ticketIndex] = {
+        ...updatedItems[ticketIndex],
+        amount: Number(updatedItems[ticketIndex].amount || 0) - 1,
+      };
+
+      if (updatedItems[ticketIndex].amount <= 0) {
+        updatedItems.splice(ticketIndex, 1);
+      }
+
       const manualResetState = applyManualPullReset(updatedPulls);
       updatedPulls = manualResetState.pulls;
+      resetTicketUsed = true;
     }
+
     const updatedDailyState = incrementQuestCounter(player, "pullsUsed", availableTotal);
 
     updatePlayer(message.author.id, {
@@ -445,6 +468,7 @@ module.exports = {
       devilFruits: updatedDevilFruits,
       fragments: updatedFragments,
       tickets: updatedTickets,
+      items: updatedItems,
       pulls: updatedPulls,
       pity: updatedPity,
       quests: {
@@ -475,10 +499,10 @@ module.exports = {
     if (useManualResetAfterPull) {
       groupedLines.push("");
       groupedLines.push("## Reset");
+      groupedLines.push(resetTicketUsed ? "Pull Reset Ticket x1 used." : "Pull reset applied.");
       groupedLines.push("Pull slots have been reset after Pull All.");
       groupedLines.push("You can use `op pa` again now.");
     }
-
     const chunkSize = 25;
     const chunks = [];
     for (let i = 0; i < groupedLines.length; i += chunkSize) {
