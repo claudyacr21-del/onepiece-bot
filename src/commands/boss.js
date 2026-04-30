@@ -785,6 +785,36 @@ function buildButtons(playerTeam, ended) {
   return [row1, row2];
 }
 
+function buildBossRunConfirmButtons() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("boss_run_confirm")
+        .setLabel("Confirm Run Away")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId("boss_run_cancel")
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Secondary)
+    ),
+  ];
+}
+
+function buildRaidBossRunConfirmButtons() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("boss_raid_run_confirm")
+        .setLabel("Confirm Run Away")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId("boss_raid_run_cancel")
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Secondary)
+    ),
+  ];
+}
+
 function calculateBossExp(playerTeam, won, combatBoosts) {
   const baseExp = won ? BOSS_WIN_EXP_PER_CARD : BOSS_LOSE_EXP_PER_CARD;
 
@@ -1244,6 +1274,34 @@ module.exports = {
         const allUnits = participants.flatMap((p) => p.units);
 
         if (interaction.customId === "boss_raid_run") {
+          logs.length = 0;
+          logs.push("⚠️ Run away confirmation requested.");
+          logs.push("Choose **Confirm Run Away** to leave Boss Phase 2, or **Cancel** to continue.");
+
+          await interaction.update({
+            embeds: [
+              buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false),
+            ],
+            components: buildRaidBossRunConfirmButtons(),
+          });
+          return;
+        }
+
+        if (interaction.customId === "boss_raid_run_cancel") {
+          logs.length = 0;
+          logs.push("✅ Run away cancelled.");
+          logs.push("Choose a raid unit to continue Boss Phase 2.");
+
+          await interaction.update({
+            embeds: [
+              buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false),
+            ],
+            components: buildRaidBossButtons(participants, false),
+          });
+          return;
+        }
+
+        if (interaction.customId === "boss_raid_run_confirm") {
           ended = true;
           logs.length = 0;
           logs.push("🏃 The raid host ran away from Boss Phase 2.");
