@@ -366,7 +366,7 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode,
       ? renderHpBar(unit.hp, unit.maxHp)
       : renderHpBar(unit.battleHp, unit.battleMaxHp);
 
-    return `**${slot}. ${unit.name}**\n[${unit.rarity}] • ${levelText}\n${hp}`;
+    return `**${slot}. ${unit.name}** — [${unit.rarity}] • ${levelText}\n${hp}`;
   };
 
   const enemyLines = enemyTeam.map((unit, index) => makeUnitLine(unit, index, true));
