@@ -7,6 +7,10 @@ const rawDevilFruits = require("../data/devilFruits");
 const { applyGlobalPullReset, applyManualPullReset } = require("../utils/pullReset");
 const { applyAutoLevelForDuplicate } = require("../utils/autoLevel");
 const {
+  addFragmentWithAutoSac,
+  removeFragmentAmount,
+} = require("../utils/autoSac");
+const {
   getTotalPullUsage,
   consumeAllActivePullSlots,
   buildPullAccessSnapshot,
@@ -430,12 +434,23 @@ module.exports = {
           updatedCards = autoLevelResult.cards;
           updatedFragments = autoLevelResult.fragments;
 
-          if (autoLevelResult.levelGained > 0) {
-            duplicateNote = ` → Auto Level +${autoLevelResult.levelGained}`;
+        if (autoLevelResult.levelGained > 0) {
+          duplicateNote = ` → Auto Level +${autoLevelResult.levelGained}`;
+        } else {
+          updatedFragments = removeFragmentAmount(autoLevelResult.fragments, reward.code, 1);
+
+          const sacResult = addFragmentWithAutoSac(player, updatedFragments, reward, 1);
+          updatedFragments = sacResult.fragments;
+
+          if (sacResult.sacrificed > 0) {
+            convertedBerries += sacResult.berries;
+            convertedCount += sacResult.sacrificed;
+            duplicateNote = ` → ${sacResult.reason} (+${sacResult.berries.toLocaleString("en-US")} berries)`;
           } else {
             summary.fragments += 1;
             duplicateNote = " → Duplicate (+1 fragments)";
           }
+        }
         } else {
           updatedCards.push(rewardResult.storedReward);
         }

@@ -7,6 +7,10 @@ const rawDevilFruits = require("../data/devilFruits");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 const { applyAutoLevelForDuplicate } = require("../utils/autoLevel");
 const {
+  addFragmentWithAutoSac,
+  removeFragmentAmount,
+} = require("../utils/autoSac");
+const {
   getNextAvailablePullKey,
   consumePullSlot,
   getTotalPullUsage,
@@ -358,6 +362,7 @@ module.exports = {
 
     let ownedCard = null;
     let duplicateLine = null;
+    let autoSacBerries = 0;
 
     if (contentType === "battleCard" || contentType === "boostCard") {
       const alreadyOwned = updatedCards.some(
@@ -378,11 +383,21 @@ module.exports = {
         updatedCards = autoLevelResult.cards;
         updatedFragments = autoLevelResult.fragments;
 
-        if (autoLevelResult.levelGained > 0) {
-          duplicateLine = `You already own **${picked.displayName || picked.name}**.\nAuto-level used **1 Fragment** → **+${autoLevelResult.levelGained} Level**.`;
+      if (autoLevelResult.levelGained > 0) {
+        duplicateLine = `You already own **${picked.displayName || picked.name}**.\nAuto-level used **1 Fragment** → **+${autoLevelResult.levelGained} Level**.`;
+      } else {
+        updatedFragments = removeFragmentAmount(autoLevelResult.fragments, picked.code, 1);
+
+        const sacResult = addFragmentWithAutoSac(player, updatedFragments, picked, 1);
+        updatedFragments = sacResult.fragments;
+        autoSacBerries += sacResult.berries;
+
+        if (sacResult.sacrificed > 0) {
+          duplicateLine = `You already own **${picked.displayName || picked.name}**.\n${sacResult.reason}: **${sacResult.sacrificed} Fragment** → **+${sacResult.berries.toLocaleString("en-US")} berries**.`;
         } else {
           duplicateLine = `You already own **${picked.displayName || picked.name}**.\nConverted into **1 Fragment** instead.`;
         }
+      }
       } else {
         ownedCard = createOwnedCard(picked);
 
@@ -412,6 +427,7 @@ module.exports = {
       devilFruits: updatedDevilFruits,
       fragments: updatedFragments,
       tickets: updatedTickets,
+      berries: Number(player.berries || 0) + autoSacBerries,
       pulls: updatedPulls,
       pity: updatedPity,
       quests: {

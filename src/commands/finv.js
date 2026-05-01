@@ -1,6 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const { getPlayer } = require("../playerStore");
-const { getFragmentStorageBonus } = require("../utils/passiveBoosts");
+const { getFragmentStorageInfo } = require("../utils/autoSac");
 
 const PAGE_SIZE = 8;
 
@@ -9,9 +9,7 @@ function formatRarity(rarity) {
 }
 
 function getStorageInfo(player, fragments) {
-  const total = fragments.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const max = Math.min(250 + getFragmentStorageBonus(player), 500);
-  return { total, max };
+ return getFragmentStorageInfo(player, fragments);
 }
 
 function sortFragments(fragments) {
