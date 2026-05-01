@@ -11,6 +11,8 @@ const { getFragmentStorageInfo } = require("../utils/autoSac");
 const PAGE_SIZE = 8;
 const COLOR = 0x8e44ad;
 
+const VALID_RARITIES = new Set(["C", "B", "A", "S", "SS", "UR"]);
+
 function formatRarity(rarity) {
   return String(rarity || "C").toUpperCase();
 }
@@ -27,18 +29,28 @@ function sortFragments(fragments) {
     if (amountDiff !== 0) return amountDiff;
 
     const rarityDiff =
-      (rarityOrder[String(b.rarity || "").toUpperCase()] || 0) -
-      (rarityOrder[String(a.rarity || "").toUpperCase()] || 0);
+      (rarityOrder[formatRarity(b.rarity)] || 0) -
+      (rarityOrder[formatRarity(a.rarity)] || 0);
     if (rarityDiff !== 0) return rarityDiff;
 
     return String(a.name || "").localeCompare(String(b.name || ""));
   });
 }
 
+function isExactRarityQuery(query) {
+  return VALID_RARITIES.has(String(query || "").trim().toUpperCase());
+}
+
 function filterFragments(fragments, query) {
   if (!query) return fragments;
 
-  const lowerQuery = String(query).toLowerCase();
+  const rawQuery = String(query || "").trim();
+  const upperQuery = rawQuery.toUpperCase();
+  const lowerQuery = rawQuery.toLowerCase();
+
+  if (isExactRarityQuery(rawQuery)) {
+    return fragments.filter((fragment) => formatRarity(fragment.rarity) === upperQuery);
+  }
 
   return fragments.filter((fragment) => {
     const name = String(fragment.name || "").toLowerCase();
@@ -57,20 +69,9 @@ function filterFragments(fragments, query) {
 
 function getFragmentIcon(fragment) {
   const category = String(fragment.category || "").toLowerCase();
-  const rarity = formatRarity(fragment.rarity);
 
-  if (category === "boost") return "💠";
-
-  const rarityIcon = {
-    UR: "🌈",
-    SS: "🔱",
-    S: "🔥",
-    A: "💎",
-    B: "🔷",
-    C: "🧩",
-  };
-
-  return rarityIcon[rarity] || "🧩";
+  if (category === "boost") return "🧩";
+  return "🃏";
 }
 
 function getMemberAvatar(message) {
@@ -96,18 +97,15 @@ function buildPageEmbed(message, player, fragments, currentPage, isPrivate, sear
   const memberAvatar = getMemberAvatar(message);
 
   const lines = pageItems.length
-    ? pageItems.map((fragment, index) => {
+    ? pageItems.map((fragment) => {
         const icon = getFragmentIcon(fragment);
-        const amount = Number(fragment.amount || 0).toLocaleString("en-US");
-        const rarity = formatRarity(fragment.rarity);
-
-        return `${start + index + 1}. ${icon} **${fragment.name}** — \`${amount}x\` (${rarity})`;
+        return `${icon} **${fragment.name}**: ${Number(fragment.amount || 0).toLocaleString("en-US")} (${formatRarity(fragment.rarity)})`;
       })
     : ["No fragments found."];
 
   const embed = new EmbedBuilder()
     .setColor(COLOR)
-    .setTitle(`${message.member?.displayName || message.author.username}'s Fragment Storage`)
+    .setTitle(`${message.member?.displayName || message.author.username}'s Fragment Storage!`)
     .setDescription(
       [
         "Fragments are used to upgrade cards and boost cards.",
@@ -115,8 +113,8 @@ function buildPageEmbed(message, player, fragments, currentPage, isPrivate, sear
         "",
         lines.join("\n"),
         "",
-        `**Fragment Storage:** ${storage.total}/${storage.max}`,
-        `**Visibility Mode:** ${isPrivate ? "Private" : "Public"}`,
+        `Fragment storage capacity: ${storage.total}/${storage.max}`,
+        `Visibility Mode: ${isPrivate ? "Private" : "Public"}`,
       ].join("\n")
     )
     .setThumbnail(memberAvatar)
