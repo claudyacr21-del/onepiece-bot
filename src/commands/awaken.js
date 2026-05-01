@@ -11,42 +11,105 @@ const {
   awakenOwnedCard,
   getBoostStageValue,
 } = require("../utils/evolution");
+const cardsData = require("../data/cards");
 
 function cloneDeep(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-function getStageImage(card, stage = 1) {
-  const finalStage = Number(stage || card?.evolutionStage || 1);
+function normalize(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[<@!>]/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function normalizeCode(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function findTemplate(cardOrQuery) {
+  const query =
+    typeof cardOrQuery === "string"
+      ? cardOrQuery
+      : cardOrQuery?.code ||
+        cardOrQuery?.displayName ||
+        cardOrQuery?.name ||
+        cardOrQuery?.variant ||
+        "";
+
+  const q = normalize(query);
+  const qc = normalizeCode(query);
+
+  return (
+    cardsData.find((card) => normalizeCode(card.code) === qc) ||
+    cardsData.find((card) => normalize(card.displayName || card.name) === q) ||
+    cardsData.find((card) => normalize(card.name) === q) ||
+    cardsData.find((card) => normalize(card.variant) === q) ||
+    null
+  );
+}
+
+function getStageImageOnly(card, stage = 1) {
+  if (!card) return null;
+
+  const finalStage = Number(stage || 1);
   const stageKey = `M${finalStage}`;
 
   return (
-    card?.evolutionForms?.[finalStage - 1]?.image ||
-    card?.stageImages?.[stageKey] ||
-    card?.images?.[stageKey] ||
-    card?.awakenImages?.[stageKey] ||
+    card.evolutionForms?.[finalStage - 1]?.image ||
+    card.stageImages?.[stageKey] ||
+    card.images?.[stageKey] ||
+    card.awakenImages?.[stageKey] ||
+    card.forms?.[stageKey]?.image ||
+    card[stageKey]?.image ||
+    card[`image${stageKey}`] ||
+    card[`imageM${finalStage}`] ||
+    card[`m${finalStage}Image`] ||
     null
   );
 }
 
-function getFallbackImage(card) {
-  return card?.image || card?.thumbnail || null;
-}
+function getTargetStageImage(card, stage = 1, previousCard = null) {
+  const finalStage = Number(stage || 1);
 
-function resolveCardImage(card, stage = 1, fallbackCard = null) {
-  return (
-    getStageImage(card, stage) ||
-    getStageImage(fallbackCard, stage) ||
-    getFallbackImage(card) ||
-    getFallbackImage(fallbackCard) ||
-    null
-  );
+  const template =
+    findTemplate(card) ||
+    findTemplate(previousCard) ||
+    null;
+
+  const templateStageImage = getStageImageOnly(template, finalStage);
+  if (templateStageImage) return templateStageImage;
+
+  const currentStageImage = getStageImageOnly(card, finalStage);
+  if (currentStageImage) return currentStageImage;
+
+  const previousStageImage = getStageImageOnly(previousCard, finalStage);
+  if (previousStageImage) return previousStageImage;
+
+  if (finalStage === 1) {
+    return (
+      card?.image ||
+      card?.thumbnail ||
+      template?.image ||
+      template?.thumbnail ||
+      previousCard?.image ||
+      previousCard?.thumbnail ||
+      null
+    );
+  }
+
+  return null;
 }
 
 function getFormName(card, stage = null) {
   const finalStage = Number(stage || card?.evolutionStage || 1);
+  const template = findTemplate(card);
 
   return (
+    template?.evolutionForms?.[finalStage - 1]?.name ||
     card?.evolutionForms?.[finalStage - 1]?.name ||
     card?.variant ||
     card?.displayName ||
@@ -58,7 +121,14 @@ function getFormName(card, stage = null) {
 function getBoostEffectText(card, stage = 1) {
   if (!card || card.cardRole !== "boost") return "";
 
+  const template = findTemplate(card);
+  const source = template || card;
+
   const existingText =
+    source.effectText ||
+    source.boostDescription ||
+    source.description ||
+    source.effect ||
     card.effectText ||
     card.boostDescription ||
     card.description ||
@@ -67,8 +137,8 @@ function getBoostEffectText(card, stage = 1) {
 
   if (existingText) return existingText;
 
-  const boostType = String(card.boostType || "").toLowerCase();
-  const target = card.boostTarget || "team";
+  const boostType = String(card.boostType || source.boostType || "").toLowerCase();
+  const target = card.boostTarget || source.boostTarget || "team";
   const value = getBoostStageValue(card, stage);
 
   if (boostType === "fragmentstorage" || boostType === "fragment_storage") {
@@ -95,7 +165,7 @@ function getBoostEffectText(card, stage = 1) {
 }
 
 function buildConfirmEmbed(owned, currentStage, nextStage) {
-  const nextImage = resolveCardImage(owned, nextStage, owned);
+  const nextImage = getTargetStageImage(owned, nextStage, owned);
 
   const embed = new EmbedBuilder()
     .setColor(0xf1c40f)
@@ -118,7 +188,7 @@ function buildConfirmEmbed(owned, currentStage, nextStage) {
 function buildSuccessEmbed(result, previousOwned) {
   const card = result.target;
   const targetStage = Number(card.evolutionStage || 1);
-  const targetImage = resolveCardImage(card, targetStage, previousOwned);
+  const targetImage = getTargetStageImage(card, targetStage, previousOwned);
 
   const baseLines = [
     `**${card.displayName || card.name}** reached **M${targetStage}**`,
