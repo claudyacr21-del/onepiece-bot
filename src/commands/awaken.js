@@ -9,268 +9,63 @@ const { getPlayer, updatePlayer } = require("../playerStore");
 const {
   findOwnedCard,
   awakenOwnedCard,
+  findCardTemplate,
+  hydrateCard,
   getBoostStageValue,
 } = require("../utils/evolution");
-const cardsData = require("../data/cards");
+const { getCardImage } = require("../config/assetLinks");
 
 function cloneDeep(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-function normalize(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[<@!>]/g, "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
+function getStageCard(card, stage) {
+  const template = findCardTemplate(card?.code || card?.displayName || card?.name) || card;
+
+  return hydrateCard({
+    ...template,
+    ...card,
+    evolutionStage: stage,
+    evolutionKey: `M${stage}`,
+  });
 }
 
-function normalizeCode(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function asArray(value) {
-  if (Array.isArray(value)) return value;
-
-  if (value && typeof value === "object") {
-    return Object.values(value).flatMap((entry) => {
-      if (Array.isArray(entry)) return entry;
-      if (entry && typeof entry === "object") return [entry];
-      return [];
-    });
-  }
-
-  return [];
-}
-
-const ALL_CARD_TEMPLATES = asArray(cardsData);
-
-function findTemplate(cardOrQuery) {
-  const query =
-    typeof cardOrQuery === "string"
-      ? cardOrQuery
-      : cardOrQuery?.code ||
-        cardOrQuery?.displayName ||
-        cardOrQuery?.name ||
-        cardOrQuery?.variant ||
-        "";
-
-  const q = normalize(query);
-  const qc = normalizeCode(query);
+function getStageImage(card, stage) {
+  const stageKey = `M${stage}`;
+  const template = findCardTemplate(card?.code || card?.displayName || card?.name) || card;
+  const stageCard = getStageCard(template, stage);
 
   return (
-    ALL_CARD_TEMPLATES.find((card) => normalizeCode(card?.code) === qc) ||
-    ALL_CARD_TEMPLATES.find((card) => normalize(card?.displayName || card?.name) === q) ||
-    ALL_CARD_TEMPLATES.find((card) => normalize(card?.name) === q) ||
-    ALL_CARD_TEMPLATES.find((card) => normalize(card?.variant) === q) ||
-    null
-  );
-}
-
-function isImageUrl(value) {
-  const text = String(value || "").trim();
-
-  return (
-    /^https?:\/\//i.test(text) &&
-    /\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i.test(text)
-  );
-}
-
-function getImageFromObject(obj) {
-  if (!obj || typeof obj !== "object") return null;
-
-  return (
-    obj.image ||
-    obj.img ||
-    obj.url ||
-    obj.imageUrl ||
-    obj.imageURL ||
-    obj.cardImage ||
-    obj.thumbnail ||
-    obj.icon ||
-    null
-  );
-}
-
-function getStageImageFromEvolutionForms(card, stage) {
-  if (!card?.evolutionForms) return null;
-
-  const finalStage = Number(stage || 1);
-  const stageKey = `M${finalStage}`;
-
-  if (Array.isArray(card.evolutionForms)) {
-    const byIndex = card.evolutionForms[finalStage - 1];
-    const byStage =
-      card.evolutionForms.find((form) => {
-        const formStage = Number(form?.stage || form?.evolutionStage || form?.m || 0);
-        const formKey = String(form?.key || form?.evolutionKey || form?.stageKey || "").toUpperCase();
-
-        return formStage === finalStage || formKey === stageKey;
-      }) || null;
-
-    return getImageFromObject(byIndex) || getImageFromObject(byStage);
-  }
-
-  if (typeof card.evolutionForms === "object") {
-    return (
-      getImageFromObject(card.evolutionForms[stageKey]) ||
-      getImageFromObject(card.evolutionForms[String(finalStage)]) ||
-      getImageFromObject(card.evolutionForms[`stage${finalStage}`]) ||
-      getImageFromObject(card.evolutionForms[`m${finalStage}`]) ||
-      null
-    );
-  }
-
-  return null;
-}
-
-function getStageImageDirect(card, stage) {
-  if (!card) return null;
-
-  const finalStage = Number(stage || 1);
-  const stageKey = `M${finalStage}`;
-  const lowerStageKey = `m${finalStage}`;
-
-  return (
-    getStageImageFromEvolutionForms(card, finalStage) ||
-
-    card?.stageImages?.[stageKey] ||
-    card?.stageImages?.[lowerStageKey] ||
-    card?.stageImages?.[String(finalStage)] ||
-
-    card?.images?.[stageKey] ||
-    card?.images?.[lowerStageKey] ||
-    card?.images?.[String(finalStage)] ||
-
-    card?.awakenImages?.[stageKey] ||
-    card?.awakenImages?.[lowerStageKey] ||
-    card?.awakenImages?.[String(finalStage)] ||
-
-    getImageFromObject(card?.forms?.[stageKey]) ||
-    getImageFromObject(card?.forms?.[lowerStageKey]) ||
-    getImageFromObject(card?.forms?.[String(finalStage)]) ||
-
-    getImageFromObject(card?.[stageKey]) ||
-    getImageFromObject(card?.[lowerStageKey]) ||
-
-    card?.[`image${stageKey}`] ||
-    card?.[`image${lowerStageKey}`] ||
-    card?.[`imageM${finalStage}`] ||
-    card?.[`imagem${finalStage}`] ||
-    card?.[`m${finalStage}Image`] ||
-    card?.[`M${finalStage}Image`] ||
-    card?.[`stage${finalStage}Image`] ||
-    card?.[`stageImage${finalStage}`] ||
-    null
-  );
-}
-
-function findAnyStageImageDeep(obj, stage) {
-  if (!obj || typeof obj !== "object") return null;
-
-  const finalStage = Number(stage || 1);
-  const stageKey = `M${finalStage}`;
-  const lowerStageKey = `m${finalStage}`;
-  const visited = new Set();
-
-  function walk(value, parentKey = "") {
-    if (!value || typeof value !== "object") return null;
-    if (visited.has(value)) return null;
-    visited.add(value);
-
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        const found = walk(item, parentKey);
-        if (found) return found;
-      }
-
-      return null;
-    }
-
-    const keyText = normalizeCode(parentKey);
-
-    const objectStage =
-      Number(value.stage || value.evolutionStage || value.m || 0) === finalStage ||
-      String(value.key || value.evolutionKey || value.stageKey || "").toUpperCase() === stageKey ||
-      keyText === normalizeCode(stageKey) ||
-      keyText === normalizeCode(lowerStageKey) ||
-      keyText.includes(normalizeCode(stageKey)) ||
-      keyText.includes(normalizeCode(lowerStageKey));
-
-    if (objectStage) {
-      const direct = getImageFromObject(value);
-      if (direct) return direct;
-    }
-
-    for (const [key, child] of Object.entries(value)) {
-      const normalizedKey = normalizeCode(key);
-      const keyLooksLikeStage =
-        normalizedKey === normalizeCode(stageKey) ||
-        normalizedKey === normalizeCode(lowerStageKey) ||
-        normalizedKey.includes(normalizeCode(stageKey)) ||
-        normalizedKey.includes(normalizeCode(lowerStageKey)) ||
-        normalizedKey.includes(`stage${finalStage}`);
-
-      if (keyLooksLikeStage) {
-        if (typeof child === "string" && isImageUrl(child)) return child;
-
-        const direct = getImageFromObject(child);
-        if (direct) return direct;
-      }
-
-      const found = walk(child, key);
-      if (found) return found;
-    }
-
-    return null;
-  }
-
-  return walk(obj);
-}
-
-function getBaseImage(card) {
-  return (
+    stageCard?.evolutionForms?.[stage - 1]?.image ||
+    template?.evolutionForms?.[stage - 1]?.image ||
+    stageCard?.stageImages?.[stageKey] ||
+    template?.stageImages?.[stageKey] ||
+    getCardImage(
+      template?.code || card?.code,
+      stageKey,
+      stageCard?.stageImages?.[stageKey] ||
+        template?.stageImages?.[stageKey] ||
+        stageCard?.image ||
+        template?.image ||
+        card?.image ||
+        ""
+    ) ||
+    stageCard?.image ||
+    template?.image ||
     card?.image ||
-    card?.img ||
-    card?.imageUrl ||
-    card?.imageURL ||
-    card?.cardImage ||
-    card?.thumbnail ||
-    card?.icon ||
-    null
+    ""
   );
 }
 
-function getTargetStageImage(card, stage = 1, previousCard = null) {
-  const finalStage = Number(stage || 1);
-  const template = findTemplate(card) || findTemplate(previousCard) || null;
-
-  const exactStageImage =
-    getStageImageDirect(card, finalStage) ||
-    getStageImageDirect(previousCard, finalStage) ||
-    getStageImageDirect(template, finalStage) ||
-    findAnyStageImageDeep(card, finalStage) ||
-    findAnyStageImageDeep(previousCard, finalStage) ||
-    findAnyStageImageDeep(template, finalStage);
-
-  if (exactStageImage) return exactStageImage;
+function getFormName(card, stage) {
+  const template = findCardTemplate(card?.code || card?.displayName || card?.name) || card;
+  const stageCard = getStageCard(template, stage);
 
   return (
-    getBaseImage(card) ||
-    getBaseImage(previousCard) ||
-    getBaseImage(template) ||
-    null
-  );
-}
-
-function getFormName(card, stage = null) {
-  const finalStage = Number(stage || card?.evolutionStage || 1);
-  const template = findTemplate(card);
-
-  return (
-    template?.evolutionForms?.[finalStage - 1]?.name ||
-    card?.evolutionForms?.[finalStage - 1]?.name ||
+    stageCard?.evolutionForms?.[stage - 1]?.name ||
+    template?.evolutionForms?.[stage - 1]?.name ||
+    stageCard?.variant ||
+    template?.variant ||
     card?.variant ||
     card?.displayName ||
     card?.name ||
@@ -281,25 +76,34 @@ function getFormName(card, stage = null) {
 function getBoostEffectText(card, stage = 1) {
   if (!card || card.cardRole !== "boost") return "";
 
-  const template = findTemplate(card);
-  const source = template || card;
+  const template = findCardTemplate(card?.code || card?.displayName || card?.name) || card;
+  const stageCard = getStageCard(template, stage);
+  const form = stageCard?.evolutionForms?.[stage - 1] || template?.evolutionForms?.[stage - 1];
 
   const existingText =
-    source.effectText ||
-    source.boostDescription ||
-    source.description ||
-    source.effect ||
-    card.effectText ||
-    card.boostDescription ||
-    card.description ||
-    card.effect ||
+    form?.effectText ||
+    stageCard?.effectText ||
+    template?.effectText ||
+    card?.effectText ||
+    form?.boostDescription ||
+    stageCard?.boostDescription ||
+    template?.boostDescription ||
+    card?.boostDescription ||
     "";
 
   if (existingText) return existingText;
 
-  const boostType = String(card.boostType || source.boostType || "").toLowerCase();
-  const target = card.boostTarget || source.boostTarget || "team";
-  const value = getBoostStageValue(card, stage);
+  const boostType = String(
+    stageCard?.boostType || template?.boostType || card?.boostType || ""
+  ).toLowerCase();
+
+  const target =
+    stageCard?.boostTarget ||
+    template?.boostTarget ||
+    card?.boostTarget ||
+    "team";
+
+  const value = getBoostStageValue(stageCard || card, stage);
 
   if (boostType === "fragmentstorage" || boostType === "fragment_storage") {
     return `Increase ${target} fragment storage by ${value}.`;
@@ -317,15 +121,13 @@ function getBoostEffectText(card, stage = 1) {
     ? "%"
     : "";
 
-  if (!boostType) {
-    return "No boost effect description.";
-  }
+  if (!boostType) return "No boost effect description.";
 
   return `Increase ${target} ${boostType.toUpperCase()} by ${value}${suffix}.`;
 }
 
 function buildConfirmEmbed(owned, currentStage, nextStage) {
-  const nextImage = getTargetStageImage(owned, nextStage, owned);
+  const nextImage = getStageImage(owned, nextStage);
 
   const embed = new EmbedBuilder()
     .setColor(0xf1c40f)
@@ -345,16 +147,17 @@ function buildConfirmEmbed(owned, currentStage, nextStage) {
   return embed;
 }
 
-function buildSuccessEmbed(result, previousOwned) {
+function buildSuccessEmbed(result) {
   const card = result.target;
   const targetStage = Number(card.evolutionStage || 1);
-  const targetImage = getTargetStageImage(card, targetStage, previousOwned);
+  const targetImage = getStageImage(card, targetStage);
+  const stageCard = getStageCard(card, targetStage);
 
   const baseLines = [
     `**${card.displayName || card.name}** reached **M${targetStage}**`,
     `**Form:** ${getFormName(card, targetStage)}`,
-    `**Tier:** ${card.currentTier || card.rarity}`,
-    `**Power:** ${Number(card.currentPower || 0).toLocaleString("en-US")}`,
+    `**Tier:** ${stageCard.currentTier || card.currentTier || card.rarity}`,
+    `**Power:** ${Number(stageCard.currentPower || card.currentPower || 0).toLocaleString("en-US")}`,
     "",
   ];
 
@@ -367,9 +170,9 @@ function buildSuccessEmbed(result, previousOwned) {
         ].join("\n")
       : [
           ...baseLines,
-          `ATK: ${Number(card.atk || 0).toLocaleString("en-US")}`,
-          `HP: ${Number(card.hp || 0).toLocaleString("en-US")}`,
-          `SPD: ${Number(card.speed || 0).toLocaleString("en-US")}`,
+          `ATK: ${Number(stageCard.atk || card.atk || 0).toLocaleString("en-US")}`,
+          `HP: ${Number(stageCard.hp || card.hp || 0).toLocaleString("en-US")}`,
+          `SPD: ${Number(stageCard.speed || card.speed || 0).toLocaleString("en-US")}`,
         ].join("\n");
 
   const embed = new EmbedBuilder()
@@ -472,7 +275,6 @@ module.exports = {
 
       try {
         const fresh = getPlayer(message.author.id, message.author.username);
-        const freshOwned = findOwnedCard(fresh.cards || [], query);
         const result = awakenOwnedCard(fresh, query);
 
         updatePlayer(message.author.id, {
@@ -482,7 +284,7 @@ module.exports = {
         });
 
         await interaction.update({
-          embeds: [buildSuccessEmbed(result, freshOwned)],
+          embeds: [buildSuccessEmbed(result)],
           components: [],
         });
 
