@@ -10,11 +10,25 @@ const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 
 const COLOR = 0x5865f2;
+
 const POWER_TOP_LIMIT = 25;
 const ARENA_TOP_LIMIT = 10;
 
 const ARENA_START_RANK = 500;
 const ARENA_POINTS_PER_RANK = 10;
+
+const ARENA_BOTS = [
+  { id: "bot_001", username: "Pirate King Bot", points: 5000, wins: 120, losses: 0 },
+  { id: "bot_002", username: "Yonko Bot", points: 4850, wins: 116, losses: 2 },
+  { id: "bot_003", username: "Fleet Admiral Bot", points: 4700, wins: 112, losses: 3 },
+  { id: "bot_004", username: "Revolutionary Bot", points: 4550, wins: 108, losses: 4 },
+  { id: "bot_005", username: "Warlord Bot", points: 4400, wins: 104, losses: 6 },
+  { id: "bot_006", username: "CP0 Bot", points: 4250, wins: 100, losses: 8 },
+  { id: "bot_007", username: "Supernova Bot", points: 4100, wins: 96, losses: 10 },
+  { id: "bot_008", username: "Commander Bot", points: 3950, wins: 92, losses: 12 },
+  { id: "bot_009", username: "Vice Admiral Bot", points: 3800, wins: 88, losses: 14 },
+  { id: "bot_010", username: "New World Bot", points: 3650, wins: 84, losses: 16 },
+];
 
 function normalize(value) {
   return String(value || "").toLowerCase().trim();
@@ -27,50 +41,6 @@ function getArenaRankFromPoints(points) {
     1,
     ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK)
   );
-}
-
-function getArenaBotRows(realPlayers = []) {
-  const botRows = [
-    {
-      id: "arena_bot_pirate_king",
-      username: "Pirate King Bot",
-      points: 35,
-      wins: 3,
-      losses: 0,
-      matches: 3,
-      isBot: true,
-    },
-    {
-      id: "arena_bot_yonko",
-      username: "Yonko Bot",
-      points: 25,
-      wins: 2,
-      losses: 1,
-      matches: 3,
-      isBot: true,
-    },
-    {
-      id: "arena_bot_grand_champion",
-      username: "Grand Champion Bot",
-      points: 15,
-      wins: 1,
-      losses: 1,
-      matches: 2,
-      isBot: true,
-    },
-  ];
-
-  const usedRanks = new Set(
-    realPlayers.map((player) => getArenaRankFromPoints(player.points))
-  );
-
-  const availableBots = botRows.filter((bot) => {
-    const botRank = getArenaRankFromPoints(bot.points);
-    return !usedRanks.has(botRank);
-  });
-
-  const botCount = Math.max(0, 3 - realPlayers.length);
-  return availableBots.slice(0, botCount);
 }
 
 function getRarityPower(rarity) {
@@ -233,9 +203,7 @@ function getPowerLeaderboardRows(playersMap) {
 }
 
 function getArenaLeaderboardRows(playersMap) {
-  const players = Object.entries(playersMap || {});
-
-  const realPlayers = players
+  const realPlayers = Object.entries(playersMap || {})
     .map(([id, player]) => ({
       id,
       username: player.username || "Unknown",
@@ -254,17 +222,18 @@ function getArenaLeaderboardRows(playersMap) {
       );
     });
 
-  const rows = [...getArenaBotRows(realPlayers), ...realPlayers]
-    .sort((a, b) => {
-      const arenaRankA = getArenaRankFromPoints(a.points);
-      const arenaRankB = getArenaRankFromPoints(b.points);
+  const botRows = ARENA_BOTS.map((bot) => ({
+    ...bot,
+    matches: Number(bot.wins || 0) + Number(bot.losses || 0),
+    isBot: true,
+  }));
 
-      if (arenaRankA !== arenaRankB) return arenaRankA - arenaRankB;
+  return [...botRows, ...realPlayers]
+    .sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
       if (b.wins !== a.wins) return b.wins - a.wins;
       if (a.losses !== b.losses) return a.losses - b.losses;
       if (a.isBot !== b.isBot) return a.isBot ? -1 : 1;
-
       return String(a.username).localeCompare(String(b.username));
     })
     .map((entry, index) => ({
@@ -272,8 +241,6 @@ function getArenaLeaderboardRows(playersMap) {
       rank: index + 1,
       arenaRank: getArenaRankFromPoints(entry.points),
     }));
-
-  return rows;
 }
 
 function formatPowerRow(row, isSelf = false) {
@@ -353,7 +320,7 @@ function buildLeaderboardEmbed(message, mode = null) {
       .setTitle("Global Power Leaderboard")
       .setDescription(buildPowerDescription(rows, userId))
       .setFooter({
-        text: "Power includes owned cards, boosts, weapons, and devil fruits",
+        text: "Top 25 Global Power • Your rank shown below if not in top 25",
       });
   }
 
