@@ -282,22 +282,26 @@ function getServerIcon(message) {
   );
 }
 
+function getUserAvatar(message) {
+  return message.author.displayAvatarURL({
+    extension: "png",
+    size: 512,
+  });
+}
+
 function buildEmbed(message, pageKey = "main") {
   const page = HELP_PAGES[pageKey] || HELP_PAGES.main;
-  const serverIcon = getServerIcon(message);
+  const userAvatar = getUserAvatar(message);
 
-  const embed = new EmbedBuilder()
+  return new EmbedBuilder()
     .setColor(COLOR)
     .setTitle(page.title)
     .setDescription(page.body.join("\n"))
+    .setThumbnail(userAvatar)
     .setFooter({
-      text: `${message.guild?.name || "One Piece Bot"} • Help Menu`,
-      iconURL: serverIcon || undefined,
+      text: `${message.author.username} • Help Menu`,
+      iconURL: userAvatar,
     });
-
-  if (serverIcon) embed.setThumbnail(serverIcon);
-
-  return embed;
 }
 
 function buildMenu(selected = "main") {
