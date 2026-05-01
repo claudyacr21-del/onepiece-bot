@@ -12,15 +12,33 @@ const {
   getBoostStageValue,
 } = require("../utils/evolution");
 
-function getCardImage(card, stage = null) {
+function cloneDeep(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+function getStageImage(card, stage = 1) {
   const finalStage = Number(stage || card?.evolutionStage || 1);
   const stageKey = `M${finalStage}`;
 
   return (
     card?.evolutionForms?.[finalStage - 1]?.image ||
     card?.stageImages?.[stageKey] ||
-    card?.image ||
-    card?.thumbnail ||
+    card?.images?.[stageKey] ||
+    card?.awakenImages?.[stageKey] ||
+    null
+  );
+}
+
+function getFallbackImage(card) {
+  return card?.image || card?.thumbnail || null;
+}
+
+function resolveCardImage(card, stage = 1, fallbackCard = null) {
+  return (
+    getStageImage(card, stage) ||
+    getStageImage(fallbackCard, stage) ||
+    getFallbackImage(card) ||
+    getFallbackImage(fallbackCard) ||
     null
   );
 }
@@ -76,45 +94,8 @@ function getBoostEffectText(card, stage = 1) {
   return `Increase ${target} ${boostType.toUpperCase()} by ${value}${suffix}.`;
 }
 
-function buildSuccessEmbed(result) {
-  const card = result.target;
-  const stage = Number(card.evolutionStage || 1);
-  const image = getCardImage(card, stage);
-
-  const baseLines = [
-    `**${card.displayName || card.name}** reached **M${stage}**`,
-    `**Form:** ${getFormName(card, stage)}`,
-    `**Tier:** ${card.currentTier || card.rarity}`,
-    `**Power:** ${Number(card.currentPower || 0).toLocaleString("en-US")}`,
-    "",
-  ];
-
-  const description =
-    card.cardRole === "boost"
-      ? [
-          ...baseLines,
-          "**Boost Effect**",
-          getBoostEffectText(card, stage),
-        ].join("\n")
-      : [
-          ...baseLines,
-          `ATK: ${Number(card.atk || 0).toLocaleString("en-US")}`,
-          `HP: ${Number(card.hp || 0).toLocaleString("en-US")}`,
-          `SPD: ${Number(card.speed || 0).toLocaleString("en-US")}`,
-        ].join("\n");
-
-  const embed = new EmbedBuilder()
-    .setColor(0x2ecc71)
-    .setTitle("✨ Awaken Success")
-    .setDescription(description);
-
-  if (image) embed.setImage(image);
-
-  return embed;
-}
-
 function buildConfirmEmbed(owned, currentStage, nextStage) {
-  const nextImage = getCardImage(owned, nextStage);
+  const nextImage = resolveCardImage(owned, nextStage, owned);
 
   const embed = new EmbedBuilder()
     .setColor(0xf1c40f)
@@ -130,6 +111,43 @@ function buildConfirmEmbed(owned, currentStage, nextStage) {
     );
 
   if (nextImage) embed.setImage(nextImage);
+
+  return embed;
+}
+
+function buildSuccessEmbed(result, previousOwned) {
+  const card = result.target;
+  const targetStage = Number(card.evolutionStage || 1);
+  const targetImage = resolveCardImage(card, targetStage, previousOwned);
+
+  const baseLines = [
+    `**${card.displayName || card.name}** reached **M${targetStage}**`,
+    `**Form:** ${getFormName(card, targetStage)}`,
+    `**Tier:** ${card.currentTier || card.rarity}`,
+    `**Power:** ${Number(card.currentPower || 0).toLocaleString("en-US")}`,
+    "",
+  ];
+
+  const description =
+    card.cardRole === "boost"
+      ? [
+          ...baseLines,
+          "**Boost Effect**",
+          getBoostEffectText(card, targetStage),
+        ].join("\n")
+      : [
+          ...baseLines,
+          `ATK: ${Number(card.atk || 0).toLocaleString("en-US")}`,
+          `HP: ${Number(card.hp || 0).toLocaleString("en-US")}`,
+          `SPD: ${Number(card.speed || 0).toLocaleString("en-US")}`,
+        ].join("\n");
+
+  const embed = new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle("✨ Awaken Success")
+    .setDescription(description);
+
+  if (targetImage) embed.setImage(targetImage);
 
   return embed;
 }
@@ -160,7 +178,8 @@ module.exports = {
     const nextStage = currentStage + 1;
 
     try {
-      awakenOwnedCard(player, query);
+      const validationPlayer = cloneDeep(player);
+      awakenOwnedCard(validationPlayer, query);
     } catch (_) {
       return message.reply({
         embeds: [
@@ -223,6 +242,7 @@ module.exports = {
 
       try {
         const fresh = getPlayer(message.author.id, message.author.username);
+        const freshOwned = findOwnedCard(fresh.cards || [], query);
         const result = awakenOwnedCard(fresh, query);
 
         updatePlayer(message.author.id, {
@@ -232,7 +252,7 @@ module.exports = {
         });
 
         await interaction.update({
-          embeds: [buildSuccessEmbed(result)],
+          embeds: [buildSuccessEmbed(result, freshOwned)],
           components: [],
         });
 
