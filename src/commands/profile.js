@@ -179,7 +179,6 @@ module.exports = {
           "**🧩 Progress**",
           line("Team Power", teamPower.toLocaleString("en-US")),
           line("Story", storyProgress),
-          line("Fight Streak", Number(player?.fightStreak || 0)),
           "",
           "**⚔️ Arena**",
           line("Rank", arena.rank),
