@@ -22,7 +22,7 @@ function getStorageInfo(player, fragments) {
 }
 
 function sortFragments(fragments) {
-  const rarityOrder = { UR: 6, SS: 5, S: 4, A: 3, B: 2, C: 1 };
+  const rarityOrder = { S: 4, A: 3, B: 2, C: 1 };
 
   return [...fragments].sort((a, b) => {
     const amountDiff = Number(b.amount || 0) - Number(a.amount || 0);
