@@ -14,11 +14,16 @@ function getStorageInfo(player, fragments) {
 
 function sortFragments(fragments) {
   const rarityOrder = { UR: 6, SS: 5, S: 4, A: 3, B: 2, C: 1 };
+
   return [...fragments].sort((a, b) => {
-    const rarityDiff = (rarityOrder[b.rarity] || 0) - (rarityOrder[a.rarity] || 0);
-    if (rarityDiff !== 0) return rarityDiff;
     const amountDiff = Number(b.amount || 0) - Number(a.amount || 0);
     if (amountDiff !== 0) return amountDiff;
+
+    const rarityDiff =
+      (rarityOrder[String(b.rarity || "").toUpperCase()] || 0) -
+      (rarityOrder[String(a.rarity || "").toUpperCase()] || 0);
+    if (rarityDiff !== 0) return rarityDiff;
+
     return String(a.name || "").localeCompare(String(b.name || ""));
   });
 }
