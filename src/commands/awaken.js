@@ -30,6 +30,22 @@ function normalizeCode(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+
+  if (value && typeof value === "object") {
+    return Object.values(value).flatMap((entry) => {
+      if (Array.isArray(entry)) return entry;
+      if (entry && typeof entry === "object") return [entry];
+      return [];
+    });
+  }
+
+  return [];
+}
+
+const ALL_CARD_TEMPLATES = asArray(cardsData);
+
 function findTemplate(cardOrQuery) {
   const query =
     typeof cardOrQuery === "string"
@@ -44,64 +60,208 @@ function findTemplate(cardOrQuery) {
   const qc = normalizeCode(query);
 
   return (
-    cardsData.find((card) => normalizeCode(card.code) === qc) ||
-    cardsData.find((card) => normalize(card.displayName || card.name) === q) ||
-    cardsData.find((card) => normalize(card.name) === q) ||
-    cardsData.find((card) => normalize(card.variant) === q) ||
+    ALL_CARD_TEMPLATES.find((card) => normalizeCode(card?.code) === qc) ||
+    ALL_CARD_TEMPLATES.find((card) => normalize(card?.displayName || card?.name) === q) ||
+    ALL_CARD_TEMPLATES.find((card) => normalize(card?.name) === q) ||
+    ALL_CARD_TEMPLATES.find((card) => normalize(card?.variant) === q) ||
     null
   );
 }
 
-function getStageImageOnly(card, stage = 1) {
-  if (!card) return null;
+function isImageUrl(value) {
+  const text = String(value || "").trim();
+
+  return (
+    /^https?:\/\//i.test(text) &&
+    /\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i.test(text)
+  );
+}
+
+function getImageFromObject(obj) {
+  if (!obj || typeof obj !== "object") return null;
+
+  return (
+    obj.image ||
+    obj.img ||
+    obj.url ||
+    obj.imageUrl ||
+    obj.imageURL ||
+    obj.cardImage ||
+    obj.thumbnail ||
+    obj.icon ||
+    null
+  );
+}
+
+function getStageImageFromEvolutionForms(card, stage) {
+  if (!card?.evolutionForms) return null;
 
   const finalStage = Number(stage || 1);
   const stageKey = `M${finalStage}`;
 
+  if (Array.isArray(card.evolutionForms)) {
+    const byIndex = card.evolutionForms[finalStage - 1];
+    const byStage =
+      card.evolutionForms.find((form) => {
+        const formStage = Number(form?.stage || form?.evolutionStage || form?.m || 0);
+        const formKey = String(form?.key || form?.evolutionKey || form?.stageKey || "").toUpperCase();
+
+        return formStage === finalStage || formKey === stageKey;
+      }) || null;
+
+    return getImageFromObject(byIndex) || getImageFromObject(byStage);
+  }
+
+  if (typeof card.evolutionForms === "object") {
+    return (
+      getImageFromObject(card.evolutionForms[stageKey]) ||
+      getImageFromObject(card.evolutionForms[String(finalStage)]) ||
+      getImageFromObject(card.evolutionForms[`stage${finalStage}`]) ||
+      getImageFromObject(card.evolutionForms[`m${finalStage}`]) ||
+      null
+    );
+  }
+
+  return null;
+}
+
+function getStageImageDirect(card, stage) {
+  if (!card) return null;
+
+  const finalStage = Number(stage || 1);
+  const stageKey = `M${finalStage}`;
+  const lowerStageKey = `m${finalStage}`;
+
   return (
-    card.evolutionForms?.[finalStage - 1]?.image ||
-    card.stageImages?.[stageKey] ||
-    card.images?.[stageKey] ||
-    card.awakenImages?.[stageKey] ||
-    card.forms?.[stageKey]?.image ||
-    card[stageKey]?.image ||
-    card[`image${stageKey}`] ||
-    card[`imageM${finalStage}`] ||
-    card[`m${finalStage}Image`] ||
+    getStageImageFromEvolutionForms(card, finalStage) ||
+
+    card?.stageImages?.[stageKey] ||
+    card?.stageImages?.[lowerStageKey] ||
+    card?.stageImages?.[String(finalStage)] ||
+
+    card?.images?.[stageKey] ||
+    card?.images?.[lowerStageKey] ||
+    card?.images?.[String(finalStage)] ||
+
+    card?.awakenImages?.[stageKey] ||
+    card?.awakenImages?.[lowerStageKey] ||
+    card?.awakenImages?.[String(finalStage)] ||
+
+    getImageFromObject(card?.forms?.[stageKey]) ||
+    getImageFromObject(card?.forms?.[lowerStageKey]) ||
+    getImageFromObject(card?.forms?.[String(finalStage)]) ||
+
+    getImageFromObject(card?.[stageKey]) ||
+    getImageFromObject(card?.[lowerStageKey]) ||
+
+    card?.[`image${stageKey}`] ||
+    card?.[`image${lowerStageKey}`] ||
+    card?.[`imageM${finalStage}`] ||
+    card?.[`imagem${finalStage}`] ||
+    card?.[`m${finalStage}Image`] ||
+    card?.[`M${finalStage}Image`] ||
+    card?.[`stage${finalStage}Image`] ||
+    card?.[`stageImage${finalStage}`] ||
+    null
+  );
+}
+
+function findAnyStageImageDeep(obj, stage) {
+  if (!obj || typeof obj !== "object") return null;
+
+  const finalStage = Number(stage || 1);
+  const stageKey = `M${finalStage}`;
+  const lowerStageKey = `m${finalStage}`;
+  const visited = new Set();
+
+  function walk(value, parentKey = "") {
+    if (!value || typeof value !== "object") return null;
+    if (visited.has(value)) return null;
+    visited.add(value);
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = walk(item, parentKey);
+        if (found) return found;
+      }
+
+      return null;
+    }
+
+    const keyText = normalizeCode(parentKey);
+
+    const objectStage =
+      Number(value.stage || value.evolutionStage || value.m || 0) === finalStage ||
+      String(value.key || value.evolutionKey || value.stageKey || "").toUpperCase() === stageKey ||
+      keyText === normalizeCode(stageKey) ||
+      keyText === normalizeCode(lowerStageKey) ||
+      keyText.includes(normalizeCode(stageKey)) ||
+      keyText.includes(normalizeCode(lowerStageKey));
+
+    if (objectStage) {
+      const direct = getImageFromObject(value);
+      if (direct) return direct;
+    }
+
+    for (const [key, child] of Object.entries(value)) {
+      const normalizedKey = normalizeCode(key);
+      const keyLooksLikeStage =
+        normalizedKey === normalizeCode(stageKey) ||
+        normalizedKey === normalizeCode(lowerStageKey) ||
+        normalizedKey.includes(normalizeCode(stageKey)) ||
+        normalizedKey.includes(normalizeCode(lowerStageKey)) ||
+        normalizedKey.includes(`stage${finalStage}`);
+
+      if (keyLooksLikeStage) {
+        if (typeof child === "string" && isImageUrl(child)) return child;
+
+        const direct = getImageFromObject(child);
+        if (direct) return direct;
+      }
+
+      const found = walk(child, key);
+      if (found) return found;
+    }
+
+    return null;
+  }
+
+  return walk(obj);
+}
+
+function getBaseImage(card) {
+  return (
+    card?.image ||
+    card?.img ||
+    card?.imageUrl ||
+    card?.imageURL ||
+    card?.cardImage ||
+    card?.thumbnail ||
+    card?.icon ||
     null
   );
 }
 
 function getTargetStageImage(card, stage = 1, previousCard = null) {
   const finalStage = Number(stage || 1);
+  const template = findTemplate(card) || findTemplate(previousCard) || null;
 
-  const template =
-    findTemplate(card) ||
-    findTemplate(previousCard) ||
-    null;
+  const exactStageImage =
+    getStageImageDirect(card, finalStage) ||
+    getStageImageDirect(previousCard, finalStage) ||
+    getStageImageDirect(template, finalStage) ||
+    findAnyStageImageDeep(card, finalStage) ||
+    findAnyStageImageDeep(previousCard, finalStage) ||
+    findAnyStageImageDeep(template, finalStage);
 
-  const templateStageImage = getStageImageOnly(template, finalStage);
-  if (templateStageImage) return templateStageImage;
+  if (exactStageImage) return exactStageImage;
 
-  const currentStageImage = getStageImageOnly(card, finalStage);
-  if (currentStageImage) return currentStageImage;
-
-  const previousStageImage = getStageImageOnly(previousCard, finalStage);
-  if (previousStageImage) return previousStageImage;
-
-  if (finalStage === 1) {
-    return (
-      card?.image ||
-      card?.thumbnail ||
-      template?.image ||
-      template?.thumbnail ||
-      previousCard?.image ||
-      previousCard?.thumbnail ||
-      null
-    );
-  }
-
-  return null;
+  return (
+    getBaseImage(card) ||
+    getBaseImage(previousCard) ||
+    getBaseImage(template) ||
+    null
+  );
 }
 
 function getFormName(card, stage = null) {
