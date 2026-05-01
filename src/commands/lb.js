@@ -14,33 +14,21 @@ const COLOR = 0x5865f2;
 const POWER_TOP_LIMIT = 25;
 const ARENA_TOP_LIMIT = 10;
 
-const ARENA_START_RANK = 500;
-const ARENA_POINTS_PER_RANK = 10;
-
 const ARENA_BOTS = [
-  { id: "bot_001", username: "Pirate King Bot", points: 5000, wins: 120, losses: 0 },
-  { id: "bot_002", username: "Yonko Bot", points: 4850, wins: 116, losses: 2 },
-  { id: "bot_003", username: "Fleet Admiral Bot", points: 4700, wins: 112, losses: 3 },
-  { id: "bot_004", username: "Revolutionary Bot", points: 4550, wins: 108, losses: 4 },
-  { id: "bot_005", username: "Warlord Bot", points: 4400, wins: 104, losses: 6 },
-  { id: "bot_006", username: "CP0 Bot", points: 4250, wins: 100, losses: 8 },
-  { id: "bot_007", username: "Supernova Bot", points: 4100, wins: 96, losses: 10 },
-  { id: "bot_008", username: "Commander Bot", points: 3950, wins: 92, losses: 12 },
-  { id: "bot_009", username: "Vice Admiral Bot", points: 3800, wins: 88, losses: 14 },
-  { id: "bot_010", username: "New World Bot", points: 3650, wins: 84, losses: 16 },
+  { id: "bot_001", username: "Pirate King Bot", points: 300, wins: 30, losses: 0 },
+  { id: "bot_002", username: "Yonko Bot", points: 280, wins: 28, losses: 1 },
+  { id: "bot_003", username: "Fleet Admiral Bot", points: 260, wins: 26, losses: 2 },
+  { id: "bot_004", username: "Revolutionary Bot", points: 240, wins: 24, losses: 3 },
+  { id: "bot_005", username: "Warlord Bot", points: 220, wins: 22, losses: 4 },
+  { id: "bot_006", username: "CP0 Bot", points: 200, wins: 20, losses: 5 },
+  { id: "bot_007", username: "Supernova Bot", points: 180, wins: 18, losses: 6 },
+  { id: "bot_008", username: "Commander Bot", points: 160, wins: 16, losses: 7 },
+  { id: "bot_009", username: "Vice Admiral Bot", points: 140, wins: 14, losses: 8 },
+  { id: "bot_010", username: "New World Bot", points: 120, wins: 12, losses: 9 },
 ];
 
 function normalize(value) {
   return String(value || "").toLowerCase().trim();
-}
-
-function getArenaRankFromPoints(points) {
-  const safePoints = Math.max(0, Number(points || 0));
-
-  return Math.max(
-    1,
-    ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK)
-  );
 }
 
 function getRarityPower(rarity) {
@@ -239,7 +227,6 @@ function getArenaLeaderboardRows(playersMap) {
     .map((entry, index) => ({
       ...entry,
       rank: index + 1,
-      arenaRank: getArenaRankFromPoints(entry.points),
     }));
 }
 
@@ -253,11 +240,10 @@ function formatPowerRow(row, isSelf = false) {
 
 function formatArenaRow(row, isSelf = false) {
   const username = isSelf ? `**${row.username}**` : `**${row.username}**`;
-  const tag = row.isBot ? "BOT" : "PLAYER";
 
   return `\`${row.rank}.\` ${username} - ${Number(row.points || 0).toLocaleString(
     "en-US"
-  )} pts • ${row.wins}W/${row.losses}L • #${row.arenaRank} • ${tag}`;
+  )}`;
 }
 
 function buildPowerDescription(rows, userId) {
