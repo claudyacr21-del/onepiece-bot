@@ -8,7 +8,7 @@ const {
 const { getPlayer, updatePlayer, readPlayers } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestCounter } = require("../utils/questProgress");
-const { syncArenaRankRoles } = require("../utils/arenaRankRoles");
+const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const ARENA_DAILY_LIMIT = 5;
@@ -81,8 +81,20 @@ function formatDevilFruit(card) {
   );
 }
 
-function buildBattleUnit(card, slot, ownerTag = "player") {
-  const synced = hydrateCard(card);
+function applyBoostedBattleStats(card, boosts = {}) {
+  if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
+
+  return {
+    ...card,
+    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+  };
+}
+
+function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}) {
+  const hydrated = hydrateCard(card);
+  const synced = applyBoostedBattleStats(hydrated, boosts);
 
   return {
     slot: slot + 1,
@@ -102,6 +114,8 @@ function buildBattleUnit(card, slot, ownerTag = "player") {
 }
 
 function getTeamUnits(player, ownerTag = "player") {
+  const boosts = getPassiveBoostSummary(player);
+
   const cards = (Array.isArray(player.cards) ? player.cards : [])
     .map(hydrateCard)
     .filter(Boolean);
@@ -120,7 +134,7 @@ function getTeamUnits(player, ownerTag = "player") {
           String(card.cardRole || "").toLowerCase() !== "boost"
       );
 
-      return found ? buildBattleUnit(found, index, ownerTag) : null;
+      return found ? buildBattleUnit(found, index, ownerTag, boosts) : null;
     })
     .filter(Boolean);
 }
@@ -181,8 +195,9 @@ function teamSummary(units) {
   return units
     .map((unit) =>
       [
-        `**${unit.slot}. ${unit.name}** [${unit.rarity}]`,
-        `RANK ${formatArenaRank(unit.power)} • PWR \`${unit.power}\` • LV \`${unit.level}\``,
+        `**${unit.slot}. ${unit.name}**`,
+        `[${unit.rarity}]`,
+        `PWR \`${unit.power}\` • LV \`${unit.level}\``,
         `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
         renderHpBar(unit.hp, unit.maxHp),
       ].join("\n")
