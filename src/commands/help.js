@@ -274,33 +274,32 @@ const HELP_PAGES = {
   },
 };
 
-function getServerIcon(message) {
+function getMemberAvatar(message) {
   return (
-    message.guild?.iconURL({ extension: "png", size: 512 }) ||
-    message.client.user?.displayAvatarURL({ extension: "png", size: 512 }) ||
-    null
+    message.member?.displayAvatarURL({
+      extension: "png",
+      size: 512,
+    }) ||
+    message.author.displayAvatarURL({
+      extension: "png",
+      size: 512,
+    })
   );
-}
-
-function getUserAvatar(message) {
-  return message.author.displayAvatarURL({
-    extension: "png",
-    size: 512,
-  });
 }
 
 function buildEmbed(message, pageKey = "main") {
   const page = HELP_PAGES[pageKey] || HELP_PAGES.main;
-  const userAvatar = getUserAvatar(message);
+  const memberAvatar = getMemberAvatar(message);
+  const displayName = message.member?.displayName || message.author.username;
 
   return new EmbedBuilder()
     .setColor(COLOR)
     .setTitle(page.title)
     .setDescription(page.body.join("\n"))
-    .setThumbnail(userAvatar)
+    .setThumbnail(memberAvatar)
     .setFooter({
-      text: `${message.author.username} • Help Menu`,
-      iconURL: userAvatar,
+      text: `${displayName} • Help Menu`,
+      iconURL: memberAvatar,
     });
 }
 
