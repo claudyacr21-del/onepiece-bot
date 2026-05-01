@@ -6,7 +6,110 @@ const {
 } = require("discord.js");
 
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { findOwnedCard, awakenOwnedCard } = require("../utils/evolution");
+const {
+  findOwnedCard,
+  awakenOwnedCard,
+  getBoostStageValue,
+} = require("../utils/evolution");
+
+function formatReqEntry(entry) {
+  if (!entry) return "Unknown";
+
+  if (typeof entry === "string") {
+    return entry
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (m) => m.toUpperCase());
+  }
+
+  return `${entry.name || entry.code} M${Number(entry.stage || 1)}`;
+}
+
+function getBoostEffectText(card, stage = 1) {
+  if (!card || card.cardRole !== "boost") return "";
+
+  const boostType = String(card.boostType || "").toLowerCase();
+  const target = card.boostTarget || "team";
+  const value = getBoostStageValue(card, stage);
+
+  if (boostType === "fragmentstorage" || boostType === "fragment_storage") {
+    return `Increase ${target} fragment storage by ${value}.`;
+  }
+
+  if (boostType === "pullchance" || boostType === "pull_chance") {
+    return `Increase ${target} pull chance by ${value}%.`;
+  }
+
+  if (boostType === "daily") {
+    return `Increase ${target} daily reward quality by ${value}.`;
+  }
+
+  const suffix = ["atk", "hp", "spd", "exp", "dmg"].includes(boostType)
+    ? "%"
+    : "";
+
+  if (!boostType) {
+    return card.boostDescription || card.effectText || "No boost effect description.";
+  }
+
+  return `Increase ${target} ${boostType.toUpperCase()} by ${value}${suffix}.`;
+}
+
+function reqText(card, req) {
+  return [
+    `Berries: ${Number(req.berries || 0).toLocaleString("en-US")}`,
+    `Self Fragments: ${Number(req.selfFragments || 0)}x ${
+      card.displayName || card.name
+    }`,
+    card.cardRole === "battle"
+      ? `Min Level: ${Number(req.minLevel || 0)}`
+      : "Min Level: Not required",
+    req.cards?.length
+      ? `Battle Cards: ${req.cards.map(formatReqEntry).join(", ")}`
+      : null,
+    req.boosts?.length
+      ? `Boost Cards: ${req.boosts.map(formatReqEntry).join(", ")}`
+      : null,
+    req.text || null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildSuccessDescription(result) {
+  const card = result.target;
+  const stage = Number(card.evolutionStage || 1);
+  const formName =
+    card.evolutionForms?.[stage - 1]?.name ||
+    card.variant ||
+    card.displayName ||
+    card.name ||
+    "Unknown";
+
+  const baseLines = [
+    `**${card.displayName || card.name}** reached **M${stage}**`,
+    `**Form:** ${formName}`,
+    `**Tier:** ${card.currentTier || card.rarity}`,
+    `**Power:** ${Number(card.currentPower || 0).toLocaleString("en-US")}`,
+    "",
+  ];
+
+  if (card.cardRole === "boost") {
+    const effectText = card.effectText || getBoostEffectText(card, stage);
+
+    return [
+      ...baseLines,
+      "**Boost Effect**",
+      effectText || "No boost effect description.",
+    ].join("\n");
+  }
+
+  return [
+    ...baseLines,
+    `ATK: ${Number(card.atk || 0).toLocaleString("en-US")}`,
+    `HP: ${Number(card.hp || 0).toLocaleString("en-US")}`,
+    `SPD: ${Number(card.speed || 0).toLocaleString("en-US")}`,
+  ].join("\n");
+}
 
 module.exports = {
   name: "awaken",
@@ -30,28 +133,11 @@ module.exports = {
       return message.reply("This card is already at M3.");
     }
 
-    const currentStage = Number(owned.evolutionStage || 1);
-    const nextStage = currentStage + 1;
+    const nextStage = Number(owned.evolutionStage || 1) + 1;
+    const req = owned.awakenRequirements?.[`M${nextStage}`];
 
-    try {
-      // Requirement validation only.
-      // If anything is missing, awakenOwnedCard will throw and no UI will be shown.
-      awakenOwnedCard(player, query);
-    } catch (_) {
-      return message.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(0xe74c3c)
-            .setTitle("Awaken Failed")
-            .setDescription(
-              [
-                `**${owned.displayName || owned.name}** cannot awaken to **M${nextStage}** yet.`,
-                "",
-                `Use \`op ci ${owned.displayName || owned.name}\` to check the full requirements.`,
-              ].join("\n")
-            ),
-        ],
-      });
+    if (!req) {
+      return message.reply("No awaken requirement found.");
     }
 
     const sent = await message.reply({
@@ -61,11 +147,14 @@ module.exports = {
           .setTitle(`✨ Awaken ${owned.displayName || owned.name}`)
           .setDescription(
             [
-              `Current: **M${currentStage}**`,
-              `Next: **M${nextStage}** • ${owned.evolutionForms?.[nextStage - 1]?.name || "Unknown"}`,
+              `Current: **M${owned.evolutionStage}**`,
+              `Next: **M${nextStage}** • ${
+                owned.evolutionForms?.[nextStage - 1]?.name || "Unknown"
+              }`,
               "",
-              "All requirements are ready.",
-              "Press **Yes** to awaken or **Cancel** to stop.",
+              reqText(owned, req),
+              "",
+              "Press **Yes** to proceed or **Cancel** to stop.",
             ].join("\n")
           ),
       ],
@@ -125,36 +214,19 @@ module.exports = {
             new EmbedBuilder()
               .setColor(0x2ecc71)
               .setTitle("✨ Awaken Success")
-              .setDescription(
-                [
-                  `**${result.target.displayName || result.target.name}** reached **M${result.target.evolutionStage}**`,
-                  `**Form:** ${result.target.evolutionForms?.[result.target.evolutionStage - 1]?.name || "Unknown"}`,
-                  `**Tier:** ${result.target.currentTier || result.target.rarity}`,
-                  `**Power:** ${result.target.currentPower || 0}`,
-                  "",
-                  `ATK: ${result.target.atk}`,
-                  `HP: ${result.target.hp}`,
-                  `SPD: ${result.target.speed}`,
-                ].join("\n")
-              ),
+              .setDescription(buildSuccessDescription(result)),
           ],
           components: [],
         });
 
         collector.stop("done");
-      } catch (_) {
+      } catch (err) {
         await interaction.update({
           embeds: [
             new EmbedBuilder()
               .setColor(0xe74c3c)
               .setTitle("Awaken Failed")
-              .setDescription(
-                [
-                  `**${owned.displayName || owned.name}** cannot awaken right now.`,
-                  "",
-                  `Use \`op ci ${owned.displayName || owned.name}\` to check the full requirements.`,
-                ].join("\n")
-              ),
+              .setDescription(err.message),
           ],
           components: [],
         });
