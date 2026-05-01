@@ -3,10 +3,15 @@ const {
   ActionRowBuilder,
   StringSelectMenuBuilder,
 } = require("discord.js");
+
 const { readPlayers } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
+
+const COLOR = 0x5865f2;
+const POWER_TOP_LIMIT = 25;
+const ARENA_TOP_LIMIT = 10;
 
 const ARENA_START_RANK = 500;
 const ARENA_POINTS_PER_RANK = 10;
@@ -24,46 +29,47 @@ function getArenaRankFromPoints(points) {
   );
 }
 
-function formatArenaRank(points) {
-  return `#${getArenaRankFromPoints(points)}`;
-}
-
-function isRankUsedByRealPlayer(rank, realPlayers) {
-  return realPlayers.some((player) => getArenaRankFromPoints(player.points) === rank);
-}
-
 function getArenaBotRows(realPlayers = []) {
   const botRows = [
     {
+      id: "arena_bot_pirate_king",
       username: "Pirate King Bot",
       points: 35,
       wins: 3,
       losses: 0,
+      matches: 3,
       isBot: true,
     },
     {
+      id: "arena_bot_yonko",
       username: "Yonko Bot",
       points: 25,
       wins: 2,
       losses: 1,
+      matches: 3,
       isBot: true,
     },
     {
+      id: "arena_bot_grand_champion",
       username: "Grand Champion Bot",
       points: 15,
       wins: 1,
       losses: 1,
+      matches: 2,
       isBot: true,
     },
   ];
 
+  const usedRanks = new Set(
+    realPlayers.map((player) => getArenaRankFromPoints(player.points))
+  );
+
   const availableBots = botRows.filter((bot) => {
     const botRank = getArenaRankFromPoints(bot.points);
-    return !isRankUsedByRealPlayer(botRank, realPlayers);
+    return !usedRanks.has(botRank);
   });
 
   const botCount = Math.max(0, 3 - realPlayers.length);
-
   return availableBots.slice(0, botCount);
 }
 
@@ -119,7 +125,9 @@ function getAllOwnedCardsPower(player) {
     .map(hydrateCard)
     .filter(Boolean);
 
-  return cards.reduce((sum, card) => sum + Number(card.currentPower || 0), 0);
+  return cards.reduce((sum, card) => {
+    return sum + Number(card.currentPower || 0);
+  }, 0);
 }
 
 function getInventoryWeaponsPower(player) {
@@ -148,9 +156,12 @@ function getEquippedWeaponsPower(player) {
       const template = findWeaponTemplate(entry.code || entry.name);
       if (!template) return sub;
 
-      return sub + getWeaponPowerByRarityAndLevel(
-        template.rarity,
-        Number(entry.upgradeLevel || 0)
+      return (
+        sub +
+        getWeaponPowerByRarityAndLevel(
+          template.rarity,
+          Number(entry.upgradeLevel || 0)
+        )
       );
     }, 0);
 
@@ -168,7 +179,6 @@ function getInventoryFruitsPower(player) {
     if (!template) return sum;
 
     const amount = Math.max(0, Number(entry.amount || 0));
-
     return sum + getFruitPowerByRarity(template.rarity) * amount;
   }, 0);
 }
@@ -205,9 +215,29 @@ function getPlayerCollectionPower(player) {
   );
 }
 
-function getArenaRows(players) {
+function getPowerLeaderboardRows(playersMap) {
+  return Object.entries(playersMap || {})
+    .map(([id, player]) => ({
+      id,
+      username: player.username || "Unknown",
+      value: getPlayerCollectionPower(player),
+    }))
+    .sort((a, b) => {
+      if (b.value !== a.value) return b.value - a.value;
+      return String(a.username).localeCompare(String(b.username));
+    })
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
+}
+
+function getArenaLeaderboardRows(playersMap) {
+  const players = Object.entries(playersMap || {});
+
   const realPlayers = players
-    .map((player) => ({
+    .map(([id, player]) => ({
+      id,
       username: player.username || "Unknown",
       points: Number(player?.arena?.points || 0),
       wins: Number(player?.arena?.wins || 0),
@@ -215,14 +245,21 @@ function getArenaRows(players) {
       matches: Number(player?.arena?.matches || 0),
       isBot: false,
     }))
-    .filter((entry) => entry.matches > 0 || entry.points > 0 || entry.wins > 0 || entry.losses > 0);
+    .filter((entry) => {
+      return (
+        entry.matches > 0 ||
+        entry.points > 0 ||
+        entry.wins > 0 ||
+        entry.losses > 0
+      );
+    });
 
   const rows = [...getArenaBotRows(realPlayers), ...realPlayers]
     .sort((a, b) => {
-      const rankA = getArenaRankFromPoints(a.points);
-      const rankB = getArenaRankFromPoints(b.points);
+      const arenaRankA = getArenaRankFromPoints(a.points);
+      const arenaRankB = getArenaRankFromPoints(b.points);
 
-      if (rankA !== rankB) return rankA - rankB;
+      if (arenaRankA !== arenaRankB) return arenaRankA - arenaRankB;
       if (b.points !== a.points) return b.points - a.points;
       if (b.wins !== a.wins) return b.wins - a.wins;
       if (a.losses !== b.losses) return a.losses - b.losses;
@@ -230,70 +267,98 @@ function getArenaRows(players) {
 
       return String(a.username).localeCompare(String(b.username));
     })
-    .slice(0, 10);
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+      arenaRank: getArenaRankFromPoints(entry.points),
+    }));
 
-  return rows.map((entry) => {
-    const tag = entry.isBot ? "BOT" : "PLAYER";
-
-    return `${formatArenaRank(entry.points)} **${entry.username}** • ${entry.points} pts • ${entry.wins}W/${entry.losses}L • ${tag}`;
-  });
+  return rows;
 }
 
-function getPowerRows(players) {
-  return players
-    .map((player) => ({
-      username: player.username || "Unknown",
-      value: getPlayerCollectionPower(player),
-    }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 10)
-    .map(
-      (entry, index) =>
-        `${index + 1}. **${entry.username}** • ${entry.value.toLocaleString(
-          "en-US"
-        )} power`
-    );
+function formatPowerRow(row, isSelf = false) {
+  const username = isSelf ? `**${row.username}**` : `**${row.username}**`;
+
+  return `\`${row.rank}.\` ${username} - ${Number(row.value || 0).toLocaleString(
+    "en-US"
+  )}`;
 }
 
-function buildLeaderboardEmbed(mode = null) {
-  const players = Object.values(readPlayers() || {});
+function formatArenaRow(row, isSelf = false) {
+  const username = isSelf ? `**${row.username}**` : `**${row.username}**`;
+  const tag = row.isBot ? "BOT" : "PLAYER";
+
+  return `\`${row.rank}.\` ${username} - ${Number(row.points || 0).toLocaleString(
+    "en-US"
+  )} pts • ${row.wins}W/${row.losses}L • #${row.arenaRank} • ${tag}`;
+}
+
+function buildPowerDescription(rows, userId) {
+  const topRows = rows.slice(0, POWER_TOP_LIMIT);
+  const ownRow = rows.find((row) => row.id === userId);
+
+  const lines = topRows.map((row) => formatPowerRow(row, row.id === userId));
+
+  if (ownRow && !topRows.some((row) => row.id === userId)) {
+    lines.push("");
+    lines.push(formatPowerRow(ownRow, true));
+  }
+
+  if (!lines.length) {
+    return "No collection power data yet.";
+  }
+
+  return lines.join("\n");
+}
+
+function buildArenaDescription(rows, userId) {
+  const topRows = rows.slice(0, ARENA_TOP_LIMIT);
+  const ownRow = rows.find((row) => row.id === userId);
+
+  const lines = topRows.map((row) => formatArenaRow(row, row.id === userId));
+
+  if (ownRow && !topRows.some((row) => row.id === userId)) {
+    lines.push("");
+    lines.push(formatArenaRow(ownRow, true));
+  }
+
+  if (!lines.length) {
+    return "No arena data yet.";
+  }
+
+  return lines.join("\n");
+}
+
+function buildLeaderboardEmbed(message, mode = null) {
+  const playersMap = readPlayers() || {};
+  const userId = message.author.id;
 
   if (mode === "arena") {
-    const rows = getArenaRows(players);
+    const rows = getArenaLeaderboardRows(playersMap);
 
     return new EmbedBuilder()
-      .setColor(0x5865f2)
+      .setColor(COLOR)
       .setTitle("Arena Leaderboard")
-      .setDescription(
-        [
-          rows.length ? rows.join("\n") : "No arena data yet.",
-          "",
-          `Arena starts at **#${ARENA_START_RANK}** and climbs upward with points.`,
-          "Arena Bots are temporary placeholders and will disappear as real players climb.",
-          "Arena rank roles are only given to real players at **#1 / #2 / #3**.",
-        ].join("\n")
-      )
+      .setDescription(buildArenaDescription(rows, userId))
       .setFooter({
-        text: "One Piece Bot • Arena Leaderboard",
+        text: "Top 10 Arena • Your rank shown below if not in top 10",
       });
   }
 
   if (mode === "power") {
-    const rows = getPowerRows(players);
+    const rows = getPowerLeaderboardRows(playersMap);
 
     return new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle("Collection Power Leaderboard")
-      .setDescription(
-        rows.length ? rows.join("\n") : "No collection power data yet."
-      )
+      .setColor(COLOR)
+      .setTitle("Global Power Leaderboard")
+      .setDescription(buildPowerDescription(rows, userId))
       .setFooter({
         text: "Power includes owned cards, boosts, weapons, and devil fruits",
       });
   }
 
   return new EmbedBuilder()
-    .setColor(0x5865f2)
+    .setColor(COLOR)
     .setTitle("Global Leaderboards")
     .setDescription("Select a leaderboard type below.")
     .setFooter({
@@ -310,13 +375,13 @@ function buildLeaderboardMenu(selected = null) {
         .addOptions([
           {
             label: "Arena Leaderboard",
-            description: "View arena rank, points, wins, and losses",
+            description: "Top 10 arena ranks and your own rank",
             value: "arena",
             default: selected === "arena",
           },
           {
-            label: "Collection Power Leaderboard",
-            description: "View total collection power ranking",
+            label: "Global Power Leaderboard",
+            description: "Top power ranking and your own rank",
             value: "power",
             default: selected === "power",
           },
@@ -333,7 +398,7 @@ module.exports = {
     let selected = null;
 
     const sent = await message.reply({
-      embeds: [buildLeaderboardEmbed(selected)],
+      embeds: [buildLeaderboardEmbed(message, selected)],
       components: buildLeaderboardMenu(selected),
     });
 
@@ -352,7 +417,7 @@ module.exports = {
       selected = interaction.values?.[0] || null;
 
       return interaction.update({
-        embeds: [buildLeaderboardEmbed(selected)],
+        embeds: [buildLeaderboardEmbed(message, selected)],
         components: buildLeaderboardMenu(selected),
       });
     });
@@ -362,7 +427,7 @@ module.exports = {
         await sent.edit({
           components: [],
         });
-      } catch {}
+      } catch (_) {}
     });
   },
 };
