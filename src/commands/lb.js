@@ -13,22 +13,70 @@ const COLOR = 0x5865f2;
 
 const POWER_TOP_LIMIT = 25;
 const ARENA_TOP_LIMIT = 10;
+const ARENA_TOTAL_RANKS = 500;
+const ARENA_TOP_BOT_POINTS = 300;
+const ARENA_POINT_STEP = 1;
 
-const ARENA_BOTS = [
-  { id: "bot_001", username: "Pirate King Bot", points: 300, wins: 30, losses: 0 },
-  { id: "bot_002", username: "Yonko Bot", points: 280, wins: 28, losses: 1 },
-  { id: "bot_003", username: "Fleet Admiral Bot", points: 260, wins: 26, losses: 2 },
-  { id: "bot_004", username: "Revolutionary Bot", points: 240, wins: 24, losses: 3 },
-  { id: "bot_005", username: "Warlord Bot", points: 220, wins: 22, losses: 4 },
-  { id: "bot_006", username: "CP0 Bot", points: 200, wins: 20, losses: 5 },
-  { id: "bot_007", username: "Supernova Bot", points: 180, wins: 18, losses: 6 },
-  { id: "bot_008", username: "Commander Bot", points: 160, wins: 16, losses: 7 },
-  { id: "bot_009", username: "Vice Admiral Bot", points: 140, wins: 14, losses: 8 },
-  { id: "bot_010", username: "New World Bot", points: 120, wins: 12, losses: 9 },
+const BOT_NAMES = [
+  "Pirate King Bot",
+  "Yonko Bot",
+  "Fleet Admiral Bot",
+  "Revolutionary Bot",
+  "Warlord Bot",
+  "CP0 Bot",
+  "Supernova Bot",
+  "Commander Bot",
+  "Vice Admiral Bot",
+  "New World Bot",
+  "Grand Line Bot",
+  "Marine Hero Bot",
+  "Shichibukai Bot",
+  "Worst Generation Bot",
+  "Cipher Pol Bot",
+  "Sky Island Bot",
+  "Fishman Bot",
+  "Dressrosa Bot",
+  "Wano Samurai Bot",
+  "Egghead Bot",
 ];
 
 function normalize(value) {
   return String(value || "").toLowerCase().trim();
+}
+
+function getBotName(index) {
+  const base = BOT_NAMES[index % BOT_NAMES.length];
+  const cycle = Math.floor(index / BOT_NAMES.length);
+
+  return cycle === 0 ? base : `${base} ${cycle + 1}`;
+}
+
+function getBotPoints(index) {
+  return Math.max(0, ARENA_TOP_BOT_POINTS - index * ARENA_POINT_STEP);
+}
+
+function getBotWins(points) {
+  return Math.max(0, Math.floor(Number(points || 0) / 10));
+}
+
+function getBotLosses(index) {
+  return Math.floor(index / 25);
+}
+
+function buildArenaBots(count = ARENA_TOTAL_RANKS) {
+  return Array.from({ length: count }, (_, index) => {
+    const points = getBotPoints(index);
+
+    return {
+      id: `arena_bot_${String(index + 1).padStart(3, "0")}`,
+      username: getBotName(index),
+      points,
+      wins: getBotWins(points),
+      losses: getBotLosses(index),
+      matches: getBotWins(points) + getBotLosses(index),
+      isBot: true,
+    };
+  });
 }
 
 function getRarityPower(rarity) {
@@ -210,11 +258,8 @@ function getArenaLeaderboardRows(playersMap) {
       );
     });
 
-  const botRows = ARENA_BOTS.map((bot) => ({
-    ...bot,
-    matches: Number(bot.wins || 0) + Number(bot.losses || 0),
-    isBot: true,
-  }));
+  const botCount = Math.max(0, ARENA_TOTAL_RANKS - realPlayers.length);
+  const botRows = buildArenaBots(botCount);
 
   return [...botRows, ...realPlayers]
     .sort((a, b) => {
@@ -294,7 +339,7 @@ function buildLeaderboardEmbed(message, mode = null) {
       .setTitle("Arena Leaderboard")
       .setDescription(buildArenaDescription(rows, userId))
       .setFooter({
-        text: "Top 10 Arena • Your rank shown below if not in top 10",
+        text: "Top 10 Arena • 500 total ranks • Your rank shown below if not in top 10",
       });
   }
 
