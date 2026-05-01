@@ -38,6 +38,12 @@ function parseUserId(value) {
   return String(value || "").replace(/[<@!>]/g, "").trim();
 }
 
+function toPositiveInt(value, fallback = 1) {
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return n;
+}
+
 function buildCardIndex(cards) {
   const map = new Map();
 
@@ -64,7 +70,6 @@ const cardIndex = buildCardIndex(cardsData);
 function findCardTemplate(query) {
   const q = normalize(query);
   const qc = normalizeCode(query);
-
   return cardIndex.get(q) || cardIndex.get(qc) || null;
 }
 
@@ -203,6 +208,8 @@ function alreadyOwnsCard(player, template) {
 
 function addFragment(player, template, amount = 1) {
   const fragments = ensureArray(player.fragments);
+  const finalAmount = toPositiveInt(amount, 1);
+
   const targetCode = normalizeCode(template.code);
   const targetName = normalize(template.displayName || template.name);
 
@@ -217,7 +224,7 @@ function addFragment(player, template, amount = 1) {
   });
 
   if (existing) {
-    existing.amount = Number(existing.amount || 0) + Number(amount || 1);
+    existing.amount = Number(existing.amount || 0) + finalAmount;
     existing.name = existing.name || template.displayName || template.name;
     existing.rarity = existing.rarity || template.baseTier || template.rarity || "C";
     existing.category = existing.category || template.cardRole || "battle";
@@ -228,7 +235,7 @@ function addFragment(player, template, amount = 1) {
 
   fragments.push({
     name: template.displayName || template.name,
-    amount: Number(amount || 1),
+    amount: finalAmount,
     rarity: template.baseTier || template.rarity || "C",
     category: template.cardRole || "battle",
     code: template.code,
@@ -249,11 +256,11 @@ module.exports = {
 
     const userId = parseUserId(args.shift());
     const query = String(args.shift() || "").trim();
-    const level = args[0] ? Number(args[0]) : 1;
-    const stage = args[1] ? Number(args[1]) : 1;
+    const levelOrAmount = toPositiveInt(args[0], 1);
+    const stage = toPositiveInt(args[1], 1);
 
     if (!userId || !query) {
-      return message.reply("Usage: `op givecard <userId/@user> <cardCode/cardName> [level] [stage]`");
+      return message.reply("Usage: `op givecard <userId/@user> <card_code> [level/amount] [stage]`");
     }
 
     const players = readPlayers();
@@ -265,22 +272,25 @@ module.exports = {
     const template = findCardTemplate(query);
 
     if (!template || template.cardRole !== "battle") {
-      return message.reply("Invalid battle card.\nUse exact battle card code or exact battle card name.");
+      return message.reply(
+        "Invalid battle card.\nUse exact battle card code or exact battle card name."
+      );
     }
 
     players[userId].cards = ensureArray(players[userId].cards);
     players[userId].fragments = ensureArray(players[userId].fragments);
 
     if (alreadyOwnsCard(players[userId], template)) {
-      players[userId].fragments = addFragment(players[userId], template, 1);
+      players[userId].fragments = addFragment(players[userId], template, levelOrAmount);
       writePlayers(players);
 
       return message.reply(
-        `User already owns \`${template.displayName || template.name}\` (${template.code}). Converted admin give into **1 Fragment** for \`${userId}\`.`
+        `User already owns \`${template.displayName || template.name}\` (${template.code}).\n` +
+          `Converted admin give into **${levelOrAmount} Fragment${levelOrAmount > 1 ? "s" : ""}** for \`${userId}\`.`
       );
     }
 
-    const ownedCard = makeOwnedBattleCard(template, level, stage);
+    const ownedCard = makeOwnedBattleCard(template, levelOrAmount, stage);
     players[userId].cards.push(ownedCard);
 
     writePlayers(players);
