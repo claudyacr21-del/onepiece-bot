@@ -2,12 +2,20 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
 const { hydrateCard } = require("../utils/evolution");
+const { getShipByCode, SHIPS } = require("../data/ships");
 
 const DEFAULT_START_ISLAND = "Foosha Village";
+const ARENA_START_RANK = 500;
+const ARENA_POINTS_PER_RANK = 10;
 
 function hasRole(message, roleName) {
   if (!message.member?.roles?.cache || !roleName) return false;
   return message.member.roles.cache.some((role) => role.name === roleName);
+}
+
+function countTotalAmount(list) {
+  if (!Array.isArray(list)) return 0;
+  return list.reduce((sum, item) => sum + Number(item?.amount || 0), 0);
 }
 
 function getProfileImage(message) {
@@ -58,28 +66,48 @@ function getStoryProgress(player) {
 
   const currentIsland = player.currentIsland || DEFAULT_START_ISLAND;
 
-  return `${cleared} bosses cleared • Current island: ${currentIsland}`;
+  return `${cleared} bosses • ${currentIsland}`;
+}
+
+function getArenaRankFromPoints(points) {
+  const safePoints = Math.max(0, Number(points || 0));
+  return Math.max(
+    1,
+    ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK)
+  );
+}
+
+function formatArenaRank(points) {
+  return `#${getArenaRankFromPoints(points)}`;
 }
 
 function getArenaSummary(player) {
   const arena = player?.arena || {};
+  const points = Number(arena.points || 0);
 
   return {
-    points: Number(arena.points || 0),
+    points,
+    rank: formatArenaRank(points),
     wins: Number(arena.wins || 0),
     losses: Number(arena.losses || 0),
-    draws: Number(arena.draws || 0),
     streak: Number(arena.streak || 0),
     bestStreak: Number(arena.bestStreak || 0),
   };
 }
 
 function getShipSummary(player) {
-  const ship = player?.ship || {};
+  const shipState = player?.ship || {};
+  const tier = Number(shipState.tier || 1);
+  const shipByCode = getShipByCode(shipState.shipCode || "");
+  const shipByTier = SHIPS.find((ship) => Number(ship.tier || 1) === tier);
+  const resolvedShip =
+    shipByCode && shipByCode.code !== "small_boat"
+      ? shipByCode
+      : shipByTier || shipByCode;
 
   return {
-    name: ship.name || "Small Boat",
-    tier: Number(ship.tier || 1),
+    name: resolvedShip?.name || shipState.name || "Small Boat",
+    tier: Number(resolvedShip?.tier || tier || 1),
   };
 }
 
@@ -103,64 +131,71 @@ function getCardStatistics(player) {
   };
 }
 
+function line(label, value) {
+  return `↪ ${label}: \`${value}\``;
+}
+
 module.exports = {
   name: "profile",
   aliases: ["pf", "me"],
 
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
+    const totalFragments = countTotalAmount(player.fragments);
     const isMotherFlame = hasRole(message, PREMIUM_ROLE_NAME);
     const teamPower = getTeamPower(player);
     const storyProgress = getStoryProgress(player);
     const arena = getArenaSummary(player);
     const ship = getShipSummary(player);
     const cardStats = getCardStatistics(player);
-    const profileImage = getProfileImage(message);
+    const avatar = getProfileImage(message);
 
     const embed = new EmbedBuilder()
       .setColor(0x3498db)
       .setAuthor({
-        name: `${player.username}'s One Piece Profile`,
-        iconURL: profileImage,
+        name: `${player.username}'s Profile`,
+        iconURL: avatar,
       })
       .setDescription(
         [
-          "## 🏴‍☠️ Captain Info",
-          `↪ Current Island: ${player.currentIsland || DEFAULT_START_ISLAND}`,
-          `↪ Username: ${player.username}`,
-          `↪ Premium: ${isMotherFlame ? "Mother Flame" : "Normal"}`,
-          `↪ Clan: ${player?.clan?.name || "None"}`,
-          `↪ Ship: ${ship.name}`,
-          `↪ Ship Tier: ${ship.tier}`,
+          "**🌊 Captain**",
+          line("Island", player.currentIsland || DEFAULT_START_ISLAND),
+          line("Premium", isMotherFlame ? "Mother Flame" : "Normal"),
+          line("Clan", player?.clan?.name || "None"),
+          line("Ship", `${ship.name} • Tier ${ship.tier}`),
           "",
-          "## 💰 Wallet",
-          `↪ Berries: ${Number(player.berries || 0).toLocaleString("en-US")}`,
-          `↪ Gems: ${Number(player.gems || 0).toLocaleString("en-US")}`,
+          "**💰 Wallet**",
+          line("Berries", Number(player.berries || 0).toLocaleString("en-US")),
+          line("Gems", Number(player.gems || 0).toLocaleString("en-US")),
           "",
-          "## 🃏 Card Statistics",
-          `↪ Cards Owned: ${cardStats.totalCards}`,
-          `↪ Mastery 1 Cards: ${cardStats.mastery1Cards}`,
-          `↪ Mastery 2 Cards: ${cardStats.mastery2Cards}`,
-          `↪ Mastery 3 Cards: ${cardStats.mastery3Cards}`,
-          `↪ Boost Cards: ${cardStats.boostCards}`,
+          "**🃏 Cards**",
+          line("Cards Owned", cardStats.totalCards),
+          line("Mastery 1 Cards", cardStats.mastery1Cards),
+          line("Mastery 2 Cards", cardStats.mastery2Cards),
+          line("Mastery 3 Cards", cardStats.mastery3Cards),
+          line("Boost Cards", cardStats.boostCards),
+          line("Fragments", totalFragments),
           "",
-          "## 🎮 Game Stats",
-          `↪ Team Power: ${teamPower.toLocaleString("en-US")}`,
-          `↪ Story Progress: ${storyProgress}`,
-          `↪ Fight Win Streak: ${Number(player?.fightStreak || 0)}`,
+          "**🧩 Progress**",
+          line("Team Power", teamPower.toLocaleString("en-US")),
+          line("Story", storyProgress),
+          line("Fight Streak", Number(player?.fightStreak || 0)),
           "",
-          "## ⚔️ Arena Stats",
-          `↪ Arena Points: ${arena.points}`,
-          `↪ Arena Record: ${arena.wins}W / ${arena.losses}L / ${arena.draws}D`,
-          `↪ Arena Streak: ${arena.streak}`,
-          `↪ Best Arena Streak: ${arena.bestStreak}`,
+          "**⚔️ Arena**",
+          line("Rank", arena.rank),
+          line("Points", arena.points),
+          line("Record", `${arena.wins}W / ${arena.losses}L`),
+          line("Streak", arena.streak),
+          line("Best Streak", arena.bestStreak),
         ].join("\n")
       )
-      .setThumbnail(profileImage)
+      .setThumbnail(avatar)
       .setFooter({
-        text: "One Piece Bot",
+        text: "One Piece Bot • Profile",
       });
 
-    return message.reply({ embeds: [embed] });
+    return message.reply({
+      embeds: [embed],
+    });
   },
 };
