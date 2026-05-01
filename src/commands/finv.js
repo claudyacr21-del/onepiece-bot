@@ -3,12 +3,10 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  AttachmentBuilder,
 } = require("discord.js");
 
 const { getPlayer } = require("../playerStore");
 const { getFragmentStorageInfo } = require("../utils/autoSac");
-const { renderFinvPage } = require("../utils/renderFinvPage");
 
 const PAGE_SIZE = 8;
 const COLOR = 0x8e44ad;
@@ -57,6 +55,79 @@ function filterFragments(fragments, query) {
   });
 }
 
+function getFragmentIcon(fragment) {
+  const category = String(fragment.category || "").toLowerCase();
+  const rarity = formatRarity(fragment.rarity);
+
+  if (category === "boost") return "💠";
+
+  const rarityIcon = {
+    UR: "🌈",
+    SS: "🔱",
+    S: "🔥",
+    A: "💎",
+    B: "🔷",
+    C: "🧩",
+  };
+
+  return rarityIcon[rarity] || "🧩";
+}
+
+function getMemberAvatar(message) {
+  return (
+    message.member?.displayAvatarURL({
+      extension: "png",
+      size: 512,
+    }) ||
+    message.author.displayAvatarURL({
+      extension: "png",
+      size: 512,
+    })
+  );
+}
+
+function buildPageEmbed(message, player, fragments, currentPage, isPrivate, searchQuery) {
+  const sorted = sortFragments(fragments);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(Math.max(currentPage, 0), totalPages - 1);
+  const start = safePage * PAGE_SIZE;
+  const pageItems = sorted.slice(start, start + PAGE_SIZE);
+  const storage = getStorageInfo(player, Array.isArray(player.fragments) ? player.fragments : []);
+  const memberAvatar = getMemberAvatar(message);
+
+  const lines = pageItems.length
+    ? pageItems.map((fragment, index) => {
+        const icon = getFragmentIcon(fragment);
+        const amount = Number(fragment.amount || 0).toLocaleString("en-US");
+        const rarity = formatRarity(fragment.rarity);
+
+        return `${start + index + 1}. ${icon} **${fragment.name}** — \`${amount}x\` (${rarity})`;
+      })
+    : ["No fragments found."];
+
+  const embed = new EmbedBuilder()
+    .setColor(COLOR)
+    .setTitle(`${message.member?.displayName || message.author.username}'s Fragment Storage`)
+    .setDescription(
+      [
+        "Fragments are used to upgrade cards and boost cards.",
+        searchQuery ? `\n**Search:** \`${searchQuery}\`` : "",
+        "",
+        lines.join("\n"),
+        "",
+        `**Fragment Storage:** ${storage.total}/${storage.max}`,
+        `**Visibility Mode:** ${isPrivate ? "Private" : "Public"}`,
+      ].join("\n")
+    )
+    .setThumbnail(memberAvatar)
+    .setFooter({
+      text: `Page ${safePage + 1}/${totalPages} • ${sorted.length} fragment entries`,
+      iconURL: memberAvatar,
+    });
+
+  return { embed, totalPages, safePage };
+}
+
 function buildButtons(currentPage, totalPages, isPrivate) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -78,50 +149,6 @@ function buildButtons(currentPage, totalPages, isPrivate) {
   );
 }
 
-async function buildPageMessage(message, player, fragments, currentPage, isPrivate, searchQuery) {
-  const sorted = sortFragments(fragments);
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const safePage = Math.min(Math.max(currentPage, 0), totalPages - 1);
-  const start = safePage * PAGE_SIZE;
-  const pageItems = sorted.slice(start, start + PAGE_SIZE);
-  const storage = getStorageInfo(player, Array.isArray(player.fragments) ? player.fragments : []);
-
-  const avatarUrl =
-    message.member?.displayAvatarURL({ extension: "png", size: 512 }) ||
-    message.author.displayAvatarURL({ extension: "png", size: 512 });
-
-  const imageBuffer = await renderFinvPage({
-    username: message.member?.displayName || message.author.username,
-    avatarUrl,
-    fragments: pageItems.map((fragment) => ({
-      ...fragment,
-      rarity: formatRarity(fragment.rarity),
-    })),
-    searchQuery,
-    page: safePage + 1,
-    totalPages,
-    totalEntries: sorted.length,
-    storageText: `${storage.total}/${storage.max}`,
-    visibilityText: isPrivate ? "Private" : "Public",
-  });
-
-  const attachment = new AttachmentBuilder(imageBuffer, { name: "finv-page.png" });
-
-  const embed = new EmbedBuilder()
-    .setColor(COLOR)
-    .setTitle(`${message.member?.displayName || message.author.username}'s Fragment Storage`)
-    .setDescription("Fragments are used to upgrade cards and boost cards.")
-    .setImage("attachment://finv-page.png");
-
-  return {
-    files: [attachment],
-    embeds: [embed],
-    components: [buildButtons(safePage, totalPages, isPrivate)],
-    safePage,
-    totalPages,
-  };
-}
-
 module.exports = {
   name: "finv",
   aliases: ["fragmentinv", "fragments"],
@@ -130,12 +157,12 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
     const allFragments = Array.isArray(player.fragments) ? player.fragments : [];
     const searchQuery = args.length ? args.join(" ") : "";
-    let filteredFragments = filterFragments(allFragments, searchQuery);
+    const filteredFragments = filterFragments(allFragments, searchQuery);
 
     let currentPage = 0;
     let isPrivate = true;
 
-    const initialMessage = await buildPageMessage(
+    const initial = buildPageEmbed(
       message,
       player,
       filteredFragments,
@@ -144,9 +171,10 @@ module.exports = {
       searchQuery
     );
 
-    currentPage = initialMessage.safePage;
-
-    const sentMessage = await message.reply(initialMessage);
+    const sentMessage = await message.reply({
+      embeds: [initial.embed],
+      components: [buildButtons(initial.safePage, initial.totalPages, isPrivate)],
+    });
 
     const collector = sentMessage.createMessageComponentCollector({
       time: 120000,
@@ -182,23 +210,26 @@ module.exports = {
       }
 
       const refreshedPlayer = getPlayer(message.author.id, message.author.username);
-      filteredFragments = filterFragments(
+      const refreshedFragments = filterFragments(
         Array.isArray(refreshedPlayer.fragments) ? refreshedPlayer.fragments : [],
         searchQuery
       );
 
-      const updatedMessage = await buildPageMessage(
+      const pageData = buildPageEmbed(
         message,
         refreshedPlayer,
-        filteredFragments,
+        refreshedFragments,
         currentPage,
         isPrivate,
         searchQuery
       );
 
-      currentPage = updatedMessage.safePage;
+      currentPage = pageData.safePage;
 
-      await interaction.update(updatedMessage);
+      await interaction.update({
+        embeds: [pageData.embed],
+        components: [buildButtons(currentPage, pageData.totalPages, isPrivate)],
+      });
     });
   },
 };
