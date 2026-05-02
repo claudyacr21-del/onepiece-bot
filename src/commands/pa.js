@@ -61,14 +61,55 @@ function createOwnedCardLocal(template) {
 function getContentType() {
   const roll = Math.random() * 100;
 
-  if (roll < 81) return "battleCard";
-  if (roll < 96) return "boostCard";
-  if (roll < 98) return "weapon";
+  if (roll < 76) return "battleCard";
+  if (roll < 91) return "boostCard";
+  if (roll < 93) return "weapon";
+  if (roll < 95) return "devilFruit";
+  return "ticket";
+}
 
-  return "devilFruit";
+function getTicketPool() {
+  return [
+    {
+      code: "common_raid_ticket",
+      name: "Common Raid Ticket",
+      rarity: "B",
+      type: "Ticket",
+      weight: 70,
+    },
+    {
+      code: "raid_ticket",
+      name: "Raid Ticket",
+      rarity: "A",
+      type: "Ticket",
+      weight: 25,
+    },
+    {
+      code: "gold_raid_ticket",
+      name: "Gold Raid Ticket",
+      rarity: "S",
+      type: "Ticket",
+      weight: 5,
+    },
+  ];
+}
+
+function pickWeightedTicket() {
+  const pool = getTicketPool();
+  const total = pool.reduce((sum, item) => sum + Number(item.weight || 0), 0);
+  let roll = Math.random() * total;
+
+  for (const item of pool) {
+    roll -= Number(item.weight || 0);
+    if (roll <= 0) return item;
+  }
+
+  return pool[0];
 }
 
 function getRewardPool(contentType) {
+  if (contentType === "ticket") return getTicketPool();
+
   if (contentType === "battleCard") {
     return rawCards.filter((card) => card.cardRole === "battle");
   }
@@ -202,29 +243,14 @@ function addTicket(list, ticket) {
   return items;
 }
 
-function rollTicketBonus() {
-  const roll = Math.random() * 100;
-
-  if (roll < 0.75) {
-    return {
-      code: "raid_ticket",
-      name: "Raid Ticket",
-      rarity: "A",
-    };
-  }
-
-  if (roll < 3.25) {
-    return {
-      code: "common_raid_ticket",
-      name: "Common Raid Ticket",
-      rarity: "B",
-    };
-  }
-
-  return null;
-}
-
 function getRewardResult(contentType, reward) {
+  if (contentType === "ticket") {
+    return {
+      storageKey: "tickets",
+      storedReward: reward,
+    };
+  }
+
   if (contentType === "battleCard" || contentType === "boostCard") {
     return {
       storageKey: "cards",
@@ -249,8 +275,8 @@ function getTypeLabel(contentType) {
   if (contentType === "battleCard") return "Battle Card";
   if (contentType === "boostCard") return "Boost Card";
   if (contentType === "weapon") return "Weapon";
-
-  return "Devil Fruit";
+  if (contentType === "devilFruit") return "Devil Fruit";
+  return "Ticket";
 }
 
 function getCollectionStorageInfo(player) {
@@ -281,6 +307,7 @@ function getConvertBerries(reward, contentType) {
     boostCard: 1,
     weapon: 1.25,
     devilFruit: 1.5,
+    ticket: 1,
   };
 
   return Math.floor((rarityValue[rarity] || 500) * (typeBonus[contentType] || 1));
@@ -308,6 +335,7 @@ module.exports = {
     updatePlayer(message.author.id, {
       pullAccessSnapshot: player.pullAccessSnapshot,
     });
+
     const resetState = applyGlobalPullReset(player);
 
     if (resetState?.wasReset) {
@@ -356,12 +384,14 @@ module.exports = {
       fragments: 0,
       commonRaidTicket: 0,
       raidTicket: 0,
+      goldRaidTicket: 0,
     };
 
     const pullGroups = {
       cards: [],
       weapons: [],
       devilFruits: [],
+      tickets: [],
     };
 
     for (let i = 0; i < availableTotal; i++) {
@@ -371,7 +401,8 @@ module.exports = {
       const contentType = getContentType();
       const pool = getRewardPool(contentType);
       const rarity = triggeredPity ? "S" : rollPremiumBaseTier();
-      const reward = pickRandomByRarity(pool, rarity);
+      const reward =
+        contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, rarity);
 
       if (!reward) continue;
 
@@ -383,7 +414,8 @@ module.exports = {
         hasOwnedCardByCode(updatedCards, rewardResult.storedReward.code);
 
       const needsStorageSlot =
-        rewardResult.storageKey !== "cards" || !isDuplicateCard;
+        rewardResult.storageKey !== "tickets" &&
+        (rewardResult.storageKey !== "cards" || !isDuplicateCard);
 
       if (needsStorageSlot && storageInfo.used >= storageInfo.max) {
         const berryValue = getConvertBerries(reward, contentType);
@@ -398,8 +430,10 @@ module.exports = {
           contentType === "weapon"
             ? pullGroups.weapons
             : contentType === "devilFruit"
-              ? pullGroups.devilFruits
-              : pullGroups.cards;
+            ? pullGroups.devilFruits
+            : contentType === "ticket"
+            ? pullGroups.tickets
+            : pullGroups.cards;
 
         targetGroup.push(
           `${targetGroup.length + 1}. [${rewardRarity}] ${rewardName}${pityLabel} → Storage Full (+${berryValue.toLocaleString("en-US")} berries)`
@@ -416,7 +450,9 @@ module.exports = {
         storageInfo.used += 1;
       }
 
-      if (rewardResult.storageKey === "cards") {
+      if (rewardResult.storageKey === "tickets") {
+        updatedTickets = addTicket(updatedTickets, rewardResult.storedReward);
+      } else if (rewardResult.storageKey === "cards") {
         const alreadyOwned = hasOwnedCardByCode(
           updatedCards,
           rewardResult.storedReward.code
@@ -434,23 +470,23 @@ module.exports = {
           updatedCards = autoLevelResult.cards;
           updatedFragments = autoLevelResult.fragments;
 
-        if (autoLevelResult.levelGained > 0) {
-          duplicateNote = ` → Auto Level +${autoLevelResult.levelGained}`;
-        } else {
-          updatedFragments = removeFragmentAmount(autoLevelResult.fragments, reward.code, 1);
-
-          const sacResult = addFragmentWithAutoSac(player, updatedFragments, reward, 1);
-          updatedFragments = sacResult.fragments;
-
-          if (sacResult.sacrificed > 0) {
-            convertedBerries += sacResult.berries;
-            convertedCount += sacResult.sacrificed;
-            duplicateNote = ` → ${sacResult.reason} (+${sacResult.berries.toLocaleString("en-US")} berries)`;
+          if (autoLevelResult.levelGained > 0) {
+            duplicateNote = ` → Auto Level +${autoLevelResult.levelGained}`;
           } else {
-            summary.fragments += 1;
-            duplicateNote = " → Duplicate (+1 fragments)";
+            updatedFragments = removeFragmentAmount(autoLevelResult.fragments, reward.code, 1);
+
+            const sacResult = addFragmentWithAutoSac(player, updatedFragments, reward, 1);
+            updatedFragments = sacResult.fragments;
+
+            if (sacResult.sacrificed > 0) {
+              convertedBerries += sacResult.berries;
+              convertedCount += sacResult.sacrificed;
+              duplicateNote = ` → ${sacResult.reason} (+${sacResult.berries.toLocaleString("en-US")} berries)`;
+            } else {
+              summary.fragments += 1;
+              duplicateNote = " → Duplicate (+1 fragments)";
+            }
           }
-        }
         } else {
           updatedCards.push(rewardResult.storedReward);
         }
@@ -467,31 +503,18 @@ module.exports = {
         summary.card += 1;
       } else if (contentType === "weapon") {
         summary.weapon += 1;
-      } else {
+      } else if (contentType === "devilFruit") {
         summary.devilFruit += 1;
+      } else {
+        if (reward.code === "common_raid_ticket") summary.commonRaidTicket += 1;
+        if (reward.code === "raid_ticket") summary.raidTicket += 1;
+        if (reward.code === "gold_raid_ticket") summary.goldRaidTicket += 1;
       }
 
       const rewardRarity = String(reward.baseTier || reward.rarity || "C").toUpperCase();
 
       if (summary[rewardRarity] !== undefined) {
         summary[rewardRarity] += 1;
-      }
-
-      const ticketDrop = rollTicketBonus();
-      let ticketNote = "";
-
-      if (ticketDrop) {
-        updatedTickets = addTicket(updatedTickets, ticketDrop);
-
-        if (ticketDrop.code === "common_raid_ticket") {
-          summary.commonRaidTicket += 1;
-        }
-
-        if (ticketDrop.code === "raid_ticket") {
-          summary.raidTicket += 1;
-        }
-
-        ticketNote = ` + ${ticketDrop.name}`;
       }
 
       const rewardName = reward.displayName || reward.name || "Unknown";
@@ -502,10 +525,12 @@ module.exports = {
         contentType === "weapon"
           ? pullGroups.weapons
           : contentType === "devilFruit"
-            ? pullGroups.devilFruits
-            : pullGroups.cards;
+          ? pullGroups.devilFruits
+          : contentType === "ticket"
+          ? pullGroups.tickets
+          : pullGroups.cards;
 
-      const line = `${targetGroup.length + 1}. [${rewardRarity}] ${rewardName}${pityLabel}${duplicateNote}${ticketNote}`;
+      const line = `${targetGroup.length + 1}. [${rewardRarity}] ${rewardName}${pityLabel}${duplicateNote}`;
 
       targetGroup.push(line);
 
@@ -583,6 +608,12 @@ module.exports = {
     if (pullGroups.devilFruits.length) {
       groupedLines.push("## Devil Fruits");
       groupedLines.push(...pullGroups.devilFruits);
+      groupedLines.push("");
+    }
+
+    if (pullGroups.tickets.length) {
+      groupedLines.push("## Tickets");
+      groupedLines.push(...pullGroups.tickets);
     }
 
     if (convertedCount > 0) {
@@ -606,6 +637,7 @@ module.exports = {
         groupedLines.push("Pull All rewards were still saved.");
       }
     }
+
     const chunkSize = 25;
     const chunks = [];
     for (let i = 0; i < groupedLines.length; i += chunkSize) {

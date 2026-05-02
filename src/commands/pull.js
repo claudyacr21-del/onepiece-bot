@@ -51,11 +51,11 @@ function getPityGuarantee(isPremium) {
 function pickContentType() {
   const roll = Math.random() * 100;
 
-  if (roll < 81) return "battleCard";
-  if (roll < 96) return "boostCard";
-  if (roll < 98) return "weapon";
-
-  return "devilFruit";
+  if (roll < 76) return "battleCard";
+  if (roll < 91) return "boostCard";
+  if (roll < 93) return "weapon";
+  if (roll < 95) return "devilFruit";
+  return "ticket";
 }
 
 function prettySlotName(key) {
@@ -72,7 +72,48 @@ function prettySlotName(key) {
   return map[key] || key;
 }
 
+function getTicketPool() {
+  return [
+    {
+      code: "common_raid_ticket",
+      name: "Common Raid Ticket",
+      rarity: "B",
+      type: "Ticket",
+      weight: 70,
+    },
+    {
+      code: "raid_ticket",
+      name: "Raid Ticket",
+      rarity: "A",
+      type: "Ticket",
+      weight: 25,
+    },
+    {
+      code: "gold_raid_ticket",
+      name: "Gold Raid Ticket",
+      rarity: "S",
+      type: "Ticket",
+      weight: 5,
+    },
+  ];
+}
+
+function pickWeightedTicket() {
+  const pool = getTicketPool();
+  const total = pool.reduce((sum, item) => sum + Number(item.weight || 0), 0);
+  let roll = Math.random() * total;
+
+  for (const item of pool) {
+    roll -= Number(item.weight || 0);
+    if (roll <= 0) return item;
+  }
+
+  return pool[0];
+}
+
 function getRewardPool(contentType) {
+  if (contentType === "ticket") return getTicketPool();
+
   if (contentType === "battleCard") {
     return rawCards.filter((card) => card.cardRole === "battle");
   }
@@ -195,43 +236,17 @@ function addTicket(list, ticket) {
   return arr;
 }
 
-function rollTicketBonus() {
-  const roll = Math.random() * 100;
-
-  if (roll < 0.75) {
-    return {
-      code: "raid_ticket",
-      name: "Raid Ticket",
-      rarity: "A",
-    };
-  }
-
-  if (roll < 3.25) {
-    return {
-      code: "common_raid_ticket",
-      name: "Common Raid Ticket",
-      rarity: "B",
-    };
-  }
-
-  return null;
-}
-
-function buildTicketDropText(ticket) {
-  if (!ticket) return null;
-
-  return `🎟️ Bonus Drop: **${ticket.name}**`;
-}
-
 function getTypeLabel(contentType) {
   if (contentType === "battleCard") return "Battle Card";
   if (contentType === "boostCard") return "Boost Card";
   if (contentType === "weapon") return "Weapon";
-
-  return "Devil Fruit";
+  if (contentType === "devilFruit") return "Devil Fruit";
+  return "Ticket";
 }
 
 function getRewardImage(contentType, reward, ownedCard = null) {
+  if (contentType === "ticket") return null;
+
   if (contentType === "battleCard" || contentType === "boostCard") {
     return (
       ownedCard?.evolutionForms?.[0]?.image ||
@@ -273,6 +288,19 @@ function getRewardBadge(contentType, reward, ownedCard = null) {
 }
 
 function buildRewardStatsText(contentType, reward) {
+  if (contentType === "ticket") {
+    return [
+      `**Item:** ${reward.name}`,
+      `**Use:** ${
+        reward.code === "gold_raid_ticket"
+          ? "S Gold Raid"
+          : reward.code === "raid_ticket"
+          ? "A Raid"
+          : "C/B Common Raid"
+      }`,
+    ];
+  }
+
   if (contentType === "battleCard" || contentType === "boostCard") {
     return [
       `**ATK:** ${reward.atk ?? 0}`,
@@ -342,7 +370,8 @@ module.exports = {
     const contentType = pickContentType();
     const baseTier = triggeredPity ? pityGuarantee : rollStandardBaseTier();
     const pool = getRewardPool(contentType);
-    const picked = pickRandomByRarity(pool, baseTier);
+    const picked =
+      contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, baseTier);
 
     if (!picked) {
       return message.reply(`Pull pool is empty for ${contentType} ${baseTier}.`);
@@ -350,11 +379,8 @@ module.exports = {
 
     const updatedPulls = consumePullSlot(player, pullKey);
     const updatedDailyState = incrementQuestCounter(player, "pullsUsed", 1);
-    const ticketDrop = rollTicketBonus();
-    const updatedTickets = ticketDrop
-      ? addTicket(player.tickets || [], ticketDrop)
-      : player.tickets || [];
 
+    let updatedTickets = [...(player.tickets || [])];
     let updatedCards = [...(player.cards || [])];
     let updatedWeapons = [...(player.weapons || [])];
     let updatedDevilFruits = [...(player.devilFruits || [])];
@@ -364,7 +390,9 @@ module.exports = {
     let duplicateLine = null;
     let autoSacBerries = 0;
 
-    if (contentType === "battleCard" || contentType === "boostCard") {
+    if (contentType === "ticket") {
+      updatedTickets = addTicket(updatedTickets, picked);
+    } else if (contentType === "battleCard" || contentType === "boostCard") {
       const alreadyOwned = updatedCards.some(
         (card) =>
           String(card.code || "").toLowerCase() ===
@@ -383,24 +411,23 @@ module.exports = {
         updatedCards = autoLevelResult.cards;
         updatedFragments = autoLevelResult.fragments;
 
-      if (autoLevelResult.levelGained > 0) {
-        duplicateLine = `You already own **${picked.displayName || picked.name}**.\nAuto-level used **1 Fragment** → **+${autoLevelResult.levelGained} Level**.`;
-      } else {
-        updatedFragments = removeFragmentAmount(autoLevelResult.fragments, picked.code, 1);
-
-        const sacResult = addFragmentWithAutoSac(player, updatedFragments, picked, 1);
-        updatedFragments = sacResult.fragments;
-        autoSacBerries += sacResult.berries;
-
-        if (sacResult.sacrificed > 0) {
-          duplicateLine = `You already own **${picked.displayName || picked.name}**.\n${sacResult.reason}: **${sacResult.sacrificed} Fragment** → **+${sacResult.berries.toLocaleString("en-US")} berries**.`;
+        if (autoLevelResult.levelGained > 0) {
+          duplicateLine = `You already own **${picked.displayName || picked.name}**.\nAuto-level used **1 Fragment** → **+${autoLevelResult.levelGained} Level**.`;
         } else {
-          duplicateLine = `You already own **${picked.displayName || picked.name}**.\nConverted into **1 Fragment** instead.`;
+          updatedFragments = removeFragmentAmount(autoLevelResult.fragments, picked.code, 1);
+
+          const sacResult = addFragmentWithAutoSac(player, updatedFragments, picked, 1);
+          updatedFragments = sacResult.fragments;
+          autoSacBerries += sacResult.berries;
+
+          if (sacResult.sacrificed > 0) {
+            duplicateLine = `You already own **${picked.displayName || picked.name}**.\n${sacResult.reason}: **${sacResult.sacrificed} Fragment** → **+${sacResult.berries.toLocaleString("en-US")} berries**.`;
+          } else {
+            duplicateLine = `You already own **${picked.displayName || picked.name}**.\nConverted into **1 Fragment** instead.`;
+          }
         }
-      }
       } else {
         ownedCard = createOwnedCard(picked);
-
         updatedCards.push(ownedCard);
       }
     } else if (contentType === "weapon") {
@@ -438,7 +465,6 @@ module.exports = {
 
     const rewardName = picked.displayName || picked.name || "Unknown";
     const rewardRarity = String(picked.baseTier || picked.rarity || "C").toUpperCase();
-    const ticketText = buildTicketDropText(ticketDrop);
     const pityText = triggeredPity
       ? `Pity triggered: **${pityGuarantee} Guarantee**`
       : `Pity: ${updatedPity.pullPity}/${pityLimit}`;
@@ -461,11 +487,11 @@ module.exports = {
             ? picked.type
               ? `**Category:** ${picked.type}`
               : null
+            : contentType === "ticket"
+            ? `**Category:** Ticket`
             : `**Current Form:** ${ownedCard?.evolutionKey || "M1"}`,
           duplicateLine ? null : "",
           duplicateLine ? null : buildRewardStatsText(contentType, ownedCard || picked).join("\n"),
-          "",
-          ticketText,
         ]
           .filter(Boolean)
           .join("\n")
