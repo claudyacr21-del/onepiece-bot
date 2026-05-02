@@ -13,6 +13,10 @@ function getPower(card) {
   );
 }
 
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString("en-US");
+}
+
 function getMemberAvatar(message) {
   return (
     message.member?.displayAvatarURL?.({
@@ -26,7 +30,7 @@ function getMemberAvatar(message) {
   );
 }
 
-function getStageLabel(card) {
+function getMastery(card) {
   return card.evolutionKey || `M${Number(card.evolutionStage || 1)}`;
 }
 
@@ -34,38 +38,20 @@ function getCardName(card) {
   return card.displayName || card.name || "Unknown";
 }
 
-function formatNumber(value) {
-  return Number(value || 0).toLocaleString("en-US");
-}
-
-function getTotalPower(teamCards) {
-  return teamCards.reduce((sum, card) => sum + getPower(card), 0);
-}
-
-function formatSlot(card, index) {
+function buildSlotLine(card, index) {
   if (!card) {
-    return [
-      `**${index + 1}. Empty Slot**`,
-      "```ansi\n[2;30mNo battle card assigned.[0m\n```",
-    ].join("\n");
+    return `\`${index + 1}.\` **Empty Slot**\n↪ No card assigned`;
   }
 
   const rarity = card.currentTier || card.rarity || "C";
-  const stage = getStageLabel(card);
-  const power = getPower(card);
+  const mastery = getMastery(card);
   const level = Number(card.level || 1);
-  const atk = Number(card.atk || 0);
-  const hp = Number(card.hp || 0);
-  const speed = Number(card.speed || 0);
+  const power = getPower(card);
 
   return [
-    `**${index + 1}. ${getCardName(card)}**  \`${rarity}\` • \`${stage}\``,
-    [
-      "```ansi",
-      `[2;33mPWR[0m ${formatNumber(power)}  [2;36mLV[0m ${level}`,
-      `[2;31mATK[0m ${formatNumber(atk)}  [2;32mHP[0m ${formatNumber(hp)}  [2;34mSPD[0m ${formatNumber(speed)}`,
-      "```",
-    ].join("\n"),
+    `\`${index + 1}.\` **${getCardName(card)}**`,
+    `↪ \`${rarity}\` • \`${mastery}\` • Lv \`${level}\``,
+    `↪ Power: \`${formatNumber(power)}\``,
   ].join("\n");
 }
 
@@ -95,8 +81,10 @@ module.exports = {
       );
     });
 
-    const filledCards = teamCards.filter(Boolean);
-    const totalPower = getTotalPower(filledCards);
+    const totalPower = teamCards
+      .filter(Boolean)
+      .reduce((sum, card) => sum + getPower(card), 0);
+
     const avatar = getMemberAvatar(message);
 
     const embed = new EmbedBuilder()
@@ -107,22 +95,17 @@ module.exports = {
       })
       .setDescription(
         [
-          "## ⚔️ Battle Lineup",
+          "## ⚔️ Battle Team",
           `**Total Power:** \`${formatNumber(totalPower)}\``,
-          `**Team Slots:** \`${filledCards.length}/3\``,
           "",
-          teamCards.map((card, index) => formatSlot(card, index)).join("\n"),
+          teamCards.map((card, index) => buildSlotLine(card, index)).join("\n\n"),
           "",
-          "## 🛠️ Commands",
-          "`op add <slot> <card>` — add card",
-          "`op remove <slot>` — remove card",
-          "`op swap <slot1> <slot2>` — swap position",
+          "Use `op add <slot> <card>` • `op remove <slot>` • `op swap <slot1> <slot2>`",
         ].join("\n")
       )
       .setThumbnail(avatar)
       .setFooter({
         text: "One Piece Bot • Team",
-        iconURL: avatar,
       });
 
     return message.reply({
