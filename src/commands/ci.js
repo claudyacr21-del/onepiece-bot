@@ -8,7 +8,6 @@ const { getPlayer } = require("../playerStore");
 const { findCardTemplate, findOwnedCard, hydrateCard } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
-const { getLargeCardImage } = require("../utils/cardImageSize");
 
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
