@@ -3,54 +3,130 @@ const { getPlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 
 function getPower(card) {
-  return Number(card.currentPower || Math.floor(Number(card.atk || 0) * 1.4 + Number(card.hp || 0) * 0.22 + Number(card.speed || 0) * 9));
+  return Number(
+    card.currentPower ||
+      Math.floor(
+        Number(card.atk || 0) * 1.4 +
+          Number(card.hp || 0) * 0.22 +
+          Number(card.speed || 0) * 9
+      )
+  );
 }
 
-function formatWeapons(card) {
-  if (Array.isArray(card.equippedWeapons) && card.equippedWeapons.length) {
-    return card.equippedWeapons.map((w) => w.name).join(", ");
+function getMemberAvatar(message) {
+  return (
+    message.member?.displayAvatarURL?.({
+      extension: "png",
+      size: 512,
+    }) ||
+    message.author.displayAvatarURL({
+      extension: "png",
+      size: 512,
+    })
+  );
+}
+
+function getStageLabel(card) {
+  return card.evolutionKey || `M${Number(card.evolutionStage || 1)}`;
+}
+
+function getCardName(card) {
+  return card.displayName || card.name || "Unknown";
+}
+
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString("en-US");
+}
+
+function getTotalPower(teamCards) {
+  return teamCards.reduce((sum, card) => sum + getPower(card), 0);
+}
+
+function formatSlot(card, index) {
+  if (!card) {
+    return [
+      `**${index + 1}. Empty Slot**`,
+      "```ansi\n[2;30mNo battle card assigned.[0m\n```",
+    ].join("\n");
   }
-  return card.equippedWeapon || "None";
+
+  const rarity = card.currentTier || card.rarity || "C";
+  const stage = getStageLabel(card);
+  const power = getPower(card);
+  const level = Number(card.level || 1);
+  const atk = Number(card.atk || 0);
+  const hp = Number(card.hp || 0);
+  const speed = Number(card.speed || 0);
+
+  return [
+    `**${index + 1}. ${getCardName(card)}**  \`${rarity}\` • \`${stage}\``,
+    [
+      "```ansi",
+      `[2;33mPWR[0m ${formatNumber(power)}  [2;36mLV[0m ${level}`,
+      `[2;31mATK[0m ${formatNumber(atk)}  [2;32mHP[0m ${formatNumber(hp)}  [2;34mSPD[0m ${formatNumber(speed)}`,
+      "```",
+    ].join("\n"),
+  ].join("\n");
 }
 
 module.exports = {
   name: "team",
   aliases: ["lineup"],
+
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-    const cards = (Array.isArray(player.cards) ? player.cards : []).map(hydrateCard).filter(Boolean);
-    const team = player.team || { slots: [null, null, null] };
+    const cards = (Array.isArray(player.cards) ? player.cards : [])
+      .map(hydrateCard)
+      .filter(Boolean);
 
-    const lines = team.slots.map((instanceId, index) => {
-      if (!instanceId) return `**${index + 1}.** Empty`;
+    const team = player.team || {
+      slots: [null, null, null],
+    };
 
-      const card = cards.find((entry) => entry.instanceId === instanceId && entry.cardRole !== "boost");
-      if (!card) return `**${index + 1}.** Missing Card`;
+    const teamCards = team.slots.map((instanceId) => {
+      if (!instanceId) return null;
 
-      return [
-        `**${index + 1}.** ${card.displayName || card.name} [${card.currentTier || card.rarity}]`,
-        `↪ Lv ${Number(card.level || 1)} • Kills ${Number(card.kills || 0)} • Power ${getPower(card)}`,
-        `↪ Weapons: ${formatWeapons(card)}`,
-        `↪ Devil Fruit: ${card.equippedDevilFruit || "None"}`
-      ].join("\n");
+      return (
+        cards.find(
+          (entry) =>
+            String(entry.instanceId) === String(instanceId) &&
+            String(entry.cardRole || "").toLowerCase() !== "boost"
+        ) || null
+      );
     });
+
+    const filledCards = teamCards.filter(Boolean);
+    const totalPower = getTotalPower(filledCards);
+    const avatar = getMemberAvatar(message);
 
     const embed = new EmbedBuilder()
       .setColor(0x9b59b6)
-      .setTitle(`⚔️ ${player.username}'s Team`)
+      .setAuthor({
+        name: `${player.username}'s Battle Team`,
+        iconURL: avatar,
+      })
       .setDescription(
         [
-          "Your current battle team:",
+          "## ⚔️ Battle Lineup",
+          `**Total Power:** \`${formatNumber(totalPower)}\``,
+          `**Team Slots:** \`${filledCards.length}/3\``,
           "",
-          ...lines,
+          teamCards.map((card, index) => formatSlot(card, index)).join("\n"),
           "",
-          "Use `op add <card name>` to add a card.",
-          "Use `op remove <card name>` to remove a card.",
-          "Use `op swap <from> <to>` to change position."
+          "## 🛠️ Commands",
+          "`op add <slot> <card>` — add card",
+          "`op remove <slot>` — remove card",
+          "`op swap <slot1> <slot2>` — swap position",
         ].join("\n")
       )
-      .setFooter({ text: "One Piece Bot • Team" });
+      .setThumbnail(avatar)
+      .setFooter({
+        text: "One Piece Bot • Team",
+        iconURL: avatar,
+      });
 
-    return message.reply({ embeds: [embed] });
-  }
+    return message.reply({
+      embeds: [embed],
+    });
+  },
 };
