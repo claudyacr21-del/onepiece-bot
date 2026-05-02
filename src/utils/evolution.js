@@ -572,18 +572,42 @@ function hydrateCard(card) {
   const finalHpBeforePrestige = scaledHp + weaponBonus.hp + fruitBonus.hp;
   const finalSpeedBeforePrestige = scaledSpeed + weaponBonus.speed + fruitBonus.speed;
 
+  const isBoostCard = String(next.cardRole || "").toLowerCase() === "boost";
+
+  const finalAtk = isBoostCard
+    ? finalAtkBeforePrestige
+    : applyPrestigePercent(finalAtkBeforePrestige, prestigeBonus.atk);
+
+  const finalHp = isBoostCard
+    ? finalHpBeforePrestige
+    : applyPrestigePercent(finalHpBeforePrestige, prestigeBonus.hp);
+
+  const finalSpeed = isBoostCard
+    ? finalSpeedBeforePrestige
+    : applyPrestigePercent(finalSpeedBeforePrestige, prestigeBonus.speed);
+
   next.raidPrestige = prestigeBonus.prestige;
   next.raidPrestigeBonus = prestigeBonus;
 
-  if (String(next.cardRole || "").toLowerCase() === "boost") {
-    next.atk = finalAtkBeforePrestige;
-    next.hp = finalHpBeforePrestige;
-    next.speed = finalSpeedBeforePrestige;
-  } else {
-    next.atk = applyPrestigePercent(finalAtkBeforePrestige, prestigeBonus.atk);
-    next.hp = applyPrestigePercent(finalHpBeforePrestige, prestigeBonus.hp);
-    next.speed = applyPrestigePercent(finalSpeedBeforePrestige, prestigeBonus.speed);
-  }
+  next.atk = finalAtk;
+  next.hp = finalHp;
+  next.speed = finalSpeed;
+
+  next.baseAtk = finalAtk;
+  next.baseHp = finalHp;
+  next.baseSpeed = finalSpeed;
+
+  next.finalAtk = finalAtk;
+  next.finalHp = finalHp;
+  next.finalSpeed = finalSpeed;
+
+  next.displayAtk = finalAtk;
+  next.displayHp = finalHp;
+  next.displaySpeed = finalSpeed;
+
+  next.combatAtk = finalAtk;
+  next.combatHp = finalHp;
+  next.combatSpeed = finalSpeed;
 
   next.equippedWeaponsResolved = weaponPercent.equipped;
   next.equippedDevilFruitData = fruitPercent.fruit;
@@ -605,22 +629,12 @@ function hydrateCard(card) {
 
   next.basePower = getBasePower(next);
   next.powerCaps = getPowerCaps(next);
-  const currentPowerBeforePrestige = getCurrentPower(next);
-
-  if (String(next.cardRole || "").toLowerCase() === "boost") {
-    next.currentPower = currentPowerBeforePrestige;
-  } else {
-    const prestigePowerPercent =
-      (Number(next.raidPrestigeBonus?.atk || 0) +
-        Number(next.raidPrestigeBonus?.hp || 0) +
-        Number(next.raidPrestigeBonus?.speed || 0)) /
-      3;
-
-    next.currentPower = applyPrestigePercent(
-      currentPowerBeforePrestige,
-      prestigePowerPercent
-    );
-  }
+  next.currentPower = getCurrentPower({
+    ...next,
+    atk: next.atk,
+    hp: next.hp,
+    speed: next.speed,
+  });
   next.effectText = next.cardRole === "boost" ? getBoostEffectText(next, stage) : "";
 
   return next;
