@@ -129,8 +129,9 @@ const HELP_PAGES = {
     title: "🏴‍☠️ Raid & Team Commands",
     body: [
       "**Raid Rooms**",
-      `\`${PREFIX} craid <boss>\` — C / B common raid`,
-      `\`${PREFIX} raid <boss>\` — A / S raid`,
+      `\`${PREFIX} craid <boss>\` — C / B common raid using Common Raid Ticket`,
+      `\`${PREFIX} raid <boss>\` — A raid using Raid Ticket`,
+      `\`${PREFIX} graid <boss>\` — S gold raid using Gold Raid Ticket`,
       `\`${PREFIX} killraid\` — close active raid room`,
       "",
       "**Saved Raid Team**",
@@ -143,6 +144,11 @@ const HELP_PAGES = {
       "**Rules**",
       "Raid room uses 1 battle card per user.",
       "Boss phase 2 uses saved raid team users with 3 cards each.",
+      "• Same character code cannot be used twice in one raid room.",
+      "• `op craid` only supports C / B battle card raid bosses.",
+      "• `op raid` only supports A battle card raid bosses.",
+      "• `op graid` only supports S battle card raid bosses.",
+      "• Winning raid gives berries, gems, raid boss fragments, chance weapon/devil fruit, and raid prestige.",
     ],
   },
 
