@@ -419,6 +419,7 @@ function buildOwnedCardEmbed(ownerName, player, card) {
           `Form: ${card.evolutionKey || `M${stage}`}`,
           `Tier: ${card.currentTier || card.rarity}`,
           formatCardLevelLine(card),
+          `Raid Prestige: ${Math.max(0, Math.min(200, Number(card.raidPrestige || 0)))}/200`,
           `Power: ${Number(card.currentPower || 0)}`,
           `Health: ${Number(card.hp || 0)}`,
           `Speed: ${Number(card.speed || 0)}`,

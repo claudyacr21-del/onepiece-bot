@@ -44,13 +44,22 @@ const ITEMS = {
     description: "A better random material box with improved material rewards.",
   },
 
+  goldRaidTicket: {
+    name: "Gold Raid Ticket",
+    amount: 1,
+    rarity: "S",
+    code: "gold_raid_ticket",
+    type: "Ticket",
+    description: "Used to create an S gold raid room.",
+  },
+
   raidTicket: {
     name: "Raid Ticket",
     amount: 1,
     rarity: "A",
     code: "raid_ticket",
     type: "Ticket",
-    description: "Used to create an A/S raid room.",
+    description: "Used to create an A raid room.",
   },
 
   commonRaidTicket: {

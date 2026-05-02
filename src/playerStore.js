@@ -231,6 +231,7 @@ function normalizeCards(value) {
       exp: Number(card.exp) >= 0 ? Number(card.exp) : 0,
       kills: Number(card.kills) >= 0 ? Number(card.kills) : 0,
       fragments: Number(card.fragments) >= 0 ? Number(card.fragments) : 0,
+      raidPrestige: Math.max(0, Math.min(200, Number(card.raidPrestige || 0))),
       image: card.image || "",
       equippedWeapons: finalEquippedWeapons,
       equippedWeapon: finalEquippedWeapons.length ? finalEquippedWeapons.map((w) => w.name).join(", ") : null,
@@ -530,6 +531,7 @@ function getDefaultPlayer(username) {
     tickets: [
       { code: "common_raid_ticket", name: "Common Raid Ticket", amount: 0 },
       { code: "raid_ticket", name: "Raid Ticket", amount: 0 },
+      { code: "gold_raid_ticket", name: "Gold Raid Ticket", amount: 0 },
     ],
 
     materials: [],

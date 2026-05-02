@@ -64,14 +64,26 @@ function getRaidModeConfig(commandName) {
       ticketCode: "common_raid_ticket",
       ticketName: "Common Raid Ticket",
       label: "Common Raid Ticket",
+      modeName: "Common Raid",
+    };
+  }
+
+  if (cmd === "graid") {
+    return {
+      allowed: new Set(["S"]),
+      ticketCode: "gold_raid_ticket",
+      ticketName: "Gold Raid Ticket",
+      label: "Gold Raid Ticket",
+      modeName: "Gold Raid",
     };
   }
 
   return {
-    allowed: new Set(["A", "S"]),
+    allowed: new Set(["A"]),
     ticketCode: "raid_ticket",
     ticketName: "Raid Ticket",
     label: "Raid Ticket",
+    modeName: "Raid",
   };
 }
 
@@ -534,6 +546,16 @@ function buildResultEmbed(state) {
         "## Raid Team Result",
         ...raidLines,
         "",
+        "## Raid Prestige Rewards",
+        ...(playersWon
+          ? ensureArray(state.prestigeRewards).length
+            ? ensureArray(state.prestigeRewards).map(
+                (reward) =>
+                  `• ${reward.username}'s **${reward.cardName}**: ${reward.before}/200 → ${reward.after}/200`
+              )
+            : ["• Prestige reward data was not found."]
+          : ["• No prestige reward because raid was lost."]),
+        "",
         "## Final Log",
         ...(state.log.length ? state.log.slice(-8).map((x) => `• ${x}`) : ["No final log."]),
       ].join("\n")
@@ -601,19 +623,63 @@ function checkEndState(state) {
   return false;
 }
 
+function addRaidPrestigeToWinnerCards(state) {
+  const players = readPlayers();
+  const rewards = [];
+
+  for (const member of ensureArray(state.members)) {
+    const userId = String(member.userId || "");
+    const player = players[userId];
+
+    if (!player) continue;
+
+    const cards = ensureArray(player.cards).map((card) => ({ ...card }));
+    const index = cards.findIndex(
+      (card) => String(card.instanceId || "") === String(member.instanceId || "")
+    );
+
+    if (index === -1) continue;
+
+    const before = Math.max(0, Math.min(200, Number(cards[index].raidPrestige || 0)));
+    const after = Math.min(200, before + 1);
+
+    cards[index].raidPrestige = after;
+    players[userId] = {
+      ...player,
+      cards,
+    };
+
+    rewards.push({
+      userId,
+      username: member.username || player.username || "Unknown",
+      cardName: member.name || cards[index].displayName || cards[index].name || "Unknown",
+      before,
+      after,
+      capped: after >= 200,
+    });
+  }
+
+  writePlayers(players);
+
+  return rewards;
+}
+
 module.exports = {
   name: "raid",
-  aliases: ["craid"],
+  aliases: ["craid", "graid"],
 
   async execute(message, args) {
     const query = args.join(" ").trim();
 
     if (!query) {
-      return message.reply("Usage: `op raid <boss>` or `op craid <boss>`");
+      return message.reply("Usage: `op craid <boss>` / `op raid <boss>` / `op graid <boss>`");
     }
 
     const raw = String(message.content || "").trim().split(/\s+/);
-    const usedCommand = String(raw[1] || "").toLowerCase() === "craid" ? "craid" : "raid";
+    const usedCommandRaw = String(raw[1] || "").toLowerCase();
+    const usedCommand = ["craid", "raid", "graid"].includes(usedCommandRaw)
+      ? usedCommandRaw
+      : "raid";
     const raidMode = getRaidModeConfig(usedCommand);
     const hostId = String(message.author.id);
     const host = getPlayer(hostId, message.author.username);
@@ -633,11 +699,15 @@ module.exports = {
     ).toUpperCase();
 
     if (!raidMode.allowed.has(bossTier)) {
-      return message.reply(
-        usedCommand === "craid"
-          ? "craid only supports C and B raid bosses."
-          : "raid only supports A and S raid bosses."
-      );
+      if (usedCommand === "craid") {
+        return message.reply("craid only supports C and B battle card raid bosses.");
+      }
+
+      if (usedCommand === "graid") {
+        return message.reply("graid only supports S battle card raid bosses.");
+      }
+
+      return message.reply("raid only supports A battle card raid bosses.");
     }
 
     const ticketEntry = findTicketEntry(host.tickets, raidMode);
@@ -939,7 +1009,10 @@ module.exports = {
           }
 
           if (battleState.winner === "players") {
+            const prestigeRewards = addRaidPrestigeToWinnerCards(battleState);
+            battleState.prestigeRewards = prestigeRewards;
             pushBattleLog(battleState, "Raid cleared.");
+            pushBattleLog(battleState, "Raid Prestige +1 was given to winning raid cards.");
           } else {
             pushBattleLog(battleState, "All raid members have been defeated.");
           }
