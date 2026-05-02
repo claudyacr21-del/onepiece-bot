@@ -20,6 +20,8 @@ const {
   deleteRoom,
 } = require("../utils/partyRooms");
 const raidBossImages = require("../config/raidBossImages");
+const weaponsDb = require("../data/weapons");
+const devilFruitsDb = require("../data/devilFruits");
 
 const RAID_ROOM_TIMEOUT_MS = 10 * 60 * 1000;
 const RAID_PICK_TIMEOUT_MS = 60 * 1000;
@@ -446,7 +448,13 @@ function buildBattleState(room, bossTemplate) {
     roomId: room.roomId,
     hostId: room.hostId,
     hostName: room.hostName,
-    boss: deriveRaidBossStats(bossTemplate),
+    boss: {
+      ...deriveRaidBossStats(bossTemplate),
+      bossCode: bossTemplate.code,
+      bossName: bossTemplate.displayName || bossTemplate.name,
+      rarity: bossTemplate.rarity || bossTemplate.currentTier || bossTemplate.baseTier || "C",
+      currentTier: bossTemplate.currentTier || bossTemplate.rarity || bossTemplate.baseTier || "C",
+    },
     members,
     round: 1,
     log: ["Raid battle started."],
@@ -546,15 +554,16 @@ function buildResultEmbed(state) {
         "## Raid Team Result",
         ...raidLines,
         "",
+        "## Raid Win Rewards",
+        ...(playersWon ? formatRaidWinRewardLines(state) : ["• No reward because raid was lost."]),
+        "",
         "## Raid Prestige Rewards",
-        ...(playersWon
-          ? ensureArray(state.prestigeRewards).length
-            ? ensureArray(state.prestigeRewards).map(
-                (reward) =>
-                  `• ${reward.username}'s **${reward.cardName}**: ${reward.before}/200 → ${reward.after}/200`
-              )
-            : ["• Prestige reward data was not found."]
-          : ["• No prestige reward because raid was lost."]),
+        ...(playersWon ? ensureArray(state.prestigeRewards).length ? ensureArray(state.prestigeRewards).map(
+          (reward) =>
+            reward.missing
+              ? `• ${reward.username}: **${reward.cardName}** not owned, prestige not added.`
+              : `• ${reward.username}'s **${reward.cardName}**: ${reward.before}/200 → ${reward.after}/200`
+        ) : ["• Prestige reward data was not found."] : ["• No prestige reward because raid was lost."]),
         "",
         "## Final Log",
         ...(state.log.length ? state.log.slice(-8).map((x) => `• ${x}`) : ["No final log."]),
@@ -623,8 +632,157 @@ function checkEndState(state) {
   return false;
 }
 
-function addRaidPrestigeToWinnerCards(state) {
+function flattenDb(db) {
+  if (Array.isArray(db)) return db;
+
+  if (db && typeof db === "object") {
+    return Object.values(db).flatMap((entry) => {
+      if (Array.isArray(entry)) return entry;
+      if (entry && typeof entry === "object") return [entry];
+      return [];
+    });
+  }
+
+  return [];
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function randomChance(percent) {
+  return Math.random() * 100 < Number(percent || 0);
+}
+
+function getRaidRewardConfig(tier) {
+  const key = String(tier || "C").toUpperCase();
+
+  const configs = {
+    C: {
+      berries: [1200, 2000],
+      gems: [1, 1],
+      fragments: 1,
+      weaponChance: 3,
+      fruitChance: 0.5,
+    },
+    B: {
+      berries: [2500, 4000],
+      gems: [1, 2],
+      fragments: 1,
+      weaponChance: 5,
+      fruitChance: 1,
+    },
+    A: {
+      berries: [6000, 9000],
+      gems: [2, 4],
+      fragments: 2,
+      weaponChance: 8,
+      fruitChance: 2,
+    },
+    S: {
+      berries: [12000, 18000],
+      gems: [4, 7],
+      fragments: 3,
+      weaponChance: 12,
+      fruitChance: 3,
+    },
+  };
+
+  return configs[key] || configs.C;
+}
+
+function findLinkedRaidItem(db, boss) {
+  const list = flattenDb(db);
+  const bossCode = normalizeText(boss?.code || boss?.bossCode || "");
+  const bossName = normalizeText(boss?.name || boss?.bossName || "");
+
+  return (
+    list.find((item) => normalizeText(item.ownerCode || item.owner || item.cardCode) === bossCode) ||
+    list.find((item) => normalizeText(item.ownerName || item.owner || item.cardName) === bossName) ||
+    list.find((item) => bossCode && normalizeText(item.code || "").includes(bossCode)) ||
+    list.find((item) => bossName && normalizeText(item.name || "").includes(bossName)) ||
+    null
+  );
+}
+
+function addAmountEntry(list, payload, amount = 1) {
+  const arr = Array.isArray(list) ? [...list] : [];
+  const code = String(payload.code || payload.name || "").toLowerCase();
+
+  const index = arr.findIndex(
+    (entry) =>
+      String(entry.code || "").toLowerCase() === code ||
+      normalizeText(entry.name) === normalizeText(payload.name)
+  );
+
+  if (index >= 0) {
+    arr[index] = {
+      ...arr[index],
+      amount: Number(arr[index].amount || 0) + Number(amount || 1),
+    };
+  } else {
+    arr.push({
+      ...payload,
+      amount: Number(amount || 1),
+    });
+  }
+
+  return arr;
+}
+
+function addRaidBossFragment(fragments, boss, amount) {
+  return addAmountEntry(
+    fragments,
+    {
+      code: boss.code || boss.bossCode,
+      name: boss.name || boss.bossName,
+      rarity: boss.rarity || boss.currentTier || boss.tier || "C",
+      category: "battle",
+      image: boss.image || "",
+    },
+    amount
+  );
+}
+
+function addRaidWeapon(weapons, weapon) {
+  return addAmountEntry(
+    weapons,
+    {
+      code: weapon.code,
+      name: weapon.name,
+      rarity: weapon.rarity || "C",
+      image: weapon.image || "",
+      upgradeLevel: 0,
+    },
+    1
+  );
+}
+
+function addRaidFruit(devilFruits, fruit) {
+  return addAmountEntry(
+    devilFruits,
+    {
+      code: fruit.code,
+      name: fruit.name,
+      rarity: fruit.rarity || "C",
+      image: fruit.image || "",
+    },
+    1
+  );
+}
+
+function giveRaidWinRewards(state) {
   const players = readPlayers();
+  const boss = state.boss || {};
+  const bossTier = String(boss.rarity || boss.currentTier || boss.tier || "C").toUpperCase();
+  const config = getRaidRewardConfig(bossTier);
+
+  const linkedWeapon = findLinkedRaidItem(weaponsDb, boss);
+  const linkedFruit = findLinkedRaidItem(devilFruitsDb, boss);
+
   const rewards = [];
 
   for (const member of ensureArray(state.members)) {
@@ -633,17 +791,109 @@ function addRaidPrestigeToWinnerCards(state) {
 
     if (!player) continue;
 
-    const cards = ensureArray(player.cards).map((card) => ({ ...card }));
-    const index = cards.findIndex(
-      (card) => String(card.instanceId || "") === String(member.instanceId || "")
-    );
+    const berries = randomInt(config.berries[0], config.berries[1]);
+    const gems = randomInt(config.gems[0], config.gems[1]);
+    const fragments = config.fragments;
 
-    if (index === -1) continue;
+    const gotWeapon = Boolean(linkedWeapon && randomChance(config.weaponChance));
+    const gotFruit = Boolean(linkedFruit && randomChance(config.fruitChance));
+
+    players[userId] = {
+      ...player,
+      berries: Number(player.berries || 0) + berries,
+      gems: Number(player.gems || 0) + gems,
+      fragments: addRaidBossFragment(player.fragments, boss, fragments),
+      weapons: gotWeapon ? addRaidWeapon(player.weapons, linkedWeapon) : player.weapons,
+      devilFruits: gotFruit
+        ? addRaidFruit(player.devilFruits, linkedFruit)
+        : player.devilFruits,
+    };
+
+    rewards.push({
+      userId,
+      username: member.username || player.username || "Unknown",
+      berries,
+      gems,
+      fragments,
+      bossName: boss.name || boss.bossName || "Raid Boss",
+      weapon: gotWeapon ? linkedWeapon.name : null,
+      fruit: gotFruit ? linkedFruit.name : null,
+    });
+  }
+
+  writePlayers(players);
+  return rewards;
+}
+
+function formatRaidWinRewardLines(state) {
+  const rewards = ensureArray(state.winRewards);
+
+  if (!rewards.length) {
+    return ["• Reward data was not found."];
+  }
+
+  return rewards.map((reward) => {
+    const extras = [];
+
+    if (reward.weapon) extras.push(`⚔️ ${reward.weapon}`);
+    if (reward.fruit) extras.push(`🍈 ${reward.fruit}`);
+
+    return [
+      `• **${reward.username}**`,
+      `+${Number(reward.berries || 0).toLocaleString("en-US")} berries`,
+      `+${Number(reward.gems || 0).toLocaleString("en-US")} gems`,
+      `+${Number(reward.fragments || 0)} ${reward.bossName} fragment`,
+      extras.length ? `Bonus: ${extras.join(" • ")}` : null,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+  });
+}
+
+function addRaidPrestigeToWinnerCards(state) {
+  const players = readPlayers();
+  const rewards = [];
+
+  const boss = state.boss || {};
+  const bossCode = String(boss.code || boss.bossCode || "").toLowerCase();
+  const bossName = String(boss.name || boss.bossName || "").toLowerCase();
+
+  for (const member of ensureArray(state.members)) {
+    const userId = String(member.userId || "");
+    const player = players[userId];
+
+    if (!player) continue;
+
+    const cards = ensureArray(player.cards).map((card) => ({ ...card }));
+
+    const index = cards.findIndex((card) => {
+      const cardCode = String(card.code || "").toLowerCase();
+      const cardName = String(card.displayName || card.name || "").toLowerCase();
+
+      return (
+        (bossCode && cardCode === bossCode) ||
+        (bossName && cardName === bossName)
+      );
+    });
+
+    if (index === -1) {
+      rewards.push({
+        userId,
+        username: member.username || player.username || "Unknown",
+        cardName: boss.name || boss.bossName || "Raid Boss",
+        before: 0,
+        after: 0,
+        missing: true,
+      });
+
+      continue;
+    }
 
     const before = Math.max(0, Math.min(200, Number(cards[index].raidPrestige || 0)));
     const after = Math.min(200, before + 1);
 
     cards[index].raidPrestige = after;
+
     players[userId] = {
       ...player,
       cards,
@@ -652,10 +902,11 @@ function addRaidPrestigeToWinnerCards(state) {
     rewards.push({
       userId,
       username: member.username || player.username || "Unknown",
-      cardName: member.name || cards[index].displayName || cards[index].name || "Unknown",
+      cardName: cards[index].displayName || cards[index].name || boss.name || "Raid Boss",
       before,
       after,
       capped: after >= 200,
+      missing: false,
     });
   }
 
@@ -1009,9 +1260,14 @@ module.exports = {
           }
 
           if (battleState.winner === "players") {
+            const winRewards = giveRaidWinRewards(battleState);
             const prestigeRewards = addRaidPrestigeToWinnerCards(battleState);
+
+            battleState.winRewards = winRewards;
             battleState.prestigeRewards = prestigeRewards;
+
             pushBattleLog(battleState, "Raid cleared.");
+            pushBattleLog(battleState, "Raid rewards were given to all participants.");
             pushBattleLog(battleState, "Raid Prestige +1 was given to winning raid cards.");
           } else {
             pushBattleLog(battleState, "All raid members have been defeated.");
