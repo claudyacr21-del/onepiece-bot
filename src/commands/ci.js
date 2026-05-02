@@ -8,7 +8,7 @@ const { getPlayer } = require("../playerStore");
 const { findCardTemplate, findOwnedCard, hydrateCard } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
-const { formatCardLevelLine } = require("../utils/cardExp");
+const { getLargeCardImage } = require("../utils/cardImageSize");
 
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
@@ -140,34 +140,31 @@ function buildEmbed(card, owned, stage) {
   const stageImage = getStageImage(card, stageCard, stage);
   const stageBadge = getStageBadge(card, stageCard, stage);
 
-  const extraLines =
-    stageCard.cardRole === "boost"
-      ? [
-          `Form: ${stageCard.evolutionKey || `M${stage}`}`,
-          `Tier: ${stageCard.currentTier || stageCard.rarity}`,
-          `Role: ${stageCard.cardRole}`,
-          `Power: ${Number(stageCard.currentPower || 0)}`,
-          `Effect: ${form?.effectText || stageCard.effectText || "No effect text"}`,
-          `Target: ${stageCard.boostTarget || "team"}`,
-          `Boost Type: ${stageCard.boostType || "unknown"}`,
-          `Fragments: ${Number(owned?.fragments || 0)}`,
-          getOwnedStageText(owned),
-        ]
-      : [
-          `Form: ${stageCard.evolutionKey || `M${stage}`}`,
-          `Tier: ${stageCard.currentTier || stageCard.rarity}`,
-          `Role: ${stageCard.cardRole}`,
-          `Power: ${Number(stageCard.currentPower || 0)}`,
-          `Type: ${stageCard.type || "Battle"}`,
-          "",
-          `ATK: ${formatAtkRange(stageCard.atk)}`,
-          `HP: ${Number(stageCard.hp || 0)}`,
-          `SPD: ${Number(stageCard.speed || 0)}`,
-          `Weapon Set: ${stageCard.weapon || "None"}`,
-          `Devil Fruit: ${stageCard.devilFruit || "None"}`,
-          getOwnedStageText(owned),
-          owned ? formatCardLevelLine(owned) : "Level: Not owned",
-        ];
+    const extraLines =
+      stageCard.cardRole === "boost"
+        ? [
+            `Form: ${stageCard.evolutionKey || `M${stage}`}`,
+            `Tier: ${stageCard.currentTier || stageCard.rarity}`,
+            `Role: ${stageCard.cardRole}`,
+            `Power: ${Number(stageCard.currentPower || 0)}`,
+            `Effect: ${form?.effectText || stageCard.effectText || "No effect text"}`,
+            `Target: ${stageCard.boostTarget || "team"}`,
+            `Boost Type: ${stageCard.boostType || "unknown"}`,
+            `Fragments: ${Number(owned?.fragments || 0)}`,
+          ]
+        : [
+            `Form: ${stageCard.evolutionKey || `M${stage}`}`,
+            `Tier: ${stageCard.currentTier || stageCard.rarity}`,
+            `Role: ${stageCard.cardRole}`,
+            `Power: ${Number(stageCard.currentPower || 0)}`,
+            `Type: ${stageCard.type || "Battle"}`,
+            "",
+            `ATK: ${formatAtkRange(stageCard.atk)}`,
+            `HP: ${Number(stageCard.hp || 0)}`,
+            `SPD: ${Number(stageCard.speed || 0)}`,
+            `Weapon Set: ${stageCard.weapon || "None"}`,
+            `Devil Fruit: ${stageCard.devilFruit || "None"}`,
+          ];
 
   return buildCardStyleEmbed({
     color: 0x5865f2,
@@ -177,9 +174,7 @@ function buildEmbed(card, owned, stage) {
     badgeImage: stageBadge,
     formName: form?.name || "Unknown Form",
     tier: form?.tier || stageCard.currentTier || stageCard.rarity,
-    footerText: owned
-      ? `Owned Stage: M${owned.evolutionStage} • Global viewer`
-      : "Global Card Viewer • Not required to own the card",
+    footerText: "Global Card Viewer • Not required to own the card",
     extraLines,
   });
 }
