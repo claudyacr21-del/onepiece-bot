@@ -105,6 +105,33 @@ function getStageMultiplier(card, stage) {
   return 3.8;
 }
 
+const RAID_PRESTIGE_CAP = 200;
+const RAID_PRESTIGE_ATK_PER_LEVEL = 0.25;
+const RAID_PRESTIGE_HP_PER_LEVEL = 0.25;
+const RAID_PRESTIGE_SPD_PER_LEVEL = 0.1;
+
+function getRaidPrestigeLevel(card) {
+  return Math.max(
+    0,
+    Math.min(RAID_PRESTIGE_CAP, Math.floor(Number(card?.raidPrestige || 0)))
+  );
+}
+
+function getRaidPrestigeBonus(card) {
+  const prestige = getRaidPrestigeLevel(card);
+
+  return {
+    prestige,
+    atk: prestige * RAID_PRESTIGE_ATK_PER_LEVEL,
+    hp: prestige * RAID_PRESTIGE_HP_PER_LEVEL,
+    speed: prestige * RAID_PRESTIGE_SPD_PER_LEVEL,
+  };
+}
+
+function applyPrestigePercent(value, percent) {
+  return Math.floor(Number(value || 0) * (1 + Number(percent || 0) / 100));
+}
+
 const LEVEL_RANGES_BY_STAGE = {
   1: {
     min: 1,
@@ -229,6 +256,7 @@ function mergeOwnedCardWithTemplate(ownedCard) {
     exp: ownedCard.exp,
     kills: ownedCard.kills,
     fragments: ownedCard.fragments,
+    raidPrestige: Math.max(0, Math.min(200, Number(ownedCard.raidPrestige || 0))),
     evolutionStage: ownedCard.evolutionStage,
     evolutionKey: ownedCard.evolutionKey,
     currentTier: ownedCard.currentTier || template.currentTier,
@@ -538,9 +566,24 @@ function hydrateCard(card) {
     speed: Number(fruitPercent.speed || 0),
   };
 
-  next.atk = scaledAtk + weaponBonus.atk + fruitBonus.atk;
-  next.hp = scaledHp + weaponBonus.hp + fruitBonus.hp;
-  next.speed = scaledSpeed + weaponBonus.speed + fruitBonus.speed;
+  const prestigeBonus = getRaidPrestigeBonus(next);
+
+  const finalAtkBeforePrestige = scaledAtk + weaponBonus.atk + fruitBonus.atk;
+  const finalHpBeforePrestige = scaledHp + weaponBonus.hp + fruitBonus.hp;
+  const finalSpeedBeforePrestige = scaledSpeed + weaponBonus.speed + fruitBonus.speed;
+
+  next.raidPrestige = prestigeBonus.prestige;
+  next.raidPrestigeBonus = prestigeBonus;
+
+  if (String(next.cardRole || "").toLowerCase() === "boost") {
+    next.atk = finalAtkBeforePrestige;
+    next.hp = finalHpBeforePrestige;
+    next.speed = finalSpeedBeforePrestige;
+  } else {
+    next.atk = applyPrestigePercent(finalAtkBeforePrestige, prestigeBonus.atk);
+    next.hp = applyPrestigePercent(finalHpBeforePrestige, prestigeBonus.hp);
+    next.speed = applyPrestigePercent(finalSpeedBeforePrestige, prestigeBonus.speed);
+  }
 
   next.equippedWeaponsResolved = weaponPercent.equipped;
   next.equippedDevilFruitData = fruitPercent.fruit;
@@ -562,7 +605,22 @@ function hydrateCard(card) {
 
   next.basePower = getBasePower(next);
   next.powerCaps = getPowerCaps(next);
-  next.currentPower = getCurrentPower(next);
+  const currentPowerBeforePrestige = getCurrentPower(next);
+
+  if (String(next.cardRole || "").toLowerCase() === "boost") {
+    next.currentPower = currentPowerBeforePrestige;
+  } else {
+    const prestigePowerPercent =
+      (Number(next.raidPrestigeBonus?.atk || 0) +
+        Number(next.raidPrestigeBonus?.hp || 0) +
+        Number(next.raidPrestigeBonus?.speed || 0)) /
+      3;
+
+    next.currentPower = applyPrestigePercent(
+      currentPowerBeforePrestige,
+      prestigePowerPercent
+    );
+  }
   next.effectText = next.cardRole === "boost" ? getBoostEffectText(next, stage) : "";
 
   return next;
@@ -900,6 +958,12 @@ module.exports = {
   findCardTemplate,
   findOwnedCard,
   getAllCards,
+  RAID_PRESTIGE_CAP,
+  RAID_PRESTIGE_ATK_PER_LEVEL,
+  RAID_PRESTIGE_HP_PER_LEVEL,
+  RAID_PRESTIGE_SPD_PER_LEVEL,
+  getRaidPrestigeLevel,
+  getRaidPrestigeBonus,
   getStageMultiplier,
   getLevelScaledMultiplier,
   scaleStatByLevel,
