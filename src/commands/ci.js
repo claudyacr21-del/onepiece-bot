@@ -14,6 +14,10 @@ function formatAtkRange(atk) {
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
+function getGlobalCardPower(card) {
+  return Number(card.currentPower || card.powerCaps?.M3 || 0);
+}
+
 function prettifyCode(value) {
   return String(value || "")
     .replace(/[_-]+/g, " ")
@@ -145,7 +149,7 @@ function buildEmbed(card, owned, stage) {
             `Form: ${stageCard.evolutionKey || `M${stage}`}`,
             `Tier: ${stageCard.currentTier || stageCard.rarity}`,
             `Role: ${stageCard.cardRole}`,
-            `Power: ${Number(stageCard.currentPower || 0)}`,
+            `Power: ${getGlobalCardPower(card)}`,
             `Effect: ${form?.effectText || stageCard.effectText || "No effect text"}`,
             `Target: ${stageCard.boostTarget || "team"}`,
             `Boost Type: ${stageCard.boostType || "unknown"}`,
@@ -154,15 +158,15 @@ function buildEmbed(card, owned, stage) {
         : [
             `Form: ${stageCard.evolutionKey || `M${stage}`}`,
             `Tier: ${stageCard.currentTier || stageCard.rarity}`,
-            `Role: ${stageCard.cardRole}`,
-            `Power: ${Number(stageCard.currentPower || 0)}`,
-            `Type: ${stageCard.type || "Battle"}`,
+            `Role: ${card.cardRole || stageCard.cardRole}`,
+            `Power: ${getGlobalCardPower(card)}`,
+            `Type: ${card.type || stageCard.type || "Battle"}`,
             "",
-            `ATK: ${formatAtkRange(stageCard.atk)}`,
-            `HP: ${Number(stageCard.hp || 0)}`,
-            `SPD: ${Number(stageCard.speed || 0)}`,
-            `Weapon Set: ${stageCard.weapon || "None"}`,
-            `Devil Fruit: ${stageCard.devilFruit || "None"}`,
+            `ATK: ${formatAtkRange(card.atk)}`,
+            `HP: ${Number(card.hp || 0)}`,
+            `SPD: ${Number(card.speed || 0)}`,
+            `Weapon Set: ${card.weapon || "None"}`,
+            `Devil Fruit: ${card.devilFruit || "None"}`,
           ];
 
   return buildCardStyleEmbed({
