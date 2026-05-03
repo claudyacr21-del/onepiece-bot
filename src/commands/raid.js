@@ -455,8 +455,8 @@ function buildBattleState(room, bossTemplate) {
       rarity: bossTemplate.rarity || bossTemplate.currentTier || bossTemplate.baseTier || "C",
       currentTier: bossTemplate.currentTier || bossTemplate.rarity || bossTemplate.baseTier || "C",
     },
-    members,
     round: 1,
+    usedThisCycle: [],
     log: ["Raid battle started."],
     finished: false,
     winner: null,
@@ -465,9 +465,8 @@ function buildBattleState(room, bossTemplate) {
 
 function pushBattleLog(state, line) {
   state.log.push(line);
-
-  if (state.log.length > 8) {
-    state.log = state.log.slice(state.log.length - 8);
+  if (state.log.length > 2) {
+    state.log = state.log.slice(-2);
   }
 }
 
@@ -512,9 +511,7 @@ function buildBattleEmbed(state) {
       },
       {
         name: "Battle Log",
-        value: state.log.length
-          ? state.log.map((x) => `• ${x}`).join("\n").slice(0, 1024)
-          : "No actions yet.",
+        value: state.log.length ? state.log.slice(-2).map((x) => `• ${x}`).join("\n").slice(0, 1024) : "No actions yet.",
       }
     )
     .setImage(boss.image || null)
@@ -566,7 +563,7 @@ function buildResultEmbed(state) {
         ) : ["• Prestige reward data was not found."] : ["• No prestige reward because raid was lost."]),
         "",
         "## Final Log",
-        ...(state.log.length ? state.log.slice(-8).map((x) => `• ${x}`) : ["No final log."]),
+        ...(state.log.length ? state.log.slice(-2).map((x) => `• ${x}`) : ["No final log."]),
       ].join("\n")
     )
     .setImage(boss.image || null)
@@ -590,13 +587,14 @@ function buildBattleRows(state) {
       for (const member of chunk) {
         const index = state.members.indexOf(member);
         const isDead = Number(member.hp || 0) <= 0;
+        const alreadyUsed = ensureArray(state.usedThisCycle).includes(String(member.instanceId));
 
         row.addComponents(
           new ButtonBuilder()
             .setCustomId(`raid_act_${state.roomId}_${member.instanceId}`)
             .setLabel(`${index + 1} ${member.name}`.slice(0, 80))
-            .setStyle(isDead ? ButtonStyle.Secondary : ButtonStyle.Success)
-            .setDisabled(isDead)
+            .setStyle(isDead || alreadyUsed ? ButtonStyle.Secondary : ButtonStyle.Success)
+            .setDisabled(isDead || alreadyUsed)
         );
       }
 
