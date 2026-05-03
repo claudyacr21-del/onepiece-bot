@@ -248,6 +248,23 @@ function isUnitUsedThisCycle(usedThisCycle, unit) {
   return Array.isArray(usedThisCycle) ? usedThisCycle.includes(key) : false;
 }
 
+function getUnitActionKey(unit) {
+  return String(unit?.instanceId || unit?.globalSlot || "");
+}
+
+function getAliveActionKeys(units) {
+  return getAliveUnits(units).map((unit) => getUnitActionKey(unit));
+}
+
+function shouldDisableLastUsed(units, lastUsedKey, unit) {
+  if (!lastUsedKey) return false;
+
+  const aliveKeys = getAliveActionKeys(units);
+  if (aliveKeys.length <= 1) return false;
+
+  return getUnitActionKey(unit) === String(lastUsedKey);
+}
+
 function resetBossActionCycleIfReady(playerTeam, usedThisCycle) {
   const aliveIds = getAliveUnitIds(playerTeam);
   if (!aliveIds.length) return usedThisCycle;
@@ -1421,7 +1438,7 @@ module.exports = {
       const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
       const logs = [];
       let ended = false;
-      let usedThisCycle = [];
+      let lastUsedUnitKey = "";
 
       updatePlayer(message.author.id, {
         cooldowns: {
@@ -1432,9 +1449,21 @@ module.exports = {
 
       const reply = await message.reply({
         embeds: [
-          buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, ended, usedThisCycle),
+          buildRaidBossEmbed(
+            currentIsland,
+            phaseBoss,
+            participants,
+            boss,
+            logs,
+            ended,
+            lastUsedUnitKey ? [lastUsedUnitKey] : []
+          ),
         ],
-        components: buildRaidBossButtons(participants, ended, usedThisCycle),
+        components: buildRaidBossButtons(
+          participants,
+          ended,
+          lastUsedUnitKey ? [lastUsedUnitKey] : []
+        ),
       });
 
       const collector = reply.createMessageComponentCollector({
@@ -1465,7 +1494,15 @@ module.exports = {
 
           await interaction.update({
             embeds: [
-              buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, usedThisCycle),
+              buildRaidBossEmbed(
+                currentIsland,
+                phaseBoss,
+                participants,
+                boss,
+                logs,
+                false,
+                lastUsedUnitKey ? [lastUsedUnitKey] : []
+              ),
             ],
             components: buildRaidBossRunConfirmButtons(),
           });
@@ -1479,9 +1516,21 @@ module.exports = {
 
           await interaction.update({
             embeds: [
-              buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, usedThisCycle),
+              buildRaidBossEmbed(
+                currentIsland,
+                phaseBoss,
+                participants,
+                boss,
+                logs,
+                false,
+                lastUsedUnitKey ? [lastUsedUnitKey] : []
+              ),
             ],
-            components: buildRaidBossButtons(participants, false, usedThisCycle),
+            components: buildRaidBossButtons(
+              participants,
+              false,
+              lastUsedUnitKey ? [lastUsedUnitKey] : []
+            ),
           });
           return;
         }
@@ -1526,16 +1575,16 @@ module.exports = {
           });
         }
 
-        const unitKey = String(attacker.instanceId || attacker.globalSlot);
+        const unitKey = getUnitActionKey(attacker);
 
-        if (usedThisCycle.includes(unitKey)) {
+        if (shouldDisableLastUsed(allUnits, lastUsedUnitKey, attacker)) {
           return interaction.reply({
-            content: "This raid unit already acted. Choose another available unit.",
+            content: "This unit acted last turn. Choose another available unit first.",
             ephemeral: true,
           });
         }
 
-        usedThisCycle = [...new Set([...usedThisCycle, unitKey])];
+        lastUsedUnitKey = unitKey;
 
         const owner = participants.find((p) => p.userId === attacker.ownerId);
         logs.length = 0;
@@ -1566,8 +1615,6 @@ module.exports = {
             pushBossLog(logs, `☠️ ${target.name} was defeated.`);
           }
         }
-
-        usedThisCycle = resetBossActionCycleIfReady(allUnits, usedThisCycle);
 
         if (Number(boss.battleHp ?? boss.hp) <= 0) {
           ended = true;
@@ -1727,9 +1774,21 @@ module.exports = {
 
         await interaction.update({
           embeds: [
-            buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, usedThisCycle),
+            buildRaidBossEmbed(
+              currentIsland,
+              phaseBoss,
+              participants,
+              boss,
+              logs,
+              false,
+              lastUsedUnitKey ? [lastUsedUnitKey] : []
+            ),
           ],
-          components: buildRaidBossButtons(participants, false, usedThisCycle),
+          components: buildRaidBossButtons(
+            participants,
+            false,
+            lastUsedUnitKey ? [lastUsedUnitKey] : []
+          ),
         });
       });
 
@@ -1777,7 +1836,7 @@ module.exports = {
     const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
     const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
     const logs = [];
-    let usedThisCycle = [];
+    let lastUsedUnitKey = "";
     let ended = false;
 
     const reply = await message.reply({
@@ -1792,7 +1851,7 @@ module.exports = {
           ended
         ),
       ],
-      components: buildButtons(playerTeam, ended, usedThisCycle),
+      components: buildButtons(playerTeam, ended, []),
     });
 
     const collector = reply.createMessageComponentCollector({
@@ -1898,13 +1957,6 @@ module.exports = {
         });
       }
 
-      if (isUnitUsedThisCycle(usedThisCycle, attacker)) {
-        return interaction.reply({
-          content: "This card already attacked. Choose another ready card first.",
-          ephemeral: true,
-        });
-      }
-
       logs.length = 0;
 
       const turns = resolveTurnOrder(attacker, boss);
@@ -1933,12 +1985,6 @@ module.exports = {
           pushBossLog(logs, `☠️ ${target.name} was defeated.`);
         }
       }
-
-      usedThisCycle = [
-        ...new Set([...usedThisCycle, String(attacker.instanceId)]),
-      ];
-
-      usedThisCycle = resetBossActionCycleIfReady(playerTeam, usedThisCycle);
 
       if (Number(boss.battleHp ?? boss.hp) <= 0) {
         ended = true;
@@ -2096,7 +2142,7 @@ module.exports = {
             false
           ),
         ],
-        components: buildButtons(playerTeam, false, usedThisCycle),
+        components: buildButtons(playerTeam, false, []),
       });
     });
 
