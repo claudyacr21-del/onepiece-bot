@@ -448,6 +448,7 @@ function buildBattleState(room, bossTemplate) {
     roomId: room.roomId,
     hostId: room.hostId,
     hostName: room.hostName,
+    members,
     boss: {
       ...deriveRaidBossStats(bossTemplate),
       bossCode: bossTemplate.code,
@@ -471,18 +472,19 @@ function pushBattleLog(state, line) {
 }
 
 function getAliveMembers(state) {
-  return state.members.filter((m) => Number(m.hp || 0) > 0);
+  return ensureArray(state.members).filter((m) => Number(m.hp || 0) > 0);
 }
 
 function buildBattleEmbed(state) {
   const boss = state.boss;
   const alive = getAliveMembers(state);
 
-  const raidLines = state.members.length
+  const raidLines = ensureArray(state.members).length
     ? state.members.map((m, i) => {
         const isDead = Number(m.hp || 0) <= 0;
         const hpIcon = isDead ? "☠️" : "❤️";
-        const status = isDead ? "DEFEATED" : "READY";
+        const alreadyUsed = ensureArray(state.usedThisCycle).includes(String(m.instanceId));
+        const status = isDead ? "DEFEATED" : alreadyUsed ? "USED" : "READY";
 
         return [
           `**${i + 1}. ${m.name}** • ${m.username}`,
@@ -511,7 +513,9 @@ function buildBattleEmbed(state) {
       },
       {
         name: "Battle Log",
-        value: state.log.length ? state.log.slice(-2).map((x) => `• ${x}`).join("\n").slice(0, 1024) : "No actions yet.",
+        value: state.log.length
+          ? state.log.slice(-2).map((x) => `• ${x}`).join("\n").slice(0, 1024)
+          : "No actions yet.",
       }
     )
     .setImage(boss.image || null)
@@ -525,7 +529,7 @@ function buildResultEmbed(state) {
   const playersWon = state.winner === "players";
   const alive = getAliveMembers(state);
 
-  const raidLines = state.members.length
+  const raidLines = ensureArray(state.members).length
     ? state.members.map((m, i) => {
         const isDead = Number(m.hp || 0) <= 0;
         const hpIcon = isDead ? "☠️" : "❤️";
@@ -555,12 +559,15 @@ function buildResultEmbed(state) {
         ...(playersWon ? formatRaidWinRewardLines(state) : ["• No reward because raid was lost."]),
         "",
         "## Raid Prestige Rewards",
-        ...(playersWon ? ensureArray(state.prestigeRewards).length ? ensureArray(state.prestigeRewards).map(
-          (reward) =>
-            reward.missing
-              ? `• ${reward.username}: **${reward.cardName}** not owned, prestige not added.`
-              : `• ${reward.username}'s **${reward.cardName}**: ${reward.before}/200 → ${reward.after}/200`
-        ) : ["• Prestige reward data was not found."] : ["• No prestige reward because raid was lost."]),
+        ...(playersWon
+          ? ensureArray(state.prestigeRewards).length
+            ? ensureArray(state.prestigeRewards).map((reward) =>
+                reward.missing
+                  ? `• ${reward.username}: **${reward.cardName}** not owned, prestige not added.`
+                  : `• ${reward.username}'s **${reward.cardName}**: ${reward.before}/200 → ${reward.after}/200`
+              )
+            : ["• Prestige reward data was not found."]
+          : ["• No prestige reward because raid was lost."]),
         "",
         "## Final Log",
         ...(state.log.length ? state.log.slice(-2).map((x) => `• ${x}`) : ["No final log."]),
@@ -628,6 +635,18 @@ function checkEndState(state) {
   }
 
   return false;
+}
+
+function resetActionCycleIfReady(state) {
+  const aliveIds = getAliveMembers(state).map((m) => String(m.instanceId));
+  const usedAliveIds = ensureArray(state.usedThisCycle).filter((id) =>
+    aliveIds.includes(String(id))
+  );
+
+  if (aliveIds.length && usedAliveIds.length >= aliveIds.length) {
+    state.usedThisCycle = [];
+    pushBattleLog(state, "New raid action cycle started.");
+  }
 }
 
 function flattenDb(db) {
@@ -1207,6 +1226,18 @@ module.exports = {
             });
           }
 
+          if (ensureArray(battleState.usedThisCycle).includes(String(actor.instanceId))) {
+            return btn.reply({
+              content: "This raid card already acted. Choose another available card.",
+              ephemeral: true,
+            });
+          }
+
+          battleState.usedThisCycle = [
+            ...ensureArray(battleState.usedThisCycle),
+            String(actor.instanceId),
+          ];
+
           const rawDamage = randomInt(
             Math.floor(Number(actor.atk || 0) * 0.85),
             Math.floor(Number(actor.atk || 0) * 1.15)
@@ -1249,6 +1280,7 @@ module.exports = {
           }
 
           if (!battleState.finished) {
+            resetActionCycleIfReady(battleState);
             battleState.round += 1;
 
             return btn.update({
@@ -1293,15 +1325,17 @@ module.exports = {
 
           try {
             await battleMessage.edit({
-              embeds: [buildResultEmbed({
-                ...battleState,
-                finished: true,
-                winner: battleState.winner || "boss",
-                log: [
-                  ...battleState.log,
-                  "Raid timed out.",
-                ],
-              })],
+              embeds: [
+                buildResultEmbed({
+                  ...battleState,
+                  finished: true,
+                  winner: battleState.winner || "boss",
+                  log: [
+                    ...battleState.log,
+                    "Raid timed out.",
+                  ],
+                }),
+              ],
               components: [],
             });
           } catch {}
@@ -1323,6 +1357,10 @@ module.exports = {
             components: buildLobbyRows(activeRoom, true),
           });
         }
+      } catch {}
+
+      try {
+        deleteRoom(hostId);
       } catch {}
     });
   },
