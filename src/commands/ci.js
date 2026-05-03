@@ -36,6 +36,28 @@ function getStageRawStat(card, stageCard, stage, key, fallbackKey = key) {
   );
 }
 
+function getAllM3Power(card) {
+  return Number(card?.currentPower || card?.powerCaps?.M3 || 0);
+}
+
+function getStageDisplayStats(card, stageCard, stage) {
+  if (Number(stage) === 3) {
+    return {
+      atk: Number(card?.atk || 0),
+      hp: Number(card?.hp || 0),
+      speed: Number(card?.speed || 0),
+      power: getAllM3Power(card),
+    };
+  }
+
+  return {
+    atk: Number(getStageRawStat(card, stageCard, stage, "atk") || 0),
+    hp: Number(getStageRawStat(card, stageCard, stage, "hp") || 0),
+    speed: Number(getStageRawStat(card, stageCard, stage, "speed", "spd") || 0),
+    power: getStageRawPower(card, stageCard, stage),
+  };
+}
+
 function getStageRawPower(card, stageCard, stage) {
   const form = getStageRawForm(card, stage);
   const stageKey = `M${stage}`;
@@ -168,11 +190,7 @@ function buildEmbed(card, owned, stage) {
   const form = stageCard.evolutionForms?.[stage - 1] || card.evolutionForms?.[stage - 1];
   const stageImage = getStageImage(card, stageCard, stage);
   const stageBadge = getStageBadge(card, stageCard, stage);
-
-  const stageAtk = getStageRawStat(card, stageCard, stage, "atk");
-  const stageHp = getStageRawStat(card, stageCard, stage, "hp");
-  const stageSpeed = getStageRawStat(card, stageCard, stage, "speed", "spd");
-  const stagePower = getStageRawPower(card, stageCard, stage);
+  const displayStats = getStageDisplayStats(card, stageCard, stage);
 
   const extraLines =
     stageCard.cardRole === "boost"
@@ -180,7 +198,7 @@ function buildEmbed(card, owned, stage) {
           `Form: ${stageCard.evolutionKey || `M${stage}`}`,
           `Tier: ${form?.tier || stageCard.currentTier || stageCard.rarity}`,
           `Role: ${stageCard.cardRole}`,
-          `Power: ${stagePower}`,
+          `Power: ${displayStats.power}`,
           `Effect: ${form?.effectText || stageCard.effectText || "No effect text"}`,
           `Target: ${stageCard.boostTarget || "team"}`,
           `Boost Type: ${stageCard.boostType || "unknown"}`,
@@ -190,12 +208,12 @@ function buildEmbed(card, owned, stage) {
           `Form: ${stageCard.evolutionKey || `M${stage}`}`,
           `Tier: ${form?.tier || stageCard.currentTier || stageCard.rarity}`,
           `Role: ${card.cardRole || stageCard.cardRole}`,
-          `Power: ${stagePower}`,
+          `Power: ${displayStats.power}`,
           `Type: ${card.type || stageCard.type || "Battle"}`,
           "",
-          `ATK: ${formatAtkRange(stageAtk)}`,
-          `HP: ${Number(stageHp || 0)}`,
-          `SPD: ${Number(stageSpeed || 0)}`,
+          `ATK: ${formatAtkRange(displayStats.atk)}`,
+          `HP: ${Number(displayStats.hp || 0)}`,
+          `SPD: ${Number(displayStats.speed || 0)}`,
           `Weapon Set: ${card.weapon || "None"}`,
           `Devil Fruit: ${card.devilFruit || "None"}`,
         ];
