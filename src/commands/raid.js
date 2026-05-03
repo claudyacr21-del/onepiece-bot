@@ -219,7 +219,9 @@ function getFreshOwnedBattleCard(userId, username, picked) {
 }
 
 function buildBattleRoster(room) {
-  const participants = ensureArray(room?.participants);
+  const participants = ensureArray(room?.participants).filter(
+    (participant) => ensureArray(participant.selectedCards).length > 0
+  );
 
   return participants
     .flatMap((participant) =>
@@ -493,12 +495,16 @@ function getAliveMembers(state) {
   return ensureArray(state.members).filter((member) => Number(member.hp || 0) > 0);
 }
 
+function getMemberActionKey(member) {
+  return `${String(member?.userId || "")}:${String(member?.instanceId || "")}`;
+}
+
 function isMemberUsedThisCycle(state, member) {
-  return ensureArray(state.usedThisCycle).includes(String(member.instanceId));
+  return ensureArray(state.usedThisCycle).includes(getMemberActionKey(member));
 }
 
 function getAliveMemberIds(state) {
-  return getAliveMembers(state).map((member) => String(member.instanceId));
+  return getAliveMembers(state).map((member) => getMemberActionKey(member));
 }
 
 function resetActionCycleIfReady(state) {
@@ -646,24 +652,25 @@ function buildBattleRows(state) {
   let chunk = [];
 
   for (let index = 0; index < state.members.length; index++) {
-    chunk.push(state.members[index]);
+    chunk.push({ member: state.members[index], index });
 
     if (chunk.length === 5 || index === state.members.length - 1) {
       const row = new ActionRowBuilder();
 
-      for (const member of chunk) {
-        const memberIndex = state.members.indexOf(member);
+      for (const item of chunk) {
+        const member = item.member;
+        const memberIndex = item.index;
         const isDead = Number(member.hp || 0) <= 0;
         const alreadyUsed = isMemberUsedThisCycle(state, member);
 
         row.addComponents(
           new ButtonBuilder()
-            .setCustomId(`raid_act_${state.roomId}_${member.instanceId}`)
+            .setCustomId(`raid_act_${state.roomId}_${memberIndex}`)
             .setLabel(`${memberIndex + 1} ${member.name}`.slice(0, 80))
             .setStyle(
               isDead || alreadyUsed ? ButtonStyle.Secondary : ButtonStyle.Success
             )
-            .setDisabled(isDead || alreadyUsed)
+            .setDisabled(Boolean(isDead || alreadyUsed))
         );
       }
 
@@ -1022,7 +1029,7 @@ function handleRaidAttack(state, actor) {
   pushBattleLog(state, `${actor.name} dealt ${damage.toLocaleString("en-US")} damage.`);
 
   state.usedThisCycle = [
-    ...new Set([...ensureArray(state.usedThisCycle), String(actor.instanceId)]),
+    ...new Set([...ensureArray(state.usedThisCycle), getMemberActionKey(actor)]),
   ];
 
   if (checkEndState(state)) return;
@@ -1273,7 +1280,9 @@ module.exports = {
           });
         }
 
-        const joinedCount = ensureArray(startedRoom.participants).length;
+        const joinedCount = ensureArray(startedRoom.participants).filter(
+          (participant) => ensureArray(participant.selectedCards).length > 0
+        ).length;
 
         if (joinedCount < 1) {
           return interaction.reply({
@@ -1340,14 +1349,11 @@ module.exports = {
             return;
           }
 
-          const instanceId = String(button.customId).replace(
-            `raid_act_${battleState.roomId}_`,
-            ""
+          const memberIndex = Number(
+            String(button.customId).replace(`raid_act_${battleState.roomId}_`, "")
           );
 
-          const actor = battleState.members.find(
-            (member) => String(member.instanceId) === instanceId
-          );
+          const actor = battleState.members[memberIndex];
 
           if (!actor || Number(actor.hp || 0) <= 0) {
             return button.reply({
@@ -1356,16 +1362,12 @@ module.exports = {
             });
           }
 
-          const canControl =
-            String(button.user.id) === String(actor.userId) ||
-            String(button.user.id) === hostId;
-
-          if (!canControl) {
+          if (String(button.user.id) !== hostId) {
             return button.reply({
-              content: "You can only use your own raid card.",
+              content: "Only the raid host can control this raid battle.",
               ephemeral: true,
             });
-          }
+          } 
 
           if (isMemberUsedThisCycle(battleState, actor)) {
             return button.reply({
