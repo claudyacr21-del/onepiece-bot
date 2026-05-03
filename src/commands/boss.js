@@ -95,24 +95,22 @@ function formatExpResults(playerTeam, expResults) {
 }
 
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {
-  const synced = hydrateCard(card);
-
-  const displayAtk = Number(synced.atk || 0);
-  const displayHp = Number(synced.hp || 0);
-  const displaySpeed = Number(synced.speed || 0);
+  const displayAtk = Number(card.atk || 0);
+  const displayHp = Number(card.hp || 0);
+  const displaySpeed = Number(card.speed || 0);
   const displayPower = Number(
-    synced.currentPower ||
-      synced.power ||
+    card.currentPower ||
+      card.power ||
       Math.floor(displayAtk * 1.4 + displayHp * 0.22 + displaySpeed * 9)
   );
 
   return {
     slot: slotIndex + 1,
     sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
-    instanceId: synced.instanceId,
-    code: synced.code,
-    name: synced.displayName || synced.name || "Unknown",
-    rarity: synced.currentTier || synced.rarity || "C",
+    instanceId: card.instanceId,
+    code: card.code,
+    name: card.displayName || card.name || "Unknown",
+    rarity: card.currentTier || card.rarity || "C",
 
     atk: displayAtk,
     hp: displayHp,
@@ -126,11 +124,11 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     battleSpeed: displaySpeed,
     battlePower: displayPower,
 
-    level: Number(synced.level || 1),
-    levelCap: getCardLevelCap(synced),
-    exp: getCardExp(synced),
-    kills: Number(synced.kills || 0),
-    image: synced.image || "",
+    level: Number(card.level || 1),
+    levelCap: getCardLevelCap(card),
+    exp: getCardExp(card),
+    kills: Number(card.kills || 0),
+    image: card.image || "",
 
     passiveBoostsApplied: {
       atk: Number(combatBoosts.atk || 0),
@@ -1101,7 +1099,39 @@ function applyBossQuestProgress(player, keys) {
 }
 
 function getFullTeamFromPlayer(player) {
-  const { combatBoosts, teamCards } = getFullTeamFromPlayer(player);
+  const combatBoosts = getPlayerCombatBoosts(player);
+  const rawCards = Array.isArray(player.cards) ? player.cards : [];
+
+  const combatCards = getPlayerCombatCards(player)
+    .filter((card) => String(card.cardRole || "").toLowerCase() !== "boost")
+    .map((card) => {
+      const rawIndex = rawCards.findIndex(
+        (rawCard) => String(rawCard.instanceId || "") === String(card.instanceId || "")
+      );
+
+      return {
+        ...card,
+        sourceIndex: rawIndex >= 0 ? rawIndex : null,
+      };
+    });
+
+  const teamSlots = Array.isArray(player?.team?.slots)
+    ? player.team.slots.slice(0, 3)
+    : [null, null, null];
+
+  const teamCards = teamSlots
+    .map((instanceId, index) => {
+      if (!instanceId) return null;
+
+      const found = combatCards.find(
+        (card) =>
+          String(card.instanceId || "") === String(instanceId) &&
+          String(card.cardRole || "").toLowerCase() !== "boost"
+      );
+
+      return found ? toBattleUnit(found, index, combatBoosts) : null;
+    })
+    .filter(Boolean);
 
   return {
     combatBoosts,
