@@ -1232,47 +1232,59 @@ async function buildRaidBossParticipantsFromJoinedIds(message, joinedIds) {
 }
 
 function getBossReward(island, phaseBoss = null) {
+  const code = String(island?.code || "").toLowerCase();
   const order = Number(island?.order || 0);
   const phase = Number(phaseBoss?.phase || 0);
 
-  const base = {
-    berries: 6000 + order * 550,
-    gems: 10 + Math.floor(order / 2),
-    boxes: [cloneItem(ITEMS.rareResourceBox, 1)],
+  const islandRewards = {
+    foosha_village: { berries: 3500, gems: 5, boxes: 1 },
+    orange_town: { berries: 4500, gems: 6, boxes: 1 },
+    syrup_village: { berries: 5500, gems: 7, boxes: 1 },
+    baratie: { berries: 7000, gems: 9, boxes: 1 },
+    arlong_park: { berries: 8500, gems: 11, boxes: 1 },
+    loguetown: { berries: 10000, gems: 13, boxes: 1 },
+    reverse_mountain: { berries: 12000, gems: 15, boxes: 1 },
+    whiskey_peak: { berries: 14000, gems: 17, boxes: 1 },
+    little_garden: { berries: 16000, gems: 19, boxes: 1 },
+    drum_island: { berries: 18000, gems: 21, boxes: 1 },
+    alabasta: { berries: 22000, gems: 25, boxes: 2 },
+    jaya: { berries: 24000, gems: 27, boxes: 2 },
+    skypiea: { berries: 28000, gems: 31, boxes: 2 },
+    long_ring_long_land: { berries: 30000, gems: 34, boxes: 2 },
+    water_7: { berries: 34000, gems: 38, boxes: 2 },
+    enies_lobby: { berries: 38000, gems: 42, boxes: 2 },
+    thriller_bark: { berries: 42000, gems: 46, boxes: 2 },
+    sabaody: { berries: 46000, gems: 50, boxes: 2 },
+    amazon_lily: { berries: 50000, gems: 54, boxes: 2 },
+    impel_down: { berries: 56000, gems: 60, boxes: 3 },
+    marineford: { berries: 65000, gems: 70, boxes: 3 },
+    fishman_island: { berries: 72000, gems: 78, boxes: 3 },
+    punk_hazard: { berries: 80000, gems: 86, boxes: 3 },
+    dressrosa: { berries: 90000, gems: 96, boxes: 3 },
+    zou: { berries: 98000, gems: 104, boxes: 3 },
+    whole_cake_island: { berries: 110000, gems: 118, boxes: 4 },
+    wano: { berries: 130000, gems: 140, boxes: 4 },
+    egghead: { berries: 155000, gems: 165, boxes: 4 },
+    elbaf: { berries: 180000, gems: 190, boxes: 5 },
   };
 
-  if (phase === 1) {
-    return {
-      berries: 9000 + order * 750,
-      gems: 18 + Math.floor(order / 2),
-      boxes: [cloneItem(ITEMS.rareResourceBox, 1)],
-    };
-  }
-
-  if (phase === 2) {
-    const specialByIsland = {
-      egghead: {
-        berries: 42000,
-        gems: 95,
-        boxes: [cloneItem(ITEMS.rareResourceBox, 3)],
-      },
-      elbaf: {
-        berries: 52000,
-        gems: 120,
-        boxes: [cloneItem(ITEMS.rareResourceBox, 4)],
-      },
+  const base =
+    islandRewards[code] || {
+      berries: 6000 + order * 1200,
+      gems: 10 + Math.floor(order * 1.5),
+      boxes: Math.max(1, Math.floor(order / 8)),
     };
 
-    return (
-      specialByIsland[String(island?.code || "").toLowerCase()] || {
-        berries: 30000 + order * 1200,
-        gems: 70 + Math.floor(order / 2),
-        boxes: [cloneItem(ITEMS.rareResourceBox, 2)],
-      }
-    );
-  }
+  let multiplier = 1;
 
-  return base;
+  if (phase === 1) multiplier = 1.25;
+  if (phase === 2) multiplier = 1.75;
+
+  return {
+    berries: Math.floor(base.berries * multiplier),
+    gems: Math.floor(base.gems * multiplier),
+    boxes: [cloneItem(ITEMS.rareResourceBox, Math.max(1, Math.floor(base.boxes * multiplier)))],
+  };
 }
 
 function formatRewardLines(reward) {
@@ -1299,23 +1311,20 @@ function applyBoxes(currentBoxes, rewardBoxes) {
 function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, usedThisCycle = []) {
   const phaseLabel = phaseBoss ? `Phase ${phaseBoss.phase}` : "Boss";
   const usedSet = new Set((Array.isArray(usedThisCycle) ? usedThisCycle : []).map(String));
-
   const teamLines = [];
 
   for (const participant of participants) {
-    teamLines.push(`**${participant.username}**`);
-
     for (const unit of participant.units) {
-      const unitKey = String(unit.instanceId || unit.globalSlot);
+      const unitKey = getUnitActionKey(unit);
       const isDead = Number(unit.battleHp ?? unit.hp) <= 0;
       const alreadyUsed = usedSet.has(unitKey);
-      const status = isDead ? "DEFEATED" : alreadyUsed ? "USED" : "READY";
+      const status = isDead ? "DEFEATED" : alreadyUsed ? "WAIT" : "READY";
 
       teamLines.push(
         [
-          `\`${unit.globalSlot + 1}.\` ${unit.name} [${unit.rarity}] • LV \`${unit.level}\` • ${status}`,
-          `PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` • ATK \`${formatAtkRange(unit.battleAtk || unit.atk)}\` • SPD \`${unit.battleSpeed || unit.speed}\``,
-          renderHpBar(unit.battleHp ?? unit.hp, unit.battleMaxHp ?? unit.maxHp),
+          `**${unit.globalSlot + 1}. ${unit.name}** ${alreadyUsed ? "⏳" : ""}`,
+          `❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ${status}`,
+          `⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)}`,
         ].join("\n")
       );
     }
@@ -1323,15 +1332,19 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
 
   return new EmbedBuilder()
     .setColor(ended ? 0x2ecc71 : 0xe74c3c)
-    .setTitle(`${island.name} ${phaseLabel} Raid Boss`)
+    .setTitle(`${island.name} ${phaseLabel} Boss Raid`)
     .setDescription(
       [
-        `**Boss:** \`${boss.name}\` [${boss.rarity}]`,
-        `**ATK:** \`${formatAtkRange(boss.battleAtk || boss.atk)}\` • **SPD:** \`${boss.battleSpeed || boss.speed}\``,
-        renderHpBar(boss.battleHp ?? boss.hp, boss.battleMaxHp ?? boss.maxHp),
+        "**Selection Phase**",
+        "Select a character to deploy for battle!",
+        "",
+        "## ☠️ Boss",
+        `**${boss.name}** [${boss.rarity}]`,
+        `❤️ ${Math.max(0, Number(boss.battleHp ?? boss.hp))}/${Number(boss.battleMaxHp ?? boss.maxHp)} | SPD \`${boss.battleSpeed || boss.speed}\``,
+        `⚔️ ${formatAtkRange(boss.battleAtk || boss.atk)}`,
         "",
         "## Battle Log",
-        ...(logs.length ? logs.slice(-2) : ["Choose a raid unit to attack. Used units are disabled until other alive units act."]),
+        ...(logs.length ? logs.slice(-2) : ["Choose a raid unit to attack."]),
         "",
         "## Raid Team",
         ...teamLines,
@@ -1348,16 +1361,16 @@ function buildRaidBossButtons(participants, ended, usedThisCycle = []) {
   let row = new ActionRowBuilder();
 
   for (const unit of allUnits) {
-    const unitKey = String(unit.instanceId || unit.globalSlot);
+    const unitKey = getUnitActionKey(unit);
     const alreadyUsed = usedSet.has(unitKey);
     const dead = Number(unit.battleHp ?? unit.hp) <= 0;
-    const label = `${unit.globalSlot + 1}. ${unit.name}`.slice(0, 80);
+    const label = `${unit.globalSlot + 1} ${unit.name}`.slice(0, 80);
 
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`boss_raid_attack_${unit.globalSlot}`)
         .setLabel(label)
-        .setStyle(dead || alreadyUsed ? ButtonStyle.Secondary : ButtonStyle.Primary)
+        .setStyle(dead || alreadyUsed ? ButtonStyle.Secondary : ButtonStyle.Success)
         .setDisabled(Boolean(ended || dead || alreadyUsed))
     );
 
