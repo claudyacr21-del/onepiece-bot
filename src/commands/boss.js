@@ -886,28 +886,31 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
   const teamLines = playerTeam.map((unit) => {
     return [
       `**${unit.slot}. ${unit.name}** [${unit.rarity}] • LV \`${unit.level}\``,
-      `PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` • ATK \`${formatAtkRange(unit.battleAtk || unit.atk)}\` • SPD \`${unit.battleSpeed || unit.speed}\``,
-      renderHpBar(unit.battleHp ?? unit.hp, unit.battleMaxHp ?? unit.maxHp),
+      `❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\``,
+      `⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)}`,
     ].join("\n");
   });
 
   const recentLogs = logs.slice(-BOSS_MAX_LOG_LINES);
-  const phaseLabel = phaseBoss ? ` • Phase ${phaseBoss.phase}` : "";
+  const phaseLabel = phaseBoss ? ` Phase ${phaseBoss.phase}` : "";
 
   return new EmbedBuilder()
     .setColor(ended ? 0x2ecc71 : 0xe74c3c)
-    .setTitle(`👑 ${playerName}'s Boss Battle`)
+    .setTitle(`${playerName}'s ${island.name}${phaseLabel} Boss Battle`)
     .setDescription(
       [
-        `**Island:** \`${island.name}${phaseLabel}\``,
-        `**Boss:** \`${boss.name}\` [${boss.rarity}]`,
-        `**ATK:** \`${formatAtkRange(boss.battleAtk || boss.atk)}\` • **SPD:** \`${boss.battleSpeed || boss.speed}\``,
-        renderHpBar(boss.battleHp ?? boss.hp, boss.battleMaxHp ?? boss.maxHp),
+        "**Selection Phase**",
+        "Select a character to deploy for battle!",
+        "",
+        "## ☠️ Boss",
+        `**${boss.name}** [${boss.rarity}]`,
+        `❤️ ${Math.max(0, Number(boss.battleHp ?? boss.hp))}/${Number(boss.battleMaxHp ?? boss.maxHp)} | SPD \`${boss.battleSpeed || boss.speed}\``,
+        `⚔️ ${formatAtkRange(boss.battleAtk || boss.atk)}`,
         "",
         "## Battle Log",
         ...(recentLogs.length
           ? recentLogs
-          : ["Choose a card to attack the island boss. SPD decides turn order."]),
+          : ["Choose a card to attack the island boss."]),
         "",
         "## Your Team",
         ...teamLines,
@@ -1123,7 +1126,8 @@ function getFullTeamFromPlayer(player) {
     .filter((card) => String(card.cardRole || "").toLowerCase() !== "boost")
     .map((card) => {
       const rawIndex = rawCards.findIndex(
-        (rawCard) => String(rawCard.instanceId || "") === String(card.instanceId || "")
+        (rawCard) =>
+          String(rawCard.instanceId || "") === String(card.instanceId || "")
       );
 
       return {
