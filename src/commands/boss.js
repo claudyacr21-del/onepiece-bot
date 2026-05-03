@@ -894,8 +894,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
 function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, ended) {
   const teamLines = playerTeam.map((unit) => {
     return [
-      `**${unit.slot}. ${unit.name}**`,
-      `❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)}`,
+      `**${unit.slot}. ${unit.name}**`,`❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)}`,
     ].join("\n");
   });
 
@@ -1333,8 +1332,7 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
 
       teamLines.push(
         [
-          `**${unit.globalSlot + 1}. ${unit.name}** ${alreadyUsed ? "⏳" : ""}`,
-          `❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)} | ${status}`,
+          `**${unit.globalSlot + 1}. ${unit.name}** ${alreadyUsed ? "⏳" : ""}`,`❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)} | ${status}`,
         ].join("\n")
       );
     }
