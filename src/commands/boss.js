@@ -1316,11 +1316,12 @@ function buildRaidBossButtons(participants, ended, usedThisCycle = []) {
     const unitKey = String(unit.instanceId || unit.globalSlot);
     const alreadyUsed = usedSet.has(unitKey);
     const dead = Number(unit.battleHp ?? unit.hp) <= 0;
+    const label = `${unit.globalSlot + 1}. ${unit.name}`.slice(0, 80);
 
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`boss_raid_attack_${unit.globalSlot}`)
-        .setLabel(`${unit.ownerName.slice(0, 8)} ${unit.slot}`.slice(0, 80))
+        .setLabel(label)
         .setStyle(dead || alreadyUsed ? ButtonStyle.Secondary : ButtonStyle.Primary)
         .setDisabled(Boolean(ended || dead || alreadyUsed))
     );
