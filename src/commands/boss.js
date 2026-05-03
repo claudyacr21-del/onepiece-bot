@@ -1101,32 +1101,7 @@ function applyBossQuestProgress(player, keys) {
 }
 
 function getFullTeamFromPlayer(player) {
-  const combatBoosts = getPlayerCombatBoosts(player);
-
-  const cards = getPlayerCombatCards(player)
-    .filter((card) => String(card.cardRole || "").toLowerCase() !== "boost")
-    .map((card, sourceIndex) => ({
-      ...card,
-      sourceIndex,
-    }));
-
-  const teamSlots = Array.isArray(player?.team?.slots)
-    ? player.team.slots
-    : [null, null, null];
-
-  const teamCards = teamSlots
-    .map((instanceId, index) => {
-      if (!instanceId) return null;
-
-      const found = cards.find(
-        (card) =>
-          String(card.instanceId) === String(instanceId) &&
-          String(card.cardRole || "").toLowerCase() !== "boost"
-      );
-
-      return found ? toBattleUnit(found, index, combatBoosts) : null;
-    })
-    .filter(Boolean);
+  const { combatBoosts, teamCards } = getFullTeamFromPlayer(player);
 
   return {
     combatBoosts,
@@ -1810,6 +1785,50 @@ module.exports = {
       }
 
       if (interaction.customId === "boss_run") {
+        logs.length = 0;
+        pushBossLog(logs, "⚠️ Run away confirmation requested.");
+        pushBossLog(logs, "Confirm run away or cancel to continue.");
+
+        await interaction.update({
+          embeds: [
+            buildBossEmbed(
+              player.username || message.author.username,
+              currentIsland,
+              phaseBoss,
+              playerTeam,
+              boss,
+              logs,
+              false
+            ),
+          ],
+          components: buildBossRunConfirmButtons(),
+        });
+        return;
+      }
+
+      if (interaction.customId === "boss_run_cancel") {
+        logs.length = 0;
+        pushBossLog(logs, "✅ Run away cancelled.");
+        pushBossLog(logs, "Choose a card to continue.");
+
+        await interaction.update({
+          embeds: [
+            buildBossEmbed(
+              player.username || message.author.username,
+              currentIsland,
+              phaseBoss,
+              playerTeam,
+              boss,
+              logs,
+              false
+            ),
+          ],
+          components: buildButtons(playerTeam, false, usedThisCycle),
+        });
+        return;
+      }
+
+      if (interaction.customId === "boss_run_confirm") {
         ended = true;
         logs.length = 0;
         pushBossLog(logs, "🏃 You ran away from the boss battle.");
