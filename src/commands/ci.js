@@ -5,13 +5,34 @@ const {
   ButtonStyle,
 } = require("discord.js");
 const { getPlayer } = require("../playerStore");
-const { findCardTemplate, findOwnedCard, hydrateCard } = require("../utils/evolution");
+const {
+  findCardTemplate,
+  findOwnedCard,
+  hydrateCard,
+  getAllCards,
+} = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
 
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
+function getAllGlobalCard(card) {
+  const code = String(card?.code || "").toLowerCase();
+
+  if (!code) return card;
+
+  return (
+    getAllCards().find(
+      (entry) => String(entry.code || "").toLowerCase() === code
+    ) || card
+  );
+}
+
+function getAllGlobalPower(card) {
+  return Number(card?.currentPower || card?.powerCaps?.M3 || 0);
 }
 
 function getStageRawForm(card, stage) {
@@ -36,28 +57,6 @@ function getStageRawStat(card, stageCard, stage, key, fallbackKey = key) {
   );
 }
 
-function getAllM3Power(card) {
-  return Number(card?.currentPower || card?.powerCaps?.M3 || 0);
-}
-
-function getStageDisplayStats(card, stageCard, stage) {
-  if (Number(stage) === 3) {
-    return {
-      atk: Number(card?.atk || 0),
-      hp: Number(card?.hp || 0),
-      speed: Number(card?.speed || 0),
-      power: getAllM3Power(card),
-    };
-  }
-
-  return {
-    atk: Number(getStageRawStat(card, stageCard, stage, "atk") || 0),
-    hp: Number(getStageRawStat(card, stageCard, stage, "hp") || 0),
-    speed: Number(getStageRawStat(card, stageCard, stage, "speed", "spd") || 0),
-    power: getStageRawPower(card, stageCard, stage),
-  };
-}
-
 function getStageRawPower(card, stageCard, stage) {
   const form = getStageRawForm(card, stage);
   const stageKey = `M${stage}`;
@@ -72,6 +71,28 @@ function getStageRawPower(card, stageCard, stage) {
       card?.powerCaps?.M3 ??
       0
   );
+}
+
+function getStageDisplayStats(card, stageCard, stage) {
+  if (Number(stage) === 3) {
+    const allGlobalCard = getAllGlobalCard(card);
+
+    return {
+      source: allGlobalCard,
+      atk: Number(allGlobalCard?.atk || 0),
+      hp: Number(allGlobalCard?.hp || 0),
+      speed: Number(allGlobalCard?.speed || 0),
+      power: getAllGlobalPower(allGlobalCard),
+    };
+  }
+
+  return {
+    source: card,
+    atk: Number(getStageRawStat(card, stageCard, stage, "atk") || 0),
+    hp: Number(getStageRawStat(card, stageCard, stage, "hp") || 0),
+    speed: Number(getStageRawStat(card, stageCard, stage, "speed", "spd") || 0),
+    power: getStageRawPower(card, stageCard, stage),
+  };
 }
 
 function prettifyCode(value) {
@@ -117,23 +138,31 @@ function getStageCard(card, stage) {
 
 function buildReqEmbed(card, stage) {
   const stageCard = getStageCard(card, stage);
-  const req = stageCard.awakenRequirements?.[`M${stage}`] || card.awakenRequirements?.[`M${stage}`];
+  const req =
+    stageCard.awakenRequirements?.[`M${stage}`] ||
+    card.awakenRequirements?.[`M${stage}`];
 
   if (!req) {
     return new EmbedBuilder()
       .setColor(0x2ecc71)
-      .setTitle(`ℹ️ Requirement • ${stageCard.displayName || card.displayName || card.name} • M${stage}`)
+      .setTitle(
+        `ℹ️ Requirement • ${
+          stageCard.displayName || card.displayName || card.name
+        } • M${stage}`
+      )
       .setDescription("Base form.\nNo requirement.");
   }
 
   const levelText =
-    stageCard.cardRole === "battle"
-      ? Number(req.minLevel || 0)
-      : "Not required";
+    stageCard.cardRole === "battle" ? Number(req.minLevel || 0) : "Not required";
 
   return new EmbedBuilder()
     .setColor(0x2ecc71)
-    .setTitle(`ℹ️ Requirement • ${stageCard.displayName || card.displayName || card.name} • M${stage}`)
+    .setTitle(
+      `ℹ️ Requirement • ${
+        stageCard.displayName || card.displayName || card.name
+      } • M${stage}`
+    )
     .setDescription(
       [
         "**Requirement Panel**",
@@ -142,7 +171,9 @@ function buildReqEmbed(card, stage) {
         `↪ ${Number(req.berries || 0).toLocaleString("en-US")}`,
         "",
         "**Self Fragments Required**",
-        `↪ ${Number(req.selfFragments || 0)}x ${stageCard.displayName || card.displayName || card.name}`,
+        `↪ ${Number(req.selfFragments || 0)}x ${
+          stageCard.displayName || card.displayName || card.name
+        }`,
         "",
         "**Level Requirement**",
         `↪ ${levelText}`,
@@ -180,17 +211,23 @@ function getStageImage(card, stageCard, stage) {
 }
 
 function getStageBadge(card, stageCard, stage) {
-  const form = stageCard?.evolutionForms?.[stage - 1] || card.evolutionForms?.[stage - 1];
+  const form =
+    stageCard?.evolutionForms?.[stage - 1] || card.evolutionForms?.[stage - 1];
 
-  return form?.badgeImage || getRarityBadge(form?.tier || stageCard?.currentTier || card.rarity);
+  return (
+    form?.badgeImage ||
+    getRarityBadge(form?.tier || stageCard?.currentTier || card.rarity)
+  );
 }
 
 function buildEmbed(card, owned, stage) {
   const stageCard = getStageCard(card, stage);
-  const form = stageCard.evolutionForms?.[stage - 1] || card.evolutionForms?.[stage - 1];
+  const form =
+    stageCard.evolutionForms?.[stage - 1] || card.evolutionForms?.[stage - 1];
   const stageImage = getStageImage(card, stageCard, stage);
   const stageBadge = getStageBadge(card, stageCard, stage);
   const displayStats = getStageDisplayStats(card, stageCard, stage);
+  const statSource = displayStats.source || card;
 
   const extraLines =
     stageCard.cardRole === "boost"
@@ -199,7 +236,9 @@ function buildEmbed(card, owned, stage) {
           `Tier: ${form?.tier || stageCard.currentTier || stageCard.rarity}`,
           `Role: ${stageCard.cardRole}`,
           `Power: ${displayStats.power}`,
-          `Effect: ${form?.effectText || stageCard.effectText || "No effect text"}`,
+          `Effect: ${
+            form?.effectText || stageCard.effectText || "No effect text"
+          }`,
           `Target: ${stageCard.boostTarget || "team"}`,
           `Boost Type: ${stageCard.boostType || "unknown"}`,
           `Fragments: ${Number(owned?.fragments || 0)}`,
@@ -207,15 +246,15 @@ function buildEmbed(card, owned, stage) {
       : [
           `Form: ${stageCard.evolutionKey || `M${stage}`}`,
           `Tier: ${form?.tier || stageCard.currentTier || stageCard.rarity}`,
-          `Role: ${card.cardRole || stageCard.cardRole}`,
+          `Role: ${statSource.cardRole || card.cardRole || stageCard.cardRole}`,
           `Power: ${displayStats.power}`,
-          `Type: ${card.type || stageCard.type || "Battle"}`,
+          `Type: ${statSource.type || card.type || stageCard.type || "Battle"}`,
           "",
           `ATK: ${formatAtkRange(displayStats.atk)}`,
           `HP: ${Number(displayStats.hp || 0)}`,
           `SPD: ${Number(displayStats.speed || 0)}`,
-          `Weapon Set: ${card.weapon || "None"}`,
-          `Devil Fruit: ${card.devilFruit || "None"}`,
+          `Weapon Set: ${statSource.weapon || card.weapon || "None"}`,
+          `Devil Fruit: ${statSource.devilFruit || card.devilFruit || "None"}`,
         ];
 
   return buildCardStyleEmbed({
