@@ -59,10 +59,6 @@ function formatAtkRange(atk) {
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
-function applyBoostToNumber(value, percent) {
-  return Math.floor(Number(value || 0) * (1 + Number(percent || 0) / 100));
-}
-
 function formatExpResults(playerTeam, expResults) {
   return expResults
     .map((entry) => {
@@ -104,10 +100,6 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   const displayHp = Number(synced.hp || 0);
   const displaySpeed = Number(synced.speed || 0);
 
-  const battleAtk = applyBoostToNumber(displayAtk, combatBoosts.atk);
-  const battleMaxHp = applyBoostToNumber(displayHp, combatBoosts.hp);
-  const battleSpeed = applyBoostToNumber(displaySpeed, combatBoosts.spd);
-
   return {
     slot: slotIndex + 1,
     sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
@@ -120,10 +112,10 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     maxHp: displayHp,
     speed: displaySpeed,
 
-    battleAtk,
-    battleHp: battleMaxHp,
-    battleMaxHp,
-    battleSpeed,
+    battleAtk: displayAtk,
+    battleHp: displayHp,
+    battleMaxHp: displayHp,
+    battleSpeed: displaySpeed,
 
     level: Number(synced.level || 1),
     levelCap: getCardLevelCap(synced),
@@ -132,9 +124,9 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     image: synced.image || "",
 
     passiveBoostsApplied: {
-      atk: Number(combatBoosts.atk || 0),
-      hp: Number(combatBoosts.hp || 0),
-      spd: Number(combatBoosts.spd || 0),
+      atk: 0,
+      hp: 0,
+      spd: 0,
       dmg: Number(combatBoosts.dmg || 0),
       exp: Number(combatBoosts.exp || 0),
     },
@@ -240,13 +232,13 @@ function getAliveUnits(units) {
 }
 
 function getAliveUnitIds(units) {
-  return getAliveUnits(units).map((unit) => String(unit.instanceId));
+  return getAliveUnits(units).map((unit) => String(unit.instanceId || unit.globalSlot));
 }
 
 function isUnitUsedThisCycle(usedThisCycle, unit) {
-  return Array.isArray(usedThisCycle)
-    ? usedThisCycle.includes(String(unit?.instanceId || ""))
-    : false;
+  const key = String(unit?.instanceId || unit?.globalSlot || "");
+
+  return Array.isArray(usedThisCycle) ? usedThisCycle.includes(key) : false;
 }
 
 function resetBossActionCycleIfReady(playerTeam, usedThisCycle) {
@@ -353,181 +345,37 @@ function requiresJoinLobbyForBossPhase(island, phaseBoss) {
   return ["egghead", "elbaf"].includes(islandCode) && phase === 2;
 }
 
-function buildBossJoinEmbed(hostId, island, phaseBoss, joinedIds, statusText = "") {
-  const phaseLabel = phaseBoss ? `Phase ${phaseBoss.phase}` : "Boss Phase";
-  const joinedList = [...joinedIds].map((id, index) => `${index + 1}. <@${id}>`);
-
-  return new EmbedBuilder()
-    .setColor(joinedIds.size >= BOSS_PHASE_JOIN_REQUIRED ? 0x2ecc71 : 0xf1c40f)
-    .setTitle(`👥 ${island.name} ${phaseLabel} Lobby`)
-    .setDescription(
-      [
-        `**Host:** <@${hostId}>`,
-        `**Joined:** ${joinedIds.size}/${BOSS_PHASE_JOIN_REQUIRED}`,
-        "",
-        joinedList.length ? joinedList.join("\n") : "No one has joined yet.",
-        "",
-        statusText || "At least **2 users must join this boss lobby** before the fight can start.",
-      ].join("\n")
-    )
-    .setFooter({
-      text: "One Piece Bot • Boss Join Lobby",
-    });
+function normalizePhaseArg(args = []) {
+  const raw = String(args[0] || "").toLowerCase().trim();
+  if (["1", "p1", "phase1", "phase-1"].includes(raw)) return 1;
+  if (["2", "p2", "phase2", "phase-2"].includes(raw)) return 2;
+  return null;
 }
 
-function buildBossJoinButtons() {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("boss_lobby_join")
-        .setLabel("Join")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId("boss_lobby_start")
-        .setLabel("Start")
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId("boss_lobby_cancel")
-        .setLabel("Cancel")
-        .setStyle(ButtonStyle.Danger)
-    ),
-  ];
+function getRequestedBossPhase(player, island, args = []) {
+  if (!isPhasedIsland(island)) return null;
+
+  const requestedPhase = normalizePhaseArg(args);
+  const phases = Array.isArray(island.bossPhases) ? island.bossPhases : [];
+
+  if (!requestedPhase) return getBossPhaseForBattle(player, island);
+
+  const phaseBoss = phases.find((phase) => Number(phase.phase) === requestedPhase);
+  if (!phaseBoss) return null;
+
+  const phaseState = getBossPhaseState(player, island.code);
+
+  if (requestedPhase === 2 && !phaseState.phase1Cleared) {
+    return {
+      error: `You must clear **${island.name} Phase 1** before challenging Phase 2.`,
+    };
+  }
+
+  return phaseBoss;
 }
 
-async function waitForBossJoinLobby(message, island, phaseBoss) {
-  const joinedIds = new Set([String(message.author.id)]);
-  let approved = false;
-  let cancelled = false;
-
-  const lobbyMessage = await message.reply({
-    embeds: [
-      buildBossJoinEmbed(
-        message.author.id,
-        island,
-        phaseBoss,
-        joinedIds,
-        "Host is counted as joined. At least **1 more user** must press **Join**."
-      ),
-    ],
-    components: buildBossJoinButtons(),
-  });
-
-  const collector = lobbyMessage.createMessageComponentCollector({
-    time: BOSS_JOIN_LOBBY_MS,
-  });
-
-  await new Promise((resolve) => {
-    collector.on("collect", async (interaction) => {
-      if (interaction.customId === "boss_lobby_join") {
-        joinedIds.add(String(interaction.user.id));
-
-        await interaction.update({
-          embeds: [
-            buildBossJoinEmbed(
-              message.author.id,
-              island,
-              phaseBoss,
-              joinedIds,
-              joinedIds.size >= BOSS_PHASE_JOIN_REQUIRED
-                ? "Enough users joined. The host can press **Start**."
-                : "Waiting for more users to press **Join**."
-            ),
-          ],
-          components: buildBossJoinButtons(),
-        });
-
-        return;
-      }
-
-      if (interaction.user.id !== message.author.id) {
-        return interaction.reply({
-          content: "Only the host can start or cancel this boss lobby.",
-          ephemeral: true,
-        });
-      }
-
-      if (interaction.customId === "boss_lobby_cancel") {
-        cancelled = true;
-
-        await interaction.update({
-          embeds: [
-            buildBossJoinEmbed(
-              message.author.id,
-              island,
-              phaseBoss,
-              joinedIds,
-              "Boss lobby cancelled."
-            ),
-          ],
-          components: [],
-        });
-
-        collector.stop("cancelled");
-        resolve();
-        return;
-      }
-
-      if (interaction.customId === "boss_lobby_start") {
-        if (joinedIds.size < BOSS_PHASE_JOIN_REQUIRED) {
-          return interaction.reply({
-            content:
-              "You need at least **2 users** to start this boss phase. Ask another user to press **Join** first.",
-            ephemeral: true,
-          });
-        }
-
-        approved = true;
-
-        await interaction.update({
-          embeds: [
-            buildBossJoinEmbed(
-              message.author.id,
-              island,
-              phaseBoss,
-              joinedIds,
-              "Boss lobby approved. Starting boss battle..."
-            ),
-          ],
-          components: [],
-        });
-
-        collector.stop("started");
-        resolve();
-      }
-    });
-
-    collector.on("end", async (_collected, reason) => {
-      if (approved || cancelled || reason === "started" || reason === "cancelled") {
-        resolve();
-        return;
-      }
-
-      cancelled = true;
-
-      try {
-        await lobbyMessage.edit({
-          embeds: [
-            buildBossJoinEmbed(
-              message.author.id,
-              island,
-              phaseBoss,
-              joinedIds,
-              "Boss lobby expired. Please run `op boss` again."
-            ),
-          ],
-          components: [],
-        });
-      } catch (_) {}
-
-      resolve();
-    });
-  });
-
-  return {
-    approved,
-    cancelled,
-    joinedIds: [...joinedIds],
-  };
+function isBossPhaseTwoParty(island, phaseBoss) {
+  return requiresJoinLobbyForBossPhase(island, phaseBoss);
 }
 
 function getIslandBossImage(currentIsland, phaseBoss = null, fromDb = null) {
@@ -571,9 +419,9 @@ function getSpecialIslandBossTemplate(currentIsland) {
     foosha_village: {
       name: "Mountain Bandit Dadan",
       rarity: "C",
-      atk: 125,
-      hp: 1400,
-      speed: 42,
+      atk: 200,
+      hp: 1500,
+      speed: 45,
       image,
     },
     reverse_mountain: {
@@ -717,6 +565,296 @@ function getBossTemplate(currentIsland, phaseBoss = null) {
     maxHp: fallbackHp,
     speed: fallbackSpeed,
     image: getIslandBossImage(currentIsland, phaseBoss, null),
+  };
+}
+
+function buildPhaseSelectEmbed(island, player) {
+  const phaseState = getBossPhaseState(player, island.code);
+  const phases = Array.isArray(island.bossPhases) ? island.bossPhases : [];
+
+  const lines = phases.map((phase) => {
+    const num = Number(phase.phase || 0);
+    const cleared =
+      num === 1
+        ? phaseState.phase1Cleared
+        : num === 2
+        ? phaseState.phase2Cleared
+        : false;
+
+    return `**Phase ${num}:** ${phase.name || phase.bossName || "Boss"} ${
+      cleared ? "✅ Cleared" : "⚔️ Available"
+    }`;
+  });
+
+  return new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle(`${island.name} Boss Phase Select`)
+    .setDescription(
+      [
+        "Choose which boss phase you want to fight.",
+        "",
+        ...lines,
+        "",
+        "Phase 2 uses raid-style battle and every joined user enters with their full 3-card team.",
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Boss Phase Select",
+    });
+}
+
+function buildPhaseSelectRows(player, island) {
+  const phaseState = getBossPhaseState(player, island.code);
+
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("boss_phase_1")
+        .setLabel("Phase 1 Boss")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("boss_phase_2")
+        .setLabel("Phase 2 Raid Boss")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(!phaseState.phase1Cleared)
+    ),
+  ];
+}
+
+async function chooseBossPhase(message, player, island) {
+  if (!isPhasedIsland(island)) return null;
+
+  const sent = await message.reply({
+    embeds: [buildPhaseSelectEmbed(island, player)],
+    components: buildPhaseSelectRows(player, island),
+  });
+
+  try {
+    const interaction = await sent.awaitMessageComponent({
+      time: 60 * 1000,
+      filter: (button) =>
+        button.user.id === message.author.id &&
+        ["boss_phase_1", "boss_phase_2"].includes(button.customId),
+    });
+
+    const selectedPhase = interaction.customId === "boss_phase_2" ? 2 : 1;
+    const phaseBoss = getRequestedBossPhase(player, island, [String(selectedPhase)]);
+
+    if (phaseBoss?.error) {
+      await interaction.update({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle("Boss Phase Locked")
+            .setDescription(phaseBoss.error),
+        ],
+        components: [],
+      });
+
+      return {
+        cancelled: true,
+      };
+    }
+
+    await interaction.update({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle("Boss Phase Selected")
+          .setDescription(`Starting **${island.name} Phase ${selectedPhase}**...`),
+      ],
+      components: [],
+    });
+
+    return phaseBoss;
+  } catch (_) {
+    try {
+      await sent.edit({
+        components: [],
+      });
+    } catch {}
+
+    return {
+      cancelled: true,
+    };
+  }
+}
+
+function buildBossJoinEmbed(hostId, island, phaseBoss, joinedIds, statusText = "") {
+  const phaseLabel = phaseBoss ? `Phase ${phaseBoss.phase}` : "Boss Phase";
+  const joinedList = [...joinedIds].map((id, index) => `${index + 1}. <@${id}>`);
+
+  return new EmbedBuilder()
+    .setColor(joinedIds.size >= BOSS_PHASE_JOIN_REQUIRED ? 0x2ecc71 : 0xf1c40f)
+    .setTitle(`👥 ${island.name} ${phaseLabel} Raid Lobby`)
+    .setDescription(
+      [
+        `**Host:** <@${hostId}>`,
+        `**Joined:** ${joinedIds.size}/${BOSS_PHASE_JOIN_REQUIRED}`,
+        "",
+        joinedList.length ? joinedList.join("\n") : "No one has joined yet.",
+        "",
+        statusText ||
+          "Users who press **Join** will enter with their current full 3-card team.",
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Boss Phase 2 Lobby",
+    });
+}
+
+function buildBossJoinButtons() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("boss_lobby_join")
+        .setLabel("Join")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId("boss_lobby_start")
+        .setLabel("Start")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("boss_lobby_cancel")
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Danger)
+    ),
+  ];
+}
+
+async function waitForBossJoinLobby(message, island, phaseBoss) {
+  const joinedIds = new Set([String(message.author.id)]);
+  let approved = false;
+  let cancelled = false;
+
+  const lobbyMessage = await message.reply({
+    embeds: [
+      buildBossJoinEmbed(
+        message.author.id,
+        island,
+        phaseBoss,
+        joinedIds,
+        "Host is counted as joined. Other users can press **Join** to enter with their full 3-card team."
+      ),
+    ],
+    components: buildBossJoinButtons(),
+  });
+
+  const collector = lobbyMessage.createMessageComponentCollector({
+    time: BOSS_JOIN_LOBBY_MS,
+  });
+
+  await new Promise((resolve) => {
+    collector.on("collect", async (interaction) => {
+      if (interaction.customId === "boss_lobby_join") {
+        joinedIds.add(String(interaction.user.id));
+
+        await interaction.update({
+          embeds: [
+            buildBossJoinEmbed(
+              message.author.id,
+              island,
+              phaseBoss,
+              joinedIds,
+              joinedIds.size >= BOSS_PHASE_JOIN_REQUIRED
+                ? "Enough users joined. The host can press **Start**."
+                : "Waiting for more users to press **Join**."
+            ),
+          ],
+          components: buildBossJoinButtons(),
+        });
+
+        return;
+      }
+
+      if (interaction.user.id !== message.author.id) {
+        return interaction.reply({
+          content: "Only the host can start or cancel this boss lobby.",
+          ephemeral: true,
+        });
+      }
+
+      if (interaction.customId === "boss_lobby_cancel") {
+        cancelled = true;
+
+        await interaction.update({
+          embeds: [
+            buildBossJoinEmbed(
+              message.author.id,
+              island,
+              phaseBoss,
+              joinedIds,
+              "Boss lobby cancelled."
+            ),
+          ],
+          components: [],
+        });
+
+        collector.stop("cancelled");
+        resolve();
+        return;
+      }
+
+      if (interaction.customId === "boss_lobby_start") {
+        if (joinedIds.size < BOSS_PHASE_JOIN_REQUIRED) {
+          return interaction.reply({
+            content:
+              "You need at least **2 users** to start this boss phase. Ask another user to press **Join** first.",
+            ephemeral: true,
+          });
+        }
+
+        approved = true;
+
+        await interaction.update({
+          embeds: [
+            buildBossJoinEmbed(
+              message.author.id,
+              island,
+              phaseBoss,
+              joinedIds,
+              "Boss lobby approved. Starting boss battle..."
+            ),
+          ],
+          components: [],
+        });
+
+        collector.stop("started");
+        resolve();
+      }
+    });
+
+    collector.on("end", async (_collected, reason) => {
+      if (approved || cancelled || reason === "started" || reason === "cancelled") {
+        resolve();
+        return;
+      }
+
+      cancelled = true;
+
+      try {
+        await lobbyMessage.edit({
+          embeds: [
+            buildBossJoinEmbed(
+              message.author.id,
+              island,
+              phaseBoss,
+              joinedIds,
+              "Boss lobby expired. Please run `op boss` again."
+            ),
+          ],
+          components: [],
+        });
+      } catch (_) {}
+
+      resolve();
+    });
+  });
+
+  return {
+    approved,
+    cancelled,
+    joinedIds: [...joinedIds],
   };
 }
 
@@ -953,39 +1091,6 @@ function applyBossQuestProgress(player, keys) {
   return nextQuests;
 }
 
-function normalizePhaseArg(args = []) {
-  const raw = String(args[0] || "").toLowerCase().trim();
-  if (["1", "p1", "phase1", "phase-1"].includes(raw)) return 1;
-  if (["2", "p2", "phase2", "phase-2"].includes(raw)) return 2;
-  return null;
-}
-
-function getRequestedBossPhase(player, island, args = []) {
-  if (!isPhasedIsland(island)) return null;
-
-  const requestedPhase = normalizePhaseArg(args);
-  const phases = Array.isArray(island.bossPhases) ? island.bossPhases : [];
-
-  if (!requestedPhase) return getBossPhaseForBattle(player, island);
-
-  const phaseBoss = phases.find((phase) => Number(phase.phase) === requestedPhase);
-  if (!phaseBoss) return null;
-
-  const phaseState = getBossPhaseState(player, island.code);
-
-  if (requestedPhase === 2 && !phaseState.phase1Cleared) {
-    return {
-      error: `You must clear **${island.name} Phase 1** before challenging Phase 2.`,
-    };
-  }
-
-  return phaseBoss;
-}
-
-function isBossPhaseTwoParty(island, phaseBoss) {
-  return requiresJoinLobbyForBossPhase(island, phaseBoss);
-}
-
 function getFullTeamFromPlayer(player) {
   const combatBoosts = getPassiveBoostSummary(player);
   const rawCards = Array.isArray(player.cards) ? player.cards : [];
@@ -1039,28 +1144,19 @@ async function resolveUsernameSafe(message, userId) {
   return id;
 }
 
-async function buildSavedRaidBossParticipants(message, hostPlayer) {
+async function buildRaidBossParticipantsFromJoinedIds(message, joinedIds) {
   const players = readPlayers();
-  const hostId = String(message.author.id);
-  const savedMembers = Array.isArray(hostPlayer?.raidTeam?.members)
-    ? hostPlayer.raidTeam.members.map(String).filter(Boolean)
-    : [];
-
-  const participantIds = [hostId, ...savedMembers]
-    .filter((id, index, arr) => arr.indexOf(id) === index)
-    .slice(0, 4);
-
   const participants = [];
   const rejected = [];
 
-  for (const userId of participantIds) {
+  for (const userId of joinedIds.map(String)) {
     const player =
-      userId === hostId
-        ? hostPlayer
+      userId === String(message.author.id)
+        ? getPlayer(userId, message.author.username)
         : players[userId];
 
     const username =
-      userId === hostId
+      userId === String(message.author.id)
         ? message.author.username
         : await resolveUsernameSafe(message, userId);
 
@@ -1165,16 +1261,24 @@ function applyBoxes(currentBoxes, rewardBoxes) {
   return updatedBoxes;
 }
 
-function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended) {
+function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, usedThisCycle = []) {
   const phaseLabel = phaseBoss ? `Phase ${phaseBoss.phase}` : "Boss";
+  const usedSet = new Set((Array.isArray(usedThisCycle) ? usedThisCycle : []).map(String));
+
   const teamLines = [];
 
   for (const participant of participants) {
-    teamLines.push(`## ${participant.username}`);
+    teamLines.push(`**${participant.username}**`);
+
     for (const unit of participant.units) {
+      const unitKey = String(unit.instanceId || unit.globalSlot);
+      const isDead = Number(unit.battleHp ?? unit.hp) <= 0;
+      const alreadyUsed = usedSet.has(unitKey);
+      const status = isDead ? "DEFEATED" : alreadyUsed ? "USED" : "READY";
+
       teamLines.push(
         [
-          `**${unit.slot}. ${unit.name}** [${unit.rarity}] • LV \`${unit.level}\``,
+          `\`${unit.globalSlot + 1}.\` ${unit.name} [${unit.rarity}] • LV \`${unit.level}\` • ${status}`,
           `ATK \`${formatAtkRange(unit.battleAtk || unit.atk)}\` • SPD \`${unit.battleSpeed || unit.speed}\``,
           renderHpBar(unit.battleHp ?? unit.hp, unit.battleMaxHp ?? unit.maxHp),
         ].join("\n")
@@ -1192,11 +1296,11 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended) 
         renderHpBar(boss.battleHp ?? boss.hp, boss.battleMaxHp ?? boss.maxHp),
         "",
         "## Battle Log",
-        ...(logs.length ? logs.slice(-2) : ["Choose a card to attack. Host controls the raid."]),
+        ...(logs.length ? logs.slice(-2) : ["Choose a raid unit to attack. Used units are disabled until other alive units act."]),
         "",
         "## Raid Team",
         ...teamLines,
-      ].join("\n")
+      ].join("\n").slice(0, 4096)
     )
     .setImage(boss.image || null)
     .setFooter({ text: "One Piece Bot • Boss Phase 2 Raid" });
@@ -1204,26 +1308,30 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended) 
 
 function buildRaidBossButtons(participants, ended, usedThisCycle = []) {
   const usedSet = new Set((Array.isArray(usedThisCycle) ? usedThisCycle : []).map(String));
+  const allUnits = participants.flatMap((p) => p.units);
   const rows = [];
+  let row = new ActionRowBuilder();
 
-  for (const participant of participants) {
-    const row = new ActionRowBuilder();
+  for (const unit of allUnits) {
+    const unitKey = String(unit.instanceId || unit.globalSlot);
+    const alreadyUsed = usedSet.has(unitKey);
+    const dead = Number(unit.battleHp ?? unit.hp) <= 0;
 
-    for (const unit of participant.units) {
-      const unitKey = String(unit.instanceId || unit.globalSlot);
-      const alreadyUsed = usedSet.has(unitKey);
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`boss_raid_attack_${unit.globalSlot}`)
+        .setLabel(`${unit.ownerName.slice(0, 8)} ${unit.slot}`.slice(0, 80))
+        .setStyle(dead || alreadyUsed ? ButtonStyle.Secondary : ButtonStyle.Primary)
+        .setDisabled(Boolean(ended || dead || alreadyUsed))
+    );
 
-      row.addComponents(
-        new ButtonBuilder()
-          .setCustomId(`boss_raid_attack_${unit.globalSlot}`)
-          .setLabel(`${participant.username.slice(0, 7)} ${unit.slot}`)
-          .setStyle(alreadyUsed ? ButtonStyle.Secondary : ButtonStyle.Primary)
-          .setDisabled(ended || Number(unit.battleHp ?? unit.hp) <= 0 || alreadyUsed)
-      );
+    if (row.components.length >= 5) {
+      rows.push(row);
+      row = new ActionRowBuilder();
     }
-
-    rows.push(row);
   }
+
+  if (row.components.length) rows.push(row);
 
   rows.push(
     new ActionRowBuilder().addComponents(
@@ -1254,27 +1362,39 @@ module.exports = {
     }
 
     const currentIsland = getCurrentIsland(player);
-
     const routeAlreadyCleared = isIslandBossRouteCleared(player, currentIsland);
-    const phaseBossResult = getRequestedBossPhase(player, currentIsland, args);
+
+    let phaseBossResult = null;
+
+    if (isPhasedIsland(currentIsland) && !normalizePhaseArg(args)) {
+      phaseBossResult = await chooseBossPhase(message, player, currentIsland);
+
+      if (phaseBossResult?.cancelled) return;
+    } else {
+      phaseBossResult = getRequestedBossPhase(player, currentIsland, args);
+    }
 
     if (phaseBossResult?.error) {
       return message.reply(phaseBossResult.error);
     }
 
     const phaseBoss = phaseBossResult;
+
     if (isBossPhaseTwoParty(currentIsland, phaseBoss)) {
-      const { participants, rejected } = await buildSavedRaidBossParticipants(
+      const lobby = await waitForBossJoinLobby(message, currentIsland, phaseBoss);
+
+      if (!lobby.approved || lobby.cancelled) return;
+
+      const { participants, rejected } = await buildRaidBossParticipantsFromJoinedIds(
         message,
-        player
+        lobby.joinedIds
       );
 
       if (participants.length < 2) {
         return message.reply(
           [
-            "Boss Phase 2 wajib memakai saved raid team dari `op rtadd @user`.",
-            "Minimal **2 user total** harus valid: host + member raid team.",
-            "Max **4 orang**: host + 3 member pertama dari saved raid team.",
+            "Boss Phase 2 requires at least **2 valid users**.",
+            "Every joined user must have a full battle team of **3 cards**.",
             "",
             rejected.length ? `Rejected:\n${rejected.map((x) => `- ${x}`).join("\n")}` : "",
           ]
@@ -1297,7 +1417,7 @@ module.exports = {
 
       const reply = await message.reply({
         embeds: [
-          buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, ended),
+          buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, ended, usedThisCycle),
         ],
         components: buildRaidBossButtons(participants, ended, usedThisCycle),
       });
@@ -1325,12 +1445,12 @@ module.exports = {
 
         if (interaction.customId === "boss_raid_run") {
           logs.length = 0;
-          logs.push("⚠️ Run away confirmation requested.");
-          logs.push("Choose **Confirm Run Away** to leave Boss Phase 2, or **Cancel** to continue.");
+          pushBossLog(logs, "⚠️ Run away confirmation requested.");
+          pushBossLog(logs, "Confirm run away or cancel to continue.");
 
           await interaction.update({
             embeds: [
-              buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false),
+              buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, usedThisCycle),
             ],
             components: buildRaidBossRunConfirmButtons(),
           });
@@ -1339,12 +1459,12 @@ module.exports = {
 
         if (interaction.customId === "boss_raid_run_cancel") {
           logs.length = 0;
-          logs.push("✅ Run away cancelled.");
-          logs.push("Choose a raid unit to continue Boss Phase 2.");
+          pushBossLog(logs, "✅ Run away cancelled.");
+          pushBossLog(logs, "Choose a raid unit to continue.");
 
           await interaction.update({
             embeds: [
-              buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false),
+              buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, usedThisCycle),
             ],
             components: buildRaidBossButtons(participants, false, usedThisCycle),
           });
@@ -1354,8 +1474,8 @@ module.exports = {
         if (interaction.customId === "boss_raid_run_confirm") {
           ended = true;
           logs.length = 0;
-          logs.push("🏃 The raid host ran away from Boss Phase 2.");
-          logs.push("No EXP gained from running away.");
+          pushBossLog(logs, "🏃 The raid host ran away.");
+          pushBossLog(logs, "No EXP gained from running away.");
 
           const updatedQuests = applyBossQuestProgress(player, ["bossFights"]);
 
@@ -1400,7 +1520,7 @@ module.exports = {
           });
         }
 
-        usedThisCycle.push(unitKey);
+        usedThisCycle = [...new Set([...usedThisCycle, unitKey])];
 
         const owner = participants.find((p) => p.userId === attacker.ownerId);
         logs.length = 0;
@@ -1420,16 +1540,19 @@ module.exports = {
             turn.isPlayer ? attacker.passiveBoostsApplied || owner?.combatBoosts || {} : {}
           );
 
-          logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
-          logs.push(
-            `${turn.isPlayer ? "➡️" : "⬅️"} ${actor.name} dealt **${damage}** damage to ${target.name}.`
+          pushBossLog(logs, `⚔️ ${actor.name} attacked ${target.name}.`);
+          pushBossLog(
+            logs,
+            `${turn.isPlayer ? "➡️" : "⬅️"} ${actor.name} dealt **${damage}** damage.`
           );
 
           if (Number(target.battleHp ?? target.hp) <= 0) {
             if (turn.isPlayer) attacker.kills += 1;
-            logs.push(`☠️ ${target.name} was defeated.`);
+            pushBossLog(logs, `☠️ ${target.name} was defeated.`);
           }
         }
+
+        usedThisCycle = resetBossActionCycleIfReady(allUnits, usedThisCycle);
 
         if (Number(boss.battleHp ?? boss.hp) <= 0) {
           ended = true;
@@ -1515,7 +1638,7 @@ module.exports = {
           storyLines.push(`✅ ${currentIsland.name} Phase ${phaseBoss.phase} cleared.`);
           storyLines.push("Rewards were given to every valid raid participant.");
 
-          logs.push(`🏆 ${boss.name} was defeated by the raid team!`);
+          pushBossLog(logs, `🏆 ${boss.name} was defeated by the raid team!`);
 
           await interaction.update({
             embeds: [
@@ -1568,7 +1691,7 @@ module.exports = {
             });
           }
 
-          logs.push(`💀 The raid team was wiped out by ${boss.name}.`);
+          pushBossLog(logs, `💀 The raid team was wiped out by ${boss.name}.`);
 
           await interaction.update({
             embeds: [
@@ -1589,7 +1712,7 @@ module.exports = {
 
         await interaction.update({
           embeds: [
-            buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false),
+            buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, usedThisCycle),
           ],
           components: buildRaidBossButtons(participants, false, usedThisCycle),
         });
@@ -1601,7 +1724,8 @@ module.exports = {
         if (reason === "time") {
           ended = true;
           logs.length = 0;
-          logs.push("⌛ No interaction for 10 minutes. Boss Phase 2 raid failed.");
+          pushBossLog(logs, "⌛ No interaction for 10 minutes.");
+          pushBossLog(logs, "Boss Phase 2 raid failed.");
 
           try {
             await reply.edit({
@@ -1707,8 +1831,8 @@ module.exports = {
       if (interaction.customId === "boss_run") {
         ended = true;
         logs.length = 0;
-        logs.push("🏃 You ran away from the boss battle.");
-        logs.push("🚫 No EXP gained from running away.");
+        pushBossLog(logs, "🏃 You ran away from the boss battle.");
+        pushBossLog(logs, "🚫 No EXP gained from running away.");
 
         const updatedQuests = applyBossQuestProgress(player, ["bossFights"]);
 
@@ -1873,7 +1997,7 @@ module.exports = {
           quests: updatedQuests,
         });
 
-        logs.push(`🏆 ${boss.name} was defeated!`);
+        pushBossLog(logs, `🏆 ${boss.name} was defeated!`);
 
         await interaction.update({
           embeds: [
@@ -1911,7 +2035,7 @@ module.exports = {
           quests: updatedQuests,
         });
 
-        logs.push(`💀 Your team was wiped out by ${boss.name}.`);
+        pushBossLog(logs, `💀 Your team was wiped out by ${boss.name}.`);
 
         await interaction.update({
           embeds: [
@@ -1963,7 +2087,8 @@ module.exports = {
         });
 
         logs.length = 0;
-        logs.push("⌛ No interaction for 10 minutes. You lost the boss battle.");
+        pushBossLog(logs, "⌛ No interaction for 10 minutes.");
+        pushBossLog(logs, "You lost the boss battle.");
 
         try {
           await reply.edit({
