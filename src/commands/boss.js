@@ -30,6 +30,7 @@ const BOSS_JOIN_LOBBY_MS = 2 * 60 * 1000;
 
 const BOSS_WIN_EXP_PER_CARD = 180;
 const BOSS_LOSE_EXP_PER_CARD = 95;
+const BOSS_MAX_LOG_LINES = 2;
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
@@ -236,6 +237,39 @@ function resolveTurnOrder(playerUnit, bossUnit) {
 
 function getAliveUnits(units) {
   return units.filter((unit) => Number(unit.battleHp ?? unit.hp) > 0);
+}
+
+function getAliveUnitIds(units) {
+  return getAliveUnits(units).map((unit) => String(unit.instanceId));
+}
+
+function isUnitUsedThisCycle(usedThisCycle, unit) {
+  return Array.isArray(usedThisCycle)
+    ? usedThisCycle.includes(String(unit?.instanceId || ""))
+    : false;
+}
+
+function resetBossActionCycleIfReady(playerTeam, usedThisCycle) {
+  const aliveIds = getAliveUnitIds(playerTeam);
+  if (!aliveIds.length) return usedThisCycle;
+
+  const usedAliveIds = (Array.isArray(usedThisCycle) ? usedThisCycle : []).filter((id) =>
+    aliveIds.includes(String(id))
+  );
+
+  if (usedAliveIds.length >= aliveIds.length) {
+    return [];
+  }
+
+  return usedAliveIds;
+}
+
+function pushBossLog(logs, line) {
+  logs.push(line);
+
+  if (logs.length > BOSS_MAX_LOG_LINES) {
+    logs.splice(0, logs.length - BOSS_MAX_LOG_LINES);
+  }
 }
 
 function renderHpBar(hp, maxHp, size = 12) {
@@ -695,7 +729,7 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
     ].join("\n");
   });
 
-  const recentLogs = logs.slice(-6);
+  const recentLogs = logs.slice(-BOSS_MAX_LOG_LINES);
   const phaseLabel = phaseBoss ? ` • Phase ${phaseBoss.phase}` : "";
 
   return new EmbedBuilder()
@@ -740,7 +774,7 @@ function buildBossResultEmbed({
         `**Result:** ${result}`,
         "",
         "## Final Log",
-        ...(logs.length ? logs.slice(-8) : ["No final log."]),
+        ...(logs.length ? logs.slice(-2) : ["No final log."]),
         "",
         rewardLines.length ? "## Rewards" : null,
         ...rewardLines,
@@ -759,30 +793,41 @@ function buildBossResultEmbed({
     });
 }
 
-function buildButtons(playerTeam, ended) {
-  const row1 = new ActionRowBuilder();
+function buildButtons(playerTeam, ended, usedThisCycle = []) {
+  const rows = [];
+  let currentRow = new ActionRowBuilder();
 
-  for (let i = 0; i < 3; i++) {
-    const unit = playerTeam[i];
+  playerTeam.forEach((unit, index) => {
+    const isDead = Number(unit.battleHp ?? unit.hp) <= 0;
+    const alreadyUsed = isUnitUsedThisCycle(usedThisCycle, unit);
 
-    row1.addComponents(
+    currentRow.addComponents(
       new ButtonBuilder()
-        .setCustomId(`boss_attack_${i}`)
-        .setLabel(unit ? unit.name.slice(0, 20) : `Slot ${i + 1}`)
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(ended || !unit || Number(unit.battleHp ?? unit.hp) <= 0)
+        .setCustomId(`boss_attack_${index}`)
+        .setLabel(unit.name.slice(0, 80))
+        .setStyle(isDead || alreadyUsed ? ButtonStyle.Secondary : ButtonStyle.Primary)
+        .setDisabled(Boolean(ended || isDead || alreadyUsed))
     );
-  }
 
-  const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("boss_run")
-      .setLabel("Run Away")
-      .setStyle(ButtonStyle.Danger)
-      .setDisabled(ended)
+    if (currentRow.components.length >= 5) {
+      rows.push(currentRow);
+      currentRow = new ActionRowBuilder();
+    }
+  });
+
+  if (currentRow.components.length) rows.push(currentRow);
+
+  rows.push(
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("boss_run")
+        .setLabel("Run Away")
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(Boolean(ended))
+    )
   );
 
-  return [row1, row2];
+  return rows;
 }
 
 function buildBossRunConfirmButtons() {
@@ -1147,7 +1192,7 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended) 
         renderHpBar(boss.battleHp ?? boss.hp, boss.battleMaxHp ?? boss.maxHp),
         "",
         "## Battle Log",
-        ...(logs.length ? logs.slice(-8) : ["Choose a card to attack. Host controls the raid."]),
+        ...(logs.length ? logs.slice(-2) : ["Choose a card to attack. Host controls the raid."]),
         "",
         "## Raid Team",
         ...teamLines,
@@ -1157,19 +1202,23 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended) 
     .setFooter({ text: "One Piece Bot • Boss Phase 2 Raid" });
 }
 
-function buildRaidBossButtons(participants, ended) {
+function buildRaidBossButtons(participants, ended, usedThisCycle = []) {
+  const usedSet = new Set((Array.isArray(usedThisCycle) ? usedThisCycle : []).map(String));
   const rows = [];
 
   for (const participant of participants) {
     const row = new ActionRowBuilder();
 
     for (const unit of participant.units) {
+      const unitKey = String(unit.instanceId || unit.globalSlot);
+      const alreadyUsed = usedSet.has(unitKey);
+
       row.addComponents(
         new ButtonBuilder()
           .setCustomId(`boss_raid_attack_${unit.globalSlot}`)
           .setLabel(`${participant.username.slice(0, 7)} ${unit.slot}`)
-          .setStyle(ButtonStyle.Primary)
-          .setDisabled(ended || Number(unit.battleHp ?? unit.hp) <= 0)
+          .setStyle(alreadyUsed ? ButtonStyle.Secondary : ButtonStyle.Primary)
+          .setDisabled(ended || Number(unit.battleHp ?? unit.hp) <= 0 || alreadyUsed)
       );
     }
 
@@ -1237,6 +1286,7 @@ module.exports = {
       const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
       const logs = [];
       let ended = false;
+      let usedThisCycle = [];
 
       updatePlayer(message.author.id, {
         cooldowns: {
@@ -1249,7 +1299,7 @@ module.exports = {
         embeds: [
           buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, ended),
         ],
-        components: buildRaidBossButtons(participants, ended),
+        components: buildRaidBossButtons(participants, ended, usedThisCycle),
       });
 
       const collector = reply.createMessageComponentCollector({
@@ -1296,7 +1346,7 @@ module.exports = {
             embeds: [
               buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false),
             ],
-            components: buildRaidBossButtons(participants, false),
+            components: buildRaidBossButtons(participants, false, usedThisCycle),
           });
           return;
         }
@@ -1340,6 +1390,17 @@ module.exports = {
             ephemeral: true,
           });
         }
+
+        const unitKey = String(attacker.instanceId || attacker.globalSlot);
+
+        if (usedThisCycle.includes(unitKey)) {
+          return interaction.reply({
+            content: "This raid unit already acted. Choose another available unit.",
+            ephemeral: true,
+          });
+        }
+
+        usedThisCycle.push(unitKey);
 
         const owner = participants.find((p) => p.userId === attacker.ownerId);
         logs.length = 0;
@@ -1530,7 +1591,7 @@ module.exports = {
           embeds: [
             buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false),
           ],
-          components: buildRaidBossButtons(participants, false),
+          components: buildRaidBossButtons(participants, false, usedThisCycle),
         });
       });
 
@@ -1606,6 +1667,7 @@ module.exports = {
     const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
     const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
     const logs = [];
+    let usedThisCycle = [];
     let ended = false;
 
     const reply = await message.reply({
@@ -1620,7 +1682,7 @@ module.exports = {
           ended
         ),
       ],
-      components: buildButtons(playerTeam, ended),
+      components: buildButtons(playerTeam, ended, usedThisCycle),
     });
 
     const collector = reply.createMessageComponentCollector({
@@ -1682,6 +1744,13 @@ module.exports = {
         });
       }
 
+      if (isUnitUsedThisCycle(usedThisCycle, attacker)) {
+        return interaction.reply({
+          content: "This card already attacked. Choose another ready card first.",
+          ephemeral: true,
+        });
+      }
+
       logs.length = 0;
 
       const turns = resolveTurnOrder(attacker, boss);
@@ -1699,16 +1768,23 @@ module.exports = {
           turn.isPlayer ? actor.passiveBoostsApplied || combatBoosts : {}
         );
 
-        logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
-        logs.push(
+        pushBossLog(logs, `⚔️ ${actor.name} attacked ${target.name}.`);
+        pushBossLog(
+          logs,
           `${turn.isPlayer ? "➡️" : "⬅️"} ${actor.name} dealt **${damage}** damage to ${target.name}.`
         );
 
         if (Number(target.battleHp ?? target.hp) <= 0) {
           if (turn.isPlayer) attacker.kills += 1;
-          logs.push(`☠️ ${target.name} was defeated.`);
+          pushBossLog(logs, `☠️ ${target.name} was defeated.`);
         }
       }
+
+      usedThisCycle = [
+        ...new Set([...usedThisCycle, String(attacker.instanceId)]),
+      ];
+
+      usedThisCycle = resetBossActionCycleIfReady(playerTeam, usedThisCycle);
 
       if (Number(boss.battleHp ?? boss.hp) <= 0) {
         ended = true;
@@ -1866,7 +1942,7 @@ module.exports = {
             false
           ),
         ],
-        components: buildButtons(playerTeam, false),
+        components: buildButtons(playerTeam, false, usedThisCycle),
       });
     });
 
