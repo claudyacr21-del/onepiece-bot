@@ -871,7 +871,7 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
   const teamLines = playerTeam.map((unit) => {
     return [
       `**${unit.slot}. ${unit.name}** [${unit.rarity}] • LV \`${unit.level}\``,
-      `ATK \`${formatAtkRange(unit.battleAtk || unit.atk)}\` • SPD \`${unit.battleSpeed || unit.speed}\``,
+      `PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` • ATK \`${formatAtkRange(unit.battleAtk || unit.atk)}\` • SPD \`${unit.battleSpeed || unit.speed}\``,
       renderHpBar(unit.battleHp ?? unit.hp, unit.battleMaxHp ?? unit.maxHp),
     ].join("\n");
   });
@@ -1288,7 +1288,7 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
       teamLines.push(
         [
           `\`${unit.globalSlot + 1}.\` ${unit.name} [${unit.rarity}] • LV \`${unit.level}\` • ${status}`,
-          `ATK \`${formatAtkRange(unit.battleAtk || unit.atk)}\` • SPD \`${unit.battleSpeed || unit.speed}\``,
+          `PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` • ATK \`${formatAtkRange(unit.battleAtk || unit.atk)}\` • SPD \`${unit.battleSpeed || unit.speed}\``,
           renderHpBar(unit.battleHp ?? unit.hp, unit.battleMaxHp ?? unit.maxHp),
         ].join("\n")
       );
