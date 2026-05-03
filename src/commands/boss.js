@@ -297,6 +297,15 @@ function renderHpBar(hp, maxHp, size = 12) {
   return `${"█".repeat(safeFilled)}${"░".repeat(size - safeFilled)} ${current}/${max}`;
 }
 
+function renderBossHpBar(hp, maxHp, size = 18) {
+  const current = Math.max(0, Number(hp || 0));
+  const max = Math.max(1, Number(maxHp || 1));
+  const filled = Math.round((current / max) * size);
+  const safeFilled = Math.max(0, Math.min(size, filled));
+
+  return `${"🟩".repeat(safeFilled)}${"⬛".repeat(size - safeFilled)}`;
+}
+
 function isPhasedIsland(island) {
   return Array.isArray(island?.bossPhases) && island.bossPhases.length > 0;
 }
@@ -885,9 +894,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
 function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, ended) {
   const teamLines = playerTeam.map((unit) => {
     return [
-      `**${unit.slot}. ${unit.name}** [${unit.rarity}] • LV \`${unit.level}\``,
-      `❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\``,
-      `⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)}`,
+      `**${unit.slot}. ${unit.name}**`,
+      `❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)}`,
     ].join("\n");
   });
 
@@ -904,8 +912,8 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
         "",
         "## ☠️ Boss",
         `**${boss.name}** [${boss.rarity}]`,
-        `❤️ ${Math.max(0, Number(boss.battleHp ?? boss.hp))}/${Number(boss.battleMaxHp ?? boss.maxHp)} | SPD \`${boss.battleSpeed || boss.speed}\``,
-        `⚔️ ${formatAtkRange(boss.battleAtk || boss.atk)}`,
+        renderBossHpBar(boss.battleHp ?? boss.hp, boss.battleMaxHp ?? boss.maxHp),
+        `❤️ ${Math.max(0, Number(boss.battleHp ?? boss.hp))}/${Number(boss.battleMaxHp ?? boss.maxHp)} | SPD \`${boss.battleSpeed || boss.speed}\` | ⚔️ ${formatAtkRange(boss.battleAtk || boss.atk)}`,
         "",
         "## Battle Log",
         ...(recentLogs.length
@@ -1315,7 +1323,10 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
 
   for (const participant of participants) {
     for (const unit of participant.units) {
-      const unitKey = getUnitActionKey(unit);
+      const unitKey = typeof getUnitActionKey === "function"
+        ? getUnitActionKey(unit)
+        : String(unit.instanceId || unit.globalSlot);
+
       const isDead = Number(unit.battleHp ?? unit.hp) <= 0;
       const alreadyUsed = usedSet.has(unitKey);
       const status = isDead ? "DEFEATED" : alreadyUsed ? "WAIT" : "READY";
@@ -1323,8 +1334,7 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
       teamLines.push(
         [
           `**${unit.globalSlot + 1}. ${unit.name}** ${alreadyUsed ? "⏳" : ""}`,
-          `❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ${status}`,
-          `⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)}`,
+          `❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)} | ${status}`,
         ].join("\n")
       );
     }
@@ -1340,8 +1350,8 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
         "",
         "## ☠️ Boss",
         `**${boss.name}** [${boss.rarity}]`,
-        `❤️ ${Math.max(0, Number(boss.battleHp ?? boss.hp))}/${Number(boss.battleMaxHp ?? boss.maxHp)} | SPD \`${boss.battleSpeed || boss.speed}\``,
-        `⚔️ ${formatAtkRange(boss.battleAtk || boss.atk)}`,
+        renderBossHpBar(boss.battleHp ?? boss.hp, boss.battleMaxHp ?? boss.maxHp),
+        `❤️ ${Math.max(0, Number(boss.battleHp ?? boss.hp))}/${Number(boss.battleMaxHp ?? boss.maxHp)} | SPD \`${boss.battleSpeed || boss.speed}\` | ⚔️ ${formatAtkRange(boss.battleAtk || boss.atk)}`,
         "",
         "## Battle Log",
         ...(logs.length ? logs.slice(-2) : ["Choose a raid unit to attack."]),
@@ -1361,7 +1371,10 @@ function buildRaidBossButtons(participants, ended, usedThisCycle = []) {
   let row = new ActionRowBuilder();
 
   for (const unit of allUnits) {
-    const unitKey = getUnitActionKey(unit);
+    const unitKey = typeof getUnitActionKey === "function"
+      ? getUnitActionKey(unit)
+      : String(unit.instanceId || unit.globalSlot);
+
     const alreadyUsed = usedSet.has(unitKey);
     const dead = Number(unit.battleHp ?? unit.hp) <= 0;
     const label = `${unit.globalSlot + 1} ${unit.name}`.slice(0, 80);
