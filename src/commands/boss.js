@@ -11,8 +11,9 @@ const { incrementQuestPayload } = require("../utils/questProgress");
 const { getCurrentIsland } = require("../data/islands");
 const cardsDb = require("../data/cards");
 const { hydrateCard } = require("../utils/evolution");
-const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
+  getPlayerCombatCards,
+  getPlayerCombatBoosts,
   applyDamageBoost,
   applyExpBoost,
 } = require("../utils/combatStats");
@@ -99,11 +100,17 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   const displayAtk = Number(synced.atk || 0);
   const displayHp = Number(synced.hp || 0);
   const displaySpeed = Number(synced.speed || 0);
+  const displayPower = Number(
+    synced.currentPower ||
+      synced.power ||
+      Math.floor(displayAtk * 1.4 + displayHp * 0.22 + displaySpeed * 9)
+  );
 
   return {
     slot: slotIndex + 1,
     sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
     instanceId: synced.instanceId,
+    code: synced.code,
     name: synced.displayName || synced.name || "Unknown",
     rarity: synced.currentTier || synced.rarity || "C",
 
@@ -111,11 +118,13 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     hp: displayHp,
     maxHp: displayHp,
     speed: displaySpeed,
+    currentPower: displayPower,
 
     battleAtk: displayAtk,
     battleHp: displayHp,
     battleMaxHp: displayHp,
     battleSpeed: displaySpeed,
+    battlePower: displayPower,
 
     level: Number(synced.level || 1),
     levelCap: getCardLevelCap(synced),
@@ -124,9 +133,9 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     image: synced.image || "",
 
     passiveBoostsApplied: {
-      atk: 0,
-      hp: 0,
-      spd: 0,
+      atk: Number(combatBoosts.atk || 0),
+      hp: Number(combatBoosts.hp || 0),
+      spd: Number(combatBoosts.spd || 0),
       dmg: Number(combatBoosts.dmg || 0),
       exp: Number(combatBoosts.exp || 0),
     },
@@ -1092,16 +1101,14 @@ function applyBossQuestProgress(player, keys) {
 }
 
 function getFullTeamFromPlayer(player) {
-  const combatBoosts = getPassiveBoostSummary(player);
-  const rawCards = Array.isArray(player.cards) ? player.cards : [];
+  const combatBoosts = getPlayerCombatBoosts(player);
 
-  const cards = rawCards
-    .map((rawCard, sourceIndex) => {
-      const card = hydrateCard(rawCard);
-      if (!card) return null;
-      return { ...card, sourceIndex };
-    })
-    .filter(Boolean);
+  const cards = getPlayerCombatCards(player)
+    .filter((card) => String(card.cardRole || "").toLowerCase() !== "boost")
+    .map((card, sourceIndex) => ({
+      ...card,
+      sourceIndex,
+    }));
 
   const teamSlots = Array.isArray(player?.team?.slots)
     ? player.team.slots
@@ -1112,7 +1119,9 @@ function getFullTeamFromPlayer(player) {
       if (!instanceId) return null;
 
       const found = cards.find(
-        (card) => card.instanceId === instanceId && card.cardRole !== "boost"
+        (card) =>
+          String(card.instanceId) === String(instanceId) &&
+          String(card.cardRole || "").toLowerCase() !== "boost"
       );
 
       return found ? toBattleUnit(found, index, combatBoosts) : null;
@@ -1747,36 +1756,7 @@ module.exports = {
       return;
     }
 
-    const combatBoosts = getPassiveBoostSummary(player);
-
-    const rawCards = Array.isArray(player.cards) ? player.cards : [];
-    const cards = rawCards
-      .map((rawCard, sourceIndex) => {
-        const card = hydrateCard(rawCard);
-        if (!card) return null;
-
-        return {
-          ...card,
-          sourceIndex,
-        };
-      })
-      .filter(Boolean);
-
-    const teamSlots = Array.isArray(player?.team?.slots)
-      ? player.team.slots
-      : [null, null, null];
-
-    const teamCards = teamSlots
-      .map((instanceId, index) => {
-        if (!instanceId) return null;
-
-        const found = cards.find(
-          (card) => card.instanceId === instanceId && card.cardRole !== "boost"
-        );
-
-        return found ? toBattleUnit(found, index, combatBoosts) : null;
-      })
-      .filter(Boolean);
+    const { combatBoosts, teamCards } = getFullTeamFromPlayer(player);
 
     if (teamCards.length < 3) {
       return message.reply("You need a full battle team of 3 cards to challenge the island boss.");
