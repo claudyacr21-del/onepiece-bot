@@ -13,7 +13,6 @@ const cardsDb = require("../data/cards");
 const { hydrateCard } = require("../utils/evolution");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
-  getPlayerCombatBoosts,
   applyDamageBoost,
   applyExpBoost,
 } = require("../utils/combatStats");
