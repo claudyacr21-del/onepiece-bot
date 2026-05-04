@@ -392,25 +392,32 @@ function buildOwnedWeaponCollection(player) {
     const template = findWeaponTemplate(entry.code || entry.name);
     if (!template) continue;
 
-    const key = String(template.code);
+    addWeaponToPool(pool, template, {
+      amount: Math.max(1, Number(entry.amount || 1)),
+      upgradeLevel: Number(entry.upgradeLevel || 0),
+    });
+  }
 
-    const existing = pool.get(key) || {
-      ...template,
-      amount: 0,
-      equippedOn: [],
-      bestUpgradeLevel: 0,
-    };
+  for (const entry of Array.isArray(player.items) ? player.items : []) {
+    const template = findWeaponTemplate(entry.code || entry.name);
+    if (!template) continue;
 
-    existing.amount += Math.max(1, Number(entry.amount || 1));
-    existing.bestUpgradeLevel = Math.max(
-      existing.bestUpgradeLevel,
-      Number(entry.upgradeLevel || 0)
-    );
+    const looksLikeWeapon =
+      String(entry.type || "").toLowerCase().includes("weapon") ||
+      normalize(entry.code) === normalize(template.code) ||
+      normalize(entry.name) === normalize(template.name);
 
-    pool.set(key, existing);
+    if (!looksLikeWeapon) continue;
+
+    addWeaponToPool(pool, template, {
+      amount: Math.max(1, Number(entry.amount || 1)),
+      upgradeLevel: Number(entry.upgradeLevel || 0),
+    });
   }
 
   for (const rawCard of Array.isArray(player.cards) ? player.cards : []) {
+    const cardName = rawCard.displayName || rawCard.name || rawCard.code || "Unknown";
+
     const equipped = Array.isArray(rawCard.equippedWeapons)
       ? rawCard.equippedWeapons
       : [];
@@ -419,22 +426,44 @@ function buildOwnedWeaponCollection(player) {
       const template = findWeaponTemplate(entry.code || entry.name);
       if (!template) continue;
 
-      const key = String(template.code);
-
-      const existing = pool.get(key) || {
-        ...template,
+      addWeaponToPool(pool, template, {
         amount: 0,
-        equippedOn: [],
-        bestUpgradeLevel: 0,
-      };
+        equippedOn: cardName,
+        upgradeLevel: Number(entry.upgradeLevel || 0),
+      });
+    }
 
-      existing.equippedOn.push(rawCard.displayName || rawCard.name || rawCard.code);
-      existing.bestUpgradeLevel = Math.max(
-        existing.bestUpgradeLevel,
-        Number(entry.upgradeLevel || 0)
-      );
+    const legacyCodes = [
+      rawCard.equippedWeaponCode,
+      rawCard.weaponCode,
+    ].filter(Boolean);
 
-      pool.set(key, existing);
+    for (const code of legacyCodes) {
+      const template = findWeaponTemplate(code);
+      if (!template) continue;
+
+      addWeaponToPool(pool, template, {
+        amount: 0,
+        equippedOn: cardName,
+        upgradeLevel: Number(rawCard.weaponUpgradeLevel || rawCard.upgradeLevel || 0),
+      });
+    }
+
+    const legacyNames = [
+      ...splitEquippedWeaponNames(rawCard.equippedWeapon),
+      ...splitEquippedWeaponNames(rawCard.equippedWeaponName),
+      ...splitEquippedWeaponNames(rawCard.displayWeaponName),
+    ];
+
+    for (const name of legacyNames) {
+      const template = findWeaponTemplate(name);
+      if (!template) continue;
+
+      addWeaponToPool(pool, template, {
+        amount: 0,
+        equippedOn: cardName,
+        upgradeLevel: Number(rawCard.weaponUpgradeLevel || rawCard.upgradeLevel || 0),
+      });
     }
   }
 
