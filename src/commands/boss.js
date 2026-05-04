@@ -33,6 +33,10 @@ const BOSS_WIN_EXP_PER_CARD = 180;
 const BOSS_LOSE_EXP_PER_CARD = 95;
 const BOSS_MAX_LOG_LINES = 2;
 
+const BOSS_GLOBAL_ATK_MULT = 1.12;
+const BOSS_GLOBAL_HP_MULT = 1.18;
+const BOSS_GLOBAL_SPD_MULT = 1.08;
+
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
   const index = arr.findIndex((entry) => entry.code === item.code);
@@ -58,6 +62,22 @@ function formatAtkRange(atk) {
   const value = Number(atk || 0);
 
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
+function applyGlobalBossStats(template) {
+  if (!template) return template;
+
+  const atk = Math.max(1, Math.floor(Number(template.atk || 1) * BOSS_GLOBAL_ATK_MULT));
+  const hp = Math.max(1, Math.floor(Number(template.hp || template.maxHp || 1) * BOSS_GLOBAL_HP_MULT));
+  const speed = Math.max(1, Math.floor(Number(template.speed || 1) * BOSS_GLOBAL_SPD_MULT));
+
+  return {
+    ...template,
+    atk,
+    hp,
+    maxHp: hp,
+    speed,
+  };
 }
 
 function applyBoostedDisplayStats(card, boosts = {}) {
@@ -421,7 +441,7 @@ function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
   if (code === "five_elders_combined") {
     const hp = 18000 + order * 520;
 
-    return {
+    return applyGlobalBossStats({
       name: "Five Elders",
       rarity: "UR",
       atk: 850 + order * 16,
@@ -429,7 +449,7 @@ function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
       maxHp: hp,
       speed: 145 + Math.floor(order * 1.2),
       image: getIslandBossImage(currentIsland, phaseBoss, null),
-    };
+    });
   }
 
   return null;
@@ -505,14 +525,14 @@ function getSpecialIslandBossTemplate(currentIsland) {
 
   const hp = Math.floor(Number(base.hp) + order * 180);
 
-  return {
+  return applyGlobalBossStats({
     ...base,
     atk: Math.floor(Number(base.atk) + order * 9),
     hp,
     maxHp: hp,
     speed: Math.floor(Number(base.speed) + order * 1.1),
     image,
-  };
+  });
 }
 
 function getBossTemplate(currentIsland, phaseBoss = null) {
@@ -567,22 +587,24 @@ function getBossTemplate(currentIsland, phaseBoss = null) {
     const baseHp = Number(fromDb.hp || 1000);
     const baseSpeed = Number(fromDb.speed || 50);
 
-    return {
+    const hp = Math.floor(baseHp * hpMul);
+
+    return applyGlobalBossStats({
       name: phaseBoss?.name || fromDb.displayName || fromDb.name,
       rarity: fromDb.currentTier || fromDb.rarity || "S",
       atk: Math.floor(baseAtk * atkMul),
-      hp: Math.floor(baseHp * hpMul),
-      maxHp: Math.floor(baseHp * hpMul),
+      hp,
+      maxHp: hp,
       speed: Math.floor(baseSpeed * spdMul),
       image: getIslandBossImage(currentIsland, phaseBoss, fromDb),
-    };
+    });
   }
 
   const fallbackAtk = 280 + shipTier * 75 + islandOrder * 16;
   const fallbackHp = 4600 + shipTier * 1350 + islandOrder * 320;
   const fallbackSpeed = 105 + shipTier * 12 + Math.floor(islandOrder * 1.25);
 
-  return {
+  return applyGlobalBossStats({
     name: phaseBoss?.name || currentIsland?.boss || "Island Boss",
     rarity: shipTier >= 4 ? "UR" : "S",
     atk: fallbackAtk,
@@ -590,7 +612,7 @@ function getBossTemplate(currentIsland, phaseBoss = null) {
     maxHp: fallbackHp,
     speed: fallbackSpeed,
     image: getIslandBossImage(currentIsland, phaseBoss, null),
-  };
+  });
 }
 
 function buildPhaseSelectEmbed(island, player) {
