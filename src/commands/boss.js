@@ -105,8 +105,7 @@ function formatExpResults(playerTeam, expResults) {
 }
 
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {
-  const synced = hydrateCard(card);
-  const boosted = applyBoostedDisplayStats(synced, combatBoosts);
+  const boosted = applyBoostedDisplayStats(card, combatBoosts);
 
   const displayAtk = Number(boosted.atk || 0);
   const displayHp = Number(boosted.hp || 0);
@@ -115,7 +114,7 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
 
   return {
     slot: slotIndex + 1,
-    sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
+    sourceIndex: Number.isInteger(boosted.sourceIndex) ? boosted.sourceIndex : null,
     instanceId: boosted.instanceId,
     code: boosted.code,
     name: boosted.displayName || boosted.name || "Unknown",
@@ -1339,15 +1338,13 @@ function applyBossQuestProgress(player, keys) {
 
 function getFullTeamFromPlayer(player) {
   const combatBoosts = getPassiveBoostSummary(player);
-  const rawCards = Array.isArray(player.cards) ? player.cards : [];
 
-  const cards = rawCards
+  const cards = (Array.isArray(player.cards) ? player.cards : [])
     .map((rawCard, sourceIndex) => {
       const card = hydrateCard(rawCard);
       if (!card) return null;
 
       return {
-        ...rawCard,
         ...card,
         sourceIndex,
       };
