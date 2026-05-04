@@ -89,7 +89,7 @@ function findOwnedBattleCard(player, query) {
 
 module.exports = {
   name: "addprestige",
-  aliases: ["aprestige", "prestigeadd"],
+  aliases: ["prestige"],
 
   async execute(message, args) {
     if (!isAdmin(message.author.id)) {

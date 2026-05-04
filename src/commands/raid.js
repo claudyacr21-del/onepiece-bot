@@ -519,7 +519,6 @@ function resetActionCycleIfReady(state) {
   if (usedAliveIds.length >= aliveIds.length) {
     state.usedThisCycle = [];
     state.round = Number(state.round || 1) + 1;
-    pushBattleLog(state, "New raid action cycle started.");
   }
 }
 
@@ -1017,6 +1016,7 @@ function finalizeRaidBattle(state) {
 
 function handleRaidAttack(state, actor) {
   const boss = state.boss;
+  const combatLogs = [];
 
   const baseDamage = randomInt(
     Math.floor(Number(actor.atk || 1) * 0.85),
@@ -1026,38 +1026,31 @@ function handleRaidAttack(state, actor) {
   const damage = applyDamageBoost(baseDamage, actor.passiveBoostsApplied || {});
   boss.hp = Math.max(0, Number(boss.hp || 0) - damage);
 
-  const target = checkEndState(state) ? null : chooseBossTarget(state);
-
-  if (!target) {
-    pushBattleLog(
-      state,
-      `⚔️ ${actor.name} dealt ${damage.toLocaleString("en-US")} damage to ${boss.name}.`
-    );
-
-    state.usedThisCycle = [
-      ...new Set([...ensureArray(state.usedThisCycle), getMemberActionKey(actor)]),
-    ];
-
-    checkEndState(state);
-    return;
-  }
-
-  const bossDamage = randomInt(boss.atkMin, boss.atkMax);
-  target.hp = Math.max(0, Number(target.hp || 0) - bossDamage);
+  combatLogs.push(
+    `⚔️ ${actor.name} dealt ${damage.toLocaleString("en-US")} damage to ${boss.name}.`
+  );
 
   state.usedThisCycle = [
     ...new Set([...ensureArray(state.usedThisCycle), getMemberActionKey(actor)]),
   ];
 
-  pushBattleLog(
-    state,
-    `⚔️ ${actor.name} dealt ${damage.toLocaleString("en-US")} damage to ${boss.name}.`
-  );
+  if (checkEndState(state)) {
+    state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
+    return;
+  }
 
-  pushBattleLog(
-    state,
-    `💢 ${boss.name} hit ${target.name} for ${bossDamage.toLocaleString("en-US")}.`
-  );
+  const target = chooseBossTarget(state);
+
+  if (target) {
+    const bossDamage = randomInt(boss.atkMin, boss.atkMax);
+    target.hp = Math.max(0, Number(target.hp || 0) - bossDamage);
+
+    combatLogs.push(
+      `💢 ${boss.name} hit ${target.name} for ${bossDamage.toLocaleString("en-US")}.`
+    );
+  }
+
+  state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
 
   checkEndState(state);
 
