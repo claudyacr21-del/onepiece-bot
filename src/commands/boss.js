@@ -11,9 +11,8 @@ const { incrementQuestPayload } = require("../utils/questProgress");
 const { getCurrentIsland } = require("../data/islands");
 const cardsDb = require("../data/cards");
 const { hydrateCard } = require("../utils/evolution");
+const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
-  getPlayerCombatCards,
-  getPlayerCombatBoosts,
   applyDamageBoost,
   applyExpBoost,
 } = require("../utils/combatStats");
@@ -60,6 +59,17 @@ function formatAtkRange(atk) {
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
+function applyBoostedDisplayStats(card, boosts = {}) {
+  if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
+
+  return {
+    ...card,
+    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+  };
+}
+
 function formatExpResults(playerTeam, expResults) {
   return expResults
     .map((entry) => {
@@ -96,23 +106,20 @@ function formatExpResults(playerTeam, expResults) {
 
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   const synced = hydrateCard(card);
+  const boosted = applyBoostedDisplayStats(synced, combatBoosts);
 
-  const displayAtk = Number(synced.atk || 0);
-  const displayHp = Number(synced.hp || 0);
-  const displaySpeed = Number(synced.speed || 0);
-  const displayPower = Number(
-    synced.currentPower ||
-      synced.power ||
-      Math.floor(displayAtk * 1.4 + displayHp * 0.22 + displaySpeed * 9)
-  );
+  const displayAtk = Number(boosted.atk || 0);
+  const displayHp = Number(boosted.hp || 0);
+  const displaySpeed = Number(boosted.speed || 0);
+  const displayPower = Number(boosted.currentPower || 0);
 
   return {
     slot: slotIndex + 1,
     sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
-    instanceId: synced.instanceId,
-    code: synced.code,
-    name: synced.displayName || synced.name || "Unknown",
-    rarity: synced.currentTier || synced.rarity || "C",
+    instanceId: boosted.instanceId,
+    code: boosted.code,
+    name: boosted.displayName || boosted.name || "Unknown",
+    rarity: boosted.currentTier || boosted.rarity || "C",
 
     atk: displayAtk,
     hp: displayHp,
@@ -126,11 +133,11 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     battleSpeed: displaySpeed,
     battlePower: displayPower,
 
-    level: Number(synced.level || 1),
-    levelCap: getCardLevelCap(synced),
-    exp: getCardExp(synced),
-    kills: Number(synced.kills || 0),
-    image: synced.image || "",
+    level: Number(boosted.level || 1),
+    levelCap: getCardLevelCap(boosted),
+    exp: getCardExp(boosted),
+    kills: Number(boosted.kills || 0),
+    image: boosted.image || "",
 
     passiveBoostsApplied: {
       atk: Number(combatBoosts.atk || 0),
@@ -1331,22 +1338,21 @@ function applyBossQuestProgress(player, keys) {
 }
 
 function getFullTeamFromPlayer(player) {
-  const combatBoosts = getPlayerCombatBoosts(player);
+  const combatBoosts = getPassiveBoostSummary(player);
   const rawCards = Array.isArray(player.cards) ? player.cards : [];
 
-  const combatCards = getPlayerCombatCards(player)
-    .filter((card) => String(card.cardRole || "").toLowerCase() !== "boost")
-    .map((card) => {
-      const rawIndex = rawCards.findIndex(
-        (rawCard) =>
-          String(rawCard.instanceId || "") === String(card.instanceId || "")
-      );
+  const cards = rawCards
+    .map((rawCard, sourceIndex) => {
+      const card = hydrateCard(rawCard);
+      if (!card) return null;
 
       return {
+        ...rawCard,
         ...card,
-        sourceIndex: rawIndex >= 0 ? rawIndex : null,
+        sourceIndex,
       };
-    });
+    })
+    .filter((card) => String(card.cardRole || "").toLowerCase() !== "boost");
 
   const teamSlots = Array.isArray(player?.team?.slots)
     ? player.team.slots.slice(0, 3)
@@ -1356,7 +1362,7 @@ function getFullTeamFromPlayer(player) {
     .map((instanceId, index) => {
       if (!instanceId) return null;
 
-      const found = combatCards.find(
+      const found = cards.find(
         (card) =>
           String(card.instanceId || "") === String(instanceId) &&
           String(card.cardRole || "").toLowerCase() !== "boost"
