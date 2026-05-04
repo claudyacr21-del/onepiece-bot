@@ -13,7 +13,6 @@ const {
   getPlayerCombatBoosts,
   applyDamageBoost,
   applyExpBoost,
-  formatDamageBoostedAtkRange,
 } = require("../utils/combatStats");
 const {
   getCardExp,
@@ -361,7 +360,7 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode,
     const slot = isEnemy ? index + 1 : unit.slot;
     const levelText = isEnemy
       ? `LV \`${unit.level || 1}\` • ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``
-      : `ATK \`${formatDamageBoostedAtkRange(unit.battleAtk, unit.passiveBoostsApplied)}\` • SPD \`${unit.battleSpeed}\` • LV \`${unit.level}\``;
+      : `ATK \`${formatAtkRange(unit.battleAtk)}\` • SPD \`${unit.battleSpeed}\` • LV \`${unit.level}\``;
 
     const hp = isEnemy
       ? renderHpBar(unit.hp, unit.maxHp)

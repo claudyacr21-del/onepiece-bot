@@ -15,7 +15,6 @@ const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
   applyDamageBoost,
   applyExpBoost,
-  formatDamageBoostedAtkRange,
 } = require("../utils/combatStats");
 const {
   getCardExp,
