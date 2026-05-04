@@ -25,7 +25,8 @@ const {
 const BOSS_COOLDOWN_MS = 10 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
 
-const BOSS_PHASE_JOIN_REQUIRED = 2;
+const BOSS_PHASE_JOIN_MIN = 2;
+const BOSS_PHASE_JOIN_MAX = 4;
 const BOSS_JOIN_LOBBY_MS = 2 * 60 * 1000;
 
 const BOSS_WIN_EXP_PER_CARD = 180;
@@ -599,11 +600,9 @@ function buildPhaseSelectEmbed(island, player) {
   const lines = phases.map((phase) => {
     const num = Number(phase.phase || 0);
     const cleared =
-      num === 1
-        ? phaseState.phase1Cleared
-        : num === 2
-        ? phaseState.phase2Cleared
-        : false;
+      num === 1 ? phaseState.phase1Cleared :
+      num === 2 ? phaseState.phase2Cleared :
+      false;
 
     return `**Phase ${num}:** ${phase.name || phase.bossName || "Boss"} ${
       cleared ? "✅ Cleared" : "⚔️ Available"
@@ -619,7 +618,10 @@ function buildPhaseSelectEmbed(island, player) {
         "",
         ...lines,
         "",
-        "Phase 2 uses raid-style battle and every joined user enters with their full 3-card team.",
+        `Phase 2 uses raid-style party room.`,
+        `Minimum **${BOSS_PHASE_JOIN_MIN} players**, maximum **${BOSS_PHASE_JOIN_MAX} players**.`,
+        `Each player joins with their current full **3-card team**.`,
+        `Max total party cards: **${BOSS_PHASE_JOIN_MAX * 3} cards**.`,
       ].join("\n")
     )
     .setFooter({
@@ -704,40 +706,78 @@ async function chooseBossPhase(message, player, island) {
   }
 }
 
-function buildBossJoinEmbed(hostId, island, phaseBoss, joinedIds, statusText = "") {
+function buildBossJoinEmbed(
+  hostId,
+  island,
+  phaseBoss,
+  joinedIds,
+  statusText = "",
+  participants = []
+) {
   const phaseLabel = phaseBoss ? `Phase ${phaseBoss.phase}` : "Boss Phase";
-  const joinedList = [...joinedIds].map((id, index) => `${index + 1}. <@${id}>`);
+  const joinedCount = joinedIds.size;
+  const totalCards = joinedCount * 3;
+
+  const participantLines = Array.isArray(participants) && participants.length
+    ? participants.map((participant, playerIndex) => {
+        const username =
+          participant.username ||
+          participant.ownerName ||
+          `Player ${playerIndex + 1}`;
+
+        const cards = Array.isArray(participant.units) ? participant.units : [];
+
+        const cardLines = cards.slice(0, 3).map((unit, cardIndex) => {
+          return `   ${cardIndex + 1}. ${unit.name || "Unknown"}`;
+        });
+
+        return [
+          `**${playerIndex + 1}. ${username}** <@${participant.userId}>`,
+          cardLines.length ? cardLines.join("\n") : "   No battle cards found.",
+        ].join("\n");
+      })
+    : [...joinedIds].map((id, index) => `**${index + 1}.** <@${id}>`);
 
   return new EmbedBuilder()
-    .setColor(joinedIds.size >= BOSS_PHASE_JOIN_REQUIRED ? 0x2ecc71 : 0xf1c40f)
-    .setTitle(`👥 ${island.name} ${phaseLabel} Raid Lobby`)
+    .setColor(joinedCount >= BOSS_PHASE_JOIN_MIN ? 0x2ecc71 : 0xf1c40f)
+    .setTitle(`🏴‍☠️ ${island.name} ${phaseLabel} Raid Party Room`)
     .setDescription(
       [
         `**Host:** <@${hostId}>`,
-        `**Joined:** ${joinedIds.size}/${BOSS_PHASE_JOIN_REQUIRED}`,
+        `**Players:** ${joinedCount}/${BOSS_PHASE_JOIN_MAX}`,
+        `**Required:** ${BOSS_PHASE_JOIN_MIN}-${BOSS_PHASE_JOIN_MAX} players`,
+        `**Party Cards:** ${totalCards}/${BOSS_PHASE_JOIN_MAX * 3}`,
         "",
-        joinedList.length ? joinedList.join("\n") : "No one has joined yet.",
+        "**Joined Party:**",
+        participantLines.length ? participantLines.join("\n\n") : "No one has joined yet.",
         "",
         statusText ||
           "Users who press **Join** will enter with their current full 3-card team.",
       ].join("\n")
     )
     .setFooter({
-      text: "One Piece Bot • Boss Phase 2 Lobby",
+      text: "One Piece Bot • Boss Phase 2 Party Room",
     });
 }
 
-function buildBossJoinButtons() {
+function buildBossJoinButtons(joinedCount = 0) {
+  const full = Number(joinedCount || 0) >= BOSS_PHASE_JOIN_MAX;
+  const canStart = Number(joinedCount || 0) >= BOSS_PHASE_JOIN_MIN;
+
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("boss_lobby_join")
-        .setLabel("Join")
-        .setStyle(ButtonStyle.Success),
+        .setLabel(full ? "Party Full" : "Join")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(full),
+
       new ButtonBuilder()
         .setCustomId("boss_lobby_start")
         .setLabel("Start")
-        .setStyle(ButtonStyle.Primary),
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(!canStart),
+
       new ButtonBuilder()
         .setCustomId("boss_lobby_cancel")
         .setLabel("Cancel")
@@ -845,6 +885,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
     return participants;
   };
 
+  const initialParticipants = await getJoinedParticipantsPreview();
+
   const lobbyMessage = await message.reply({
     embeds: [
       buildBossJoinEmbed(
@@ -852,10 +894,11 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
         island,
         phaseBoss,
         joinedIds,
-        "Host is counted as joined. Other users can press **Join** to confirm their full 3-card team."
+        "Host is counted as joined.\nOther users can press **Join** to confirm their full 3-card team.",
+        initialParticipants
       ),
     ],
-    components: buildBossJoinButtons(),
+    components: buildBossJoinButtons(joinedIds.size),
   });
 
   const collector = lobbyMessage.createMessageComponentCollector({
@@ -866,6 +909,13 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
     collector.on("collect", async (interaction) => {
       if (interaction.customId === "boss_lobby_join") {
         const userId = String(interaction.user.id);
+
+        if (joinedIds.size >= BOSS_PHASE_JOIN_MAX) {
+          return interaction.reply({
+            content: `This Boss Phase 2 party is already full. Max **${BOSS_PHASE_JOIN_MAX} players** / **${BOSS_PHASE_JOIN_MAX * 3} cards**.`,
+            ephemeral: true,
+          });
+        }
 
         if (joinedIds.has(userId)) {
           return interaction.reply({
@@ -984,6 +1034,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
           components: [],
         });
 
+        const updatedParticipants = await getJoinedParticipantsPreview();
+
         await lobbyMessage.edit({
           embeds: [
             buildBossJoinEmbed(
@@ -991,12 +1043,15 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
               island,
               phaseBoss,
               joinedIds,
-              joinedIds.size >= BOSS_PHASE_JOIN_REQUIRED
-                ? "Enough users joined. The host can press **Start**."
-                : "Waiting for more users to press **Join**."
+              joinedIds.size >= BOSS_PHASE_JOIN_MIN
+                ? joinedIds.size >= BOSS_PHASE_JOIN_MAX
+                  ? "Party is full.\nThe host can press **Start**."
+                  : "Enough users joined.\nThe host can press **Start**, or wait for more players."
+                : "Waiting for more users to press **Join**.",
+              updatedParticipants
             ),
           ],
-          components: buildBossJoinButtons(),
+          components: buildBossJoinButtons(joinedIds.size),
         });
 
         return;
@@ -1012,6 +1067,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
       if (interaction.customId === "boss_lobby_cancel") {
         cancelled = true;
 
+        const cancelParticipants = await getJoinedParticipantsPreview();
+
         await interaction.update({
           embeds: [
             buildBossJoinEmbed(
@@ -1019,7 +1076,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
               island,
               phaseBoss,
               joinedIds,
-              "Boss lobby cancelled."
+              "Boss lobby cancelled.",
+              cancelParticipants
             ),
           ],
           components: [],
@@ -1031,10 +1089,9 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
       }
 
       if (interaction.customId === "boss_lobby_start") {
-        if (joinedIds.size < BOSS_PHASE_JOIN_REQUIRED) {
+        if (joinedIds.size < BOSS_PHASE_JOIN_MIN) {
           return interaction.reply({
-            content:
-              "You need at least **2 users** to start this boss phase. Ask another user to press **Join** first.",
+            content: `You need at least **${BOSS_PHASE_JOIN_MIN} users** to start this boss phase.\nAsk another user to press **Join** first.`,
             ephemeral: true,
           });
         }
@@ -1054,6 +1111,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
 
         approved = true;
 
+        const startParticipants = await getJoinedParticipantsPreview();
+
         await interaction.update({
           embeds: [
             buildBossJoinEmbed(
@@ -1061,7 +1120,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
               island,
               phaseBoss,
               joinedIds,
-              "Boss lobby approved. Starting boss battle..."
+              "Boss lobby approved.\nStarting boss battle...",
+              startParticipants
             ),
           ],
           components: [],
@@ -1081,6 +1141,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
       cancelled = true;
 
       try {
+        const expiredParticipants = await getJoinedParticipantsPreview();
+
         await lobbyMessage.edit({
           embeds: [
             buildBossJoinEmbed(
@@ -1088,7 +1150,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
               island,
               phaseBoss,
               joinedIds,
-              "Boss lobby expired. Please run `op boss` again."
+              "Boss lobby expired.\nPlease run `op boss` again.",
+              expiredParticipants
             ),
           ],
           components: [],
