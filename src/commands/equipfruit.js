@@ -271,11 +271,6 @@ async function equipFruitToCard(message, player, card, fruit) {
         `**Card:** ${syncedCard.displayName || syncedCard.name}`,
         `**Fruit:** ${resolvedFruitData?.name || fruit.name}`,
         !isBoost
-          ? `**ATK:** ${Math.floor(Number(syncedCard.atk || 0) * 0.85)}-${Math.floor(Number(syncedCard.atk || 0) * 1.15)}`
-          : null,
-        !isBoost ? `**HP:** ${Number(syncedCard.hp || 0)}` : null,
-        !isBoost ? `**SPD:** ${Number(syncedCard.speed || 0)}` : null,
-        !isBoost
           ? `**Fruit Bonus:** +${Number(percent.atk || 0)}% ATK / +${Number(percent.hp || 0)}% HP / +${Number(percent.speed || 0)}% SPD`
           : null,
         isBoost ? `**Boost Type:** \`${syncedCard.boostType}\`` : null,
