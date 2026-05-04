@@ -6,6 +6,11 @@ const {
 } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
+const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const {
+  applyDamageBoost,
+  formatDamageBoostedAtkRange,
+} = require("../utils/combatStats");
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -20,7 +25,7 @@ function getPower(card) {
   );
 }
 
-function buildBattleUnit(card, slot, ownerTag = "player") {
+function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}) {
   const synced = hydrateCard(card);
 
   return {
@@ -35,10 +40,19 @@ function buildBattleUnit(card, slot, ownerTag = "player") {
     speed: Number(synced.speed || 0),
     level: Number(synced.level || 1),
     power: getPower(synced),
+    passiveBoostsApplied: {
+    atk: Number(boosts.atk || 0),
+    hp: Number(boosts.hp || 0),
+    spd: Number(boosts.spd || 0),
+    dmg: Number(boosts.dmg || 0),
+    exp: Number(boosts.exp || 0),
+  },
   };
 }
 
 function getTeamUnits(player, ownerTag = "player") {
+  const boosts = getPassiveBoostSummary(player);
+
   const cards = (Array.isArray(player.cards) ? player.cards : [])
     .map(hydrateCard)
     .filter(Boolean);
@@ -57,7 +71,7 @@ function getTeamUnits(player, ownerTag = "player") {
           String(card.cardRole || "").toLowerCase() !== "boost"
       );
 
-      return found ? buildBattleUnit(found, index, ownerTag) : null;
+      return found ? buildBattleUnit(found, index, ownerTag, boosts) : null;
     })
     .filter(Boolean);
 }
@@ -75,10 +89,10 @@ function performAttack(attacker, defender) {
   const defSpeed = Number(defender.speed || 0);
   const rolledAtk = Math.floor(atk * (0.85 + Math.random() * 0.3));
   const rawDamage = Math.max(1, rolledAtk - Math.floor(defSpeed * 0.12));
+  const finalDamage = applyDamageBoost(rawDamage, attacker.passiveBoostsApplied);
 
-  defender.hp = Math.max(0, Number(defender.hp || 0) - rawDamage);
-
-  return rawDamage;
+  defender.hp = Math.max(0, Number(defender.hp || 0) - finalDamage);
+  return finalDamage;
 }
 
 function resolveSpeedOrder(playerUnit, enemyUnit) {
@@ -116,7 +130,7 @@ function teamSummary(units) {
       [
         `**${unit.slot}. ${unit.name}** [${unit.rarity}]`,
         `PWR \`${unit.power}\` • LV \`${unit.level}\``,
-        `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
+        `ATK \`${formatDamageBoostedAtkRange(unit.atk, unit.passiveBoostsApplied)}\` • SPD \`${unit.speed}\``,
         renderHpBar(unit.hp, unit.maxHp),
       ].join("\n")
     )

@@ -87,6 +87,22 @@ function applyDamageBoost(damage, boosts = {}) {
   return Math.max(1, Math.floor(Number(damage || 1) * (1 + pct(boosts.dmg))));
 }
 
+function getDamageBoostedAtkRange(atk, boosts = {}) {
+  const value = Number(atk || 0);
+  const min = Math.floor(value * 0.85);
+  const max = Math.floor(value * 1.15);
+
+  return {
+    min: applyDamageBoost(min, boosts),
+    max: applyDamageBoost(max, boosts),
+  };
+}
+
+function formatDamageBoostedAtkRange(atk, boosts = {}) {
+  const range = getDamageBoostedAtkRange(atk, boosts);
+  return `${range.min}-${range.max}`;
+}
+
 function applyExpBoost(exp, boosts = {}) {
   return Math.max(0, Math.floor(Number(exp || 0) * (1 + pct(boosts.exp))));
 }
@@ -110,6 +126,8 @@ module.exports = {
   getPlayerCombatBoosts,
   getPlayerCombatCards,
   applyDamageBoost,
+  getDamageBoostedAtkRange,
+  formatDamageBoostedAtkRange,
   applyExpBoost,
   applyDailyBoost,
 };
