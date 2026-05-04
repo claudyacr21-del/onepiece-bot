@@ -9,10 +9,7 @@ const { getPlayer, updatePlayer, readPlayers } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-const {
-  applyDamageBoost,
-  formatDamageBoostedAtkRange,
-} = require("../utils/combatStats");
+const { applyDamageBoost } = require("../utils/combatStats");
 const { syncArenaRankRoles } = require("../utils/arenaRankRoles");
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
@@ -213,7 +210,7 @@ function teamSummary(units) {
       [
         `**${unit.slot}. ${unit.name}** [${unit.rarity}]`,
         `PWR \`${unit.power}\` • LV \`${unit.level}\``,
-        `ATK \`${formatDamageBoostedAtkRange(unit.atk, unit.passiveBoostsApplied)}\` • SPD \`${unit.speed}\``,
+        `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
         renderHpBar(unit.hp, unit.maxHp),
       ].join("\n")
     )
