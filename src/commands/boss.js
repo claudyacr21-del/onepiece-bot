@@ -95,22 +95,24 @@ function formatExpResults(playerTeam, expResults) {
 }
 
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {
-  const displayAtk = Number(card.atk || 0);
-  const displayHp = Number(card.hp || 0);
-  const displaySpeed = Number(card.speed || 0);
+  const synced = hydrateCard(card);
+
+  const displayAtk = Number(synced.atk || 0);
+  const displayHp = Number(synced.hp || 0);
+  const displaySpeed = Number(synced.speed || 0);
   const displayPower = Number(
-    card.currentPower ||
-      card.power ||
+    synced.currentPower ||
+      synced.power ||
       Math.floor(displayAtk * 1.4 + displayHp * 0.22 + displaySpeed * 9)
   );
 
   return {
     slot: slotIndex + 1,
     sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
-    instanceId: card.instanceId,
-    code: card.code,
-    name: card.displayName || card.name || "Unknown",
-    rarity: card.currentTier || card.rarity || "C",
+    instanceId: synced.instanceId,
+    code: synced.code,
+    name: synced.displayName || synced.name || "Unknown",
+    rarity: synced.currentTier || synced.rarity || "C",
 
     atk: displayAtk,
     hp: displayHp,
@@ -124,11 +126,11 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     battleSpeed: displaySpeed,
     battlePower: displayPower,
 
-    level: Number(card.level || 1),
-    levelCap: getCardLevelCap(card),
-    exp: getCardExp(card),
-    kills: Number(card.kills || 0),
-    image: card.image || "",
+    level: Number(synced.level || 1),
+    levelCap: getCardLevelCap(synced),
+    exp: getCardExp(synced),
+    kills: Number(synced.kills || 0),
+    image: synced.image || "",
 
     passiveBoostsApplied: {
       atk: Number(combatBoosts.atk || 0),
@@ -246,23 +248,6 @@ function isUnitUsedThisCycle(usedThisCycle, unit) {
   const key = String(unit?.instanceId || unit?.globalSlot || "");
 
   return Array.isArray(usedThisCycle) ? usedThisCycle.includes(key) : false;
-}
-
-function getUnitActionKey(unit) {
-  return String(unit?.instanceId || unit?.globalSlot || "");
-}
-
-function getAliveActionKeys(units) {
-  return getAliveUnits(units).map((unit) => getUnitActionKey(unit));
-}
-
-function shouldDisableLastUsed(units, lastUsedKey, unit) {
-  if (!lastUsedKey) return false;
-
-  const aliveKeys = getAliveActionKeys(units);
-  if (aliveKeys.length <= 1) return false;
-
-  return getUnitActionKey(unit) === String(lastUsedKey);
 }
 
 function resetBossActionCycleIfReady(playerTeam, usedThisCycle) {
@@ -755,10 +740,104 @@ function buildBossJoinButtons() {
   ];
 }
 
+function formatTeamPreview(teamCards) {
+  return teamCards
+    .map((unit, index) => {
+      return `${index + 1}. ${unit.name} [${unit.rarity}]`;
+    })
+    .join("\n");
+}
+
+function getDuplicatePartyCards(participants) {
+  const map = new Map();
+
+  for (const participant of participants) {
+    for (const unit of participant.units || []) {
+      const key = String(unit.code || unit.name || "").toLowerCase();
+      if (!key) continue;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          name: unit.name,
+          users: [],
+        });
+      }
+
+      map.get(key).users.push(participant.username);
+    }
+  }
+
+  return [...map.values()].filter((entry) => entry.users.length > 1);
+}
+
+function getUnitActionKey(unit) {
+  return [
+    String(unit?.ownerId || unit?.userId || "solo"),
+    String(unit?.instanceId || ""),
+    String(unit?.globalSlot ?? unit?.slot ?? ""),
+  ].join(":");
+}
+
+function getAliveActionKeys(units) {
+  return getAliveUnits(units).map((unit) => getUnitActionKey(unit));
+}
+
+function shouldDisableLastUsed(units, lastUsedKey, unit) {
+  if (!lastUsedKey) return false;
+
+  const aliveKeys = getAliveActionKeys(units);
+  if (aliveKeys.length <= 1) return false;
+
+  return getUnitActionKey(unit) === String(lastUsedKey);
+}
+
 async function waitForBossJoinLobby(message, island, phaseBoss) {
   const joinedIds = new Set([String(message.author.id)]);
   let approved = false;
   let cancelled = false;
+
+  const getJoinedParticipantsPreview = async (extraUserId = null, extraPlayer = null, extraUsername = null) => {
+    const ids = [...joinedIds];
+
+    if (extraUserId && !ids.includes(String(extraUserId))) {
+      ids.push(String(extraUserId));
+    }
+
+    const players = readPlayers();
+    const participants = [];
+
+    for (const userId of ids) {
+      const player =
+        extraUserId && String(extraUserId) === String(userId) && extraPlayer
+          ? extraPlayer
+          : userId === String(message.author.id)
+          ? getPlayer(userId, message.author.username)
+          : players[userId];
+
+      const username =
+        extraUserId && String(extraUserId) === String(userId) && extraUsername
+          ? extraUsername
+          : userId === String(message.author.id)
+          ? message.author.username
+          : await resolveUsernameSafe(message, userId);
+
+      if (!player) continue;
+
+      const { teamCards } = getFullTeamFromPlayer(player);
+
+      participants.push({
+        userId,
+        username: player.username || username,
+        units: teamCards.map((unit) => ({
+          ...unit,
+          ownerId: userId,
+          ownerName: player.username || username,
+        })),
+      });
+    }
+
+    return participants;
+  };
 
   const lobbyMessage = await message.reply({
     embeds: [
@@ -767,7 +846,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
         island,
         phaseBoss,
         joinedIds,
-        "Host is counted as joined. Other users can press **Join** to enter with their full 3-card team."
+        "Host is counted as joined. Other users can press **Join** to confirm their full 3-card team."
       ),
     ],
     components: buildBossJoinButtons(),
@@ -780,9 +859,126 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
   await new Promise((resolve) => {
     collector.on("collect", async (interaction) => {
       if (interaction.customId === "boss_lobby_join") {
-        joinedIds.add(String(interaction.user.id));
+        const userId = String(interaction.user.id);
 
-        await interaction.update({
+        if (joinedIds.has(userId)) {
+          return interaction.reply({
+            content: "You already joined this Boss Phase 2 raid.",
+            ephemeral: true,
+          });
+        }
+
+        const players = readPlayers();
+        const joiningPlayer = players[userId];
+
+        if (!joiningPlayer) {
+          return interaction.reply({
+            content: "You do not have player data yet.",
+            ephemeral: true,
+          });
+        }
+
+        const username = await resolveUsernameSafe(message, userId);
+        const { teamCards } = getFullTeamFromPlayer(joiningPlayer);
+
+        if (teamCards.length < 3) {
+          return interaction.reply({
+            content: "You need a full battle team of 3 cards to join Boss Phase 2.",
+            ephemeral: true,
+          });
+        }
+
+        const previewParticipants = await getJoinedParticipantsPreview(userId, joiningPlayer, username);
+        const duplicates = getDuplicatePartyCards(previewParticipants);
+
+        const confirmEmbed = new EmbedBuilder()
+          .setColor(duplicates.length ? 0xe74c3c : 0x2ecc71)
+          .setTitle("Confirm Boss Phase 2 Join")
+          .setDescription(
+            [
+              "You will join with these cards:",
+              "",
+              formatTeamPreview(teamCards),
+              "",
+              duplicates.length
+                ? [
+                    "⚠️ Duplicate card detected in party:",
+                    ...duplicates.map((dup) => `- ${dup.name} used by ${dup.users.join(" and ")}`),
+                    "",
+                    "You cannot join while party has duplicate card codes.",
+                  ].join("\n")
+                : "No duplicate card detected. Press Confirm to join.",
+            ].join("\n")
+          );
+
+        const confirmRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("boss_join_confirm")
+            .setLabel("Confirm Join")
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(Boolean(duplicates.length)),
+          new ButtonBuilder()
+            .setCustomId("boss_join_cancel")
+            .setLabel("Cancel")
+            .setStyle(ButtonStyle.Danger)
+        );
+
+        await interaction.reply({
+          embeds: [confirmEmbed],
+          components: [confirmRow],
+          ephemeral: true,
+        });
+
+        const confirmReply = await interaction.fetchReply();
+        let confirmInteraction;
+
+        try {
+          confirmInteraction = await confirmReply.awaitMessageComponent({
+            time: 60 * 1000,
+            filter: (button) =>
+              button.user.id === interaction.user.id &&
+              ["boss_join_confirm", "boss_join_cancel"].includes(button.customId),
+          });
+        } catch (_) {
+          return interaction.editReply({
+            content: "Join confirmation expired.",
+            embeds: [],
+            components: [],
+          }).catch(() => null);
+        }
+
+                if (confirmInteraction.customId === "boss_join_cancel") {
+          return confirmInteraction.update({
+            content: "Join cancelled.",
+            embeds: [],
+            components: [],
+          });
+        }
+
+        const finalParticipants = await getJoinedParticipantsPreview(userId, joiningPlayer, username);
+        const finalDuplicates = getDuplicatePartyCards(finalParticipants);
+
+        if (finalDuplicates.length) {
+          return confirmInteraction.update({
+            content: [
+              "Join failed because another party member already uses the same card.",
+              "",
+              ...finalDuplicates.map((dup) => `- ${dup.name} used by ${dup.users.join(" and ")}`),
+            ].join("\n"),
+            embeds: [],
+            components: [],
+          });
+        }
+
+        joinedIds.add(userId);
+
+        await confirmInteraction.update({
+          content: `Joined Boss Phase 2 raid with:\n${formatTeamPreview(teamCards)}`,
+          embeds: [],
+          components: [],
+        });
+
+        await lobbyMessage.edit({
           embeds: [
             buildBossJoinEmbed(
               message.author.id,
@@ -833,6 +1029,19 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
           return interaction.reply({
             content:
               "You need at least **2 users** to start this boss phase. Ask another user to press **Join** first.",
+            ephemeral: true,
+          });
+        }
+
+        const participants = await getJoinedParticipantsPreview();
+        const duplicates = getDuplicatePartyCards(participants);
+
+        if (duplicates.length) {
+          return interaction.reply({
+            content: [
+              "Cannot start because duplicate cards exist in the party:",
+              ...duplicates.map((dup) => `- ${dup.name} used by ${dup.users.join(" and ")}`),
+            ].join("\n"),
             ephemeral: true,
           });
         }
@@ -913,9 +1122,7 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
         `❤️ ${Math.max(0, Number(boss.battleHp ?? boss.hp))}/${Number(boss.battleMaxHp ?? boss.maxHp)} | SPD \`${boss.battleSpeed || boss.speed}\` | ⚔️ ${formatAtkRange(boss.battleAtk || boss.atk)}`,
         "",
         "## Battle Log",
-        ...(recentLogs.length
-          ? recentLogs
-          : ["Choose a card to attack the island boss."]),
+        ...(recentLogs.length ? recentLogs : ["Choose a card to attack the island boss."]),
         "",
         "## Your Team",
         ...teamLines,
@@ -1205,7 +1412,7 @@ async function buildRaidBossParticipantsFromJoinedIds(message, joinedIds) {
       continue;
     }
 
-    const { combatBoosts, teamCards } = getFullTeamFromPlayer(player);
+        const { combatBoosts, teamCards } = getFullTeamFromPlayer(player);
 
     if (teamCards.length < 3) {
       rejected.push(`${username} does not have a full team of 3 cards.`);
@@ -1237,59 +1444,47 @@ async function buildRaidBossParticipantsFromJoinedIds(message, joinedIds) {
 }
 
 function getBossReward(island, phaseBoss = null) {
-  const code = String(island?.code || "").toLowerCase();
   const order = Number(island?.order || 0);
   const phase = Number(phaseBoss?.phase || 0);
 
-  const islandRewards = {
-    foosha_village: { berries: 3500, gems: 5, boxes: 1 },
-    orange_town: { berries: 4500, gems: 6, boxes: 1 },
-    syrup_village: { berries: 5500, gems: 7, boxes: 1 },
-    baratie: { berries: 7000, gems: 9, boxes: 1 },
-    arlong_park: { berries: 8500, gems: 11, boxes: 1 },
-    loguetown: { berries: 10000, gems: 13, boxes: 1 },
-    reverse_mountain: { berries: 12000, gems: 15, boxes: 1 },
-    whiskey_peak: { berries: 14000, gems: 17, boxes: 1 },
-    little_garden: { berries: 16000, gems: 19, boxes: 1 },
-    drum_island: { berries: 18000, gems: 21, boxes: 1 },
-    alabasta: { berries: 22000, gems: 25, boxes: 2 },
-    jaya: { berries: 24000, gems: 27, boxes: 2 },
-    skypiea: { berries: 28000, gems: 31, boxes: 2 },
-    long_ring_long_land: { berries: 30000, gems: 34, boxes: 2 },
-    water_7: { berries: 34000, gems: 38, boxes: 2 },
-    enies_lobby: { berries: 38000, gems: 42, boxes: 2 },
-    thriller_bark: { berries: 42000, gems: 46, boxes: 2 },
-    sabaody: { berries: 46000, gems: 50, boxes: 2 },
-    amazon_lily: { berries: 50000, gems: 54, boxes: 2 },
-    impel_down: { berries: 56000, gems: 60, boxes: 3 },
-    marineford: { berries: 65000, gems: 70, boxes: 3 },
-    fishman_island: { berries: 72000, gems: 78, boxes: 3 },
-    punk_hazard: { berries: 80000, gems: 86, boxes: 3 },
-    dressrosa: { berries: 90000, gems: 96, boxes: 3 },
-    zou: { berries: 98000, gems: 104, boxes: 3 },
-    whole_cake_island: { berries: 110000, gems: 118, boxes: 4 },
-    wano: { berries: 130000, gems: 140, boxes: 4 },
-    egghead: { berries: 155000, gems: 165, boxes: 4 },
-    elbaf: { berries: 180000, gems: 190, boxes: 5 },
+  const base = {
+    berries: 6000 + order * 550,
+    gems: 10 + Math.floor(order / 2),
+    boxes: [cloneItem(ITEMS.rareResourceBox, 1)],
   };
 
-  const base =
-    islandRewards[code] || {
-      berries: 6000 + order * 1200,
-      gems: 10 + Math.floor(order * 1.5),
-      boxes: Math.max(1, Math.floor(order / 8)),
+  if (phase === 1) {
+    return {
+      berries: 9000 + order * 750,
+      gems: 18 + Math.floor(order / 2),
+      boxes: [cloneItem(ITEMS.rareResourceBox, 1)],
+    };
+  }
+
+  if (phase === 2) {
+    const specialByIsland = {
+      egghead: {
+        berries: 42000,
+        gems: 95,
+        boxes: [cloneItem(ITEMS.rareResourceBox, 3)],
+      },
+      elbaf: {
+        berries: 52000,
+        gems: 120,
+        boxes: [cloneItem(ITEMS.rareResourceBox, 4)],
+      },
     };
 
-  let multiplier = 1;
+    return (
+      specialByIsland[String(island?.code || "").toLowerCase()] || {
+        berries: 30000 + order * 1200,
+        gems: 70 + Math.floor(order / 2),
+        boxes: [cloneItem(ITEMS.rareResourceBox, 2)],
+      }
+    );
+  }
 
-  if (phase === 1) multiplier = 1.25;
-  if (phase === 2) multiplier = 1.75;
-
-  return {
-    berries: Math.floor(base.berries * multiplier),
-    gems: Math.floor(base.gems * multiplier),
-    boxes: [cloneItem(ITEMS.rareResourceBox, Math.max(1, Math.floor(base.boxes * multiplier)))],
-  };
+  return base;
 }
 
 function formatRewardLines(reward) {
@@ -1320,11 +1515,7 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
 
   for (const participant of participants) {
     for (const unit of participant.units) {
-      const unitKey =
-        typeof getUnitActionKey === "function"
-          ? getUnitActionKey(unit)
-          : String(unit.instanceId || unit.globalSlot);
-
+      const unitKey = getUnitActionKey(unit);
       const isDead = Number(unit.battleHp ?? unit.hp) <= 0;
       const alreadyUsed = usedSet.has(unitKey);
       const status = isDead ? "DEFEATED" : alreadyUsed ? "WAIT" : "READY";
@@ -1366,10 +1557,7 @@ function buildRaidBossButtons(participants, ended, usedThisCycle = []) {
   let row = new ActionRowBuilder();
 
   for (const unit of allUnits) {
-    const unitKey = typeof getUnitActionKey === "function"
-      ? getUnitActionKey(unit)
-      : String(unit.instanceId || unit.globalSlot);
-
+    const unitKey = getUnitActionKey(unit);
     const alreadyUsed = usedSet.has(unitKey);
     const dead = Number(unit.battleHp ?? unit.hp) <= 0;
     const label = `${unit.globalSlot + 1} ${unit.name}`.slice(0, 80);
@@ -1460,6 +1648,16 @@ module.exports = {
         );
       }
 
+      const duplicates = getDuplicatePartyCards(participants);
+      if (duplicates.length) {
+        return message.reply(
+          [
+            "Cannot start Boss Phase 2 because duplicate cards exist in the party:",
+            ...duplicates.map((dup) => `- ${dup.name} used by ${dup.users.join(" and ")}`),
+          ].join("\n")
+        );
+      }
+
       const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
       const logs = [];
       let ended = false;
@@ -1474,21 +1672,9 @@ module.exports = {
 
       const reply = await message.reply({
         embeds: [
-          buildRaidBossEmbed(
-            currentIsland,
-            phaseBoss,
-            participants,
-            boss,
-            logs,
-            ended,
-            lastUsedUnitKey ? [lastUsedUnitKey] : []
-          ),
+          buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, ended, lastUsedUnitKey ? [lastUsedUnitKey] : []),
         ],
-        components: buildRaidBossButtons(
-          participants,
-          ended,
-          lastUsedUnitKey ? [lastUsedUnitKey] : []
-        ),
+        components: buildRaidBossButtons(participants, ended, lastUsedUnitKey ? [lastUsedUnitKey] : []),
       });
 
       const collector = reply.createMessageComponentCollector({
@@ -1519,15 +1705,7 @@ module.exports = {
 
           await interaction.update({
             embeds: [
-              buildRaidBossEmbed(
-                currentIsland,
-                phaseBoss,
-                participants,
-                boss,
-                logs,
-                false,
-                lastUsedUnitKey ? [lastUsedUnitKey] : []
-              ),
+              buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, lastUsedUnitKey ? [lastUsedUnitKey] : []),
             ],
             components: buildRaidBossRunConfirmButtons(),
           });
@@ -1541,21 +1719,9 @@ module.exports = {
 
           await interaction.update({
             embeds: [
-              buildRaidBossEmbed(
-                currentIsland,
-                phaseBoss,
-                participants,
-                boss,
-                logs,
-                false,
-                lastUsedUnitKey ? [lastUsedUnitKey] : []
-              ),
+              buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, lastUsedUnitKey ? [lastUsedUnitKey] : []),
             ],
-            components: buildRaidBossButtons(
-              participants,
-              false,
-              lastUsedUnitKey ? [lastUsedUnitKey] : []
-            ),
+            components: buildRaidBossButtons(participants, false, lastUsedUnitKey ? [lastUsedUnitKey] : []),
           });
           return;
         }
@@ -1609,11 +1775,8 @@ module.exports = {
           });
         }
 
-        lastUsedUnitKey = unitKey;
-
         const owner = participants.find((p) => p.userId === attacker.ownerId);
-        logs.length = 0;
-
+        const combatLogs = [];
         const turns = resolveTurnOrder(attacker, boss);
 
         for (const turn of turns) {
@@ -1629,17 +1792,20 @@ module.exports = {
             turn.isPlayer ? attacker.passiveBoostsApplied || owner?.combatBoosts || {} : {}
           );
 
-          pushBossLog(logs, `⚔️ ${actor.name} attacked ${target.name}.`);
-          pushBossLog(
-            logs,
-            `${turn.isPlayer ? "➡️" : "⬅️"} ${actor.name} dealt **${damage}** damage.`
+          combatLogs.push(
+            `${turn.isPlayer ? "⚔️" : "💢"} ${actor.name} dealt **${damage}** damage to ${target.name}.`
           );
 
           if (Number(target.battleHp ?? target.hp) <= 0) {
             if (turn.isPlayer) attacker.kills += 1;
-            pushBossLog(logs, `☠️ ${target.name} was defeated.`);
+            combatLogs.push(`☠️ ${target.name} was defeated.`);
+            break;
           }
         }
+
+        logs.length = 0;
+        logs.push(...combatLogs.slice(-BOSS_MAX_LOG_LINES));
+        lastUsedUnitKey = unitKey;
 
         if (Number(boss.battleHp ?? boss.hp) <= 0) {
           ended = true;
@@ -1799,21 +1965,9 @@ module.exports = {
 
         await interaction.update({
           embeds: [
-            buildRaidBossEmbed(
-              currentIsland,
-              phaseBoss,
-              participants,
-              boss,
-              logs,
-              false,
-              lastUsedUnitKey ? [lastUsedUnitKey] : []
-            ),
+            buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, lastUsedUnitKey ? [lastUsedUnitKey] : []),
           ],
-          components: buildRaidBossButtons(
-            participants,
-            false,
-            lastUsedUnitKey ? [lastUsedUnitKey] : []
-          ),
+          components: buildRaidBossButtons(participants, false, lastUsedUnitKey ? [lastUsedUnitKey] : []),
         });
       });
 
@@ -1861,7 +2015,6 @@ module.exports = {
     const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
     const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
     const logs = [];
-    let lastUsedUnitKey = "";
     let ended = false;
 
     const reply = await message.reply({
@@ -1937,7 +2090,7 @@ module.exports = {
               false
             ),
           ],
-          components: buildButtons(playerTeam, false, usedThisCycle),
+          components: buildButtons(playerTeam, false, []),
         });
         return;
       }
@@ -1982,8 +2135,7 @@ module.exports = {
         });
       }
 
-      logs.length = 0;
-
+      const combatLogs = [];
       const turns = resolveTurnOrder(attacker, boss);
 
       for (const turn of turns) {
@@ -1999,26 +2151,24 @@ module.exports = {
           turn.isPlayer ? actor.passiveBoostsApplied || combatBoosts : {}
         );
 
-        pushBossLog(logs, `⚔️ ${actor.name} attacked ${target.name}.`);
-        pushBossLog(
-          logs,
-          `${turn.isPlayer ? "➡️" : "⬅️"} ${actor.name} dealt **${damage}** damage to ${target.name}.`
+        combatLogs.push(
+          `${turn.isPlayer ? "⚔️" : "💢"} ${actor.name} dealt **${damage}** damage to ${target.name}.`
         );
 
         if (Number(target.battleHp ?? target.hp) <= 0) {
           if (turn.isPlayer) attacker.kills += 1;
-          pushBossLog(logs, `☠️ ${target.name} was defeated.`);
+          combatLogs.push(`☠️ ${target.name} was defeated.`);
+          break;
         }
       }
+
+      logs.length = 0;
+      logs.push(...combatLogs.slice(-BOSS_MAX_LOG_LINES));
 
       if (Number(boss.battleHp ?? boss.hp) <= 0) {
         ended = true;
 
-        const reward = {
-          berries: 12000,
-          gems: 30,
-          boxes: [cloneItem(ITEMS.rareResourceBox, 1)],
-        };
+        const reward = getBossReward(currentIsland, phaseBoss);
 
         let updatedBoxes = [...(player.boxes || [])];
 
@@ -2106,11 +2256,7 @@ module.exports = {
               title: "🏆 Boss Victory",
               color: 0x2ecc71,
               result: "WIN",
-              rewardLines: [
-                `💰 +${reward.berries.toLocaleString("en-US")} berries`,
-                `💎 +${reward.gems} gems`,
-                "📦 Rare Resource Box x1",
-              ],
+              rewardLines: formatRewardLines(reward),
               expLines,
               storyLines,
               logs,
