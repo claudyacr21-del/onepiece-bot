@@ -349,6 +349,42 @@ function getWeaponPercentAtLevel(basePercent, level) {
   };
 }
 
+function addWeaponToPool(pool, template, options = {}) {
+  if (!template) return;
+
+  const key = String(template.code || template.name || "").trim();
+  if (!key) return;
+
+  const existing = pool.get(key) || {
+    ...template,
+    amount: 0,
+    equippedOn: [],
+    bestUpgradeLevel: 0,
+  };
+
+  existing.amount += Math.max(0, Number(options.amount || 0));
+
+  if (options.equippedOn) {
+    existing.equippedOn.push(options.equippedOn);
+  }
+
+  existing.bestUpgradeLevel = Math.max(
+    Number(existing.bestUpgradeLevel || 0),
+    Number(options.upgradeLevel || 0)
+  );
+
+  pool.set(key, existing);
+}
+
+function splitEquippedWeaponNames(value) {
+  return String(value || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .map((x) => x.replace(/\s+\+\d+$/i, "").trim())
+    .filter(Boolean);
+}
+
 function buildOwnedWeaponCollection(player) {
   const pool = new Map();
 
