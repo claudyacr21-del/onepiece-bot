@@ -485,9 +485,45 @@ function hydrateCard(card) {
   const stage = Math.max(1, Math.min(3, Number(next.evolutionStage || 1)));
 
   next.level = Math.max(1, Math.min(100, Number(next.level || 1)));
-  next.baseAtk = Number(next.baseAtk ?? next.atk ?? 0);
-  next.baseHp = Number(next.baseHp ?? next.hp ?? 0);
-  next.baseSpeed = Number(next.baseSpeed ?? next.speed ?? 0);
+  const templateForBase = findTemplateByCode(next.code);
+
+  const canonicalBaseAtk = Number(
+    templateForBase?.baseAtk ??
+    templateForBase?.atk ??
+    next.originalBaseAtk ??
+    next.baseRawAtk ??
+    next.baseAtk ??
+    next.atk ??
+    0
+  );
+
+  const canonicalBaseHp = Number(
+    templateForBase?.baseHp ??
+    templateForBase?.hp ??
+    next.originalBaseHp ??
+    next.baseRawHp ??
+    next.baseHp ??
+    next.hp ??
+    0
+  );
+
+  const canonicalBaseSpeed = Number(
+    templateForBase?.baseSpeed ??
+    templateForBase?.speed ??
+    next.originalBaseSpeed ??
+    next.baseRawSpeed ??
+    next.baseSpeed ??
+    next.speed ??
+    0
+  );
+
+  next.originalBaseAtk = canonicalBaseAtk;
+  next.originalBaseHp = canonicalBaseHp;
+  next.originalBaseSpeed = canonicalBaseSpeed;
+
+  next.baseAtk = canonicalBaseAtk;
+  next.baseHp = canonicalBaseHp;
+  next.baseSpeed = canonicalBaseSpeed;
 
   let scaledAtk = 0;
   let scaledHp = 0;
@@ -593,10 +629,9 @@ function hydrateCard(card) {
   next.hp = finalHp;
   next.speed = finalSpeed;
 
-  next.baseAtk = finalAtk;
-  next.baseHp = finalHp;
-  next.baseSpeed = finalSpeed;
-
+  next.baseAtk = canonicalBaseAtk;
+  next.baseHp = canonicalBaseHp;
+  next.baseSpeed = canonicalBaseSpeed;
   next.finalAtk = finalAtk;
   next.finalHp = finalHp;
   next.finalSpeed = finalSpeed;
