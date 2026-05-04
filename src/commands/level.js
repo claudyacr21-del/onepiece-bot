@@ -1,4 +1,9 @@
-const { EmbedBuilder } = require("discord.js");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { incrementQuestCounter } = require("../utils/questProgress");
 
@@ -149,6 +154,65 @@ module.exports = {
       );
     }
 
+    const confirmEmbed = new EmbedBuilder()
+      .setColor(0xf1c40f)
+      .setTitle("Confirm Fragment Level Up")
+      .setDescription(
+        [
+          `**Card:** ${getCardName(card)}`,
+          `**Stage:** M${stage}`,
+          `**Current Level:** ${currentLevel}/${levelCap}`,
+          `**After Level:** ${currentLevel + possibleLevelGain}/${levelCap}`,
+          `**Fragments To Use:** ${possibleLevelGain}`,
+          `**Fragments Owned:** ${ownedFragments}`,
+          `**Fragments Left:** ${ownedFragments - possibleLevelGain}`,
+          "",
+          "Press **Confirm** to use these fragments.",
+        ].join("\n")
+      )
+      .setFooter({ text: "One Piece Bot • Level Confirmation" });
+
+    const confirmRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("level_frag_confirm")
+        .setLabel("Confirm")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId("level_frag_cancel")
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    const confirmMessage = await message.reply({
+      embeds: [confirmEmbed],
+      components: [confirmRow],
+    });
+
+    let confirmInteraction;
+
+    try {
+      confirmInteraction = await confirmMessage.awaitMessageComponent({
+        time: 60 * 1000,
+        filter: (interaction) =>
+          interaction.user.id === message.author.id &&
+          ["level_frag_confirm", "level_frag_cancel"].includes(interaction.customId),
+      });
+    } catch {
+      return confirmMessage.edit({
+        content: "Level up confirmation expired.",
+        embeds: [],
+        components: [],
+      }).catch(() => null);
+    }
+
+    if (confirmInteraction.customId === "level_frag_cancel") {
+      return confirmInteraction.update({
+        content: "Level up cancelled.",
+        embeds: [],
+        components: [],
+      });
+    }
+
     const updatedCards = [...(player.cards || [])];
     const nextLevel = currentLevel + possibleLevelGain;
 
@@ -196,8 +260,9 @@ module.exports = {
         text: "One Piece Bot • Level",
       });
 
-    return message.reply({
+    return confirmInteraction.update({
       embeds: [embed],
+      components: [],
     });
   },
 };

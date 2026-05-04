@@ -9,6 +9,7 @@ const {
 const PATREON_URL = process.env.PATREON_URL || "https://www.patreon.com/";
 const MOTHER_FLAME_URL = process.env.PATREON_MOTHER_FLAME_URL || PATREON_URL;
 const TICKET_RESET_URL = process.env.PATREON_TICKET_RESET_URL || PATREON_URL;
+const { readPatreonRoles } = require("../utils/patreonRoleStore");
 
 const PACKAGES = {
   mother_flame: {
@@ -72,7 +73,40 @@ const PACKAGES = {
   },
 };
 
-function buildMainEmbed() {
+function formatRemainingTime(ms) {
+  const safeMs = Math.max(0, Number(ms || 0));
+  if (safeMs <= 0) return "Expired";
+
+  const totalMinutes = Math.floor(safeMs / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function getPatreonStatus(userId) {
+  const data = readPatreonRoles();
+  const entry = data[String(userId)];
+
+  if (!entry || Number(entry.expiresAt || 0) <= Date.now()) {
+    return {
+      active: false,
+      line: "Mother Flame Status: Not active",
+    };
+  }
+
+  return {
+    active: true,
+    line: `Mother Flame Status: Active • Remaining ${formatRemainingTime(
+      Number(entry.expiresAt || 0) - Date.now()
+    )}`,
+  };
+}
+
+function buildMainEmbed(userId) {
   return new EmbedBuilder()
     .setColor(0x8e44ad)
     .setTitle("One Piece Bot Patreon")
@@ -81,6 +115,8 @@ function buildMainEmbed() {
         "Your support keeps **One Piece Bot** running and helps unlock better features, smoother hosting, and future updates.",
         "",
         "Choose a package below to view the perks.",
+        "",
+        `**${getPatreonStatus(userId).line}**`,
         "",
         "🔥 **Mother Flame** = premium monthly support",
         "🎟️ **Ticket Reset** = one-time claim package",
@@ -99,13 +135,19 @@ function buildMainEmbed() {
     });
 }
 
-function buildPackageEmbed(packageKey) {
+function buildPackageEmbed(packageKey, userId) {
   const pack = PACKAGES[packageKey] || PACKAGES.mother_flame;
 
   return new EmbedBuilder()
     .setColor(0x8e44ad)
     .setTitle(pack.title)
-    .setDescription(pack.description)
+    .setDescription(
+      [
+        `**${getPatreonStatus(userId).line}**`,
+        "",
+        pack.description,
+      ].join("\n")
+    )
     .setFooter({
       text: "One Piece Bot • Patreon Package",
     });
@@ -159,7 +201,7 @@ module.exports = {
     let selected = null;
 
     const sent = await message.reply({
-      embeds: [buildMainEmbed()],
+      embeds: [buildMainEmbed(message.author.id)],
       components: buildComponents(selected),
     });
 
@@ -178,7 +220,7 @@ module.exports = {
       selected = interaction.values?.[0] || "mother_flame";
 
       return interaction.update({
-        embeds: [buildPackageEmbed(selected)],
+        embeds: [buildPackageEmbed(selected, message.author.id)],
         components: buildComponents(selected),
       });
     });

@@ -738,28 +738,28 @@ function getRaidRewardConfig(tier) {
       berries: [1200, 2000],
       gems: [1, 1],
       fragments: 1,
-      weaponChance: 3,
-      fruitChance: 0.5,
+      weaponChance: 7,
+      fruitChance: 3,
     },
     B: {
       berries: [2500, 4000],
       gems: [1, 2],
       fragments: 1,
-      weaponChance: 5,
-      fruitChance: 1,
+      weaponChance: 7,
+      fruitChance: 3,
     },
     A: {
       berries: [6000, 9000],
       gems: [2, 4],
-      fragments: 2,
-      weaponChance: 8,
-      fruitChance: 2,
+      fragments: 1,
+      weaponChance: 7,
+      fruitChance: 3,
     },
     S: {
       berries: [12000, 18000],
       gems: [4, 7],
-      fragments: 3,
-      weaponChance: 12,
+      fragments: 1,
+      weaponChance: 7,
       fruitChance: 3,
     },
   };
@@ -1026,17 +1026,18 @@ function handleRaidAttack(state, actor) {
   const damage = applyDamageBoost(baseDamage, actor.passiveBoostsApplied || {});
   boss.hp = Math.max(0, Number(boss.hp || 0) - damage);
 
-  pushBattleLog(state, `${actor.name} dealt ${damage.toLocaleString("en-US")} damage.`);
-
-  state.usedThisCycle = [
-    ...new Set([...ensureArray(state.usedThisCycle), getMemberActionKey(actor)]),
-  ];
-
-  if (checkEndState(state)) return;
-
-  const target = chooseBossTarget(state);
+  const target = checkEndState(state) ? null : chooseBossTarget(state);
 
   if (!target) {
+    pushBattleLog(
+      state,
+      `⚔️ ${actor.name} dealt ${damage.toLocaleString("en-US")} damage to ${boss.name}.`
+    );
+
+    state.usedThisCycle = [
+      ...new Set([...ensureArray(state.usedThisCycle), getMemberActionKey(actor)]),
+    ];
+
     checkEndState(state);
     return;
   }
@@ -1044,9 +1045,18 @@ function handleRaidAttack(state, actor) {
   const bossDamage = randomInt(boss.atkMin, boss.atkMax);
   target.hp = Math.max(0, Number(target.hp || 0) - bossDamage);
 
+  state.usedThisCycle = [
+    ...new Set([...ensureArray(state.usedThisCycle), getMemberActionKey(actor)]),
+  ];
+
   pushBattleLog(
     state,
-    `${boss.name} hit ${target.name} for ${bossDamage.toLocaleString("en-US")}.`
+    `⚔️ ${actor.name} dealt ${damage.toLocaleString("en-US")} damage to ${boss.name}.`
+  );
+
+  pushBattleLog(
+    state,
+    `💢 ${boss.name} hit ${target.name} for ${bossDamage.toLocaleString("en-US")}.`
   );
 
   checkEndState(state);

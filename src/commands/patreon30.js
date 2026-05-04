@@ -134,8 +134,8 @@ module.exports = {
           `**User:** ${member.user.tag}`,
           `**Role:** ${role.name}`,
           `**Duration:** ${DEFAULT_DAYS} days`,
-          `**Granted At:** ${formatDateTime(grantedAt)} WIB`,
-          `**Expires At:** ${formatDateTime(expiresAt)} WIB`,
+          `**Granted At:** ${formatIndonesiaDate(grantedAt)} WIB`,
+          `**Expires At:** ${formatIndonesiaDate(expiresAt)} WIB`,
           "",
           "This Patreon role was activated manually after ticket proof verification.",
         ].join("\n")
