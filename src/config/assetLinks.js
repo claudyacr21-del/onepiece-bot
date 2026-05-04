@@ -816,12 +816,12 @@ const CARD_IMAGES = {
 };
 
 const WEAPON_IMAGES = {
-  ace: "",
-  ame_no_habakiri: "",
-  basic_iron_club: "",
-  basic_marine_saber: "",
-  basic_slingshot: "",
-  basic_staff: "",
+  ace: "https://cdn.discordapp.com/attachments/1493204525975076944/1500811792534863972/content.png?ex=69f9cb67&is=69f879e7&hm=22db0cc74dfb24fc40c661fb0da169b16dfc1f14622d02ed93f9ab2d42a531df&",
+  ame_no_habakiri: "https://cdn.discordapp.com/attachments/1493204525975076944/1500811792979591248/content.png?ex=69f9cb67&is=69f879e7&hm=4719eb6a0f726ee3f89f7a9d175ef2668c3370461e572fe4f8b7c88d1afe1246&",
+  basic_iron_club: "https://cdn.discordapp.com/attachments/1493204525975076944/1500811793436643418/content.png?ex=69f9cb67&is=69f879e7&hm=813a5773f7dac96c87449fdfd1ee1a2f648b325a6840679e297e4ec6d763690a&",
+  basic_marine_saber: "https://cdn.discordapp.com/attachments/1493204525975076944/1500811793948479531/content.png?ex=69f9cb67&is=69f879e7&hm=4a53fa59123035436dd45b523deea9f43a173861e976a05b35a71fa0af4aca29&",
+  basic_slingshot: "https://cdn.discordapp.com/attachments/1493204525975076944/1500811794372100107/content.png?ex=69f9cb67&is=69f879e7&hm=5813e57c5d90ccbd0ebbeca6ebdbee86f81eadbe5cc9efd51ce64865ec600d44&",
+  clima_tact: "",
   battle_axe: "",
   bible: "",
   bisento: "",

@@ -55,8 +55,8 @@ module.exports = [
     description: "A simple but reliable slingshot."
   },
   {
-    code: "basic_staff",
-    name: "Basic Staff",
+    code: "clima_tact",
+    name: "Clima Tact",
     rarity: "C",
     owners: ["nami_cat_burglar"],
     type: "Staff",
