@@ -287,6 +287,34 @@ function getRewardBadge(contentType, reward, ownedCard = null) {
   return getRarityBadge(rarity) || null;
 }
 
+function buildBoostEffectText(reward) {
+  const boost = reward.boostBonus || {};
+
+  const atk = Number(boost.atk || 0);
+  const hp = Number(boost.hp || 0);
+  const spd = Number(boost.spd || boost.speed || 0);
+  const dmg = Number(boost.dmg || boost.damage || 0);
+  const exp = Number(boost.exp || 0);
+
+  const effects = [];
+
+  if (atk) effects.push(`+${atk}% ATK`);
+  if (hp) effects.push(`+${hp}% HP`);
+  if (spd) effects.push(`+${spd}% SPD`);
+  if (dmg) effects.push(`+${dmg}% DMG`);
+  if (exp) effects.push(`+${exp}% EXP`);
+
+  if (effects.length) {
+    return [`**Effect:** ${effects.join(" / ")}`];
+  }
+
+  if (reward.description) {
+    return [`**Effect:** ${reward.description}`];
+  }
+
+  return ["**Effect:** No effect data"];
+}
+
 function buildRewardStatsText(contentType, reward) {
   if (contentType === "ticket") {
     return [
@@ -301,12 +329,16 @@ function buildRewardStatsText(contentType, reward) {
     ];
   }
 
-  if (contentType === "battleCard" || contentType === "boostCard") {
+  if (contentType === "battleCard") {
     return [
       `**ATK:** ${reward.atk ?? 0}`,
       `**HP:** ${reward.hp ?? 0}`,
       `**SPD:** ${reward.speed ?? 0}`,
     ];
+  }
+
+  if (contentType === "boostCard") {
+    return buildBoostEffectText(reward);
   }
 
   const stat = reward.statPercent || {
@@ -490,8 +522,12 @@ module.exports = {
             : contentType === "ticket"
             ? `**Category:** Ticket`
             : `**Current Form:** ${ownedCard?.evolutionKey || "M1"}`,
-          duplicateLine ? null : "",
-          duplicateLine ? null : buildRewardStatsText(contentType, ownedCard || picked).join("\n"),
+          "",
+          contentType === "battleCard" || contentType === "boostCard"
+            ? buildRewardStatsText(contentType, ownedCard || picked).join("\n")
+            : duplicateLine
+            ? null
+            : buildRewardStatsText(contentType, ownedCard || picked).join("\n"),
         ]
           .filter(Boolean)
           .join("\n")
