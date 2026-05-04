@@ -195,8 +195,15 @@ client.on("messageCreate", async (message) => {
     const cooldownKey = `${message.author.id}:${command.name || commandName}`;
     const now = Date.now();
     const lastUsed = commandCooldowns.get(cooldownKey) || 0;
+    const remainingMs = COMMAND_COOLDOWN_MS - (now - lastUsed);
 
-    if (now - lastUsed < COMMAND_COOLDOWN_MS) {
+    if (remainingMs > 0) {
+      const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+      await message.reply(
+        `⏳ Please wait **${remainingSeconds}s** before using \`${PREFIX} ${commandName}\` again.`
+      );
+
       return;
     }
 
