@@ -106,23 +106,20 @@ function formatExpResults(playerTeam, expResults) {
 
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   const synced = hydrateCard(card);
+  const boosted = applyBoostedDisplayStats(synced, combatBoosts);
 
-  const displayAtk = Number(synced.atk || 0);
-  const displayHp = Number(synced.hp || 0);
-  const displaySpeed = Number(synced.speed || 0);
-  const displayPower = Number(
-    synced.currentPower ||
-      synced.power ||
-      Math.floor(displayAtk * 1.4 + displayHp * 0.22 + displaySpeed * 9)
-  );
+  const displayAtk = Number(boosted.atk || 0);
+  const displayHp = Number(boosted.hp || 0);
+  const displaySpeed = Number(boosted.speed || 0);
+  const displayPower = Number(boosted.currentPower || boosted.power || 0);
 
   return {
     slot: slotIndex + 1,
     sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
-    instanceId: synced.instanceId,
-    code: synced.code,
-    name: synced.displayName || synced.name || "Unknown",
-    rarity: synced.currentTier || synced.rarity || "C",
+    instanceId: boosted.instanceId,
+    code: boosted.code,
+    name: boosted.displayName || boosted.name || "Unknown",
+    rarity: boosted.currentTier || boosted.rarity || "C",
 
     atk: displayAtk,
     hp: displayHp,
@@ -136,16 +133,16 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     battleSpeed: displaySpeed,
     battlePower: displayPower,
 
-    level: Number(synced.level || 1),
-    levelCap: getCardLevelCap(synced),
-    exp: getCardExp(synced),
-    kills: Number(synced.kills || 0),
-    image: synced.image || "",
+    level: Number(boosted.level || 1),
+    levelCap: getCardLevelCap(boosted),
+    exp: getCardExp(boosted),
+    kills: Number(boosted.kills || 0),
+    image: boosted.image || "",
 
     passiveBoostsApplied: {
-      atk: 0,
-      hp: 0,
-      spd: 0,
+      atk: Number(combatBoosts.atk || 0),
+      hp: Number(combatBoosts.hp || 0),
+      spd: Number(combatBoosts.spd || 0),
       dmg: Number(combatBoosts.dmg || 0),
       exp: Number(combatBoosts.exp || 0),
     },
@@ -1341,7 +1338,7 @@ function applyBossQuestProgress(player, keys) {
 }
 
 function getFullTeamFromPlayer(player) {
-  const combatBoosts = getPlayerCombatBoosts(player);
+  const combatBoosts = getPassiveBoostSummary(player);
   const rawCards = Array.isArray(player.cards) ? player.cards : [];
 
   const cards = rawCards
