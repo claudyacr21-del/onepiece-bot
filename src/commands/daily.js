@@ -28,7 +28,18 @@ function addOrIncrease(list, item) {
 }
 
 function randomPick(items) {
-  return items[Math.floor(Math.random() * items.length)];
+  const validItems = (Array.isArray(items) ? items : []).filter(
+    (item) => item && item.name && item.code
+  );
+
+  if (!validItems.length) return null;
+
+  return validItems[Math.floor(Math.random() * validItems.length)];
+}
+
+function addReward(rewards, reward) {
+  if (!reward || !reward.name || !reward.code) return;
+  rewards.push(reward);
 }
 
 function formatRemaining(ms) {
@@ -70,10 +81,12 @@ function getDailyTierRewards(dailyTier) {
     gems = 30;
 
     if (Math.random() < 0.35) {
-      rewards.push(
+      addReward(
+        rewards,
         randomPick([
-          cloneItem(ITEMS.basicResourceBox, 1),
-          cloneItem(ITEMS.enhancementStone, 2),
+          cloneItem(ITEMS.rareResourceBox, 1),
+          cloneItem(ITEMS.royalMaterialBox, 1),
+          cloneItem(ITEMS.pullResetTicket, 2),
         ])
       );
     }
@@ -88,7 +101,7 @@ function getDailyTierRewards(dailyTier) {
     rewards.push(
       randomPick([
         cloneItem(ITEMS.basicResourceBox, 1),
-        cloneItem(ITEMS.treasureMaterialPack, 3),
+        cloneItem(ITEMS.woodenMaterialBox, 1),
         cloneItem(ITEMS.pullResetTicket, 1),
       ])
     );
@@ -103,13 +116,13 @@ function getDailyTierRewards(dailyTier) {
     rewards.push(
       randomPick([
         cloneItem(ITEMS.rareResourceBox, 1),
-        cloneItem(ITEMS.treasureMaterialPack, 5),
+        cloneItem(ITEMS.ironMaterialBox, 1),
         cloneItem(ITEMS.pullResetTicket, 1),
       ])
     );
 
     if (Math.random() < 0.4) {
-      rewards.push(cloneItem(ITEMS.basicResourceBox, 1));
+      addReward(rewards, cloneItem(ITEMS.basicResourceBox, 1));
     }
 
     return { berries, gems, rewards };
@@ -121,7 +134,7 @@ function getDailyTierRewards(dailyTier) {
   rewards.push(
     randomPick([
       cloneItem(ITEMS.rareResourceBox, 1),
-      cloneItem(ITEMS.treasureMaterialPack, 6),
+      cloneItem(ITEMS.royalMaterialBox, 1),
       cloneItem(ITEMS.pullResetTicket, 2),
     ])
   );
