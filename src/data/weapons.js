@@ -275,8 +275,8 @@ module.exports = [
     description: "Crocodile's signature golden hook."
   },
   {
-    code: "golden_staff",
-    name: "Golden Staff",
+    code: "nonosama_bo",
+    name: "Nonosama Bo",
     rarity: "S",
     owners: ["enel_god"],
     type: "Staff",
