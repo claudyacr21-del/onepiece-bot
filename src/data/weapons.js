@@ -451,17 +451,6 @@ module.exports = [
   description: "Kaido's massive kanabo, used to crush enemies with monstrous force."
   },
   {
-    code: "perfume_femur",
-    name: "Perfume Femur",
-    rarity: "S",
-    owners: ["boa_hancock"],
-    type: "Kick Technique",
-    statPercent: { atk: 6, hp: 4, speed: 3 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
-    image: "",
-    description: "A devastating perfume-infused kicking style."
-  },
-  {
     code: "plague_arsenal",
     name: "Plague Arsenal",
     rarity: "S",
@@ -493,17 +482,6 @@ module.exports = [
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "The lethal six powers mastered by CP7."
-  },
-  {
-    code: "rokushiki_blades",
-    name: "Rokushiki Blades",
-    rarity: "A",
-    owners: ["kaku_cp7"],
-    type: "Blades",
-    statPercent: { atk: 5, hp: 3, speed: 2 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
-    image: "",
-    description: "Precision blades combined with Rokushiki techniques."
   },
   {
     code: "sacred_saber",
