@@ -126,9 +126,10 @@ function getFragmentStorageBonus(player) {
 
 function getPassiveBoostSummary(player) {
   const boostCards = getUniqueBoostCards(player);
-
   const highestPullChance = getHighestBoost(boostCards, "pullChance");
-  const highestDaily = getHighestBoost(boostCards, "daily");
+  const dailyCards = boostCards.filter(
+    (card) => normalizeBoostType(card.boostType) === "daily"
+  );
 
   return {
     boostCards: boostCards.map((card) => ({
@@ -141,19 +142,18 @@ function getPassiveBoostSummary(player) {
         findBoostFruitByCode(card.equippedDevilFruitCode) ||
         findBoostFruitByCode(card.equippedDevilFruitName),
     })),
-
     pullChance: highestPullChance ? getEffectiveBoostValue(highestPullChance) : 0,
     pullChanceCard: highestPullChance || null,
 
-    daily: highestDaily ? getEffectiveBoostValue(highestDaily) : 0,
-    dailyCard: highestDaily || null,
+    daily: sumBoost(boostCards, "daily"),
+    dailyCards,
+    dailyCard: dailyCards.length ? dailyCards[0] : null,
 
     atk: sumBoost(boostCards, "atk"),
     hp: sumBoost(boostCards, "hp"),
     spd: sumBoost(boostCards, "spd"),
     exp: sumBoost(boostCards, "exp"),
     dmg: sumBoost(boostCards, "dmg"),
-
     fragmentStorageBonus: getFragmentStorageBonus(player),
   };
 }
