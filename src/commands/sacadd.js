@@ -18,47 +18,18 @@ function findOwnedFragment(player, query) {
 }
 
 function parseSacAddArgs(args) {
-  if (!Array.isArray(args) || !args.length) {
-    return {
-      ok: false,
-      message: "Usage: `op sacadd <card name> <amount/all>`",
-    };
-  }
-
-  const lastArg = String(args[args.length - 1] || "").toLowerCase();
-  const hasModeArg = lastArg === "all" || Number.isFinite(Number(lastArg));
-
-  const query = hasModeArg ? args.slice(0, -1).join(" ").trim() : args.join(" ").trim();
-  const mode = hasModeArg ? lastArg : "all";
+  const query = Array.isArray(args) ? args.join(" ").trim() : "";
 
   if (!query) {
     return {
       ok: false,
-      message: "Usage: `op sacadd <card name> <amount/all>`",
-    };
-  }
-
-  if (mode !== "all") {
-    const amount = Math.floor(Number(mode));
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return {
-        ok: false,
-        message: "Amount tidak valid. Pakai angka positif atau `all`.",
-      };
-    }
-
-    return {
-      ok: true,
-      query,
-      mode: String(amount),
+      message: "Usage: `op sacadd <card name>`",
     };
   }
 
   return {
     ok: true,
     query,
-    mode,
   };
 }
 
@@ -83,16 +54,13 @@ function formatCurrentCards(cards) {
     .map((card, index) => {
       const name = card.name || card.code || "Unknown Card";
       const rarity = String(card.rarity || "C").toUpperCase();
-      const mode = card.mode || "all";
-
-      return `${index + 1}. **${name}** • ${rarity} • ${mode}`;
+      return `${index + 1}. **${name}** • ${rarity}`;
     })
     .join("\n");
 }
 
 module.exports = {
   name: "sacadd",
-  aliases: ["asacadd", "autosacadd"],
 
   async execute(message, args) {
     const parsed = parseSacAddArgs(args);
@@ -136,12 +104,10 @@ module.exports = {
         code: fragment.code || null,
         name: fragment.name || parsed.query,
         rarity: fragment.rarity || "C",
-        mode: parsed.mode,
       });
 
       actionText = [
         `**${fragment.name || parsed.query}** berhasil ditambahkan ke autosac list.`,
-        `Mode: **${parsed.mode}**`,
         "",
         "Ini hanya menambah card ke list autosac.",
         "Fragment yang sudah ada sekarang **tidak dikurangi** dan **tidak langsung jadi berry**.",

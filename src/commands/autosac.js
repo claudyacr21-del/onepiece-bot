@@ -63,7 +63,7 @@ function buildEmbed(message, player) {
         "",
         "**Commands**",
         "`op sac <card name> <amount/all>`",
-        "`op sacadd <card name> <amount/all>`",
+        "`op sacadd <card name>`",
         "`op sacsafe <card name>`",
         "`op msac (luffy_5, zoro_2, nami_6)`",
       ].join("\n")
