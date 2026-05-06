@@ -74,7 +74,7 @@ const HELP_PAGES = {
       "",
       "**Auto Sacrifice**",
       `\`${PREFIX} autosac\` — open autosac settings`,
-      `\`${PREFIX} sacadd <card> <amount/all>\` — add / remove card from autosac list`,
+      `\`${PREFIX} sacadd <card name>\` — add / remove card from autosac list`,
       `${PREFIX} sacsafe <card name> — add / remove card from autosac safelist`,
       "",
       "**Manual Sacrifice**",
