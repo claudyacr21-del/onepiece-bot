@@ -102,6 +102,11 @@ function buildCardEmbed(card, index, total, mode) {
 
 function buildWeaponEmbed(item, index, total) {
   const percent5 = getUpgradedWeaponPercent(item, 5);
+  const effectText = [
+    Number(percent5.atk || 0) ? `+${Number(percent5.atk || 0)}% ATK` : null,
+    Number(percent5.hp || 0) ? `+${Number(percent5.hp || 0)}% HP` : null,
+    Number(percent5.speed || 0) ? `+${Number(percent5.speed || 0)}% SPD` : null,
+  ].filter(Boolean).join(" / ") || "No stat bonus";
 
   return new EmbedBuilder()
     .setColor(0x3498db)
@@ -112,12 +117,9 @@ function buildWeaponEmbed(item, index, total) {
         item.type || "Weapon",
         "",
         `Rarity: ${String(item.rarity || "B").toUpperCase()}`,
-        `Effect: ${item.description || statEffectText(item)}`,
+        `Effect: ${effectText}`,
+        `Description: ${item.description || "No description."}`,
         `Power: ${getWeaponPower(item, 5)}`,
-        "",
-        `ATK: +${Number(percent5.atk || 0)}%`,
-        `HP: +${Number(percent5.hp || 0)}%`,
-        `SPD: +${Number(percent5.speed || 0)}%`,
         "",
         `Owners: ${Array.isArray(item.owners) && item.owners.length ? item.owners.join(", ") : "General"}`,
       ].join("\n")
@@ -128,7 +130,7 @@ function buildWeaponEmbed(item, index, total) {
 }
 
 function buildFruitEmbed(item, index, total) {
-  const percent = item?.statPercent || item?.statBonus || {};
+  const effectText = statEffectText(item);
 
   return new EmbedBuilder()
     .setColor(0x9b59b6)
@@ -139,12 +141,9 @@ function buildFruitEmbed(item, index, total) {
         item.type || "Devil Fruit",
         "",
         `Rarity: ${String(item.rarity || "B").toUpperCase()}`,
-        `Effect: ${item.description || statEffectText(item)}`,
+        `Effect: ${effectText}`,
+        `Description: ${item.description || "No description."}`,
         `Power: ${getFruitPower(item)}`,
-        "",
-        `ATK: +${Number(percent.atk || 0)}%`,
-        `HP: +${Number(percent.hp || 0)}%`,
-        `SPD: +${Number(percent.speed || 0)}%`,
         "",
         `Owners: ${Array.isArray(item.owners) && item.owners.length ? item.owners.join(", ") : "Unknown"}`,
       ].join("\n")
