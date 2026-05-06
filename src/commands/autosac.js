@@ -6,10 +6,7 @@ const {
 } = require("discord.js");
 
 const { getPlayer, updatePlayer } = require("../playerStore");
-const {
-  getAutoSacSettings,
-  getFragmentStorageInfo,
-} = require("../utils/autoSac");
+const { getAutoSacSettings } = require("../utils/autoSac");
 
 const COLOR = 0x8e44ad;
 const RARITIES = ["C", "B", "A", "S"];
@@ -33,48 +30,46 @@ function getStatusEmoji(enabled) {
 
 function buildEmbed(message, player) {
   const settings = getAutoSacSettings(player);
-  const storage = getFragmentStorageInfo(player);
-  const memberAvatar = getMemberAvatar(message);
-  const displayName = message.member?.displayName || message.author.username;
 
-  const rarityText = RARITIES.map((rarity) => {
-    const enabled = Boolean(settings.rarities?.[rarity]);
-    return `${getStatusEmoji(enabled)} **${rarity}**`;
-  }).join("  ");
+  const rarityLines = RARITIES.map((rarity) => {
+    const enabled = settings.rarities[rarity];
+    return `${enabled ? "🟢" : "🔴"} **${rarity}**`;
+  }).join(" ");
 
   const cardText = settings.cards.length
-    ? settings.cards
-        .map((card) => `• ${card.name || card.code || "Unknown Card"}`)
-        .join("\n")
+    ? settings.cards.map((card) => card.name || card.code || "Unknown Card").join(", ")
     : "Belum ada card khusus di autosac.";
 
+  const safeText = settings.safeCards.length
+    ? settings.safeCards.map((card) => card.name || card.code || "Unknown Card").join(", ")
+    : "Belum ada card yang disafelisted.";
+
   return new EmbedBuilder()
-    .setColor(COLOR)
+    .setColor(0x8e44ad)
     .setTitle("Fragment Auto-Sacrifice Settings")
     .setDescription(
       [
         "Set rarity fragment/card yang ingin otomatis di-sacrifice jadi berries saat pull / pa.",
-        "Kalau storage fragment sudah full, duplicate fragment otomatis convert ke berries juga.",
-        "",
-        `**Fragment Storage:** ${storage.total}/${storage.max}`,
+        "Card di safelist tidak akan otomatis di-sacrifice walaupun rarity auto-sac aktif.",
         "",
         "**Rarity Auto-Sac**",
-        rarityText,
+        rarityLines,
         "",
         "**Cards To Auto-Sac**",
         cardText,
         "",
+        "**Safelisted Cards**",
+        safeText,
+        "",
         "**Commands**",
         "`op sac <card name> <amount/all>`",
         "`op sacadd <card name> <amount/all>`",
+        "`op sacsafe <card name>`",
         "`op msac (luffy_5, zoro_2, nami_6)`",
       ].join("\n")
     )
-    .setThumbnail(memberAvatar)
-    .setFooter({
-      text: `${displayName} • Auto Sacrifice`,
-      iconURL: memberAvatar,
-    });
+    .setThumbnail(message.author.displayAvatarURL({ extension: "png", size: 512 }))
+    .setFooter({ text: "One Piece Bot • Auto Sacrifice" });
 }
 
 function buildRows(settings) {

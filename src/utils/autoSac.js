@@ -43,16 +43,25 @@ function getAutoSacSettings(player) {
       UR: Boolean(raw.rarities?.UR),
     },
     cards: Array.isArray(raw.cards) ? raw.cards : [],
+    safeCards: Array.isArray(raw.safeCards) ? raw.safeCards : [],
   };
 }
 
 function isCardAutoSacEnabled(player, cardOrFragment) {
   const settings = getAutoSacSettings(player);
   const rarity = String(cardOrFragment?.baseTier || cardOrFragment?.rarity || "C").toUpperCase();
-  if (settings.rarities[rarity]) return true;
-
   const code = normalize(cardOrFragment?.code);
   const name = normalize(cardOrFragment?.displayName || cardOrFragment?.name);
+
+  const isSafeListed = settings.safeCards.some((entry) => {
+    const entryCode = normalize(entry.code);
+    const entryName = normalize(entry.name);
+    return (code && entryCode && code === entryCode) || (name && entryName && name === entryName);
+  });
+
+  if (isSafeListed) return false;
+
+  if (settings.rarities[rarity]) return true;
 
   return settings.cards.some((entry) => {
     const entryCode = normalize(entry.code);
