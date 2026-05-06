@@ -583,28 +583,6 @@ module.exports = [
     description: "Brook's icy soul-infused blade."
   },
   {
-    code: "steel_blades",
-    name: "Steel Blades",
-    rarity: "B",
-    owners: ["daz_bonez"],
-    type: "Blades",
-    statPercent: { atk: 3, hp: 3, speed: 2 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
-    image: "",
-    description: "Razor-sharp steel blades."
-  },
-  {
-    code: "sticky_staff",
-    name: "Sticky Staff",
-    rarity: "A",
-    owners: ["trebol_underworld_support"],
-    type: "Staff",
-    statPercent: { atk: 5, hp: 3, speed: 2 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
-    image: "",
-    description: "A mucus-coated staff for battlefield control."
-  },
-  {
     code: "tonfa",
     name: "Tonfa",
     rarity: "B",
