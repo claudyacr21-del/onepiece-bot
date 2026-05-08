@@ -2,7 +2,7 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { isPremiumUser } = require("../utils/premiumAccess");
 const {
-  MOTHER_FLAME_BADGE,
+  PROFILE_BADGES,
   getRaidPrestigeBadgeEmoji,
 } = require("../data/profileBadges");
 const { hydrateCard } = require("../utils/evolution");
@@ -22,6 +22,10 @@ function getProfileImage(message) {
     message.member?.displayAvatarURL?.({ extension: "png", size: 512 }) ||
     message.author.displayAvatarURL({ extension: "png", size: 512 })
   );
+}
+
+function isServerBooster(message) {
+  return Boolean(message.member?.premiumSince || message.member?.premiumSinceTimestamp);
 }
 
 function getHydratedCards(player) {
@@ -130,15 +134,25 @@ function getCardStatistics(player) {
   };
 }
 
-function getCaptainBadges(player, isMotherFlame) {
+function getCaptainBadges(player, options = {}) {
   const badges = [];
+  const seen = new Set();
 
-  if (isMotherFlame) {
-    badges.push(MOTHER_FLAME_BADGE);
+  function addBadge(emoji) {
+    if (!emoji || seen.has(emoji)) return;
+    seen.add(emoji);
+    badges.push(emoji);
+  }
+
+  if (options.isMotherFlame) {
+    addBadge(PROFILE_BADGES.motherFlame);
+  }
+
+  if (options.isBooster) {
+    addBadge(PROFILE_BADGES.serverBooster);
   }
 
   const cards = getHydratedCards(player);
-  const seen = new Set();
 
   for (const card of cards) {
     if (String(card.cardRole || "").toLowerCase() === "boost") continue;
@@ -146,11 +160,7 @@ function getCaptainBadges(player, isMotherFlame) {
     const prestige = Number(card.raidPrestige || 0);
     if (prestige < 200) continue;
 
-    const emoji = getRaidPrestigeBadgeEmoji(card);
-    if (!emoji || seen.has(emoji)) continue;
-
-    seen.add(emoji);
-    badges.push(emoji);
+    addBadge(getRaidPrestigeBadgeEmoji(card));
   }
 
   return badges.length ? badges.join(" ") : "None";
@@ -168,7 +178,11 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
     const totalFragments = countTotalAmount(player.fragments);
     const isMotherFlame = await isPremiumUser(message);
-    const captainBadges = getCaptainBadges(player, isMotherFlame);
+    const booster = isServerBooster(message);
+    const captainBadges = getCaptainBadges(player, {
+      isMotherFlame,
+      isBooster: booster,
+    });
     const teamPower = getTeamPower(player);
     const storyProgress = getStoryProgress(player);
     const arena = getArenaSummary(player);
@@ -187,7 +201,7 @@ module.exports = {
           "**🌊 Captain**",
           line("Island", player.currentIsland || DEFAULT_START_ISLAND),
           line("Premium", isMotherFlame ? "Mother Flame" : "Normal"),
-          line("Clan", player?.clan?.name || "None"),
+          line("Clan", player?.clan?.name || "Coming Soon"),
           line("Ship", `${ship.name} • Tier ${ship.tier}`),
           line("Badges", captainBadges),
           "",

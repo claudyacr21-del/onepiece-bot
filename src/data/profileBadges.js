@@ -1,9 +1,12 @@
-const MOTHER_FLAME_BADGE = process.env.MOTHER_FLAME_BADGE_EMOJI || "🔥";
+const PROFILE_BADGES = {
+  motherFlame: process.env.MOTHER_FLAME_BADGE_EMOJI || "<:motherflame:1502247949441306696>",
+  serverBooster: process.env.SERVER_BOOSTER_BADGE_EMOJI || "<:serverbooster:1502248368016064652>",
+};
 
 const RAID_PRESTIGE_BADGE_EMOJIS = {
   // imu: "<:imu:123456789012345678>",
-  // luffy_straw_hat: "<:luffy:123456789012345678>",
-  // zoro_east_blue: "<:zoro:123456789012345678>",
+  // luffy: "<:luffy:123456789012345678>",
+  // zoro: "<:zoro:123456789012345678>",
 };
 
 function getRaidPrestigeBadgeEmoji(card) {
@@ -14,7 +17,7 @@ function getRaidPrestigeBadgeEmoji(card) {
 }
 
 module.exports = {
-  MOTHER_FLAME_BADGE,
+  PROFILE_BADGES,
   RAID_PRESTIGE_BADGE_EMOJIS,
   getRaidPrestigeBadgeEmoji,
 };
