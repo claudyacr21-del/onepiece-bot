@@ -142,16 +142,16 @@ function buildBoostEffectLines(boosts = {}) {
 }
 
 function getPassiveBoostSummary(player) {
-  const allBoostCards = getBoostCards(player);
+  const boostCards = getBoostCards(player);
   const uniqueBoostCards = getUniqueBoostCards(player);
 
-  const highestPullChance = getHighestBoost(allBoostCards, "pullChance");
-  const dailyCards = allBoostCards.filter(
+  const highestPullChance = getHighestBoost(boostCards, "pullChance");
+  const dailyCards = boostCards.filter(
     (card) => normalizeBoostType(card.boostType) === "daily"
   );
 
   return {
-    boostCards: allBoostCards.map((card) => ({
+    boostCards: boostCards.map((card) => ({
       ...card,
       boostType: normalizeBoostType(card.boostType),
       fruitBonus: getFruitBonusForBoostCard(card),
@@ -176,15 +176,15 @@ function getPassiveBoostSummary(player) {
     pullChance: highestPullChance ? getEffectiveBoostValue(highestPullChance) : 0,
     pullChanceCard: highestPullChance || null,
 
-    daily: sumBoost(allBoostCards, "daily"),
+    daily: sumBoost(boostCards, "daily"),
     dailyCards,
     dailyCard: dailyCards.length ? dailyCards[0] : null,
 
-    atk: sumBoost(allBoostCards, "atk"),
-    hp: sumBoost(allBoostCards, "hp"),
-    spd: sumBoost(allBoostCards, "spd"),
-    exp: sumBoost(allBoostCards, "exp"),
-    dmg: sumBoost(allBoostCards, "dmg"),
+    atk: sumBoost(boostCards, "atk"),
+    hp: sumBoost(boostCards, "hp"),
+    spd: sumBoost(boostCards, "spd"),
+    exp: sumBoost(boostCards, "exp"),
+    dmg: sumBoost(boostCards, "dmg"),
     fragmentStorageBonus: getFragmentStorageBonus(player),
   };
 }
