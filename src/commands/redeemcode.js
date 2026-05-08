@@ -225,14 +225,14 @@ function buildListEmbed(data) {
           ? `${Number(entry.usedBy?.length || 0)}/${Number(entry.maxUses)}`
           : `${Number(entry.usedBy?.length || 0)}/Unlimited`;
 
-        return `**${index + 1}. ${entry.code}** — Rewards: ${rewardText} — Uses: ${usage}`;
+        return `${index + 1}. **${entry.code}**\nRewards: ${rewardText}\nUses: ${usage}`;
       })
     : ["No redeem codes have been created yet."];
 
   return new EmbedBuilder()
     .setColor(0xf1c40f)
     .setTitle("Redeem Code List")
-    .setDescription(lines.join("\n"))
+    .setDescription(lines.join("\n\n"))
     .setFooter({ text: "One Piece Bot • Redeem Codes" });
 }
 
