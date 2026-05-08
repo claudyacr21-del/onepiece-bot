@@ -276,9 +276,19 @@ function buildListEmbed(data, options = {}) {
   const viewerId = String(options.viewerId || "");
   const isAdminView = Boolean(options.isAdminView);
 
-  const allEntries = Object.values(data.codes || {}).sort((a, b) =>
-    String(a.code || "").localeCompare(String(b.code || ""))
-  );
+  const allEntries = Object.values(data.codes || {}).sort((a, b) => {
+    const aCreated = Number(a.createdAt || 0);
+    const bCreated = Number(b.createdAt || 0);
+
+    if (aCreated && bCreated && aCreated !== bCreated) {
+      return aCreated - bCreated;
+    }
+
+    if (aCreated && !bCreated) return -1;
+    if (!aCreated && bCreated) return 1;
+
+    return String(a.code || "").localeCompare(String(b.code || ""));
+  });
 
   const entries = isAdminView
     ? allEntries
