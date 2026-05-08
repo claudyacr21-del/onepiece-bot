@@ -1,6 +1,6 @@
 const PROFILE_BADGES = {
-  motherFlame: process.env.MOTHER_FLAME_BADGE_EMOJI || "<:motherflame:1502247949441306696>",
-  serverBooster: process.env.SERVER_BOOSTER_BADGE_EMOJI || "<:serverbooster:1502248368016064652>",
+  motherFlame: process.env.MOTHER_FLAME_BADGE_EMOJI || "<:motherflame:1502256240267497522>",
+  serverBooster: process.env.SERVER_BOOSTER_BADGE_EMOJI || "<:serverbooster:1502256202330148924>",
 };
 
 const RAID_PRESTIGE_BADGE_EMOJIS = {
