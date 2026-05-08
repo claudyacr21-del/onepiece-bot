@@ -124,6 +124,23 @@ function getFragmentStorageBonus(player) {
   return Math.min(total, 250);
 }
 
+function formatBoostValue(value, suffix = "") {
+  const number = Number(value || 0);
+  return number > 0 ? `+${number}${suffix}` : "None";
+}
+
+function buildBoostEffectLines(boosts = {}) {
+  return [
+    `↪ ATK Boost: ${formatBoostValue(boosts.atk, "%")}`,
+    `↪ HP Boost: ${formatBoostValue(boosts.hp, "%")}`,
+    `↪ SPD Boost: ${formatBoostValue(boosts.spd, "%")}`,
+    `↪ EXP Boost: ${formatBoostValue(boosts.exp, "%")}`,
+    `↪ DMG Boost: ${formatBoostValue(boosts.dmg, "%")}`,
+    `↪ Daily Reward Boost: ${formatBoostValue(boosts.daily)}`,
+    `↪ Fragment Storage Bonus: ${formatBoostValue(boosts.fragmentStorageBonus)}`,
+  ];
+}
+
 function getPassiveBoostSummary(player) {
   const boostCards = getUniqueBoostCards(player);
   const highestPullChance = getHighestBoost(boostCards, "pullChance");
@@ -166,4 +183,6 @@ module.exports = {
   getFruitBonusForBoostCard,
   getEffectiveBoostValue,
   findBoostFruitByCode,
+  formatBoostValue,
+  buildBoostEffectLines,
 };

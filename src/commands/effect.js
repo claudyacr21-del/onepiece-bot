@@ -1,6 +1,9 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
-const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const {
+  getPassiveBoostSummary,
+  buildBoostEffectLines,
+} = require("../utils/passiveBoosts");
 const {
   getTotalPullUsage,
   buildPullAccessSnapshot,
@@ -21,11 +24,6 @@ function hasRole(message, roleName) {
         String(roleName || "").toLowerCase()
     )
   );
-}
-
-function formatValue(value, suffix = "") {
-  const number = Number(value || 0);
-  return number > 0 ? `+${number}${suffix}` : "None";
 }
 
 function getSharedPity(player) {
@@ -95,13 +93,7 @@ module.exports = {
           `↪ Pity Drop: ${pityDrop}`,
           "",
           "## Boost Effects",
-          `↪ ATK Boost: ${formatValue(boosts.atk, "%")}`,
-          `↪ HP Boost: ${formatValue(boosts.hp, "%")}`,
-          `↪ SPD Boost: ${formatValue(boosts.spd, "%")}`,
-          `↪ EXP Boost: ${formatValue(boosts.exp, "%")}`,
-          `↪ DMG Boost: ${formatValue(boosts.dmg, "%")}`,
-          `↪ Daily Reward Boost: ${formatValue(boosts.daily)}`,
-          `↪ Fragment Storage Bonus: ${formatValue(boosts.fragmentStorageBonus)}`,
+          ...buildBoostEffectLines(boosts),
         ].join("\n")
       )
       .setFooter({
