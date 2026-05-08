@@ -385,6 +385,10 @@ module.exports = {
     const code = normalizeCode(args[0]);
 
     if (!code) {
+      if (!isAdmin(message.author.id)) {
+        return message.reply("Usage: `op redeemcode <code>`");
+      }
+
       return message.reply(
         [
           "Usage: `op redeemcode <code>`",
