@@ -2,20 +2,100 @@ const devilFruits = require("../data/devilFruits");
 const { hydrateCard, findCardTemplate, getBoostStageValue } = require("./evolution");
 
 function normalize(value) {
-  return String(value || "").toLowerCase().trim().replace(/[_-]+/g, "");
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_\-\s]+/g, "");
 }
 
 function normalizeBoostType(value) {
   const type = normalize(value);
 
-  if (type === "attack" || type === "atk") return "atk";
-  if (type === "health" || type === "hp") return "hp";
-  if (type === "speed" || type === "spd") return "spd";
-  if (type === "damage" || type === "dmg") return "dmg";
-  if (type === "experience" || type === "exp") return "exp";
-  if (type === "daily") return "daily";
-  if (type === "pullchance") return "pullChance";
-  if (type === "fragmentstorage") return "fragmentStorage";
+  if (
+    type === "attack" ||
+    type === "atk" ||
+    type === "atkboost" ||
+    type === "attackboost" ||
+    type === "teamatk" ||
+    type === "teamattack" ||
+    type === "atkbuff" ||
+    type === "attackbuff"
+  ) {
+    return "atk";
+  }
+
+  if (
+    type === "health" ||
+    type === "hp" ||
+    type === "hpboost" ||
+    type === "healthboost" ||
+    type === "teamhp" ||
+    type === "teammhealth" ||
+    type === "hpbuff" ||
+    type === "healthbuff"
+  ) {
+    return "hp";
+  }
+
+  if (
+    type === "speed" ||
+    type === "spd" ||
+    type === "spdboost" ||
+    type === "speedboost" ||
+    type === "teamspd" ||
+    type === "teamspeed" ||
+    type === "spdbuff" ||
+    type === "speedbuff"
+  ) {
+    return "spd";
+  }
+
+  if (
+    type === "damage" ||
+    type === "dmg" ||
+    type === "dmgboost" ||
+    type === "damageboost" ||
+    type === "teamdmg" ||
+    type === "teamdamage"
+  ) {
+    return "dmg";
+  }
+
+  if (
+    type === "experience" ||
+    type === "exp" ||
+    type === "expboost" ||
+    type === "experienceboost"
+  ) {
+    return "exp";
+  }
+
+  if (
+    type === "daily" ||
+    type === "dailyboost" ||
+    type === "dailyreward" ||
+    type === "dailyrewardboost"
+  ) {
+    return "daily";
+  }
+
+  if (
+    type === "pullchance" ||
+    type === "pullboost" ||
+    type === "pullrate" ||
+    type === "pitydrop"
+  ) {
+    return "pullChance";
+  }
+
+  if (
+    type === "fragmentstorage" ||
+    type === "fragmentstorageboost" ||
+    type === "fragstorage" ||
+    type === "storage"
+  ) {
+    return "fragmentStorage";
+  }
 
   return type;
 }
@@ -39,6 +119,10 @@ function mergeBoostWithTemplate(rawCard) {
         equippedDevilFruitName: rawCard.equippedDevilFruitName || null,
         equippedDevilFruitCode: rawCard.equippedDevilFruitCode || null,
         cardRole: rawCard.cardRole || template.cardRole,
+        boostType: rawCard.boostType || template.boostType,
+        boostValue: rawCard.boostValue ?? template.boostValue,
+        boostTarget: rawCard.boostTarget || template.boostTarget,
+        boostDescription: rawCard.boostDescription || template.boostDescription,
       }
     : rawCard;
 
