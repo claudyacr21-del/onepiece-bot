@@ -116,7 +116,7 @@ function sumBoost(cards, boostType) {
 }
 
 function getFragmentStorageBonus(player) {
-  const boostCards = getUniqueBoostCards(player);
+  const boostCards = getBoostCards(player);
   const total = boostCards
     .filter((card) => normalizeBoostType(card.boostType) === "fragmentStorage")
     .reduce((sum, card) => sum + getEffectiveBoostValue(card), 0);
@@ -142,14 +142,16 @@ function buildBoostEffectLines(boosts = {}) {
 }
 
 function getPassiveBoostSummary(player) {
-  const boostCards = getUniqueBoostCards(player);
-  const highestPullChance = getHighestBoost(boostCards, "pullChance");
-  const dailyCards = boostCards.filter(
+  const allBoostCards = getBoostCards(player);
+  const uniqueBoostCards = getUniqueBoostCards(player);
+
+  const highestPullChance = getHighestBoost(allBoostCards, "pullChance");
+  const dailyCards = allBoostCards.filter(
     (card) => normalizeBoostType(card.boostType) === "daily"
   );
 
   return {
-    boostCards: boostCards.map((card) => ({
+    boostCards: allBoostCards.map((card) => ({
       ...card,
       boostType: normalizeBoostType(card.boostType),
       fruitBonus: getFruitBonusForBoostCard(card),
@@ -159,18 +161,30 @@ function getPassiveBoostSummary(player) {
         findBoostFruitByCode(card.equippedDevilFruitCode) ||
         findBoostFruitByCode(card.equippedDevilFruitName),
     })),
+
+    uniqueBoostCards: uniqueBoostCards.map((card) => ({
+      ...card,
+      boostType: normalizeBoostType(card.boostType),
+      fruitBonus: getFruitBonusForBoostCard(card),
+      effectiveBoostValue: getEffectiveBoostValue(card),
+      equippedFruitData:
+        findBoostFruitByCode(card.equippedDevilFruit) ||
+        findBoostFruitByCode(card.equippedDevilFruitCode) ||
+        findBoostFruitByCode(card.equippedDevilFruitName),
+    })),
+
     pullChance: highestPullChance ? getEffectiveBoostValue(highestPullChance) : 0,
     pullChanceCard: highestPullChance || null,
 
-    daily: sumBoost(boostCards, "daily"),
+    daily: sumBoost(allBoostCards, "daily"),
     dailyCards,
     dailyCard: dailyCards.length ? dailyCards[0] : null,
 
-    atk: sumBoost(boostCards, "atk"),
-    hp: sumBoost(boostCards, "hp"),
-    spd: sumBoost(boostCards, "spd"),
-    exp: sumBoost(boostCards, "exp"),
-    dmg: sumBoost(boostCards, "dmg"),
+    atk: sumBoost(allBoostCards, "atk"),
+    hp: sumBoost(allBoostCards, "hp"),
+    spd: sumBoost(allBoostCards, "spd"),
+    exp: sumBoost(allBoostCards, "exp"),
+    dmg: sumBoost(allBoostCards, "dmg"),
     fragmentStorageBonus: getFragmentStorageBonus(player),
   };
 }
