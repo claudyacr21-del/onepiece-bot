@@ -7,6 +7,7 @@ const {
   GatewayIntentBits,
   Collection,
   Partials,
+  ActivityType,
 } = require("discord.js");
 
 const { startTopggWebhookServer } = require("./topggWebhook");
@@ -132,6 +133,16 @@ function parsePrefixedCommand(content) {
 
 client.once("clientReady", async () => {
   console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
+
+  client.user.setPresence({
+    status: "online",
+    activities: [
+      {
+        name: "Type op help to become Pirate King!",
+        type: ActivityType.Playing,
+      },
+    ],
+  });
 
   startTopggWebhookServer(client);
   startResetReminderService(client);
