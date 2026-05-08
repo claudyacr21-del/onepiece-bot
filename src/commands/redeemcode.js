@@ -273,6 +273,7 @@ function applyRewards(player, rewards) {
 }
 
 function buildListEmbed(data, options = {}) {
+  const viewerId = String(options.viewerId || "");
   const isAdminView = Boolean(options.isAdminView);
 
   const allEntries = Object.values(data.codes || {}).sort((a, b) =>
@@ -281,14 +282,17 @@ function buildListEmbed(data, options = {}) {
 
   const entries = isAdminView
     ? allEntries
-    : allEntries.filter(
-        (entry) => entry && entry.active !== false && !isRedeemCodeExpired(entry)
-      );
+    : allEntries.filter((entry) => entry && entry.active !== false);
 
   const lines = entries.length
     ? entries.slice(0, 25).map((entry, index) => {
+        const usedBy = Array.isArray(entry.usedBy) ? entry.usedBy.map(String) : [];
+        const alreadyUsed = viewerId && usedBy.includes(viewerId);
+
         if (!isAdminView) {
-          return `${index + 1}. **${entry.code}**`;
+          return alreadyUsed
+            ? `${index + 1}. ~~${entry.code}~~ — Used`
+            : `${index + 1}. **${entry.code}**`;
         }
 
         const rewardText = Array.isArray(entry.rewards)
@@ -296,13 +300,14 @@ function buildListEmbed(data, options = {}) {
           : "No rewards";
 
         const usage = Number(entry.maxUses || 0) > 0
-          ? `${Number(entry.usedBy?.length || 0)}/${Number(entry.maxUses)}`
-          : `${Number(entry.usedBy?.length || 0)}/Unlimited`;
+          ? `${Number(usedBy.length || 0)}/${Number(entry.maxUses)}`
+          : `${Number(usedBy.length || 0)}/Unlimited`;
+
+        const status = entry.active === false ? "Disabled" : "Active";
 
         return [
           `${index + 1}. **${entry.code}**`,
-          `Status: ${getRedeemCodeStatus(entry)}`,
-          `Expires: ${formatExpiryText(entry)}`,
+          `Status: ${status}`,
           `Rewards: ${rewardText}`,
           `Uses: ${usage}`,
         ].join("\n");
@@ -316,7 +321,7 @@ function buildListEmbed(data, options = {}) {
   return new EmbedBuilder()
     .setColor(0xf1c40f)
     .setTitle(isAdminView ? "Redeem Code List" : "Available Redeem Codes")
-    .setDescription(lines.join("\n"))
+    .setDescription(lines.join("\n\n"))
     .setFooter({ text: "One Piece Bot • Redeem Codes" });
 }
 
@@ -456,7 +461,12 @@ module.exports = {
       const adminView = isAdmin(message.author.id);
 
       return message.reply({
-        embeds: [buildListEmbed(data, { isAdminView: adminView })],
+        embeds: [
+          buildListEmbed(data, {
+            isAdminView: adminView,
+            viewerId: message.author.id,
+          }),
+        ],
       });
     }
 
