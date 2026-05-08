@@ -1,17 +1,16 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
-const { PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
+const { isPremiumUser } = require("../utils/premiumAccess");
+const {
+  MOTHER_FLAME_BADGE,
+  getRaidPrestigeBadgeEmoji,
+} = require("../data/profileBadges");
 const { hydrateCard } = require("../utils/evolution");
 const { getShipByCode, SHIPS } = require("../data/ships");
 
 const DEFAULT_START_ISLAND = "Foosha Village";
 const ARENA_START_RANK = 500;
 const ARENA_POINTS_PER_RANK = 10;
-
-function hasRole(message, roleName) {
-  if (!message.member?.roles?.cache || !roleName) return false;
-  return message.member.roles.cache.some((role) => role.name === roleName);
-}
 
 function countTotalAmount(list) {
   if (!Array.isArray(list)) return 0;
@@ -131,6 +130,32 @@ function getCardStatistics(player) {
   };
 }
 
+function getCaptainBadges(player, isMotherFlame) {
+  const badges = [];
+
+  if (isMotherFlame) {
+    badges.push(MOTHER_FLAME_BADGE);
+  }
+
+  const cards = getHydratedCards(player);
+  const seen = new Set();
+
+  for (const card of cards) {
+    if (String(card.cardRole || "").toLowerCase() === "boost") continue;
+
+    const prestige = Number(card.raidPrestige || 0);
+    if (prestige < 200) continue;
+
+    const emoji = getRaidPrestigeBadgeEmoji(card);
+    if (!emoji || seen.has(emoji)) continue;
+
+    seen.add(emoji);
+    badges.push(emoji);
+  }
+
+  return badges.length ? badges.join(" ") : "None";
+}
+
 function line(label, value) {
   return `↪ ${label}: \`${value}\``;
 }
@@ -142,7 +167,8 @@ module.exports = {
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
     const totalFragments = countTotalAmount(player.fragments);
-    const isMotherFlame = hasRole(message, PREMIUM_ROLE_NAME);
+    const isMotherFlame = await isPremiumUser(message);
+    const captainBadges = getCaptainBadges(player, isMotherFlame);
     const teamPower = getTeamPower(player);
     const storyProgress = getStoryProgress(player);
     const arena = getArenaSummary(player);
@@ -163,6 +189,7 @@ module.exports = {
           line("Premium", isMotherFlame ? "Mother Flame" : "Normal"),
           line("Clan", player?.clan?.name || "None"),
           line("Ship", `${ship.name} • Tier ${ship.tier}`),
+          line("Badges", captainBadges),
           "",
           "**💰 Wallet**",
           line("Berries", Number(player.berries || 0).toLocaleString("en-US")),
