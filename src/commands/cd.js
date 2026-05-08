@@ -1,11 +1,18 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { getNextResetTime, applyGlobalPullReset } = require("../utils/pullReset");
-const { PREMIUM_ROLE_NAME } = require("../utils/pullAccess");
+const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
+const { readPatreonRoles } = require("../utils/patreonRoleStore");
 
-function hasRole(message, roleName) {
-  if (!message.member?.roles?.cache || !roleName) return false;
-  return message.member.roles.cache.some((role) => role.name === roleName);
+
+function hasGlobalMotherFlame(userId) {
+  const data = readPatreonRoles();
+  const entry = data[String(userId)];
+
+  if (!entry) return false;
+
+  const expiresAt = Number(entry.expiresAt || 0);
+  return expiresAt > Date.now();
 }
 
 function formatRemaining(targetTime, now = Date.now()) {
@@ -50,7 +57,7 @@ module.exports = {
     const nextVote = Number(cooldowns.vote || 0);
     const nextTreasure = Number(cooldowns.treasure || 0);
 
-    const isMotherFlame = hasRole(message, PREMIUM_ROLE_NAME);
+    const isMotherFlame = await isPremiumUser(message);
 
     const lines = [
       `↪ Next Pull Reset: ${formatRemaining(nextPullReset, now)}`,
