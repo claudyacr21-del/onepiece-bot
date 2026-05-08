@@ -352,6 +352,39 @@ module.exports = {
       return message.reply(`Redeem code \`${code}\` has been removed.`);
     }
 
+    if (subcommand === "enable" || subcommand === "disable") {
+      if (!isAdmin(message.author.id)) {
+        return message.reply("Owner only command.");
+      }
+
+      const code = normalizeCode(args[1]);
+
+      if (!code) {
+        return message.reply(`Usage: \`op redeemcode ${subcommand} <code>\``);
+      }
+
+      const data = readRedeemCodes();
+      const entry = data.codes[code];
+
+      if (!entry) {
+        return message.reply(`Redeem code \`${code}\` was not found.`);
+      }
+
+      const active = subcommand === "enable";
+
+      data.codes[code] = {
+        ...entry,
+        active,
+        updatedAt: Date.now(),
+      };
+
+      writeRedeemCodes(data);
+
+      return message.reply(
+        `Redeem code \`${code}\` has been ${active ? "enabled" : "disabled"}.`
+      );
+    }
+
     if (subcommand === "list") {
       if (!isAdmin(message.author.id)) {
         return message.reply("Owner only command.");
@@ -396,6 +429,8 @@ module.exports = {
           "Admin:",
           "`op redeemcode add <code> <rewards>`",
           "`op redeemcode remove <code>`",
+          "`op redeemcode enable <code>`",
+          "`op redeemcode disable <code>`",
           "`op redeemcode list`",
           "`op redeemcode info <code>`",
         ].join("\n")
