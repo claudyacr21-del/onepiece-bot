@@ -225,7 +225,7 @@ function buildListEmbed(data) {
           ? `${Number(entry.usedBy?.length || 0)}/${Number(entry.maxUses)}`
           : `${Number(entry.usedBy?.length || 0)}/Unlimited`;
 
-        return `**${index + 1}. ${entry.code}**\nRewards: ${rewardText}\nUses: ${usage}`;
+        return `**${index + 1}. ${entry.code}** — Rewards: ${rewardText} — Uses: ${usage}`;
       })
     : ["No redeem codes have been created yet."];
 
