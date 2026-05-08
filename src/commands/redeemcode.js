@@ -469,7 +469,7 @@ module.exports = {
 
       return message.reply(
         [
-          "Usage: `op redeemcode <code>`\nUse `op redeemcode list` to view available codes."
+          "Usage: `op redeemcode <code>`\nUse `op redeemcode list` to view available codes.",
           "",
           "Admin:",
           "`op redeemcode add <code> <rewards> --days <number>`",
