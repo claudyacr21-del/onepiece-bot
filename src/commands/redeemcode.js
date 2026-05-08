@@ -331,7 +331,7 @@ function buildListEmbed(data, options = {}) {
   return new EmbedBuilder()
     .setColor(0xf1c40f)
     .setTitle(isAdminView ? "Redeem Code List" : "Available Redeem Codes")
-    .setDescription(lines.join("\n\n"))
+    .setDescription(lines.join("\n"))
     .setFooter({ text: "One Piece Bot • Redeem Codes" });
 }
 
