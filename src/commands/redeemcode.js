@@ -31,6 +31,68 @@ function normalizeCode(value) {
   return String(value || "").trim().toUpperCase();
 }
 
+function parsePositiveDays(value) {
+  const days = Math.floor(Number(value || 0));
+  return Number.isFinite(days) && days > 0 ? days : 0;
+}
+
+function isRedeemCodeExpired(entry) {
+  const expiresAt = Number(entry?.expiresAt || 0);
+  return expiresAt > 0 && expiresAt <= Date.now();
+}
+
+function getRedeemCodeStatus(entry) {
+  if (!entry) return "Invalid";
+  if (entry.active === false) return "Disabled";
+  if (isRedeemCodeExpired(entry)) return "Expired";
+  return "Active";
+}
+
+function formatExpiryText(entry) {
+  const expiresAt = Number(entry?.expiresAt || 0);
+
+  if (!expiresAt) return "Never";
+
+  const remainingMs = expiresAt - Date.now();
+
+  if (remainingMs <= 0) return "Expired";
+
+  const days = Math.floor(remainingMs / 86400000);
+  const hours = Math.floor((remainingMs % 86400000) / 3600000);
+
+  if (days > 0) return `${days}d ${hours}h left`;
+  return `${hours}h left`;
+}
+
+function parseAddOptions(rawArgs) {
+  const args = [...rawArgs];
+  let expiresInDays = 0;
+
+  const flagIndex = args.findIndex((arg) =>
+    ["--days", "--expire", "--expires", "--expiredays"].includes(
+      String(arg || "").toLowerCase()
+    )
+  );
+
+  if (flagIndex !== -1) {
+    expiresInDays = parsePositiveDays(args[flagIndex + 1]);
+    args.splice(flagIndex, 2);
+  }
+
+  const lastArg = String(args[args.length - 1] || "").toLowerCase();
+  const inlineMatch = lastArg.match(/^(days|expire|expires):(\d+)$/);
+
+  if (inlineMatch) {
+    expiresInDays = parsePositiveDays(inlineMatch[2]);
+    args.pop();
+  }
+
+  return {
+    rewardText: args.join(" ").trim(),
+    expiresInDays,
+  };
+}
+
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
   const code = item.code || normalize(item.name).replace(/\s+/g, "_");
@@ -210,13 +272,25 @@ function applyRewards(player, rewards) {
   };
 }
 
-function buildListEmbed(data) {
-  const entries = Object.values(data.codes || {}).sort((a, b) =>
+function buildListEmbed(data, options = {}) {
+  const isAdminView = Boolean(options.isAdminView);
+
+  const allEntries = Object.values(data.codes || {}).sort((a, b) =>
     String(a.code || "").localeCompare(String(b.code || ""))
   );
 
+  const entries = isAdminView
+    ? allEntries
+    : allEntries.filter(
+        (entry) => entry && entry.active !== false && !isRedeemCodeExpired(entry)
+      );
+
   const lines = entries.length
     ? entries.slice(0, 25).map((entry, index) => {
+        if (!isAdminView) {
+          return `${index + 1}. **${entry.code}**`;
+        }
+
         const rewardText = Array.isArray(entry.rewards)
           ? entry.rewards.map((reward) => reward.label).join(" / ")
           : "No rewards";
@@ -225,39 +299,25 @@ function buildListEmbed(data) {
           ? `${Number(entry.usedBy?.length || 0)}/${Number(entry.maxUses)}`
           : `${Number(entry.usedBy?.length || 0)}/Unlimited`;
 
-        return `${index + 1}. **${entry.code}**\nRewards: ${rewardText}\nUses: ${usage}`;
+        return [
+          `${index + 1}. **${entry.code}**`,
+          `Status: ${getRedeemCodeStatus(entry)}`,
+          `Expires: ${formatExpiryText(entry)}`,
+          `Rewards: ${rewardText}`,
+          `Uses: ${usage}`,
+        ].join("\n");
       })
-    : ["No redeem codes have been created yet."];
+    : [
+        isAdminView
+          ? "No redeem codes have been created yet."
+          : "No active redeem codes are available right now.",
+      ];
 
   return new EmbedBuilder()
     .setColor(0xf1c40f)
-    .setTitle("Redeem Code List")
-    .setDescription(lines.join("\n\n"))
+    .setTitle(isAdminView ? "Redeem Code List" : "Available Redeem Codes")
+    .setDescription(lines.join("\n"))
     .setFooter({ text: "One Piece Bot • Redeem Codes" });
-}
-
-function buildInfoEmbed(entry) {
-  const rewards = Array.isArray(entry.rewards) && entry.rewards.length
-    ? entry.rewards.map((reward) => `- ${reward.label}`).join("\n")
-    : "No rewards";
-
-  const usage = Number(entry.maxUses || 0) > 0
-    ? `${Number(entry.usedBy?.length || 0)}/${Number(entry.maxUses)}`
-    : `${Number(entry.usedBy?.length || 0)}/Unlimited`;
-
-  return new EmbedBuilder()
-    .setColor(0x3498db)
-    .setTitle(`Redeem Code: ${entry.code}`)
-    .setDescription(
-      [
-        `**Status:** ${entry.active === false ? "Disabled" : "Active"}`,
-        `**Usage:** ${usage}`,
-        "",
-        "**Rewards**",
-        rewards,
-      ].join("\n")
-    )
-    .setFooter({ text: "One Piece Bot • Redeem Code Info" });
 }
 
 module.exports = {
@@ -272,7 +332,9 @@ module.exports = {
       }
 
       const code = normalizeCode(args[1]);
-      const rewardText = args.slice(2).join(" ").trim();
+      const addOptions = parseAddOptions(args.slice(2));
+      const rewardText = addOptions.rewardText;
+      const expiresInDays = addOptions.expiresInDays;
 
       if (!code || !rewardText) {
         return message.reply(
@@ -298,15 +360,18 @@ module.exports = {
 
       const data = readRedeemCodes();
 
+      const now = Date.now();
+
       data.codes[code] = {
         code,
         active: true,
         maxUses: 0,
+        expiresAt: expiresInDays > 0 ? now + expiresInDays * 86400000 : 0,
         rewards,
         usedBy: Array.isArray(data.codes[code]?.usedBy) ? data.codes[code].usedBy : [],
         createdBy: message.author.id,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        createdAt: data.codes[code]?.createdAt || now,
+        updatedAt: now,
       };
 
       writeRedeemCodes(data);
@@ -319,6 +384,7 @@ module.exports = {
             .setDescription(
               [
                 `**Code:** ${code}`,
+                `**Expires:** ${expiresInDays > 0 ? `${expiresInDays} day(s)` : "Never"}`,
                 "",
                 "**Rewards**",
                 rewards.map((reward) => `- ${reward.label}`).join("\n"),
@@ -386,33 +452,12 @@ module.exports = {
     }
 
     if (subcommand === "list") {
-      if (!isAdmin(message.author.id)) {
-        return message.reply("Owner only command.");
-      }
-
       const data = readRedeemCodes();
-      return message.reply({ embeds: [buildListEmbed(data)] });
-    }
+      const adminView = isAdmin(message.author.id);
 
-    if (subcommand === "info") {
-      if (!isAdmin(message.author.id)) {
-        return message.reply("Owner only command.");
-      }
-
-      const code = normalizeCode(args[1]);
-
-      if (!code) {
-        return message.reply("Usage: `op redeemcode info <code>`");
-      }
-
-      const data = readRedeemCodes();
-      const entry = data.codes[code];
-
-      if (!entry) {
-        return message.reply(`Redeem code \`${code}\` was not found.`);
-      }
-
-      return message.reply({ embeds: [buildInfoEmbed(entry)] });
+      return message.reply({
+        embeds: [buildListEmbed(data, { isAdminView: adminView })],
+      });
     }
 
     const code = normalizeCode(args[0]);
@@ -424,15 +469,14 @@ module.exports = {
 
       return message.reply(
         [
-          "Usage: `op redeemcode <code>`",
+          "Usage: `op redeemcode <code>`\nUse `op redeemcode list` to view available codes."
           "",
           "Admin:",
-          "`op redeemcode add <code> <rewards>`",
+          "`op redeemcode add <code> <rewards> --days <number>`",
           "`op redeemcode remove <code>`",
           "`op redeemcode enable <code>`",
           "`op redeemcode disable <code>`",
           "`op redeemcode list`",
-          "`op redeemcode info <code>`",
         ].join("\n")
       );
     }
@@ -444,7 +488,7 @@ module.exports = {
       return message.reply("This redeem code is invalid.");
     }
 
-    if (entry.active === false) {
+    if (entry.active === false || isRedeemCodeExpired(entry)) {
       return message.reply("This redeem code is expired.");
     }
 
