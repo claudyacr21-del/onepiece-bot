@@ -107,19 +107,40 @@ function getHighestBoost(cards, boostType) {
   );
 }
 
+function getBoostAmount(card) {
+  const rawAmount =
+    card?.amount ??
+    card?.count ??
+    card?.qty ??
+    card?.quantity ??
+    card?.copies ??
+    1;
+
+  const amount = Math.floor(Number(rawAmount || 1));
+  return Number.isFinite(amount) && amount > 0 ? amount : 1;
+}
+
 function sumBoost(cards, boostType) {
   const type = normalizeBoostType(boostType);
 
   return cards
     .filter((card) => normalizeBoostType(card.boostType) === type)
-    .reduce((sum, card) => sum + getEffectiveBoostValue(card), 0);
+    .reduce((sum, card) => {
+      const value = getEffectiveBoostValue(card);
+      const amount = getBoostAmount(card);
+      return sum + value * amount;
+    }, 0);
 }
 
 function getFragmentStorageBonus(player) {
   const boostCards = getBoostCards(player);
   const total = boostCards
     .filter((card) => normalizeBoostType(card.boostType) === "fragmentStorage")
-    .reduce((sum, card) => sum + getEffectiveBoostValue(card), 0);
+    .reduce((sum, card) => {
+      const value = getEffectiveBoostValue(card);
+      const amount = getBoostAmount(card);
+      return sum + value * amount;
+    }, 0);
 
   return Math.min(total, 250);
 }
@@ -154,8 +175,10 @@ function getPassiveBoostSummary(player) {
     boostCards: boostCards.map((card) => ({
       ...card,
       boostType: normalizeBoostType(card.boostType),
+      boostAmount: getBoostAmount(card),
       fruitBonus: getFruitBonusForBoostCard(card),
       effectiveBoostValue: getEffectiveBoostValue(card),
+      totalBoostValue: getEffectiveBoostValue(card) * getBoostAmount(card),
       equippedFruitData:
         findBoostFruitByCode(card.equippedDevilFruit) ||
         findBoostFruitByCode(card.equippedDevilFruitCode) ||
@@ -165,8 +188,10 @@ function getPassiveBoostSummary(player) {
     uniqueBoostCards: uniqueBoostCards.map((card) => ({
       ...card,
       boostType: normalizeBoostType(card.boostType),
+      boostAmount: getBoostAmount(card),
       fruitBonus: getFruitBonusForBoostCard(card),
       effectiveBoostValue: getEffectiveBoostValue(card),
+      totalBoostValue: getEffectiveBoostValue(card) * getBoostAmount(card),
       equippedFruitData:
         findBoostFruitByCode(card.equippedDevilFruit) ||
         findBoostFruitByCode(card.equippedDevilFruitCode) ||
@@ -199,4 +224,5 @@ module.exports = {
   findBoostFruitByCode,
   formatBoostValue,
   buildBoostEffectLines,
+  getBoostAmount,
 };
