@@ -232,7 +232,7 @@ function buildListEmbed(data) {
   return new EmbedBuilder()
     .setColor(0xf1c40f)
     .setTitle("Redeem Code List")
-    .setDescription(lines.join("\n\n"))
+    .setDescription(lines.join("\n"))
     .setFooter({ text: "One Piece Bot • Redeem Codes" });
 }
 
@@ -440,8 +440,12 @@ module.exports = {
     const data = readRedeemCodes();
     const entry = data.codes[code];
 
-    if (!entry || entry.active === false) {
-      return message.reply("This redeem code is invalid or expired.");
+    if (!entry) {
+      return message.reply("This redeem code is invalid.");
+    }
+
+    if (entry.active === false) {
+      return message.reply("This redeem code is expired.");
     }
 
     entry.usedBy = Array.isArray(entry.usedBy) ? entry.usedBy : [];
