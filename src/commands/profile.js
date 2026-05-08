@@ -170,6 +170,10 @@ function line(label, value) {
   return `↪ ${label}: \`${value}\``;
 }
 
+function rawLine(label, value) {
+  return `↪ ${label}: ${value}`;
+}
+
 module.exports = {
   name: "profile",
   aliases: ["pf", "me"],
@@ -203,7 +207,7 @@ module.exports = {
           line("Premium", isMotherFlame ? "Mother Flame" : "Normal"),
           line("Clan", player?.clan?.name || "Coming Soon"),
           line("Ship", `${ship.name} • Tier ${ship.tier}`),
-          line("Badges", captainBadges),
+          rawLine("Badges", captainBadges),
           "",
           "**💰 Wallet**",
           line("Berries", Number(player.berries || 0).toLocaleString("en-US")),
