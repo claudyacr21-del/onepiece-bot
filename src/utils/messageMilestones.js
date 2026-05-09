@@ -32,7 +32,12 @@ const MESSAGE_MILESTONE_REWARDS = [
 ];
 
 function getMainChatChannelIds() {
-  return String(process.env.MAIN_CHAT_CHANNEL_ID || process.env.MAIN_CHAT_CHANNEL_IDS || "")
+  return [
+    process.env.MAIN_CHAT_CHANNEL_ID,
+    process.env.MAIN_CHAT_CHANNEL_IDS,
+  ]
+    .filter(Boolean)
+    .join(",")
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
