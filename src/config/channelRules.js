@@ -20,6 +20,7 @@ module.exports = {
       "daily",
       "treasure",
       "imu",
+      "redeemcode",
     ],
 
     // trade-discuss
