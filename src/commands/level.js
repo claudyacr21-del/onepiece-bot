@@ -102,14 +102,21 @@ module.exports = {
 
   async execute(message, args) {
     const mode = String(args[0] || "").toLowerCase();
-    const count = Math.floor(Number(args[1] || 0));
+    const countArg = String(args[1] || "").toLowerCase();
+    const useAllFragments = countArg === "all";
+    const count = useAllFragments ? Infinity : Math.floor(Number(countArg || 0));
     const query = args.slice(2).join(" ").trim();
 
-    if (!["frag", "fragment", "fragments"].includes(mode) || !count || count <= 0 || !query) {
+    if (
+      !["frag", "fragment", "fragments"].includes(mode) ||
+      (!useAllFragments && (!count || count <= 0)) ||
+      !query
+    ) {
       return message.reply(
         [
-          "Usage: `op level frag <count> <card>`",
+          "Usage: `op level frag <count/all> <card>`",
           "Example: `op level frag 1 luffy`",
+          "Example: `op level frag all luffy`",
         ].join("\n")
       );
     }
