@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer } = require("../playerStore");
+const { readPlayers } = require("../playerStore");
 const {
   getMessageMilestoneCount,
   formatMessageMilestoneLines,
@@ -9,7 +9,13 @@ module.exports = {
   name: "mm",
 
   async execute(message) {
-    const player = getPlayer(message.author.id, message.author.username);
+    const players = readPlayers();
+    const player = players[String(message.author.id)] || {
+      username: message.author.username,
+      messageMilestones: {
+        messages: 0,
+      },
+    };
     const total = getMessageMilestoneCount(player);
 
     const avatarUrl =
@@ -21,8 +27,6 @@ module.exports = {
       .setTitle(`${message.author.username}'s Message Milestones`)
       .setDescription(
         [
-          `Messages Counted: **${total}**`,
-          "",
           ...formatMessageMilestoneLines(player),
         ].join("\n\n")
       )
