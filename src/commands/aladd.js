@@ -25,6 +25,13 @@ module.exports = {
     }
 
     const targetCard = found.card;
+
+    if (String(targetCard.cardRole || "").toLowerCase() === "boost") {
+      return message.reply(
+        "Boost cards cannot be added to the auto-leveling list because boost cards do not have levels."
+      );
+    }
+
     const currentCards = getAutoLevelCards(player.autoLevel);
     const targetCode = normalize(targetCard.code);
     const targetName = normalize(getCardName(targetCard));
