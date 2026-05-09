@@ -136,13 +136,8 @@ function parsePrefixedCommand(content) {
   return { commandName, args: parts };
 }
 
-function trackMessageMilestone(message) {
-  if (!isEligibleMilestoneChat(message, PREFIX)) return;
-
-  const players = readPlayers();
-  const userId = String(message.author.id);
-
-  const player = players[userId] || {
+function createDefaultPlayerForMilestone(message) {
+  return {
     username: message.author.username,
     berries: 1000,
     gems: 100,
@@ -155,6 +150,14 @@ function trackMessageMilestone(message) {
     weapons: [],
     devilFruits: [],
   };
+}
+
+function trackMessageMilestone(message) {
+  if (!isEligibleMilestoneChat(message, PREFIX)) return;
+
+  const players = readPlayers();
+  const userId = String(message.author.id);
+  const player = players[userId] || createDefaultPlayerForMilestone(message);
 
   players[userId] = {
     ...player,
