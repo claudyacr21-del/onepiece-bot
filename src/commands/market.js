@@ -96,8 +96,6 @@ function buildMarketEmbed(player) {
         "`op buy iron 3`",
         "`op buy royal 10`",
         "",
-        "You can also use:",
-        "`op market buy wooden`",
       ].join("\n")
     )
     .setFooter({ text: "One Piece Bot • Market" });

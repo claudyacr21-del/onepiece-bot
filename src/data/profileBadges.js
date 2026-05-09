@@ -5,11 +5,11 @@ const PROFILE_BADGES = {
 
 const RAID_PRESTIGE_BADGE_EMOJIS = {
   imu: "<:imu:1502505149275443400>",
-  luffy_straw_hat: "<:luffy:1502285932923977788>",
-  shanks_red_hair: "<:shanks:123456789012345678>",
-  loki: "<:loki:1502292377853759549>",
-  warcury: "<:warcury:1502295262780067962>",
-  nusjuro: "<:nusjuro:1502295285127188601>",
+  luffy_straw_hat: "<:luffy:1502581755549585509>",
+  shanks_red_hair: "<:shanks:1502581773630967828>",
+  loki: "<:loki:1502581794053161022>",
+  warcury: "<:warcury:1502581816060678275>",
+  nusjuro: "<:nusjuro:1502581840496558190>",
   gunko_holy_knight: "<:gunko:1502295295734583406>",
   ju_peter: "<:ju_peter:123456789012345678>",
   xebec_captain_of_rocks: "<:xebec:123456789012345678>",
