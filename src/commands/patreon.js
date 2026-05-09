@@ -6,16 +6,22 @@ const {
   ButtonStyle,
 } = require("discord.js");
 
+const { readPatreonRoles } = require("../utils/patreonRoleStore");
+
 const PATREON_URL = process.env.PATREON_URL || "https://www.patreon.com/";
 const MOTHER_FLAME_URL = process.env.PATREON_MOTHER_FLAME_URL || PATREON_URL;
 const TICKET_RESET_URL = process.env.PATREON_TICKET_RESET_URL || PATREON_URL;
-const { readPatreonRoles } = require("../utils/patreonRoleStore");
+const SUPPORT_SERVER_URL =
+  process.env.SUPPORT_SERVER_URL ||
+  process.env.DISCORD_SUPPORT_URL ||
+  "https://discord.gg/";
 
 const PACKAGES = {
   mother_flame: {
     label: "Mother Flame 15$",
     emoji: "🔥",
     url: MOTHER_FLAME_URL,
+    buttonLabel: "Purchase Mother Flame",
     title: "Mother Flame | 15$/Month",
     description: [
       "**Global Perks**",
@@ -23,22 +29,15 @@ const PACKAGES = {
       "🔥 **Mother Flame Premium Role**",
       "",
       "• Access to `op pa` / Mother Flame pull all",
-      "",
       "• Premium guarantee: **S tier pity at 100**",
-      "",
       "• Extra pull slots every reset",
-      "",
       "• Faster premium fight cooldown",
-      "",
       "• Can claim premium treasure with `op treasure`",
-      "",
       "• Access to `op instantquest` / `op iq`",
-      "",
       "• Instant complete up to **2 daily quests**",
+      "• Premium identity role in the Discord server for **30 days** after admin verification",
       "",
-      "• Premium identity role in the server for **30 days** after admin verification",
-      "",
-      "📌 **Claim Instruction**",
+      "**Claim Instruction**",
       "After payment, open a ticket in the Discord server and send:",
       "• Patreon order proof",
       "• Payment proof",
@@ -51,19 +50,18 @@ const PACKAGES = {
     label: "10 Ticket Reset 5$",
     emoji: "🎟️",
     url: TICKET_RESET_URL,
+    buttonLabel: "Purchase Ticket Reset",
     title: "10 Ticket Reset | 5$",
     description: [
       "**Purchase Details**",
       "",
       "🎟️ **Ticket Reset Pack**",
       "",
-      "• Claimable Ticket Reset package",
-      "",
-      "• Useful for ticket / pull reset setup depending on current event rules",
-      "",
       "• One-time purchase package",
+      "• Claimable **10 Ticket Reset** package",
+      "• Useful for ticket / reset needs depending on current event rules",
       "",
-      "📌 **Claim Instruction**",
+      "**Claim Instruction**",
       "After payment, open a ticket in the Discord server and send:",
       "• Patreon order proof",
       "• Payment proof",
@@ -112,27 +110,23 @@ function buildMainEmbed(userId) {
     .setTitle("One Piece Bot Patreon")
     .setDescription(
       [
-        "Your support keeps **One Piece Bot** running and helps unlock better features, smoother hosting, and future updates.",
+        "Your support keeps **One Piece Bot** running and helps us continue building better features, smoother hosting, and future updates.",
         "",
-        "Choose a package below to view the perks.",
+        "Choose a package below to view the details.",
         "",
         `**${getPatreonStatus(userId).line}**`,
         "",
-        "🔥 **Mother Flame** = premium monthly support",
-        "🎟️ **Ticket Reset** = one-time claim package",
+        "🔥 **Mother Flame** — premium monthly support",
+        "🎟️ **Ticket Reset** — one-time claim package",
         "",
-        "📌 **After payment, open a Discord ticket and send:**",
+        "**After payment, open a Discord ticket and send:**",
         "• Patreon order proof",
         "• Payment proof",
         "",
         "Admin will verify your purchase manually.",
-        "",
-        "↪ Click **Patreon** below to open the purchase page.",
       ].join("\n")
     )
-    .setFooter({
-      text: "One Piece Bot • Patreon",
-    });
+    .setFooter({ text: "One Piece Bot • Patreon" });
 }
 
 function buildPackageEmbed(packageKey, userId) {
@@ -148,9 +142,7 @@ function buildPackageEmbed(packageKey, userId) {
         pack.description,
       ].join("\n")
     )
-    .setFooter({
-      text: "One Piece Bot • Patreon Package",
-    });
+    .setFooter({ text: "One Piece Bot • Patreon Package" });
 }
 
 function buildSelectRow(selected = null) {
@@ -168,7 +160,7 @@ function buildSelectRow(selected = null) {
         },
         {
           label: PACKAGES.ticket_reset.label,
-          description: "Ticket Reset purchase package",
+          description: "One-time Ticket Reset purchase package",
           value: "ticket_reset",
           emoji: PACKAGES.ticket_reset.emoji,
           default: selected === "ticket_reset",
@@ -179,14 +171,24 @@ function buildSelectRow(selected = null) {
 
 function buildButtonRow(selected = null) {
   const pack = selected ? PACKAGES[selected] : null;
-  const url = pack?.url || PATREON_URL;
 
-  return new ActionRowBuilder().addComponents(
+  const buttons = [
     new ButtonBuilder()
-      .setLabel("Patreon")
+      .setLabel(pack ? pack.buttonLabel : "Patreon")
       .setStyle(ButtonStyle.Link)
-      .setURL(url)
-  );
+      .setURL(pack?.url || PATREON_URL),
+  ];
+
+  if (SUPPORT_SERVER_URL && SUPPORT_SERVER_URL !== "https://discord.gg/") {
+    buttons.push(
+      new ButtonBuilder()
+        .setLabel("Support Server")
+        .setStyle(ButtonStyle.Link)
+        .setURL(SUPPORT_SERVER_URL)
+    );
+  }
+
+  return new ActionRowBuilder().addComponents(buttons);
 }
 
 function buildComponents(selected = null) {
@@ -220,7 +222,10 @@ module.exports = {
       selected = interaction.values?.[0] || "mother_flame";
 
       return interaction.update({
-        embeds: [buildPackageEmbed(selected, message.author.id)],
+        embeds: [
+          buildMainEmbed(message.author.id),
+          buildPackageEmbed(selected, message.author.id),
+        ],
         components: buildComponents(selected),
       });
     });
