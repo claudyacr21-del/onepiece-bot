@@ -7,7 +7,6 @@ const {
 
 module.exports = {
   name: "mm",
-  aliases: ["milestone", "milestones"],
 
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
