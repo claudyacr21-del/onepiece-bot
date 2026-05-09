@@ -21,6 +21,7 @@ module.exports = {
       "treasure",
       "imu",
       "redeemcode",
+      "quest",
     ],
 
     // trade-discuss
