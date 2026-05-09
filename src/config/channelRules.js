@@ -158,6 +158,9 @@ module.exports = {
     "1497574814762663936": ["raid"],
     "1497574860942086335": ["raid"],
     "1500131876101423154": ["raid"],
+
+    // mother flame
+    "1502557193415823401": ["raid"],
   },
 
   alwaysAllowedCommands: [],
