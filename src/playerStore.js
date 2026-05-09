@@ -388,6 +388,13 @@ function normalizeTeam(team) {
   };
 }
 
+function normalizeMessageMilestones(messageMilestones) {
+  return {
+    messages: Number(messageMilestones?.messages || 0),
+    updatedAt: Number(messageMilestones?.updatedAt || 0),
+  };
+}
+
 function normalizeStats(stats) {
   return {
     wins: Number(stats?.wins) >= 0 ? Number(stats.wins) : 0,
@@ -465,6 +472,7 @@ function normalizePlayer(player, username = "Unknown") {
     berries: typeof player.berries === "number" ? player.berries : 1000,
     gems: typeof player.gems === "number" ? player.gems : 100,
     currentIsland,
+    messageMilestones: normalizeMessageMilestones(player.messageMilestones),
     dailyLastClaim: player.dailyLastClaim || null,
     cards: normalizeCards(player.cards),
     fragments: normalizeFragmentList(player.fragments),
@@ -504,6 +512,10 @@ function getDefaultPlayer(username) {
     berries: 1000,
     gems: 100,
     currentIsland: "Foosha Village",
+    messageMilestones: {
+      messages: 0,
+      updatedAt: 0,
+    },
     dailyLastClaim: null,
 
     cards: [],

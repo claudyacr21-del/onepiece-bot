@@ -149,6 +149,10 @@ function createDefaultPlayerForMilestone(message) {
     items: [],
     weapons: [],
     devilFruits: [],
+    messageMilestones: {
+      messages: 0,
+      updatedAt: 0,
+    },
   };
 }
 
