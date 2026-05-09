@@ -24,6 +24,10 @@ module.exports = {
       "quest",
     ],
 
+    "1502525406161666058": [
+      "mm",
+    ],
+
     // trade-discuss
     "1497584870812291294": [
       "trade",
