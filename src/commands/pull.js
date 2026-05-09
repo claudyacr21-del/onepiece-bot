@@ -287,29 +287,64 @@ function getRewardBadge(contentType, reward, ownedCard = null) {
   return getRarityBadge(rarity) || null;
 }
 
+function normalizeBoostTypeLabel(value) {
+  const type = String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_\-\s]+/g, "");
+
+  if (type === "attack" || type === "atk" || type === "atkboost" || type === "attackboost") return "ATK";
+  if (type === "health" || type === "hp" || type === "hpboost" || type === "healthboost") return "HP";
+  if (type === "speed" || type === "spd" || type === "spdboost" || type === "speedboost") return "SPD";
+  if (type === "damage" || type === "dmg" || type === "dmgboost" || type === "damageboost") return "DMG";
+  if (type === "experience" || type === "exp" || type === "expboost" || type === "experienceboost") return "EXP";
+  if (type === "daily" || type === "dailyboost" || type === "dailyreward" || type === "dailyrewardboost") return "Daily Reward";
+  if (type === "pullchance" || type === "pullboost" || type === "pullrate" || type === "pitydrop") return "Pity Drop";
+  if (type === "fragmentstorage" || type === "fragmentstorageboost" || type === "fragstorage" || type === "storage") return "Fragment Storage";
+
+  return value ? String(value) : "Boost";
+}
+
 function buildBoostEffectText(reward) {
   const boost = reward.boostBonus || {};
+  const effects = [];
 
   const atk = Number(boost.atk || 0);
   const hp = Number(boost.hp || 0);
   const spd = Number(boost.spd || boost.speed || 0);
   const dmg = Number(boost.dmg || boost.damage || 0);
   const exp = Number(boost.exp || 0);
-
-  const effects = [];
+  const daily = Number(boost.daily || 0);
+  const pullChance = Number(boost.pullChance || boost.pull || boost.pityDrop || 0);
+  const fragmentStorage = Number(boost.fragmentStorage || boost.storage || 0);
 
   if (atk) effects.push(`+${atk}% ATK`);
   if (hp) effects.push(`+${hp}% HP`);
   if (spd) effects.push(`+${spd}% SPD`);
   if (dmg) effects.push(`+${dmg}% DMG`);
   if (exp) effects.push(`+${exp}% EXP`);
+  if (daily) effects.push(`+${daily} Daily Reward`);
+  if (pullChance) effects.push(`+${pullChance} Pity Drop`);
+  if (fragmentStorage) effects.push(`+${fragmentStorage} Fragment Storage`);
+
+  const boostType = normalizeBoostTypeLabel(reward.boostType || reward.boostTarget);
+  const boostValue = Number(reward.boostValue ?? reward.value ?? 0);
+
+  if (boostValue) {
+    const suffix = ["ATK", "HP", "SPD", "DMG", "EXP"].includes(boostType) ? "%" : "";
+    effects.push(`+${boostValue}${suffix} ${boostType}`);
+  }
 
   if (effects.length) {
     return [`**Effect:** ${effects.join(" / ")}`];
   }
 
+  if (reward.boostDescription) {
+    return [`**Effect:** ${reward.boostDescription}`];
+  }
+
   if (reward.description) {
-    return [`**Effect:** ${reward.description}`];
+    return [`**Description:** ${reward.description}`];
   }
 
   return ["**Effect:** No effect data"];
