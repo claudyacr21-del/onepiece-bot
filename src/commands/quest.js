@@ -29,7 +29,7 @@ function getQuestClearReward() {
     berries: 9000,
     gems: 25,
     boxes: [cloneItem(ITEMS.basicResourceBox, 1)],
-    tickets: Math.random() < 0.35 ? [cloneItem(ITEMS.pullResetTicket, 1)] : [],
+    tickets: [cloneItem(ITEMS.pullResetTicket, 1)],
     materials: Math.random() < 0.5 ? [cloneItem(ITEMS.enhancementStone, 3)] : [],
   };
 }
