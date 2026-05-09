@@ -60,21 +60,12 @@ function countSentenceLikeParts(content) {
 
   if (!text) return 0;
 
-  const punctuationParts = text
-    .split(/[.!?。！？]+/g)
-    .map((part) => part.trim())
-    .filter((part) => part.split(/\s+/).filter(Boolean).length >= 2);
+  const words = text
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter(Boolean);
 
-  if (punctuationParts.length >= 2) return punctuationParts.length;
-
-  const lineParts = text
-    .split(/\n+/g)
-    .map((part) => part.trim())
-    .filter((part) => part.split(/\s+/).filter(Boolean).length >= 2);
-
-  if (lineParts.length >= 2) return lineParts.length;
-
-  return 1;
+  return words.length;
 }
 
 function isEligibleMilestoneChat(message, prefix = "op") {
