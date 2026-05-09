@@ -15,6 +15,11 @@ const { syncArenaRankRoles } = require("./utils/arenaRankRoles");
 const { syncExpiredPatreonRoles } = require("./utils/patreonRoleStore");
 const { startResetReminderService } = require("./utils/resetReminderService");
 const channelRules = require("./config/channelRules");
+const { readPlayers, writePlayers } = require("./playerStore");
+const {
+  isEligibleMilestoneChat,
+  incrementMessageMilestone,
+} = require("./utils/messageMilestones");
 
 const client = new Client({
   intents: [
@@ -131,6 +136,35 @@ function parsePrefixedCommand(content) {
   return { commandName, args: parts };
 }
 
+function trackMessageMilestone(message) {
+  if (!isEligibleMilestoneChat(message, PREFIX)) return;
+
+  const players = readPlayers();
+  const userId = String(message.author.id);
+
+  const player = players[userId] || {
+    username: message.author.username,
+    berries: 1000,
+    gems: 100,
+    cards: [],
+    fragments: [],
+    boxes: [],
+    tickets: [],
+    materials: [],
+    items: [],
+    weapons: [],
+    devilFruits: [],
+  };
+
+  players[userId] = {
+    ...player,
+    username: message.author.username || player.username,
+    messageMilestones: incrementMessageMilestone(player),
+  };
+
+  writePlayers(players);
+}
+
 client.once("clientReady", async () => {
   console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
 
@@ -184,6 +218,8 @@ client.on("messageCreate", async (message) => {
 
     if (!message.author || message.author.bot) return;
     if (typeof message.content !== "string") return;
+
+    trackMessageMilestone(message);
 
     const parsed = parsePrefixedCommand(message.content);
 
