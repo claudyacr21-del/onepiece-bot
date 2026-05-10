@@ -366,7 +366,7 @@ function buildRewardStatsText(contentType, reward) {
 
   if (contentType === "battleCard") {
     return [
-      `**ATK:** ${reward.atk ?? 0}`,
+      `**Attack:** ${formatAtkRange(reward.atk)}`,
       `**HP:** ${reward.hp ?? 0}`,
       `**SPD:** ${reward.speed ?? 0}`,
     ];
