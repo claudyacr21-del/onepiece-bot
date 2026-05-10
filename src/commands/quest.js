@@ -28,10 +28,14 @@ function getQuestClearReward() {
   return {
     berries: 9000,
     gems: 25,
-    boxes: [cloneItem(ITEMS.basicResourceBox, 1)],
+    boxes: [],
     tickets: [cloneItem(ITEMS.pullResetTicket, 1)],
-    materials: Math.random() < 0.5 ? [cloneItem(ITEMS.enhancementStone, 3)] : [],
+    materials: [],
   };
+}
+
+function getSingleQuestReward() {
+  return cloneItem(ITEMS.basicResourceBox, 1);
 }
 
 function buildProgressBar(progress, target, size = 10) {
@@ -60,6 +64,24 @@ module.exports = {
     let berriesToAdd = 0;
     let gemsToAdd = 0;
     const rewardLines = [];
+
+    const questRewardLines = [];
+    const claimedQuestRewards = new Set(dailyState.questRewardsClaimed || []);
+
+    for (const quest of dailyState.quests || []) {
+      if (!isQuestDone(dailyState, quest)) continue;
+      if (claimedQuestRewards.has(quest.id)) continue;
+
+      const reward = getSingleQuestReward();
+      updatedBoxes = addOrIncrease(updatedBoxes, reward);
+      questRewardLines.push(`${quest.title}: ${reward.name} x${reward.amount}`);
+      claimedQuestRewards.add(quest.id);
+    }
+
+    dailyState = {
+      ...dailyState,
+      questRewardsClaimed: [...claimedQuestRewards],
+    };
 
     if (allCompleteBefore && !dailyState.rewardClaimed) {
       const reward = getQuestClearReward();
@@ -121,11 +143,21 @@ module.exports = {
       ...questLines,
     ];
 
+    if (questRewardLines.length) {
+      description.push("");
+      description.push("## Quest Rewards Received");
+      description.push(...questRewardLines);
+    }
+
     if (berriesToAdd > 0 || gemsToAdd > 0 || rewardLines.length) {
       description.push("");
-      description.push("## Clear Reward Received");
-      if (berriesToAdd > 0) description.push(`Berries: +${berriesToAdd.toLocaleString("en-US")}`);
-      if (gemsToAdd > 0) description.push(`Gems: +${gemsToAdd}`);
+      description.push("## All Quest Clear Reward Received");
+      if (berriesToAdd > 0) {
+        description.push(`Berries: +${berriesToAdd.toLocaleString("en-US")}`);
+      }
+      if (gemsToAdd > 0) {
+        description.push(`Gems: +${gemsToAdd}`);
+      }
       if (rewardLines.length) description.push(...rewardLines);
     }
 

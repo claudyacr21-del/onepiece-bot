@@ -9,11 +9,11 @@ const QUEST_POOL = [
     target: 3,
   },
   {
-    id: "weapon_upgrade_1",
-    key: "weaponUpgrades",
-    category: "weapon",
-    title: "Upgrade 1 weapon",
-    target: 1,
+    id: "rum_beer_5",
+    key: "rumBeerUsed",
+    category: "rum",
+    title: "Use at least 5 Rum Beer on any character",
+    target: 5,
   },
   {
     id: "fight_played_3",
@@ -137,6 +137,9 @@ function normalizeDailyState(state) {
         ? { ...state.counters }
         : { ...(state?.progress || {}) },
     rewardClaimed: Boolean(state?.rewardClaimed),
+    questRewardsClaimed: Array.isArray(state?.questRewardsClaimed)
+      ? state.questRewardsClaimed
+      : [],
   };
 }
 
@@ -158,9 +161,14 @@ function sanitizeDailyState(state) {
       };
     });
 
+  const validQuestIds = new Set(quests.map((quest) => quest.id));
+
   return {
     ...current,
     quests,
+    questRewardsClaimed: (current.questRewardsClaimed || []).filter((id) =>
+      validQuestIds.has(id)
+    ),
   };
 }
 
@@ -176,6 +184,7 @@ function ensureDailyQuestState(player) {
       progress: {},
       counters: {},
       rewardClaimed: false,
+      questRewardsClaimed: [],
     };
   }
 
