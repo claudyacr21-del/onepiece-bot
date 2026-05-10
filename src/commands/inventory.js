@@ -31,7 +31,7 @@ module.exports = {
     const boxes = cleanList(player.boxes);
     const tickets = cleanList(player.tickets);
     const materials = cleanList(player.materials);
-    const weapons = cleanList(player.weapons);
+    const items = cleanList(player.items);
     const devilFruits = cleanList(player.devilFruits);
 
     const embed = new EmbedBuilder()
@@ -55,8 +55,8 @@ module.exports = {
           inline: false,
         },
         {
-          name: "🗡️ Weapons",
-          value: weapons.length ? formatList(weapons) : "No weapons owned.",
+          name: "🍺 Consumables",
+          value: items.length ? formatList(items) : "No consumables owned.",
           inline: false,
         },
         {
