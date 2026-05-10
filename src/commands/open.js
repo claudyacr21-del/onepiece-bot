@@ -189,7 +189,6 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     if (Math.random() < 0.45) {
       addItem(ITEMS.rumBeer, Math.random() < 0.5 ? 2 : 1);
     }
-  }
   } else if (box.code === "elite_resource_box") {
     addBerries(9000);
     addGems(35);
