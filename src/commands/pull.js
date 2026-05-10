@@ -98,6 +98,14 @@ function getTicketPool() {
       weight: 5,
       image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503019863172448387/content.png?ex=6a01d3d4&is=6a008254&hm=cc387565f21d590a67bd120924c42e5b296f2acc7b12c1aa24f1d5713232f72e&",
     },
+    {
+      code: "empty_throne_raid_writ",
+      name: "Empty Throne Raid Writ",
+      rarity: "S",
+      type: "Ticket",
+      weight: 2,
+      image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503039261551624302/content.png?ex=6a01e5e5&is=6a009465&hm=d1c5a4e761f84b982572f211b9d5cbb202129e75226665b278ff6608fe94ea41",
+    },
   ];
 }
 
@@ -118,7 +126,11 @@ function getRewardPool(contentType) {
   if (contentType === "ticket") return getTicketPool();
 
   if (contentType === "battleCard") {
-    return rawCards.filter((card) => card.cardRole === "battle");
+    return rawCards.filter(
+      (card) =>
+        card.cardRole === "battle" &&
+        String(card.code || "").toLowerCase() !== "imu"
+    );
   }
 
   if (contentType === "boostCard") {
@@ -365,11 +377,13 @@ function buildRewardStatsText(contentType, reward) {
     return [
       `**Item:** ${reward.name}`,
       `**Use:** ${
-        reward.code === "gold_raid_ticket"
-          ? "S Gold Raid"
-          : reward.code === "raid_ticket"
-          ? "A Raid"
-          : "C/B Common Raid"
+      reward.code === "empty_throne_raid_writ"
+        ? "Imu Raid only"
+        : reward.code === "gold_raid_ticket"
+        ? "S Gold Raid"
+        : reward.code === "raid_ticket"
+        ? "A Raid"
+        : "C/B Common Raid"
       }`,
     ];
   }

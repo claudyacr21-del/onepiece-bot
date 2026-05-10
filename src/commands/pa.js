@@ -91,6 +91,13 @@ function getTicketPool() {
       type: "Ticket",
       weight: 5,
     },
+    {
+      code: "empty_throne_raid_writ",
+      name: "Empty Throne Raid Writ",
+      rarity: "S",
+      type: "Ticket",
+      weight: 2,
+    },
   ];
 }
 
@@ -111,7 +118,11 @@ function getRewardPool(contentType) {
   if (contentType === "ticket") return getTicketPool();
 
   if (contentType === "battleCard") {
-    return rawCards.filter((card) => card.cardRole === "battle");
+    return rawCards.filter(
+      (card) =>
+        card.cardRole === "battle" &&
+        String(card.code || "").toLowerCase() !== "imu"
+    );
   }
 
   if (contentType === "boostCard") {

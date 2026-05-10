@@ -63,6 +63,16 @@ function formatAtkRange(atk) {
 
 function getRaidModeConfig(commandName) {
   const cmd = String(commandName || "").toLowerCase();
+  if (cmd === "throne") {
+    return {
+      allowed: new Set(["S"]),
+      ticketCode: "empty_throne_raid_writ",
+      ticketName: "Empty Throne Raid Writ",
+      label: "Empty Throne Raid Writ",
+      modeName: "Empty Throne Raid",
+      fixedBossCode: "imu",
+    };
+  }
 
   if (cmd === "craid") {
     return {
@@ -1061,23 +1071,23 @@ function handleRaidAttack(state, actor) {
 
 module.exports = {
   name: "raid",
-  aliases: ["craid", "graid"],
+  aliases: ["craid", "graid", "throne"],
 
   async execute(message, args) {
-    const query = args.join(" ").trim();
+    const raw = String(message.content || "").trim().split(/\s+/);
+    const usedCommandRaw = String(raw[1] || "").toLowerCase();
+    const usedCommand = ["craid", "raid", "graid", "throne"].includes(usedCommandRaw)
+      ? usedCommandRaw
+      : "raid";
+
+    const raidMode = getRaidModeConfig(usedCommand);
+    const query = raidMode.fixedBossCode || args.join(" ").trim();
 
     if (!query) {
       return message.reply(
-        "Usage: `op craid <boss>` / `op raid <boss>` / `op graid <boss>`"
+        "Usage: `op craid <boss>` / `op raid <boss>` / `op graid <boss>` / `op throne`"
       );
     }
-
-    const raw = String(message.content || "").trim().split(/\s+/);
-    const usedCommandRaw = String(raw[1] || "").toLowerCase();
-    const usedCommand = ["craid", "raid", "graid"].includes(usedCommandRaw)
-      ? usedCommandRaw
-      : "raid";
-    const raidMode = getRaidModeConfig(usedCommand);
 
     const hostId = String(message.author.id);
     const host = getPlayer(hostId, message.author.username);
@@ -1092,6 +1102,22 @@ module.exports = {
       return message.reply("Raid boss not found.");
     }
 
+    const resolvedBossCode = String(
+      bossInfo?.bossCode ||
+        bossInfo?.template?.code ||
+        bossInfo?.template?.id ||
+        ""
+    ).toLowerCase();
+
+    if (
+      resolvedBossCode === "imu" &&
+      raidMode.ticketCode !== "empty_throne_raid_writ"
+    ) {
+      return message.reply(
+        "Imu Raid requires **Empty Throne Raid Writ**. Gold Raid Ticket cannot be used for Imu."
+      );
+    }
+
     const bossTier = String(
       bossInfo?.template?.rarity || bossInfo?.template?.currentTier || "B"
     ).toUpperCase();
@@ -1103,6 +1129,10 @@ module.exports = {
 
       if (usedCommand === "graid") {
         return message.reply("graid only supports S battle card raid bosses.");
+      }
+
+      if (usedCommand === "throne") {
+        return message.reply("throne only supports Imu raid with Empty Throne Raid Writ.");
       }
 
       return message.reply("raid only supports A battle card raid bosses.");

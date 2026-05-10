@@ -62,6 +62,15 @@ const ITEMS = {
     description: "A better random material box with improved material rewards.",
   },
 
+  emptyThroneRaidWrit: {
+    name: "Empty Throne Raid Writ",
+    amount: 1,
+    rarity: "S",
+    code: "empty_throne_raid_writ",
+    type: "Ticket",
+    description: "A secret writ used only to challenge Imu in the Empty Throne Raid.",
+  },
+
   goldRaidTicket: {
     name: "Gold Raid Ticket",
     amount: 1,
