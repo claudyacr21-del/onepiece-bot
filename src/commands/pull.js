@@ -350,6 +350,11 @@ function buildBoostEffectText(reward) {
   return ["**Effect:** No effect data"];
 }
 
+function formatAtkRange(atk) {
+  const value = Number(atk || 0);
+  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
 function buildRewardStatsText(contentType, reward) {
   if (contentType === "ticket") {
     return [
