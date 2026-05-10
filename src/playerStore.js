@@ -307,6 +307,7 @@ function normalizeQuests(quests) {
       arenaMatches: Number(progress.arenaMatches || 0),
       arenaWins: Number(progress.arenaWins || 0),
       cardLevels: Number(progress.cardLevels || 0),
+      rumBeerUsed: Number(progress.rumBeerUsed || 0),
     },
     counters: {
       dailyClaims: Number(progress.dailyClaims || 0),
@@ -322,6 +323,7 @@ function normalizeQuests(quests) {
       arenaMatches: Number(progress.arenaMatches || 0),
       arenaWins: Number(progress.arenaWins || 0),
       cardLevels: Number(progress.cardLevels || 0),
+      rumBeerUsed: Number(progress.rumBeerUsed || 0),
     },
   };
 
@@ -592,6 +594,7 @@ function getDefaultPlayer(username) {
           bossFights: 0,
           bossesDefeated: 0,
           craftsDone: 0,
+          rumBeerUsed: 0,
         },
       },
       totalClears: 0,
