@@ -3,6 +3,8 @@ module.exports = {
     // main-chat
     "1493177804337053716": [
       "mci",
+      "mc",
+      "team",
       "finv",
       "ci",
       "balance",

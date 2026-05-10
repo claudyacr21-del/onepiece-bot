@@ -80,6 +80,7 @@ function getTicketPool() {
       rarity: "B",
       type: "Ticket",
       weight: 70,
+      image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862086254712/content.png?ex=6a01d3d3&is=6a008253&hm=3adddcd707caa59db48cd9489b6eed6f5012b7a1725d7458a1c51ff1406b6621&",
     },
     {
       code: "raid_ticket",
@@ -87,6 +88,7 @@ function getTicketPool() {
       rarity: "A",
       type: "Ticket",
       weight: 25,
+      image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862694301907/content.png?ex=6a01d3d4&is=6a008254&hm=c46ef6d8f72ef586dc9817d629edbe23f8895613eeef5216ab80d026820e9ce2&",
     },
     {
       code: "gold_raid_ticket",
@@ -94,6 +96,7 @@ function getTicketPool() {
       rarity: "S",
       type: "Ticket",
       weight: 5,
+      image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503019863172448387/content.png?ex=6a01d3d4&is=6a008254&hm=cc387565f21d590a67bd120924c42e5b296f2acc7b12c1aa24f1d5713232f72e&",
     },
   ];
 }
@@ -245,7 +248,9 @@ function getTypeLabel(contentType) {
 }
 
 function getRewardImage(contentType, reward, ownedCard = null) {
-  if (contentType === "ticket") return null;
+  if (contentType === "ticket") {
+    return reward?.image || reward?.imageUrl || null;
+  }
 
   if (contentType === "battleCard" || contentType === "boostCard") {
     return (
