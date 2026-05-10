@@ -5,7 +5,7 @@ const itemsData = require("../data/items");
 const cardsData = require("../data/cards");
 
 const VALID_BUCKETS = [
-  "items",
+  "consumables",
   "weapons",
   "devilFruits",
   "boxes",
@@ -42,6 +42,21 @@ function normalize(value) {
 
 function normalizeCode(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function normalizeBucket(value) {
+  const bucket = String(value || "").trim();
+
+  if (bucket === "item" || bucket === "items" || bucket === "consumable") {
+    return "consumables";
+  }
+
+  return bucket;
+}
+
+function getStorageBucket(bucket) {
+  if (bucket === "consumables") return "items";
+  return bucket;
 }
 
 function ensureArray(value) {
@@ -118,7 +133,7 @@ function findCatalogEntry(bucket, query) {
   }
 
   if (
-    bucket === "items" ||
+    bucket === "consumables" ||
     bucket === "boxes" ||
     bucket === "tickets" ||
     bucket === "materials"
@@ -162,7 +177,12 @@ function buildStoredEntry(bucket, catalogEntry, amount) {
   if (catalogEntry.owners) base.owners = [...catalogEntry.owners];
   if (catalogEntry.boostBonus) base.boostBonus = catalogEntry.boostBonus;
 
-  if (bucket === "boxes" || bucket === "tickets" || bucket === "materials") {
+  if (
+    bucket === "consumables" ||
+    bucket === "boxes" ||
+    bucket === "tickets" ||
+    bucket === "materials"
+  ) {
     delete base.statPercent;
     delete base.statBonus;
     delete base.ownerBonusPercent;
@@ -195,12 +215,13 @@ module.exports = {
     }
 
     const userId = parseUserId(args.shift());
-    const bucket = String(args.shift() || "").trim();
+    const bucket = normalizeBucket(args.shift());
+    const storageBucket = getStorageBucket(bucket);
     const amount = Number(args.shift() || 0);
     const query = args.join(" ").trim();
 
     if (!userId || !bucket || !Number.isFinite(amount) || amount <= 0 || !query) {
-      return message.reply("Usage: `op giveitem <userId/@user> <bucket> <amount> <name/code>`");
+      return message.reply("Usage: `op giveitem <@user/userId> <bucket> <amount> <item>`");
     }
 
     if (!VALID_BUCKETS.includes(bucket)) {
@@ -219,10 +240,10 @@ module.exports = {
       return message.reply(`Invalid ${bucket} entry.\nMust match data exactly by name or code.`);
     }
 
-    players[userId][bucket] = ensureArray(players[userId][bucket]);
+    players[userId][storageBucket] = ensureArray(players[userId][storageBucket]);
 
     const stored = buildStoredEntry(bucket, catalogEntry, amount);
-    const existing = players[userId][bucket].find((entry) => sameEntry(entry, stored));
+    const existing = players[userId][storageBucket].find((entry) => sameEntry(entry, stored));
 
     if (existing) {
       existing.amount = Number(existing.amount || 0) + amount;
@@ -232,7 +253,7 @@ module.exports = {
         existing[key] = value;
       }
     } else {
-      players[userId][bucket].push(stored);
+      players[userId][storageBucket].push(stored);
     }
 
     writePlayers(players);
