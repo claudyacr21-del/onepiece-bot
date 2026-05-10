@@ -24,8 +24,42 @@ function getProfileImage(message) {
   );
 }
 
-function isServerBooster(message) {
-  return Boolean(message.member?.premiumSince || message.member?.premiumSinceTimestamp);
+async function isServerBooster(message) {
+  const mainGuildId =
+    process.env.ONEPIECE_MAIN_GUILD_ID ||
+    process.env.MAIN_SERVER_ID ||
+    process.env.SUPPORT_GUILD_ID ||
+    process.env.SUPPORT_SERVER_ID ||
+    null;
+
+  let member = null;
+
+  if (
+    mainGuildId &&
+    message.guild &&
+    String(message.guild.id) === String(mainGuildId) &&
+    message.member
+  ) {
+    member = message.member;
+  }
+
+  if (!member && mainGuildId && message.client?.guilds) {
+    const guild =
+      message.client.guilds.cache.get(String(mainGuildId)) ||
+      (await message.client.guilds.fetch(String(mainGuildId)).catch(() => null));
+
+    if (guild) {
+      member =
+        guild.members.cache.get(String(message.author.id)) ||
+        (await guild.members.fetch(String(message.author.id)).catch(() => null));
+    }
+  }
+
+  if (!member && message.member) {
+    member = message.member;
+  }
+
+  return Boolean(member?.premiumSince || member?.premiumSinceTimestamp);
 }
 
 function getHydratedCards(player) {
@@ -182,7 +216,7 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
     const totalFragments = countTotalAmount(player.fragments);
     const isMotherFlame = await isPremiumUser(message);
-    const booster = isServerBooster(message);
+    const booster = await isServerBooster(message);
     const captainBadges = getCaptainBadges(player, {
       isMotherFlame,
       isBooster: booster,
