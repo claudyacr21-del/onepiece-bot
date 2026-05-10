@@ -17,6 +17,24 @@ const ITEMS = {
     description: "A better box with improved rewards.",
   },
 
+  eliteResourceBox: {
+    name: "Elite Resource Box",
+    amount: 1,
+    rarity: "A",
+    code: "elite_resource_box",
+    type: "Box",
+    description: "A high-grade resource box with stronger rewards.",
+  },
+
+  legendResourceBox: {
+    name: "Legend Resource Box",
+    amount: 1,
+    rarity: "S",
+    code: "legend_resource_box",
+    type: "Box",
+    description: "A legendary resource box containing premium rewards.",
+  },
+
   motherFlameTreasureBox: {
     name: "Mother Flame Treasure Box",
     amount: 1,
@@ -88,6 +106,15 @@ const ITEMS = {
     type: "Ticket",
     description: "Resets your pull usage manually.",
   },
+
+  rumBeer: {
+    name: "Rum Beer",
+    amount: 1,
+    rarity: "B",
+    code: "rum_beer",
+    type: "Consumable",
+    description: "A pirate drink used to add 100 EXP to a battle card.",
+},
 
   enhancementStone: {
     name: "Enhancement Stone",

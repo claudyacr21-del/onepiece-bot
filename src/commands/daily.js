@@ -85,7 +85,7 @@ function getDailyTierRewards(dailyTier) {
         rewards,
         randomPick([
           cloneItem(ITEMS.rareResourceBox, 1),
-          cloneItem(ITEMS.royalMaterialBox, 1),
+          cloneItem(ITEMS.eliteResourceBox, 1),
           cloneItem(ITEMS.pullResetTicket, 2),
         ])
       );
@@ -115,8 +115,8 @@ function getDailyTierRewards(dailyTier) {
 
     rewards.push(
       randomPick([
+        cloneItem(ITEMS.eliteResourceBox, 1),
         cloneItem(ITEMS.rareResourceBox, 1),
-        cloneItem(ITEMS.ironMaterialBox, 1),
         cloneItem(ITEMS.pullResetTicket, 1),
       ])
     );
@@ -131,17 +131,20 @@ function getDailyTierRewards(dailyTier) {
   berries = 14000;
   gems = 75;
 
-  rewards.push(
+  addReward(
+    rewards,
     randomPick([
-      cloneItem(ITEMS.rareResourceBox, 1),
-      cloneItem(ITEMS.royalMaterialBox, 1),
+      cloneItem(ITEMS.legendResourceBox, 1),
+      cloneItem(ITEMS.eliteResourceBox, 1),
       cloneItem(ITEMS.pullResetTicket, 2),
     ])
   );
 
-  rewards.push(
+  addReward(
+    rewards,
     randomPick([
-      cloneItem(ITEMS.basicResourceBox, 1),
+      cloneItem(ITEMS.rareResourceBox, 1),
+      cloneItem(ITEMS.rumBeer, 4),
       cloneItem(ITEMS.enhancementStone, 4),
     ])
   );
@@ -151,20 +154,18 @@ function getDailyTierRewards(dailyTier) {
 
 function applyRewardToInventory(player, reward) {
   if (reward.type === "Box") {
-    return {
-      boxes: addOrIncrease(player.boxes, reward),
-    };
+    return { boxes: addOrIncrease(player.boxes, reward) };
   }
 
   if (reward.type === "Ticket") {
-    return {
-      tickets: addOrIncrease(player.tickets, reward),
-    };
+    return { tickets: addOrIncrease(player.tickets, reward) };
   }
 
-  return {
-    materials: addOrIncrease(player.materials, reward),
-  };
+  if (reward.type === "Consumable" || reward.type === "Item") {
+    return { items: addOrIncrease(player.items, reward) };
+  }
+
+  return { materials: addOrIncrease(player.materials, reward) };
 }
 
 module.exports = {
@@ -201,6 +202,7 @@ module.exports = {
     let updatedBoxes = [...(player.boxes || [])];
     let updatedTickets = [...(player.tickets || [])];
     let updatedMaterials = [...(player.materials || [])];
+    let updatedItems = [...(player.items || [])];
 
     for (const reward of rewardBundle.rewards) {
       const result = applyRewardToInventory(
@@ -208,6 +210,7 @@ module.exports = {
           boxes: updatedBoxes,
           tickets: updatedTickets,
           materials: updatedMaterials,
+          items: updatedItems,
         },
         reward
       );
@@ -215,6 +218,7 @@ module.exports = {
       if (result.boxes) updatedBoxes = result.boxes;
       if (result.tickets) updatedTickets = result.tickets;
       if (result.materials) updatedMaterials = result.materials;
+      if (result.items) updatedItems = result.items;
     }
 
     const nextReadyAt = now + DAILY_COOLDOWN_MS;
@@ -226,6 +230,7 @@ module.exports = {
       boxes: updatedBoxes,
       tickets: updatedTickets,
       materials: updatedMaterials,
+      items: updatedItems,
       dailyLastClaim: now,
       quests: {
         ...(player.quests || {}),

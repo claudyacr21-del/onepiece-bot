@@ -120,6 +120,7 @@ function removeBoxes(list, code, amount) {
 
 function grantBoxRewards(box, amount, state, rewardMap) {
   let nextMaterials = state.materials;
+  let nextItems = state.items;
   let nextBerries = state.berries;
   let nextGems = state.gems;
   let nextTickets = state.tickets;
@@ -132,6 +133,15 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       amount: totalAmount,
     });
 
+    addRewardLine(rewardMap, item.name, totalAmount);
+  }
+
+  function addItem(item, qty) {
+    const totalAmount = Number(qty || 0) * amount;
+    nextItems = addOrIncrease(nextItems, {
+      ...item,
+      amount: totalAmount,
+    });
     addRewardLine(rewardMap, item.name, totalAmount);
   }
 
@@ -171,6 +181,20 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addGems(20);
     addMaterial(ITEMS.ironPlating, 2);
     addMaterial(ITEMS.enhancementStone, 10);
+  } else if (box.code === "elite_resource_box") {
+    addBerries(9000);
+    addGems(35);
+    addMaterial(ITEMS.ironPlating, 3);
+    addMaterial(ITEMS.colaEnginePart, 1);
+    addMaterial(ITEMS.enhancementStone, 18);
+    addItem(ITEMS.rumBeer, 3 + Math.floor(Math.random() * 2));
+  } else if (box.code === "legend_resource_box") {
+    addBerries(15000);
+    addGems(60);
+    addMaterial(ITEMS.ironPlating, 5);
+    addMaterial(ITEMS.colaEnginePart, 2);
+    addMaterial(ITEMS.enhancementStone, 30);
+    addItem(ITEMS.rumBeer, 5 + Math.floor(Math.random() * 3));
   } else if (box.code === "mother_flame_treasure_box") {
     addBerries(15000);
     addGems(50);
@@ -182,6 +206,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
 
   return {
     materials: nextMaterials,
+    items: nextItems,
     berries: nextBerries,
     gems: nextGems,
     tickets: nextTickets,
@@ -265,6 +290,7 @@ module.exports = {
       openAmount,
       {
         materials: [...(player.materials || [])],
+        items: [...(player.items || [])],
         berries: Number(player.berries || 0),
         gems: Number(player.gems || 0),
         tickets: [...(player.tickets || [])],
@@ -282,6 +308,7 @@ module.exports = {
     updatePlayer(message.author.id, {
       boxes: updatedBoxes,
       materials: rewardState.materials,
+      items: rewardState.items,
       tickets: rewardState.tickets,
       berries: rewardState.berries,
       gems: rewardState.gems,
