@@ -203,8 +203,7 @@ const HELP_PAGES = {
     body: [
       "**Ship**",
       `\`${PREFIX} ship\` — view ship`,
-      `\`${PREFIX} ship upgrade\` — upgrade current ship`,
-      `\`${PREFIX} shipupgrade\` — standalone ship upgrade`,
+      `\`${PREFIX} upship\` — upgrade current ship`,
       "",
       "**Travel**",
       `\`${PREFIX} travel\` — view unlocked islands`,
