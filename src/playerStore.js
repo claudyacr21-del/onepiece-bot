@@ -293,6 +293,9 @@ function normalizeQuests(quests) {
     dateKey: dayKey,
     rewardClaimed: Boolean(rawDailyState.rewardClaimed),
     quests: Array.isArray(rawDailyState.quests) ? rawDailyState.quests : [],
+    questRewardsClaimed: Array.isArray(rawDailyState.questRewardsClaimed)
+      ? rawDailyState.questRewardsClaimed
+      : [],
     progress: {
       dailyClaims: Number(progress.dailyClaims || 0),
       pullsUsed: Number(progress.pullsUsed || 0),
@@ -584,6 +587,7 @@ function getDefaultPlayer(username) {
         dateKey: null,
         rewardClaimed: false,
         quests: [],
+        questRewardsClaimed: [],
         counters: {
           dailyClaims: 0,
           pullsUsed: 0,
@@ -594,6 +598,22 @@ function getDefaultPlayer(username) {
           bossFights: 0,
           bossesDefeated: 0,
           craftsDone: 0,
+          rumBeerUsed: 0,
+        },
+        progress: {
+          dailyClaims: 0,
+          pullsUsed: 0,
+          boxesOpened: 0,
+          resetTicketsUsed: 0,
+          fightsPlayed: 0,
+          fightsWon: 0,
+          bossFights: 0,
+          bossesDefeated: 0,
+          craftsDone: 0,
+          weaponUpgrades: 0,
+          arenaMatches: 0,
+          arenaWins: 0,
+          cardLevels: 0,
           rumBeerUsed: 0,
         },
       },
