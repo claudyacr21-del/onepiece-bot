@@ -176,11 +176,20 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addBerries(2000);
     addGems(10);
     addMaterial(ITEMS.enhancementStone, 3);
+
+    if (Math.random() < 0.25) {
+      addItem(ITEMS.rumBeer, 1);
+    }
   } else if (box.code === "rare_resource_box") {
     addBerries(5000);
     addGems(20);
     addMaterial(ITEMS.ironPlating, 2);
     addMaterial(ITEMS.enhancementStone, 10);
+
+    if (Math.random() < 0.45) {
+      addItem(ITEMS.rumBeer, Math.random() < 0.5 ? 2 : 1);
+    }
+  }
   } else if (box.code === "elite_resource_box") {
     addBerries(9000);
     addGems(35);
