@@ -8,6 +8,8 @@ const MARKET_ITEMS = [
     aliases: ["wooden", "wood", "wooden box", "wooden material"],
     name: "Wooden Material Box",
     price: 100,
+    currency: "gems",
+    inventory: "boxes",
     item: ITEMS.woodenMaterialBox,
     description: "Cheap random material box.",
   },
@@ -16,6 +18,8 @@ const MARKET_ITEMS = [
     aliases: ["iron", "iron box", "iron material"],
     name: "Iron Material Box",
     price: 200,
+    currency: "gems",
+    inventory: "boxes",
     item: ITEMS.ironMaterialBox,
     description: "Balanced random material box.",
   },
@@ -24,8 +28,20 @@ const MARKET_ITEMS = [
     aliases: ["royal", "royal box", "royal material"],
     name: "Royal Material Box",
     price: 300,
+    currency: "gems",
+    inventory: "boxes",
     item: ITEMS.royalMaterialBox,
     description: "Premium random material box.",
+  },
+  {
+    code: "rum_beer",
+    aliases: ["rum", "rum beer"],
+    name: "Rum Beer",
+    price: 1000,
+    currency: "berries",
+    inventory: "items",
+    item: ITEMS.rumBeer,
+    description: "Adds 100 EXP to a battle card.",
   },
 ];
 
@@ -83,18 +99,20 @@ function buildMarketEmbed(player) {
     .setTitle("📦 Material Market")
     .setDescription(
       [
+        `**Your Berries:** ${Number(player.berries || 0).toLocaleString("en-US")}`,
         `**Your Gems:** ${Number(player.gems || 0).toLocaleString("en-US")}`,
         "",
-        "**Available Boxes**",
+        "**Available Items**",
         ...MARKET_ITEMS.map(
           (entry, index) =>
-            `${index + 1}. **${entry.name}** • ${entry.price} gems\n↪ ${entry.description}\n↪ Buy: \`op buy ${entry.aliases[0]}\``
+            `${index + 1}. **${entry.name}** • ${Number(entry.price).toLocaleString("en-US")} ${entry.currency || "gems"}\n↪ ${entry.description}\n↪ Buy: \`op buy ${entry.aliases[0]}\``
         ),
         "",
         "**Usage**",
         "`op buy wooden`",
         "`op buy iron 3`",
         "`op buy royal 10`",
+        "`op buy rum 5`",
         "",
       ].join("\n")
     )
@@ -154,19 +172,21 @@ module.exports = {
     }
 
     const totalPrice = found.price * amount;
-    const gems = Number(player.gems || 0);
+    const currency = found.currency || "gems";
+    const currentCurrency = Number(player[currency] || 0);
 
-    if (gems < totalPrice) {
+    if (currentCurrency < totalPrice) {
       return message.reply(
-        `You need **${totalPrice.toLocaleString("en-US")} gems** to buy **${found.name} x${amount}**.`
+        `You need **${totalPrice.toLocaleString("en-US")} ${currency}** to buy **${found.name} x${amount}**.`
       );
     }
 
-    const updatedBoxes = addOrIncrease(player.boxes || [], cloneItem(found.item, amount));
+    const inventoryKey = found.inventory || "boxes";
+    const updatedInventory = addOrIncrease(player[inventoryKey] || [], cloneItem(found.item, amount));
 
     updatePlayer(message.author.id, {
-      gems: gems - totalPrice,
-      boxes: updatedBoxes,
+      [currency]: currentCurrency - totalPrice,
+      [inventoryKey]: updatedInventory,
     });
 
     return message.reply({
@@ -177,10 +197,12 @@ module.exports = {
           .setDescription(
             [
               `Bought: **${found.name} x${amount}**`,
-              `Cost: **${totalPrice.toLocaleString("en-US")} gems**`,
-              `Remaining Gems: **${(gems - totalPrice).toLocaleString("en-US")}**`,
+              `Cost: **${totalPrice.toLocaleString("en-US")} ${currency}**`,
+              `Remaining ${currency === "berries" ? "Berries" : "Gems"}: **${(currentCurrency - totalPrice).toLocaleString("en-US")}**`,
               "",
-              "Use `op open <box>` to open your new box.",
+              inventoryKey === "boxes"
+                ? "Use `op open <box>` to open your new box."
+                : "Use `op rum <amount/all> <card>` to use Rum Beer.",
             ].join("\n")
           )
           .setFooter({ text: "One Piece Bot • Market" }),
