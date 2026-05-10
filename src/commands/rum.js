@@ -1,7 +1,8 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
-const { incrementQuestCounter } = require("../utils/questProgress");
+const { incrementQuestPayload } = require("../utils/questProgress");
+
 
 const RUM_BEER_CODE = "rum_beer";
 const EXP_PER_RUM_BEER = 100;
@@ -217,15 +218,12 @@ module.exports = {
       ...result.card,
     };
 
-    const updatedDailyState = incrementQuestCounter(player, "rumBeerUsed", amountToUse);
+    const questPayload = incrementQuestPayload(player, "rumBeerUsed", amountToUse);
 
     updatePlayer(message.author.id, {
       cards: updatedCards,
       items: updatedItems,
-      quests: {
-        ...(player.quests || {}),
-        dailyState: updatedDailyState,
-      },
+      quests: questPayload,
     });
 
     return message.reply({

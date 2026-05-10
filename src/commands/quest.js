@@ -6,6 +6,7 @@ const {
   getQuestProgress,
   isQuestDone,
   getQuestCompletionSummary,
+  buildQuestSavePayload,
 } = require("../utils/questProgress");
 
 function addOrIncrease(list, item) {
@@ -114,12 +115,7 @@ module.exports = {
       tickets: updatedTickets,
       materials: updatedMaterials,
       quests: {
-        ...(player.quests || {}),
-        daily: {
-          total: dailyState.quests.length,
-          completed: getQuestCompletionSummary(dailyState).completed,
-        },
-        dailyState,
+        ...buildQuestSavePayload(player, dailyState),
         totalClears,
       },
     });
