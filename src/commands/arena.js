@@ -10,12 +10,19 @@ const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { applyDamageBoost } = require("../utils/combatStats");
+const {
+  getCardExp,
+  getCardLevelCap,
+  applyExpToCard,
+} = require("../utils/cardExp");
 const { syncArenaRankRoles } = require("../utils/arenaRankRoles");
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const ARENA_DAILY_LIMIT = 5;
 const ARENA_START_RANK = 500;
 const ARENA_POINTS_PER_RANK = 10;
+const ARENA_WIN_EXP_PER_CARD = 200;
+const ARENA_LOSE_EXP_PER_CARD = 100;
 
 function queueArenaRankRoleSync(message) {
   if (!message?.client || !message?.guild) return;
@@ -104,6 +111,7 @@ function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}) {
 
   return {
     slot: slot + 1,
+    sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
     ownerTag,
     instanceId: synced.instanceId || `${ownerTag}-${slot}-${Date.now()}`,
     name: synced.displayName || synced.name || "Unknown",
@@ -113,6 +121,8 @@ function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}) {
     maxHp: Number(synced.hp || 0),
     speed: Number(synced.speed || 0),
     level: Number(synced.level || 1),
+    levelCap: getCardLevelCap(synced),
+    exp: getCardExp(synced),
     power: getPower(synced),
     equippedWeapon: formatWeapons(synced),
     equippedDevilFruit: formatDevilFruit(synced),
@@ -130,7 +140,10 @@ function getTeamUnits(player, ownerTag = "player") {
   const boosts = getPassiveBoostSummary(player);
 
   const cards = (Array.isArray(player.cards) ? player.cards : [])
-    .map(hydrateCard)
+    .map((rawCard, sourceIndex) => {
+      const hydrated = hydrateCard(rawCard);
+      return hydrated ? { ...hydrated, sourceIndex } : null;
+    })
     .filter(Boolean);
 
   const slots = Array.isArray(player?.team?.slots)
@@ -208,7 +221,7 @@ function teamSummary(units) {
   return units
     .map((unit) =>
       [
-        `**${unit.slot}. ${unit.name}** [${unit.rarity}]`,
+        `**${unit.slot}. ${unit.name}**`,
         `PWR \`${unit.power}\` • LV \`${unit.level}\``,
         `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
         renderHpBar(unit.hp, unit.maxHp),
@@ -392,7 +405,7 @@ function buildArenaDescription({
   result,
   ended,
 }) {
-  const recentLogs = logs.slice(-8);
+  const recentLogs = logs.slice(-2);
 
   return [
     `**You:** ${player.username || "Unknown"} • ${formatArenaRank(arena?.points || 0)}`,
@@ -450,7 +463,7 @@ function buildArenaEmbed({
     });
 }
 
-function buildArenaResultEmbed({ result, player, opponent, arena, logs }) {
+function buildArenaResultEmbed({ result, player, opponent, arena, logs, expLines = [] }) {
   return new EmbedBuilder()
     .setColor(getResultColor(result, true))
     .setTitle(getResultTitle(result))
@@ -466,12 +479,115 @@ function buildArenaResultEmbed({ result, player, opponent, arena, logs }) {
         `**Streak:** ${Number(arena?.streak || 0)}`,
         "",
         "## Final Log",
-        ...(logs.length ? logs.slice(-10) : ["No final log."]),
-      ].join("\n")
+        ...(logs.length ? logs.slice(-2) : ["No final log."]),
+        "",
+        expLines.length ? "## EXP" : null,
+        ...expLines,
+      ]
+        .filter(Boolean)
+        .join("\n")
     )
     .setFooter({
       text: "One Piece Bot • Arena Result",
     });
+}
+
+function calculateArenaExp(playerTeam, won) {
+  const baseExp = won ? ARENA_WIN_EXP_PER_CARD : ARENA_LOSE_EXP_PER_CARD;
+
+  return playerTeam.map((unit) => {
+    const level = Number(unit.level || 1);
+    const cap = Number(unit.levelCap || 50);
+
+    if (level >= cap) {
+      return {
+        sourceIndex: Number.isInteger(unit.sourceIndex) ? unit.sourceIndex : null,
+        instanceId: unit.instanceId,
+        expGain: 0,
+        locked: true,
+        level,
+        cap,
+        leveledUp: 0,
+      };
+    }
+
+    return {
+      sourceIndex: Number.isInteger(unit.sourceIndex) ? unit.sourceIndex : null,
+      instanceId: unit.instanceId,
+      expGain: baseExp,
+      locked: false,
+      level,
+      cap,
+      leveledUp: 0,
+    };
+  });
+}
+
+function formatArenaExpResults(playerTeam, expResults) {
+  return expResults
+    .map((entry) => {
+      const unit =
+        playerTeam.find(
+          (card) =>
+            Number.isInteger(entry.sourceIndex) &&
+            Number.isInteger(card.sourceIndex) &&
+            card.sourceIndex === entry.sourceIndex
+        ) || playerTeam.find((card) => card.instanceId === entry.instanceId);
+
+      if (!unit) return null;
+
+      if (entry.locked) {
+        if (Number(entry.level || 0) >= Number(entry.cap || 0) && Number(entry.cap || 0) >= 100) {
+          return `✨ ${unit.name} is already MAX LEVEL (**${entry.level}/${entry.cap}**).`;
+        }
+
+        return `✨ ${unit.name} is level locked at **${entry.level}/${entry.cap}**. Awaken to continue.`;
+      }
+
+      const levelUpText =
+        Number(entry.leveledUp || 0) > 0
+          ? ` • Level Up +${Number(entry.leveledUp || 0)}`
+          : "";
+
+      return `✨ ${unit.name} gained **${entry.expGain} EXP**${levelUpText}.`;
+    })
+    .filter(Boolean);
+}
+
+function applyArenaExp(message, playerTeam, won) {
+  const freshPlayer = getPlayer(message.author.id, message.author.username);
+  const expResults = calculateArenaExp(playerTeam, won);
+
+  const updatedCards = [...(freshPlayer.cards || [])].map((card, index) => {
+    const expEntry =
+      expResults.find(
+        (entry) =>
+          Number.isInteger(entry.sourceIndex) &&
+          entry.sourceIndex === index
+      ) || expResults.find((entry) => entry.instanceId === card.instanceId);
+
+    if (!expEntry) return card;
+
+    const nextCard = applyExpToCard(
+      {
+        ...card,
+        level: Number(card.level || 1),
+        exp: getCardExp(card),
+        xp: getCardExp(card),
+      },
+      expEntry.expGain
+    );
+
+    expEntry.leveledUp = Number(nextCard.leveledUp || 0);
+
+    return nextCard;
+  });
+
+  updatePlayer(message.author.id, {
+    cards: updatedCards,
+  });
+
+  return formatArenaExpResults(playerTeam, expResults);
 }
 
 function buildActionRows(myTeam, ended) {
@@ -860,6 +976,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       result = "win";
       logs.push("🏆 You won the arena battle!");
       currentArena = updateArenaPlayer(message, result);
+      const expLines = applyArenaExp(message, myTeam, true);
 
       await interaction.update({
         embeds: [
@@ -869,6 +986,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
             opponent,
             arena: currentArena,
             logs,
+            expLines,
           }),
         ],
         components: [],
@@ -883,6 +1001,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       result = "lose";
       logs.push("💀 You lost the arena battle.");
       currentArena = updateArenaPlayer(message, result);
+      const expLines = applyArenaExp(message, myTeam, false);
 
       await interaction.update({
         embeds: [
@@ -892,6 +1011,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
             opponent,
             arena: currentArena,
             logs,
+            expLines,
           }),
         ],
         components: [],
