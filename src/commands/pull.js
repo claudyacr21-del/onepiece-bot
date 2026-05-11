@@ -21,6 +21,7 @@ const {
 const {
   rollStandardBaseTier,
   rollStandardContentType,
+  rollStandardDevilFruitTier,
 } = require("../utils/pullRates");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const {
@@ -456,7 +457,13 @@ module.exports = {
     const triggeredPity = pityCounter >= pityLimit;
 
     const contentType = pickContentType();
-    const baseTier = triggeredPity ? pityGuarantee : rollStandardBaseTier();
+    const baseTier =
+      contentType === "devilFruit"
+        ? rollStandardDevilFruitTier()
+        : triggeredPity
+        ? pityGuarantee
+        : rollStandardBaseTier();
+
     const pool = getRewardPool(contentType);
     const picked =
       contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, baseTier);

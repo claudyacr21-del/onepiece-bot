@@ -19,6 +19,7 @@ const { incrementQuestCounter } = require("../utils/questProgress");
 const {
   rollPremiumBaseTier,
   rollPremiumContentType,
+  rollPremiumDevilFruitTier,
 } = require("../utils/pullRates");
 const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 
@@ -410,7 +411,12 @@ module.exports = {
       const triggeredPity = pityCounter >= PREMIUM_PITY_TARGET;
       const contentType = getContentType();
       const pool = getRewardPool(contentType);
-      const rarity = triggeredPity ? "S" : rollPremiumBaseTier();
+      const rarity =
+        contentType === "devilFruit"
+          ? rollPremiumDevilFruitTier()
+          : triggeredPity
+          ? "S"
+          : rollPremiumBaseTier();
       const reward =
         contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, rarity);
 

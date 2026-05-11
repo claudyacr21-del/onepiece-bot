@@ -56,10 +56,34 @@ function rollPremiumContentType() {
   return "ticket";
 }
 
+function rollStandardDevilFruitTier() {
+  const roll = Math.random() * 100;
+
+  // Normal Devil Fruit:
+  // B 55% / A 30% / S 12% / UR 3%
+  if (roll < 55) return "B";
+  if (roll < 85) return "A";
+  if (roll < 97) return "S";
+  return "UR";
+}
+
+function rollPremiumDevilFruitTier() {
+  const roll = Math.random() * 100;
+
+  // Premium Devil Fruit:
+  // B 45% / A 35% / S 15% / UR 5%
+  if (roll < 45) return "B";
+  if (roll < 80) return "A";
+  if (roll < 95) return "S";
+  return "UR";
+}
+
 module.exports = {
   rollStandardBaseTier,
   rollPremiumBaseTier,
   rollPremiumGuaranteedTier,
   rollStandardContentType,
   rollPremiumContentType,
+  rollStandardDevilFruitTier,
+  rollPremiumDevilFruitTier,
 };
