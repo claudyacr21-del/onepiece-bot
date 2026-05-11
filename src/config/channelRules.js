@@ -5,6 +5,8 @@ module.exports = {
       "mci",
       "mc",
       "cd",
+      "effect",
+      "lb",
       "team",
       "finv",
       "ci",
