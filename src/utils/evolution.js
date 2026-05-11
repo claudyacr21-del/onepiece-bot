@@ -862,6 +862,23 @@ function findOwnedRequirementCard(player, code) {
     .find((card) => normalize(card.code) === q) || null;
 }
 
+function getDefaultAwakenGemsCost(targetCard) {
+  const currentStage = Number(targetCard?.evolutionStage || 1);
+
+  if (currentStage === 1) return 500;   // M1 -> M2
+  if (currentStage === 2) return 1500;  // M2 -> M3
+
+  return 0;
+}
+
+function getAwakenGemsCost(req, targetCard) {
+  if (req && Object.prototype.hasOwnProperty.call(req, "gems")) {
+    return Number(req.gems || 0);
+  }
+
+  return getDefaultAwakenGemsCost(targetCard);
+}
+
 function validateAwakenRequirement(player, targetCard, req) {
   const missing = [];
 
@@ -871,6 +888,15 @@ function validateAwakenRequirement(player, targetCard, req) {
   if (berriesOwned < berriesNeed) {
     missing.push(
       `Berries ${berriesOwned.toLocaleString("en-US")}/${berriesNeed.toLocaleString("en-US")}`
+    );
+  }
+
+  const gemsNeed = getAwakenGemsCost(req, targetCard);
+  const gemsOwned = Number(player?.gems || 0);
+
+  if (gemsOwned < gemsNeed) {
+    missing.push(
+      `Gems ${gemsOwned.toLocaleString("en-US")}/${gemsNeed.toLocaleString("en-US")}`
     );
   }
 
@@ -998,6 +1024,7 @@ function awakenOwnedCard(player, query) {
     updatedCards: nextCards,
     updatedFragments: afterFragmentConsume.updatedFragments,
     berries: Number(player.berries || 0) - Number(req.berries || 0),
+    gems: Number(player.gems || 0) - gemsNeed,
     target: updatedTarget,
   };
 }

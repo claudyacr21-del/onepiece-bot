@@ -136,6 +136,23 @@ function getStageCard(card, stage) {
   });
 }
 
+function getDefaultAwakenGemsCost(stage) {
+  const currentStage = Number(stage || 1);
+
+  if (currentStage === 1) return 500;
+  if (currentStage === 2) return 1500;
+
+  return 0;
+}
+
+function getDisplayAwakenGemsCost(req, card) {
+  if (req && Object.prototype.hasOwnProperty.call(req, "gems")) {
+    return Number(req.gems || 0);
+  }
+
+  return getDefaultAwakenGemsCost(card?.evolutionStage || card?.stage || 1);
+}
+
 function buildReqEmbed(card, stage) {
   const stageCard = getStageCard(card, stage);
   const req =
@@ -169,6 +186,9 @@ function buildReqEmbed(card, stage) {
         "",
         "**Berries Required**",
         `↪ ${Number(req.berries || 0).toLocaleString("en-US")}`,
+        "",
+        "**Gems Required**",
+        `↪ ${getDisplayAwakenGemsCost(req, card).toLocaleString("en-US")}`,
         "",
         "**Self Fragments Required**",
         `↪ ${Number(req.selfFragments || 0)}x ${

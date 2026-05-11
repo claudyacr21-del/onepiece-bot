@@ -281,6 +281,7 @@ module.exports = {
           cards: result.updatedCards,
           fragments: result.updatedFragments,
           berries: result.berries,
+          gems: result.gems,
         });
 
         await interaction.update({
