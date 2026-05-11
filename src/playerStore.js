@@ -406,6 +406,7 @@ function normalizeStats(stats) {
     losses: Number(stats?.losses) >= 0 ? Number(stats.losses) : 0,
     winStreak: Number(stats?.winStreak) >= 0 ? Number(stats.winStreak) : 0,
     bestWinStreak: Number(stats?.bestWinStreak) >= 0 ? Number(stats.bestWinStreak) : 0,
+    cardsPulled: Number(stats?.cardsPulled) >= 0 ? Number(stats.cardsPulled) : 0,
   };
 }
 
@@ -649,6 +650,7 @@ function getDefaultPlayer(username) {
       losses: 0,
       winStreak: 0,
       bestWinStreak: 0,
+      cardsPulled: 0,
     },
 
     arena: {

@@ -96,6 +96,13 @@ function getTeamPower(player) {
   );
 }
 
+function getTotalPower(player) {
+  return getHydratedCards(player).reduce(
+    (sum, card) => sum + Number(card?.currentPower || 0),
+    0
+  );
+}
+
 function getStoryProgress(player) {
   const cleared = Array.isArray(player?.story?.clearedIslandBosses)
     ? player.story.clearedIslandBosses.length
@@ -221,6 +228,7 @@ module.exports = {
       isMotherFlame,
       isBooster: booster,
     });
+    const totalPower = getTotalPower(player);
     const teamPower = getTeamPower(player);
     const storyProgress = getStoryProgress(player);
     const arena = getArenaSummary(player);
@@ -256,6 +264,7 @@ module.exports = {
           line("Fragments", totalFragments),
           "",
           "**🧩 Progress**",
+          line("Total Power", totalPower.toLocaleString("en-US")),
           line("Team Power", teamPower.toLocaleString("en-US")),
           line("Story", storyProgress),
           "",

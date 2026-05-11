@@ -238,6 +238,42 @@ function getPowerLeaderboardRows(playersMap) {
     }));
 }
 
+function getSimpleValueRows(playersMap, valueGetter) {
+  return Object.entries(playersMap || {})
+    .map(([id, player]) => ({
+      id,
+      username: player.username || "Unknown",
+      value: Number(valueGetter(player) || 0),
+    }))
+    .sort((a, b) => {
+      if (b.value !== a.value) return b.value - a.value;
+      return String(a.username).localeCompare(String(b.username));
+    })
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
+}
+
+function formatSimpleValueRow(row, isSelf = false) {
+  const username = isSelf ? `**${row.username}**` : `**${row.username}**`;
+
+  return `\`${row.rank}.\` ${username} - ${Number(row.value || 0).toLocaleString("en-US")}`;
+}
+
+function buildSimpleValueDescription(rows, userId, limit = 25) {
+  const topRows = rows.slice(0, limit);
+  const ownRow = rows.find((row) => row.id === userId);
+  const lines = topRows.map((row) => formatSimpleValueRow(row, row.id === userId));
+
+  if (ownRow && !topRows.some((row) => row.id === userId)) {
+    lines.push("");
+    lines.push(formatSimpleValueRow(ownRow, true));
+  }
+
+  return lines.length ? lines.join("\n") : "No leaderboard data yet.";
+}
+
 function getArenaLeaderboardRows(playersMap) {
   const realPlayers = Object.entries(playersMap || {})
     .map(([id, player]) => ({
@@ -355,6 +391,46 @@ function buildLeaderboardEmbed(message, mode = null) {
       });
   }
 
+  if (mode === "votes") {
+    const rows = getSimpleValueRows(playersMap, (player) => player?.vote?.totalVotes || 0);
+
+    return new EmbedBuilder()
+      .setColor(COLOR)
+      .setTitle("Global Vote Leaderboard")
+      .setDescription(buildSimpleValueDescription(rows, userId))
+      .setFooter({ text: "Top votes • Your rank shown below if not in top 25" });
+  }
+
+  if (mode === "berries") {
+    const rows = getSimpleValueRows(playersMap, (player) => player.berries || 0);
+
+    return new EmbedBuilder()
+      .setColor(COLOR)
+      .setTitle("Global Berries Leaderboard")
+      .setDescription(buildSimpleValueDescription(rows, userId))
+      .setFooter({ text: "Top berries • Your rank shown below if not in top 25" });
+  }
+
+  if (mode === "gems") {
+    const rows = getSimpleValueRows(playersMap, (player) => player.gems || 0);
+
+    return new EmbedBuilder()
+      .setColor(COLOR)
+      .setTitle("Global Gems Leaderboard")
+      .setDescription(buildSimpleValueDescription(rows, userId))
+      .setFooter({ text: "Top gems • Your rank shown below if not in top 25" });
+  }
+
+  if (mode === "cards_pulled") {
+    const rows = getSimpleValueRows(playersMap, (player) => player?.stats?.cardsPulled || 0);
+
+    return new EmbedBuilder()
+      .setColor(COLOR)
+      .setTitle("Lifetime Cards Pulled Leaderboard")
+      .setDescription(buildSimpleValueDescription(rows, userId))
+      .setFooter({ text: "Lifetime cards pulled • Your rank shown below if not in top 25" });
+  }
+
   return new EmbedBuilder()
     .setColor(COLOR)
     .setTitle("Global Leaderboards")
@@ -382,6 +458,30 @@ function buildLeaderboardMenu(selected = null) {
             description: "Top power ranking and your own rank",
             value: "power",
             default: selected === "power",
+          },
+          {
+            label: "Global Vote Leaderboard",
+            description: "Top total votes",
+            value: "votes",
+            default: selected === "votes",
+          },
+          {
+            label: "Global Berries Leaderboard",
+            description: "Top berries ranking",
+            value: "berries",
+            default: selected === "berries",
+          },
+          {
+            label: "Global Gems Leaderboard",
+            description: "Top gems ranking",
+            value: "gems",
+            default: selected === "gems",
+          },
+          {
+            label: "Lifetime Cards Pulled",
+            description: "Top lifetime battle/boost cards pulled",
+            value: "cards_pulled",
+            default: selected === "cards_pulled",
           },
         ])
     ),

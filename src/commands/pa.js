@@ -377,6 +377,7 @@ module.exports = {
     let pityCounter = getSharedPity(player);
     let convertedBerries = 0;
     let convertedCount = 0;
+    let cardsPulledThisRun = 0;
     let storageInfo = getCollectionStorageInfo(player);
 
     const summary = {
@@ -510,6 +511,7 @@ module.exports = {
 
       if (contentType === "battleCard" || contentType === "boostCard") {
         summary.card += 1;
+        cardsPulledThisRun += 1;
       } else if (contentType === "weapon") {
         summary.weapon += 1;
       } else if (contentType === "devilFruit") {
@@ -595,6 +597,10 @@ module.exports = {
       berries: Number(player.berries || 0) + convertedBerries,
       pulls: updatedPulls,
       pity: updatedPity,
+      stats: {
+        ...(player.stats || {}),
+        cardsPulled: Number(player?.stats?.cardsPulled || 0) + cardsPulledThisRun,
+      },
       quests: {
         ...(player.quests || {}),
         dailyState: updatedDailyState,

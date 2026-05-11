@@ -545,6 +545,12 @@ module.exports = {
       berries: Number(player.berries || 0) + autoSacBerries,
       pulls: updatedPulls,
       pity: updatedPity,
+      stats: {
+        ...(player.stats || {}),
+        cardsPulled:
+          Number(player?.stats?.cardsPulled || 0) +
+          (contentType === "battleCard" || contentType === "boostCard" ? 1 : 0),
+      },
       quests: {
         ...(player.quests || {}),
         dailyState: updatedDailyState,
