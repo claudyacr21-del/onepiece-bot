@@ -221,8 +221,9 @@ function teamSummary(units) {
   return units
     .map((unit) =>
       [
-        `**${unit.slot}. ${unit.name}**`,
-        `PWR ${unit.power} • ATK ${formatAtkRange(unit.atk)} • HP ${Math.max(0, Number(unit.hp || 0))}/${Number(unit.maxHp || 0)} • SPD ${unit.speed}`,
+        `**${unit.slot}. ${unit.name}** PWR \`${unit.power}\`,
+        `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
+        renderHpBar(unit.hp, unit.maxHp),
       ].join("\n")
     )
     .join("\n");
@@ -409,19 +410,13 @@ function buildArenaDescription({
     `**You:** ${player.username || "Unknown"} • ${formatArenaRank(arena?.points || 0)}`,
     `**Opponent:** ${opponent.username || "Unknown"} • ${formatArenaRank(opponent?.points || 0)}`,
     ended ? `**Result:** ${String(result || "lose").toUpperCase()}` : "**Result:** In Progress",
-    `**Arena Points:** ${Number(arena?.points || 0)}`,
-    `**Daily Battles Left:** ${getArenaUsesLeft(arena)}/${ARENA_DAILY_LIMIT}`,
-    `**Record:** ${Number(arena?.wins || 0)}W / ${Number(arena?.losses || 0)}L`,
-    `**Streak:** ${Number(arena?.streak || 0)}`,
     "",
     "## Battle Log",
-    ...(recentLogs.length
-      ? recentLogs
-      : [
-          "Choose one of your cards to attack.",
-          "Target starts from opponent slot 1.",
-          "SPD decides turn order.",
-        ]),
+    ...(recentLogs.length ? recentLogs : [
+      "Choose one of your cards to attack.",
+      "Target starts from opponent slot 1.",
+      "SPD decides turn order.",
+    ]),
     "",
     "## Opponent Team",
     teamSummary(enemyTeam),
