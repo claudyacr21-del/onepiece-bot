@@ -16,7 +16,10 @@ const {
   buildPullAccessSnapshot,
 } = require("../utils/pullSlots");
 const { incrementQuestCounter } = require("../utils/questProgress");
-const { rollPremiumBaseTier } = require("../utils/pullRates");
+const {
+  rollPremiumBaseTier,
+  rollPremiumContentType,
+} = require("../utils/pullRates");
 const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 
 const PREMIUM_PITY_TARGET = 100;
@@ -59,13 +62,7 @@ function createOwnedCardLocal(template) {
 }
 
 function getContentType() {
-  const roll = Math.random() * 100;
-
-  if (roll < 76) return "battleCard";
-  if (roll < 91) return "boostCard";
-  if (roll < 93) return "weapon";
-  if (roll < 95) return "devilFruit";
-  return "ticket";
+  return rollPremiumContentType();
 }
 
 function getTicketPool() {
@@ -75,28 +72,28 @@ function getTicketPool() {
       name: "Common Raid Ticket",
       rarity: "B",
       type: "Ticket",
-      weight: 70,
+      weight: 45,
     },
     {
       code: "raid_ticket",
       name: "Raid Ticket",
       rarity: "A",
       type: "Ticket",
-      weight: 25,
+      weight: 32,
     },
     {
       code: "gold_raid_ticket",
       name: "Gold Raid Ticket",
       rarity: "S",
       type: "Ticket",
-      weight: 5,
+      weight: 18,
     },
     {
       code: "empty_throne_raid_writ",
       name: "Empty Throne Raid Writ",
       rarity: "S",
       type: "Ticket",
-      weight: 2,
+      weight: 5,
     },
   ];
 }
@@ -396,6 +393,7 @@ module.exports = {
       commonRaidTicket: 0,
       raidTicket: 0,
       goldRaidTicket: 0,
+      emptyThroneRaidWrit: 0,
     };
 
     const pullGroups = {
@@ -520,6 +518,7 @@ module.exports = {
         if (reward.code === "common_raid_ticket") summary.commonRaidTicket += 1;
         if (reward.code === "raid_ticket") summary.raidTicket += 1;
         if (reward.code === "gold_raid_ticket") summary.goldRaidTicket += 1;
+        if (reward.code === "common_raid_ticket") summary.commonRaidTicket += 1;
       }
 
       const rewardRarity = String(reward.baseTier || reward.rarity || "C").toUpperCase();

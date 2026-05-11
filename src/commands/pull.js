@@ -18,7 +18,10 @@ const {
   hasMainServerRole,
   PREMIUM_ROLE_NAME,
 } = require("../utils/pullSlots");
-const { rollStandardBaseTier } = require("../utils/pullRates");
+const {
+  rollStandardBaseTier,
+  rollStandardContentType,
+} = require("../utils/pullRates");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const {
   getCardImage,
@@ -49,13 +52,7 @@ function getPityGuarantee(isPremium) {
 }
 
 function pickContentType() {
-  const roll = Math.random() * 100;
-
-  if (roll < 76) return "battleCard";
-  if (roll < 91) return "boostCard";
-  if (roll < 93) return "weapon";
-  if (roll < 95) return "devilFruit";
-  return "ticket";
+  return rollStandardContentType();
 }
 
 function prettySlotName(key) {
@@ -79,7 +76,7 @@ function getTicketPool() {
       name: "Common Raid Ticket",
       rarity: "B",
       type: "Ticket",
-      weight: 70,
+      weight: 60,
       image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862086254712/content.png?ex=6a01d3d3&is=6a008253&hm=3adddcd707caa59db48cd9489b6eed6f5012b7a1725d7458a1c51ff1406b6621&",
     },
     {
@@ -87,7 +84,7 @@ function getTicketPool() {
       name: "Raid Ticket",
       rarity: "A",
       type: "Ticket",
-      weight: 25,
+      weight: 29,
       image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862694301907/content.png?ex=6a01d3d4&is=6a008254&hm=c46ef6d8f72ef586dc9817d629edbe23f8895613eeef5216ab80d026820e9ce2&",
     },
     {
@@ -95,7 +92,7 @@ function getTicketPool() {
       name: "Gold Raid Ticket",
       rarity: "S",
       type: "Ticket",
-      weight: 5,
+      weight: 8,
       image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503019863172448387/content.png?ex=6a01d3d4&is=6a008254&hm=cc387565f21d590a67bd120924c42e5b296f2acc7b12c1aa24f1d5713232f72e&",
     },
     {
@@ -103,7 +100,7 @@ function getTicketPool() {
       name: "Empty Throne Raid Writ",
       rarity: "S",
       type: "Ticket",
-      weight: 2,
+      weight: 3,
       image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503039261551624302/content.png?ex=6a01e5e5&is=6a009465&hm=d1c5a4e761f84b982572f211b9d5cbb202129e75226665b278ff6608fe94ea41",
     },
   ];
