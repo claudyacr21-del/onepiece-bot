@@ -169,6 +169,42 @@ const ITEMS = {
     type: "Material",
     description: "A high-grade ship upgrade component.",
   },
+
+  universalCFragment: {
+    name: "Universal C Fragment",
+    amount: 1,
+    rarity: "C",
+    code: "universal_c",
+    type: "Fragment",
+    description: "A universal fragment that can be converted into any C battle or boost card fragment.",
+  },
+
+  universalBFragment: {
+    name: "Universal B Fragment",
+    amount: 1,
+    rarity: "B",
+    code: "universal_b",
+    type: "Fragment",
+    description: "A universal fragment that can be converted into any B battle or boost card fragment.",
+  },
+
+  universalAFragment: {
+    name: "Universal A Fragment",
+    amount: 1,
+    rarity: "A",
+    code: "universal_a",
+    type: "Fragment",
+    description: "A universal fragment that can be converted into any A battle or boost card fragment.",
+  },
+
+  universalSFragment: {
+    name: "Universal S Fragment",
+    amount: 1,
+    rarity: "S",
+    code: "universal_s",
+    type: "Fragment",
+    description: "A universal fragment that can be converted into any S battle or boost card fragment.",
+  },
 };
 
 function cloneItem(item, amount = 1) {

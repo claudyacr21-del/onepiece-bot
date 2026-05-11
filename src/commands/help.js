@@ -58,6 +58,7 @@ const HELP_PAGES = {
       "**Upgrade**",
       `\`${PREFIX} awaken <card>\` — awaken card`,
       `\`${PREFIX} summon <card>\` — summon a battle card using 25 self fragments`,
+      `\`${PREFIX} convert <amount> <card>\` — convert universal fragments into card fragments`,
       `\`${PREFIX} level frag <amount> <card>\` — level up using fragments`,
       `\`${PREFIX} rum <amount/all> <card>\` — use Rum Beer to add EXP to a battle card`,
       `\`${PREFIX} autolevel\` — view auto-level list`,

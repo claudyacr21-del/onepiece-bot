@@ -2,7 +2,28 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
 
+function pickRandomUniversalFragment() {
+  const pool = [
+    ITEMS.universalCFragment,
+    ITEMS.universalBFragment,
+    ITEMS.universalAFragment,
+    ITEMS.universalSFragment,
+  ].filter(Boolean);
+
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 const MARKET_ITEMS = [
+  {
+    code: "random_universal_fragment",
+    aliases: ["fragment", "frag", "universal fragment", "random fragment"],
+    name: "Random Universal Fragment",
+    price: 10,
+    currency: "gems",
+    inventory: "items",
+    randomItem: pickRandomUniversalFragment,
+    description: "Random Universal C/B/A/S Fragment.",
+  },
   {
     code: "wooden_material_box",
     aliases: ["wooden", "wood", "wooden box", "wooden material"],
@@ -113,6 +134,7 @@ function buildMarketEmbed(player) {
         "`op buy iron 3`",
         "`op buy royal 10`",
         "`op buy rum 5`",
+        "`op buy fragment 2`",
         "",
       ].join("\n")
     )
@@ -182,7 +204,19 @@ module.exports = {
     }
 
     const inventoryKey = found.inventory || "boxes";
-    const updatedInventory = addOrIncrease(player[inventoryKey] || [], cloneItem(found.item, amount));
+
+    let updatedInventory = [...(player[inventoryKey] || [])];
+
+    if (typeof found.randomItem === "function") {
+      for (let i = 0; i < amount; i++) {
+        const randomItem = found.randomItem();
+        if (randomItem) {
+          updatedInventory = addOrIncrease(updatedInventory, cloneItem(randomItem, 1));
+        }
+      }
+    } else {
+      updatedInventory = addOrIncrease(updatedInventory, cloneItem(found.item, amount));
+    }
 
     updatePlayer(message.author.id, {
       [currency]: currentCurrency - totalPrice,

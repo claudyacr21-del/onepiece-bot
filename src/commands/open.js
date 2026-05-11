@@ -145,6 +145,14 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addRewardLine(rewardMap, item.name, totalAmount);
   }
 
+  function addRandomUniversalFragment(pool, qty) {
+    const list = pool.filter(Boolean);
+    if (!list.length) return;
+
+    const picked = list[Math.floor(Math.random() * list.length)];
+    addItem(picked, qty);
+  }
+
   function addTicket(item, qty) {
     const totalAmount = Number(qty || 0) * amount;
     nextTickets = addOrIncrease(nextTickets, {
@@ -190,6 +198,10 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       addItem(ITEMS.rumBeer, 1);
     }
 
+    if (Math.random() < 0.30) {
+      addRandomUniversalFragment([ITEMS.universalCFragment], 1);
+    }
+
     if (Math.random() < 0.08) {
       addTicket(ITEMS.pullResetTicket, 1);
     }
@@ -203,6 +215,13 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       addItem(ITEMS.rumBeer, Math.random() < 0.5 ? 2 : 1);
     }
 
+    if (Math.random() < 0.35) {
+      addRandomUniversalFragment(
+        [ITEMS.universalCFragment, ITEMS.universalBFragment],
+        Math.random() < 0.5 ? 2 : 1
+      );
+    }
+
     if (Math.random() < 0.15) {
       addTicket(ITEMS.pullResetTicket, 1);
     }
@@ -214,6 +233,13 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addMaterial(ITEMS.enhancementStone, 18);
     addItem(ITEMS.rumBeer, 3 + Math.floor(Math.random() * 2));
 
+    if (Math.random() < 0.45) {
+      addRandomUniversalFragment(
+        [ITEMS.universalBFragment, ITEMS.universalAFragment],
+        Math.random() < 0.5 ? 2 : 1
+      );
+    }
+
     if (Math.random() < 0.30) {
       addTicket(ITEMS.pullResetTicket, 1);
     }
@@ -224,6 +250,13 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addMaterial(ITEMS.colaEnginePart, 2);
     addMaterial(ITEMS.enhancementStone, 30);
     addItem(ITEMS.rumBeer, 5 + Math.floor(Math.random() * 3));
+
+    if (Math.random() < 0.60) {
+      addRandomUniversalFragment(
+        [ITEMS.universalAFragment, ITEMS.universalSFragment],
+        Math.random() < 0.35 ? 2 : 1
+      );
+    }
 
     if (Math.random() < 0.50) {
       addTicket(ITEMS.pullResetTicket, Math.random() < 0.25 ? 2 : 1);
