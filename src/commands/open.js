@@ -145,6 +145,15 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addRewardLine(rewardMap, item.name, totalAmount);
   }
 
+  function addTicket(item, qty) {
+    const totalAmount = Number(qty || 0) * amount;
+    nextTickets = addOrIncrease(nextTickets, {
+      ...item,
+      amount: totalAmount,
+    });
+    addRewardLine(rewardMap, item.name, totalAmount);
+  }
+
   function addBerries(qty) {
     const totalAmount = Number(qty || 0) * amount;
     nextBerries += totalAmount;
@@ -180,6 +189,10 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     if (Math.random() < 0.25) {
       addItem(ITEMS.rumBeer, 1);
     }
+
+    if (Math.random() < 0.08) {
+      addTicket(ITEMS.pullResetTicket, 1);
+    }
   } else if (box.code === "rare_resource_box") {
     addBerries(5000);
     addGems(20);
@@ -189,6 +202,10 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     if (Math.random() < 0.45) {
       addItem(ITEMS.rumBeer, Math.random() < 0.5 ? 2 : 1);
     }
+
+    if (Math.random() < 0.15) {
+      addTicket(ITEMS.pullResetTicket, 1);
+    }
   } else if (box.code === "elite_resource_box") {
     addBerries(9000);
     addGems(35);
@@ -196,6 +213,10 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addMaterial(ITEMS.colaEnginePart, 1);
     addMaterial(ITEMS.enhancementStone, 18);
     addItem(ITEMS.rumBeer, 3 + Math.floor(Math.random() * 2));
+
+    if (Math.random() < 0.30) {
+      addTicket(ITEMS.pullResetTicket, 1);
+    }
   } else if (box.code === "legend_resource_box") {
     addBerries(15000);
     addGems(60);
@@ -203,6 +224,10 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addMaterial(ITEMS.colaEnginePart, 2);
     addMaterial(ITEMS.enhancementStone, 30);
     addItem(ITEMS.rumBeer, 5 + Math.floor(Math.random() * 3));
+
+    if (Math.random() < 0.50) {
+      addTicket(ITEMS.pullResetTicket, Math.random() < 0.25 ? 2 : 1);
+    }
   } else if (box.code === "mother_flame_treasure_box") {
     addBerries(15000);
     addGems(50);
