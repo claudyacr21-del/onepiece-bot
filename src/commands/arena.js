@@ -900,23 +900,33 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
     logs.length = 0;
 
     const [first, second] = resolveSpeedOrder(playerAttacker, enemyTarget);
-    const firstIsPlayer = first.ownerTag !== "opponent" && first.ownerTag !== "bot";
+    const firstIsPlayer = first === playerAttacker;
     const firstTarget = firstIsPlayer ? enemyTarget : playerAttacker;
+
     const firstDamage = performAttack(first, firstTarget);
+    const firstKilled = Number(firstTarget.hp || 0) <= 0;
 
-    logs.push(`⚡ ${first.name} moved first by SPD.`);
-    logs.push(`⚔️ ${first.name} attacked ${firstTarget.name}.`);
-    logs.push(`➡️ ${first.name} dealt **${firstDamage}** damage to ${firstTarget.name}.`);
+    logs.push(
+      `⚡ ${first.name} moved first by SPD and dealt **${firstDamage}** damage to ${firstTarget.name}${firstKilled ? " (defeated)" : ""}.`
+    );
 
-    if (Number(firstTarget.hp || 0) <= 0) {
-      logs.push(`☠️ ${firstTarget.name} was defeated and cannot counter.`);
+    if (!firstKilled && Number(second.hp || 0) > 0) {
+      const secondTarget = firstIsPlayer ? playerAttacker : enemyTarget;
+      const secondDamage = performAttack(second, secondTarget);
+      const secondKilled = Number(secondTarget.hp || 0) <= 0;
+
+      logs.push(
+        `⚔️ ${second.name} countered and dealt **${secondDamage}** damage to ${secondTarget.name}${secondKilled ? " (defeated)" : ""}.`
+      );
+    } else {
+      logs.push(`☠️ ${firstTarget.name} was defeated and could not counter.`);
     }
 
     if (aliveCount(enemyTeam) <= 0) {
       ended = true;
       result = "win";
-      logs.push("🏆 You won the arena battle!");
       currentArena = updateArenaPlayer(message, result);
+      const expLines = applyArenaExp(message, myTeam, true);
 
       await interaction.update({
         embeds: [
@@ -926,6 +936,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
             opponent,
             arena: currentArena,
             logs,
+            expLines,
           }),
         ],
         components: [],
@@ -938,8 +949,8 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
     if (aliveCount(myTeam) <= 0) {
       ended = true;
       result = "lose";
-      logs.push("💀 You lost the arena battle.");
       currentArena = updateArenaPlayer(message, result);
+      const expLines = applyArenaExp(message, myTeam, false);
 
       await interaction.update({
         embeds: [
@@ -949,6 +960,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
             opponent,
             arena: currentArena,
             logs,
+            expLines,
           }),
         ],
         components: [],
@@ -956,18 +968,6 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
 
       collector.stop("lose");
       return;
-    }
-
-    if (Number(second.hp || 0) > 0 && Number(firstTarget.hp || 0) > 0) {
-      const secondTarget = firstIsPlayer ? playerAttacker : enemyTarget;
-      const secondDamage = performAttack(second, secondTarget);
-
-      logs.push(`💥 ${second.name} countered ${secondTarget.name}.`);
-      logs.push(`⬅️ ${second.name} dealt **${secondDamage}** damage to ${secondTarget.name}.`);
-
-      if (Number(secondTarget.hp || 0) <= 0) {
-        logs.push(`☠️ ${secondTarget.name} was defeated.`);
-      }
     }
 
     if (aliveCount(enemyTeam) <= 0) {
