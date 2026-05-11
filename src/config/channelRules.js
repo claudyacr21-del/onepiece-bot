@@ -4,6 +4,7 @@ module.exports = {
     "1493177804337053716": [
       "mci",
       "mc",
+      "cd",
       "team",
       "finv",
       "ci",
