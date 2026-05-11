@@ -14,6 +14,7 @@ module.exports = {
       "inventory",
       "patreon",
       "market",
+      "trade",
       "profile",
       "awaken",
       "wp",
