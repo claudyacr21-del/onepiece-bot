@@ -64,13 +64,6 @@ const QUEST_POOL = [
     title: "Use 5 pulls",
     target: 5,
   },
-  {
-    id: "level_card_3",
-    key: "cardLevels",
-    category: "level",
-    title: "Level up cards 3 times",
-    target: 3,
-  },
 ];
 
 function getTodayKey() {
