@@ -34,6 +34,14 @@ module.exports = {
     const items = cleanList(player.items);
     const devilFruits = cleanList(player.devilFruits);
 
+    const consumables = items.filter((item) =>
+      ["rum_beer"].includes(String(item.code || "").toLowerCase())
+    );
+
+    const specialItems = items.filter(
+      (item) => !["rum_beer"].includes(String(item.code || "").toLowerCase())
+    );
+
     const embed = new EmbedBuilder()
       .setColor(0x3498db)
       .setTitle(`${player.username}'s Inventory`)
@@ -50,13 +58,18 @@ module.exports = {
           inline: false,
         },
         {
-          name: "🧱 Materials",
-          value: materials.length ? formatList(materials) : "No materials owned.",
+          name: "🎒 Items",
+          value: specialItems.length ? formatList(specialItems) : "No items owned.",
           inline: false,
         },
         {
           name: "🍺 Consumables",
-          value: items.length ? formatList(items) : "No consumables owned.",
+          value: consumables.length ? formatList(consumables) : "No consumables owned.",
+          inline: false,
+        },
+        {
+          name: "🧱 Materials",
+          value: materials.length ? formatList(materials) : "No materials owned.",
           inline: false,
         },
         {
