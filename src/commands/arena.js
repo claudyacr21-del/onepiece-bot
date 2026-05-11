@@ -221,7 +221,7 @@ function teamSummary(units) {
   return units
     .map((unit) =>
       [
-        `**${unit.slot}. ${unit.name}** PWR \`${unit.power}\`,
+        `**${unit.slot}. ${unit.name}** PWR \`${unit.power}\``,
         `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
         renderHpBar(unit.hp, unit.maxHp),
       ].join("\n")
