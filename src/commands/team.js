@@ -57,7 +57,6 @@ function buildSlotLine(card, index) {
 
 module.exports = {
   name: "team",
-  aliases: ["lineup"],
 
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);

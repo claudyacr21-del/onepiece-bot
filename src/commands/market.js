@@ -115,29 +115,33 @@ function findMarketItem(query) {
 }
 
 function buildMarketEmbed(player) {
+  const marketLines = MARKET_ITEMS.map((entry, index) =>
+    [
+      `**${index + 1}. ${entry.name}** • ${Number(entry.price).toLocaleString("en-US")} ${entry.currency || "gems"}`,
+      `↪ ${entry.description}`,
+      `↪ Buy: \`op buy ${entry.aliases[0]}\``,
+    ].join("\n")
+  ).join("\n\n");
+
+  const lines = [
+    `**Your Berries:** ${Number(player.berries || 0).toLocaleString("en-US")}`,
+    `**Your Gems:** ${Number(player.gems || 0).toLocaleString("en-US")}`,
+    "",
+    "**Available Items**",
+    marketLines,
+    "",
+    "**Usage**",
+    "`op buy wooden`",
+    "`op buy iron 3`",
+    "`op buy royal 10`",
+    "`op buy rum 5`",
+    "`op buy fragment 2`",
+  ];
+
   return new EmbedBuilder()
     .setColor(0xf39c12)
     .setTitle("📦 Material Market")
-    .setDescription(
-      [
-        `**Your Berries:** ${Number(player.berries || 0).toLocaleString("en-US")}`,
-        `**Your Gems:** ${Number(player.gems || 0).toLocaleString("en-US")}`,
-        "",
-        "**Available Items**",
-        ...MARKET_ITEMS.map(
-          (entry, index) =>
-            `${index + 1}. **${entry.name}** • ${Number(entry.price).toLocaleString("en-US")} ${entry.currency || "gems"}\n↪ ${entry.description}\n↪ Buy: \`op buy ${entry.aliases[0]}\``
-        ),
-        "",
-        "**Usage**",
-        "`op buy wooden`",
-        "`op buy iron 3`",
-        "`op buy royal 10`",
-        "`op buy rum 5`",
-        "`op buy fragment 2`",
-        "",
-      ].join("\n")
-    )
+    .setDescription(lines.join("\n"))
     .setFooter({ text: "One Piece Bot • Market" });
 }
 
