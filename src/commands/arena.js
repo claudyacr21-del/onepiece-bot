@@ -221,12 +221,11 @@ function teamSummary(units) {
   return units
     .map((unit) =>
       [
-        `**${unit.slot}. ${unit.name}** PWR \`${unit.power}\` • LV \`${unit.level}\``,
-        `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
-        renderHpBar(unit.hp, unit.maxHp),
+        `**${unit.slot}. ${unit.name}**`,
+        `PWR ${unit.power} • ATK ${formatAtkRange(unit.atk)} • HP ${Math.max(0, Number(unit.hp || 0))}/${Number(unit.maxHp || 0)} • SPD ${unit.speed}`,
       ].join("\n")
     )
-    .join("\n\n");
+    .join("\n");
 }
 
 function applyArenaResult(arena, result) {
