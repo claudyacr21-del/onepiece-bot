@@ -91,6 +91,22 @@ function buildEquippedWeaponMatches(cards, query) {
   return matches.sort((a, b) => b.score - a.score);
 }
 
+function getInventoryWeaponLevel(player, weaponCode) {
+  const found = (Array.isArray(player.weapons) ? player.weapons : []).find(
+    (weapon) => normalize(weapon.code || weapon.name) === normalize(weaponCode)
+  );
+
+  return Number(found?.upgradeLevel || 0);
+}
+
+function getUnequipWeaponLevel(player, rawCard, weapon, template) {
+  return Math.max(
+    Number(weapon?.upgradeLevel || 0),
+    Number(rawCard?.equippedWeaponLevel || 0),
+    getInventoryWeaponLevel(player, template?.code || weapon?.code || weapon?.name)
+  );
+}
+
 function addWeaponBackToInventory(weapons, template, upgradeLevel) {
   const list = Array.isArray(weapons) ? [...weapons] : [];
   const idx = list.findIndex((w) => normalize(w.code || w.name) === normalize(template.code));
@@ -254,10 +270,17 @@ module.exports = {
         return hydrateCard(updatedRawCard);
       });
 
+      const returnWeaponLevel = getUnequipWeaponLevel(
+        latestPlayer,
+        latestRawCard,
+        latestWeapon,
+        latestTemplate
+      );
+
       const updatedWeapons = addWeaponBackToInventory(
         latestPlayer.weapons || [],
         latestTemplate,
-        latestWeapon.upgradeLevel || 0
+        returnWeaponLevel
       );
 
       updatePlayer(message.author.id, {
@@ -283,7 +306,7 @@ module.exports = {
               [
                 `**Weapon:** ${latestTemplate.name || latestWeapon.name}`,
                 `**Removed From:** ${syncedCard.displayName || syncedCard.name}`,
-                `**Weapon Level:** +${Number(latestWeapon.upgradeLevel || 0)}`,
+                `**Weapon Level:** +${returnWeaponLevel}`,
                 `**Cost:** ${UNEQUIP_GEM_COST} gems`,
                 "",
                 `**ATK:** ${formatAtkRange(syncedCard.atk)}`,
