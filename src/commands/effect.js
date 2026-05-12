@@ -10,22 +10,11 @@ const {
 } = require("../utils/pullSlots");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 const { hasAnyPremiumRole } = require("../utils/pullSlots");
+const { getPremiumTier } = require("../utils/premiumAccess");
 const {
   ensureDailyQuestState,
   getQuestCompletionSummary,
 } = require("../utils/questProgress");
-
-const PREMIUM_ROLE_NAME = "Mother Flame";
-
-function hasRole(message, roleName) {
-  return Boolean(
-    message?.member?.roles?.cache?.some(
-      (role) =>
-        String(role?.name || "").toLowerCase() ===
-        String(roleName || "").toLowerCase()
-    )
-  );
-}
 
 function getSharedPity(player) {
   const pity = player?.pity || {};
@@ -35,6 +24,24 @@ function getSharedPity(player) {
       Math.max(Number(pity.normalSPity || 0), Number(pity.premiumSPity || 0)) ??
       0
   );
+}
+
+function getPityLimitByTier(tier) {
+  if (tier === "motherFlame") return 100;
+  if (tier === "vivreCard") return 125;
+  return 150;
+}
+
+function getPremiumLabelByTier(tier) {
+  if (tier === "motherFlame") return "Mother Flame";
+  if (tier === "vivreCard") return "Vivre Card";
+  return "Normal";
+}
+
+function getPityGuaranteeByTier(tier) {
+  if (tier === "motherFlame") return "S";
+  if (tier === "vivreCard") return "S";
+  return "A";
 }
 
 module.exports = {
@@ -77,9 +84,11 @@ module.exports = {
     player.quests = syncPayload.quests;
     player.pullAccessSnapshot = snapshot;
 
-    const isPremiumTier = hasAnyPremiumRole(message);
-    const pityLimit = isPremiumTier ? 100 : 150;
+    const premiumTier = await getPremiumTier(message);
+    const pityLimit = getPityLimitByTier(premiumTier);
     const pityDrop = `${getSharedPity(player)}/${pityLimit}`;
+    const premiumLabel = getPremiumLabelByTier(premiumTier);
+    const pityGuarantee = getPityGuaranteeByTier(premiumTier);
     const boosts = getPassiveBoostSummary(player);
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
 
@@ -89,9 +98,11 @@ module.exports = {
       .setDescription(
         [
           "## Pull",
+          `↪ Premium Tier: ${premiumLabel}`,
           `↪ Pulls Done: ${totalUsed}/${totalMax}`,
           `↪ Quest Left: ${questSummary.left}/${questSummary.total}`,
           `↪ Pity Drop: ${pityDrop}`,
+          `↪ Pity Guarantee: ${pityGuarantee}`,
           "",
           "## Boost Effects",
           ...buildBoostEffectLines(boosts),

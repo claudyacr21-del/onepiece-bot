@@ -374,6 +374,7 @@ module.exports = {
     player.pullAccessSnapshot = {
       ...(player.pullAccessSnapshot || {}),
       patreon: true,
+      vivreCard: false,
     };
 
     updatePlayer(message.author.id, {
@@ -391,6 +392,8 @@ module.exports = {
     }
 
     const snapshot = buildPullAccessSnapshot(player, message);
+    snapshot.patreon = true;
+    snapshot.vivreCard = false;
 
     updatePlayer(message.author.id, {
       pullAccessSnapshot: snapshot,
