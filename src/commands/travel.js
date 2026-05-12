@@ -150,11 +150,12 @@ module.exports = {
       const unlockedText = unlockedIslands.length
         ? unlockedIslands
             .map(
-              (island, index) =>
-                `**${index + 1}. ${island.name}**
-      ↪ Status: ${getRouteStatus(currentIsland, island)}
-      ↪ Sea: ${island.sea || "Unknown"}
-      ↪ Boss: ${getBossStatus(player, island)}`
+              (island, index) => `
+    **${index + 1}. ${island.name}**
+    ↪ Status: ${getRouteStatus(currentIsland, island)}
+    ↪ Sea: ${island.sea || "Unknown"}
+    ↪ Boss: ${getBossStatus(player, island)}
+    `.trim()
             )
             .join("\n\n")
         : "No islands unlocked yet.";
@@ -162,23 +163,17 @@ module.exports = {
       return message.reply({
         embeds: [
           new EmbedBuilder()
-            .setColor(0x1abc9c)
-            .setTitle("🧭 Travel Route")
+            .setColor(0x3498db)
+            .setTitle("⛵ Travel")
             .setDescription(
               [
                 `**Current Island:** ${currentIsland.name}`,
-                `**Current Sea:** ${currentIsland.sea || "Unknown"}`,
+                `**Sea:** ${currentIsland.sea || "Unknown"}`,
                 `**Ship:** ${ship.name} • Tier ${ship.tier}`,
-                `**Ship Ready:** ${
-                  ship.nextTravelAt > now
-                    ? formatRemaining(ship.nextTravelAt - now)
-                    : "Ready"
-                }`,
                 "",
-                "## Route Readiness",
                 getTravelReadiness(player, currentIsland, nextIsland, ship, now),
                 "",
-                "## Unlocked Islands",
+                "**Unlocked Islands**",
                 unlockedText,
                 "",
                 "Use `op sail` to unlock the next canon island.",
