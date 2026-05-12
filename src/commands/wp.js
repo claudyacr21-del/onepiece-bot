@@ -54,21 +54,35 @@ function findWeaponTemplate(query) {
 
 function findOwnedWeaponEntry(ownedWeapons, weaponCode) {
   const q = normalize(weaponCode);
-  return (Array.isArray(ownedWeapons) ? ownedWeapons : []).find(
-    (x) => normalize(x.code || x.name) === q && Number(x.amount || 0) > 0
-  );
+
+  return (Array.isArray(ownedWeapons) ? ownedWeapons : [])
+    .filter((x) => normalize(x.code || x.name) === q && Number(x.amount || 0) > 0)
+    .sort((a, b) => Number(b.upgradeLevel || 0) - Number(a.upgradeLevel || 0))[0] || null;
 }
 
 function consumeWeapon(list, weaponCode) {
   const arr = [...(list || [])];
-  const idx = arr.findIndex((x) => normalize(x.code) === normalize(weaponCode));
+  const q = normalize(weaponCode);
 
-  if (idx === -1 || Number(arr[idx].amount || 0) <= 0) {
+  const candidates = arr
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry }) => normalize(entry.code || entry.name) === q && Number(entry.amount || 0) > 0)
+    .sort((a, b) => Number(b.entry.upgradeLevel || 0) - Number(a.entry.upgradeLevel || 0));
+
+  if (!candidates.length) {
     throw new Error("Weapon not owned.");
   }
 
-  if (Number(arr[idx].amount || 0) === 1) arr.splice(idx, 1);
-  else arr[idx] = { ...arr[idx], amount: Number(arr[idx].amount || 0) - 1 };
+  const idx = candidates[0].index;
+
+  if (Number(arr[idx].amount || 0) === 1) {
+    arr.splice(idx, 1);
+  } else {
+    arr[idx] = {
+      ...arr[idx],
+      amount: Number(arr[idx].amount || 0) - 1,
+    };
+  }
 
   return arr;
 }

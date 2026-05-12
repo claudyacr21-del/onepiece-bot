@@ -68,7 +68,10 @@ function normalizeNamedList(value) {
   return value
     .map((entry) => {
       if (typeof entry === "string") {
-        return { name: entry, amount: 1 };
+        return {
+          name: entry,
+          amount: 1,
+        };
       }
 
       if (entry && typeof entry === "object") {
@@ -79,10 +82,22 @@ function normalizeNamedList(value) {
           code: entry.code || undefined,
           image: entry.image || "",
           type: entry.type || undefined,
+
+          // IMPORTANT: preserve weapon upgrade data
+          upgradeLevel: Number(entry.upgradeLevel || 0),
+          statPercent: entry.statPercent || entry.baseStatPercent || undefined,
+          baseStatPercent: entry.baseStatPercent || entry.statPercent || undefined,
+          ownerBonusPercent: entry.ownerBonusPercent || undefined,
+
           statBonus: entry.statBonus || undefined,
           owners: Array.isArray(entry.owners) ? entry.owners : undefined,
           description: entry.description || undefined,
           boostBonus: entry.boostBonus || undefined,
+
+          // optional metadata used by fragments/items
+          weaponCode: entry.weaponCode || undefined,
+          category: entry.category || undefined,
+          power: entry.power || undefined,
         };
       }
 
