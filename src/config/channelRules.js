@@ -13,6 +13,7 @@ module.exports = {
       "help",
       "balance",
       "inv",
+      "vote",
       "patreon",
       "market",
       "trade",
