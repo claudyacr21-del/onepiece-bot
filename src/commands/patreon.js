@@ -10,6 +10,7 @@ const { readPatreonRoles } = require("../utils/patreonRoleStore");
 
 const PATREON_URL = process.env.PATREON_URL || "https://www.patreon.com/";
 const MOTHER_FLAME_URL = process.env.PATREON_MOTHER_FLAME_URL || PATREON_URL;
+const VIVRE_CARD_URL = process.env.PATREON_VIVRE_CARD_URL || PATREON_URL;
 const TICKET_RESET_URL = process.env.PATREON_TICKET_RESET_URL || PATREON_URL;
 const SUPPORT_SERVER_URL =
   process.env.SUPPORT_SERVER_URL ||
@@ -43,6 +44,37 @@ const PACKAGES = {
       "• Payment proof",
       "",
       "Admin will verify your proof and manually activate your Mother Flame role.",
+    ].join("\n"),
+  },
+
+  vivre_card: {
+    label: "Vivre Card 5$",
+    emoji: "🧭",
+    url: VIVRE_CARD_URL,
+    buttonLabel: "Purchase Vivre Card",
+    title: "Vivre Card | 5$/Month",
+    description: [
+      "**Lite Premium Perks**",
+      "",
+      "🧭 **Vivre Card Supporter Role**",
+      "",
+      "• Lite premium identity role in the Discord server for **30 days** after admin verification",
+      "• Faster support priority through Discord ticket",
+      "• Supporter badge/perk display when connected to supported bot systems",
+      "• Half-tier premium package for players who want to support the bot at a lower price",
+      "",
+      "**Package Notes**",
+      "",
+      "• This is a lite supporter package",
+      "• Best for players who want a supporter role and lighter premium benefits",
+      "• Full Mother Flame perks remain exclusive to the Mother Flame package",
+      "",
+      "**Claim Instruction**",
+      "After payment, open a ticket in the Discord server and send:",
+      "• Patreon order proof",
+      "• Payment proof",
+      "",
+      "Admin will verify your proof and manually activate your Vivre Card role.",
     ].join("\n"),
   },
 
@@ -117,6 +149,7 @@ function buildMainEmbed(userId) {
         `**${getPatreonStatus(userId).line}**`,
         "",
         "🔥 **Mother Flame** — premium monthly support",
+        "🧭 **Vivre Card** — lite monthly support",
         "🎟️ **Ticket Reset** — one-time claim package",
         "",
         "**After payment, open a Discord ticket and send:**",
@@ -157,6 +190,13 @@ function buildSelectRow(selected = null) {
           value: "mother_flame",
           emoji: PACKAGES.mother_flame.emoji,
           default: selected === "mother_flame",
+        },
+        {
+          label: PACKAGES.vivre_card.label,
+          description: "Lite supporter package with Vivre Card perks",
+          value: "vivre_card",
+          emoji: PACKAGES.vivre_card.emoji,
+          default: selected === "vivre_card",
         },
         {
           label: PACKAGES.ticket_reset.label,
