@@ -8,6 +8,18 @@ const LITE_PREMIUM_ROLE_NAME =
   process.env.LITE_PREMIUM_ROLE_NAME ||
   "Vivre Card";
 
+const PREMIUM_ROLE_IDS = [
+  process.env.MOTHER_FLAME_ROLE_ID,
+  process.env.PATREON_MOTHER_FLAME_ROLE_ID,
+  process.env.PATREON_ROLE_ID,
+].filter(Boolean).map(String);
+
+const LITE_PREMIUM_ROLE_IDS = [
+  process.env.VIVRE_CARD_ROLE_ID,
+  process.env.PATREON_VIVRE_CARD_ROLE_ID,
+  process.env.LITE_PREMIUM_ROLE_ID,
+].filter(Boolean).map(String);
+
 const MAIN_GUILD_IDS = [
   process.env.ONEPIECE_MAIN_GUILD_ID,
   process.env.MAIN_SERVER_ID,
@@ -19,11 +31,17 @@ function normalize(value) {
   return String(value || "").toLowerCase().trim();
 }
 
-function hasRoleOnMember(member, roleName) {
-  const target = normalize(roleName);
+function hasRoleOnMember(member, roleNames = [], roleIds = []) {
+  const names = Array.isArray(roleNames) ? roleNames : [roleNames];
+  const normalizedNames = names.map(normalize).filter(Boolean);
+  const ids = (Array.isArray(roleIds) ? roleIds : [roleIds]).map(String).filter(Boolean);
 
   return Boolean(
-    member?.roles?.cache?.some((role) => normalize(role?.name) === target)
+    member?.roles?.cache?.some((role) => {
+      const roleId = String(role?.id || "");
+      const roleName = normalize(role?.name);
+      return ids.includes(roleId) || normalizedNames.includes(roleName);
+    })
   );
 }
 
@@ -34,20 +52,13 @@ async function findMainGuild(client) {
     const cachedGuild = client.guilds.cache.get(String(guildId));
     if (cachedGuild) return cachedGuild;
 
-    const fetchedGuild = await client.guilds
-      .fetch(String(guildId))
-      .catch(() => null);
-
+    const fetchedGuild = await client.guilds.fetch(String(guildId)).catch(() => null);
     if (fetchedGuild) return fetchedGuild;
   }
 
   return (
-    client.guilds.cache.find(
-      (guild) => normalize(guild?.name) === "one piece bot"
-    ) ||
-    client.guilds.cache.find((guild) =>
-      normalize(guild?.name).includes("one piece")
-    ) ||
+    client.guilds.cache.find((guild) => normalize(guild?.name) === "one piece bot") ||
+    client.guilds.cache.find((guild) => normalize(guild?.name).includes("one piece")) ||
     null
   );
 }
@@ -76,29 +87,36 @@ async function fetchMainGuildMember(message) {
 async function isPremiumUser(message) {
   const mainMember = await fetchMainGuildMember(message);
 
-  if (hasRoleOnMember(mainMember, PREMIUM_ROLE_NAME)) return true;
-
-  return hasRoleOnMember(message?.member, PREMIUM_ROLE_NAME);
+  if (hasRoleOnMember(mainMember, PREMIUM_ROLE_NAME, PREMIUM_ROLE_IDS)) return true;
+  return hasRoleOnMember(message?.member, PREMIUM_ROLE_NAME, PREMIUM_ROLE_IDS);
 }
 
 async function isLitePremiumUser(message) {
   const mainMember = await fetchMainGuildMember(message);
 
-  if (hasRoleOnMember(mainMember, LITE_PREMIUM_ROLE_NAME)) return true;
-
-  return hasRoleOnMember(message?.member, LITE_PREMIUM_ROLE_NAME);
+  if (hasRoleOnMember(mainMember, LITE_PREMIUM_ROLE_NAME, LITE_PREMIUM_ROLE_IDS)) return true;
+  return hasRoleOnMember(message?.member, LITE_PREMIUM_ROLE_NAME, LITE_PREMIUM_ROLE_IDS);
 }
 
 async function isAnyPremiumUser(message) {
   return (await isPremiumUser(message)) || (await isLitePremiumUser(message));
 }
 
+async function getPremiumTier(message) {
+  if (await isPremiumUser(message)) return "mother_flame";
+  if (await isLitePremiumUser(message)) return "vivre_card";
+  return null;
+}
+
 module.exports = {
   PREMIUM_ROLE_NAME,
   LITE_PREMIUM_ROLE_NAME,
+  PREMIUM_ROLE_IDS,
+  LITE_PREMIUM_ROLE_IDS,
   isPremiumUser,
   isLitePremiumUser,
   isAnyPremiumUser,
+  getPremiumTier,
   fetchMainGuildMember,
   hasRoleOnMember,
 };

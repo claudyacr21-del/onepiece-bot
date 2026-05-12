@@ -16,6 +16,7 @@ const {
   getTotalPullUsage,
   buildPullAccessSnapshot,
   hasMainServerRole,
+  hasAnyPremiumRole,
   PREMIUM_ROLE_NAME,
 } = require("../utils/pullSlots");
 const {
@@ -485,7 +486,7 @@ module.exports = {
       return message.reply("No pull slot is currently available.");
     }
 
-    const isPremium = hasMainServerRole(message, PREMIUM_ROLE_NAME);
+    const isPremium = hasAnyPremiumRole(message);
     const pityLimit = getPityLimit(isPremium);
     const pityGuarantee = getPityGuarantee(isPremium);
     let pityCounter = getSharedPity(player) + 1;

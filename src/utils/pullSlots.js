@@ -2,7 +2,27 @@ const devilFruits = require("../data/devilFruits");
 
 const SUPPORT_SERVER_ROLE = "Support Server";
 const BOOSTER_ROLE = "Server Booster";
-const PREMIUM_ROLE_NAME = "Mother Flame";
+const PREMIUM_ROLE_NAME =
+  process.env.PATREON_PREMIUM_ROLE_NAME ||
+  process.env.PREMIUM_ROLE_NAME ||
+  "Mother Flame";
+
+const LITE_PREMIUM_ROLE_NAME =
+  process.env.PATREON_LITE_ROLE_NAME ||
+  process.env.LITE_PREMIUM_ROLE_NAME ||
+  "Vivre Card";
+
+const PREMIUM_ROLE_IDS = [
+  process.env.MOTHER_FLAME_ROLE_ID,
+  process.env.PATREON_MOTHER_FLAME_ROLE_ID,
+  process.env.PATREON_ROLE_ID,
+].filter(Boolean).map(String);
+
+const LITE_PREMIUM_ROLE_IDS = [
+  process.env.VIVRE_CARD_ROLE_ID,
+  process.env.PATREON_VIVRE_CARD_ROLE_ID,
+  process.env.LITE_PREMIUM_ROLE_ID,
+].filter(Boolean).map(String);
 
 const MAIN_SERVER_IDS = [
   process.env.ONEPIECE_MAIN_GUILD_ID,
@@ -22,11 +42,17 @@ function normalizeKey(value) {
   return normalize(value).replace(/[_-]+/g, "").replace(/\s+/g, "");
 }
 
-function hasRoleOnMember(member, roleName) {
-  const target = normalize(roleName);
+function hasRoleOnMember(member, roleNames = [], roleIds = []) {
+  const names = Array.isArray(roleNames) ? roleNames : [roleNames];
+  const normalizedNames = names.map(normalize).filter(Boolean);
+  const ids = (Array.isArray(roleIds) ? roleIds : [roleIds]).map(String).filter(Boolean);
 
   return Boolean(
-    member?.roles?.cache?.some((role) => normalize(role?.name) === target)
+    member?.roles?.cache?.some((role) => {
+      const roleId = String(role?.id || "");
+      const roleName = normalize(role?.name);
+      return ids.includes(roleId) || normalizedNames.includes(roleName);
+    })
   );
 }
 
@@ -85,6 +111,31 @@ function hasRole(message, roleName) {
   const mainMember = getMainGuildMember(message);
 
   return hasRoleOnMember(mainMember, roleName);
+}
+
+function hasMotherFlameRole(message) {
+  if (message?.member && hasRoleOnMember(message.member, PREMIUM_ROLE_NAME, PREMIUM_ROLE_IDS)) {
+    return true;
+  }
+
+  const mainMember = getMainGuildMember(message);
+  return hasRoleOnMember(mainMember, PREMIUM_ROLE_NAME, PREMIUM_ROLE_IDS);
+}
+
+function hasLitePremiumRole(message) {
+  if (
+    message?.member &&
+    hasRoleOnMember(message.member, LITE_PREMIUM_ROLE_NAME, LITE_PREMIUM_ROLE_IDS)
+  ) {
+    return true;
+  }
+
+  const mainMember = getMainGuildMember(message);
+  return hasRoleOnMember(mainMember, LITE_PREMIUM_ROLE_NAME, LITE_PREMIUM_ROLE_IDS);
+}
+
+function hasAnyPremiumRole(message) {
+  return hasMotherFlameRole(message) || hasLitePremiumRole(message);
 }
 
 function hasMainServerRole(message, roleName) {
@@ -249,6 +300,7 @@ function getSavedAccess(player) {
     booster: Boolean(player?.pullAccessSnapshot?.booster),
     owner: Boolean(player?.pullAccessSnapshot?.owner),
     patreon: Boolean(player?.pullAccessSnapshot?.patreon),
+    litePremium: Boolean(player?.pullAccessSnapshot?.litePremium),
   };
 }
 
@@ -259,7 +311,8 @@ function resolveAccessFlags(player, message) {
     supportMember: Boolean(isSupportServerMember(message) || saved.supportMember),
     booster: Boolean(isSupportServerBooster(message) || saved.booster),
     owner: Boolean(isServerOwner(message) || saved.owner),
-    patreon: Boolean(hasRole(message, PREMIUM_ROLE_NAME) || saved.patreon),
+    patreon: Boolean(hasMotherFlameRole(message) || saved.patreon),
+    litePremium: Boolean(hasLitePremiumRole(message) || saved.litePremium),
   };
 }
 
@@ -470,4 +523,8 @@ module.exports = {
   consumePullSlot,
   consumeAllActivePullSlots,
   resetAllPullSlots,
+  LITE_PREMIUM_ROLE_NAME,
+  hasMotherFlameRole,
+  hasLitePremiumRole,
+  hasAnyPremiumRole,
 };

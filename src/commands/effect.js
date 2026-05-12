@@ -9,6 +9,7 @@ const {
   buildPullAccessSnapshot,
 } = require("../utils/pullSlots");
 const { applyGlobalPullReset } = require("../utils/pullReset");
+const { hasAnyPremiumRole } = require("../utils/pullSlots");
 const {
   ensureDailyQuestState,
   getQuestCompletionSummary,
@@ -76,8 +77,8 @@ module.exports = {
     player.quests = syncPayload.quests;
     player.pullAccessSnapshot = snapshot;
 
-    const isMotherFlame = hasRole(message, PREMIUM_ROLE_NAME);
-    const pityLimit = isMotherFlame ? 100 : 150;
+    const isPremiumTier = hasAnyPremiumRole(message);
+    const pityLimit = isPremiumTier ? 100 : 150;
     const pityDrop = `${getSharedPity(player)}/${pityLimit}`;
     const boosts = getPassiveBoostSummary(player);
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
