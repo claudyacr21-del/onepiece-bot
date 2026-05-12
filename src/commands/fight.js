@@ -209,19 +209,19 @@ function createIslandEnemyTemplates(island) {
   const rarities = getIslandEnemyRarities(order);
   const islandName = island?.name || "Unknown Island";
 
-  // Normal island fight should feel like regular mobs/elite patrol,
-  // not harder than the real island boss.
-  const scoutAtk = 70 + order * 13;
-  const scoutHp = 520 + order * 95;
-  const scoutSpeed = 58 + order * 3.5;
+  // Regular island fight mobs.
+  // Keep this below true island boss difficulty.
+  const scoutAtk = 72 + order * 13;
+  const scoutHp = 560 + order * 100;
+  const scoutSpeed = 58 + order * 3;
 
-  const eliteAtk = 90 + order * 16;
-  const eliteHp = 720 + order * 125;
-  const eliteSpeed = 66 + order * 4;
+  const eliteAtk = 92 + order * 16;
+  const eliteHp = 760 + order * 130;
+  const eliteSpeed = 66 + order * 3.5;
 
-  const captainAtk = 110 + order * 19;
-  const captainHp = 920 + order * 155;
-  const captainSpeed = 74 + order * 4.5;
+  const captainAtk = 112 + order * 19;
+  const captainHp = 980 + order * 160;
+  const captainSpeed = 74 + order * 4;
 
   return [
     createEnemy(
@@ -266,7 +266,7 @@ function getEnemyLevelForSlot(baseLevel, slotIndex) {
 function scaleEnemy(enemy, playerAverageLevel, slotIndex) {
   const level = getEnemyLevelForSlot(playerAverageLevel, slotIndex);
 
-  // Fight mobs scale with player level, but keep them below true island bosses.
+  // Smooth level scaling so late islands are not absurd.
   const levelMultiplier = 1 + (level - 1) * 0.008;
 
   const atkMult = (randomInt(92, 103) / 100) * levelMultiplier;
