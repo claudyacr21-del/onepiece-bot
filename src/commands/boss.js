@@ -1535,41 +1535,84 @@ function getBossReward(island, phaseBoss = null) {
   const order = Number(island?.order || 0);
   const phase = Number(phaseBoss?.phase || 0);
 
+  function pickBossResourceBox() {
+    const roll = Math.random() * 100;
+
+    // Early islands: no Elite / Legend yet
+    if (order < 8) {
+      return cloneItem(ITEMS.rareResourceBox, 1);
+    }
+
+    // Mid islands: small Elite chance
+    // Rare 80% / Elite 20%
+    if (order < 15) {
+      if (roll < 20) return cloneItem(ITEMS.eliteResourceBox, 1);
+      return cloneItem(ITEMS.rareResourceBox, 1);
+    }
+
+    // Late-mid islands: better Elite, tiny Legend
+    // Rare 55% / Elite 40% / Legend 5%
+    if (order < 22) {
+      if (roll < 5) return cloneItem(ITEMS.legendResourceBox, 1);
+      if (roll < 45) return cloneItem(ITEMS.eliteResourceBox, 1);
+      return cloneItem(ITEMS.rareResourceBox, 1);
+    }
+
+    // Endgame islands: Elite common, Legend possible
+    // Rare 35% / Elite 50% / Legend 15%
+    if (roll < 15) return cloneItem(ITEMS.legendResourceBox, 1);
+    if (roll < 65) return cloneItem(ITEMS.eliteResourceBox, 1);
+    return cloneItem(ITEMS.rareResourceBox, 1);
+  }
+
+  function getBossBoxes(amount = 1) {
+    const boxes = [];
+
+    for (let i = 0; i < amount; i++) {
+      boxes.push(pickBossResourceBox());
+    }
+
+    return boxes;
+  }
+
   const base = {
     berries: 6000 + order * 550,
     gems: 10 + Math.floor(order / 2),
-    boxes: [cloneItem(ITEMS.rareResourceBox, 1)],
+    boxes: getBossBoxes(1),
   };
 
   if (phase === 1) {
     return {
       berries: 9000 + order * 750,
       gems: 18 + Math.floor(order / 2),
-      boxes: [cloneItem(ITEMS.rareResourceBox, 1)],
+      boxes: getBossBoxes(1),
     };
   }
 
   if (phase === 2) {
-    const specialByIsland = {
-      egghead: {
+    const islandCode = String(island?.code || "").toLowerCase();
+
+    if (islandCode === "egghead") {
+      return {
         berries: 42000,
         gems: 95,
-        boxes: [cloneItem(ITEMS.rareResourceBox, 3)],
-      },
-      elbaf: {
+        boxes: getBossBoxes(3),
+      };
+    }
+
+    if (islandCode === "elbaf") {
+      return {
         berries: 52000,
         gems: 120,
-        boxes: [cloneItem(ITEMS.rareResourceBox, 4)],
-      },
-    };
+        boxes: getBossBoxes(4),
+      };
+    }
 
-    return (
-      specialByIsland[String(island?.code || "").toLowerCase()] || {
-        berries: 30000 + order * 1200,
-        gems: 70 + Math.floor(order / 2),
-        boxes: [cloneItem(ITEMS.rareResourceBox, 2)],
-      }
-    );
+    return {
+      berries: 30000 + order * 1200,
+      gems: 70 + Math.floor(order / 2),
+      boxes: getBossBoxes(2),
+    };
   }
 
   return base;
