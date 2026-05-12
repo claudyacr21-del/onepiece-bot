@@ -1,6 +1,9 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
-const { isPremiumUser } = require("../utils/premiumAccess");
+const {
+  isPremiumUser,
+  isLitePremiumUser,
+} = require("../utils/premiumAccess");
 const {
   PROFILE_BADGES,
   getRaidPrestigeBadgeEmoji,
@@ -189,6 +192,10 @@ function getCaptainBadges(player, options = {}) {
     addBadge(PROFILE_BADGES.motherFlame);
   }
 
+  if (options.isVivreCard) {
+    addBadge(PROFILE_BADGES.vivreCard);
+  }
+
   if (options.isBooster) {
     addBadge(PROFILE_BADGES.serverBooster);
   }
@@ -223,9 +230,12 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
     const totalFragments = countTotalAmount(player.fragments);
     const isMotherFlame = await isPremiumUser(message);
+    const isVivreCard = await isLitePremiumUser(message);
     const booster = await isServerBooster(message);
+
     const captainBadges = getCaptainBadges(player, {
       isMotherFlame,
+      isVivreCard,
       isBooster: booster,
     });
     const totalPower = getTotalPower(player);
@@ -246,7 +256,10 @@ module.exports = {
         [
           "**🌊 Captain**",
           line("Island", player.currentIsland || DEFAULT_START_ISLAND),
-          line("Premium", isMotherFlame ? "Mother Flame" : "Normal"),
+          line(
+            "Premium",
+            isMotherFlame ? "Mother Flame" : isVivreCard ? "Vivre Card" : "Normal"
+          ),
           line("Clan", player?.clan?.name || "Coming Soon"),
           line("Ship", `${ship.name} • Tier ${ship.tier}`),
           rawLine("Badges", captainBadges),

@@ -1,5 +1,6 @@
 const PROFILE_BADGES = {
   motherFlame: process.env.MOTHER_FLAME_BADGE_EMOJI || "<:motherflame:1502256240267497522>",
+  vivreCard: process.env.VIVRE_CARD_BADGE_EMOJI || "<:vivrecard:1503684522712240229>",
   serverBooster: process.env.SERVER_BOOSTER_BADGE_EMOJI || "<:serverbooster:1502256202330148924>",
 };
 

@@ -3,6 +3,11 @@ const PREMIUM_ROLE_NAME =
   process.env.PREMIUM_ROLE_NAME ||
   "Mother Flame";
 
+const LITE_PREMIUM_ROLE_NAME =
+  process.env.PATREON_LITE_ROLE_NAME ||
+  process.env.LITE_PREMIUM_ROLE_NAME ||
+  "Vivre Card";
+
 const MAIN_GUILD_IDS = [
   process.env.ONEPIECE_MAIN_GUILD_ID,
   process.env.MAIN_SERVER_ID,
@@ -29,17 +34,22 @@ async function findMainGuild(client) {
     const cachedGuild = client.guilds.cache.get(String(guildId));
     if (cachedGuild) return cachedGuild;
 
-    const fetchedGuild = await client.guilds.fetch(String(guildId)).catch(() => null);
+    const fetchedGuild = await client.guilds
+      .fetch(String(guildId))
+      .catch(() => null);
+
     if (fetchedGuild) return fetchedGuild;
   }
 
-  const cachedByName =
-    client.guilds.cache.find((guild) => normalize(guild?.name) === "one piece bot") ||
-    client.guilds.cache.find((guild) => normalize(guild?.name).includes("one piece"));
-
-  if (cachedByName) return cachedByName;
-
-  return null;
+  return (
+    client.guilds.cache.find(
+      (guild) => normalize(guild?.name) === "one piece bot"
+    ) ||
+    client.guilds.cache.find((guild) =>
+      normalize(guild?.name).includes("one piece")
+    ) ||
+    null
+  );
 }
 
 async function fetchMainGuildMember(message) {
@@ -64,17 +74,31 @@ async function fetchMainGuildMember(message) {
 }
 
 async function isPremiumUser(message) {
-  const roleName = PREMIUM_ROLE_NAME;
-
   const mainMember = await fetchMainGuildMember(message);
-  if (hasRoleOnMember(mainMember, roleName)) return true;
 
-  return hasRoleOnMember(message?.member, roleName);
+  if (hasRoleOnMember(mainMember, PREMIUM_ROLE_NAME)) return true;
+
+  return hasRoleOnMember(message?.member, PREMIUM_ROLE_NAME);
+}
+
+async function isLitePremiumUser(message) {
+  const mainMember = await fetchMainGuildMember(message);
+
+  if (hasRoleOnMember(mainMember, LITE_PREMIUM_ROLE_NAME)) return true;
+
+  return hasRoleOnMember(message?.member, LITE_PREMIUM_ROLE_NAME);
+}
+
+async function isAnyPremiumUser(message) {
+  return (await isPremiumUser(message)) || (await isLitePremiumUser(message));
 }
 
 module.exports = {
   PREMIUM_ROLE_NAME,
+  LITE_PREMIUM_ROLE_NAME,
   isPremiumUser,
+  isLitePremiumUser,
+  isAnyPremiumUser,
   fetchMainGuildMember,
   hasRoleOnMember,
 };
