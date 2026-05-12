@@ -1,4 +1,9 @@
-const { EmbedBuilder } = require("discord.js");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestPayload } = require("../utils/questProgress");
@@ -404,6 +409,53 @@ function getEquippedOwners(cards, weaponCode) {
   return [...new Set(owners)];
 }
 
+function buildUpgradeConfirmRows(userId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`wupgrade_confirm_${userId}`)
+        .setLabel("Upgrade")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`wupgrade_cancel_${userId}`)
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Danger)
+    ),
+  ];
+}
+
+function buildUpgradeConfirmEmbed({
+  template,
+  currentLevel,
+  nextLevel,
+  stoneCost,
+  currentStone,
+  shownPercent,
+  equippedOwners,
+}) {
+  return new EmbedBuilder()
+    .setColor(0xf1c40f)
+    .setTitle("⚒️ Confirm Weapon Upgrade")
+    .setDescription(
+      [
+        `**Weapon:** ${template.name}`,
+        `**Current Level:** +${currentLevel}`,
+        `**Next Level:** +${nextLevel}`,
+        `**Cost:** ${stoneCost} Enhancement Stones`,
+        `**Your Stones:** ${currentStone}`,
+        "",
+        "**Weapon Percent After Upgrade**",
+        `ATK: +${shownPercent.atk}%`,
+        `HP: +${shownPercent.hp}%`,
+        `SPD: +${shownPercent.speed}%`,
+        "",
+        `**Equipped On:** ${equippedOwners.length ? equippedOwners.join(", ") : "Not equipped"}`,
+        "",
+        "Press **Upgrade** to confirm or **Cancel** to stop.",
+      ].join("\n")
+    );
+}
+
 module.exports = {
   name: "wupgrade",
   aliases: ["weaponupgrade", "upweapon"],
@@ -443,18 +495,6 @@ module.exports = {
       );
     }
 
-    const updatedMaterials = consumeStones(player.materials || [], stoneCost);
-    const updatedWeapons = updateInventoryWeaponLevels(player.weapons || [], template, nextLevel);
-    const updatedCards = syncEquippedWeaponLevels(player.cards || [], template, nextLevel);
-    const updatedQuests = incrementQuestPayload(player, "weaponUpgrades", 1);
-
-    updatePlayer(message.author.id, {
-      weapons: updatedWeapons,
-      cards: updatedCards,
-      materials: updatedMaterials,
-      quests: updatedQuests,
-    });
-
     const shownPercent = getWeaponPercentAtLevel(
       template.statPercent || {
         atk: 0,
@@ -464,28 +504,182 @@ module.exports = {
       nextLevel
     );
 
-    const equippedOwners = getEquippedOwners(updatedCards, template.code);
+    const equippedOwners = getEquippedOwners(player.cards || [], template.code);
 
-    return message.reply({
+    const confirmMessage = await message.reply({
       embeds: [
-        new EmbedBuilder()
-          .setColor(0x2ecc71)
-          .setTitle("🗡️ Weapon Upgrade Success")
-          .setDescription(
-            [
-              `**Weapon:** ${template.name}`,
-              `**Weapon Level:** +${nextLevel}`,
-              `**Cost:** ${stoneCost} Enhancement Stones`,
-              "",
-              "**Weapon Percent Now**",
-              `ATK: +${shownPercent.atk}%`,
-              `HP: +${shownPercent.hp}%`,
-              `SPD: +${shownPercent.speed}%`,
-              "",
-              `**Equipped On:** ${equippedOwners.length ? equippedOwners.join(", ") : "Not equipped"}`,
-            ].join("\n")
-          ),
+        buildUpgradeConfirmEmbed({
+          template,
+          currentLevel,
+          nextLevel,
+          stoneCost,
+          currentStone,
+          shownPercent,
+          equippedOwners,
+        }),
       ],
+      components: buildUpgradeConfirmRows(message.author.id),
+    });
+
+    const collector = confirmMessage.createMessageComponentCollector({
+      time: 60_000,
+    });
+
+    collector.on("collect", async (interaction) => {
+      if (interaction.user.id !== message.author.id) {
+        return interaction.reply({
+          content: "Only the command user can confirm this weapon upgrade.",
+          ephemeral: true,
+        });
+      }
+
+      if (interaction.customId === `wupgrade_cancel_${message.author.id}`) {
+        collector.stop("cancelled");
+
+        return interaction.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0x95a5a6)
+              .setTitle("Weapon Upgrade Cancelled")
+              .setDescription("No Enhancement Stones were consumed."),
+          ],
+          components: [],
+        });
+      }
+
+      if (interaction.customId !== `wupgrade_confirm_${message.author.id}`) return;
+
+      const fresh = getPlayer(message.author.id, message.author.username);
+      const freshMatch = findOwnedOrEquippedWeapon(fresh, weaponQuery);
+
+      if (!freshMatch || !freshMatch.template) {
+        collector.stop("missing");
+
+        return interaction.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("Weapon Upgrade Failed")
+              .setDescription("That weapon was no longer found in your inventory or equipped cards."),
+          ],
+          components: [],
+        });
+      }
+
+      const freshTemplate = freshMatch.template;
+      const freshCurrentLevel = Number(freshMatch.currentLevel || 0);
+      const freshNextLevel = freshCurrentLevel + 1;
+      const freshStoneCost = getStoneCost(freshNextLevel);
+
+      if (!freshStoneCost) {
+        collector.stop("max");
+
+        return interaction.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("Weapon Upgrade Failed")
+              .setDescription("This weapon already reached max upgrade level."),
+          ],
+          components: [],
+        });
+      }
+
+      const freshStone = getStoneAmount(fresh.materials || []);
+
+      if (freshStone < freshStoneCost) {
+        collector.stop("nostone");
+
+        return interaction.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("Weapon Upgrade Failed")
+              .setDescription(
+                `You need **${freshStoneCost} Enhancement Stones** to upgrade **${freshTemplate.name}**.\nCurrent: **${freshStone}**`
+              ),
+          ],
+          components: [],
+        });
+      }
+
+      const updatedMaterials = consumeStones(fresh.materials || [], freshStoneCost);
+      const updatedWeapons = updateInventoryWeaponLevels(
+        fresh.weapons || [],
+        freshTemplate,
+        freshNextLevel
+      );
+      const updatedCards = syncEquippedWeaponLevels(
+        fresh.cards || [],
+        freshTemplate,
+        freshNextLevel
+      );
+      const updatedQuests = incrementQuestPayload(fresh, "weaponUpgrades", 1);
+
+      updatePlayer(message.author.id, {
+        weapons: updatedWeapons,
+        cards: updatedCards,
+        materials: updatedMaterials,
+        quests: updatedQuests,
+      });
+
+      const freshShownPercent = getWeaponPercentAtLevel(
+        freshTemplate.statPercent || {
+          atk: 0,
+          hp: 0,
+          speed: 0,
+        },
+        freshNextLevel
+      );
+
+      const freshEquippedOwners = getEquippedOwners(updatedCards, freshTemplate.code);
+
+      collector.stop("confirmed");
+
+      return interaction.update({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x2ecc71)
+            .setTitle("🗡️ Weapon Upgrade Success")
+            .setDescription(
+              [
+                `**Weapon:** ${freshTemplate.name}`,
+                `**Weapon Level:** +${freshNextLevel}`,
+                `**Cost:** ${freshStoneCost} Enhancement Stones`,
+                "",
+                "**Weapon Percent Now**",
+                `ATK: +${freshShownPercent.atk}%`,
+                `HP: +${freshShownPercent.hp}%`,
+                `SPD: +${freshShownPercent.speed}%`,
+                "",
+                `**Equipped On:** ${
+                  freshEquippedOwners.length
+                    ? freshEquippedOwners.join(", ")
+                    : "Not equipped"
+                }`,
+              ].join("\n")
+            ),
+        ],
+        components: [],
+      });
+    });
+
+    collector.on("end", async (_collected, reason) => {
+      if (["confirmed", "cancelled", "missing", "max", "nostone"].includes(reason)) {
+        return;
+      }
+
+      try {
+        await confirmMessage.edit({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0x95a5a6)
+              .setTitle("Weapon Upgrade Expired")
+              .setDescription("No Enhancement Stones were consumed."),
+          ],
+          components: [],
+        });
+      } catch {}
     });
   },
 };

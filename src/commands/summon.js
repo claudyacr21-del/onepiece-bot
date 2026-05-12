@@ -1,4 +1,9 @@
-const { EmbedBuilder } = require("discord.js");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { createOwnedCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
@@ -63,8 +68,36 @@ function alreadyOwnsCard(player, card) {
   );
 }
 
+function getCardImage(card, ownedCard = null) {
+  return (
+    ownedCard?.evolutionForms?.[0]?.image ||
+    ownedCard?.stageImages?.M1 ||
+    ownedCard?.image ||
+    card?.evolutionForms?.[0]?.image ||
+    card?.stageImages?.M1 ||
+    card?.image ||
+    null
+  );
+}
+
+function buildConfirmRows(userId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`summon_confirm_${userId}`)
+        .setLabel("Summon")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`summon_cancel_${userId}`)
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Danger)
+    ),
+  ];
+}
+
 module.exports = {
   name: "summon",
+  aliases: ["summoncard"],
 
   async execute(message, args) {
     const query = args.join(" ").trim();
@@ -112,51 +145,168 @@ module.exports = {
       );
     }
 
-    if (ownedFragments === SUMMON_FRAGMENT_COST) {
-      fragments.splice(fragmentIndex, 1);
-    } else {
-      fragments[fragmentIndex] = {
-        ...fragments[fragmentIndex],
-        amount: ownedFragments - SUMMON_FRAGMENT_COST,
-      };
-    }
-
-    const ownedCard = createOwnedCard(card);
-    const updatedCards = [...(player.cards || []), ownedCard];
-
-    updatePlayer(message.author.id, {
-      cards: updatedCards,
-      fragments,
-    });
-
     const rarity = String(card.baseTier || card.rarity || "C").toUpperCase();
 
-    return message.reply({
+    const confirmMessage = await message.reply({
       embeds: [
         new EmbedBuilder()
           .setColor(0xf1c40f)
-          .setTitle("✨ Card Summoned")
+          .setTitle("✨ Confirm Card Summon")
           .setDescription(
             [
               `**Card:** ${getCardName(card)}`,
               `**Rarity:** ${rarity}`,
               `**Cost:** ${SUMMON_FRAGMENT_COST}x ${getCardName(card)} Fragment`,
-              `**Remaining Fragments:** ${ownedFragments - SUMMON_FRAGMENT_COST}`,
+              `**Your Fragments:** ${ownedFragments}`,
+              `**Remaining After Summon:** ${ownedFragments - SUMMON_FRAGMENT_COST}`,
               "",
-              "The card has been added to your collection.",
+              "Press **Summon** to confirm or **Cancel** to stop.",
             ].join("\n")
           )
-          .setImage(
-            ownedCard?.evolutionForms?.[0]?.image ||
-              ownedCard?.stageImages?.M1 ||
-              ownedCard?.image ||
-              card?.evolutionForms?.[0]?.image ||
-              card?.stageImages?.M1 ||
-              card?.image ||
-              null
-          )
-          .setFooter({ text: "One Piece Bot • Summon" }),
+          .setImage(getCardImage(card))
+          .setFooter({ text: "One Piece Bot • Summon Confirm" }),
       ],
+      components: buildConfirmRows(message.author.id),
+    });
+
+    const collector = confirmMessage.createMessageComponentCollector({
+      time: 60_000,
+    });
+
+    collector.on("collect", async (interaction) => {
+      if (interaction.user.id !== message.author.id) {
+        return interaction.reply({
+          content: "Only the command user can use this summon confirmation.",
+          ephemeral: true,
+        });
+      }
+
+      if (interaction.customId === `summon_cancel_${message.author.id}`) {
+        collector.stop("cancelled");
+        return interaction.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0x95a5a6)
+              .setTitle("Summon Cancelled")
+              .setDescription("No fragments were consumed."),
+          ],
+          components: [],
+        });
+      }
+
+      if (interaction.customId !== `summon_confirm_${message.author.id}`) return;
+
+      const fresh = getPlayer(message.author.id, message.author.username);
+
+      if (alreadyOwnsCard(fresh, card)) {
+        collector.stop("owned");
+        return interaction.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("Summon Failed")
+              .setDescription(`You already own **${getCardName(card)}**.`),
+          ],
+          components: [],
+        });
+      }
+
+      const freshFragments = Array.isArray(fresh.fragments)
+        ? [...fresh.fragments]
+        : [];
+      const freshFragmentIndex = findFragmentIndex(freshFragments, card);
+
+      if (freshFragmentIndex === -1) {
+        collector.stop("missing");
+        return interaction.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("Summon Failed")
+              .setDescription(
+                `You no longer have **${getCardName(card)} Fragment**.`
+              ),
+          ],
+          components: [],
+        });
+      }
+
+      const freshOwnedFragments = Number(
+        freshFragments[freshFragmentIndex].amount || 0
+      );
+
+      if (freshOwnedFragments < SUMMON_FRAGMENT_COST) {
+        collector.stop("missing");
+        return interaction.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("Summon Failed")
+              .setDescription(
+                `You need **${SUMMON_FRAGMENT_COST}x ${getCardName(card)} Fragment**.\nYou currently have **${freshOwnedFragments}x**.`
+              ),
+          ],
+          components: [],
+        });
+      }
+
+      if (freshOwnedFragments === SUMMON_FRAGMENT_COST) {
+        freshFragments.splice(freshFragmentIndex, 1);
+      } else {
+        freshFragments[freshFragmentIndex] = {
+          ...freshFragments[freshFragmentIndex],
+          amount: freshOwnedFragments - SUMMON_FRAGMENT_COST,
+        };
+      }
+
+      const ownedCard = createOwnedCard(card);
+      const updatedCards = [...(fresh.cards || []), ownedCard];
+
+      updatePlayer(message.author.id, {
+        cards: updatedCards,
+        fragments: freshFragments,
+      });
+
+      collector.stop("confirmed");
+
+      return interaction.update({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x2ecc71)
+            .setTitle("✨ Card Summoned")
+            .setDescription(
+              [
+                `**Card:** ${getCardName(card)}`,
+                `**Rarity:** ${rarity}`,
+                `**Cost:** ${SUMMON_FRAGMENT_COST}x ${getCardName(card)} Fragment`,
+                `**Remaining Fragments:** ${
+                  freshOwnedFragments - SUMMON_FRAGMENT_COST
+                }`,
+                "",
+                "The card has been added to your collection.",
+              ].join("\n")
+            )
+            .setImage(getCardImage(card, ownedCard))
+            .setFooter({ text: "One Piece Bot • Summon" }),
+        ],
+        components: [],
+      });
+    });
+
+    collector.on("end", async (_collected, reason) => {
+      if (["confirmed", "cancelled", "owned", "missing"].includes(reason)) return;
+
+      try {
+        await confirmMessage.edit({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0x95a5a6)
+              .setTitle("Summon Expired")
+              .setDescription("No fragments were consumed."),
+          ],
+          components: [],
+        });
+      } catch {}
     });
   },
 };
