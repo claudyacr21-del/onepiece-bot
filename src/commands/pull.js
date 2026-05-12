@@ -15,14 +15,16 @@ const {
   consumePullSlot,
   getTotalPullUsage,
   buildPullAccessSnapshot,
-  hasMainServerRole,
-  hasAnyPremiumRole,
-  PREMIUM_ROLE_NAME,
 } = require("../utils/pullSlots");
 const {
-  rollStandardBaseTier,
-  rollStandardContentType,
-  rollStandardDevilFruitTier,
+  getPremiumTier,
+  getPityLimitByTier,
+  getPityGuaranteeByTier,
+} = require("../utils/premiumAccess");
+const {
+  rollBaseTierByPremiumTier,
+  rollContentTypeByPremiumTier,
+  rollDevilFruitTierByPremiumTier,
 } = require("../utils/pullRates");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const {
@@ -33,6 +35,7 @@ const {
 } = require("../config/assetLinks");
 
 const PREMIUM_PITY_TARGET = 100;
+const VIVRE_CARD_PITY_TARGET = 125;
 const NORMAL_PITY_TARGET = 150;
 
 function getSharedPity(player) {
@@ -45,16 +48,22 @@ function getSharedPity(player) {
   );
 }
 
-function getPityLimit(isPremium) {
-  return isPremium ? PREMIUM_PITY_TARGET : NORMAL_PITY_TARGET;
+function getPityLimit(tier) {
+  return getPityLimitByTier(tier);
 }
 
-function getPityGuarantee(isPremium) {
-  return isPremium ? "S" : "A";
+function getPityGuarantee(tier) {
+  return getPityGuaranteeByTier(tier);
 }
 
-function pickContentType() {
-  return rollStandardContentType();
+function getPityFooterTarget(tier) {
+  if (tier === "mother_flame") return PREMIUM_PITY_TARGET;
+  if (tier === "vivre_card") return VIVRE_CARD_PITY_TARGET;
+  return NORMAL_PITY_TARGET;
+}
+
+function pickContentType(tier) {
+  return rollContentTypeByPremiumTier(tier);
 }
 
 function prettySlotName(key) {
@@ -64,6 +73,7 @@ function prettySlotName(key) {
     booster: "Main Server Booster Pull",
     owner: "Server Owner Pull",
     patreon: "Mother Flame Pull",
+    vivreCard: "Vivre Card Pull",
     baccaratCard: "Baccarat Card Pull",
     baccaratFruit: "Baccarat Fruit Pull",
   };
@@ -79,7 +89,8 @@ function getTicketPool() {
       rarity: "B",
       type: "Ticket",
       weight: 60,
-      image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862086254712/content.png?ex=6a01d3d3&is=6a008253&hm=3adddcd707caa59db48cd9489b6eed6f5012b7a1725d7458a1c51ff1406b6621&",
+      image:
+        "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862086254712/content.png?ex=6a01d3d3&is=6a008253&hm=3adddcd707caa59db48cd9489b6eed6f5012b7a1725d7458a1c51ff1406b6621&",
     },
     {
       code: "raid_ticket",
@@ -87,7 +98,8 @@ function getTicketPool() {
       rarity: "A",
       type: "Ticket",
       weight: 29,
-      image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862694301907/content.png?ex=6a01d3d4&is=6a008254&hm=c46ef6d8f72ef586dc9817d629edbe23f8895613eeef5216ab80d026820e9ce2&",
+      image:
+        "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862694301907/content.png?ex=6a01d3d4&is=6a008254&hm=c46ef6d8f72ef586dc9817d629edbe23f8895613eeef5216ab80d026820e9ce2&",
     },
     {
       code: "gold_raid_ticket",
@@ -95,7 +107,8 @@ function getTicketPool() {
       rarity: "S",
       type: "Ticket",
       weight: 8,
-      image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503019863172448387/content.png?ex=6a01d3d4&is=6a008254&hm=cc387565f21d590a67bd120924c42e5b296f2acc7b12c1aa24f1d5713232f72e&",
+      image:
+        "https://cdn.discordapp.com/attachments/1493204525975076944/1503019863172448387/content.png?ex=6a01d3d4&is=6a008254&hm=cc387565f21d590a67bd120924c42e5b296f2acc7b12c1aa24f1d5713232f72e&",
     },
     {
       code: "empty_throne_raid_writ",
@@ -103,7 +116,8 @@ function getTicketPool() {
       rarity: "S",
       type: "Ticket",
       weight: 3,
-      image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503039261551624302/content.png?ex=6a01e5e5&is=6a009465&hm=d1c5a4e761f84b982572f211b9d5cbb202129e75226665b278ff6608fe94ea41",
+      image:
+        "https://cdn.discordapp.com/attachments/1493204525975076944/1503039261551624302/content.png?ex=6a01e5e5&is=6a009465&hm=d1c5a4e761f84b982572f211b9d5cbb202129e75226665b278ff6608fe94ea41",
     },
   ];
 }
@@ -111,6 +125,7 @@ function getTicketPool() {
 function pickWeightedTicket() {
   const pool = getTicketPool();
   const total = pool.reduce((sum, item) => sum + Number(item.weight || 0), 0);
+
   let roll = Math.random() * total;
 
   for (const item of pool) {
@@ -143,7 +158,6 @@ function getRewardPool(contentType) {
 
 function pickRandomByRarity(pool, rarity) {
   const list = Array.isArray(pool) ? pool : [];
-
   if (!list.length) return null;
 
   const filtered = list.filter(
@@ -153,7 +167,6 @@ function pickRandomByRarity(pool, rarity) {
   );
 
   const source = filtered.length ? filtered : list;
-
   return source[Math.floor(Math.random() * source.length)] || null;
 }
 
@@ -167,7 +180,6 @@ function addFragment(list, card) {
       ...arr[index],
       amount: Number(arr[index].amount || 0) + 1,
     };
-
     return arr;
   }
 
@@ -232,7 +244,6 @@ function addNamedItem(list, reward) {
         Number(reward.upgradeLevel || 0)
       ),
     };
-
     return arr;
   }
 
@@ -344,14 +355,52 @@ function normalizeBoostTypeLabel(value) {
     .trim()
     .replace(/[_\-\s]+/g, "");
 
-  if (type === "attack" || type === "atk" || type === "atkboost" || type === "attackboost") return "ATK";
-  if (type === "health" || type === "hp" || type === "hpboost" || type === "healthboost") return "HP";
-  if (type === "speed" || type === "spd" || type === "spdboost" || type === "speedboost") return "SPD";
-  if (type === "damage" || type === "dmg" || type === "dmgboost" || type === "damageboost") return "DMG";
-  if (type === "experience" || type === "exp" || type === "expboost" || type === "experienceboost") return "EXP";
-  if (type === "daily" || type === "dailyboost" || type === "dailyreward" || type === "dailyrewardboost") return "Daily Reward";
-  if (type === "pullchance" || type === "pullboost" || type === "pullrate" || type === "pitydrop") return "Pity Drop";
-  if (type === "fragmentstorage" || type === "fragmentstorageboost" || type === "fragstorage" || type === "storage") return "Fragment Storage";
+  if (type === "attack" || type === "atk" || type === "atkboost" || type === "attackboost") {
+    return "ATK";
+  }
+
+  if (type === "health" || type === "hp" || type === "hpboost" || type === "healthboost") {
+    return "HP";
+  }
+
+  if (type === "speed" || type === "spd" || type === "spdboost" || type === "speedboost") {
+    return "SPD";
+  }
+
+  if (type === "damage" || type === "dmg" || type === "dmgboost" || type === "damageboost") {
+    return "DMG";
+  }
+
+  if (
+    type === "experience" ||
+    type === "exp" ||
+    type === "expboost" ||
+    type === "experienceboost"
+  ) {
+    return "EXP";
+  }
+
+  if (
+    type === "daily" ||
+    type === "dailyboost" ||
+    type === "dailyreward" ||
+    type === "dailyrewardboost"
+  ) {
+    return "Daily Reward";
+  }
+
+  if (type === "pullchance" || type === "pullboost" || type === "pullrate" || type === "pitydrop") {
+    return "Pity Drop";
+  }
+
+  if (
+    type === "fragmentstorage" ||
+    type === "fragmentstorageboost" ||
+    type === "fragstorage" ||
+    type === "storage"
+  ) {
+    return "Fragment Storage";
+  }
 
   return value ? String(value) : "Boost";
 }
@@ -359,7 +408,6 @@ function normalizeBoostTypeLabel(value) {
 function buildBoostEffectText(reward) {
   const boost = reward.boostBonus || {};
   const effects = [];
-
   const atk = Number(boost.atk || 0);
   const hp = Number(boost.hp || 0);
   const spd = Number(boost.spd || boost.speed || 0);
@@ -411,13 +459,13 @@ function buildRewardStatsText(contentType, reward) {
     return [
       `**Item:** ${reward.name}`,
       `**Use:** ${
-      reward.code === "empty_throne_raid_writ"
-        ? "Imu Raid only"
-        : reward.code === "gold_raid_ticket"
-        ? "S Gold Raid"
-        : reward.code === "raid_ticket"
-        ? "A Raid"
-        : "C/B Common Raid"
+        reward.code === "empty_throne_raid_writ"
+          ? "Imu Raid only"
+          : reward.code === "gold_raid_ticket"
+          ? "S Gold Raid"
+          : reward.code === "raid_ticket"
+          ? "A Raid"
+          : "C/B Common Raid"
       }`,
     ];
   }
@@ -453,22 +501,19 @@ module.exports = {
 
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-    const resetState = applyGlobalPullReset(player);
 
+    const resetState = applyGlobalPullReset(player);
     if (resetState?.wasReset) {
       updatePlayer(message.author.id, {
         pulls: resetState.pulls,
       });
-
       player.pulls = resetState.pulls;
     }
 
     const snapshot = buildPullAccessSnapshot(player, message);
-
     updatePlayer(message.author.id, {
       pullAccessSnapshot: snapshot,
     });
-
     player.pullAccessSnapshot = snapshot;
 
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
@@ -481,28 +526,27 @@ module.exports = {
     }
 
     const pullKey = getNextAvailablePullKey(player, message);
-
     if (!pullKey) {
       return message.reply("No pull slot is currently available.");
     }
 
-    const isPremium = hasAnyPremiumRole(message);
-    const pityLimit = getPityLimit(isPremium);
-    const pityGuarantee = getPityGuarantee(isPremium);
+    const premiumTier = await getPremiumTier(message);
+    const pityLimit = getPityLimit(premiumTier);
+    const pityGuarantee = getPityGuarantee(premiumTier);
+
     let pityCounter = getSharedPity(player) + 1;
     const triggeredPity = pityCounter >= pityLimit;
 
-    const contentType = pickContentType();
-    const baseTier =
-      contentType === "devilFruit"
-        ? rollStandardDevilFruitTier()
-        : triggeredPity
-        ? pityGuarantee
-        : rollStandardBaseTier();
+    const contentType = pickContentType(premiumTier);
+
+    const baseTier = triggeredPity
+      ? pityGuarantee
+      : contentType === "devilFruit"
+      ? rollDevilFruitTierByPremiumTier(premiumTier)
+      : rollBaseTierByPremiumTier(premiumTier, Number(player?.pullChanceBonus || 0));
 
     const pool = getRewardPool(contentType);
-    const picked =
-      contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, baseTier);
+    const picked = contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, baseTier);
 
     if (!picked) {
       return message.reply(`Pull pool is empty for ${contentType} ${baseTier}.`);
@@ -516,7 +560,6 @@ module.exports = {
     let updatedWeapons = [...(player.weapons || [])];
     let updatedDevilFruits = [...(player.devilFruits || [])];
     let updatedFragments = [...(player.fragments || [])];
-
     let ownedCard = null;
     let duplicateLine = null;
     let autoSacBerries = 0;
@@ -526,8 +569,7 @@ module.exports = {
     } else if (contentType === "battleCard" || contentType === "boostCard") {
       const alreadyOwned = updatedCards.some(
         (card) =>
-          String(card.code || "").toLowerCase() ===
-          String(picked.code || "").toLowerCase()
+          String(card.code || "").toLowerCase() === String(picked.code || "").toLowerCase()
       );
 
       if (alreadyOwned) {
@@ -543,7 +585,11 @@ module.exports = {
         updatedFragments = autoLevelResult.fragments;
 
         if (autoLevelResult.levelGained > 0) {
-          duplicateLine = `You already own **${picked.displayName || picked.name}**.\nAuto-level used **1 Fragment** → **+${autoLevelResult.levelGained} Level**.`;
+          duplicateLine = `You already own **${
+            picked.displayName || picked.name
+          }**.\nAuto-level used **1 Fragment** → **+${
+            autoLevelResult.levelGained
+          } Level**.`;
         } else {
           updatedFragments = removeFragmentAmount(autoLevelResult.fragments, picked.code, 1);
 
@@ -552,9 +598,15 @@ module.exports = {
           autoSacBerries += sacResult.berries;
 
           if (sacResult.sacrificed > 0) {
-            duplicateLine = `You already own **${picked.displayName || picked.name}**.\n${sacResult.reason}: **${sacResult.sacrificed} Fragment** → **+${sacResult.berries.toLocaleString("en-US")} berries**.`;
+            duplicateLine = `You already own **${
+              picked.displayName || picked.name
+            }**.\n${sacResult.reason}: **${
+              sacResult.sacrificed
+            } Fragment** → **+${sacResult.berries.toLocaleString("en-US")} berries**.`;
           } else {
-            duplicateLine = `You already own **${picked.displayName || picked.name}**.\nConverted into **1 Fragment** instead.`;
+            duplicateLine = `You already own **${
+              picked.displayName || picked.name
+            }**.\nConverted into **1 Fragment** instead.`;
           }
         }
       } else {
@@ -611,13 +663,14 @@ module.exports = {
     const rewardRarity = String(picked.baseTier || picked.rarity || "C").toUpperCase();
     const pityText = triggeredPity
       ? `Pity triggered: **${pityGuarantee} Guarantee**`
-      : `Pity: ${updatedPity.pullPity}/${pityLimit}`;
+      : `Pity: ${updatedPity.pullPity}/${getPityFooterTarget(premiumTier)}`;
+
     const image = getRewardImage(contentType, picked, ownedCard);
     const badge = getRewardBadge(contentType, picked, ownedCard);
 
     const embed = new EmbedBuilder()
       .setColor(0xf1c40f)
-      .setTitle("🎴 Pull Result")
+      .setTitle(" Pull Result")
       .setDescription(
         [
           `**Slot Used:** ${prettySlotName(pullKey)}`,
@@ -645,7 +698,7 @@ module.exports = {
           .join("\n")
       )
       .setFooter({
-        text: "One Piece Bot • Pull",
+        text: `One Piece Bot • Pull • ${prettySlotName(pullKey)}`,
       });
 
     if (badge) embed.setThumbnail(badge);
