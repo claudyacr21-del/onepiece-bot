@@ -232,8 +232,8 @@ module.exports = {
 
     try {
       const validationPlayer = cloneDeep(player);
-      awakenOwnedCard(validationPlayer, query);
-    } catch (_) {
+      awakenOwnedCard(validationPlayer, owned.code);
+    } catch (error) {
       return message.reply({
         embeds: [
           new EmbedBuilder()
@@ -243,7 +243,10 @@ module.exports = {
               [
                 `**${owned.displayName || owned.name || owned.code}** cannot awaken to **M${nextStage}** yet.`,
                 "",
-                `Use \`op ci ${owned.code}\` to check the full requirements.`
+                "**Missing / Error Detail**",
+                String(error?.message || "Unknown awaken requirement error."),
+                "",
+                `Use \`op ci ${owned.code}\` to check the full requirements.`,
               ].join("\n")
             ),
         ],
@@ -295,7 +298,7 @@ module.exports = {
 
       try {
         const fresh = getPlayer(message.author.id, message.author.username);
-        const result = awakenOwnedCard(fresh, query);
+        const result = awakenOwnedCard(fresh, owned.code);
 
         updatePlayer(message.author.id, {
           cards: result.updatedCards,
@@ -310,7 +313,7 @@ module.exports = {
         });
 
         collector.stop("done");
-      } catch (_) {
+      } catch (error) {
         await interaction.update({
           embeds: [
             new EmbedBuilder()
@@ -318,11 +321,14 @@ module.exports = {
               .setTitle("Awaken Failed")
               .setDescription(
                 [
-                  `**${owned.displayName || owned.name}** cannot awaken right now.`,
+                  `**${owned.displayName || owned.name || owned.code}** cannot awaken right now.`,
                   "",
-                  `Use \`op ci ${owned.displayName || owned.name}\` to check the full requirements.`,
+                  "**Missing / Error Detail**",
+                  String(error?.message || "Unknown awaken requirement error."),
+                  "",
+                  `Use \`op ci ${owned.code}\` to check the full requirements.`,
                 ].join("\n")
-              ),
+              )
           ],
           components: [],
         });
