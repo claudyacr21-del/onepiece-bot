@@ -68,10 +68,7 @@ function normalizeNamedList(value) {
   return value
     .map((entry) => {
       if (typeof entry === "string") {
-        return {
-          name: entry,
-          amount: 1,
-        };
+        return { name: entry, amount: 1 };
       }
 
       if (entry && typeof entry === "object") {
@@ -83,7 +80,7 @@ function normalizeNamedList(value) {
           image: entry.image || "",
           type: entry.type || undefined,
 
-          // IMPORTANT: preserve weapon upgrade data
+          // weapon data wajib dipreserve
           upgradeLevel: Number(entry.upgradeLevel || 0),
           statPercent: entry.statPercent || entry.baseStatPercent || undefined,
           baseStatPercent: entry.baseStatPercent || entry.statPercent || undefined,
@@ -94,9 +91,9 @@ function normalizeNamedList(value) {
           description: entry.description || undefined,
           boostBonus: entry.boostBonus || undefined,
 
-          // optional metadata used by fragments/items
-          weaponCode: entry.weaponCode || undefined,
+          // fragment/item metadata
           category: entry.category || undefined,
+          weaponCode: entry.weaponCode || undefined,
           power: entry.power || undefined,
         };
       }

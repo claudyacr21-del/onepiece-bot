@@ -55,9 +55,16 @@ function findWeaponTemplate(query) {
 function findOwnedWeaponEntry(ownedWeapons, weaponCode) {
   const q = normalize(weaponCode);
 
-  return (Array.isArray(ownedWeapons) ? ownedWeapons : [])
-    .filter((x) => normalize(x.code || x.name) === q && Number(x.amount || 0) > 0)
-    .sort((a, b) => Number(b.upgradeLevel || 0) - Number(a.upgradeLevel || 0))[0] || null;
+  return (
+    (Array.isArray(ownedWeapons) ? ownedWeapons : [])
+      .filter(
+        (x) =>
+          normalize(x.code || x.name) === q &&
+          Number(x.amount || 0) > 0
+      )
+      .sort((a, b) => Number(b.upgradeLevel || 0) - Number(a.upgradeLevel || 0))[0] ||
+    null
+  );
 }
 
 function consumeWeapon(list, weaponCode) {
@@ -66,7 +73,11 @@ function consumeWeapon(list, weaponCode) {
 
   const candidates = arr
     .map((entry, index) => ({ entry, index }))
-    .filter(({ entry }) => normalize(entry.code || entry.name) === q && Number(entry.amount || 0) > 0)
+    .filter(
+      ({ entry }) =>
+        normalize(entry.code || entry.name) === q &&
+        Number(entry.amount || 0) > 0
+    )
     .sort((a, b) => Number(b.entry.upgradeLevel || 0) - Number(a.entry.upgradeLevel || 0));
 
   if (!candidates.length) {
