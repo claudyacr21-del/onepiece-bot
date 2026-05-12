@@ -837,25 +837,14 @@ function findOwnedCardIndexForAwaken(cardsOwned, query) {
   const q = normalize(query);
   const list = safeArray(cardsOwned);
 
-  const getFields = (card) =>
-    [card.code, card.name, card.displayName]
-      .filter(Boolean)
-      .map(normalize);
-
-  const exactIndex = list.findIndex((card) =>
-    getFields(card).some((field) => field === q)
+  const exactIndex = list.findIndex(
+    (card) => normalize(card.code) === q
   );
 
   if (exactIndex !== -1) return exactIndex;
 
-  const startsWithIndex = list.findIndex((card) =>
-    getFields(card).some((field) => field.startsWith(q))
-  );
-
-  if (startsWithIndex !== -1) return startsWithIndex;
-
-  return list.findIndex((card) =>
-    getFields(card).some((field) => field.includes(q))
+  return list.findIndex(
+    (card) => normalize(card.code).startsWith(q)
   );
 }
 
