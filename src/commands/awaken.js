@@ -243,7 +243,7 @@ module.exports = {
               [
                 `**${owned.displayName || owned.name || owned.code}** cannot awaken to **M${nextStage}** yet.`,
                 "",
-                `Use \`op ci ${owned.code}\` to check the full requirements.`,
+                `Use \`op ci ${owned.code}\` to check the full requirements.`
               ].join("\n")
             ),
         ],
