@@ -8,7 +8,7 @@ const TIER_CONFIG = {
   mother_flame: {
     label: "Mother Flame",
     emoji: "🔥",
-    color: 0x8e44ad,
+    color: 0xe74c3c,
     roleEnvIds: [
       "MOTHER_FLAME_ROLE_ID",
       "PATREON_MOTHER_FLAME_ROLE_ID",
@@ -17,7 +17,6 @@ const TIER_CONFIG = {
     ],
     roleEnvNames: ["PATREON_PREMIUM_ROLE_NAME", "PREMIUM_ROLE_NAME"],
     fallbackRoleNames: ["Mother Flame", "MotherFlame"],
-    aliases: ["mother", "mf", "motherflame", "mother_flame", "premium"],
   },
 
   vivre_card: {
@@ -31,7 +30,6 @@ const TIER_CONFIG = {
     ],
     roleEnvNames: ["PATREON_LITE_ROLE_NAME", "LITE_PREMIUM_ROLE_NAME"],
     fallbackRoleNames: ["Vivre Card", "VivreCard", "Vivre"],
-    aliases: ["vivre", "vc", "vcr", "vivrecard", "vivre_card", "lite"],
   },
 };
 
@@ -59,25 +57,22 @@ function normalize(value) {
   return String(value || "").toLowerCase().trim();
 }
 
-function normalizeTier(value, commandName = "") {
-  const raw = normalize(value).replace(/[\s-]+/g, "_");
-  const cmd = normalize(commandName);
+function getCommandName(message) {
+  const parts = String(message?.content || "").trim().split(/\s+/);
+  return normalize(parts[1] || "");
+}
 
-  if (cmd === "vcr" || cmd === "vcreset") return "vivre_card";
-  if (!raw) return "mother_flame";
+function getResetTier(message) {
+  const commandName = getCommandName(message);
+  return commandName === "vcr" ? "vivre_card" : "mother_flame";
+}
 
-  if (raw === "all" || raw === "both") return "all";
-
-  for (const [tier, config] of Object.entries(TIER_CONFIG)) {
-    if (tier === raw) return tier;
-
-    const compactRaw = raw.replace(/_/g, "");
-    if (config.aliases.includes(raw) || config.aliases.includes(compactRaw)) {
-      return tier;
-    }
-  }
-
-  return "mother_flame";
+function getUsageText() {
+  return [
+    "Usage:",
+    "`op mfr <@user/userId>`",
+    "`op vcr <@user/userId>`",
+  ].join("\n");
 }
 
 function getConfiguredRoleNames(config) {
@@ -147,6 +142,18 @@ async function removeRolesFromMember(member, roles, reason) {
   return { removed, missing };
 }
 
+function shouldClearStoredEntry(storedEntry, tier) {
+  if (!storedEntry) return false;
+
+  const storedTier = String(storedEntry.tier || "").toLowerCase().trim();
+
+  if (!storedTier) {
+    return tier === "mother_flame";
+  }
+
+  return storedTier === tier;
+}
+
 function formatIndonesiaDate(timestamp) {
   return new Date(Number(timestamp || Date.now())).toLocaleString("en-US", {
     timeZone: process.env.PATREON_TIMEZONE || "Asia/Jakarta",
@@ -160,8 +167,8 @@ function formatIndonesiaDate(timestamp) {
 }
 
 module.exports = {
-  name: "mfreset",
-  aliases: ["mfr", "vcr", "vcreset"],
+  name: "mfr",
+  aliases: ["vcr"],
 
   async execute(message, args) {
     if (!isAdmin(message.author.id)) {
@@ -174,24 +181,11 @@ module.exports = {
 
     const targetId = parseUserId(args[0]);
     if (!targetId) {
-      return message.reply(
-        [
-          "Usage:",
-          "`op mfreset <@user/userId>`",
-          "`op mfreset <@user/userId> mother`",
-          "`op mfreset <@user/userId> vivre`",
-          "`op mfreset <@user/userId> all`",
-          "`op vcr <@user/userId>`",
-        ].join("\n")
-      );
+      return message.reply(getUsageText());
     }
 
-    const commandName = String(message.content || "")
-      .trim()
-      .split(/\s+/)[1]
-      ?.replace(/^op\s+/i, "");
-
-    const requestedTier = normalizeTier(args[1], commandName);
+    const requestedTier = getResetTier(message);
+    const config = TIER_CONFIG[requestedTier];
 
     const member = await message.guild.members.fetch(targetId).catch(() => null);
     if (!member) {
@@ -209,75 +203,56 @@ module.exports = {
     const store = readPatreonRoles();
     const storedEntry = store[String(member.id)] || null;
 
-    const tiersToReset =
-      requestedTier === "all"
-        ? ["mother_flame", "vivre_card"]
-        : [requestedTier];
+    const storedRoleId =
+      storedEntry && shouldClearStoredEntry(storedEntry, requestedTier)
+        ? storedEntry.roleId
+        : null;
+
+    const roles = await resolveTierRoles(message, requestedTier, storedRoleId);
 
     const removedLines = [];
     const missingLines = [];
     const failedLines = [];
+    const manageableRoles = [];
 
-    for (const tier of tiersToReset) {
-      const config = TIER_CONFIG[tier];
-      const storedRoleId =
-        storedEntry &&
-        (storedEntry.tier === tier ||
-          requestedTier === "all" ||
-          !storedEntry.tier)
-          ? storedEntry.roleId
-          : null;
-
-      const roles = await resolveTierRoles(message, tier, storedRoleId);
-
-      const manageableRoles = [];
-      for (const role of roles) {
-        if (role.position >= botMember.roles.highest.position) {
-          failedLines.push(
-            `${config.emoji} ${config.label}: bot role is below/equal to **${role.name}**`
-          );
-          continue;
-        }
-
-        manageableRoles.push(role);
-      }
-
-      const result = await removeRolesFromMember(
-        member,
-        manageableRoles,
-        `${config.label} Patreon reset by ${message.author.tag}`
-      );
-
-      if (result.removed.length) {
-        removedLines.push(
-          `${config.emoji} ${config.label}: removed ${result.removed
-            .map((name) => `**${name}**`)
-            .join(", ")}`
+    for (const role of roles) {
+      if (role.position >= botMember.roles.highest.position) {
+        failedLines.push(
+          `${config.emoji} ${config.label}: bot role is below/equal to **${role.name}**`
         );
-      } else {
-        missingLines.push(`${config.emoji} ${config.label}: no matching role on user`);
+        continue;
       }
+
+      manageableRoles.push(role);
     }
 
-    if (
-      requestedTier === "all" ||
-      !storedEntry ||
-      tiersToReset.includes(storedEntry.tier || requestedTier)
-    ) {
+    const result = await removeRolesFromMember(
+      member,
+      manageableRoles,
+      `${config.label} reset by ${message.author.tag}`
+    );
+
+    if (result.removed.length) {
+      removedLines.push(
+        `${config.emoji} ${config.label}: removed ${result.removed
+          .map((name) => `**${name}**`)
+          .join(", ")}`
+      );
+    } else {
+      missingLines.push(`${config.emoji} ${config.label}: no matching role on user`);
+    }
+
+    if (shouldClearStoredEntry(storedEntry, requestedTier)) {
       removePatreonRole(member.id);
     }
 
     const embed = new EmbedBuilder()
-      .setColor(requestedTier === "vivre_card" ? 0x3498db : 0xe74c3c)
-      .setTitle("Patreon Role Reset")
+      .setColor(config.color)
+      .setTitle(`${config.emoji} ${config.label} Reset`)
       .setDescription(
         [
           `**User:** ${member.user.tag}`,
-          `**Reset Type:** ${
-            requestedTier === "all"
-              ? "All Premium Tiers"
-              : TIER_CONFIG[requestedTier]?.label || "Mother Flame"
-          }`,
+          `**Reset Type:** ${config.label}`,
           `**Reset At:** ${formatIndonesiaDate(Date.now())} WIB`,
           "",
           removedLines.length ? "**Removed Roles**" : null,
@@ -289,13 +264,15 @@ module.exports = {
           failedLines.length ? "**Failed**" : null,
           ...failedLines,
           "",
-          "Patreon role store data has been cleared for this user when applicable.",
+          shouldClearStoredEntry(storedEntry, requestedTier)
+            ? "Patreon role store data has been cleared for this user."
+            : "No matching Patreon store data was cleared.",
         ]
           .filter(Boolean)
           .join("\n")
       )
       .setFooter({
-        text: "One Piece Bot • Patreon Reset",
+        text: "One Piece Bot • Premium Reset",
       });
 
     return message.reply({
