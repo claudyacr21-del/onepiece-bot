@@ -524,16 +524,17 @@ module.exports = {
     }
 
     const premiumTier = await getPremiumTier(message);
-
     const snapshot = buildPullAccessSnapshot(player, message);
 
     if (premiumTier === "motherFlame") {
       snapshot.patreon = true;
       snapshot.vivreCard = false;
+      snapshot.litePremium = false;
     }
 
     if (premiumTier === "vivreCard") {
       snapshot.vivreCard = true;
+      snapshot.litePremium = true;
       snapshot.patreon = false;
     }
 

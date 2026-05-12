@@ -12,13 +12,35 @@ const PREMIUM_ROLE_IDS = [
   process.env.MOTHER_FLAME_ROLE_ID,
   process.env.PATREON_MOTHER_FLAME_ROLE_ID,
   process.env.PATREON_ROLE_ID,
-].filter(Boolean).map(String);
+  process.env.PREMIUM_ROLE_ID,
+]
+  .filter(Boolean)
+  .map(String);
 
 const LITE_PREMIUM_ROLE_IDS = [
   process.env.VIVRE_CARD_ROLE_ID,
   process.env.PATREON_VIVRE_CARD_ROLE_ID,
   process.env.LITE_PREMIUM_ROLE_ID,
-].filter(Boolean).map(String);
+]
+  .filter(Boolean)
+  .map(String);
+
+const PREMIUM_ROLE_ALIASES = [
+  PREMIUM_ROLE_NAME,
+  "Mother Flame",
+  "MotherFlame",
+]
+  .filter(Boolean)
+  .map(String);
+
+const LITE_PREMIUM_ROLE_ALIASES = [
+  LITE_PREMIUM_ROLE_NAME,
+  "Vivre Card",
+  "VivreCard",
+  "Vivre",
+]
+  .filter(Boolean)
+  .map(String);
 
 const MAIN_GUILD_IDS = [
   process.env.ONEPIECE_MAIN_GUILD_ID,
@@ -31,16 +53,40 @@ function normalize(value) {
   return String(value || "").toLowerCase().trim();
 }
 
-function hasRoleOnMember(member, roleNames = [], roleIds = []) {
-  const names = Array.isArray(roleNames) ? roleNames : [roleNames];
-  const normalizedNames = names.map(normalize).filter(Boolean);
-  const ids = (Array.isArray(roleIds) ? roleIds : [roleIds]).map(String).filter(Boolean);
+function normalizeSet(values) {
+  return new Set(
+    (Array.isArray(values) ? values : [values])
+      .map(normalize)
+      .filter(Boolean)
+  );
+}
+
+function hasRoleOnMember(member, roleOrOptions = {}) {
+  let roleNames = [];
+  let roleIds = [];
+
+  if (typeof roleOrOptions === "string") {
+    roleNames = [roleOrOptions];
+  } else if (Array.isArray(roleOrOptions)) {
+    roleNames = roleOrOptions;
+  } else if (roleOrOptions && typeof roleOrOptions === "object") {
+    roleNames = roleOrOptions.roleNames || [];
+    roleIds = roleOrOptions.roleIds || [];
+  }
+
+  const nameSet = normalizeSet(roleNames);
+  const idSet = new Set(
+    (Array.isArray(roleIds) ? roleIds : [roleIds])
+      .filter(Boolean)
+      .map(String)
+  );
 
   return Boolean(
     member?.roles?.cache?.some((role) => {
-      const roleId = String(role?.id || "");
-      const roleName = normalize(role?.name);
-      return ids.includes(roleId) || normalizedNames.includes(roleName);
+      if (!role) return false;
+      if (idSet.size && idSet.has(String(role.id))) return true;
+      if (nameSet.size && nameSet.has(normalize(role.name))) return true;
+      return false;
     })
   );
 }
@@ -84,18 +130,30 @@ async function fetchMainGuildMember(message) {
   return mainGuild.members.fetch(userId).catch(() => null);
 }
 
+function hasMotherFlameRole(member) {
+  return hasRoleOnMember(member, {
+    roleNames: PREMIUM_ROLE_ALIASES,
+    roleIds: PREMIUM_ROLE_IDS,
+  });
+}
+
+function hasVivreCardRole(member) {
+  return hasRoleOnMember(member, {
+    roleNames: LITE_PREMIUM_ROLE_ALIASES,
+    roleIds: LITE_PREMIUM_ROLE_IDS,
+  });
+}
+
 async function isPremiumUser(message) {
   const mainMember = await fetchMainGuildMember(message);
-
-  if (hasRoleOnMember(mainMember, PREMIUM_ROLE_NAME, PREMIUM_ROLE_IDS)) return true;
-  return hasRoleOnMember(message?.member, PREMIUM_ROLE_NAME, PREMIUM_ROLE_IDS);
+  if (hasMotherFlameRole(mainMember)) return true;
+  return hasMotherFlameRole(message?.member);
 }
 
 async function isLitePremiumUser(message) {
   const mainMember = await fetchMainGuildMember(message);
-
-  if (hasRoleOnMember(mainMember, LITE_PREMIUM_ROLE_NAME, LITE_PREMIUM_ROLE_IDS)) return true;
-  return hasRoleOnMember(message?.member, LITE_PREMIUM_ROLE_NAME, LITE_PREMIUM_ROLE_IDS);
+  if (hasVivreCardRole(mainMember)) return true;
+  return hasVivreCardRole(message?.member);
 }
 
 async function isAnyPremiumUser(message) {
@@ -103,9 +161,9 @@ async function isAnyPremiumUser(message) {
 }
 
 async function getPremiumTier(message) {
-  if (await isPremiumUser(message)) return "mother_flame";
-  if (await isLitePremiumUser(message)) return "vivre_card";
-  return null;
+  if (await isPremiumUser(message)) return "motherFlame";
+  if (await isLitePremiumUser(message)) return "vivreCard";
+  return "normal";
 }
 
 module.exports = {

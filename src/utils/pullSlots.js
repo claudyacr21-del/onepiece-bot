@@ -17,13 +17,18 @@ const PREMIUM_ROLE_IDS = [
   process.env.MOTHER_FLAME_ROLE_ID,
   process.env.PATREON_MOTHER_FLAME_ROLE_ID,
   process.env.PATREON_ROLE_ID,
-].filter(Boolean).map(String);
+  process.env.PREMIUM_ROLE_ID,
+]
+  .filter(Boolean)
+  .map(String);
 
 const LITE_PREMIUM_ROLE_IDS = [
   process.env.VIVRE_CARD_ROLE_ID,
   process.env.PATREON_VIVRE_CARD_ROLE_ID,
   process.env.LITE_PREMIUM_ROLE_ID,
-].filter(Boolean).map(String);
+]
+  .filter(Boolean)
+  .map(String);
 
 const MAIN_SERVER_IDS = [
   process.env.ONEPIECE_MAIN_GUILD_ID,
@@ -44,19 +49,15 @@ function normalizeKey(value) {
 }
 
 function hasRoleOnMember(member, roleNames = [], roleIds = []) {
-  const names = (Array.isArray(roleNames) ? roleNames : [roleNames])
-    .map(normalize)
-    .filter(Boolean);
-
-  const ids = (Array.isArray(roleIds) ? roleIds : [roleIds])
-    .map(String)
-    .filter(Boolean);
+  const names = Array.isArray(roleNames) ? roleNames : [roleNames];
+  const normalizedNames = names.map(normalize).filter(Boolean);
+  const ids = (Array.isArray(roleIds) ? roleIds : [roleIds]).map(String).filter(Boolean);
 
   return Boolean(
     member?.roles?.cache?.some((role) => {
       const roleId = String(role?.id || "");
       const roleName = normalize(role?.name);
-      return ids.includes(roleId) || names.includes(roleName);
+      return ids.includes(roleId) || normalizedNames.includes(roleName);
     })
   );
 }
@@ -88,7 +89,6 @@ function getConfiguredMainGuild(message) {
     guilds.find((guild) => normalize(guild?.name).includes("one piece"));
 
   if (byName) return byName;
-
   return message?.guild || null;
 }
 
@@ -110,10 +110,7 @@ function getMainGuildMember(message) {
 }
 
 function hasRole(message, roleName, roleIds = []) {
-  if (message?.member && hasRoleOnMember(message.member, roleName, roleIds)) {
-    return true;
-  }
-
+  if (message?.member && hasRoleOnMember(message.member, roleName, roleIds)) return true;
   const mainMember = getMainGuildMember(message);
   return hasRoleOnMember(mainMember, roleName, roleIds);
 }
@@ -122,16 +119,12 @@ function hasMotherFlameRole(message) {
   return hasRole(message, PREMIUM_ROLE_NAME, PREMIUM_ROLE_IDS);
 }
 
-function hasVivreCardRole(message) {
+function hasLitePremiumRole(message) {
   return hasRole(message, LITE_PREMIUM_ROLE_NAME, LITE_PREMIUM_ROLE_IDS);
 }
 
-function hasLitePremiumRole(message) {
-  return hasVivreCardRole(message);
-}
-
 function hasAnyPremiumRole(message) {
-  return hasMotherFlameRole(message) || hasVivreCardRole(message);
+  return hasMotherFlameRole(message) || hasLitePremiumRole(message);
 }
 
 function hasMainServerRole(message, roleName) {
@@ -189,7 +182,6 @@ function isServerOwner(message) {
 function isBaccaratCard(card) {
   const code = normalizeKey(card?.code);
   const name = normalize(card?.name || card?.displayName);
-
   return code.includes("baccarat") || name.includes("baccarat");
 }
 
@@ -292,22 +284,27 @@ function getSavedAccess(player) {
     booster: Boolean(player?.pullAccessSnapshot?.booster),
     owner: Boolean(player?.pullAccessSnapshot?.owner),
     patreon: Boolean(player?.pullAccessSnapshot?.patreon),
-    vivreCard: Boolean(player?.pullAccessSnapshot?.vivreCard),
-    litePremium: Boolean(player?.pullAccessSnapshot?.litePremium),
+    vivreCard: Boolean(
+      player?.pullAccessSnapshot?.vivreCard ||
+        player?.pullAccessSnapshot?.litePremium
+    ),
   };
 }
 
 function resolveAccessFlags(player, message) {
   const saved = getSavedAccess(player);
 
-  const hasSavedVivre = Boolean(saved.vivreCard || saved.litePremium);
+  const motherFlameActive = Boolean(hasMotherFlameRole(message) || saved.patreon);
+  const vivreCardActive = Boolean(
+    !motherFlameActive && (hasLitePremiumRole(message) || saved.vivreCard)
+  );
 
   return {
     supportMember: Boolean(isSupportServerMember(message) || saved.supportMember),
     booster: Boolean(isSupportServerBooster(message) || saved.booster),
     owner: Boolean(isServerOwner(message) || saved.owner),
-    patreon: Boolean(hasMotherFlameRole(message) || saved.patreon),
-    vivreCard: Boolean(hasVivreCardRole(message) || hasSavedVivre),
+    patreon: motherFlameActive,
+    vivreCard: vivreCardActive,
   };
 }
 
@@ -318,7 +315,6 @@ function buildPullAccessSnapshot(player, message) {
 function getPullSlotStatus(player, message) {
   const pulls = player?.pulls || {};
   const access = buildPullAccessSnapshot(player, message);
-
   const baccaratCardBonus = getBaccaratCardPullBonus(player);
   const baccaratFruitBonus = getBaccaratFruitPullBonus(player);
 
@@ -329,42 +325,49 @@ function getPullSlotStatus(player, message) {
       displayMax: 6,
       used: Number(pulls.base?.used || 0),
     },
+
     supportMember: {
       enabled: access.supportMember,
       max: access.supportMember ? 1 : 0,
       displayMax: 1,
       used: Number(pulls.supportMember?.used || 0),
     },
+
     booster: {
       enabled: access.booster,
       max: access.booster ? 1 : 0,
       displayMax: 1,
       used: Number(pulls.booster?.used || 0),
     },
+
     owner: {
       enabled: access.owner,
       max: access.owner ? 1 : 0,
       displayMax: 1,
       used: Number(pulls.owner?.used || 0),
     },
+
     patreon: {
       enabled: access.patreon,
       max: access.patreon ? 3 : 0,
       displayMax: 3,
       used: Number(pulls.patreon?.used || 0),
     },
+
     vivreCard: {
       enabled: access.vivreCard,
       max: access.vivreCard ? 1 : 0,
       displayMax: 1,
       used: Number(pulls.vivreCard?.used || 0),
     },
+
     baccaratCard: {
       enabled: baccaratCardBonus > 0,
       max: baccaratCardBonus,
       displayMax: BACCARAT_CARD_MAX_PULLS,
       used: Number(pulls.baccaratCard?.used || 0),
     },
+
     baccaratFruit: {
       enabled: baccaratFruitBonus > 0,
       max: baccaratFruitBonus,
@@ -376,7 +379,6 @@ function getPullSlotStatus(player, message) {
 
 function getTotalPullUsage(player, message) {
   const slots = getPullSlotStatus(player, message);
-
   let totalMax = 0;
   let totalUsed = 0;
 
@@ -467,41 +469,49 @@ function resetAllPullSlots(player) {
 
   return {
     ...pulls,
+
     base: {
       ...(pulls.base || {}),
       used: 0,
       max: 6,
     },
+
     supportMember: {
       ...(pulls.supportMember || {}),
       used: 0,
       max: 1,
     },
+
     booster: {
       ...(pulls.booster || {}),
       used: 0,
       max: 1,
     },
+
     owner: {
       ...(pulls.owner || {}),
       used: 0,
       max: 1,
     },
+
     patreon: {
       ...(pulls.patreon || {}),
       used: 0,
       max: 3,
     },
+
     vivreCard: {
       ...(pulls.vivreCard || {}),
       used: 0,
       max: 1,
     },
+
     baccaratCard: {
       ...(pulls.baccaratCard || {}),
       used: 0,
       max: BACCARAT_CARD_MAX_PULLS,
     },
+
     baccaratFruit: {
       ...(pulls.baccaratFruit || {}),
       used: 0,
@@ -515,19 +525,22 @@ module.exports = {
   BOOSTER_ROLE,
   PREMIUM_ROLE_NAME,
   LITE_PREMIUM_ROLE_NAME,
+
   hasNamedRole,
   hasMainServerRole,
-  hasMotherFlameRole,
-  hasVivreCardRole,
-  hasLitePremiumRole,
-  hasAnyPremiumRole,
   isSupportServerMember,
   isSupportServerBooster,
   isServerOwner,
+
+  hasMotherFlameRole,
+  hasLitePremiumRole,
+  hasAnyPremiumRole,
+
   hasBaccaratCard,
   hasBaccaratFruitEquipped,
   getBaccaratCardPullBonus,
   getBaccaratFruitPullBonus,
+
   buildPullAccessSnapshot,
   getPullSlotStatus,
   getTotalPullUsage,

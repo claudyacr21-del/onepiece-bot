@@ -9,16 +9,14 @@ const {
   buildPullAccessSnapshot,
 } = require("../utils/pullSlots");
 const { applyGlobalPullReset } = require("../utils/pullReset");
-const { hasAnyPremiumRole } = require("../utils/pullSlots");
-const { getPremiumTier } = require("../utils/premiumAccess");
 const {
   ensureDailyQuestState,
   getQuestCompletionSummary,
 } = require("../utils/questProgress");
+const { getPremiumTier } = require("../utils/premiumAccess");
 
 function getSharedPity(player) {
   const pity = player?.pity || {};
-
   return Number(
     pity.pullPity ??
       Math.max(Number(pity.normalSPity || 0), Number(pity.premiumSPity || 0)) ??
@@ -50,17 +48,30 @@ module.exports = {
 
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-    const resetState = applyGlobalPullReset(player);
 
+    const resetState = applyGlobalPullReset(player);
     if (resetState.wasReset) {
       updatePlayer(message.author.id, {
         pulls: resetState.pulls,
       });
-
       player.pulls = resetState.pulls;
     }
 
+    const premiumTier = await getPremiumTier(message);
     const snapshot = buildPullAccessSnapshot(player, message);
+
+    if (premiumTier === "motherFlame") {
+      snapshot.patreon = true;
+      snapshot.vivreCard = false;
+      snapshot.litePremium = false;
+    }
+
+    if (premiumTier === "vivreCard") {
+      snapshot.vivreCard = true;
+      snapshot.litePremium = true;
+      snapshot.patreon = false;
+    }
+
     const dailyState = ensureDailyQuestState(player);
     const questSummary = getQuestCompletionSummary(dailyState);
 
@@ -84,11 +95,11 @@ module.exports = {
     player.quests = syncPayload.quests;
     player.pullAccessSnapshot = snapshot;
 
-    const premiumTier = await getPremiumTier(message);
     const pityLimit = getPityLimitByTier(premiumTier);
-    const pityDrop = `${getSharedPity(player)}/${pityLimit}`;
     const premiumLabel = getPremiumLabelByTier(premiumTier);
     const pityGuarantee = getPityGuaranteeByTier(premiumTier);
+    const pityDrop = `${getSharedPity(player)}/${pityLimit}`;
+
     const boosts = getPassiveBoostSummary(player);
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
 
@@ -112,7 +123,7 @@ module.exports = {
         text: "One Piece Bot • Current Effects",
       });
 
-    await message.reply({
+    return message.reply({
       embeds: [embed],
     });
   },
