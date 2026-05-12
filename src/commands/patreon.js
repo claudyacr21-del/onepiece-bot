@@ -64,8 +64,6 @@ const PACKAGES = {
       "• Fight cooldown reduced to **6 minutes 30 seconds**",
       "• Access to `op instantquest` / `op iq`",
       "• Instant complete up to **1 daily quest**",
-      "• No access to `op pa` / Mother Flame pull all",
-      "• Cannot claim `op treasure`",
       "• Lite premium identity role in the Discord server for **30 days** after admin verification",
       "",
       "**Package Notes**",
