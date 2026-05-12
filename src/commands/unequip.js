@@ -92,18 +92,48 @@ function buildEquippedWeaponMatches(cards, query) {
 }
 
 function getInventoryWeaponLevel(player, weaponCode) {
-  const found = (Array.isArray(player.weapons) ? player.weapons : []).find(
-    (weapon) => normalize(weapon.code || weapon.name) === normalize(weaponCode)
-  );
+  const found = (Array.isArray(player.weapons) ? player.weapons : []).find((weapon) => {
+    const template = findWeaponTemplate(weapon.code || weapon.name) || weapon;
+    return normalize(template.code || weapon.code || weapon.name) === normalize(weaponCode);
+  });
 
   return Number(found?.upgradeLevel || 0);
 }
 
+function getEquippedWeaponLevelFromAllCards(player, weaponCode) {
+  let best = 0;
+
+  for (const card of Array.isArray(player.cards) ? player.cards : []) {
+    const equipped = Array.isArray(card.equippedWeapons) ? card.equippedWeapons : [];
+
+    for (const weapon of equipped) {
+      const template = findWeaponTemplate(weapon.code || weapon.name) || weapon;
+
+      if (normalize(template.code || weapon.code || weapon.name) === normalize(weaponCode)) {
+        best = Math.max(best, Number(weapon.upgradeLevel || 0));
+      }
+    }
+
+    const legacyTemplate = findWeaponTemplate(
+      card.equippedWeaponCode || card.equippedWeaponName || card.equippedWeapon
+    );
+
+    if (normalize(legacyTemplate?.code || card.equippedWeaponCode || card.equippedWeapon) === normalize(weaponCode)) {
+      best = Math.max(best, Number(card.equippedWeaponLevel || 0));
+    }
+  }
+
+  return best;
+}
+
 function getUnequipWeaponLevel(player, rawCard, weapon, template) {
+  const weaponCode = template?.code || weapon?.code || weapon?.name;
+
   return Math.max(
     Number(weapon?.upgradeLevel || 0),
     Number(rawCard?.equippedWeaponLevel || 0),
-    getInventoryWeaponLevel(player, template?.code || weapon?.code || weapon?.name)
+    getInventoryWeaponLevel(player, weaponCode),
+    getEquippedWeaponLevelFromAllCards(player, weaponCode)
   );
 }
 
@@ -111,26 +141,29 @@ function addWeaponBackToInventory(weapons, template, upgradeLevel) {
   const list = Array.isArray(weapons) ? [...weapons] : [];
   const idx = list.findIndex((w) => normalize(w.code || w.name) === normalize(template.code));
 
+  const payload = {
+    name: template.name,
+    code: template.code,
+    rarity: template.rarity,
+    type: template.type,
+    statPercent: template.statPercent || { atk: 0, hp: 0, speed: 0 },
+    baseStatPercent: template.statPercent || { atk: 0, hp: 0, speed: 0 },
+    ownerBonusPercent: template.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
+    upgradeLevel: Number(upgradeLevel || 0),
+    image: template.image || "",
+    owners: template.owners || [],
+    description: template.description || "",
+    amount: 1,
+  };
+
   if (idx === -1) {
-    list.push({
-      name: template.name,
-      code: template.code,
-      rarity: template.rarity,
-      type: template.type,
-      statPercent: template.statPercent || { atk: 0, hp: 0, speed: 0 },
-      baseStatPercent: template.statPercent || { atk: 0, hp: 0, speed: 0 },
-      ownerBonusPercent: template.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
-      upgradeLevel: Number(upgradeLevel || 0),
-      image: template.image || "",
-      owners: template.owners || [],
-      description: template.description || "",
-      amount: 1,
-    });
+    list.push(payload);
     return list;
   }
 
   list[idx] = {
     ...list[idx],
+    ...payload,
     amount: Number(list[idx].amount || 0) + 1,
     upgradeLevel: Math.max(Number(list[idx].upgradeLevel || 0), Number(upgradeLevel || 0)),
   };
@@ -235,6 +268,13 @@ module.exports = {
       const latestWeapon = latestMatch.weapon;
       const latestRawCard = latestMatch.rawCard;
 
+      const returnWeaponLevel = getUnequipWeaponLevel(
+        latestPlayer,
+        latestRawCard,
+        latestWeapon,
+        latestTemplate
+      );
+
       let updatedRawCard = null;
 
       const updatedCards = (latestPlayer.cards || []).map((card) => {
@@ -269,13 +309,6 @@ module.exports = {
 
         return hydrateCard(updatedRawCard);
       });
-
-      const returnWeaponLevel = getUnequipWeaponLevel(
-        latestPlayer,
-        latestRawCard,
-        latestWeapon,
-        latestTemplate
-      );
 
       const updatedWeapons = addWeaponBackToInventory(
         latestPlayer.weapons || [],
