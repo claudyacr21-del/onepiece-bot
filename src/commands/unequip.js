@@ -229,12 +229,25 @@ module.exports = {
           (w) => normalize(w.code || w.name) !== normalize(latestWeapon.code || latestWeapon.name)
         );
 
+        const totalWeaponBonus = nextEquipped.reduce(
+          (acc, weapon) => {
+            const stat = weapon.statBonus || {};
+            acc.atk += Number(stat.atk || 0);
+            acc.hp += Number(stat.hp || 0);
+            acc.speed += Number(stat.speed || 0);
+            return acc;
+          },
+          { atk: 0, hp: 0, speed: 0 }
+        );
+
         updatedRawCard = {
           ...card,
           equippedWeapons: nextEquipped,
           equippedWeapon: nextEquipped.length ? formatEquippedWeaponNames(nextEquipped) : null,
           equippedWeaponName: nextEquipped.length ? formatEquippedWeaponNames(nextEquipped) : null,
           equippedWeaponCode: nextEquipped.length === 1 ? nextEquipped[0].code : null,
+          equippedWeaponLevel: nextEquipped.length === 1 ? Number(nextEquipped[0].upgradeLevel || 0) : 0,
+          weaponBonus: totalWeaponBonus,
           weaponBonusPercent: { atk: 0, hp: 0, speed: 0 },
         };
 
