@@ -5,7 +5,7 @@ const {
   ButtonStyle,
 } = require("discord.js");
 
-const { getPlayer } = require("../playerStore");
+const { getPlayer, updatePlayer } = require("../playerStore");
 const { getFragmentStorageInfo } = require("../utils/autoSac");
 
 const PAGE_SIZE = 8;
@@ -147,12 +147,80 @@ function buildButtons(currentPage, totalPages, isPrivate) {
   );
 }
 
+function addOrIncreaseFragment(list, fragment) {
+  const arr = Array.isArray(list) ? [...list] : [];
+  const index = arr.findIndex(
+    (entry) => String(entry.code || "").toLowerCase() === String(fragment.code || "").toLowerCase()
+  );
+
+  if (index !== -1) {
+    arr[index] = {
+      ...arr[index],
+      amount: Number(arr[index].amount || 0) + Number(fragment.amount || 0),
+    };
+    return arr;
+  }
+
+  arr.push(fragment);
+  return arr;
+}
+
+function syncDuplicateWeaponsToFragments(player) {
+  let changed = false;
+  let fragments = Array.isArray(player.fragments) ? [...player.fragments] : [];
+  const weapons = Array.isArray(player.weapons) ? [...player.weapons] : [];
+
+  const updatedWeapons = weapons.map((weapon) => {
+    const amount = Number(weapon.amount || 1);
+
+    if (amount <= 1) return weapon;
+
+    const duplicateAmount = amount - 1;
+    const fragmentCode = `weapon_fragment_${weapon.code}`;
+
+    fragments = addOrIncreaseFragment(fragments, {
+      name: `${weapon.name} Fragment`,
+      amount: duplicateAmount,
+      rarity: weapon.rarity || "C",
+      category: "weapon",
+      code: fragmentCode,
+      image: weapon.image || "",
+      weaponCode: weapon.code,
+    });
+
+    changed = true;
+
+    return {
+      ...weapon,
+      amount: 1,
+    };
+  });
+
+  return {
+    changed,
+    weapons: updatedWeapons,
+    fragments,
+  };
+}
+
 module.exports = {
   name: "finv",
   aliases: ["fragmentinv", "fragments"],
 
   async execute(message, args) {
-    const player = getPlayer(message.author.id, message.author.username);
+    let player = getPlayer(message.author.id, message.author.username);
+
+    const syncResult = syncDuplicateWeaponsToFragments(player);
+
+    if (syncResult.changed) {
+      updatePlayer(message.author.id, {
+        weapons: syncResult.weapons,
+        fragments: syncResult.fragments,
+      });
+
+      player = getPlayer(message.author.id, message.author.username);
+    }
+
     const allFragments = Array.isArray(player.fragments) ? player.fragments : [];
     const searchQuery = args.length ? args.join(" ") : "";
     const filteredFragments = filterFragments(allFragments, searchQuery);
