@@ -7,7 +7,6 @@ const {
 
 const { getPlayer, updatePlayer } = require("../playerStore");
 const {
-  findOwnedCard,
   awakenOwnedCard,
   findCardTemplate,
   hydrateCard,
@@ -17,6 +16,27 @@ const { getCardImage } = require("../config/assetLinks");
 
 function cloneDeep(obj) {
   return JSON.parse(JSON.stringify(obj));
+}
+
+function normalizeCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function findOwnedCardByCodeOnly(cardsOwned, query) {
+  const q = normalizeCode(query);
+  const list = Array.isArray(cardsOwned) ? cardsOwned : [];
+
+  const exact = list.find((card) => normalizeCode(card.code) === q);
+  if (exact) return hydrateCard(exact);
+
+  const startsWith = list.find((card) => normalizeCode(card.code).startsWith(q));
+  if (startsWith) return hydrateCard(startsWith);
+
+  return null;
 }
 
 function getStageCard(card, stage) {
@@ -193,14 +213,14 @@ module.exports = {
     const query = args.join(" ").trim();
 
     if (!query) {
-      return message.reply("Usage: `op awaken <card name>`");
+      return message.reply("Usage: `op awaken <card code>`");
     }
 
     const player = getPlayer(message.author.id, message.author.username);
-    const owned = findOwnedCard(player.cards || [], query);
+    const owned = findOwnedCardByCodeOnly(player.cards || [], query);
 
     if (!owned) {
-      return message.reply("You do not own that card.");
+      return message.reply("You do not own that card code.");
     }
 
     if (Number(owned.evolutionStage || 1) >= 3) {
@@ -221,9 +241,9 @@ module.exports = {
             .setTitle("Awaken Failed")
             .setDescription(
               [
-                `**${owned.displayName || owned.name}** cannot awaken to **M${nextStage}** yet.`,
+                `**${owned.displayName || owned.name || owned.code}** cannot awaken to **M${nextStage}** yet.`,
                 "",
-                `Use \`op ci ${owned.displayName || owned.name}\` to check the full requirements.`,
+                `Use \`op ci ${owned.code}\` to check the full requirements.`,
               ].join("\n")
             ),
         ],
