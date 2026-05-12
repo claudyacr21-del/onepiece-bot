@@ -180,6 +180,41 @@ function addFragment(list, card, amount = 1) {
   return items;
 }
 
+function hasNamedItemByCode(list, code) {
+  return (Array.isArray(list) ? list : []).some(
+    (entry) =>
+      String(entry.code || "").toLowerCase() === String(code || "").toLowerCase()
+  );
+}
+
+function addWeaponFragment(list, weapon, amount = 1) {
+  const items = Array.isArray(list) ? [...list] : [];
+  const fragmentCode = `weapon_fragment_${weapon.code}`;
+  const index = items.findIndex(
+    (entry) => String(entry.code || "").toLowerCase() === fragmentCode.toLowerCase()
+  );
+
+  if (index !== -1) {
+    items[index] = {
+      ...items[index],
+      amount: Number(items[index].amount || 0) + Number(amount || 1),
+    };
+    return items;
+  }
+
+  items.push({
+    name: `${weapon.name} Fragment`,
+    amount: Number(amount || 1),
+    rarity: weapon.rarity || "C",
+    category: "weapon",
+    code: fragmentCode,
+    image: weapon.image || "",
+    weaponCode: weapon.code,
+  });
+
+  return items;
+}
+
 function addNamedItem(list, reward) {
   const items = Array.isArray(list) ? [...list] : [];
   const existingIndex = items.findIndex(
@@ -507,7 +542,18 @@ module.exports = {
           updatedCards.push(rewardResult.storedReward);
         }
       } else if (rewardResult.storageKey === "weapons") {
-        updatedWeapons = addNamedItem(updatedWeapons, rewardResult.storedReward);
+        const alreadyOwnedWeapon = hasNamedItemByCode(
+          updatedWeapons,
+          rewardResult.storedReward.code
+        );
+
+        if (alreadyOwnedWeapon) {
+          updatedFragments = addWeaponFragment(updatedFragments, rewardResult.storedReward, 1);
+          duplicateNote = ` → Duplicate (+1 ${rewardResult.storedReward.name} Fragment)`;
+          summary.fragments += 1;
+        } else {
+          updatedWeapons = addNamedItem(updatedWeapons, rewardResult.storedReward);
+        }
       } else {
         updatedDevilFruits = addNamedItem(
           updatedDevilFruits,

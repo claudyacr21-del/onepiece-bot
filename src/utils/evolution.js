@@ -835,22 +835,28 @@ function consumeOwnedFragments(player, targetIndex, targetCard, amount) {
 
 function findOwnedCardIndexForAwaken(cardsOwned, query) {
   const q = normalize(query);
+  const list = safeArray(cardsOwned);
 
-  return safeArray(cardsOwned).findIndex((card) => {
-    const fields = [
-      card.code,
-      card.name,
-      card.displayName,
-      card.title,
-      card.variant,
-    ]
+  const getFields = (card) =>
+    [card.code, card.name, card.displayName]
       .filter(Boolean)
       .map(normalize);
 
-    return fields.some(
-      (field) => field === q || field.includes(q) || q.includes(field)
-    );
-  });
+  const exactIndex = list.findIndex((card) =>
+    getFields(card).some((field) => field === q)
+  );
+
+  if (exactIndex !== -1) return exactIndex;
+
+  const startsWithIndex = list.findIndex((card) =>
+    getFields(card).some((field) => field.startsWith(q))
+  );
+
+  if (startsWithIndex !== -1) return startsWithIndex;
+
+  return list.findIndex((card) =>
+    getFields(card).some((field) => field.includes(q))
+  );
 }
 
 function findOwnedRequirementCard(player, code) {
@@ -984,6 +990,8 @@ function awakenOwnedCard(player, query) {
   }
 
   validateAwakenRequirement(player, target, req);
+
+  const gemsNeed = getAwakenGemsCost(req, target);
 
   const afterFragmentConsume = consumeOwnedFragments(
     player,
