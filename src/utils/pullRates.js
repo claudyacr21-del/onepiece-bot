@@ -1,20 +1,26 @@
 function rollStandardBaseTier() {
   const roll = Math.random() * 100;
-  if (roll < 47) return "C";
-  if (roll < 79) return "B";
-  if (roll < 97) return "A";
+
+  // Normal:
+  // C 55% / B 34% / A 10% / S 1%
+  if (roll < 55) return "C";
+  if (roll < 89) return "B";
+  if (roll < 99) return "A";
   return "S";
 }
 
-function rollPremiumBaseTier(pullChanceBonus = 0) {
+function rollVivreBaseTier(pullChanceBonus = 0) {
   const bonus = Math.max(0, Number(pullChanceBonus || 0));
-  const sBonus = Math.min(1.5, bonus * 0.1);
+  const sBonus = Math.min(0.4, bonus * 0.03);
   const roll = Math.random() * 100;
 
-  const sRate = 5.5 + sBonus;
-  const aRate = 28;
-  const bRate = 30;
-  const cRate = Math.max(30, 100 - sRate - aRate - bRate);
+  // Vivre Card:
+  // C 51.4% / B 33% / A 14% / S 1.6%
+  // S can gently rise up to 2% with pull chance bonus.
+  const sRate = 1.6 + sBonus;
+  const aRate = 14;
+  const bRate = 33;
+  const cRate = Math.max(48, 100 - sRate - aRate - bRate);
 
   if (roll < cRate) return "C";
   if (roll < cRate + bRate) return "B";
@@ -22,15 +28,18 @@ function rollPremiumBaseTier(pullChanceBonus = 0) {
   return "S";
 }
 
-function rollVivreBaseTier(pullChanceBonus = 0) {
+function rollPremiumBaseTier(pullChanceBonus = 0) {
   const bonus = Math.max(0, Number(pullChanceBonus || 0));
-  const sBonus = Math.min(0.75, bonus * 0.05);
+  const sBonus = Math.min(0.8, bonus * 0.05);
   const roll = Math.random() * 100;
 
-  const sRate = 4.25 + sBonus;
-  const aRate = 23;
-  const bRate = 31;
-  const cRate = Math.max(34, 100 - sRate - aRate - bRate);
+  // Mother Flame:
+  // C 48.8% / B 33% / A 16% / S 2.2%
+  // S can gently rise up to 3% with pull chance bonus.
+  const sRate = 2.2 + sBonus;
+  const aRate = 16;
+  const bRate = 33;
+  const cRate = Math.max(45, 100 - sRate - aRate - bRate);
 
   if (roll < cRate) return "C";
   if (roll < cRate + bRate) return "B";
@@ -44,6 +53,9 @@ function rollPremiumGuaranteedTier() {
 
 function rollStandardContentType() {
   const roll = Math.random() * 100;
+
+  // Normal:
+  // Battle 50% / Boost 37% / Weapon 5% / Devil Fruit 3% / Ticket 5%
   if (roll < 50) return "battleCard";
   if (roll < 87) return "boostCard";
   if (roll < 92) return "weapon";
@@ -51,57 +63,73 @@ function rollStandardContentType() {
   return "ticket";
 }
 
-function rollPremiumContentType() {
+function rollVivreContentType() {
   const roll = Math.random() * 100;
-  if (roll < 45) return "battleCard";
-  if (roll < 81) return "boostCard";
-  if (roll < 88) return "weapon";
-  if (roll < 93) return "devilFruit";
+
+  // Vivre Card:
+  // Slightly better than normal, still below Mother Flame.
+  // Battle 48.5% / Boost 36.5% / Weapon 6% / Devil Fruit 4% / Ticket 5%
+  if (roll < 48.5) return "battleCard";
+  if (roll < 85) return "boostCard";
+  if (roll < 91) return "weapon";
+  if (roll < 95) return "devilFruit";
   return "ticket";
 }
 
-function rollVivreContentType() {
+function rollPremiumContentType() {
   const roll = Math.random() * 100;
-  if (roll < 47.5) return "battleCard";
-  if (roll < 84) return "boostCard";
-  if (roll < 90) return "weapon";
+
+  // Mother Flame:
+  // Battle 47% / Boost 35% / Weapon 7% / Devil Fruit 5% / Ticket 6%
+  if (roll < 47) return "battleCard";
+  if (roll < 82) return "boostCard";
+  if (roll < 89) return "weapon";
   if (roll < 94) return "devilFruit";
   return "ticket";
 }
 
 function rollStandardDevilFruitTier() {
   const roll = Math.random() * 100;
-  if (roll < 55) return "B";
-  if (roll < 85) return "A";
-  if (roll < 97) return "S";
-  return "UR";
-}
 
-function rollPremiumDevilFruitTier() {
-  const roll = Math.random() * 100;
-  if (roll < 45) return "B";
-  if (roll < 80) return "A";
-  if (roll < 95) return "S";
+  // Normal Devil Fruit:
+  // B 68% / A 27% / S 4.5% / UR 0.5%
+  if (roll < 68) return "B";
+  if (roll < 95) return "A";
+  if (roll < 99.5) return "S";
   return "UR";
 }
 
 function rollVivreDevilFruitTier() {
   const roll = Math.random() * 100;
-  if (roll < 50) return "B";
-  if (roll < 82.5) return "A";
-  if (roll < 96) return "S";
+
+  // Vivre Card Devil Fruit:
+  // B 64% / A 29% / S 6% / UR 1%
+  if (roll < 64) return "B";
+  if (roll < 93) return "A";
+  if (roll < 99) return "S";
+  return "UR";
+}
+
+function rollPremiumDevilFruitTier() {
+  const roll = Math.random() * 100;
+
+  // Mother Flame Devil Fruit:
+  // B 59% / A 31% / S 8% / UR 2%
+  if (roll < 59) return "B";
+  if (roll < 90) return "A";
+  if (roll < 98) return "S";
   return "UR";
 }
 
 module.exports = {
   rollStandardBaseTier,
-  rollPremiumBaseTier,
   rollVivreBaseTier,
+  rollPremiumBaseTier,
   rollPremiumGuaranteedTier,
   rollStandardContentType,
-  rollPremiumContentType,
   rollVivreContentType,
+  rollPremiumContentType,
   rollStandardDevilFruitTier,
-  rollPremiumDevilFruitTier,
   rollVivreDevilFruitTier,
+  rollPremiumDevilFruitTier,
 };
