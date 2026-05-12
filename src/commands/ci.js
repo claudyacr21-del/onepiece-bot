@@ -139,7 +139,7 @@ function getStageCard(card, stage) {
 function getDefaultAwakenGemsCost(stage) {
   const currentStage = Number(stage || 1);
 
-  if (currentStage === 1) return 500;
+  if (currentStage === 1) return 750;
   if (currentStage === 2) return 1500;
 
   return 0;

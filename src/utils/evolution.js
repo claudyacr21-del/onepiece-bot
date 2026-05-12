@@ -835,8 +835,16 @@ function consumeOwnedFragments(player, targetIndex, targetCard, amount) {
 
 function findOwnedCardIndexForAwaken(cardsOwned, query) {
   const q = normalize(query);
-  return safeArray(cardsOwned).findIndex(
+  const list = safeArray(cardsOwned);
+
+  const exactIndex = list.findIndex(
     (card) => normalize(card.code) === q
+  );
+
+  if (exactIndex !== -1) return exactIndex;
+
+  return list.findIndex(
+    (card) => normalize(card.code).startsWith(q)
   );
 }
 
@@ -852,7 +860,7 @@ function findOwnedRequirementCard(player, code) {
 function getDefaultAwakenGemsCost(targetCard) {
   const currentStage = Number(targetCard?.evolutionStage || 1);
 
-  if (currentStage === 1) return 500;   // M1 -> M2
+  if (currentStage === 1) return 750;   // M1 -> M2
   if (currentStage === 2) return 1500;  // M2 -> M3
 
   return 0;
