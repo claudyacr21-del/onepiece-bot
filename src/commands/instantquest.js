@@ -6,9 +6,14 @@ const {
   isQuestDone,
   getQuestCompletionSummary,
 } = require("../utils/questProgress");
-const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
+const {
+  PREMIUM_ROLE_NAME,
+  LITE_PREMIUM_ROLE_NAME,
+  getPremiumTier,
+} = require("../utils/premiumAccess");
 
-const MAX_INSTANT_QUEST_PER_DAY = 2;
+const MOTHER_FLAME_MAX_INSTANT_QUEST_PER_DAY = 2;
+const VIVRE_CARD_MAX_INSTANT_QUEST_PER_DAY = 1;
 
 function getTodayKey() {
   const now = new Date();
@@ -17,6 +22,12 @@ function getTodayKey() {
   const d = String(now.getUTCDate()).padStart(2, "0");
 
   return `${y}-${m}-${d}`;
+}
+
+function getMaxInstantQuestPerDay(tier) {
+  if (tier === "motherFlame") return MOTHER_FLAME_MAX_INSTANT_QUEST_PER_DAY;
+  if (tier === "vivreCard") return VIVRE_CARD_MAX_INSTANT_QUEST_PER_DAY;
+  return 0;
 }
 
 function getInstantQuestState(player) {
@@ -57,10 +68,13 @@ module.exports = {
   aliases: ["iq"],
 
   async execute(message, args) {
-    if (!(await isPremiumUser(message))) {
+    const premiumTier = await getPremiumTier(message);
+    const maxInstantQuestPerDay = getMaxInstantQuestPerDay(premiumTier);
+
+    if (!maxInstantQuestPerDay) {
       return message.reply(
         [
-          `This command is only for **${PREMIUM_ROLE_NAME}** users.`,
+          `This command is only for **${PREMIUM_ROLE_NAME}** or **${LITE_PREMIUM_ROLE_NAME}** users.`,
           "Use `op patreon` to view premium packages.",
           "",
           "After payment, please open a ticket and send your order proof + payment proof.",
@@ -88,9 +102,9 @@ module.exports = {
 
     const instantQuestState = getInstantQuestState(player);
 
-    if (instantQuestState.used >= MAX_INSTANT_QUEST_PER_DAY) {
+    if (instantQuestState.used >= maxInstantQuestPerDay) {
       return message.reply(
-        `You already used **${MAX_INSTANT_QUEST_PER_DAY}/${MAX_INSTANT_QUEST_PER_DAY}** Instant Quest today.`
+        `You already used **${maxInstantQuestPerDay}/${maxInstantQuestPerDay}** Instant Quest today.`
       );
     }
 
@@ -150,7 +164,7 @@ module.exports = {
             selectedQuest.target || 0
           )}`,
           "",
-          `**Instant Quest Used:** ${updatedInstantQuestState.used}/${MAX_INSTANT_QUEST_PER_DAY}`,
+          `**Instant Quest Used:** ${updatedInstantQuestState.used}/${maxInstantQuestPerDay}`,
           `**Quest Left:** ${summary.left}/${summary.total}`,
           "",
           "## Current Daily Quest Board",
@@ -158,7 +172,10 @@ module.exports = {
         ].join("\n")
       )
       .setFooter({
-        text: "One Piece Bot • Instant Quest",
+        text:
+          premiumTier === "motherFlame"
+            ? "One Piece Bot • Mother Flame Instant Quest"
+            : "One Piece Bot • Vivre Card Instant Quest",
       });
 
     return message.reply({

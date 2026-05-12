@@ -17,15 +17,18 @@ const {
   buildPullAccessSnapshot,
 } = require("../utils/pullSlots");
 const {
-  getPremiumTier,
-  getPityLimitByTier,
-  getPityGuaranteeByTier,
-} = require("../utils/premiumAccess");
-const {
-  rollBaseTierByPremiumTier,
-  rollContentTypeByPremiumTier,
-  rollDevilFruitTierByPremiumTier,
+  rollStandardBaseTier,
+  rollStandardContentType,
+  rollStandardDevilFruitTier,
+  rollPremiumBaseTier,
+  rollPremiumContentType,
+  rollPremiumDevilFruitTier,
+  rollVivreBaseTier,
+  rollVivreContentType,
+  rollVivreDevilFruitTier,
 } = require("../utils/pullRates");
+
+const { getPremiumTier } = require("../utils/premiumAccess");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const {
   getCardImage,
@@ -35,12 +38,11 @@ const {
 } = require("../config/assetLinks");
 
 const PREMIUM_PITY_TARGET = 100;
-const VIVRE_CARD_PITY_TARGET = 125;
+const VIVRE_PITY_TARGET = 125;
 const NORMAL_PITY_TARGET = 150;
 
 function getSharedPity(player) {
   const pity = player?.pity || {};
-
   return Number(
     pity.pullPity ??
       Math.max(Number(pity.normalSPity || 0), Number(pity.premiumSPity || 0)) ??
@@ -49,21 +51,33 @@ function getSharedPity(player) {
 }
 
 function getPityLimit(tier) {
-  return getPityLimitByTier(tier);
-}
-
-function getPityGuarantee(tier) {
-  return getPityGuaranteeByTier(tier);
-}
-
-function getPityFooterTarget(tier) {
-  if (tier === "mother_flame") return PREMIUM_PITY_TARGET;
-  if (tier === "vivre_card") return VIVRE_CARD_PITY_TARGET;
+  if (tier === "motherFlame") return PREMIUM_PITY_TARGET;
+  if (tier === "vivreCard") return VIVRE_PITY_TARGET;
   return NORMAL_PITY_TARGET;
 }
 
+function getPityGuarantee(tier) {
+  return tier === "none" || tier === "normal" ? "A" : "S";
+}
+
 function pickContentType(tier) {
-  return rollContentTypeByPremiumTier(tier);
+  if (tier === "motherFlame") return rollPremiumContentType();
+  if (tier === "vivreCard") return rollVivreContentType();
+  return rollStandardContentType();
+}
+
+function pickBaseTier(tier, contentType, triggeredPity) {
+  if (contentType === "devilFruit") {
+    if (tier === "motherFlame") return rollPremiumDevilFruitTier();
+    if (tier === "vivreCard") return rollVivreDevilFruitTier();
+    return rollStandardDevilFruitTier();
+  }
+
+  if (triggeredPity) return getPityGuarantee(tier);
+
+  if (tier === "motherFlame") return rollPremiumBaseTier();
+  if (tier === "vivreCard") return rollVivreBaseTier();
+  return rollStandardBaseTier();
 }
 
 function prettySlotName(key) {
@@ -77,7 +91,6 @@ function prettySlotName(key) {
     baccaratCard: "Baccarat Card Pull",
     baccaratFruit: "Baccarat Fruit Pull",
   };
-
   return map[key] || key;
 }
 
@@ -510,10 +523,24 @@ module.exports = {
       player.pulls = resetState.pulls;
     }
 
+    const premiumTier = await getPremiumTier(message);
+
     const snapshot = buildPullAccessSnapshot(player, message);
+
+    if (premiumTier === "motherFlame") {
+      snapshot.patreon = true;
+      snapshot.vivreCard = false;
+    }
+
+    if (premiumTier === "vivreCard") {
+      snapshot.vivreCard = true;
+      snapshot.patreon = false;
+    }
+
     updatePlayer(message.author.id, {
       pullAccessSnapshot: snapshot,
     });
+
     player.pullAccessSnapshot = snapshot;
 
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
@@ -530,7 +557,6 @@ module.exports = {
       return message.reply("No pull slot is currently available.");
     }
 
-    const premiumTier = await getPremiumTier(message);
     const pityLimit = getPityLimit(premiumTier);
     const pityGuarantee = getPityGuarantee(premiumTier);
 
@@ -538,15 +564,11 @@ module.exports = {
     const triggeredPity = pityCounter >= pityLimit;
 
     const contentType = pickContentType(premiumTier);
-
-    const baseTier = triggeredPity
-      ? pityGuarantee
-      : contentType === "devilFruit"
-      ? rollDevilFruitTierByPremiumTier(premiumTier)
-      : rollBaseTierByPremiumTier(premiumTier, Number(player?.pullChanceBonus || 0));
+    const baseTier = pickBaseTier(premiumTier, contentType, triggeredPity);
 
     const pool = getRewardPool(contentType);
-    const picked = contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, baseTier);
+    const picked =
+      contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, baseTier);
 
     if (!picked) {
       return message.reply(`Pull pool is empty for ${contentType} ${baseTier}.`);
@@ -569,7 +591,8 @@ module.exports = {
     } else if (contentType === "battleCard" || contentType === "boostCard") {
       const alreadyOwned = updatedCards.some(
         (card) =>
-          String(card.code || "").toLowerCase() === String(picked.code || "").toLowerCase()
+          String(card.code || "").toLowerCase() ===
+          String(picked.code || "").toLowerCase()
       );
 
       if (alreadyOwned) {
@@ -661,9 +684,10 @@ module.exports = {
 
     const rewardName = picked.displayName || picked.name || "Unknown";
     const rewardRarity = String(picked.baseTier || picked.rarity || "C").toUpperCase();
+
     const pityText = triggeredPity
       ? `Pity triggered: **${pityGuarantee} Guarantee**`
-      : `Pity: ${updatedPity.pullPity}/${getPityFooterTarget(premiumTier)}`;
+      : `Pity: ${updatedPity.pullPity}/${pityLimit}`;
 
     const image = getRewardImage(contentType, picked, ownedCard);
     const badge = getRewardBadge(contentType, picked, ownedCard);

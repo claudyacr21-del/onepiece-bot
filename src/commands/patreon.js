@@ -31,8 +31,8 @@ const PACKAGES = {
       "",
       "• Access to `op pa` / Mother Flame pull all",
       "• Premium guarantee: **S tier pity at 100**",
-      "• Extra pull slots every reset",
-      "• Faster premium fight cooldown",
+      "• Extra pull slots every reset (**+3 slots**)",
+      "• Fight cooldown reduced to **5 minutes**",
       "• Can claim premium treasure with `op treasure`",
       "• Access to `op instantquest` / `op iq`",
       "• Instant complete up to **2 daily quests**",
@@ -58,15 +58,20 @@ const PACKAGES = {
       "",
       "🧭 **Vivre Card Supporter Role**",
       "",
+      "• Guaranteed **S tier pity at 125**",
+      "• Extra pull slot every reset (**+1 slot**)",
+      "• Improved pull rarity chance (**half of Mother Flame bonus rate**)",
+      "• Fight cooldown reduced to **6 minutes 30 seconds**",
+      "• Access to `op instantquest` / `op iq`",
+      "• Instant complete up to **1 daily quest**",
+      "• No access to `op pa` / Mother Flame pull all",
+      "• Cannot claim `op treasure`",
       "• Lite premium identity role in the Discord server for **30 days** after admin verification",
-      "• Faster support priority through Discord ticket",
-      "• Supporter badge/perk display when connected to supported bot systems",
-      "• Half-tier premium package for players who want to support the bot at a lower price",
       "",
       "**Package Notes**",
       "",
-      "• This is a lite supporter package",
-      "• Best for players who want a supporter role and lighter premium benefits",
+      "• This is a lite premium package",
+      "• Best for players who want lower-cost premium support with lighter gameplay perks",
       "• Full Mother Flame perks remain exclusive to the Mother Flame package",
       "",
       "**Claim Instruction**",
@@ -117,6 +122,16 @@ function formatRemainingTime(ms) {
   return `${minutes}m`;
 }
 
+function normalizeTier(value) {
+  const tier = String(value || "").toLowerCase().trim();
+
+  if (tier === "vivre_card" || tier === "vivrecard" || tier === "vivre") {
+    return "vivre_card";
+  }
+
+  return "mother_flame";
+}
+
 function getPatreonStatus(userId) {
   const data = readPatreonRoles();
   const entry = data[String(userId)];
@@ -124,13 +139,18 @@ function getPatreonStatus(userId) {
   if (!entry || Number(entry.expiresAt || 0) <= Date.now()) {
     return {
       active: false,
-      line: "Mother Flame Status: Not active",
+      tier: null,
+      line: "Premium Status: Not active",
     };
   }
 
+  const tier = normalizeTier(entry.tier);
+  const label = tier === "vivre_card" ? "Vivre Card" : "Mother Flame";
+
   return {
     active: true,
-    line: `Mother Flame Status: Active • Remaining ${formatRemainingTime(
+    tier,
+    line: `${label} Status: Active • Remaining ${formatRemainingTime(
       Number(entry.expiresAt || 0) - Date.now()
     )}`,
   };
@@ -193,7 +213,7 @@ function buildSelectRow(selected = null) {
         },
         {
           label: PACKAGES.vivre_card.label,
-          description: "Lite supporter package with Vivre Card perks",
+          description: "Lite premium package with Vivre Card perks",
           value: "vivre_card",
           emoji: PACKAGES.vivre_card.emoji,
           default: selected === "vivre_card",
