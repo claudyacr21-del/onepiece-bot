@@ -149,14 +149,13 @@ module.exports = {
     if (!query) {
       const unlockedText = unlockedIslands.length
         ? unlockedIslands
-            .map((island, index) => {
-              return [
-                `**${index + 1}. ${island.name}**`,
-                `↪ Status: ${getRouteStatus(currentIsland, island)}`,
-                `↪ Sea: ${island.sea || "Unknown"}`,
-                `↪ Boss: ${getBossStatus(player, island)}`,
-              ].join("\n");
-            })
+            .map(
+              (island, index) =>
+                `**${index + 1}. ${island.name}**
+      ↪ Status: ${getRouteStatus(currentIsland, island)}
+      ↪ Sea: ${island.sea || "Unknown"}
+      ↪ Boss: ${getBossStatus(player, island)}`
+            )
             .join("\n\n")
         : "No islands unlocked yet.";
 
