@@ -33,9 +33,9 @@ const BOSS_WIN_EXP_PER_CARD = 180;
 const BOSS_LOSE_EXP_PER_CARD = 95;
 const BOSS_MAX_LOG_LINES = 2;
 
-const BOSS_GLOBAL_ATK_MULT = 1.12;
-const BOSS_GLOBAL_HP_MULT = 1.18;
-const BOSS_GLOBAL_SPD_MULT = 1.08;
+const BOSS_GLOBAL_ATK_MULT = 1.38;
+const BOSS_GLOBAL_HP_MULT = 1.75;
+const BOSS_GLOBAL_SPD_MULT = 1.18;
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
@@ -439,15 +439,15 @@ function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
   const order = Number(currentIsland?.order || 0);
 
   if (code === "five_elders_combined") {
-    const hp = 18000 + order * 520;
+    const hp = 26000 + order * 850;
 
     return applyGlobalBossStats({
       name: "Five Elders",
       rarity: "UR",
-      atk: 850 + order * 16,
+      atk: 1150 + order * 28,
       hp,
       maxHp: hp,
-      speed: 145 + Math.floor(order * 1.2),
+      speed: 170 + Math.floor(order * 1.8),
       image: getIslandBossImage(currentIsland, phaseBoss, null),
     });
   }
@@ -464,73 +464,78 @@ function getSpecialIslandBossTemplate(currentIsland) {
     foosha_village: {
       name: "Mountain Bandit Dadan",
       rarity: "C",
-      atk: 200,
-      hp: 1500,
-      speed: 45,
+      atk: 260,
+      hp: 2600,
+      speed: 58,
       image,
     },
+
     reverse_mountain: {
       name: "Laboon",
       rarity: "A",
-      atk: 285,
-      hp: 4700,
-      speed: 72,
+      atk: 380,
+      hp: 7200,
+      speed: 84,
       image,
     },
+
     whiskey_peak: {
       name: "Baroque Works Agents",
       rarity: "B",
-      atk: 245,
-      hp: 3900,
-      speed: 78,
-      image,
-    },
-    long_ring_long_land: {
-      name: "Foxy",
-      rarity: "A",
-      atk: 310,
-      hp: 4800,
+      atk: 340,
+      hp: 6100,
       speed: 88,
       image,
     },
+
+    long_ring_long_land: {
+      name: "Foxy",
+      rarity: "A",
+      atk: 420,
+      hp: 7600,
+      speed: 104,
+      image,
+    },
+
     water_7: {
       name: "CP9 Lead Fight",
       rarity: "S",
-      atk: 390,
-      hp: 6500,
-      speed: 106,
+      atk: 560,
+      hp: 10500,
+      speed: 124,
       image,
     },
+
     sabaody: {
       name: "Pacifista Survival",
       rarity: "S",
-      atk: 430,
-      hp: 7600,
-      speed: 112,
+      atk: 620,
+      hp: 12500,
+      speed: 132,
       image,
     },
+
     impel_down: {
       name: "Magellan",
       rarity: "SS",
-      atk: 520,
-      hp: 9200,
-      speed: 122,
+      atk: 780,
+      hp: 16500,
+      speed: 145,
       image,
     },
   };
 
   const base = specials[code];
-
   if (!base) return null;
 
-  const hp = Math.floor(Number(base.hp) + order * 180);
+  const hp = Math.floor(Number(base.hp) + order * 420);
 
   return applyGlobalBossStats({
     ...base,
-    atk: Math.floor(Number(base.atk) + order * 9),
+    atk: Math.floor(Number(base.atk) + order * 18),
     hp,
     maxHp: hp,
-    speed: Math.floor(Number(base.speed) + order * 1.1),
+    speed: Math.floor(Number(base.speed) + order * 1.7),
     image,
   });
 }
@@ -555,32 +560,32 @@ function getBossTemplate(currentIsland, phaseBoss = null) {
   const islandOrder = Number(currentIsland?.order || 0);
 
   const atkMulByTier = {
-    1: 2.45,
-    2: 2.85,
-    3: 3.25,
-    4: 3.8,
-    5: 4.35,
+    1: 3.15,
+    2: 3.7,
+    3: 4.3,
+    4: 5.05,
+    5: 5.9,
   };
 
   const hpMulByTier = {
-    1: 3.1,
-    2: 3.75,
-    3: 4.45,
-    4: 5.25,
-    5: 6.2,
+    1: 4.85,
+    2: 5.75,
+    3: 6.85,
+    4: 8.05,
+    5: 9.45,
   };
 
   const spdMulByTier = {
-    1: 1.35,
-    2: 1.45,
-    3: 1.58,
-    4: 1.7,
-    5: 1.85,
+    1: 1.55,
+    2: 1.7,
+    3: 1.88,
+    4: 2.05,
+    5: 2.25,
   };
 
-  const atkMul = (atkMulByTier[shipTier] || 2.45) + islandOrder * 0.028;
-  const hpMul = (hpMulByTier[shipTier] || 3.1) + islandOrder * 0.055;
-  const spdMul = (spdMulByTier[shipTier] || 1.35) + islandOrder * 0.012;
+  const atkMul = (atkMulByTier[shipTier] || 3.15) + islandOrder * 0.045;
+  const hpMul = (hpMulByTier[shipTier] || 4.85) + islandOrder * 0.09;
+  const spdMul = (spdMulByTier[shipTier] || 1.55) + islandOrder * 0.018;
 
   if (fromDb) {
     const baseAtk = Number(fromDb.atk || 100);
@@ -600,9 +605,9 @@ function getBossTemplate(currentIsland, phaseBoss = null) {
     });
   }
 
-  const fallbackAtk = 280 + shipTier * 75 + islandOrder * 16;
-  const fallbackHp = 4600 + shipTier * 1350 + islandOrder * 320;
-  const fallbackSpeed = 105 + shipTier * 12 + Math.floor(islandOrder * 1.25);
+  const fallbackAtk = 420 + shipTier * 105 + islandOrder * 28;
+  const fallbackHp = 7600 + shipTier * 2200 + islandOrder * 620;
+  const fallbackSpeed = 125 + shipTier * 16 + Math.floor(islandOrder * 1.8);
 
   return applyGlobalBossStats({
     name: phaseBoss?.name || currentIsland?.boss || "Island Boss",

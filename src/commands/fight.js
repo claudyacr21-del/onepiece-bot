@@ -208,41 +208,44 @@ function createIslandEnemyTemplates(island) {
   const order = Number(island?.order || 0);
   const rarities = getIslandEnemyRarities(order);
   const islandName = island?.name || "Unknown Island";
-  const bossName = getIslandBossName(island);
 
-  const scoutAtk = 90 + order * 18;
-  const scoutHp = 800 + order * 160;
-  const scoutSpeed = 70 + order * 5;
+  // Normal island fight should feel like regular mobs/elite patrol,
+  // not harder than the real island boss.
+  const scoutAtk = 70 + order * 13;
+  const scoutHp = 520 + order * 95;
+  const scoutSpeed = 58 + order * 3.5;
 
-  const eliteAtk = 115 + order * 23;
-  const eliteHp = 1050 + order * 210;
-  const eliteSpeed = 82 + order * 6;
+  const eliteAtk = 90 + order * 16;
+  const eliteHp = 720 + order * 125;
+  const eliteSpeed = 66 + order * 4;
 
-  const bossAtk = 145 + order * 28;
-  const bossHp = 1400 + order * 280;
-  const bossSpeed = 96 + order * 7;
+  const captainAtk = 110 + order * 19;
+  const captainHp = 920 + order * 155;
+  const captainSpeed = 74 + order * 4.5;
 
   return [
     createEnemy(
       `${islandName} Scout`,
       rarities[0],
-      scaleByIsland(scoutAtk, island),
-      scaleByIsland(scoutHp, island),
-      scaleByIsland(scoutSpeed, island)
+      scaleByIsland(scoutAtk, island, 0.92),
+      scaleByIsland(scoutHp, island, 0.9),
+      scaleByIsland(scoutSpeed, island, 0.95)
     ),
+
     createEnemy(
       `${islandName} Elite`,
       rarities[1],
-      scaleByIsland(eliteAtk, island),
-      scaleByIsland(eliteHp, island),
-      scaleByIsland(eliteSpeed, island)
+      scaleByIsland(eliteAtk, island, 0.96),
+      scaleByIsland(eliteHp, island, 0.95),
+      scaleByIsland(eliteSpeed, island, 0.98)
     ),
+
     createEnemy(
-      bossName,
+      `${islandName} Captain`,
       rarities[2],
-      scaleByIsland(bossAtk, island, 1.08),
-      scaleByIsland(bossHp, island, 1.15),
-      scaleByIsland(bossSpeed, island, 1.05)
+      scaleByIsland(captainAtk, island, 1),
+      scaleByIsland(captainHp, island, 1),
+      scaleByIsland(captainSpeed, island, 1)
     ),
   ];
 }
@@ -262,11 +265,13 @@ function getEnemyLevelForSlot(baseLevel, slotIndex) {
 
 function scaleEnemy(enemy, playerAverageLevel, slotIndex) {
   const level = getEnemyLevelForSlot(playerAverageLevel, slotIndex);
-  const levelMultiplier = 1 + (level - 1) * 0.012;
 
-  const atkMult = (randomInt(95, 108) / 100) * levelMultiplier;
-  const hpMult = (randomInt(97, 112) / 100) * levelMultiplier;
-  const speedMult = (randomInt(96, 106) / 100) * (1 + (level - 1) * 0.004);
+  // Fight mobs scale with player level, but keep them below true island bosses.
+  const levelMultiplier = 1 + (level - 1) * 0.008;
+
+  const atkMult = (randomInt(92, 103) / 100) * levelMultiplier;
+  const hpMult = (randomInt(94, 106) / 100) * levelMultiplier;
+  const speedMult = (randomInt(94, 103) / 100) * (1 + (level - 1) * 0.003);
 
   return createEnemy(
     enemy.name,
