@@ -592,15 +592,16 @@ function getBossTemplate(currentIsland, phaseBoss = null) {
     const baseHp = Number(fromDb.hp || 1000);
     const baseSpeed = Number(fromDb.speed || 50);
 
-    const hp = Math.floor(Number(base.hp) + order * 260);
+    const hp = Math.floor(baseHp * hpMul);
 
     return applyGlobalBossStats({
-      ...base,
-      atk: Math.floor(Number(base.atk) + order * 12),
+      name: phaseBoss?.name || fromDb.displayName || fromDb.name,
+      rarity: fromDb.currentTier || fromDb.rarity || "S",
+      atk: Math.floor(baseAtk * atkMul),
       hp,
       maxHp: hp,
-      speed: Math.floor(Number(base.speed) + order * 0.8),
-      image,
+      speed: Math.floor(baseSpeed * spdMul),
+      image: getIslandBossImage(currentIsland, phaseBoss, fromDb),
     });
   }
 
