@@ -2,6 +2,7 @@ const devilFruits = require("../data/devilFruits");
 
 const SUPPORT_SERVER_ROLE = "Support Server";
 const BOOSTER_ROLE = "Server Booster";
+
 const PREMIUM_ROLE_NAME =
   process.env.PATREON_PREMIUM_ROLE_NAME ||
   process.env.PREMIUM_ROLE_NAME ||
@@ -43,15 +44,19 @@ function normalizeKey(value) {
 }
 
 function hasRoleOnMember(member, roleNames = [], roleIds = []) {
-  const names = Array.isArray(roleNames) ? roleNames : [roleNames];
-  const normalizedNames = names.map(normalize).filter(Boolean);
-  const ids = (Array.isArray(roleIds) ? roleIds : [roleIds]).map(String).filter(Boolean);
+  const names = (Array.isArray(roleNames) ? roleNames : [roleNames])
+    .map(normalize)
+    .filter(Boolean);
+
+  const ids = (Array.isArray(roleIds) ? roleIds : [roleIds])
+    .map(String)
+    .filter(Boolean);
 
   return Boolean(
     member?.roles?.cache?.some((role) => {
       const roleId = String(role?.id || "");
       const roleName = normalize(role?.name);
-      return ids.includes(roleId) || normalizedNames.includes(roleName);
+      return ids.includes(roleId) || names.includes(roleName);
     })
   );
 }
@@ -64,7 +69,6 @@ function isBoosterMember(member) {
     member.roles?.cache?.some((role) => {
       if (normalize(role?.name) === normalize(BOOSTER_ROLE)) return true;
       if (role?.tags?.premiumSubscriberRole) return true;
-
       return false;
     })
   );
@@ -105,42 +109,33 @@ function getMainGuildMember(message) {
   return null;
 }
 
-function hasRole(message, roleName) {
-  if (message?.member && hasRoleOnMember(message.member, roleName)) return true;
+function hasRole(message, roleName, roleIds = []) {
+  if (message?.member && hasRoleOnMember(message.member, roleName, roleIds)) {
+    return true;
+  }
 
   const mainMember = getMainGuildMember(message);
-
-  return hasRoleOnMember(mainMember, roleName);
+  return hasRoleOnMember(mainMember, roleName, roleIds);
 }
 
 function hasMotherFlameRole(message) {
-  if (message?.member && hasRoleOnMember(message.member, PREMIUM_ROLE_NAME, PREMIUM_ROLE_IDS)) {
-    return true;
-  }
+  return hasRole(message, PREMIUM_ROLE_NAME, PREMIUM_ROLE_IDS);
+}
 
-  const mainMember = getMainGuildMember(message);
-  return hasRoleOnMember(mainMember, PREMIUM_ROLE_NAME, PREMIUM_ROLE_IDS);
+function hasVivreCardRole(message) {
+  return hasRole(message, LITE_PREMIUM_ROLE_NAME, LITE_PREMIUM_ROLE_IDS);
 }
 
 function hasLitePremiumRole(message) {
-  if (
-    message?.member &&
-    hasRoleOnMember(message.member, LITE_PREMIUM_ROLE_NAME, LITE_PREMIUM_ROLE_IDS)
-  ) {
-    return true;
-  }
-
-  const mainMember = getMainGuildMember(message);
-  return hasRoleOnMember(mainMember, LITE_PREMIUM_ROLE_NAME, LITE_PREMIUM_ROLE_IDS);
+  return hasVivreCardRole(message);
 }
 
 function hasAnyPremiumRole(message) {
-  return hasMotherFlameRole(message) || hasLitePremiumRole(message);
+  return hasMotherFlameRole(message) || hasVivreCardRole(message);
 }
 
 function hasMainServerRole(message, roleName) {
   const mainMember = getMainGuildMember(message);
-
   return hasRoleOnMember(mainMember, roleName);
 }
 
@@ -216,12 +211,10 @@ function getBaccaratCardStage(card) {
 
 function getBaccaratCardPullBonus(player) {
   const cards = Array.isArray(player?.cards) ? player.cards : [];
-
   let highestStage = 0;
 
   for (const card of cards) {
     if (!isBaccaratCard(card)) continue;
-
     highestStage = Math.max(highestStage, getBaccaratCardStage(card));
   }
 
@@ -271,7 +264,6 @@ function getEquippedFruitData(card) {
 
 function getBaccaratFruitPullBonus(player) {
   const cards = Array.isArray(player?.cards) ? player.cards : [];
-
   let highestBonus = 0;
 
   for (const card of cards) {
@@ -300,6 +292,7 @@ function getSavedAccess(player) {
     booster: Boolean(player?.pullAccessSnapshot?.booster),
     owner: Boolean(player?.pullAccessSnapshot?.owner),
     patreon: Boolean(player?.pullAccessSnapshot?.patreon),
+    vivreCard: Boolean(player?.pullAccessSnapshot?.vivreCard),
     litePremium: Boolean(player?.pullAccessSnapshot?.litePremium),
   };
 }
@@ -307,12 +300,14 @@ function getSavedAccess(player) {
 function resolveAccessFlags(player, message) {
   const saved = getSavedAccess(player);
 
+  const hasSavedVivre = Boolean(saved.vivreCard || saved.litePremium);
+
   return {
     supportMember: Boolean(isSupportServerMember(message) || saved.supportMember),
     booster: Boolean(isSupportServerBooster(message) || saved.booster),
     owner: Boolean(isServerOwner(message) || saved.owner),
     patreon: Boolean(hasMotherFlameRole(message) || saved.patreon),
-    litePremium: Boolean(hasLitePremiumRole(message) || saved.litePremium),
+    vivreCard: Boolean(hasVivreCardRole(message) || hasSavedVivre),
   };
 }
 
@@ -358,6 +353,12 @@ function getPullSlotStatus(player, message) {
       displayMax: 3,
       used: Number(pulls.patreon?.used || 0),
     },
+    vivreCard: {
+      enabled: access.vivreCard,
+      max: access.vivreCard ? 1 : 0,
+      displayMax: 1,
+      used: Number(pulls.vivreCard?.used || 0),
+    },
     baccaratCard: {
       enabled: baccaratCardBonus > 0,
       max: baccaratCardBonus,
@@ -402,6 +403,7 @@ function getNextAvailablePullKey(player, message) {
     "booster",
     "owner",
     "patreon",
+    "vivreCard",
     "baccaratCard",
     "baccaratFruit",
   ];
@@ -490,6 +492,11 @@ function resetAllPullSlots(player) {
       used: 0,
       max: 3,
     },
+    vivreCard: {
+      ...(pulls.vivreCard || {}),
+      used: 0,
+      max: 1,
+    },
     baccaratCard: {
       ...(pulls.baccaratCard || {}),
       used: 0,
@@ -507,8 +514,13 @@ module.exports = {
   SUPPORT_SERVER_ROLE,
   BOOSTER_ROLE,
   PREMIUM_ROLE_NAME,
+  LITE_PREMIUM_ROLE_NAME,
   hasNamedRole,
   hasMainServerRole,
+  hasMotherFlameRole,
+  hasVivreCardRole,
+  hasLitePremiumRole,
+  hasAnyPremiumRole,
   isSupportServerMember,
   isSupportServerBooster,
   isServerOwner,
@@ -523,8 +535,4 @@ module.exports = {
   consumePullSlot,
   consumeAllActivePullSlots,
   resetAllPullSlots,
-  LITE_PREMIUM_ROLE_NAME,
-  hasMotherFlameRole,
-  hasLitePremiumRole,
-  hasAnyPremiumRole,
 };
