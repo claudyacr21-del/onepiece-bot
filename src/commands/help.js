@@ -28,7 +28,7 @@ const HELP_PAGES = {
       "⛵ **Progression** — ship, travel, sail",
       "✨ **Daily & Quest** — daily, quest, effect",
       "👤 **Profile & Inventory** — profile, inventory, leaderboard",
-      "🔥 **Premium** — Patreon dan Mother Flame",
+      "🔥 **Premium** — Patreon, Mother Flame, dan Vivre Card",
       "",
       `Gunakan format: \`${PREFIX} command\``,
     ],
@@ -235,7 +235,7 @@ const HELP_PAGES = {
       `\`${PREFIX} instantquest <number>\` — premium quest skip`,
       `\`${PREFIX} iq <number>\` — short alias for instantquest`,
       "",
-      "Mother Flame users can instantly complete premium daily quests.",
+      "Mother Flame users can instantly complete up to 2 daily quests. Vivre Card users can instantly complete up to 1 daily quest.",
     ],
   },
 
@@ -263,7 +263,7 @@ const HELP_PAGES = {
 
   premium: {
     label: "Premium",
-    description: "Patreon and Mother Flame",
+    description: "Patreon, Mother Flame, Vivre Card",
     emoji: "🔥",
     title: "🔥 Premium / Mother Flame",
     body: [
@@ -277,6 +277,16 @@ const HELP_PAGES = {
       "• Premium treasure claim",
       "• Premium instant quest",
       "• Better pity system",
+      "",
+      "After payment, open a Discord ticket and send payment proof.",
+      "",
+      "**Vivre Card Perks**",
+      "• S tier pity guarantee at 125",
+      "• Extra pull slot every reset: +1",
+      "• Improved pull rarity chance",
+      "• Fight cooldown reduced to 6 minutes 30 seconds",
+      "• Instant quest limit: 1 daily quest",
+      "• Lite premium role and profile badge",
       "",
       "After payment, open a Discord ticket and send payment proof.",
     ],
