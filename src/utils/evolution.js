@@ -835,16 +835,8 @@ function consumeOwnedFragments(player, targetIndex, targetCard, amount) {
 
 function findOwnedCardIndexForAwaken(cardsOwned, query) {
   const q = normalize(query);
-  const list = safeArray(cardsOwned);
-
-  const exactIndex = list.findIndex(
+  return safeArray(cardsOwned).findIndex(
     (card) => normalize(card.code) === q
-  );
-
-  if (exactIndex !== -1) return exactIndex;
-
-  return list.findIndex(
-    (card) => normalize(card.code).startsWith(q)
   );
 }
 
