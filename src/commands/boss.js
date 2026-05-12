@@ -1696,12 +1696,56 @@ module.exports = {
 
     const currentIsland = getCurrentIsland(player);
     const routeAlreadyCleared = isIslandBossRouteCleared(player, currentIsland);
+    const requestedPhase = normalizePhaseArg(args);
+
+    if (requestedPhase && !isPhasedIsland(currentIsland)) {
+      return message.reply(
+        [
+          `**${currentIsland.name}** does not have boss phases.`,
+          "",
+          "`op boss 2` can only be used on islands with a real Phase 2 boss.",
+          "Use `op boss` for this island.",
+        ].join("\n")
+      );
+    }
+
+    if (requestedPhase && isPhasedIsland(currentIsland)) {
+      const phaseState = getBossPhaseState(player, currentIsland.code);
+
+      if (routeAlreadyCleared) {
+        return message.reply(
+          `You already cleared all boss phases for **${currentIsland.name}**.`
+        );
+      }
+
+      if (requestedPhase === 1 && phaseState.phase1Cleared) {
+        return message.reply(
+          [
+            `**${currentIsland.name} Phase 1** is already cleared.`,
+            phaseState.phase2Cleared
+              ? "Phase 2 is also cleared."
+              : "Use `op boss 2` to challenge Phase 2.",
+          ].join("\n")
+        );
+      }
+
+      if (requestedPhase === 2 && !phaseState.phase1Cleared) {
+        return message.reply(
+          `You must clear **${currentIsland.name} Phase 1** before using \`op boss 2\`.`
+        );
+      }
+
+      if (requestedPhase === 2 && phaseState.phase2Cleared) {
+        return message.reply(
+          `**${currentIsland.name} Phase 2** is already cleared.`
+        );
+      }
+    }
 
     let phaseBossResult = null;
 
-    if (isPhasedIsland(currentIsland) && !normalizePhaseArg(args)) {
+    if (isPhasedIsland(currentIsland) && !requestedPhase) {
       phaseBossResult = await chooseBossPhase(message, player, currentIsland);
-
       if (phaseBossResult?.cancelled) return;
     } else {
       phaseBossResult = getRequestedBossPhase(player, currentIsland, args);
