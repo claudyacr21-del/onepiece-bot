@@ -162,19 +162,38 @@ function getFragmentAmount(player, target) {
   const name = normalize(target?.displayName || target?.name);
   const fragments = Array.isArray(player?.fragments) ? player.fragments : [];
 
+  const possibleCodes = [
+    code,
+    code ? `weapon_fragment_${code}` : null,
+    code ? `weapon fragment ${code}` : null,
+  ]
+    .filter(Boolean)
+    .map(normalize);
+
   const found = fragments.find((entry) => {
     const entryCode = normalize(entry.code);
     const entryName = normalize(entry.name || entry.displayName);
 
     return (
-      (code && entryCode && entryCode === code) ||
-      (name && entryName && entryName === name) ||
-      (code && entryName && entryName === code) ||
-      (name && entryCode && entryCode === name)
+      possibleCodes.includes(entryCode) ||
+      possibleCodes.includes(entryName) ||
+      (name && entryName === name) ||
+      (name && entryCode === name)
     );
   });
 
   return Math.max(0, Number(found?.amount || 0));
+}
+
+function pushUnique(list, value) {
+  const clean = String(value || "").trim();
+  if (!clean) return list;
+
+  if (!list.some((entry) => normalize(entry) === normalize(clean))) {
+    list.push(clean);
+  }
+
+  return list;
 }
 
 function getOwnerSignature(item) {
@@ -514,7 +533,7 @@ function buildOwnedFruitCollection(player) {
       equippedOn: [],
     };
 
-    existing.equippedOn.push(rawCard.displayName || rawCard.name || rawCard.code);
+    pushUnique(existing.equippedOn, rawCard.displayName || rawCard.name || rawCard.code);
     pool.set(key, existing);
   }
 

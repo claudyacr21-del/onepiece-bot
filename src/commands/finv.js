@@ -70,8 +70,11 @@ function filterFragments(fragments, query) {
 function getFragmentIcon(fragment) {
   const category = String(fragment.category || "").toLowerCase();
 
-  if (category === "boost") return "🧩";
-  return "🃏";
+  if (category === "weapon") return "⚔️";
+  if (category === "boost") return "✨";
+  if (category === "battle") return "🎴";
+
+  return "🧩";
 }
 
 function getMemberAvatar(message) {

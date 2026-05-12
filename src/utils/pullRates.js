@@ -36,11 +36,11 @@ function rollStandardContentType() {
   const roll = Math.random() * 100;
 
   // Normal:
-  // Battle 66% / Boost 18% / Weapon 5% / Devil Fruit 3% / Ticket 8%
-  if (roll < 66) return "battleCard";
-  if (roll < 84) return "boostCard";
-  if (roll < 89) return "weapon";
-  if (roll < 92) return "devilFruit";
+  // Battle 50% / Boost 37% / Weapon 5% / Devil Fruit 3% / Ticket 5%
+  if (roll < 50) return "battleCard";
+  if (roll < 87) return "boostCard";
+  if (roll < 92) return "weapon";
+  if (roll < 95) return "devilFruit";
   return "ticket";
 }
 
@@ -48,11 +48,11 @@ function rollPremiumContentType() {
   const roll = Math.random() * 100;
 
   // Premium:
-  // Battle 57% / Boost 20% / Weapon 7% / Devil Fruit 5% / Ticket 11%
-  if (roll < 57) return "battleCard";
-  if (roll < 77) return "boostCard";
-  if (roll < 84) return "weapon";
-  if (roll < 89) return "devilFruit";
+  // Battle 45% / Boost 36% / Weapon 7% / Devil Fruit 5% / Ticket 7%
+  if (roll < 45) return "battleCard";
+  if (roll < 81) return "boostCard";
+  if (roll < 88) return "weapon";
+  if (roll < 93) return "devilFruit";
   return "ticket";
 }
 
