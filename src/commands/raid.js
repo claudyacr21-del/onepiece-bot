@@ -406,9 +406,15 @@ function buildLobbyEmbed(hostName, room, ended = false, bossStats = null) {
         ...joinedLines,
         "",
         "**Rules**",
-        "• Max 10 users total including host",
-        "• Each user joins with 1 battle card",
-        "• The same character code cannot be used twice in the same raid",
+        isThroneRoom(room)
+          ? "• Throne Raid max 4 users total including host"
+          : "• Max 10 users total including host",
+        isThroneRoom(room)
+          ? "• Each user joins directly with 3 battle cards from team slots"
+          : "• Each user joins with 1 battle card",
+        isThroneRoom(room)
+          ? "• Total max 12 cards in Throne Raid"
+          : "• The same character code cannot be used twice in the same raid",
       ].join("\n")
     )
     .setImage(room.bossImage || null)
@@ -460,6 +466,32 @@ function buildPickRows(roomId, cards) {
   }
 
   return [row];
+}
+
+function isThroneRoom(room) {
+  return String(room?.bossCode || "").toLowerCase() === "imu";
+}
+
+function getMaxRaidUsers(room) {
+  return isThroneRoom(room) ? 4 : 10;
+}
+
+function getSelectedParticipantCount(room) {
+  return ensureArray(room?.participants).filter(
+    (participant) => ensureArray(participant.selectedCards).length > 0
+  ).length;
+}
+
+function hasParticipantJoined(room, userId) {
+  return ensureArray(room?.participants).some(
+    (participant) =>
+      String(participant.userId || "") === String(userId || "") &&
+      ensureArray(participant.selectedCards).length > 0
+  );
+}
+
+function getThroneTeamCards(player) {
+  return getBattleTeamCards(player).slice(0, 3);
 }
 
 function buildBattleState(room, bossTemplate) {
@@ -556,7 +588,7 @@ function buildBattleEmbed(state) {
         const isDead = Number(member.hp || 0) <= 0;
         const hpIcon = isDead ? "☠️" : "❤️";
         const cooldown = getMemberActionCooldown(member);
-        const status = isDead ? "DEFEATED" : cooldown > 0 ? `CD ${cooldown}` : "READY";
+        const status = isDead ? "DEFEATED" : cooldown > 0 ? `⏳ CD ${cooldown}` : "READY";
 
         return [
           `**${index + 1}. ${member.name}** • ${member.username}`,
@@ -686,16 +718,25 @@ function buildBattleRows(state) {
         const member = item.member;
         const memberIndex = item.index;
         const isDead = Number(member.hp || 0) <= 0;
-        const alreadyUsed = isMemberOnActionCooldown(member);
+        const isCooldown = isMemberOnActionCooldown(member);
+
+        let buttonStyle = ButtonStyle.Success;
+        let labelPrefix = `${memberIndex + 1}`;
+
+        if (isDead) {
+          buttonStyle = ButtonStyle.Danger;
+          labelPrefix = `☠️ ${memberIndex + 1}`;
+        } else if (isCooldown) {
+          buttonStyle = ButtonStyle.Primary;
+          labelPrefix = `⏳ ${memberIndex + 1}`;
+        }
 
         row.addComponents(
           new ButtonBuilder()
             .setCustomId(`raid_act_${state.roomId}_${memberIndex}`)
-            .setLabel(`${memberIndex + 1} ${member.name}`.slice(0, 80))
-            .setStyle(
-              isDead || alreadyUsed ? ButtonStyle.Secondary : ButtonStyle.Success
-            )
-            .setDisabled(Boolean(isDead || alreadyUsed))
+            .setLabel(`${labelPrefix} ${member.name}`.slice(0, 80))
+            .setStyle(buttonStyle)
+            .setDisabled(Boolean(isDead || isCooldown))
         );
       }
 
@@ -1286,6 +1327,75 @@ module.exports = {
         const joiningPlayer = getPlayer(userId, interaction.user.username);
         const teamCards = getBattleTeamCards(joiningPlayer);
 
+        if (hasParticipantJoined(activeRoom, userId)) {
+          return interaction.reply({
+            content: "You already joined this raid.",
+            ephemeral: true,
+          });
+        }
+
+        const maxRaidUsers = getMaxRaidUsers(activeRoom);
+        const joinedCount = getSelectedParticipantCount(activeRoom);
+
+        if (joinedCount >= maxRaidUsers) {
+          return interaction.reply({
+            content: isThroneRoom(activeRoom)
+              ? "This Throne Raid is already full. Max 4 users / 12 cards."
+              : "This raid room is already full.",
+            ephemeral: true,
+          });
+        }
+
+        if (isThroneRoom(activeRoom)) {
+          const throneCards = getThroneTeamCards(joiningPlayer);
+
+          if (throneCards.length < 3) {
+            return interaction.reply({
+              content:
+                "Throne Raid requires **3 battle cards** in your current team slots.",
+              ephemeral: true,
+            });
+          }
+
+          try {
+            const updatedRoom = addParticipant(hostId, {
+              userId,
+              username: interaction.user.username,
+              selectedCards: throneCards.map(toRoomCard),
+            });
+
+            await interaction.reply({
+              content: `Joined Throne Raid with **${throneCards
+                .map((card) => card.displayName || card.name)
+                .join(", ")}**.`,
+              ephemeral: true,
+            });
+
+            await lobbyMessage.edit({
+              embeds: [
+                buildLobbyEmbed(
+                  message.author.username,
+                  updatedRoom,
+                  false,
+                  bossPreviewStats
+                ),
+              ],
+              components: buildLobbyRows(updatedRoom, false),
+            });
+
+            await message.channel.send(
+              `${interaction.user.username} joined the Throne Raid with **3 battle cards**.`
+            );
+          } catch (error) {
+            return interaction.reply({
+              content: error.message || "Failed to join Throne Raid.",
+              ephemeral: true,
+            });
+          }
+
+          return;
+        }
+
         if (!teamCards.length) {
           return interaction.reply({
             content:
@@ -1367,7 +1477,6 @@ module.exports = {
         }
 
         return;
-      }
 
       if (interaction.customId === `raid_start_${room.roomId}`) {
         if (String(interaction.user.id) !== hostId) {
@@ -1388,13 +1497,21 @@ module.exports = {
           });
         }
 
-        const joinedCount = ensureArray(startedRoom.participants).filter(
-          (participant) => ensureArray(participant.selectedCards).length > 0
-        ).length;
+        const joinedCount = getSelectedParticipantCount(startedRoom);
+        const maxRaidUsers = getMaxRaidUsers(startedRoom);
 
         if (joinedCount < 1) {
           return interaction.reply({
             content: "No participants have joined yet.",
+            ephemeral: true,
+          });
+        }
+
+        if (joinedCount > maxRaidUsers) {
+          return interaction.reply({
+            content: isThroneRoom(startedRoom)
+              ? "Throne Raid can only have max 4 users."
+              : "This raid has too many participants.",
             ephemeral: true,
           });
         }
