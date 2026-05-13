@@ -463,7 +463,10 @@ function buildPickRows(roomId, cards) {
 }
 
 function buildBattleState(room, bossTemplate) {
-  const members = buildBattleRoster(room);
+  const members = buildBattleRoster(room).map((member) => ({
+    ...member,
+    actionCooldown: 0,
+  }));
 
   return {
     roomId: room.roomId,
@@ -486,7 +489,7 @@ function buildBattleState(room, bossTemplate) {
         "C",
     },
     round: 1,
-    usedThisCycle: [],
+    turnCount: 0,
     log: ["Raid battle started."],
     finished: false,
     winner: null,
@@ -505,31 +508,43 @@ function getAliveMembers(state) {
   return ensureArray(state.members).filter((member) => Number(member.hp || 0) > 0);
 }
 
-function getMemberActionKey(member) {
-  return `${String(member?.userId || "")}:${String(member?.instanceId || "")}`;
+function getMemberActionCooldown(member) {
+  return Math.max(0, Number(member?.actionCooldown || 0));
 }
 
-function isMemberUsedThisCycle(state, member) {
-  return ensureArray(state.usedThisCycle).includes(getMemberActionKey(member));
+function isMemberOnActionCooldown(member) {
+  return getMemberActionCooldown(member) > 0;
 }
 
-function getAliveMemberIds(state) {
-  return getAliveMembers(state).map((member) => getMemberActionKey(member));
-}
+function tickActionCooldownsAfterAttack(state, actor) {
+  for (const member of ensureArray(state.members)) {
+    if (Number(member.hp || 0) <= 0) {
+      member.actionCooldown = 0;
+      continue;
+    }
 
-function resetActionCycleIfReady(state) {
-  const aliveIds = getAliveMemberIds(state);
+    if (member === actor) continue;
 
-  if (!aliveIds.length) return;
+    member.actionCooldown = Math.max(0, Number(member.actionCooldown || 0) - 1);
+  }
 
-  const usedAliveIds = ensureArray(state.usedThisCycle).filter((id) =>
-    aliveIds.includes(String(id))
+  actor.actionCooldown = 1;
+
+  const hasReadyAliveMember = getAliveMembers(state).some(
+    (member) => !isMemberOnActionCooldown(member)
   );
 
-  if (usedAliveIds.length >= aliveIds.length) {
-    state.usedThisCycle = [];
+  // Kalau semua alive card lagi cooldown, turunin 1x supaya battle tidak lock.
+  // Ini bikin solo raid tetap bisa lanjut normal.
+  if (!hasReadyAliveMember) {
+    for (const member of getAliveMembers(state)) {
+      member.actionCooldown = Math.max(0, Number(member.actionCooldown || 0) - 1);
+    }
+
     state.round = Number(state.round || 1) + 1;
   }
+
+  state.turnCount = Number(state.turnCount || 0) + 1;
 }
 
 function buildBattleEmbed(state) {
@@ -540,8 +555,8 @@ function buildBattleEmbed(state) {
     ? state.members.map((member, index) => {
         const isDead = Number(member.hp || 0) <= 0;
         const hpIcon = isDead ? "☠️" : "❤️";
-        const alreadyUsed = isMemberUsedThisCycle(state, member);
-        const status = isDead ? "DEFEATED" : alreadyUsed ? "USED" : "READY";
+        const cooldown = getMemberActionCooldown(member);
+        const status = isDead ? "DEFEATED" : cooldown > 0 ? `CD ${cooldown}` : "READY";
 
         return [
           `**${index + 1}. ${member.name}** • ${member.username}`,
@@ -585,7 +600,7 @@ function buildBattleEmbed(state) {
     )
     .setImage(boss.image || null)
     .setFooter({
-      text: `Round ${state.round} • Used cards are disabled until other alive cards act`,
+      text: `Round ${state.round} • Each card has 1-turn cooldown after attacking`,
     });
 }
 
@@ -671,7 +686,7 @@ function buildBattleRows(state) {
         const member = item.member;
         const memberIndex = item.index;
         const isDead = Number(member.hp || 0) <= 0;
-        const alreadyUsed = isMemberUsedThisCycle(state, member);
+        const alreadyUsed = isMemberOnActionCooldown(member);
 
         row.addComponents(
           new ButtonBuilder()
@@ -745,29 +760,32 @@ function getRaidRewardConfig(tier) {
 
   const configs = {
     C: {
-      berries: [1200, 2000],
-      gems: [1, 1],
+      berries: 1600,
+      gems: 1,
       fragments: 1,
       weaponChance: 7,
       fruitChance: 3,
     },
+
     B: {
-      berries: [2500, 4000],
-      gems: [1, 2],
+      berries: 3200,
+      gems: 2,
       fragments: 1,
       weaponChance: 7,
       fruitChance: 3,
     },
+
     A: {
-      berries: [6000, 9000],
-      gems: [2, 4],
+      berries: 7500,
+      gems: 3,
       fragments: 1,
       weaponChance: 7,
       fruitChance: 3,
     },
+
     S: {
-      berries: [12000, 18000],
-      gems: [4, 7],
+      berries: 15000,
+      gems: 6,
       fragments: 1,
       weaponChance: 7,
       fruitChance: 3,
@@ -885,8 +903,8 @@ function giveRaidWinRewards(state) {
     if (!player) continue;
 
     const isHost = hostId && userId === hostId;
-    const berries = randomInt(config.berries[0], config.berries[1]);
-    const gems = randomInt(config.gems[0], config.gems[1]);
+    const berries = Number(config.berries || 0);
+    const gems = Number(config.gems || 0);
 
     const fragments = isHost ? Number(config.fragments || 0) : 0;
     const gotWeapon = Boolean(isHost && linkedWeapon && randomChance(config.weaponChance));
@@ -897,7 +915,6 @@ function giveRaidWinRewards(state) {
       berries: Number(player.berries || 0) + berries,
       gems: Number(player.gems || 0) + gems,
 
-      // Host-only rewards
       fragments: isHost
         ? addRaidBossFragment(player.fragments, boss, fragments)
         : player.fragments,
@@ -1090,9 +1107,7 @@ function handleRaidAttack(state, actor) {
     `⚔️ ${actor.name} dealt ${damage.toLocaleString("en-US")} damage to ${boss.name}.`
   );
 
-  state.usedThisCycle = [
-    ...new Set([...ensureArray(state.usedThisCycle), getMemberActionKey(actor)]),
-  ];
+  tickActionCooldownsAfterAttack(state, actor);
 
   if (checkEndState(state)) {
     state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
@@ -1113,10 +1128,6 @@ function handleRaidAttack(state, actor) {
   state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
 
   checkEndState(state);
-
-  if (!state.finished) {
-    resetActionCycleIfReady(state);
-  }
 }
 
 module.exports = {
