@@ -57,14 +57,6 @@ function formatArenaRank(points) {
   return `#${getArenaRankFromPoints(points)}`;
 }
 
-function formatArenaEntryRank(entry) {
-  if (Number.isFinite(Number(entry?.rank))) {
-    return `#${Number(entry.rank)}`;
-  }
-
-  return formatArenaRank(entry?.points || 0);
-}
-
 function getArenaBotPointsForSeed(seed) {
   const safeSeed = Math.max(1, Math.min(ARENA_TOTAL_RANK_SLOTS, Number(seed || 1)));
 
