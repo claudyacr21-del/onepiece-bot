@@ -630,12 +630,13 @@ function buildResultEmbed(state) {
           : ["• No reward because raid was lost."]),
         "",
         "## Raid Prestige Rewards",
+
         ...(playersWon
           ? ensureArray(state.prestigeRewards).length
             ? ensureArray(state.prestigeRewards).map((reward) =>
                 reward.missing
-                  ? `• ${reward.username}: **${reward.cardName}** not owned, prestige not added.`
-                  : `• ${reward.username}'s **${reward.cardName}**: ${reward.before}/200 → ${reward.after}/200`
+                  ? `• Host ${reward.username}: **${reward.cardName}** prestige not added${reward.reason ? ` (${reward.reason})` : "."}`
+                  : `• Host ${reward.username}'s **${reward.cardName}**: ${reward.before}/200 → ${reward.after}/200`
               )
             : ["• Prestige reward data was not found."]
           : ["• No prestige reward because raid was lost."]),
@@ -865,14 +866,16 @@ function addRaidFruit(devilFruits, fruit) {
 function giveRaidWinRewards(state) {
   const players = readPlayers();
   const boss = state.boss || {};
+
   const bossTier = String(
     boss.rarity || boss.currentTier || boss.tier || "C"
   ).toUpperCase();
-  const config = getRaidRewardConfig(bossTier);
 
+  const config = getRaidRewardConfig(bossTier);
   const linkedWeapon = findLinkedRaidItem(weaponsDb, boss);
   const linkedFruit = findLinkedRaidItem(devilFruitsDb, boss);
 
+  const hostId = String(state.hostId || "");
   const rewards = [];
 
   for (const member of ensureArray(state.members)) {
@@ -881,18 +884,26 @@ function giveRaidWinRewards(state) {
 
     if (!player) continue;
 
+    const isHost = hostId && userId === hostId;
     const berries = randomInt(config.berries[0], config.berries[1]);
     const gems = randomInt(config.gems[0], config.gems[1]);
-    const fragments = config.fragments;
-    const gotWeapon = Boolean(linkedWeapon && randomChance(config.weaponChance));
-    const gotFruit = Boolean(linkedFruit && randomChance(config.fruitChance));
+
+    const fragments = isHost ? Number(config.fragments || 0) : 0;
+    const gotWeapon = Boolean(isHost && linkedWeapon && randomChance(config.weaponChance));
+    const gotFruit = Boolean(isHost && linkedFruit && randomChance(config.fruitChance));
 
     players[userId] = {
       ...player,
       berries: Number(player.berries || 0) + berries,
       gems: Number(player.gems || 0) + gems,
-      fragments: addRaidBossFragment(player.fragments, boss, fragments),
+
+      // Host-only rewards
+      fragments: isHost
+        ? addRaidBossFragment(player.fragments, boss, fragments)
+        : player.fragments,
+
       weapons: gotWeapon ? addRaidWeapon(player.weapons, linkedWeapon) : player.weapons,
+
       devilFruits: gotFruit
         ? addRaidFruit(player.devilFruits, linkedFruit)
         : player.devilFruits,
@@ -901,6 +912,7 @@ function giveRaidWinRewards(state) {
     rewards.push({
       userId,
       username: member.username || player.username || "Unknown",
+      isHost,
       berries,
       gems,
       fragments,
@@ -911,6 +923,7 @@ function giveRaidWinRewards(state) {
   }
 
   writePlayers(players);
+
   return rewards;
 }
 
@@ -922,90 +935,127 @@ function formatRaidWinRewardLines(state) {
   }
 
   return rewards.map((reward) => {
+    const lines = [
+      `• **${reward.username}**${reward.isHost ? " 👑 Host" : ""}`,
+      `+${Number(reward.berries || 0).toLocaleString("en-US")} berries`,
+      `+${Number(reward.gems || 0).toLocaleString("en-US")} gems`,
+    ];
+
+    if (reward.isHost && Number(reward.fragments || 0) > 0) {
+      lines.push(`+${Number(reward.fragments || 0)} ${reward.bossName} fragment`);
+    }
+
     const extras = [];
 
     if (reward.weapon) extras.push(`⚔️ ${reward.weapon}`);
     if (reward.fruit) extras.push(`🍈 ${reward.fruit}`);
 
-    return [
-      `• **${reward.username}**`,
-      `+${Number(reward.berries || 0).toLocaleString("en-US")} berries`,
-      `+${Number(reward.gems || 0).toLocaleString("en-US")} gems`,
-      `+${Number(reward.fragments || 0)} ${reward.bossName} fragment`,
-      extras.length ? `Bonus: ${extras.join(" • ")}` : null,
-    ]
-      .filter(Boolean)
-      .join(" | ");
+    if (reward.isHost && extras.length) {
+      lines.push(`Host Bonus: ${extras.join(" • ")}`);
+    }
+
+    return lines.join(" | ");
   });
 }
 
 function addRaidPrestigeToWinnerCards(state) {
   const players = readPlayers();
   const rewards = [];
+
   const boss = state.boss || {};
   const bossCode = String(boss.code || boss.bossCode || "").toLowerCase();
   const bossName = String(boss.name || boss.bossName || "").toLowerCase();
+  const hostId = String(state.hostId || "");
 
-  for (const member of ensureArray(state.members)) {
-    const userId = String(member.userId || "");
-    const player = players[userId];
-
-    if (!player) continue;
-
-    const cards = ensureArray(player.cards).map((card) => ({ ...card }));
-
-    const index = cards.findIndex((card) => {
-      const cardCode = String(card.code || "").toLowerCase();
-      const cardName = String(card.displayName || card.name || "").toLowerCase();
-
-      return (
-        (bossCode && cardCode === bossCode) ||
-        (bossName && cardName === bossName)
-      );
-    });
-
-    if (index === -1) {
-      rewards.push({
-        userId,
-        username: member.username || player.username || "Unknown",
+  if (!hostId) {
+    return [
+      {
+        userId: "",
+        username: "Host",
         cardName: boss.name || boss.bossName || "Raid Boss",
         before: 0,
         after: 0,
         missing: true,
-      });
-
-      continue;
-    }
-
-    const before = Math.max(
-      0,
-      Math.min(200, Number(cards[index].raidPrestige || 0))
-    );
-    const after = Math.min(200, before + 1);
-
-    cards[index].raidPrestige = after;
-
-    players[userId] = {
-      ...player,
-      cards,
-    };
-
-    rewards.push({
-      userId,
-      username: member.username || player.username || "Unknown",
-      cardName:
-        cards[index].displayName ||
-        cards[index].name ||
-        boss.name ||
-        "Raid Boss",
-      before,
-      after,
-      capped: after >= 200,
-      missing: false,
-    });
+        reason: "Raid host data was not found.",
+      },
+    ];
   }
 
+  const hostMember =
+    ensureArray(state.members).find((member) => String(member.userId || "") === hostId) ||
+    null;
+
+  const player = players[hostId];
+
+  if (!player) {
+    return [
+      {
+        userId: hostId,
+        username: hostMember?.username || "Host",
+        cardName: boss.name || boss.bossName || "Raid Boss",
+        before: 0,
+        after: 0,
+        missing: true,
+        reason: "Host player data was not found.",
+      },
+    ];
+  }
+
+  const cards = ensureArray(player.cards).map((card) => ({ ...card }));
+
+  const index = cards.findIndex((card) => {
+    const cardCode = String(card.code || "").toLowerCase();
+    const cardName = String(card.displayName || card.name || "").toLowerCase();
+
+    return (
+      (bossCode && cardCode === bossCode) ||
+      (bossName && cardName === bossName)
+    );
+  });
+
+  if (index === -1) {
+    rewards.push({
+      userId: hostId,
+      username: hostMember?.username || player.username || "Host",
+      cardName: boss.name || boss.bossName || "Raid Boss",
+      before: 0,
+      after: 0,
+      missing: true,
+      reason: "Host does not own the raid boss card.",
+    });
+
+    return rewards;
+  }
+
+  const before = Math.max(
+    0,
+    Math.min(200, Number(cards[index].raidPrestige || 0))
+  );
+
+  const after = Math.min(200, before + 1);
+
+  cards[index].raidPrestige = after;
+
+  players[hostId] = {
+    ...player,
+    cards,
+  };
+
+  rewards.push({
+    userId: hostId,
+    username: hostMember?.username || player.username || "Host",
+    cardName:
+      cards[index].displayName ||
+      cards[index].name ||
+      boss.name ||
+      "Raid Boss",
+    before,
+    after,
+    missing: false,
+  });
+
   writePlayers(players);
+
   return rewards;
 }
 
