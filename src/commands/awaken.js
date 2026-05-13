@@ -39,51 +39,79 @@ function findOwnedCardByCodeOnly(cardsOwned, query) {
   return null;
 }
 
+function findCardTemplateSafe(card) {
+  const keys = [
+    card?.code,
+    card?.displayName,
+    card?.name,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  for (const key of keys) {
+    const found = findCardTemplate(key);
+    if (found) return found;
+  }
+
+  return card;
+}
+
+function getStageKey(stage) {
+  return `M${Number(stage || 1)}`;
+}
+
+function getStageForm(template, stage) {
+  const index = Number(stage || 1) - 1;
+  return template?.evolutionForms?.[index] || null;
+}
+
 function getStageCard(card, stage) {
-  const template = findCardTemplate(card?.code || card?.displayName || card?.name) || card;
+  const template = findCardTemplateSafe(card);
 
   return hydrateCard({
     ...template,
     ...card,
+    code: template?.code || card?.code,
+    displayName: template?.displayName || card?.displayName || template?.name || card?.name,
+    name: template?.name || card?.name,
     evolutionStage: stage,
-    evolutionKey: `M${stage}`,
+    evolutionKey: getStageKey(stage),
   });
 }
 
 function getStageImage(card, stage) {
-  const stageKey = `M${stage}`;
-  const template = findCardTemplate(card?.code || card?.displayName || card?.name) || card;
-  const stageCard = getStageCard(template, stage);
+  const stageKey = getStageKey(stage);
+  const template = findCardTemplateSafe(card);
+  const form = getStageForm(template, stage);
+  const stageCard = getStageCard(card, stage);
 
-  return (
-    stageCard?.evolutionForms?.[stage - 1]?.image ||
-    template?.evolutionForms?.[stage - 1]?.image ||
-    stageCard?.stageImages?.[stageKey] ||
+  const directStageImage =
+    form?.image ||
     template?.stageImages?.[stageKey] ||
-    getCardImage(
-      template?.code || card?.code,
-      stageKey,
-      stageCard?.stageImages?.[stageKey] ||
-        template?.stageImages?.[stageKey] ||
-        stageCard?.image ||
-        template?.image ||
-        card?.image ||
-        ""
-    ) ||
-    stageCard?.image ||
-    template?.image ||
-    card?.image ||
+    stageCard?.stageImages?.[stageKey];
+
+  if (directStageImage) return directStageImage;
+
+  const assetImage = getCardImage(
+    template?.code || card?.code,
+    stageKey,
     ""
   );
+
+  if (assetImage) return assetImage;
+
+  // Last fallback: use current card image only if specific stage image is missing.
+  // This prevents wrong cross-card fallback images like Gin showing on Cola awaken.
+  return card?.image || template?.image || "";
 }
 
 function getFormName(card, stage) {
-  const template = findCardTemplate(card?.code || card?.displayName || card?.name) || card;
-  const stageCard = getStageCard(template, stage);
+  const template = findCardTemplateSafe(card);
+  const stageCard = getStageCard(card, stage);
+  const form = getStageForm(template, stage);
 
   return (
-    stageCard?.evolutionForms?.[stage - 1]?.name ||
-    template?.evolutionForms?.[stage - 1]?.name ||
+    form?.name ||
     stageCard?.variant ||
     template?.variant ||
     card?.variant ||
