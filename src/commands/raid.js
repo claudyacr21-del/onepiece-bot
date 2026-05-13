@@ -490,10 +490,6 @@ function formatThroneTeamPreview(cards) {
 
       return [
         `**${index + 1}. ${card.displayName || card.name || "Unknown"}**`,
-        `↪ Tier: ${rarity}`,
-        `↪ ATK: ${Number(card.atk || 0).toLocaleString("en-US")}`,
-        `↪ HP: ${Number(card.hp || 0).toLocaleString("en-US")}`,
-        `↪ SPD: ${Number(card.speed || 0).toLocaleString("en-US")}`,
       ].join("\n");
     })
     .join("\n\n");
