@@ -468,6 +468,37 @@ function buildPickRows(roomId, cards) {
   return [row];
 }
 
+function buildThroneConfirmRows(roomId, userId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`raid_throne_confirm_${roomId}_${userId}`)
+        .setLabel("Confirm Join")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`raid_throne_cancel_${roomId}_${userId}`)
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Danger)
+    ),
+  ];
+}
+
+function formatThroneTeamPreview(cards) {
+  return cards
+    .map((card, index) => {
+      const rarity = String(card.currentTier || card.rarity || "C").toUpperCase();
+
+      return [
+        `**${index + 1}. ${card.displayName || card.name || "Unknown"}**`,
+        `↪ Tier: ${rarity}`,
+        `↪ ATK: ${Number(card.atk || 0).toLocaleString("en-US")}`,
+        `↪ HP: ${Number(card.hp || 0).toLocaleString("en-US")}`,
+        `↪ SPD: ${Number(card.speed || 0).toLocaleString("en-US")}`,
+      ].join("\n");
+    })
+    .join("\n\n");
+}
+
 function isThroneRoom(room) {
   return String(room?.bossCode || "").toLowerCase() === "imu";
 }
@@ -1376,18 +1407,84 @@ module.exports = {
             });
           }
 
+          await interaction.reply({
+            content: [
+              "**Throne Raid Join Confirmation**",
+              "",
+              "You will join this raid with these 3 battle cards:",
+              "",
+              formatThroneTeamPreview(throneCards),
+              "",
+              "Press **Confirm Join** to enter the raid or **Cancel** to stop.",
+            ].join("\n"),
+            components: buildThroneConfirmRows(room.roomId, userId),
+            ephemeral: true,
+          });
+
+          const confirmReply = await interaction.fetchReply();
+          let confirmInteraction;
+
           try {
+            confirmInteraction = await confirmReply.awaitMessageComponent({
+              time: RAID_PICK_TIMEOUT_MS,
+              filter: (button) =>
+                button.user.id === interaction.user.id &&
+                (
+                  button.customId === `raid_throne_confirm_${room.roomId}_${userId}` ||
+                  button.customId === `raid_throne_cancel_${room.roomId}_${userId}`
+                ),
+            });
+          } catch {
+            return;
+          }
+
+          if (confirmInteraction.customId === `raid_throne_cancel_${room.roomId}_${userId}`) {
+            return confirmInteraction.update({
+              content: "Throne Raid join cancelled.",
+              components: [],
+            });
+          }
+
+          try {
+            const latestRoom = getRoom(hostId);
+
+            if (!latestRoom || String(latestRoom.roomId) !== String(room.roomId)) {
+              return confirmInteraction.update({
+                content: "This raid room is no longer active.",
+                components: [],
+              });
+            }
+
+            if (hasParticipantJoined(latestRoom, userId)) {
+              return confirmInteraction.update({
+                content: "You already joined this raid.",
+                components: [],
+              });
+            }
+
+            const maxRaidUsers = getMaxRaidUsers(latestRoom);
+            const joinedCount = getSelectedParticipantCount(latestRoom);
+
+            if (joinedCount >= maxRaidUsers) {
+              return confirmInteraction.update({
+                content: "This Throne Raid is already full. Max 4 users / 12 cards.",
+                components: [],
+              });
+            }
+
             const updatedRoom = addParticipant(hostId, {
               userId,
               username: interaction.user.username,
               selectedCards: throneCards.map(toRoomCard),
             });
 
-            await interaction.reply({
-              content: `Joined Throne Raid with **${throneCards
-                .map((card) => card.displayName || card.name)
-                .join(", ")}**.`,
-              ephemeral: true,
+            await confirmInteraction.update({
+              content: [
+                "Joined Throne Raid with:",
+                "",
+                formatThroneTeamPreview(throneCards),
+              ].join("\n"),
+              components: [],
             });
 
             await lobbyMessage.edit({
@@ -1403,19 +1500,14 @@ module.exports = {
             });
 
             await message.channel.send(
-              `${interaction.user.username} joined the Throne Raid with **3 battle cards**.`
+              `${interaction.user.username} joined the Throne Raid with **${throneCards
+                .map((card) => card.displayName || card.name)
+                .join(", ")}**.`
             );
           } catch (error) {
-            if (interaction.replied || interaction.deferred) {
-              return interaction.followUp({
-                content: error.message || "Failed to join Throne Raid.",
-                ephemeral: true,
-              }).catch(() => null);
-            }
-
-            return interaction.reply({
+            return confirmInteraction.update({
               content: error.message || "Failed to join Throne Raid.",
-              ephemeral: true,
+              components: [],
             });
           }
 
