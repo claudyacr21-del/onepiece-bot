@@ -796,29 +796,42 @@ function randomChance(percent) {
   return Math.random() * 100 < Number(percent || 0);
 }
 
-function getRaidRewardConfig(tier) {
+function getRaidRewardConfig(tier, boss = null) {
+  const bossCode = String(boss?.code || boss?.bossCode || "").toLowerCase();
+  const bossName = String(boss?.name || boss?.bossName || "").toLowerCase();
+
+  if (bossCode === "imu" || bossName.includes("imu")) {
+    return {
+      berries: 25000,
+      gems: 30,
+      fragments: 1,
+      weaponChance: 7,
+      fruitChance: 3,
+    };
+  }
+
   const key = String(tier || "C").toUpperCase();
 
   const configs = {
     C: {
-      berries: 1600,
-      gems: 1,
+      berries: 5000,
+      gems: 10,
       fragments: 1,
       weaponChance: 7,
       fruitChance: 3,
     },
 
     B: {
-      berries: 3200,
-      gems: 2,
+      berries: 5000,
+      gems: 10,
       fragments: 1,
       weaponChance: 7,
       fruitChance: 3,
     },
 
     A: {
-      berries: 7500,
-      gems: 3,
+      berries: 5000,
+      gems: 10,
       fragments: 1,
       weaponChance: 7,
       fruitChance: 3,
@@ -826,7 +839,7 @@ function getRaidRewardConfig(tier) {
 
     S: {
       berries: 15000,
-      gems: 6,
+      gems: 20,
       fragments: 1,
       weaponChance: 7,
       fruitChance: 3,
@@ -930,7 +943,7 @@ function giveRaidWinRewards(state) {
     boss.rarity || boss.currentTier || boss.tier || "C"
   ).toUpperCase();
 
-  const config = getRaidRewardConfig(bossTier);
+  const config = getRaidRewardConfig(bossTier, boss);
   const linkedWeapon = findLinkedRaidItem(weaponsDb, boss);
   const linkedFruit = findLinkedRaidItem(devilFruitsDb, boss);
 
