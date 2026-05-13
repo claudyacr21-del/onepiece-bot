@@ -1290,6 +1290,8 @@ module.exports = {
 
     const whitelist = getSavedRaidTeam(host);
 
+    const isThroneRaid = usedCommand === "throne";
+
     const room = createRaidRoom({
       hostId,
       hostName: message.author.username,
@@ -1300,6 +1302,10 @@ module.exports = {
       bossImage: bossInfo.bossImage || "",
       ticketConsumed: true,
       whitelist,
+
+      cardsPerUser: isThroneRaid ? 3 : 1,
+      maxParticipants: isThroneRaid ? 4 : 10,
+      uniqueCardCodesOnly: !isThroneRaid,
     });
 
     const bossPreviewStats = deriveRaidBossStats(bossInfo.template);

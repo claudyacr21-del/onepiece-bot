@@ -113,9 +113,9 @@ function createRaidRoom(data = {}) {
   return createBaseRoom({
     ...data,
     mode: "raid",
-    maxParticipants: 10,
-    cardsPerUser: 1,
-    uniqueCardCodesOnly: true,
+    maxParticipants: Number(data.maxParticipants || 10),
+    cardsPerUser: Number(data.cardsPerUser || 1),
+    uniqueCardCodesOnly: data.uniqueCardCodesOnly !== false,
     ticketConsumed: Boolean(data.ticketConsumed),
   });
 }
