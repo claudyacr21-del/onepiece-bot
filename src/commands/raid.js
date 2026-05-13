@@ -1387,6 +1387,13 @@ module.exports = {
               `${interaction.user.username} joined the Throne Raid with **3 battle cards**.`
             );
           } catch (error) {
+            if (interaction.replied || interaction.deferred) {
+              return interaction.followUp({
+                content: error.message || "Failed to join Throne Raid.",
+                ephemeral: true,
+              }).catch(() => null);
+            }
+
             return interaction.reply({
               content: error.message || "Failed to join Throne Raid.",
               ephemeral: true,
@@ -1477,6 +1484,7 @@ module.exports = {
         }
 
         return;
+      }
 
       if (interaction.customId === `raid_start_${room.roomId}`) {
         if (String(interaction.user.id) !== hostId) {
@@ -1566,6 +1574,7 @@ module.exports = {
         const battleCollector = battleMessage.createMessageComponentCollector({
           time: RAID_ROOM_TIMEOUT_MS,
         });
+
         battleCollector.on("collect", async (button) => {
           if (
             !String(button.customId).startsWith(`raid_act_${battleState.roomId}_`)
@@ -1642,7 +1651,6 @@ module.exports = {
 
         battleCollector.on("end", async (_, reason) => {
           if (reason === "finished") return;
-
           if (battleState.finished) return;
 
           battleState.finished = true;
@@ -1660,6 +1668,8 @@ module.exports = {
             });
           } catch {}
         });
+
+        return;
       }
     });
 
