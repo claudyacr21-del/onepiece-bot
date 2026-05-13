@@ -1,4 +1,9 @@
-const { getArenaLeaderboard } = require("./arenaLeaderboard");
+const { readPlayers } = require("../playerStore");
+const { hydrateCard } = require("./evolution");
+const { getPassiveBoostSummary } = require("./passiveBoosts");
+
+const ARENA_TOTAL_RANK_SLOTS = 500;
+const ARENA_POINTS_PER_RANK = 10;
 
 const ROLE_CONFIG = [
   {
@@ -22,8 +27,156 @@ function normalize(value) {
   return String(value || "").toLowerCase().trim();
 }
 
+function getPower(card) {
+  return Number(
+    card?.currentPower ||
+      Math.floor(
+        Number(card?.atk || 0) * 1.4 +
+          Number(card?.hp || 0) * 0.22 +
+          Number(card?.speed || 0) * 9
+      )
+  );
+}
+
+function getTeamPower(player) {
+  const boosts = getPassiveBoostSummary(player);
+
+  const cards = (Array.isArray(player?.cards) ? player.cards : [])
+    .map((card) => hydrateCard(card))
+    .filter(Boolean)
+    .map((card) => {
+      if (String(card.cardRole || "").toLowerCase() === "boost") return null;
+
+      return {
+        ...card,
+        atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+        hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+        speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+      };
+    })
+    .filter(Boolean);
+
+  const slots = Array.isArray(player?.team?.slots)
+    ? player.team.slots.slice(0, 3)
+    : [null, null, null];
+
+  return slots.reduce((total, instanceId) => {
+    if (!instanceId) return total;
+
+    const found = cards.find(
+      (card) => String(card.instanceId) === String(instanceId)
+    );
+
+    return total + (found ? getPower(found) : 0);
+  }, 0);
+}
+
+function compareArenaEntries(a, b) {
+  if (Number(b.points || 0) !== Number(a.points || 0)) {
+    return Number(b.points || 0) - Number(a.points || 0);
+  }
+
+  if (Number(b.wins || 0) !== Number(a.wins || 0)) {
+    return Number(b.wins || 0) - Number(a.wins || 0);
+  }
+
+  if (Number(a.losses || 0) !== Number(b.losses || 0)) {
+    return Number(a.losses || 0) - Number(b.losses || 0);
+  }
+
+  if (Number(b.streak || 0) !== Number(a.streak || 0)) {
+    return Number(b.streak || 0) - Number(a.streak || 0);
+  }
+
+  if (Number(b.teamPower || 0) !== Number(a.teamPower || 0)) {
+    return Number(b.teamPower || 0) - Number(a.teamPower || 0);
+  }
+
+  if (Boolean(a.isBot) !== Boolean(b.isBot)) {
+    return a.isBot ? 1 : -1;
+  }
+
+  return String(a.username || "").localeCompare(String(b.username || ""));
+}
+
+function getArenaBotPointsForSeed(seed) {
+  const safeSeed = Math.max(
+    1,
+    Math.min(ARENA_TOTAL_RANK_SLOTS, Number(seed || 1))
+  );
+
+  return Math.max(0, (ARENA_TOTAL_RANK_SLOTS - safeSeed) * ARENA_POINTS_PER_RANK);
+}
+
+function buildBotEntry(seed) {
+  const points = getArenaBotPointsForSeed(seed);
+
+  return {
+    userId: `arena-bot-${seed}`,
+    username: `Arena Bot ${seed}`,
+    points,
+    wins: Math.max(0, Math.floor(points / 120)),
+    losses: Math.max(0, Math.floor(seed / 35)),
+    matches: Math.max(0, Math.floor(points / 90)),
+    streak: 0,
+    teamPower: Math.max(0, Math.floor(points * 2)),
+    isBot: true,
+  };
+}
+
+function getRealArenaEntries() {
+  const players = readPlayers() || {};
+
+  return Object.entries(players)
+    .map(([userId, player]) => {
+      const arena = player?.arena || {};
+
+      return {
+        userId: String(userId),
+        username: player?.username || "Unknown",
+        points: Number(arena.points || 0),
+        wins: Number(arena.wins || 0),
+        losses: Number(arena.losses || 0),
+        draws: Number(arena.draws || 0),
+        matches: Number(arena.matches || 0),
+        streak: Number(arena.streak || 0),
+        bestStreak: Number(arena.bestStreak || 0),
+        teamPower: getTeamPower(player),
+        isBot: false,
+      };
+    })
+    .filter((entry) => {
+      return (
+        entry.points > 0 ||
+        entry.wins > 0 ||
+        entry.losses > 0 ||
+        entry.matches > 0
+      );
+    });
+}
+
+function buildArenaLeaderboard() {
+  const realEntries = getRealArenaEntries()
+    .sort(compareArenaEntries)
+    .slice(0, ARENA_TOTAL_RANK_SLOTS);
+
+  const botCount = Math.max(0, ARENA_TOTAL_RANK_SLOTS - realEntries.length);
+
+  const bots = Array.from({ length: botCount }, (_, index) =>
+    buildBotEntry(index + 1)
+  );
+
+  return [...realEntries, ...bots]
+    .sort(compareArenaEntries)
+    .slice(0, ARENA_TOTAL_RANK_SLOTS)
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
+}
+
 function getArenaRealTopRankHolders() {
-  return getArenaLeaderboard()
+  return buildArenaLeaderboard()
     .filter((entry) => !entry.isBot && [1, 2, 3].includes(Number(entry.rank)))
     .map((entry) => ({
       userId: String(entry.userId),
@@ -49,6 +202,8 @@ async function resolveRole(guild, config) {
       (await guild.roles.fetch(config.roleId).catch(() => null));
 
     if (role) return role;
+
+    console.warn(`[ARENA RANK ROLES] ${config.env} is set but role was not found.`);
   }
 
   const names = new Set((config.fallbackNames || []).map(normalize));
@@ -165,6 +320,7 @@ async function syncArenaRankRoles(client, preferredGuild = null) {
 }
 
 module.exports = {
+  buildArenaLeaderboard,
   getArenaRealTopRankHolders,
   syncArenaRankRoles,
 };
