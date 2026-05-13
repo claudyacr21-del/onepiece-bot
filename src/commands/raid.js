@@ -1095,12 +1095,25 @@ function handleRaidAttack(state, actor) {
   const boss = state.boss;
   const combatLogs = [];
 
+  if (!actor || Number(actor.hp || 0) <= 0) {
+    combatLogs.push("That raid member cannot attack right now.");
+    state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
+    return;
+  }
+
+  if (isMemberOnActionCooldown(actor)) {
+    combatLogs.push(`${actor.name} is still on cooldown.`);
+    state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
+    return;
+  }
+
   const baseDamage = randomInt(
     Math.floor(Number(actor.atk || 1) * 0.85),
     Math.floor(Number(actor.atk || 1) * 1.15)
   );
 
   const damage = applyDamageBoost(baseDamage, actor.passiveBoostsApplied || {});
+
   boss.hp = Math.max(0, Number(boss.hp || 0) - damage);
 
   combatLogs.push(
@@ -1118,6 +1131,7 @@ function handleRaidAttack(state, actor) {
 
   if (target) {
     const bossDamage = randomInt(boss.atkMin, boss.atkMax);
+
     target.hp = Math.max(0, Number(target.hp || 0) - bossDamage);
 
     combatLogs.push(
@@ -1435,7 +1449,6 @@ module.exports = {
         const battleCollector = battleMessage.createMessageComponentCollector({
           time: RAID_ROOM_TIMEOUT_MS,
         });
-
         battleCollector.on("collect", async (button) => {
           if (
             !String(button.customId).startsWith(`raid_act_${battleState.roomId}_`)
@@ -1443,55 +1456,71 @@ module.exports = {
             return;
           }
 
-          const memberIndex = Number(
-            String(button.customId).replace(`raid_act_${battleState.roomId}_`, "")
-          );
-
-          const actor = battleState.members[memberIndex];
-
-          if (!actor || Number(actor.hp || 0) <= 0) {
-            return button.reply({
-              content: "That card can no longer act.",
-              ephemeral: true,
-            });
-          }
-
           if (String(button.user.id) !== hostId) {
             return button.reply({
               content: "Only the raid host can control this raid battle.",
               ephemeral: true,
             });
-          } 
-
-          if (isMemberUsedThisCycle(battleState, actor)) {
-            return button.reply({
-              content:
-                "This raid card already acted. Choose another ready card first.",
-              ephemeral: true,
-            });
           }
 
-          handleRaidAttack(battleState, actor);
+          await button.deferUpdate().catch(() => null);
 
-          if (battleState.finished) {
-            finalizeRaidBattle(battleState);
+          try {
+            const memberIndex = Number(
+              String(button.customId).replace(`raid_act_${battleState.roomId}_`, "")
+            );
 
-            try {
-              deleteRoom(hostId);
-            } catch {}
+            const actor = battleState.members[memberIndex];
 
-            battleCollector.stop("finished");
+            if (!actor || Number(actor.hp || 0) <= 0) {
+              pushBattleLog(battleState, "That card can no longer act.");
 
-            return button.update({
-              embeds: [buildResultEmbed(battleState)],
-              components: [],
-            });
+              return battleMessage.edit({
+                embeds: [buildBattleEmbed(battleState)],
+                components: buildBattleRows(battleState),
+              }).catch(() => null);
+            }
+
+            if (isMemberOnActionCooldown(actor)) {
+              pushBattleLog(battleState, `${actor.name} is still on cooldown.`);
+
+              return battleMessage.edit({
+                embeds: [buildBattleEmbed(battleState)],
+                components: buildBattleRows(battleState),
+              }).catch(() => null);
+            }
+
+            handleRaidAttack(battleState, actor);
+
+            if (battleState.finished) {
+              finalizeRaidBattle(battleState);
+
+              try {
+                deleteRoom(hostId);
+              } catch {}
+
+              battleCollector.stop("finished");
+
+              return battleMessage.edit({
+                embeds: [buildResultEmbed(battleState)],
+                components: [],
+              }).catch(() => null);
+            }
+
+            return battleMessage.edit({
+              embeds: [buildBattleEmbed(battleState)],
+              components: buildBattleRows(battleState),
+            }).catch(() => null);
+          } catch (error) {
+            console.error("[raid battle interaction error]", error);
+
+            pushBattleLog(battleState, "Battle interaction error. Please try again.");
+
+            return battleMessage.edit({
+              embeds: [buildBattleEmbed(battleState)],
+              components: buildBattleRows(battleState),
+            }).catch(() => null);
           }
-
-          return button.update({
-            embeds: [buildBattleEmbed(battleState)],
-            components: buildBattleRows(battleState),
-          });
         });
 
         battleCollector.on("end", async (_, reason) => {
