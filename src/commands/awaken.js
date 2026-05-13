@@ -40,8 +40,14 @@ function findOwnedCardByCodeOnly(cardsOwned, query) {
 }
 
 function findCardTemplateSafe(card) {
+  const code = String(card?.code || "").trim();
+
+  if (code) {
+    const byCode = findCardTemplate(code);
+    if (byCode) return byCode;
+  }
+
   const keys = [
-    card?.code,
     card?.displayName,
     card?.name,
   ]
@@ -67,15 +73,29 @@ function getStageForm(template, stage) {
 
 function getStageCard(card, stage) {
   const template = findCardTemplateSafe(card);
+  const stageKey = getStageKey(stage);
 
   return hydrateCard({
-    ...template,
     ...card,
+
+    // canonical template must win over old/corrupted owned data
+    ...template,
+
     code: template?.code || card?.code,
-    displayName: template?.displayName || card?.displayName || template?.name || card?.name,
+    displayName:
+      template?.displayName ||
+      card?.displayName ||
+      template?.name ||
+      card?.name,
     name: template?.name || card?.name,
+
     evolutionStage: stage,
-    evolutionKey: getStageKey(stage),
+    evolutionKey: stageKey,
+
+    // force canonical image containers from template, not owned card
+    image: template?.image || card?.image || "",
+    stageImages: template?.stageImages || {},
+    evolutionForms: template?.evolutionForms || [],
   });
 }
 
@@ -83,26 +103,24 @@ function getStageImage(card, stage) {
   const stageKey = getStageKey(stage);
   const template = findCardTemplateSafe(card);
   const form = getStageForm(template, stage);
-  const stageCard = getStageCard(card, stage);
 
-  const directStageImage =
+  // 1. canonical form/stage image from card template
+  const templateStageImage =
     form?.image ||
     template?.stageImages?.[stageKey] ||
-    stageCard?.stageImages?.[stageKey];
+    template?.images?.[stageKey] ||
+    template?.forms?.[stageKey]?.image;
 
-  if (directStageImage) return directStageImage;
+  if (templateStageImage) return templateStageImage;
 
-  const assetImage = getCardImage(
-    template?.code || card?.code,
-    stageKey,
-    ""
-  );
+  // 2. exact asset link by owned card code first
+  const cardCode = String(card?.code || template?.code || "").trim();
+  const assetImage = cardCode ? getCardImage(cardCode, stageKey, "") : "";
 
   if (assetImage) return assetImage;
 
-  // Last fallback: use current card image only if specific stage image is missing.
-  // This prevents wrong cross-card fallback images like Gin showing on Cola awaken.
-  return card?.image || template?.image || "";
+  // 3. fallback only to canonical template image
+  return template?.image || "";
 }
 
 function getFormName(card, stage) {
