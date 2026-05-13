@@ -473,7 +473,7 @@ function buildThroneConfirmRows(roomId, userId) {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`raid_throne_confirm_${roomId}_${userId}`)
-        .setLabel("Confirm Join")
+        .setLabel("Join with team")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
         .setCustomId(`raid_throne_cancel_${roomId}_${userId}`)
@@ -483,16 +483,14 @@ function buildThroneConfirmRows(roomId, userId) {
   ];
 }
 
+function getThroneCardDisplayName(card) {
+  return String(card?.displayName || card?.name || "Unknown").trim();
+}
+
 function formatThroneTeamPreview(cards) {
   return cards
-    .map((card, index) => {
-      const rarity = String(card.currentTier || card.rarity || "C").toUpperCase();
-
-      return [
-        `**${index + 1}. ${card.displayName || card.name || "Unknown"}**`,
-      ].join("\n");
-    })
-    .join("\n\n");
+    .map((card) => `🖼️ ${getThroneCardDisplayName(card)}`)
+    .join("\n");
 }
 
 function isThroneRoom(room) {
@@ -1405,13 +1403,8 @@ module.exports = {
 
           await interaction.reply({
             content: [
-              "**Throne Raid Join Confirmation**",
-              "",
-              "You will join this raid with these 3 battle cards:",
-              "",
+              `${interaction.user.username}, this is the team that will be deployed for this battle, press button to confirm`,
               formatThroneTeamPreview(throneCards),
-              "",
-              "Press **Confirm Join** to enter the raid or **Cancel** to stop.",
             ].join("\n"),
             components: buildThroneConfirmRows(room.roomId, userId),
             ephemeral: true,
@@ -1476,8 +1469,7 @@ module.exports = {
 
             await confirmInteraction.update({
               content: [
-                "Joined Throne Raid with:",
-                "",
+                `${interaction.user.username} joined the raid with`,
                 formatThroneTeamPreview(throneCards),
               ].join("\n"),
               components: [],
@@ -1496,9 +1488,10 @@ module.exports = {
             });
 
             await message.channel.send(
-              `${interaction.user.username} joined the Throne Raid with **${throneCards
-                .map((card) => card.displayName || card.name)
-                .join(", ")}**.`
+              [
+                `${interaction.user.username} joined the raid with`,
+                formatThroneTeamPreview(throneCards),
+              ].join("\n")
             );
           } catch (error) {
             return confirmInteraction.update({
