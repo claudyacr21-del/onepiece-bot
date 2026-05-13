@@ -489,7 +489,7 @@ function getThroneCardDisplayName(card) {
 
 function formatThroneTeamPreview(cards) {
   return cards
-    .map((card) => `${getThroneCardDisplayName(card)}`)
+    .map((card) => `🖼️ ${getThroneCardDisplayName(card)}`)
     .join("\n");
 }
 
