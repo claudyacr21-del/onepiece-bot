@@ -1,18 +1,18 @@
-const { getArenaTop3 } = require("./arenaLeaderboard");
+const { getArenaLeaderboard } = require("./arenaLeaderboard");
 
 const ROLE_CONFIG = [
   {
-    position: 1,
+    rank: 1,
     env: "ARENA_RANK_1_ROLE_ID",
     fallbackNames: ["Pirate King", "Arena Rank 1", "Rank 1"],
   },
   {
-    position: 2,
+    rank: 2,
     env: "ARENA_RANK_2_ROLE_ID",
     fallbackNames: ["Grand Champion", "Yonko", "Arena Rank 2", "Rank 2"],
   },
   {
-    position: 3,
+    rank: 3,
     env: "ARENA_RANK_3_ROLE_ID",
     fallbackNames: ["Champion", "Warlord", "Arena Rank 3", "Rank 3"],
   },
@@ -20,6 +20,17 @@ const ROLE_CONFIG = [
 
 function normalize(value) {
   return String(value || "").toLowerCase().trim();
+}
+
+function getArenaRealTopRankHolders() {
+  return getArenaLeaderboard()
+    .filter((entry) => !entry.isBot && [1, 2, 3].includes(Number(entry.rank)))
+    .map((entry) => ({
+      userId: String(entry.userId),
+      username: entry.username || "Unknown",
+      rank: Number(entry.rank),
+      points: Number(entry.points || 0),
+    }));
 }
 
 function getConfiguredRoleConfigs() {
@@ -68,17 +79,14 @@ async function resolveGuilds(client, preferredGuild = null) {
 async function syncArenaRankRoles(client, preferredGuild = null) {
   if (!client?.guilds?.cache) return;
 
-  const top3 = getArenaTop3();
+  const rankHolders = getArenaRealTopRankHolders();
   const configs = getConfiguredRoleConfigs();
   const guilds = await resolveGuilds(client, preferredGuild);
 
-  const desiredByUserId = new Map();
+  const desiredRankByUserId = new Map();
 
-  for (const entry of top3) {
-    const config = configs.find((role) => role.position === Number(entry.rank));
-    if (!config) continue;
-
-    desiredByUserId.set(String(entry.userId), config.position);
+  for (const holder of rankHolders) {
+    desiredRankByUserId.set(String(holder.userId), Number(holder.rank));
   }
 
   for (const guild of guilds) {
@@ -91,7 +99,7 @@ async function syncArenaRankRoles(client, preferredGuild = null) {
       continue;
     }
 
-    const resolved = [];
+    const resolvedRoles = [];
 
     for (const config of configs) {
       const role = await resolveRole(guild, config);
@@ -106,41 +114,49 @@ async function syncArenaRankRoles(client, preferredGuild = null) {
         continue;
       }
 
-      resolved.push({
+      resolvedRoles.push({
         ...config,
         role,
       });
     }
 
-    if (!resolved.length) continue;
+    if (!resolvedRoles.length) continue;
 
-    const allRoleIds = new Set(resolved.map((entry) => String(entry.role.id)));
+    const allRankRoleIds = new Set(
+      resolvedRoles.map((entry) => String(entry.role.id))
+    );
 
     await guild.members.fetch().catch(() => null);
 
     for (const member of guild.members.cache.values()) {
       if (member.user?.bot) continue;
 
-      const desiredPosition = desiredByUserId.get(String(member.id)) || null;
-      const desiredRole = desiredPosition
-        ? resolved.find((entry) => entry.position === desiredPosition)
+      const desiredRank = desiredRankByUserId.get(String(member.id)) || null;
+      const desiredRole = desiredRank
+        ? resolvedRoles.find((entry) => Number(entry.rank) === Number(desiredRank))
         : null;
 
       const desiredRoleId = desiredRole ? String(desiredRole.role.id) : null;
 
-      for (const roleId of allRoleIds) {
+      for (const roleId of allRankRoleIds) {
         const hasRole = member.roles.cache.has(roleId);
         const shouldHave = desiredRoleId === roleId;
 
         if (hasRole && !shouldHave) {
           await member.roles.remove(roleId, "Arena rank role sync").catch((error) => {
-            console.warn("[ARENA RANK ROLES] remove failed:", error?.message || error);
+            console.warn(
+              `[ARENA RANK ROLES] Failed removing role ${roleId} from ${member.user.tag}:`,
+              error?.message || error
+            );
           });
         }
 
         if (!hasRole && shouldHave) {
           await member.roles.add(roleId, "Arena rank role sync").catch((error) => {
-            console.warn("[ARENA RANK ROLES] add failed:", error?.message || error);
+            console.warn(
+              `[ARENA RANK ROLES] Failed adding role ${roleId} to ${member.user.tag}:`,
+              error?.message || error
+            );
           });
         }
       }
@@ -149,5 +165,6 @@ async function syncArenaRankRoles(client, preferredGuild = null) {
 }
 
 module.exports = {
+  getArenaRealTopRankHolders,
   syncArenaRankRoles,
 };
