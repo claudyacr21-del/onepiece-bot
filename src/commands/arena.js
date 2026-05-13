@@ -18,10 +18,7 @@ const {
 const { syncArenaRankRoles } = require("../utils/arenaRankRoles");
 
 const { ITEMS, cloneItem } = require("../data/items");
-const {
-  getArenaRankForUser,
-  formatArenaEntryRank,
-} = require("../utils/arenaLeaderboard");
+const { formatArenaEntryRank } = require("../utils/arenaLeaderboard");
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const ARENA_DAILY_LIMIT = 5;
@@ -451,10 +448,9 @@ function updateArenaPlayer(message, result) {
 
   return {
     ...updatedArena,
-    arenaRank: getArenaRankForUser(message.author.id),
+    arenaRank: getArenaRankForUser(message, message.author.id),
     streakRewardLine: streakBoxReward.rewardLine,
   };
-}
 
 function buildArenaLobbyEmbed(player, opponents) {
   const arena = player.arena || {};
@@ -473,7 +469,7 @@ function buildArenaLobbyEmbed(player, opponents) {
       [
         "Select your arena opponent below.",
         "",
-        `**Your Rank:** #${getArenaRankForUser(player.userId || player.id || "")}`,
+        `**Your Rank:** #${player.arenaRank || ARENA_TOTAL_RANK_SLOTS}`,
         `**Your Points:** ${playerPoints}`,
         `**Daily Battles Left:** ${usesLeft}/${ARENA_DAILY_LIMIT}`,
         "",
@@ -576,7 +572,7 @@ function buildArenaResultEmbed({ result, player, opponent, arena, logs, expLines
         `**You:** ${player.username || "Unknown"}`,
         `**Opponent:** ${opponent.username || "Unknown"}`,
         "",
-        `**Your Rank:** ${formatArenaRank(arena?.points || 0)}`,
+        `**Your Rank:** #${arena?.arenaRank || ARENA_TOTAL_RANK_SLOTS}`,
         `**Arena Points:** ${Number(arena?.points || 0)}`,
         `**Daily Battles Left:** ${getArenaUsesLeft(arena)}/${ARENA_DAILY_LIMIT}`,
         `**Record:** ${Number(arena?.wins || 0)}W / ${Number(arena?.losses || 0)}L`,
@@ -1072,56 +1068,6 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
     if (aliveCount(myTeam) <= 0) {
       ended = true;
       result = "lose";
-      currentArena = updateArenaPlayer(message, result);
-      const expLines = applyArenaExp(message, myTeam, false);
-
-      await interaction.update({
-        embeds: [
-          buildArenaResultEmbed({
-            result,
-            player,
-            opponent,
-            arena: currentArena,
-            logs,
-            expLines,
-          }),
-        ],
-        components: [],
-      });
-
-      collector.stop("lose");
-      return;
-    }
-
-    if (aliveCount(enemyTeam) <= 0) {
-      ended = true;
-      result = "win";
-      logs.push("🏆 You won the arena battle!");
-      currentArena = updateArenaPlayer(message, result);
-      const expLines = applyArenaExp(message, myTeam, true);
-
-      await interaction.update({
-        embeds: [
-          buildArenaResultEmbed({
-            result,
-            player,
-            opponent,
-            arena: currentArena,
-            logs,
-            expLines,
-          }),
-        ],
-        components: [],
-      });
-
-      collector.stop("win");
-      return;
-    }
-
-    if (aliveCount(myTeam) <= 0) {
-      ended = true;
-      result = "lose";
-      logs.push("💀 You lost the arena battle.");
       currentArena = updateArenaPlayer(message, result);
       const expLines = applyArenaExp(message, myTeam, false);
 
