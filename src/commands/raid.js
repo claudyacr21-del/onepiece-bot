@@ -830,8 +830,8 @@ function getRaidRewardConfig(tier, boss = null) {
     },
 
     A: {
-      berries: 5000,
-      gems: 10,
+      berries: 10000,
+      gems: 15,
       fragments: 1,
       weaponChance: 7,
       fruitChance: 3,
