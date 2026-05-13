@@ -1,4 +1,4 @@
-const { readPlayers } = require("../playerStore");
+const { getArenaTop3 } = require("./arenaLeaderboard");
 
 const ROLE_CONFIG = [
   {
@@ -9,56 +9,17 @@ const ROLE_CONFIG = [
   {
     position: 2,
     env: "ARENA_RANK_2_ROLE_ID",
-    fallbackNames: ["Yonko", "Arena Rank 2", "Rank 2"],
+    fallbackNames: ["Grand Champion", "Yonko", "Arena Rank 2", "Rank 2"],
   },
   {
     position: 3,
     env: "ARENA_RANK_3_ROLE_ID",
-    fallbackNames: ["Warlord", "Arena Rank 3", "Rank 3"],
+    fallbackNames: ["Champion", "Warlord", "Arena Rank 3", "Rank 3"],
   },
 ];
 
 function normalize(value) {
   return String(value || "").toLowerCase().trim();
-}
-
-function getArenaLeaderboardTop3() {
-  const players = readPlayers() || {};
-
-  return Object.entries(players)
-    .map(([userId, player]) => {
-      const arena = player?.arena || {};
-
-      return {
-        userId: String(userId),
-        username: player?.username || "Unknown",
-        points: Number(arena.points || 0),
-        wins: Number(arena.wins || 0),
-        losses: Number(arena.losses || 0),
-        matches: Number(arena.matches || 0),
-        streak: Number(arena.streak || 0),
-      };
-    })
-    .filter((entry) => {
-      return (
-        entry.points > 0 ||
-        entry.wins > 0 ||
-        entry.losses > 0 ||
-        entry.matches > 0
-      );
-    })
-    .sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      if (a.losses !== b.losses) return a.losses - b.losses;
-      if (b.streak !== a.streak) return b.streak - a.streak;
-      return String(a.username).localeCompare(String(b.username));
-    })
-    .slice(0, 3)
-    .map((entry, index) => ({
-      ...entry,
-      position: index + 1,
-    }));
 }
 
 function getConfiguredRoleConfigs() {
@@ -72,19 +33,16 @@ async function resolveRole(guild, config) {
   if (!guild) return null;
 
   if (config.roleId) {
-    const byId =
+    const role =
       guild.roles.cache.get(config.roleId) ||
       (await guild.roles.fetch(config.roleId).catch(() => null));
 
-    if (byId) return byId;
+    if (role) return role;
   }
 
   const names = new Set((config.fallbackNames || []).map(normalize));
 
-  return (
-    guild.roles.cache.find((role) => names.has(normalize(role.name))) ||
-    null
-  );
+  return guild.roles.cache.find((role) => names.has(normalize(role.name))) || null;
 }
 
 async function resolveGuilds(client, preferredGuild = null) {
@@ -104,33 +62,23 @@ async function resolveGuilds(client, preferredGuild = null) {
     return guild ? [guild] : [];
   }
 
-  if (preferredGuild) return [preferredGuild];
-
-  return [...client.guilds.cache.values()];
+  return preferredGuild ? [preferredGuild] : [...client.guilds.cache.values()];
 }
 
 async function syncArenaRankRoles(client, preferredGuild = null) {
   if (!client?.guilds?.cache) return;
 
-  const top3 = getArenaLeaderboardTop3();
+  const top3 = getArenaTop3();
   const configs = getConfiguredRoleConfigs();
-
-  if (!configs.length) return;
-
-  const desiredRoleByUserId = new Map();
-
-  for (const player of top3) {
-    const config = configs.find((entry) => entry.position === player.position);
-    if (!config) continue;
-
-    desiredRoleByUserId.set(String(player.userId), config);
-  }
-
   const guilds = await resolveGuilds(client, preferredGuild);
 
-  if (!guilds.length) {
-    console.warn("[ARENA RANK ROLES] No guild found for arena rank role sync.");
-    return;
+  const desiredByUserId = new Map();
+
+  for (const entry of top3) {
+    const config = configs.find((role) => role.position === Number(entry.rank));
+    if (!config) continue;
+
+    desiredByUserId.set(String(entry.userId), config.position);
   }
 
   for (const guild of guilds) {
@@ -139,70 +87,60 @@ async function syncArenaRankRoles(client, preferredGuild = null) {
       (await guild.members.fetchMe().catch(() => null));
 
     if (!me?.permissions?.has("ManageRoles")) {
-      console.warn(`[ARENA RANK ROLES] Missing Manage Roles permission in ${guild.name}`);
+      console.warn(`[ARENA RANK ROLES] Missing Manage Roles in ${guild.name}`);
       continue;
     }
 
-    const resolvedRoles = [];
+    const resolved = [];
 
     for (const config of configs) {
       const role = await resolveRole(guild, config);
 
       if (!role) {
-        console.warn(
-          `[ARENA RANK ROLES] Role not found for position ${config.position}. Set ${config.env} or create fallback role.`
-        );
+        console.warn(`[ARENA RANK ROLES] Role not found for ${config.env}`);
         continue;
       }
 
       if (role.position >= me.roles.highest.position) {
-        console.warn(
-          `[ARENA RANK ROLES] Bot role must be above ${role.name} in ${guild.name}.`
-        );
+        console.warn(`[ARENA RANK ROLES] Bot role must be above ${role.name}`);
         continue;
       }
 
-      resolvedRoles.push({
+      resolved.push({
         ...config,
         role,
       });
     }
 
-    if (!resolvedRoles.length) continue;
+    if (!resolved.length) continue;
 
-    const allRankRoleIds = new Set(resolvedRoles.map((entry) => String(entry.role.id)));
+    const allRoleIds = new Set(resolved.map((entry) => String(entry.role.id)));
 
     await guild.members.fetch().catch(() => null);
 
     for (const member of guild.members.cache.values()) {
       if (member.user?.bot) continue;
 
-      const desiredConfig = desiredRoleByUserId.get(String(member.id)) || null;
-      const desiredResolved = desiredConfig
-        ? resolvedRoles.find((entry) => entry.position === desiredConfig.position)
+      const desiredPosition = desiredByUserId.get(String(member.id)) || null;
+      const desiredRole = desiredPosition
+        ? resolved.find((entry) => entry.position === desiredPosition)
         : null;
 
-      const desiredRoleId = desiredResolved ? String(desiredResolved.role.id) : null;
+      const desiredRoleId = desiredRole ? String(desiredRole.role.id) : null;
 
-      for (const roleId of allRankRoleIds) {
+      for (const roleId of allRoleIds) {
         const hasRole = member.roles.cache.has(roleId);
-        const shouldHaveRole = desiredRoleId === roleId;
+        const shouldHave = desiredRoleId === roleId;
 
-        if (hasRole && !shouldHaveRole) {
-          await member.roles.remove(roleId, "Arena top rank role sync").catch((error) => {
-            console.warn(
-              `[ARENA RANK ROLES] Failed removing role ${roleId} from ${member.user.tag}:`,
-              error?.message || error
-            );
+        if (hasRole && !shouldHave) {
+          await member.roles.remove(roleId, "Arena rank role sync").catch((error) => {
+            console.warn("[ARENA RANK ROLES] remove failed:", error?.message || error);
           });
         }
 
-        if (!hasRole && shouldHaveRole) {
-          await member.roles.add(roleId, "Arena top rank role sync").catch((error) => {
-            console.warn(
-              `[ARENA RANK ROLES] Failed adding role ${roleId} to ${member.user.tag}:`,
-              error?.message || error
-            );
+        if (!hasRole && shouldHave) {
+          await member.roles.add(roleId, "Arena rank role sync").catch((error) => {
+            console.warn("[ARENA RANK ROLES] add failed:", error?.message || error);
           });
         }
       }
@@ -211,6 +149,5 @@ async function syncArenaRankRoles(client, preferredGuild = null) {
 }
 
 module.exports = {
-  getArenaLeaderboardTop3,
   syncArenaRankRoles,
 };
