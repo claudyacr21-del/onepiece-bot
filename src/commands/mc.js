@@ -368,6 +368,14 @@ function getWeaponPercentAtLevel(basePercent, level) {
   };
 }
 
+function dedupeTextList(list) {
+  return [...new Set(
+    (Array.isArray(list) ? list : [])
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+  )];
+}
+
 function addWeaponToPool(pool, template, options = {}) {
   if (!template) return;
 
@@ -384,8 +392,19 @@ function addWeaponToPool(pool, template, options = {}) {
   existing.amount += Math.max(0, Number(options.amount || 0));
 
   if (options.equippedOn) {
-    existing.equippedOn.push(options.equippedOn);
+    const equippedName = String(options.equippedOn || "").trim();
+
+    if (
+      equippedName &&
+      !existing.equippedOn.some(
+        (name) => normalize(name) === normalize(equippedName)
+      )
+    ) {
+      existing.equippedOn.push(equippedName);
+    }
   }
+
+  existing.equippedOn = dedupeTextList(existing.equippedOn);
 
   existing.bestUpgradeLevel = Math.max(
     Number(existing.bestUpgradeLevel || 0),
@@ -596,10 +615,10 @@ function buildWeaponEmbed(ownerName, player, weapon, index = 0, total = 1) {
     weapon.bestUpgradeLevel || 0
   );
 
-  const equippedText =
-    Array.isArray(weapon.equippedOn) && weapon.equippedOn.length
-      ? weapon.equippedOn.join(", ")
-      : "Not equipped";
+  const equippedNames = dedupeTextList(weapon.equippedOn);
+  const equippedText = equippedNames.length
+    ? equippedNames.join(", ")
+    : "Not equipped";
 
   const fragments = getFragmentAmount(player, weapon);
 
