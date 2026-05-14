@@ -60,16 +60,33 @@ function getWeaponSlotLimit(card) {
 
 function splitCardAndWeaponInput(rawArgs) {
   if (!rawArgs.length) return null;
+
   const joined = rawArgs.join(" ").trim();
-  const weaponCandidates = [...weapons].sort(
-    (a, b) => normalize(b.name).length - normalize(a.name).length
-  );
+  const normalizedJoined = normalize(joined);
+
+  const weaponCandidates = [...weapons]
+    .filter((weapon) => weapon?.name)
+    .sort((a, b) => normalize(b.name).length - normalize(a.name).length);
 
   for (const weapon of weaponCandidates) {
-    if (!normalize(joined).endsWith(normalize(weapon.name))) continue;
-    const cardName = joined.slice(0, joined.length - weapon.name.length).trim();
+    const weaponName = normalize(weapon.name);
+
+    if (!weaponName) continue;
+
+    if (normalizedJoined === weaponName) continue;
+
+    if (!normalizedJoined.endsWith(weaponName)) continue;
+
+    const cardName = joined
+      .slice(0, joined.length - String(weapon.name || "").length)
+      .trim();
+
     if (!cardName) continue;
-    return { cardName, weaponName: weapon.name };
+
+    return {
+      cardName,
+      weaponName: weapon.name,
+    };
   }
 
   return null;
@@ -77,16 +94,13 @@ function splitCardAndWeaponInput(rawArgs) {
 
 function findWeaponTemplate(query) {
   const q = normalize(query);
+
+  if (!q) return null;
+
   return (
-    weapons.find((w) =>
-      [w.name, w.code, w.type].filter(Boolean).map(normalize).includes(q)
-    ) ||
-    weapons.find((w) =>
-      [w.name, w.code, w.type]
-        .filter(Boolean)
-        .map(normalize)
-        .some((x) => x.includes(q))
-    ) ||
+    weapons.find((weapon) => normalize(weapon.name) === q) ||
+    weapons.find((weapon) => normalize(weapon.name).startsWith(q)) ||
+    weapons.find((weapon) => normalize(weapon.name).includes(q)) ||
     null
   );
 }
