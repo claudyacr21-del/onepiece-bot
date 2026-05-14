@@ -1,9 +1,19 @@
 const { EmbedBuilder } = require("discord.js");
 const { readPlayers } = require("../playerStore");
-const { getRoom, listRooms, getMissingUsers } = require("../utils/partyRooms");
+const {
+  getRoom,
+  listRooms,
+  getMissingUsers,
+} = require("../utils/partyRooms");
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function userMention(userId) {
+  const id = String(userId || "").replace(/\D/g, "");
+
+  return id ? `<@${id}>` : String(userId || "Unknown");
 }
 
 function findRelevantRoom(userId) {
@@ -26,38 +36,15 @@ function findRelevantRoom(userId) {
   );
 }
 
-async function resolveUsername(message, userId) {
-  const id = String(userId);
-
-  try {
-    const cachedMember = message.guild?.members?.cache?.get(id);
-
-    if (cachedMember?.user?.username) {
-      return cachedMember.user.username;
-    }
-
-    const fetchedMember = message.guild
-      ? await message.guild.members.fetch(id).catch(() => null)
-      : null;
-
-    if (fetchedMember?.user?.username) {
-      return fetchedMember.user.username;
-    }
-
-    const cachedUser = message.client?.users?.cache?.get(id);
-
-    if (cachedUser?.username) {
-      return cachedUser.username;
-    }
-
-    const fetchedUser = await message.client.users.fetch(id).catch(() => null);
-
-    if (fetchedUser?.username) {
-      return fetchedUser.username;
-    }
-  } catch (_) {}
-
-  return id;
+function getMentionAllowedUsers(...ids) {
+  return [
+    ...new Set(
+      ids
+        .flat()
+        .map((id) => String(id || "").replace(/\D/g, ""))
+        .filter(Boolean)
+    ),
+  ];
 }
 
 module.exports = {
@@ -73,14 +60,20 @@ module.exports = {
       const savedMembers = ensureArray(players?.[hostId]?.raidTeam?.members).map(String);
 
       if (!savedMembers.length) {
-        return message.reply("You do not have an active raid/party room or saved raid team.");
+        return message.reply(
+          "You do not have an active raid/party room or saved raid team."
+        );
       }
 
-      const savedLines = await Promise.all(
-        savedMembers.map(async (id, i) => `${i + 1}. ${await resolveUsername(message, id)}`)
+      const savedLines = savedMembers.map(
+        (id, index) => `${index + 1}. ${userMention(id)}`
       );
 
       return message.reply({
+        allowedMentions: {
+          users: getMentionAllowedUsers(savedMembers),
+          repliedUser: false,
+        },
         embeds: [
           new EmbedBuilder()
             .setColor(0xe67e22)
@@ -110,30 +103,37 @@ module.exports = {
         ensureArray(room.participants).map((p) => String(p.userId))
       );
 
-      missingIds = ensureArray(room.whitelist).filter((id) => !joined.has(String(id)));
+      missingIds = ensureArray(room.whitelist).filter(
+        (id) => !joined.has(String(id))
+      );
     }
 
-    const joinedLines = ensureArray(room.participants).length
-      ? await Promise.all(
-          ensureArray(room.participants).map(async (p, i) => {
-            const username = await resolveUsername(message, p.userId);
-            const cards = ensureArray(p.selectedCards)
-              .map((card) => card.name || card.code)
-              .filter(Boolean)
-              .join(", ");
+    const joinedUserIds = ensureArray(room.participants).map((p) =>
+      String(p.userId)
+    );
 
-            return `✅ ${i + 1}. ${username}${cards ? ` • ${cards}` : ""}`;
-          })
-        )
+    const joinedLines = ensureArray(room.participants).length
+      ? ensureArray(room.participants).map((participant, index) => {
+          const cards = ensureArray(participant.selectedCards)
+            .map((card) => card.name || card.displayName || card.code)
+            .filter(Boolean)
+            .join(", ");
+
+          return `✅ ${index + 1}. ${userMention(participant.userId)}${
+            cards ? ` • ${cards}` : ""
+          }`;
+        })
       : ["None"];
 
     const missingLines = missingIds.length
-      ? await Promise.all(
-          missingIds.map(async (id, i) => `❌ ${i + 1}. ${await resolveUsername(message, id)}`)
-        )
+      ? missingIds.map((id, index) => `❌ ${index + 1}. ${userMention(id)}`)
       : ["Everyone in the team has already joined battle."];
 
     return message.reply({
+      allowedMentions: {
+        users: getMentionAllowedUsers(missingIds, joinedUserIds),
+        repliedUser: false,
+      },
       embeds: [
         new EmbedBuilder()
           .setColor(0xe67e22)
