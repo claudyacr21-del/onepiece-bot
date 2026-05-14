@@ -70,6 +70,9 @@ module.exports = {
       );
 
       return message.reply({
+        content: savedMembers.length
+          ? `📣 Raid team reminder: ${savedMembers.map((id) => userMention(id)).join(" ")}`
+          : null,
         allowedMentions: {
           users: getMentionAllowedUsers(savedMembers),
           repliedUser: false,
@@ -130,8 +133,11 @@ module.exports = {
       : ["Everyone in the team has already joined battle."];
 
     return message.reply({
+      content: missingIds.length
+        ? `📣 Missing raid members: ${missingIds.map((id) => userMention(id)).join(" ")}`
+        : null,
       allowedMentions: {
-        users: getMentionAllowedUsers(missingIds, joinedUserIds),
+        users: getMentionAllowedUsers(missingIds),
         repliedUser: false,
       },
       embeds: [
