@@ -9,17 +9,17 @@ const ROLE_CONFIG = [
   {
     rank: 1,
     env: "ARENA_RANK_1_ROLE_ID",
-    fallbackNames: ["Pirate King", "Arena Rank 1", "Rank 1"],
+    fallbackNames: ["Pirate King"],
   },
   {
     rank: 2,
     env: "ARENA_RANK_2_ROLE_ID",
-    fallbackNames: ["Grand Champion", "Yonko", "Arena Rank 2", "Rank 2"],
+    fallbackNames: ["Sea Emperor"],
   },
   {
     rank: 3,
     env: "ARENA_RANK_3_ROLE_ID",
-    fallbackNames: ["Champion", "Warlord", "Arena Rank 3", "Rank 3"],
+    fallbackNames: ["Grand Champion"],
   },
 ];
 
@@ -175,8 +175,12 @@ function buildArenaLeaderboard() {
     }));
 }
 
-function getArenaRealTopRankHolders() {
-  return buildArenaLeaderboard()
+function getArenaRealTopRankHolders(leaderboardSnapshot = null) {
+  const leaderboard = Array.isArray(leaderboardSnapshot)
+    ? leaderboardSnapshot
+    : buildArenaLeaderboard();
+
+  return leaderboard
     .filter((entry) => !entry.isBot && [1, 2, 3].includes(Number(entry.rank)))
     .map((entry) => ({
       userId: String(entry.userId),
@@ -231,10 +235,17 @@ async function resolveGuilds(client, preferredGuild = null) {
   return preferredGuild ? [preferredGuild] : [...client.guilds.cache.values()];
 }
 
-async function syncArenaRankRoles(client, preferredGuild = null) {
+async function fetchMemberSafe(guild, userId) {
+  return (
+    guild.members.cache.get(String(userId)) ||
+    (await guild.members.fetch(String(userId)).catch(() => null))
+  );
+}
+
+async function syncArenaRankRoles(client, preferredGuild = null, leaderboardSnapshot = null) {
   if (!client?.guilds?.cache) return;
 
-  const rankHolders = getArenaRealTopRankHolders();
+  const rankHolders = getArenaRealTopRankHolders(leaderboardSnapshot);
   const configs = getConfiguredRoleConfigs();
   const guilds = await resolveGuilds(client, preferredGuild);
 
@@ -243,6 +254,11 @@ async function syncArenaRankRoles(client, preferredGuild = null) {
   for (const holder of rankHolders) {
     desiredRankByUserId.set(String(holder.userId), Number(holder.rank));
   }
+
+  console.log(
+    "[ARENA RANK ROLES] Desired holders:",
+    rankHolders.map((x) => `${x.username}#${x.rank}:${x.points}`).join(" | ") || "none"
+  );
 
   for (const guild of guilds) {
     const me =
@@ -281,7 +297,18 @@ async function syncArenaRankRoles(client, preferredGuild = null) {
       resolvedRoles.map((entry) => String(entry.role.id))
     );
 
-    await guild.members.fetch().catch(() => null);
+    await guild.members.fetch().catch((error) => {
+      console.warn(
+        `[ARENA RANK ROLES] Full member fetch failed in ${guild.name}:`,
+        error?.message || error
+      );
+    });
+
+    const desiredUserIds = [...desiredRankByUserId.keys()];
+
+    for (const userId of desiredUserIds) {
+      await fetchMemberSafe(guild, userId);
+    }
 
     for (const member of guild.members.cache.values()) {
       if (member.user?.bot) continue;

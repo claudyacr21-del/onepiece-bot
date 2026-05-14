@@ -57,10 +57,18 @@ function queueArenaRankRoleSync(message) {
   if (!message?.client || !message?.guild) return;
 
   setTimeout(() => {
-    syncArenaRankRoles(message.client, message.guild).catch((error) => {
-      console.error("[ARENA RANK ROLES SYNC ERROR]", error);
-    });
-  }, 0);
+    try {
+      const leaderboardSnapshot = buildArenaVirtualLeaderboard(message);
+
+      syncArenaRankRoles(message.client, message.guild, leaderboardSnapshot).catch(
+        (error) => {
+          console.error("[ARENA RANK ROLES SYNC ERROR]", error);
+        }
+      );
+    } catch (error) {
+      console.error("[ARENA RANK ROLES SNAPSHOT ERROR]", error);
+    }
+  }, 1000);
 }
 
 function getDateKey() {
