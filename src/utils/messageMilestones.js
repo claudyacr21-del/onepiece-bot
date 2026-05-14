@@ -12,9 +12,9 @@ const MESSAGE_MILESTONE_REWARDS = [
     target: 350,
   },
   {
-    key: "weaponScroll",
-    emoji: "🗡️",
-    label: "Weapon Scroll",
+    key: "rareResourceBox",
+    emoji: "📦",
+    label: "Rare Resource Box",
     target: 750,
   },
   {
