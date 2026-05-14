@@ -330,12 +330,7 @@ function buildBattleRoster(room) {
       })
     )
     .filter(Boolean)
-    .sort((a, b) => {
-      const speedDiff = Number(b.speed || 0) - Number(a.speed || 0);
-      if (speedDiff !== 0) return speedDiff;
-
-      return Number(b.currentPower || 0) - Number(a.currentPower || 0);
-    });
+    .sort((a, b) => Number(b.currentPower || 0) - Number(a.currentPower || 0));
 }
 
 function getRaidBossImage(code) {
@@ -627,6 +622,19 @@ function isMemberOnActionCooldown(member) {
 }
 
 function tickActionCooldownsAfterAttack(state, actor) {
+  const aliveMembers = getAliveMembers(state);
+
+  // If only 1 battle card remains alive, raid cooldown is disabled.
+  // This lets the last card keep attacking without pressing Next Turn.
+  if (aliveMembers.length <= 1) {
+    for (const member of aliveMembers) {
+      member.actionCooldown = 0;
+    }
+
+    state.turnCount = Number(state.turnCount || 0) + 1;
+    return;
+  }
+
   for (const member of ensureArray(state.members)) {
     if (Number(member.hp || 0) <= 0) {
       member.actionCooldown = 0;
@@ -648,7 +656,9 @@ function tickActionCooldownsAfterAttack(state, actor) {
 function canAdvanceRaidTurn(state) {
   const alive = getAliveMembers(state);
 
-  if (!alive.length) return false;
+  // If only 1 card is alive, do not show Next Turn.
+  // Last card can attack repeatedly.
+  if (alive.length <= 1) return false;
 
   return alive.every((member) => isMemberOnActionCooldown(member));
 }
@@ -1324,7 +1334,6 @@ function performRaidBossAttack(state, target, combatLogs) {
 }
 
 function handleRaidAttack(state, actor) {
-  const boss = state.boss;
   const combatLogs = [];
 
   if (!actor || Number(actor.hp || 0) <= 0) {
@@ -1339,43 +1348,23 @@ function handleRaidAttack(state, actor) {
     return;
   }
 
-  const actorSpeed = Number(actor.speed || 0);
-  const bossSpeed = Number(boss.speed || 0);
-  const actorFirst = actorSpeed >= bossSpeed;
+  // Raid does not use SPD turn order.
+  // Selected raid card always attacks first.
+  performRaidMemberAttack(state, actor, combatLogs);
 
-  if (actorFirst) {
-    combatLogs.push(`⚡ ${actor.name} moved first by SPD.`);
-    performRaidMemberAttack(state, actor, combatLogs);
-
-    if (checkEndState(state)) {
-      state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
-      return;
-    }
-
-    performRaidBossAttack(state, actor, combatLogs);
-
-    if (Number(actor.hp || 0) > 0) {
-      tickActionCooldownsAfterAttack(state, actor);
-    }
-  } else {
-    combatLogs.push(`⚡ ${boss.name} moved first by SPD.`);
-    performRaidBossAttack(state, actor, combatLogs);
-
-    if (Number(actor.hp || 0) <= 0) {
-      state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
-      checkEndState(state);
-      return;
-    }
-
-    performRaidMemberAttack(state, actor, combatLogs);
-
-    if (checkEndState(state)) {
-      state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
-      return;
-    }
-
-    tickActionCooldownsAfterAttack(state, actor);
+  if (checkEndState(state)) {
+    state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
+    return;
   }
+
+  // Boss counter target is random among alive raid cards.
+  const target = chooseBossTarget(state);
+
+  if (target) {
+    performRaidBossAttack(state, target, combatLogs);
+  }
+
+  tickActionCooldownsAfterAttack(state, actor);
 
   state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
 
