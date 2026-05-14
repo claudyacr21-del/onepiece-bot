@@ -876,20 +876,67 @@ function getRaidRewardConfig(tier, boss = null) {
 
 function findLinkedRaidItem(db, boss) {
   const list = flattenDb(db);
-  const bossCode = normalizeText(boss?.code || boss?.bossCode || "");
-  const bossName = normalizeText(boss?.name || boss?.bossName || "");
+
+  const bossCode = normalizeText(
+    boss?.code ||
+      boss?.bossCode ||
+      boss?.cardCode ||
+      boss?.id ||
+      ""
+  );
+
+  const bossName = normalizeText(
+    boss?.name ||
+      boss?.bossName ||
+      boss?.displayName ||
+      boss?.cardName ||
+      ""
+  );
+
+  if (!bossCode && !bossName) return null;
+
+  function getItemOwnerCodes(item) {
+    return [
+      item.ownerCode,
+      item.cardCode,
+      item.characterCode,
+      item.knownUserCode,
+      item.userCode,
+      item.equippedByCode,
+    ]
+      .map(normalizeText)
+      .filter(Boolean);
+  }
+
+  function getItemOwnerNames(item) {
+    return [
+      item.ownerName,
+      item.cardName,
+      item.characterName,
+      item.knownUser,
+      item.knownUserName,
+      item.user,
+      item.userName,
+      item.owner,
+      item.ownerDisplayName,
+      item.equippedBy,
+    ]
+      .map(normalizeText)
+      .filter(Boolean);
+  }
 
   return (
-    list.find(
-      (item) =>
-        normalizeText(item.ownerCode || item.owner || item.cardCode) === bossCode
-    ) ||
-    list.find(
-      (item) =>
-        normalizeText(item.ownerName || item.owner || item.cardName) === bossName
-    ) ||
-    list.find((item) => bossCode && normalizeText(item.code || "").includes(bossCode)) ||
-    list.find((item) => bossName && normalizeText(item.name || "").includes(bossName)) ||
+    list.find((item) => bossCode && getItemOwnerCodes(item).includes(bossCode)) ||
+    list.find((item) => bossName && getItemOwnerNames(item).includes(bossName)) ||
+    list.find((item) => {
+      const code = normalizeText(item.code || "");
+      const name = normalizeText(item.name || "");
+
+      return (
+        (bossCode && code.includes(bossCode)) ||
+        (bossName && name.includes(bossName))
+      );
+    }) ||
     null
   );
 }
