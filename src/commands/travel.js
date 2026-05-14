@@ -1,4 +1,10 @@
-const { EmbedBuilder } = require("discord.js");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} = require("discord.js");
+
 const { getPlayer, updatePlayer } = require("../playerStore");
 const {
   getCurrentIsland,
@@ -9,6 +15,8 @@ const {
 const { getShipByCode } = require("../data/ships");
 
 const BASE_TRAVEL_COOLDOWN_MS = 60 * 60 * 1000;
+const ISLANDS_PER_PAGE = 5;
+const PAGINATION_TIMEOUT_MS = 2 * 60 * 1000;
 
 function formatRemaining(ms) {
   if (ms <= 0) return "Now";
@@ -120,17 +128,119 @@ function getTravelReadiness(player, currentIsland, nextIsland, ship, now) {
 
   const bossCleared = isIslandBossRouteCleared(player, currentIsland);
   const shipReady = ship.nextTravelAt <= now;
-  const shipTierReady = Number(ship.tier || 1) >= Number(nextIsland.requiredShipTier || 1);
+  const shipTierReady =
+    Number(ship.tier || 1) >= Number(nextIsland.requiredShipTier || 1);
 
-  const lines = [
+  return [
     `Next Island: **${nextIsland.name}**`,
     `Required Ship Tier: **${nextIsland.requiredShipTier || 1}**`,
     `Boss Gate: **${bossCleared ? "Cleared" : "Not Cleared"}**`,
     `Ship Cooldown: **${shipReady ? "Ready" : formatRemaining(ship.nextTravelAt - now)}**`,
     `Ship Tier: **${shipTierReady ? "Ready" : `Need Tier ${nextIsland.requiredShipTier}`}**`,
-  ];
+  ].join("\n");
+}
 
-  return lines.join("\n");
+function clampPage(page, totalPages) {
+  const safePage = Math.max(1, Number(page || 1));
+  return Math.min(Math.max(1, totalPages), safePage);
+}
+
+function formatIslandBlock(player, currentIsland, island, globalIndex) {
+  return [
+    `**${globalIndex}. ${island.name}**`,
+    `↪ Status: ${getRouteStatus(currentIsland, island)}`,
+    `↪ Sea: ${island.sea || "Unknown"}`,
+    `↪ Boss: ${getBossStatus(player, island)}`,
+  ].join("\n");
+}
+
+function formatUnlockedIslandsPage(player, currentIsland, unlockedIslands, page) {
+  if (!unlockedIslands.length) return "No islands unlocked yet.";
+
+  const totalPages = Math.max(1, Math.ceil(unlockedIslands.length / ISLANDS_PER_PAGE));
+  const safePage = clampPage(page, totalPages);
+  const start = (safePage - 1) * ISLANDS_PER_PAGE;
+  const pageItems = unlockedIslands.slice(start, start + ISLANDS_PER_PAGE);
+
+  return pageItems
+    .map((island, index) =>
+      formatIslandBlock(player, currentIsland, island, start + index + 1)
+    )
+    .join("\n\n");
+}
+
+function buildTravelEmbed({
+  player,
+  currentIsland,
+  unlockedIslands,
+  nextIsland,
+  ship,
+  now,
+  page,
+}) {
+  const totalPages = Math.max(1, Math.ceil(unlockedIslands.length / ISLANDS_PER_PAGE));
+  const safePage = clampPage(page, totalPages);
+  const unlockedText = formatUnlockedIslandsPage(
+    player,
+    currentIsland,
+    unlockedIslands,
+    safePage
+  );
+
+  return new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle("⛵ Travel")
+    .setDescription(
+      [
+        `**Current Island:** ${currentIsland.name}`,
+        `**Sea:** ${currentIsland.sea || "Unknown"}`,
+        `**Ship:** ${ship.name} • Tier ${ship.tier}`,
+        "",
+        getTravelReadiness(player, currentIsland, nextIsland, ship, now),
+        "",
+        `**Unlocked Islands — Page ${safePage}/${totalPages}**`,
+        unlockedText,
+        "",
+        "Use `op sail` to unlock the next canon island.",
+        "Use `op travel <island>` to move between unlocked islands.",
+        "Use `op travel page <number>` to open a specific page.",
+      ].join("\n")
+    )
+    .setThumbnail(ship.image || null)
+    .setImage(currentIsland.image || null)
+    .setFooter({
+      text: `One Piece Bot • Travel • ${unlockedIslands.length} unlocked islands`,
+    });
+}
+
+function buildTravelRows(page, totalPages, ownerId) {
+  if (totalPages <= 1) return [];
+
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`travel_prev_${ownerId}_${page}`)
+        .setLabel("Prev")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page <= 1),
+      new ButtonBuilder()
+        .setCustomId(`travel_next_${ownerId}_${page}`)
+        .setLabel("Next")
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(page >= totalPages)
+    ),
+  ];
+}
+
+function parsePageQuery(args) {
+  const first = String(args[0] || "").toLowerCase();
+  const second = Number(args[1] || 1);
+
+  if (["page", "p"].includes(first)) {
+    return Math.max(1, second || 1);
+  }
+
+  return null;
 }
 
 module.exports = {
@@ -145,48 +255,77 @@ module.exports = {
     const ship = getShipState(player);
     const now = Date.now();
     const query = args.join(" ").trim();
+    const requestedPage = parsePageQuery(args);
 
-    if (!query) {
-      const unlockedText = unlockedIslands.length
-        ? unlockedIslands
-            .map(
-              (island, index) => `
-    **${index + 1}. ${island.name}**
-    ↪ Status: ${getRouteStatus(currentIsland, island)}
-    ↪ Sea: ${island.sea || "Unknown"}
-    ↪ Boss: ${getBossStatus(player, island)}
-    `.trim()
-            )
-            .join("\n\n")
-        : "No islands unlocked yet.";
+    if (!query || requestedPage) {
+      const totalPages = Math.max(
+        1,
+        Math.ceil(unlockedIslands.length / ISLANDS_PER_PAGE)
+      );
+      let page = clampPage(requestedPage || 1, totalPages);
 
-      return message.reply({
+      const travelMessage = await message.reply({
         embeds: [
-          new EmbedBuilder()
-            .setColor(0x3498db)
-            .setTitle("⛵ Travel")
-            .setDescription(
-              [
-                `**Current Island:** ${currentIsland.name}`,
-                `**Sea:** ${currentIsland.sea || "Unknown"}`,
-                `**Ship:** ${ship.name} • Tier ${ship.tier}`,
-                "",
-                getTravelReadiness(player, currentIsland, nextIsland, ship, now),
-                "",
-                "**Unlocked Islands**",
-                unlockedText,
-                "",
-                "Use `op sail` to unlock the next canon island.",
-                "Use `op travel <island>` to move between unlocked islands.",
-              ].join("\n")
-            )
-            .setThumbnail(ship.image || null)
-            .setImage(currentIsland.image || null)
-            .setFooter({
-              text: "One Piece Bot • Travel",
-            }),
+          buildTravelEmbed({
+            player,
+            currentIsland,
+            unlockedIslands,
+            nextIsland,
+            ship,
+            now,
+            page,
+          }),
         ],
+        components: buildTravelRows(page, totalPages, message.author.id),
       });
+
+      if (totalPages <= 1) return;
+
+      const collector = travelMessage.createMessageComponentCollector({
+        time: PAGINATION_TIMEOUT_MS,
+      });
+
+      collector.on("collect", async (interaction) => {
+        if (interaction.user.id !== message.author.id) {
+          return interaction.reply({
+            content: "Only the command user can control this travel page.",
+            ephemeral: true,
+          });
+        }
+
+        if (interaction.customId.startsWith(`travel_prev_${message.author.id}_`)) {
+          page = clampPage(page - 1, totalPages);
+        }
+
+        if (interaction.customId.startsWith(`travel_next_${message.author.id}_`)) {
+          page = clampPage(page + 1, totalPages);
+        }
+
+        await interaction.update({
+          embeds: [
+            buildTravelEmbed({
+              player,
+              currentIsland,
+              unlockedIslands,
+              nextIsland,
+              ship,
+              now,
+              page,
+            }),
+          ],
+          components: buildTravelRows(page, totalPages, message.author.id),
+        });
+      });
+
+      collector.on("end", async () => {
+        try {
+          await travelMessage.edit({
+            components: [],
+          });
+        } catch {}
+      });
+
+      return;
     }
 
     const targetIsland = getIslandByName(query);
