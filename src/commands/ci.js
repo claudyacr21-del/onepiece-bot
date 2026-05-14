@@ -11,6 +11,7 @@ const {
   hydrateCard,
   getAllCards,
 } = require("../utils/evolution");
+const { SPECIAL_FORMS } = require("../data/cards");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
 
@@ -242,10 +243,25 @@ function getStageBadge(card, stageCard, stage) {
   );
 }
 
+function getSpecialFormName(card, form, stage) {
+  const code = String(card?.code || "").trim();
+  const stageIndex = Math.max(0, Number(stage || 1) - 1);
+
+  return (
+    form?.name ||
+    form?.formName ||
+    card?.specialForms?.[stageIndex] ||
+    card?.special_forms?.[stageIndex] ||
+    SPECIAL_FORMS?.[code]?.[stageIndex] ||
+    null
+  );
+}
+
 function buildEmbed(card, owned, stage) {
   const stageCard = getStageCard(card, stage);
   const form =
     stageCard.evolutionForms?.[stage - 1] || card.evolutionForms?.[stage - 1];
+  const formName = getSpecialFormName(card, form, stage);
   const stageImage = getStageImage(card, stageCard, stage);
   const stageBadge = getStageBadge(card, stageCard, stage);
   const displayStats = getStageDisplayStats(card, stageCard, stage);
@@ -285,7 +301,7 @@ function buildEmbed(card, owned, stage) {
     card: stageCard,
     image: stageImage,
     badgeImage: stageBadge,
-    formName: form?.name || "Unknown Form",
+    formName: formName || `M${stage}`,
     tier: form?.tier || stageCard.currentTier || stageCard.rarity,
     footerText: "Global Card Viewer • Not required to own the card",
     extraLines,
