@@ -9,9 +9,9 @@ const RARITY_BADGES = {
 
 const CARD_IMAGES = {
   luffy_straw_hat: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1504425937490673724/content.png?ex=6a06f156&is=6a059fd6&hm=0400c86bb9cb264ebef69927d17b76b3a3ead2bb70c229ad69204a77072903e7&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1504425938149179392/content.png?ex=6a06f156&is=6a059fd6&hm=4d59feba5426d084baf8c611afc774be0ac0fc718c2c7faf2845cdb4c1c362c4&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1504425938736124014/content.png?ex=6a06f156&is=6a059fd6&hm=dcabf650c60e24d6b3ca05342debd7052221240ccde1786de6f8a55c44e9c2f4&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1504431597359861820/content.png?ex=6a06f69b&is=6a05a51b&hm=c06d6a50db8478bd3949b8310b92c57fdd12bde4ee5939fe2a695c7b23597b9c&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1504431597825298493/content.png?ex=6a06f69b&is=6a05a51b&hm=8c31f996b28cc56a59d31c3918835762478d899eb8c2f536f5004453e6d751e2&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1504431598551040061/content.png?ex=6a06f69c&is=6a05a51c&hm=3d3f64e4711b9db099f4ecd4c49fe6acb32d090bbc6df2510a2958d1b04966de&",
   },
   zoro_pirate_hunter: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1495039032336322750/content.png?ex=69e4cb19&is=69e37999&hm=eb41fbbc77d958badd3946c88e419d51b212ba4d3363044990b2148ff337f6b8&",
