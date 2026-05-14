@@ -92,7 +92,10 @@ function parseOpenArgs(args) {
 }
 
 function getOwnedBoxAmount(boxes, code) {
-  const found = (Array.isArray(boxes) ? boxes : []).find((entry) => entry.code === code);
+  const found = (Array.isArray(boxes) ? boxes : []).find(
+    (entry) => entry.code === code
+  );
+
   return Math.max(0, Number(found?.amount || 0));
 }
 
@@ -126,6 +129,8 @@ function grantBoxRewards(box, amount, state, rewardMap) {
   let nextTickets = state.tickets;
 
   function addMaterial(item, qty) {
+    if (!item) return;
+
     const totalAmount = Number(qty || 0) * amount;
 
     nextMaterials = addOrIncrease(nextMaterials, {
@@ -137,11 +142,15 @@ function grantBoxRewards(box, amount, state, rewardMap) {
   }
 
   function addItem(item, qty) {
+    if (!item) return;
+
     const totalAmount = Number(qty || 0) * amount;
+
     nextItems = addOrIncrease(nextItems, {
       ...item,
       amount: totalAmount,
     });
+
     addRewardLine(rewardMap, item.name, totalAmount);
   }
 
@@ -154,11 +163,15 @@ function grantBoxRewards(box, amount, state, rewardMap) {
   }
 
   function addTicket(item, qty) {
+    if (!item) return;
+
     const totalAmount = Number(qty || 0) * amount;
+
     nextTickets = addOrIncrease(nextTickets, {
       ...item,
       amount: totalAmount,
     });
+
     addRewardLine(rewardMap, item.name, totalAmount);
   }
 
@@ -265,7 +278,6 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     if (Math.random() < 0.12) {
       addTicket(ITEMS.pullResetTicket, 1);
     }
-  }
   } else if (box.code === "mother_flame_treasure_box") {
     addBerries(15000);
     addGems(50);
@@ -336,7 +348,9 @@ module.exports = {
       return message.reply(`You do not own **${box.name}**.`);
     }
 
-    const openAmount = parsed.all ? ownedAmount : Number(parsed.requestedAmount || 1);
+    const openAmount = parsed.all
+      ? ownedAmount
+      : Number(parsed.requestedAmount || 1);
 
     if (!Number.isInteger(openAmount) || openAmount <= 0) {
       return message.reply("Open amount must be a positive number.");
