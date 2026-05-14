@@ -240,7 +240,9 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       );
     }
 
-    if (Math.random() < 0.30) {
+    // Reduced from 30% to 8%.
+    // Pull Reset Ticket should stay rare even from Elite boxes.
+    if (Math.random() < 0.08) {
       addTicket(ITEMS.pullResetTicket, 1);
     }
   } else if (box.code === "legend_resource_box") {
@@ -258,9 +260,12 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       );
     }
 
-    if (Math.random() < 0.50) {
-      addTicket(ITEMS.pullResetTicket, Math.random() < 0.25 ? 2 : 1);
+    // Reduced from 50% to 12%.
+    // Removed x2 outcome so it can only drop x1.
+    if (Math.random() < 0.12) {
+      addTicket(ITEMS.pullResetTicket, 1);
     }
+  }
   } else if (box.code === "mother_flame_treasure_box") {
     addBerries(15000);
     addGems(50);
