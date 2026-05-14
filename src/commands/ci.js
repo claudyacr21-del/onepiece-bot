@@ -11,10 +11,14 @@ const {
   hydrateCard,
   getAllCards,
 } = require("../utils/evolution");
-const cardsData = require("../data/cards");
-const SPECIAL_FORMS = cardsData.SPECIAL_FORMS || {};
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
+
+const cardsData = require("../data/cards");
+
+const SPECIAL_FORMS = cardsData.SPECIAL_FORMS || cardsData.specialForms || {
+  luffy_straw_hat: ["The Beginning", "Revival", "Gear 5"],
+};
 
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
@@ -141,8 +145,8 @@ function getStageCard(card, stage) {
 function getDefaultAwakenGemsCostForStage(stage) {
   const targetStage = Number(stage || 1);
 
-  if (targetStage === 2) return 750;   // M1 -> M2
-  if (targetStage === 3) return 1500;  // M2 -> M3
+  if (targetStage === 2) return 750;
+  if (targetStage === 3) return 1500;
 
   return 0;
 }
@@ -154,8 +158,6 @@ function getDisplayAwakenGemsCost(req, stage) {
 
   return getDefaultAwakenGemsCostForStage(stage);
 }
-
-
 
 function buildReqEmbed(card, stage) {
   const stageCard = getStageCard(card, stage);
@@ -244,31 +246,52 @@ function getStageBadge(card, stageCard, stage) {
   );
 }
 
+function getStageLabel(stage) {
+  return `M${Number(stage || 1)}`;
+}
+
+function isBadSpecialFormName(value) {
+  const text = String(value || "").trim().toLowerCase();
+
+  return !text || ["base", "m1", "m2", "m3", "unknown form"].includes(text);
+}
+
 function getSpecialFormName(card, stageCard, form, stage) {
   const stageIndex = Math.max(0, Number(stage || 1) - 1);
   const code = String(card?.code || stageCard?.code || "").trim();
 
-  return (
-    form?.name ||
-    form?.formName ||
-    stageCard?.evolutionForms?.[stageIndex]?.name ||
-    stageCard?.evolutionForms?.[stageIndex]?.formName ||
-    card?.evolutionForms?.[stageIndex]?.name ||
-    card?.evolutionForms?.[stageIndex]?.formName ||
-    stageCard?.specialForms?.[stageIndex] ||
-    stageCard?.special_forms?.[stageIndex] ||
-    card?.specialForms?.[stageIndex] ||
-    card?.special_forms?.[stageIndex] ||
-    SPECIAL_FORMS?.[code]?.[stageIndex] ||
-    `M${stage}`
-  );
+  const candidates = [
+    stageCard?.specialForms?.[stageIndex],
+    stageCard?.special_forms?.[stageIndex],
+    card?.specialForms?.[stageIndex],
+    card?.special_forms?.[stageIndex],
+    SPECIAL_FORMS?.[code]?.[stageIndex],
+    stageCard?.evolutionForms?.[stageIndex]?.specialName,
+    card?.evolutionForms?.[stageIndex]?.specialName,
+    stageCard?.evolutionForms?.[stageIndex]?.formTitle,
+    card?.evolutionForms?.[stageIndex]?.formTitle,
+    form?.specialName,
+    form?.formTitle,
+    form?.name,
+    form?.formName,
+    stageCard?.evolutionForms?.[stageIndex]?.name,
+    card?.evolutionForms?.[stageIndex]?.name,
+    stageCard?.evolutionForms?.[stageIndex]?.formName,
+    card?.evolutionForms?.[stageIndex]?.formName,
+  ];
+
+  const found = candidates.find((value) => !isBadSpecialFormName(value));
+
+  return found || getStageLabel(stage);
 }
 
 function buildEmbed(card, owned, stage) {
   const stageCard = getStageCard(card, stage);
   const form =
     stageCard.evolutionForms?.[stage - 1] || card.evolutionForms?.[stage - 1];
-  const formName = getSpecialFormName(card, stageCard, form, stage);
+
+  const stageLabel = getStageLabel(stage);
+  const specialFormName = getSpecialFormName(card, stageCard, form, stage);
   const stageImage = getStageImage(card, stageCard, stage);
   const stageBadge = getStageBadge(card, stageCard, stage);
   const displayStats = getStageDisplayStats(card, stageCard, stage);
@@ -277,7 +300,7 @@ function buildEmbed(card, owned, stage) {
   const extraLines =
     stageCard.cardRole === "boost"
       ? [
-          `Form: ${formName}`,
+          `Form: ${stageLabel}`,
           `Tier: ${form?.tier || stageCard.currentTier || stageCard.rarity}`,
           `Role: ${stageCard.cardRole}`,
           `Power: ${displayStats.power}`,
@@ -289,7 +312,7 @@ function buildEmbed(card, owned, stage) {
           `Fragments: ${Number(owned?.fragments || 0)}`,
         ]
       : [
-          `Form: ${formName}`,
+          `Form: ${stageLabel}`,
           `Tier: ${form?.tier || stageCard.currentTier || stageCard.rarity}`,
           `Role: ${statSource.cardRole || card.cardRole || stageCard.cardRole}`,
           `Power: ${displayStats.power}`,
@@ -308,7 +331,7 @@ function buildEmbed(card, owned, stage) {
     card: stageCard,
     image: stageImage,
     badgeImage: stageBadge,
-    formName,
+    formName: specialFormName,
     tier: form?.tier || stageCard.currentTier || stageCard.rarity,
     footerText: "Global Card Viewer • Not required to own the card",
     extraLines,
