@@ -86,7 +86,7 @@ function getDailyTierRewards(dailyTier) {
         randomPick([
           cloneItem(ITEMS.rareResourceBox, 1),
           cloneItem(ITEMS.eliteResourceBox, 1),
-          cloneItem(ITEMS.pullResetTicket, 2),
+          cloneItem(ITEMS.pullResetTicket, 1),
         ])
       );
     }
@@ -136,7 +136,7 @@ function getDailyTierRewards(dailyTier) {
     randomPick([
       cloneItem(ITEMS.legendResourceBox, 1),
       cloneItem(ITEMS.eliteResourceBox, 1),
-      cloneItem(ITEMS.pullResetTicket, 2),
+      cloneItem(ITEMS.pullResetTicket, 1),
     ])
   );
 
