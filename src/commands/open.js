@@ -215,9 +215,6 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       addRandomUniversalFragment([ITEMS.universalCFragment], 1);
     }
 
-    if (Math.random() < 0.08) {
-      addTicket(ITEMS.pullResetTicket, 1);
-    }
   } else if (box.code === "rare_resource_box") {
     addBerries(5000);
     addGems(20);
@@ -235,9 +232,6 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       );
     }
 
-    if (Math.random() < 0.15) {
-      addTicket(ITEMS.pullResetTicket, 1);
-    }
   } else if (box.code === "elite_resource_box") {
     addBerries(9000);
     addGems(35);
@@ -253,11 +247,6 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       );
     }
 
-    // Reduced from 30% to 8%.
-    // Pull Reset Ticket should stay rare even from Elite boxes.
-    if (Math.random() < 0.08) {
-      addTicket(ITEMS.pullResetTicket, 1);
-    }
   } else if (box.code === "legend_resource_box") {
     addBerries(15000);
     addGems(60);
