@@ -18,16 +18,6 @@ const BASE_TRAVEL_COOLDOWN_MS = 60 * 60 * 1000;
 const ISLANDS_PER_PAGE = 5;
 const PAGINATION_TIMEOUT_MS = 2 * 60 * 1000;
 
-function getCurrentIslandPage(unlockedIslands, currentIsland) {
-  const index = unlockedIslands.findIndex(
-    (island) => String(island.code) === String(currentIsland.code)
-  );
-
-  if (index === -1) return 1;
-
-  return Math.floor(index / ISLANDS_PER_PAGE) + 1;
-}
-
 function formatRemaining(ms) {
   if (ms <= 0) return "Now";
 
@@ -155,17 +145,33 @@ function clampPage(page, totalPages) {
   return Math.min(Math.max(1, totalPages), safePage);
 }
 
+function getCurrentIslandPage(unlockedIslands, currentIsland) {
+  const index = unlockedIslands.findIndex(
+    (island) => String(island.code) === String(currentIsland.code)
+  );
+
+  if (index === -1) return 1;
+
+  return Math.floor(index / ISLANDS_PER_PAGE) + 1;
+}
+
 function formatIslandBlock(player, currentIsland, island, globalIndex) {
-  return `**${globalIndex}. ${island.name}**\n↪ Status: ${getRouteStatus(
-    currentIsland,
-    island
-  )}\n↪ Sea: ${island.sea || "Unknown"}\n↪ Boss: ${getBossStatus(player, island)}`;
+  return [
+    `${globalIndex}. ${island.name}`,
+    `↪ Status: ${getRouteStatus(currentIsland, island)}`,
+    `↪ Sea: ${island.sea || "Unknown"}`,
+    `↪ Boss: ${getBossStatus(player, island)}`,
+  ].join("\n");
 }
 
 function formatUnlockedIslandsPage(player, currentIsland, unlockedIslands, page) {
   if (!unlockedIslands.length) return "No islands unlocked yet.";
 
-  const totalPages = Math.max(1, Math.ceil(unlockedIslands.length / ISLANDS_PER_PAGE));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(unlockedIslands.length / ISLANDS_PER_PAGE)
+  );
+
   const safePage = clampPage(page, totalPages);
   const start = (safePage - 1) * ISLANDS_PER_PAGE;
   const pageItems = unlockedIslands.slice(start, start + ISLANDS_PER_PAGE);
@@ -186,8 +192,13 @@ function buildTravelEmbed({
   now,
   page,
 }) {
-  const totalPages = Math.max(1, Math.ceil(unlockedIslands.length / ISLANDS_PER_PAGE));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(unlockedIslands.length / ISLANDS_PER_PAGE)
+  );
+
   const safePage = clampPage(page, totalPages);
+
   const unlockedText = formatUnlockedIslandsPage(
     player,
     currentIsland,
@@ -270,6 +281,7 @@ module.exports = {
         1,
         Math.ceil(unlockedIslands.length / ISLANDS_PER_PAGE)
       );
+
       let page = clampPage(
         requestedPage || getCurrentIslandPage(unlockedIslands, currentIsland),
         totalPages
