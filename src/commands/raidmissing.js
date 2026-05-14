@@ -41,24 +41,45 @@ function findRelevantRoom(userId) {
   );
 }
 
-function getSavedDisplayName(room, userId) {
-  const uid = String(userId || "");
+async function resolveUsername(message, room, userId) {
+  const id = String(userId || "").replace(/\D/g, "");
 
   const participant = ensureArray(room.participants).find(
-    (p) => String(p.userId) === uid
+    (p) => String(p.userId) === id
   );
 
   if (participant?.username) return participant.username;
 
-  const savedMember =
-    ensureArray(room.savedMembers).find((m) => String(m.userId || m.id) === uid) ||
-    ensureArray(room.members).find((m) => String(m.userId || m.id) === uid) ||
-    ensureArray(room.raidTeamMembers).find((m) => String(m.userId || m.id) === uid);
+  const savedCandidates = [
+    ...ensureArray(room.savedMembers),
+    ...ensureArray(room.members),
+    ...ensureArray(room.raidTeamMembers),
+    ...ensureArray(room.invitedMembers),
+  ];
 
-  if (savedMember?.username) return savedMember.username;
-  if (savedMember?.name) return savedMember.name;
+  const saved = savedCandidates.find(
+    (entry) => String(entry?.userId || entry?.id || "") === id
+  );
 
-  return `User ${uid}`;
+  if (saved?.username) return saved.username;
+  if (saved?.name) return saved.name;
+
+  const cachedMember = message.guild?.members?.cache?.get(id);
+  if (cachedMember?.user?.username) return cachedMember.user.username;
+
+  const fetchedMember = message.guild
+    ? await message.guild.members.fetch(id).catch(() => null)
+    : null;
+
+  if (fetchedMember?.user?.username) return fetchedMember.user.username;
+
+  const cachedUser = message.client?.users?.cache?.get(id);
+  if (cachedUser?.username) return cachedUser.username;
+
+  const fetchedUser = await message.client?.users?.fetch(id).catch(() => null);
+  if (fetchedUser?.username) return fetchedUser.username;
+
+  return userMention(id);
 }
 
 module.exports = {
@@ -78,42 +99,48 @@ module.exports = {
     let missingIds = [];
 
     try {
-      missingIds = getMissingUsers(room.hostId);
+      missingIds = getMissingUsers(room.hostId).map(String);
     } catch (_) {
       const joined = new Set(
         ensureArray(room.participants).map((p) => String(p.userId))
       );
 
-      missingIds = ensureArray(room.whitelist).filter(
-        (id) => !joined.has(String(id))
-      );
+      missingIds = ensureArray(room.whitelist)
+        .map(String)
+        .filter((id) => !joined.has(String(id)));
     }
 
     const joinedParticipants = ensureArray(room.participants);
-    const missingMentions = missingIds.map((id) => userMention(id)).join(" ");
 
     const missingLines = missingIds.length
-      ? missingIds.map(
-          (id, index) => `❌ ${index + 1}. ${getSavedDisplayName(room, id)}`
+      ? await Promise.all(
+          missingIds.map(async (id, index) => {
+            const username = await resolveUsername(message, room, id);
+            return `❌ ${index + 1}. ${username}`;
+          })
         )
       : ["Everyone in the team has already joined battle."];
 
     const joinedLines = joinedParticipants.length
-      ? joinedParticipants.map((participant, index) => {
-          const cards = ensureArray(participant.selectedCards)
-            .map((card) => card.name || card.displayName || card.code)
-            .filter(Boolean)
-            .join(", ");
+      ? await Promise.all(
+          joinedParticipants.map(async (participant, index) => {
+            const username =
+              participant.username ||
+              (await resolveUsername(message, room, participant.userId));
 
-          return `✅ ${index + 1}. ${participant.username || getSavedDisplayName(room, participant.userId)}${
-            cards ? ` • ${cards}` : ""
-          }`;
-        })
+            const cards = ensureArray(participant.selectedCards)
+              .map((card) => card.name || card.displayName || card.code)
+              .filter(Boolean)
+              .join(", ");
+
+            return `✅ ${index + 1}. ${username}${cards ? ` • ${cards}` : ""}`;
+          })
+        )
       : ["None"];
 
     return message.reply({
       content: missingIds.length
-        ? `📣 Missing raid members: ${missingMentions}`
+        ? `📣 Missing raid members: ${missingIds.map(userMention).join(" ")}`
         : null,
       allowedMentions: {
         users: getMentionAllowedUsers(missingIds),
