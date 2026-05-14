@@ -47,7 +47,7 @@ module.exports = {
       "finv",
       "ci",
       "balance",
-      "inventory",
+      "inv",
       "patreon",
       "market",
       "profile",
@@ -63,6 +63,7 @@ module.exports = {
     // raid
     "1500131562430398604": [
       "mci",
+      "mc",
       "raid",
       "raidteam",
       "raidteamadd",
@@ -82,6 +83,7 @@ module.exports = {
 
     "1500131596135698443": [
       "mci",
+      "mc",
       "raid",
       "raidteam",
       "raidteamadd",
@@ -101,6 +103,7 @@ module.exports = {
 
     "1500131618474430615": [
       "mci",
+      "mc",
       "raid",
       "raidteam",
       "raidteamadd",
@@ -120,6 +123,7 @@ module.exports = {
 
     "1500131637793394819": [
       "mci",
+      "mc",
       "raid",
       "raidteam",
       "raidteamadd",
@@ -139,6 +143,7 @@ module.exports = {
 
     "1500131660161880114": [
       "mci",
+      "mc",
       "raid",
       "raidteam",
       "raidteamadd",
