@@ -23,6 +23,7 @@ const MARKET_ITEMS = [
     inventory: "items",
     randomItem: pickRandomUniversalFragment,
     description: "Random Universal C/B/A/S Fragment.",
+    usageText: "Use `op finv` to check your fragments.",
   },
   {
     code: "wooden_material_box",
@@ -33,6 +34,7 @@ const MARKET_ITEMS = [
     inventory: "boxes",
     item: ITEMS.woodenMaterialBox,
     description: "Cheap random material box.",
+    usageText: "Use `op open wooden` to open your new box.",
   },
   {
     code: "iron_material_box",
@@ -43,6 +45,7 @@ const MARKET_ITEMS = [
     inventory: "boxes",
     item: ITEMS.ironMaterialBox,
     description: "Balanced random material box.",
+    usageText: "Use `op open iron` to open your new box.",
   },
   {
     code: "royal_material_box",
@@ -53,6 +56,7 @@ const MARKET_ITEMS = [
     inventory: "boxes",
     item: ITEMS.royalMaterialBox,
     description: "Premium random material box.",
+    usageText: "Use `op open royal` to open your new box.",
   },
   {
     code: "rum_beer",
@@ -63,6 +67,7 @@ const MARKET_ITEMS = [
     inventory: "items",
     item: ITEMS.rumBeer,
     description: "Adds 100 EXP to a battle card.",
+    usageText: "Use `op rum <amount/all> <card>` to use Rum Beer.",
   },
 ];
 
@@ -102,13 +107,17 @@ function findMarketItem(query) {
   return (
     MARKET_ITEMS.find((entry) => normalize(entry.code) === q) ||
     MARKET_ITEMS.find((entry) => normalize(entry.name) === q) ||
-    MARKET_ITEMS.find((entry) =>
-      Array.isArray(entry.aliases) && entry.aliases.some((alias) => normalize(alias) === q)
+    MARKET_ITEMS.find(
+      (entry) =>
+        Array.isArray(entry.aliases) &&
+        entry.aliases.some((alias) => normalize(alias) === q)
     ) ||
     MARKET_ITEMS.find((entry) => normalize(entry.code).includes(q)) ||
     MARKET_ITEMS.find((entry) => normalize(entry.name).includes(q)) ||
-    MARKET_ITEMS.find((entry) =>
-      Array.isArray(entry.aliases) && entry.aliases.some((alias) => normalize(alias).includes(q))
+    MARKET_ITEMS.find(
+      (entry) =>
+        Array.isArray(entry.aliases) &&
+        entry.aliases.some((alias) => normalize(alias).includes(q))
     ) ||
     null
   );
@@ -117,7 +126,9 @@ function findMarketItem(query) {
 function buildMarketEmbed(player) {
   const marketLines = MARKET_ITEMS.map((entry, index) =>
     [
-      `**${index + 1}. ${entry.name}** • ${Number(entry.price).toLocaleString("en-US")} ${entry.currency || "gems"}`,
+      `**${index + 1}. ${entry.name}** • ${Number(entry.price).toLocaleString(
+        "en-US"
+      )} ${entry.currency || "gems"}`,
       `↪ ${entry.description}`,
       `↪ Buy: \`op buy ${entry.aliases[0]}\``,
     ].join("\n")
@@ -140,7 +151,7 @@ function buildMarketEmbed(player) {
 
   return new EmbedBuilder()
     .setColor(0xf39c12)
-    .setTitle("📦 Material Market")
+    .setTitle("Material Market")
     .setDescription(lines.join("\n"))
     .setFooter({ text: "One Piece Bot • Market" });
 }
@@ -160,6 +171,7 @@ function parseBuyArgs(args) {
 
   if (Number.isFinite(amount) && amount > 0) {
     parts.pop();
+
     return {
       query: parts.join(" ").trim(),
       amount,
@@ -172,6 +184,27 @@ function parseBuyArgs(args) {
   };
 }
 
+function getPurchaseUsageText(found, inventoryKey) {
+  if (found?.usageText) return found.usageText;
+
+  if (inventoryKey === "boxes") {
+    return "Use `op open <box>` to open your new box.";
+  }
+
+  if (found?.item?.code === ITEMS.rumBeer?.code) {
+    return "Use `op rum <amount/all> <card>` to use Rum Beer.";
+  }
+
+  if (
+    found?.code === "random_universal_fragment" ||
+    String(found?.item?.type || "").toLowerCase() === "fragment"
+  ) {
+    return "Use `op finv` to check your fragments.";
+  }
+
+  return "Use `op inv` or `op finv` to check your purchased item.";
+}
+
 module.exports = {
   name: "market",
   aliases: ["shop", "buy"],
@@ -180,7 +213,9 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
 
     if (!args.length) {
-      return message.reply({ embeds: [buildMarketEmbed(player)] });
+      return message.reply({
+        embeds: [buildMarketEmbed(player)],
+      });
     }
 
     const firstArg = String(args[0] || "").toLowerCase();
@@ -203,17 +238,19 @@ module.exports = {
 
     if (currentCurrency < totalPrice) {
       return message.reply(
-        `You need **${totalPrice.toLocaleString("en-US")} ${currency}** to buy **${found.name} x${amount}**.`
+        `You need **${totalPrice.toLocaleString(
+          "en-US"
+        )} ${currency}** to buy **${found.name} x${amount}**.`
       );
     }
 
     const inventoryKey = found.inventory || "boxes";
-
     let updatedInventory = [...(player[inventoryKey] || [])];
 
     if (typeof found.randomItem === "function") {
       for (let i = 0; i < amount; i++) {
         const randomItem = found.randomItem();
+
         if (randomItem) {
           updatedInventory = addOrIncrease(updatedInventory, cloneItem(randomItem, 1));
         }
@@ -236,11 +273,11 @@ module.exports = {
             [
               `Bought: **${found.name} x${amount}**`,
               `Cost: **${totalPrice.toLocaleString("en-US")} ${currency}**`,
-              `Remaining ${currency === "berries" ? "Berries" : "Gems"}: **${(currentCurrency - totalPrice).toLocaleString("en-US")}**`,
+              `Remaining ${currency === "berries" ? "Berries" : "Gems"}: **${(
+                currentCurrency - totalPrice
+              ).toLocaleString("en-US")}**`,
               "",
-              inventoryKey === "boxes"
-                ? "Use `op open <box>` to open your new box."
-                : "Use `op rum <amount/all> <card>` to use Rum Beer.",
+              getPurchaseUsageText(found, inventoryKey),
             ].join("\n")
           )
           .setFooter({ text: "One Piece Bot • Market" }),
