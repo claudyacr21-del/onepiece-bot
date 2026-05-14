@@ -147,17 +147,48 @@ function findBoostFruitByCode(value) {
 }
 
 function getFruitBonusForBoostCard(card) {
-  if (!card || card.cardRole !== "boost" || !card.equippedDevilFruit) return 0;
+  if (!card || String(card.cardRole || "").toLowerCase() !== "boost") return 0;
 
   const fruit =
     findBoostFruitByCode(card.equippedDevilFruit) ||
     findBoostFruitByCode(card.equippedDevilFruitCode) ||
     findBoostFruitByCode(card.equippedDevilFruitName);
 
-  if (!fruit || !fruit.boostBonus) return 0;
+  if (!fruit) return 0;
 
   const boostType = normalizeBoostType(card.boostType);
-  return Number(fruit.boostBonus[boostType] || 0);
+
+  if (fruit.boostBonus && fruit.boostBonus[boostType] != null) {
+    return Number(fruit.boostBonus[boostType] || 0);
+  }
+
+  const statPercent = fruit.statPercent || {};
+
+  if (boostType === "atk") return Number(statPercent.atk || 0);
+  if (boostType === "hp") return Number(statPercent.hp || 0);
+  if (boostType === "spd") return Number(statPercent.speed || statPercent.spd || 0);
+
+  if (boostType === "dmg") {
+    return Math.floor(Number(statPercent.atk || 0) / 2);
+  }
+
+  if (boostType === "exp") {
+    return Math.floor(Number(statPercent.hp || 0) / 2);
+  }
+
+  if (boostType === "daily") {
+    return Number(fruit.dailyResetToken || fruit.resetPullBonus || 0);
+  }
+
+  if (boostType === "pullChance") {
+    return Number(fruit.resetPullBonus || 0);
+  }
+
+  if (boostType === "fragmentStorage") {
+    return 0;
+  }
+
+  return 0;
 }
 
 function getEffectiveBoostValue(card) {
