@@ -38,12 +38,15 @@ function findOwnedCard(player, query) {
     const hydrated = hydrateCard(cards[i]);
     if (String(hydrated.cardRole || "").toLowerCase() === "boost") continue;
 
-    const names = [
-      hydrated.code,
-      hydrated.name,
-      hydrated.displayName,
-      hydrated.title,
-    ].map(normalize);
+    const name = normalize(hydrated.displayName);
+
+    if (!name) return false;
+
+    return (
+      name === q ||
+      name.startsWith(q) ||
+      name.includes(q)
+    );
 
     const score =
       names.some((name) => name === q) ? 100 :

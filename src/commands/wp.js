@@ -1,11 +1,50 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const weapons = require("../data/weapons");
-const { findOwnedCard, hydrateCard } = require("../utils/evolution");
+const { hydrateCard } = require("../utils/evolution");
 const { getRarityBadge, getWeaponImage } = require("../config/assetLinks");
 
 const normalize = (s = "") =>
   String(s).toLowerCase().trim().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+
+function getCardSearchNames(card) {
+  const hydrated = hydrateCard(card);
+
+  return [
+    hydrated.displayName,
+  ]
+    .map(normalize)
+    .filter(Boolean);
+}
+
+function findOwnedCardByName(cardsOwned, query) {
+  const q = normalize(query);
+  const cards = Array.isArray(cardsOwned) ? cardsOwned : [];
+
+  let best = null;
+
+  for (const raw of cards) {
+    const hydrated = hydrateCard(raw);
+    const names = getCardSearchNames(hydrated);
+
+    const score = names.some((name) => name === q)
+      ? 100
+      : names.some((name) => name.startsWith(q))
+      ? 75
+      : names.some((name) => name.includes(q))
+      ? 50
+      : 0;
+
+    if (score && (!best || score > best.score)) {
+      best = {
+        score,
+        card: hydrated,
+      };
+    }
+  }
+
+  return best?.card || null;
+}
 
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
@@ -161,7 +200,7 @@ module.exports = {
     if (!split) return message.reply("Usage: `op wp <card name> <weapon name>`");
 
     const player = getPlayer(message.author.id, message.author.username);
-    const card = findOwnedCard(player.cards || [], split.cardName);
+    const card = findOwnedCardByName(player.cards || [], split.cardName);
     if (!card) {
       return message.reply(`No owned card found matching \`${split.cardName}\`.`);
     }
