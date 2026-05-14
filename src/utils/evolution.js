@@ -678,20 +678,20 @@ function hydrateCard(card) {
 function findOwnedCard(cardsOwned, query) {
   const q = normalize(query);
 
-  const found = safeArray(cardsOwned).find((card) => {
-    const fields = [card.code, card.name, card.displayName, card.title, card.variant]
-      .filter(Boolean)
-      .map(normalize);
+  if (!q) return null;
 
-    return fields.some(
-      (field) => field === q || field.includes(q) || q.includes(field)
+  const found = safeArray(cardsOwned).find((card) => {
+    const displayName = normalize(card.displayName);
+
+    return (
+      displayName &&
+      (displayName === q || displayName.includes(q) || q.includes(displayName))
     );
   });
 
   if (!found) return null;
 
   const merged = mergeOwnedCardWithTemplate(found);
-
   return hydrateCard(merged);
 }
 

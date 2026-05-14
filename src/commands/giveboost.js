@@ -48,18 +48,11 @@ function buildCardIndex(cards) {
   const map = new Map();
 
   for (const card of cards) {
-    const keys = [
-      card?.code,
-      card?.name,
-      card?.displayName,
-      card?.variant,
-      `${card?.name || ""} ${card?.title || ""}`.trim(),
-    ].filter(Boolean);
+    const displayName = card?.displayName;
 
-    for (const key of keys) {
-      map.set(normalize(key), card);
-      map.set(normalizeCode(key), card);
-    }
+    if (!displayName) continue;
+
+    map.set(normalize(displayName), card);
   }
 
   return map;
@@ -69,8 +62,7 @@ const cardIndex = buildCardIndex(cardsData);
 
 function findCardTemplate(query) {
   const q = normalize(query);
-  const qc = normalizeCode(query);
-  return cardIndex.get(q) || cardIndex.get(qc) || null;
+  return cardIndex.get(q) || null;
 }
 
 function makeInstanceId(cardCode) {
@@ -242,7 +234,7 @@ module.exports = {
 
     if (!template || template.cardRole !== "boost") {
       return message.reply(
-        "Invalid boost card.\nUse exact boost card code or exact boost card name."
+        "Invalid boost card.\nUse the exact boost card display name."
       );
     }
 

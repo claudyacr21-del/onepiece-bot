@@ -38,7 +38,7 @@ function findOwnedCard(player, query) {
     const hydrated = hydrateCard(cards[i]);
     if (String(hydrated.cardRole || "").toLowerCase() === "boost") continue;
 
-    const name = normalize(hydrated.displayName);
+    const names = [hydrated.displayName].map(normalize);
 
     if (!name) return false;
 
