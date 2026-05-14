@@ -56,6 +56,44 @@ function statEffectText(item) {
   return parts.length ? parts.join(" / ") : "No stat bonus";
 }
 
+function normalizeOwnerText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function getOwnerDisplayName(ownerValue) {
+  const q = normalizeOwnerText(ownerValue);
+
+  if (!q) return null;
+
+  const cards = getAllCards();
+
+  const found =
+    cards.find((card) => normalizeOwnerText(card.displayName) === q) ||
+    cards.find((card) => normalizeOwnerText(card.name) === q) ||
+    cards.find((card) => normalizeOwnerText(card.code) === q) ||
+    cards.find((card) => normalizeOwnerText(card.displayName).includes(q)) ||
+    cards.find((card) => q.includes(normalizeOwnerText(card.displayName)));
+
+  return found?.displayName || null;
+}
+
+function formatOwnersByDisplayName(item, fallback = "Unknown") {
+  const rawOwners = Array.isArray(item?.owners) ? item.owners : [];
+
+  const ownerNames = rawOwners
+    .map((owner) => getOwnerDisplayName(owner) || owner)
+    .map((owner) => String(owner || "").trim())
+    .filter(Boolean);
+
+  const uniqueNames = [...new Set(ownerNames)];
+
+  return uniqueNames.length ? uniqueNames.join(", ") : fallback;
+}
+
 function buildCardEmbed(card, index, total, mode) {
   const m3 = card.evolutionForms?.[2];
   const stageImage =
@@ -121,7 +159,7 @@ function buildWeaponEmbed(item, index, total) {
         `Description: ${item.description || "No description."}`,
         `Power: ${getWeaponPower(item, 5)}`,
         "",
-        `Owners: ${Array.isArray(item.owners) && item.owners.length ? item.owners.join(", ") : "General"}`,
+        `Owners: ${formatOwnersByDisplayName(item, "General")}`,
       ].join("\n")
     )
     .setThumbnail(getRarityBadge(item.rarity || "B") || null)
@@ -145,7 +183,7 @@ function buildFruitEmbed(item, index, total) {
         `Description: ${item.description || "No description."}`,
         `Power: ${getFruitPower(item)}`,
         "",
-        `Owners: ${Array.isArray(item.owners) && item.owners.length ? item.owners.join(", ") : "Unknown"}`,
+        `Owners: ${formatOwnersByDisplayName(item, "Unknown")}`,
       ].join("\n")
     )
     .setThumbnail(getRarityBadge(item.rarity || "B") || null)
