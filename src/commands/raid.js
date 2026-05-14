@@ -7,6 +7,7 @@ const {
 
 const { readPlayers, writePlayers, getPlayer } = require("../playerStore");
 const { hydrateCard, findCardTemplate } = require("../utils/evolution");
+const activeRaidReadyNotices = new Set();
 const {
   getPlayerCombatCards,
   getPlayerCombatBoosts,
@@ -34,6 +35,59 @@ function normalize(value) {
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function userMention(userId) {
+  const id = String(userId || "").replace(/\D/g, "");
+  return id ? `<@${id}>` : String(userId || "Unknown");
+}
+
+function getJoinedUserIds(room) {
+  return new Set(
+    ensureArray(room?.participants)
+      .filter((participant) => ensureArray(participant.selectedCards).length > 0)
+      .map((participant) => String(participant.userId))
+  );
+}
+
+function getMissingNonHostRaidUsers(room) {
+  const hostId = String(room?.hostId || "");
+  const joined = getJoinedUserIds(room);
+
+  return ensureArray(room?.whitelist)
+    .map(String)
+    .filter((id) => id && id !== hostId && !joined.has(id));
+}
+
+async function notifyHostIfRaidReady(message, room) {
+  if (!message?.channel || !room?.roomId) return;
+
+  const hostId = String(room.hostId || "");
+  if (!hostId) return;
+
+  const missingNonHost = getMissingNonHostRaidUsers(room);
+
+  if (missingNonHost.length > 0) return;
+
+  const joinedCount = getSelectedParticipantCount(room);
+  if (joinedCount <= 0) return;
+
+  const noticeKey = String(room.roomId);
+  if (activeRaidReadyNotices.has(noticeKey)) return;
+
+  activeRaidReadyNotices.add(noticeKey);
+
+  await message.channel
+    .send({
+      content: `📣 ${userMention(
+        hostId
+      )} all raid members have joined. You can start the raid now.`,
+      allowedMentions: {
+        users: [hostId],
+        repliedUser: false,
+      },
+    })
+    .catch(() => null);
 }
 
 function randomInt(min, max) {
@@ -584,23 +638,28 @@ function tickActionCooldownsAfterAttack(state, actor) {
     member.actionCooldown = Math.max(0, Number(member.actionCooldown || 0) - 1);
   }
 
-  actor.actionCooldown = 1;
-
-  const hasReadyAliveMember = getAliveMembers(state).some(
-    (member) => !isMemberOnActionCooldown(member)
-  );
-
-  // Kalau semua alive card lagi cooldown, turunin 1x supaya battle tidak lock.
-  // Ini bikin solo raid tetap bisa lanjut normal.
-  if (!hasReadyAliveMember) {
-    for (const member of getAliveMembers(state)) {
-      member.actionCooldown = Math.max(0, Number(member.actionCooldown || 0) - 1);
-    }
-
-    state.round = Number(state.round || 1) + 1;
+  if (actor && Number(actor.hp || 0) > 0) {
+    actor.actionCooldown = 1;
   }
 
   state.turnCount = Number(state.turnCount || 0) + 1;
+}
+
+function canAdvanceRaidTurn(state) {
+  const alive = getAliveMembers(state);
+
+  if (!alive.length) return false;
+
+  return alive.every((member) => isMemberOnActionCooldown(member));
+}
+
+function advanceRaidTurn(state) {
+  for (const member of getAliveMembers(state)) {
+    member.actionCooldown = 0;
+  }
+
+  state.round = Number(state.round || 1) + 1;
+  pushBattleLog(state, "New raid turn started.");
 }
 
 function buildBattleEmbed(state) {
@@ -767,6 +826,17 @@ function buildBattleRows(state) {
       rows.push(row);
       chunk = [];
     }
+  }
+
+  if (canAdvanceRaidTurn(state)) {
+    rows.push(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`raid_next_${state.roomId}`)
+          .setLabel("Next Turn")
+          .setStyle(ButtonStyle.Secondary)
+      )
+    );
   }
 
   return rows;
@@ -1216,6 +1286,43 @@ function finalizeRaidBattle(state) {
   }
 }
 
+function performRaidMemberAttack(state, actor, combatLogs) {
+  const boss = state.boss;
+
+  const baseDamage = randomInt(
+    Math.floor(Number(actor.atk || 1) * 0.85),
+    Math.floor(Number(actor.atk || 1) * 1.15)
+  );
+
+  // Raid does not use DMG% passive boost.
+  // DMG% boost only applies to fight, arena, boss, and challenge.
+  const damage = baseDamage;
+
+  boss.hp = Math.max(0, Number(boss.hp || 0) - damage);
+
+  combatLogs.push(
+    `⚔️ ${actor.name} dealt ${damage.toLocaleString("en-US")} damage to ${
+      boss.name
+    }.`
+  );
+}
+
+function performRaidBossAttack(state, target, combatLogs) {
+  const boss = state.boss;
+
+  if (!target || Number(target.hp || 0) <= 0) return;
+
+  const bossDamage = randomInt(boss.atkMin, boss.atkMax);
+
+  target.hp = Math.max(0, Number(target.hp || 0) - bossDamage);
+
+  combatLogs.push(
+    `💢 ${boss.name} hit ${target.name} for ${bossDamage.toLocaleString(
+      "en-US"
+    )}${Number(target.hp || 0) <= 0 ? " and defeated them" : ""}.`
+  );
+}
+
 function handleRaidAttack(state, actor) {
   const boss = state.boss;
   const combatLogs = [];
@@ -1232,38 +1339,42 @@ function handleRaidAttack(state, actor) {
     return;
   }
 
-  const baseDamage = randomInt(
-    Math.floor(Number(actor.atk || 1) * 0.85),
-    Math.floor(Number(actor.atk || 1) * 1.15)
-  );
+  const actorSpeed = Number(actor.speed || 0);
+  const bossSpeed = Number(boss.speed || 0);
+  const actorFirst = actorSpeed >= bossSpeed;
 
-  // Raid does not use DMG% passive boost.
-  // DMG% boost only applies to fight, arena, boss, and challenge.
-  const damage = baseDamage;
+  if (actorFirst) {
+    combatLogs.push(`⚡ ${actor.name} moved first by SPD.`);
+    performRaidMemberAttack(state, actor, combatLogs);
 
-  boss.hp = Math.max(0, Number(boss.hp || 0) - damage);
+    if (checkEndState(state)) {
+      state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
+      return;
+    }
 
-  combatLogs.push(
-    `⚔️ ${actor.name} dealt ${damage.toLocaleString("en-US")} damage to ${boss.name}.`
-  );
+    performRaidBossAttack(state, actor, combatLogs);
 
-  tickActionCooldownsAfterAttack(state, actor);
+    if (Number(actor.hp || 0) > 0) {
+      tickActionCooldownsAfterAttack(state, actor);
+    }
+  } else {
+    combatLogs.push(`⚡ ${boss.name} moved first by SPD.`);
+    performRaidBossAttack(state, actor, combatLogs);
 
-  if (checkEndState(state)) {
-    state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
-    return;
-  }
+    if (Number(actor.hp || 0) <= 0) {
+      state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
+      checkEndState(state);
+      return;
+    }
 
-  const target = chooseBossTarget(state);
+    performRaidMemberAttack(state, actor, combatLogs);
 
-  if (target) {
-    const bossDamage = randomInt(boss.atkMin, boss.atkMax);
+    if (checkEndState(state)) {
+      state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
+      return;
+    }
 
-    target.hp = Math.max(0, Number(target.hp || 0) - bossDamage);
-
-    combatLogs.push(
-      `💢 ${boss.name} hit ${target.name} for ${bossDamage.toLocaleString("en-US")}.`
-    );
+    tickActionCooldownsAfterAttack(state, actor);
   }
 
   state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
@@ -1541,6 +1652,8 @@ module.exports = {
                 formatThroneTeamPreview(throneCards),
               ].join("\n")
             );
+
+            await notifyHostIfRaidReady(message, updatedRoom);
           } catch (error) {
             return confirmInteraction.update({
               content: error.message || "Failed to join Throne Raid.",
@@ -1624,6 +1737,8 @@ module.exports = {
               picked.displayName || picked.name
             }**.`
           );
+
+          await notifyHostIfRaidReady(message, updatedRoom);
         } catch (error) {
           return pickInteraction.update({
             content: error.message || "Failed to join raid.",
@@ -1724,8 +1839,11 @@ module.exports = {
         });
 
         battleCollector.on("collect", async (button) => {
+          const customId = String(button.customId || "");
+
           if (
-            !String(button.customId).startsWith(`raid_act_${battleState.roomId}_`)
+            !customId.startsWith(`raid_act_${battleState.roomId}_`) &&
+            customId !== `raid_next_${battleState.roomId}`
           ) {
             return;
           }
@@ -1739,9 +1857,31 @@ module.exports = {
 
           await button.deferUpdate().catch(() => null);
 
+          if (customId === `raid_next_${battleState.roomId}`) {
+            if (!canAdvanceRaidTurn(battleState)) {
+              pushBattleLog(battleState, "There are still ready raid cards.");
+
+              return battleMessage
+                .edit({
+                  embeds: [buildBattleEmbed(battleState)],
+                  components: buildBattleRows(battleState),
+                })
+                .catch(() => null);
+            }
+
+            advanceRaidTurn(battleState);
+
+            return battleMessage
+              .edit({
+                embeds: [buildBattleEmbed(battleState)],
+                components: buildBattleRows(battleState),
+              })
+              .catch(() => null);
+          }
+
           try {
             const memberIndex = Number(
-              String(button.customId).replace(`raid_act_${battleState.roomId}_`, "")
+              customId.replace(`raid_act_${battleState.roomId}_`, "")
             );
 
             const actor = battleState.members[memberIndex];
@@ -1749,19 +1889,23 @@ module.exports = {
             if (!actor || Number(actor.hp || 0) <= 0) {
               pushBattleLog(battleState, "That card can no longer act.");
 
-              return battleMessage.edit({
-                embeds: [buildBattleEmbed(battleState)],
-                components: buildBattleRows(battleState),
-              }).catch(() => null);
+              return battleMessage
+                .edit({
+                  embeds: [buildBattleEmbed(battleState)],
+                  components: buildBattleRows(battleState),
+                })
+                .catch(() => null);
             }
 
             if (isMemberOnActionCooldown(actor)) {
               pushBattleLog(battleState, `${actor.name} is still on cooldown.`);
 
-              return battleMessage.edit({
-                embeds: [buildBattleEmbed(battleState)],
-                components: buildBattleRows(battleState),
-              }).catch(() => null);
+              return battleMessage
+                .edit({
+                  embeds: [buildBattleEmbed(battleState)],
+                  components: buildBattleRows(battleState),
+                })
+                .catch(() => null);
             }
 
             handleRaidAttack(battleState, actor);
@@ -1775,25 +1919,31 @@ module.exports = {
 
               battleCollector.stop("finished");
 
-              return battleMessage.edit({
-                embeds: [buildResultEmbed(battleState)],
-                components: [],
-              }).catch(() => null);
+              return battleMessage
+                .edit({
+                  embeds: [buildResultEmbed(battleState)],
+                  components: [],
+                })
+                .catch(() => null);
             }
 
-            return battleMessage.edit({
-              embeds: [buildBattleEmbed(battleState)],
-              components: buildBattleRows(battleState),
-            }).catch(() => null);
+            return battleMessage
+              .edit({
+                embeds: [buildBattleEmbed(battleState)],
+                components: buildBattleRows(battleState),
+              })
+              .catch(() => null);
           } catch (error) {
             console.error("[raid battle interaction error]", error);
 
             pushBattleLog(battleState, "Battle interaction error. Please try again.");
 
-            return battleMessage.edit({
-              embeds: [buildBattleEmbed(battleState)],
-              components: buildBattleRows(battleState),
-            }).catch(() => null);
+            return battleMessage
+              .edit({
+                embeds: [buildBattleEmbed(battleState)],
+                components: buildBattleRows(battleState),
+              })
+              .catch(() => null);
           }
         });
 
