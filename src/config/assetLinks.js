@@ -39,9 +39,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1495052388376252496/content.png?ex=69e4d78a&is=69e3860a&hm=246a2796f003acb32e82c4873079d6ff9748f4a8ee9e7e28528ec5b6205fd4b5&",
   },
   alvida_iron_club: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1495054982238437518/content.png?ex=69e4d9f4&is=69e38874&hm=44131f044838842db018d3a74f1d354475b2a986c9bb16b0bd12206c1364c083&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1495054983219908728/content.png?ex=69e4d9f4&is=69e38874&hm=c7012a327a7d7c16d15e297d4285a2b7069c48e9939b0547e4670d3a6cd5a57e&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1495054983857704970/content.png?ex=69e4d9f4&is=69e38874&hm=d16119836e9549b15875826e9d53d408d2feb08c561222b9d5cbe70055ce8271&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1504384095466295336/content.png?ex=6a06ca5e&is=6a0578de&hm=a8af6ef96ee19808d807918f342ba1bba225dfa7d960efd53f7a04309c1dcc5f&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1504384095935922217/content.png?ex=6a06ca5e&is=6a0578de&hm=1ea5016f94389124d6ea46c4f61ee09eb3a590de64ad9116ba1c00ddd59b6380&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1504384096401621124/content.png?ex=6a06ca5e&is=6a0578de&hm=a617c4a1f10e1dc5632ee7bbeb2a3d9b7b8aa4ccf2678866d5214c897487f466&",
   },
   morgan_axe_hand: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1495063651353104384/content.png?ex=69e4e207&is=69e39087&hm=9d821f6a4b8ab251d60e3834af8cbe4199b14f6ed7a072c1362fb78abea74bfa&",
