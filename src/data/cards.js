@@ -1074,6 +1074,21 @@ function applyEvolution(card) {
   };
 }
 
-module.exports = [...BASE_CARDS, ...EXTRA_CANON_CARDS, ...EXTRA_REQ_SUPPORT, ...EXTRA_CHARACTER_CARDS]
+const ALL_CARDS = [
+  ...BASE_CARDS,
+  ...EXTRA_CANON_CARDS,
+  ...EXTRA_REQ_SUPPORT,
+  ...EXTRA_CHARACTER_CARDS,
+]
   .filter((card) => card.code !== "joy_boy")
   .map(applyEvolution);
+
+module.exports = ALL_CARDS;
+
+// Keep array export compatible with existing files.
+// Extra named data can still be accessed as properties.
+module.exports.BASE_CARDS = BASE_CARDS;
+module.exports.EXTRA_CANON_CARDS = EXTRA_CANON_CARDS;
+module.exports.EXTRA_REQ_SUPPORT = EXTRA_REQ_SUPPORT;
+module.exports.EXTRA_CHARACTER_CARDS = EXTRA_CHARACTER_CARDS;
+module.exports.SPECIAL_FORMS = SPECIAL_FORMS;
