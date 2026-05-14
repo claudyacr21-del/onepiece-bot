@@ -10,7 +10,6 @@ const { hydrateCard, findCardTemplate } = require("../utils/evolution");
 const {
   getPlayerCombatCards,
   getPlayerCombatBoosts,
-  applyDamageBoost,
 } = require("../utils/combatStats");
 const {
   getRoom,
@@ -269,7 +268,7 @@ function buildBattleRoster(room) {
             atk: Number(boosts.atk || 0),
             hp: Number(boosts.hp || 0),
             spd: Number(boosts.spd || 0),
-            dmg: Number(boosts.dmg || 0),
+            dmg: 0,
             exp: Number(boosts.exp || 0),
           },
           alive: true,
@@ -1238,7 +1237,7 @@ function handleRaidAttack(state, actor) {
     Math.floor(Number(actor.atk || 1) * 1.15)
   );
 
-  const damage = applyDamageBoost(baseDamage, actor.passiveBoostsApplied || {});
+  const damage = rawDamage;
 
   boss.hp = Math.max(0, Number(boss.hp || 0) - damage);
 
