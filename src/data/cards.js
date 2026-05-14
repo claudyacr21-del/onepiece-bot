@@ -1085,8 +1085,6 @@ const ALL_CARDS = [
 
 module.exports = ALL_CARDS;
 
-// Keep array export compatible with existing files.
-// Extra named data can still be accessed as properties.
 module.exports.BASE_CARDS = BASE_CARDS;
 module.exports.EXTRA_CANON_CARDS = EXTRA_CANON_CARDS;
 module.exports.EXTRA_REQ_SUPPORT = EXTRA_REQ_SUPPORT;
