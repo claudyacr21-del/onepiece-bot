@@ -210,18 +210,18 @@ function createIslandEnemyTemplates(island) {
   const islandName = island?.name || "Unknown Island";
 
   // Regular island fight mobs.
-  // Keep this below true island boss difficulty.
-  const scoutAtk = 72 + order * 13;
-  const scoutHp = 560 + order * 100;
-  const scoutSpeed = 58 + order * 3;
+  // Increased slightly, but still below true island boss difficulty.
+  const scoutAtk = 78 + order * 14;
+  const scoutHp = 620 + order * 110;
+  const scoutSpeed = 64 + order * 3.4;
 
-  const eliteAtk = 92 + order * 16;
-  const eliteHp = 760 + order * 130;
-  const eliteSpeed = 66 + order * 3.5;
+  const eliteAtk = 100 + order * 17;
+  const eliteHp = 840 + order * 142;
+  const eliteSpeed = 73 + order * 3.9;
 
-  const captainAtk = 112 + order * 19;
-  const captainHp = 980 + order * 160;
-  const captainSpeed = 74 + order * 4;
+  const captainAtk = 122 + order * 20.5;
+  const captainHp = 1080 + order * 174;
+  const captainSpeed = 82 + order * 4.4;
 
   return [
     createEnemy(
@@ -266,12 +266,12 @@ function getEnemyLevelForSlot(baseLevel, slotIndex) {
 function scaleEnemy(enemy, playerAverageLevel, slotIndex) {
   const level = getEnemyLevelForSlot(playerAverageLevel, slotIndex);
 
-  // Smooth level scaling so late islands are not absurd.
-  const levelMultiplier = 1 + (level - 1) * 0.008;
+  // Slightly stronger level scaling, still smooth for late islands.
+  const levelMultiplier = 1 + (level - 1) * 0.009;
 
-  const atkMult = (randomInt(92, 103) / 100) * levelMultiplier;
-  const hpMult = (randomInt(94, 106) / 100) * levelMultiplier;
-  const speedMult = (randomInt(94, 103) / 100) * (1 + (level - 1) * 0.003);
+  const atkMult = (randomInt(94, 106) / 100) * levelMultiplier;
+  const hpMult = (randomInt(96, 109) / 100) * levelMultiplier;
+  const speedMult = (randomInt(97, 107) / 100) * (1 + (level - 1) * 0.0035);
 
   return createEnemy(
     enemy.name,
