@@ -1237,7 +1237,9 @@ function handleRaidAttack(state, actor) {
     Math.floor(Number(actor.atk || 1) * 1.15)
   );
 
-  const damage = rawDamage;
+  // Raid does not use DMG% passive boost.
+  // DMG% boost only applies to fight, arena, boss, and challenge.
+  const damage = baseDamage;
 
   boss.hp = Math.max(0, Number(boss.hp || 0) - damage);
 
