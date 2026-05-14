@@ -32,27 +32,27 @@ function findOwnedCard(player, query) {
   const q = normalize(query);
   const cards = Array.isArray(player.cards) ? player.cards : [];
 
+  if (!q) return null;
+
   let best = null;
 
   for (let i = 0; i < cards.length; i++) {
     const hydrated = hydrateCard(cards[i]);
+
     if (String(hydrated.cardRole || "").toLowerCase() === "boost") continue;
 
-    const names = [hydrated.displayName].map(normalize);
+    const displayName = normalize(hydrated.displayName);
 
-    if (!name) return false;
-
-    return (
-      name === q ||
-      name.startsWith(q) ||
-      name.includes(q)
-    );
+    if (!displayName) continue;
 
     const score =
-      names.some((name) => name === q) ? 100 :
-      names.some((name) => name.startsWith(q)) ? 75 :
-      names.some((name) => name.includes(q)) ? 50 :
-      0;
+      displayName === q
+        ? 100
+        : displayName.startsWith(q)
+        ? 75
+        : displayName.includes(q)
+        ? 50
+        : 0;
 
     if (score && (!best || score > best.score)) {
       best = {

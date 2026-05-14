@@ -1,39 +1,67 @@
 const { readPlayers } = require("../playerStore");
 
-const ARENA_TOTAL_RANK_SLOTS = 500;
-const ARENA_POINTS_PER_RANK = 10;
+const ARENA_TOTAL_RANKS = 500;
+const ARENA_TOP_BOT_POINTS = 300;
+const ARENA_POINT_STEP = 1;
 
-const ARENA_BOT_NAMES = [
-  "NitroSlayer",
-  "IronPhantom",
-  "ApexPredator",
-  "Trafalgar Law",
-  "VoidWalker",
-  "GhostProtocol",
-  "Marine Hunter",
-  "Grandline Reaper",
-  "Red Flag",
-  "Blue Storm",
-  "East Blue Rookie",
-  "New World Guard",
-  "Cipher Duelist",
-  "Skypiea Knight",
-  "Wano Ronin",
-  "Baratie Brawler",
-  "Arlong Raider",
-  "Alabasta Guard",
-  "Water 7 Agent",
-  "Sabaody Hunter",
+const BOT_NAMES = [
+  "Pirate King Bot",
+  "Yonko Bot",
+  "Fleet Admiral Bot",
+  "Revolutionary Bot",
+  "Warlord Bot",
+  "CP0 Bot",
+  "Supernova Bot",
+  "Commander Bot",
+  "Vice Admiral Bot",
+  "New World Bot",
+  "Grand Line Bot",
+  "Marine Hero Bot",
+  "Shichibukai Bot",
+  "Worst Generation Bot",
+  "Cipher Pol Bot",
+  "Sky Island Bot",
+  "Fishman Bot",
+  "Dressrosa Bot",
+  "Wano Samurai Bot",
+  "Egghead Bot",
 ];
 
-function makeBotName(index) {
-  const base = ARENA_BOT_NAMES[index % ARENA_BOT_NAMES.length];
-  const suffix = Math.floor(index / ARENA_BOT_NAMES.length) + 1;
-  return suffix > 1 ? `${base} ${suffix}` : base;
+function getBotName(index) {
+  const base = BOT_NAMES[index % BOT_NAMES.length];
+  const cycle = Math.floor(index / BOT_NAMES.length);
+
+  return cycle === 0 ? base : `${base} ${cycle + 1}`;
 }
 
-function getBotPointsByRank(rank) {
-  return Math.max(0, (ARENA_TOTAL_RANK_SLOTS - rank) * ARENA_POINTS_PER_RANK);
+function getBotPoints(index) {
+  return Math.max(0, ARENA_TOP_BOT_POINTS - index * ARENA_POINT_STEP);
+}
+
+function getBotWins(points) {
+  return Math.max(0, Math.floor(Number(points || 0) / 10));
+}
+
+function getBotLosses(index) {
+  return Math.floor(index / 25);
+}
+
+function buildArenaBots(count = ARENA_TOTAL_RANKS) {
+  return Array.from({ length: count }, (_, index) => {
+    const points = getBotPoints(index);
+
+    return {
+      userId: `arena_bot_${String(index + 1).padStart(3, "0")}`,
+      id: `arena_bot_${String(index + 1).padStart(3, "0")}`,
+      username: getBotName(index),
+      points,
+      wins: getBotWins(points),
+      losses: getBotLosses(index),
+      matches: getBotWins(points) + getBotLosses(index),
+      streak: 0,
+      isBot: true,
+    };
+  });
 }
 
 function compareArenaEntries(a, b) {
@@ -53,105 +81,76 @@ function compareArenaEntries(a, b) {
     return Number(b.streak || 0) - Number(a.streak || 0);
   }
 
-  if (Number(b.matches || 0) !== Number(a.matches || 0)) {
-    return Number(b.matches || 0) - Number(a.matches || 0);
-  }
-
   if (Boolean(a.isBot) !== Boolean(b.isBot)) {
-    return a.isBot ? 1 : -1;
+    return a.isBot ? -1 : 1;
   }
 
   return String(a.username || "").localeCompare(String(b.username || ""));
 }
 
-function getRealArenaEntries() {
-  const players = readPlayers() || {};
+function getRealArenaEntries(playersMap = null) {
+  const players = playersMap || readPlayers() || {};
 
   return Object.entries(players)
-    .map(([userId, player]) => {
-      const arena = player?.arena || {};
-
-      return {
-        userId: String(userId),
-        username: player?.username || "Unknown",
-        points: Number(arena.points || 0),
-        wins: Number(arena.wins || 0),
-        losses: Number(arena.losses || 0),
-        draws: Number(arena.draws || 0),
-        matches: Number(arena.matches || 0),
-        streak: Number(arena.streak || 0),
-        bestStreak: Number(arena.bestStreak || 0),
-        isBot: false,
-      };
-    })
+    .map(([userId, player]) => ({
+      userId: String(userId),
+      id: String(userId),
+      username: player.username || "Unknown",
+      points: Number(player?.arena?.points || 0),
+      wins: Number(player?.arena?.wins || 0),
+      losses: Number(player?.arena?.losses || 0),
+      draws: Number(player?.arena?.draws || 0),
+      matches: Number(player?.arena?.matches || 0),
+      streak: Number(player?.arena?.streak || 0),
+      bestStreak: Number(player?.arena?.bestStreak || 0),
+      isBot: false,
+    }))
     .filter((entry) => {
       return (
+        entry.matches > 0 ||
         entry.points > 0 ||
         entry.wins > 0 ||
-        entry.losses > 0 ||
-        entry.matches > 0
+        entry.losses > 0
       );
     });
 }
 
-function buildArenaBots(count) {
-  return Array.from({ length: count }, (_, index) => {
-    const seed = index + 1;
+function getArenaLeaderboard(playersMap = null) {
+  const realPlayers = getRealArenaEntries(playersMap);
+  const botCount = Math.max(0, ARENA_TOTAL_RANKS - realPlayers.length);
+  const botRows = buildArenaBots(botCount);
 
-    return {
-      userId: `arena-bot-${seed}`,
-      username: makeBotName(index),
-      points: getBotPointsByRank(seed),
-      wins: Math.max(0, Math.floor(getBotPointsByRank(seed) / 120)),
-      losses: Math.max(0, Math.floor(seed / 35)),
-      draws: 0,
-      matches: Math.max(0, Math.floor(getBotPointsByRank(seed) / 90)),
-      streak: 0,
-      bestStreak: 0,
-      isBot: true,
-      botSeed: seed,
-    };
-  });
-}
-
-function getArenaLeaderboard() {
-  const realEntries = getRealArenaEntries()
+  return [...botRows, ...realPlayers]
     .sort(compareArenaEntries)
-    .slice(0, ARENA_TOTAL_RANK_SLOTS);
-
-  const botCount = Math.max(0, ARENA_TOTAL_RANK_SLOTS - realEntries.length);
-  const bots = buildArenaBots(botCount);
-
-  return [...realEntries, ...bots]
-    .sort(compareArenaEntries)
-    .slice(0, ARENA_TOTAL_RANK_SLOTS)
     .map((entry, index) => ({
       ...entry,
       rank: index + 1,
     }));
 }
 
-function getArenaTop3() {
-  return getArenaLeaderboard()
+function getArenaTop3(playersMap = null) {
+  return getArenaLeaderboard(playersMap)
     .filter((entry) => !entry.isBot)
-    .slice(0, 3);
+    .filter((entry) => [1, 2, 3].includes(Number(entry.rank)));
 }
 
-function getArenaRankForUser(userId) {
-  const found = getArenaLeaderboard().find(
-    (entry) => String(entry.userId) === String(userId)
+function getArenaRankForUser(userId, playersMap = null) {
+  const found = getArenaLeaderboard(playersMap).find(
+    (entry) => String(entry.userId || entry.id) === String(userId)
   );
 
-  return found?.rank || ARENA_TOTAL_RANK_SLOTS;
+  return found?.rank || ARENA_TOTAL_RANKS;
 }
 
 function formatArenaEntryRank(entry) {
-  return `#${Number(entry?.rank || ARENA_TOTAL_RANK_SLOTS)}`;
+  return `#${Number(entry?.rank || ARENA_TOTAL_RANKS)}`;
 }
 
 module.exports = {
-  ARENA_TOTAL_RANK_SLOTS,
-  ARENA_POINTS_PER_RANK,
+  ARENA_TOTAL_RANKS,
+  ARENA_TOTAL_RANK_SLOTS: ARENA_TOTAL_RANKS,
+  ARENA_TOP_BOT_POINTS,
+  ARENA_POINT_STEP,
   compareArenaEntries,
   getArenaLeaderboard,
   getArenaTop3,

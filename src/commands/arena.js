@@ -640,7 +640,15 @@ function updateArenaPlayer(message, result) {
     },
   });
 
-  queueArenaRankRoleSync(message);
+function queueArenaRankRoleSync(message) {
+  if (!message?.client || !message?.guild) return;
+
+  setTimeout(() => {
+    syncArenaRankRoles(message.client, message.guild).catch((error) => {
+      console.error("[ARENA RANK ROLES SYNC ERROR]", error);
+    });
+  }, 1500);
+}
 
   return {
     ...updatedArena,
