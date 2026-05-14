@@ -96,6 +96,8 @@ module.exports = {
       );
     }
 
+    const hostId = String(room.hostId || userId);
+
     let missingIds = [];
 
     try {
@@ -112,13 +114,31 @@ module.exports = {
 
     const joinedParticipants = ensureArray(room.participants);
 
-    const missingLines = missingIds.length
+    const missingNonHostIds = missingIds.filter(
+      (id) => String(id) !== String(hostId)
+    );
+
+    const onlyHostMissing =
+      missingIds.length > 0 &&
+      missingNonHostIds.length === 0 &&
+      missingIds.some((id) => String(id) === String(hostId));
+
+    const allUsersJoined = missingIds.length === 0 || onlyHostMissing;
+
+    const missingLines = missingNonHostIds.length
       ? await Promise.all(
-          missingIds.map(async (id, index) => {
+          missingNonHostIds.map(async (id, index) => {
             const username = await resolveUsername(message, room, id);
             return `❌ ${index + 1}. ${username}`;
           })
         )
+      : allUsersJoined
+      ? [
+          "✅ All invited raid members have joined.",
+          onlyHostMissing
+            ? "⚠️ Only the host has not joined yet."
+            : "⚔️ Host can start the raid now.",
+        ]
       : ["Everyone in the team has already joined battle."];
 
     const joinedLines = joinedParticipants.length
@@ -138,12 +158,18 @@ module.exports = {
         )
       : ["None"];
 
+    const content = missingNonHostIds.length
+      ? `📣 Missing raid members: ${missingNonHostIds.map(userMention).join(" ")}`
+      : `📣 ${userMention(
+          hostId
+        )} all raid members have joined. You can start the raid now.`;
+
+    const allowedUsers = missingNonHostIds.length ? missingNonHostIds : [hostId];
+
     return message.reply({
-      content: missingIds.length
-        ? `📣 Missing raid members: ${missingIds.map(userMention).join(" ")}`
-        : null,
+      content,
       allowedMentions: {
-        users: getMentionAllowedUsers(missingIds),
+        users: getMentionAllowedUsers(allowedUsers),
         repliedUser: false,
       },
       embeds: [
