@@ -1,10 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { readPlayers } = require("../playerStore");
-const {
-  getRoom,
-  listRooms,
-  getMissingUsers,
-} = require("../utils/partyRooms");
+const { getRoom, listRooms, getMissingUsers } = require("../utils/partyRooms");
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -12,8 +7,18 @@ function ensureArray(value) {
 
 function userMention(userId) {
   const id = String(userId || "").replace(/\D/g, "");
-
   return id ? `<@${id}>` : String(userId || "Unknown");
+}
+
+function getMentionAllowedUsers(...ids) {
+  return [
+    ...new Set(
+      ids
+        .flat()
+        .map((id) => String(id || "").replace(/\D/g, ""))
+        .filter(Boolean)
+    ),
+  ];
 }
 
 function findRelevantRoom(userId) {
@@ -36,15 +41,24 @@ function findRelevantRoom(userId) {
   );
 }
 
-function getMentionAllowedUsers(...ids) {
-  return [
-    ...new Set(
-      ids
-        .flat()
-        .map((id) => String(id || "").replace(/\D/g, ""))
-        .filter(Boolean)
-    ),
-  ];
+function getSavedDisplayName(room, userId) {
+  const uid = String(userId || "");
+
+  const participant = ensureArray(room.participants).find(
+    (p) => String(p.userId) === uid
+  );
+
+  if (participant?.username) return participant.username;
+
+  const savedMember =
+    ensureArray(room.savedMembers).find((m) => String(m.userId || m.id) === uid) ||
+    ensureArray(room.members).find((m) => String(m.userId || m.id) === uid) ||
+    ensureArray(room.raidTeamMembers).find((m) => String(m.userId || m.id) === uid);
+
+  if (savedMember?.username) return savedMember.username;
+  if (savedMember?.name) return savedMember.name;
+
+  return `User ${uid}`;
 }
 
 module.exports = {
@@ -52,49 +66,13 @@ module.exports = {
   aliases: ["rm", "missing"],
 
   async execute(message) {
-    const hostId = String(message.author.id);
-    const room = findRelevantRoom(hostId);
+    const userId = String(message.author.id);
+    const room = findRelevantRoom(userId);
 
     if (!room) {
-      const players = readPlayers();
-      const savedMembers = ensureArray(players?.[hostId]?.raidTeam?.members).map(String);
-
-      if (!savedMembers.length) {
-        return message.reply(
-          "You do not have an active raid/party room or saved raid team."
-        );
-      }
-
-      const savedLines = savedMembers.map(
-        (id, index) => `${index + 1}. ${userMention(id)}`
+      return message.reply(
+        "No active raid/party room found. Start a raid first with `op raid <boss>` or `op craid <boss>`."
       );
-
-      return message.reply({
-        content: savedMembers.length
-          ? `📣 Raid team reminder: ${savedMembers.map((id) => userMention(id)).join(" ")}`
-          : null,
-        allowedMentions: {
-          users: getMentionAllowedUsers(savedMembers),
-          repliedUser: false,
-        },
-        embeds: [
-          new EmbedBuilder()
-            .setColor(0xe67e22)
-            .setTitle("Saved Raid Team • No Active Room")
-            .setDescription(
-              [
-                "You have saved raid team members, but no active raid/party room.",
-                "Start a room with `op raid <boss>` or `op craid <boss>`.",
-                "",
-                `**Saved Members:** ${savedMembers.length}/9`,
-                ...savedLines,
-              ].join("\n")
-            )
-            .setFooter({
-              text: "One Piece Bot • Raid Missing",
-            }),
-        ],
-      });
     }
 
     let missingIds = [];
@@ -111,30 +89,31 @@ module.exports = {
       );
     }
 
-    const joinedUserIds = ensureArray(room.participants).map((p) =>
-      String(p.userId)
-    );
+    const joinedParticipants = ensureArray(room.participants);
+    const missingMentions = missingIds.map((id) => userMention(id)).join(" ");
 
-    const joinedLines = ensureArray(room.participants).length
-      ? ensureArray(room.participants).map((participant, index) => {
+    const missingLines = missingIds.length
+      ? missingIds.map(
+          (id, index) => `❌ ${index + 1}. ${getSavedDisplayName(room, id)}`
+        )
+      : ["Everyone in the team has already joined battle."];
+
+    const joinedLines = joinedParticipants.length
+      ? joinedParticipants.map((participant, index) => {
           const cards = ensureArray(participant.selectedCards)
             .map((card) => card.name || card.displayName || card.code)
             .filter(Boolean)
             .join(", ");
 
-          return `✅ ${index + 1}. ${userMention(participant.userId)}${
+          return `✅ ${index + 1}. ${participant.username || getSavedDisplayName(room, participant.userId)}${
             cards ? ` • ${cards}` : ""
           }`;
         })
       : ["None"];
 
-    const missingLines = missingIds.length
-      ? missingIds.map((id, index) => `❌ ${index + 1}. ${userMention(id)}`)
-      : ["Everyone in the team has already joined battle."];
-
     return message.reply({
       content: missingIds.length
-        ? `📣 Missing raid members: ${missingIds.map((id) => userMention(id)).join(" ")}`
+        ? `📣 Missing raid members: ${missingMentions}`
         : null,
       allowedMentions: {
         users: getMentionAllowedUsers(missingIds),
@@ -149,7 +128,7 @@ module.exports = {
               `**Boss:** ${room.bossName || "Unknown"}`,
               `**Status:** ${room.status || "waiting"}`,
               `**Invited:** ${ensureArray(room.whitelist).length}`,
-              `**Joined:** ${ensureArray(room.participants).length}`,
+              `**Joined:** ${joinedParticipants.length}`,
               "",
               "## Missing",
               ...missingLines,
