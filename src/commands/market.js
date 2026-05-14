@@ -23,7 +23,7 @@ const MARKET_ITEMS = [
     inventory: "items",
     randomItem: pickRandomUniversalFragment,
     description: "Random Universal C/B/A/S Fragment.",
-    usageText: "Use `op finv` to check your fragments.",
+    usageText: "Use `op inv` to check your inventory.",
   },
   {
     code: "wooden_material_box",
@@ -191,18 +191,21 @@ function getPurchaseUsageText(found, inventoryKey) {
     return "Use `op open <box>` to open your new box.";
   }
 
-  if (found?.item?.code === ITEMS.rumBeer?.code) {
+  if (found?.item?.code === ITEMS.rumBeer?.code || found?.code === "rum_beer") {
     return "Use `op rum <amount/all> <card>` to use Rum Beer.";
   }
 
-  if (
-    found?.code === "random_universal_fragment" ||
-    String(found?.item?.type || "").toLowerCase() === "fragment"
-  ) {
-    return "Use `op finv` to check your fragments.";
-  }
+  return "Use `op inv` to check your inventory.";
+}
 
-  return "Use `op inv` or `op finv` to check your purchased item.";
+function formatObtainedItems(obtainedMap) {
+  const items = [...obtainedMap.values()];
+
+  if (!items.length) return null;
+
+  return `Obtained: **${items
+    .map((item) => `${item.name} x${Number(item.amount || 0).toLocaleString("en-US")}`)
+    .join(", ")}**`;
 }
 
 module.exports = {
@@ -246,17 +249,35 @@ module.exports = {
 
     const inventoryKey = found.inventory || "boxes";
     let updatedInventory = [...(player[inventoryKey] || [])];
+    const obtainedMap = new Map();
+
+    function trackObtained(item, qty = 1) {
+      if (!item) return;
+
+      const key = item.code || item.name;
+      const current = obtainedMap.get(key) || {
+        name: item.name || "Unknown Item",
+        amount: 0,
+      };
+
+      current.amount += Number(qty || 1);
+      obtainedMap.set(key, current);
+    }
 
     if (typeof found.randomItem === "function") {
       for (let i = 0; i < amount; i++) {
         const randomItem = found.randomItem();
 
         if (randomItem) {
-          updatedInventory = addOrIncrease(updatedInventory, cloneItem(randomItem, 1));
+          const cloned = cloneItem(randomItem, 1);
+          updatedInventory = addOrIncrease(updatedInventory, cloned);
+          trackObtained(cloned, 1);
         }
       }
     } else {
-      updatedInventory = addOrIncrease(updatedInventory, cloneItem(found.item, amount));
+      const cloned = cloneItem(found.item, amount);
+      updatedInventory = addOrIncrease(updatedInventory, cloned);
+      trackObtained(cloned, amount);
     }
 
     updatePlayer(message.author.id, {
@@ -272,13 +293,16 @@ module.exports = {
           .setDescription(
             [
               `Bought: **${found.name} x${amount}**`,
+              formatObtainedItems(obtainedMap),
               `Cost: **${totalPrice.toLocaleString("en-US")} ${currency}**`,
               `Remaining ${currency === "berries" ? "Berries" : "Gems"}: **${(
                 currentCurrency - totalPrice
               ).toLocaleString("en-US")}**`,
               "",
               getPurchaseUsageText(found, inventoryKey),
-            ].join("\n")
+            ]
+              .filter(Boolean)
+              .join("\n")
           )
           .setFooter({ text: "One Piece Bot • Market" }),
       ],
