@@ -43,7 +43,9 @@ module.exports = {
     // trade-discuss
     "1497584870812291294": [
       "trade",
+      "convert",
       "mci",
+      "mc",
       "finv",
       "ci",
       "balance",
