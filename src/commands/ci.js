@@ -285,11 +285,31 @@ function getOwnedEvolutionStage(item) {
   return 1;
 }
 
+function getPlayerBoostRequirementPool(player) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+  const boostCards = Array.isArray(player?.boostCards) ? player.boostCards : [];
+  const boosts = Array.isArray(player?.boosts) ? player.boosts : [];
+
+  return [...cards, ...boostCards, ...boosts].filter((entry) => {
+    const role = String(entry?.cardRole || entry?.role || "").toLowerCase();
+    const category = String(entry?.category || "").toLowerCase();
+
+    return (
+      role === "boost" ||
+      category === "boost" ||
+      Boolean(entry?.boostType) ||
+      Boolean(entry?.boostTarget) ||
+      Boolean(entry?.effectText)
+    );
+  });
+}
+
 function doesEntryMatchRequirement(entry, requirement) {
   const requirementNames = [
     requirement?.code,
     requirement?.name,
     requirement?.displayName,
+    requirement?.cardName,
   ]
     .map(normalizeCompare)
     .filter(Boolean);
@@ -298,6 +318,7 @@ function doesEntryMatchRequirement(entry, requirement) {
     entry?.code,
     entry?.name,
     entry?.displayName,
+    entry?.cardName,
     entry?.title,
   ]
     .map(normalizeCompare)
@@ -306,12 +327,13 @@ function doesEntryMatchRequirement(entry, requirement) {
   if (!requirementNames.length || !entryNames.length) return false;
 
   return requirementNames.some((reqName) =>
-    entryNames.some(
-      (entryName) =>
-        entryName === reqName ||
-        entryName.includes(reqName) ||
-        reqName.includes(entryName)
-    )
+    entryNames.some((entryName) => {
+      if (entryName === reqName) return true;
+
+      // Allow short search like "soul solid" matching full display name,
+      // but avoid matching unrelated fields like equippedOn / effect text.
+      return entryName.includes(reqName) || reqName.includes(entryName);
+    })
   );
 }
 
@@ -404,7 +426,7 @@ function buildReqEmbed(card, stage, player) {
     req,
     "boosts",
     "boostsText",
-    player?.boostCards || player?.boosts || []
+    getPlayerBoostRequirementPool(player)
   );
 
   return new EmbedBuilder()
