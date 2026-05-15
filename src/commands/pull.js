@@ -615,9 +615,7 @@ module.exports = {
             autoLevelResult.levelGained
           } Level**.`;
         } else {
-          updatedFragments = removeFragmentAmount(autoLevelResult.fragments, picked.code, 1);
-
-          const sacResult = addFragmentWithAutoSac(player, updatedFragments, picked, 1);
+          const sacResult = addFragmentWithAutoSac(player, autoLevelResult.fragments, picked, 1);
           updatedFragments = sacResult.fragments;
           autoSacBerries += sacResult.berries;
 

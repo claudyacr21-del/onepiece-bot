@@ -50,14 +50,17 @@ function readPlayers() {
       console.error("Failed to back up broken players.json", backupError);
     }
 
-    fs.writeFileSync(filePath, "{}", "utf8");
     return {};
   }
 }
 
 function writePlayers(data) {
   ensureFile();
-  const tempPath = `${filePath}.tmp`;
+
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.${Math.random()
+    .toString(16)
+    .slice(2)}.tmp`;
+
   fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), "utf8");
   fs.renameSync(tempPath, filePath);
 }
@@ -714,8 +717,7 @@ function getPlayer(userId, username) {
     players[userId] = getDefaultPlayer(username);
     writePlayers(players);
   } else {
-    players[userId] = normalizePlayer(players[userId], username);
-    writePlayers(players);
+    return normalizePlayer(players[userId], username);
   }
 
   return players[userId];
