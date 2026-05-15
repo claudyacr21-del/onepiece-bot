@@ -23,6 +23,7 @@ const {
 
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
+const cardsData = require("../data/cards");
 
 const FLAT_EXP_CAP = 1000;
 
@@ -196,13 +197,41 @@ function pushUnique(list, value) {
   return list;
 }
 
+function findCardDisplayNameByOwnerCode(value) {
+  const target = normalize(value);
+  if (!target) return null;
+
+  const found = (Array.isArray(cardsData) ? cardsData : []).find((card) => {
+    const code = normalize(card?.code);
+    const name = normalize(card?.name);
+    const displayName = normalize(card?.displayName);
+
+    return code === target || name === target || displayName === target;
+  });
+
+  return found?.displayName || found?.name || null;
+}
+
+function formatOwnerSignatureValue(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  return findCardDisplayNameByOwnerCode(raw) || raw;
+}
+
 function getOwnerSignature(item) {
   const owners = Array.isArray(item?.owners) ? item.owners.filter(Boolean) : [];
 
-  if (owners.length) return owners.join(", ");
-  if (item?.ownerSignature) return String(item.ownerSignature);
-  if (item?.signature) return String(item.signature);
-  if (item?.owner) return String(item.owner);
+  if (owners.length) {
+    return owners
+      .map(formatOwnerSignatureValue)
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (item?.ownerSignature) return formatOwnerSignatureValue(item.ownerSignature);
+  if (item?.signature) return formatOwnerSignatureValue(item.signature);
+  if (item?.owner) return formatOwnerSignatureValue(item.owner);
 
   return "None";
 }
