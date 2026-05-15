@@ -209,7 +209,7 @@ const EXTRA_CHARACTER_CARDS = [
 
 const SPECIAL_FORMS = {
   luffy_straw_hat: ["The Beginning", "Revival", "Gear 5"],
-  zoro_pirate_hunter: ["Three Sword Style", "King of Hell", "Asura"],
+  zoro_pirate_hunter: ["Three Sword Style", "King of Hell", "Ashura"],
   nami_cat_burglar: ["Weather Rookie", "Thunder Tempo", "Zeus Queen"],
   usopp_sniper: ["Sniper Rookie", "Pop Green Arsenal", "God Usopp"],
   sanji_black_leg: ["The Beginning", "Germa Awakening", "Ifrit Jambe"],
