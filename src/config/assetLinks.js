@@ -14,9 +14,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1504439820103975112/content.png?ex=6a06fe44&is=6a05acc4&hm=3803d414bca76d7753228cc249f5e635a655343e3c25bcf1ad1a1634fdbc8ba0&",
   },
   zoro_pirate_hunter: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1495039032336322750/content.png?ex=69e4cb19&is=69e37999&hm=eb41fbbc77d958badd3946c88e419d51b212ba4d3363044990b2148ff337f6b8&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1495039033183834232/content.png?ex=69e4cb19&is=69e37999&hm=a58754950fb82325de4f16dd125e6af591ba6cd90a8392061fc8c15947618c4f&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1495039034051919902/content.png?ex=69e4cb1a&is=69e3799a&hm=762f2844938e96b5b8abc10fb8efa2491e83bb216907208c14de16d9d4f361f7&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1504807809131221112/content.png?ex=6a0854fb&is=6a07037b&hm=089ae22ce421f20a274831ece71cf9b0185202d0a908a3024aa8a3915089825c&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1504807809748041758/content.png?ex=6a0854fb&is=6a07037b&hm=69746cba81cd2a12f75d0e7577f3f1223564c795239beb11f4b815a6aeed0064&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1504807810314145875/content.png?ex=6a0854fb&is=6a07037b&hm=19b7005c7c2e7460196bbff8e11c5d31694b785c6047dcaf81414f88185018b6&",
   },
   nami_cat_burglar: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1495041116511277086/content.png?ex=69e4cd0a&is=69e37b8a&hm=0abc7664cb9addde23f161ac8358c0664a49b7ce36306e72f89f4b086bb952da&",

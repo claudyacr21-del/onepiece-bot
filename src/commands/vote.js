@@ -10,9 +10,6 @@ const { getPlayer } = require("../playerStore");
 const TOPGG_URL = "https://top.gg/bot/1492759342972407869/vote";
 const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const RAID_TICKET_STREAK_TARGET = 25;
-const REMINDER_COLLECTOR_MS = 10 * 60 * 1000;
-
-const activeVoteReminders = new Map();
 
 function getVoteCooldownAt(player) {
   const cooldownVote = Number(player?.cooldowns?.vote || 0);
@@ -74,7 +71,7 @@ function buildVoteEmbed(message, player) {
         "",
         "Every **25 Vote Streak** gives **Raid Ticket x1**.",
         "",
-        "Click **Remind Me** if you want the bot to DM you when your vote is ready.",
+        "🗳️ Reminder: the bot will DM you automatically when your vote cooldown is ready.",
       ].join("\n")
     )
     .setThumbnail(message.client.user.displayAvatarURL())
@@ -83,58 +80,15 @@ function buildVoteEmbed(message, player) {
     });
 }
 
-function buildVoteRows(userId) {
+function buildVoteRows() {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setLabel("Vote")
         .setStyle(ButtonStyle.Link)
-        .setURL(TOPGG_URL),
-      new ButtonBuilder()
-        .setCustomId(`vote_remind_${userId}`)
-        .setLabel("Remind Me")
-        .setStyle(ButtonStyle.Primary)
+        .setURL(TOPGG_URL)
     ),
   ];
-}
-
-function clearVoteReminder(userId) {
-  const key = String(userId);
-  const existing = activeVoteReminders.get(key);
-
-  if (existing) {
-    clearTimeout(existing.timeout);
-    activeVoteReminders.delete(key);
-  }
-}
-
-function scheduleVoteReminder(user, readyAt) {
-  const userId = String(user.id);
-  const delay = Math.max(0, Number(readyAt || 0) - Date.now());
-
-  clearVoteReminder(userId);
-
-  const timeout = setTimeout(async () => {
-    activeVoteReminders.delete(userId);
-
-    const dmText = [
-      "⏰ **Vote Reminder**",
-      "",
-      "Your Top.gg vote cooldown is ready!",
-      `Vote here: ${TOPGG_URL}`,
-      "",
-      "Reward: **Pull Reset Ticket + 5,000 Berries**",
-    ].join("\n");
-
-    await user.send(dmText).catch(() => null);
-  }, delay);
-
-  activeVoteReminders.set(userId, {
-    readyAt,
-    timeout,
-  });
-
-  return delay;
 }
 
 module.exports = {
@@ -143,63 +97,13 @@ module.exports = {
 
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-    const cooldownAt = getVoteCooldownAt(player);
 
-    const sent = await message.reply({
+    return message.reply({
       embeds: [buildVoteEmbed(message, player)],
-      components: buildVoteRows(message.author.id),
-    });
-
-    const collector = sent.createMessageComponentCollector({
-      time: REMINDER_COLLECTOR_MS,
-    });
-
-    collector.on("collect", async (interaction) => {
-      if (interaction.user.id !== message.author.id) {
-        return interaction.reply({
-          content: "Only the command user can set this vote reminder.",
-          ephemeral: true,
-        });
-      }
-
-      if (interaction.customId !== `vote_remind_${message.author.id}`) {
-        return;
-      }
-
-      const freshPlayer = getPlayer(message.author.id, message.author.username);
-      const freshCooldownAt = getVoteCooldownAt(freshPlayer);
-      const delay = scheduleVoteReminder(interaction.user, freshCooldownAt);
-
-      if (delay <= 0) {
-        return interaction.reply({
-          content:
-            "✅ Your vote is already ready now. I also sent you a DM reminder.",
-          ephemeral: true,
-        });
-      }
-
-      return interaction.reply({
-        content: `✅ Vote reminder set. I will DM you in **${formatCooldown(
-          freshCooldownAt
-        )}**.`,
-        ephemeral: true,
-      });
-    });
-
-    collector.on("end", async () => {
-      try {
-        await sent.edit({
-          components: buildVoteRows(message.author.id).map((row) => {
-            row.components.forEach((component) => {
-              if (component.data?.custom_id?.startsWith("vote_remind_")) {
-                component.setDisabled(true);
-              }
-            });
-
-            return row;
-          }),
-        });
-      } catch {}
+      components: buildVoteRows(),
+      allowedMentions: {
+        repliedUser: false,
+      },
     });
   },
 };

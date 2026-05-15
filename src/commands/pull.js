@@ -60,6 +60,45 @@ function getPityGuarantee(tier) {
   return tier === "none" || tier === "normal" ? "A" : "S";
 }
 
+function getEffectivePullTierForSlot(roleTier, pullKey) {
+  if (roleTier === "motherFlame") return "motherFlame";
+
+  // Vivre Card rate only applies when the consumed slot is the Vivre Card slot.
+  // Other slots stay normal, so Vivre cannot be spammed after its slot is used.
+  if (roleTier === "vivreCard") {
+    return pullKey === "vivreCard" ? "vivreCard" : "normal";
+  }
+
+  return "normal";
+}
+
+function syncPremiumSnapshot(snapshot, premiumTier) {
+  if (premiumTier === "motherFlame") {
+    return {
+      ...snapshot,
+      patreon: true,
+      vivreCard: false,
+      litePremium: false,
+    };
+  }
+
+  if (premiumTier === "vivreCard") {
+    return {
+      ...snapshot,
+      patreon: false,
+      vivreCard: true,
+      litePremium: true,
+    };
+  }
+
+  return {
+    ...snapshot,
+    patreon: false,
+    vivreCard: false,
+    litePremium: false,
+  };
+}
+
 function pickContentType(tier) {
   if (tier === "motherFlame") return rollPremiumContentType();
   if (tier === "vivreCard") return rollVivreContentType();
@@ -523,20 +562,11 @@ module.exports = {
       player.pulls = resetState.pulls;
     }
 
-    const premiumTier = await getPremiumTier(message);
-    const snapshot = buildPullAccessSnapshot(player, message);
-
-    if (premiumTier === "motherFlame") {
-      snapshot.patreon = true;
-      snapshot.vivreCard = false;
-      snapshot.litePremium = false;
-    }
-
-    if (premiumTier === "vivreCard") {
-      snapshot.vivreCard = true;
-      snapshot.litePremium = true;
-      snapshot.patreon = false;
-    }
+    const roleTier = await getPremiumTier(message);
+    const snapshot = syncPremiumSnapshot(
+      buildPullAccessSnapshot(player, message),
+      roleTier
+    );
 
     updatePlayer(message.author.id, {
       pullAccessSnapshot: snapshot,
@@ -558,6 +588,7 @@ module.exports = {
       return message.reply("No pull slot is currently available.");
     }
 
+    const premiumTier = getEffectivePullTierForSlot(roleTier, pullKey);
     const pityLimit = getPityLimit(premiumTier);
     const pityGuarantee = getPityGuarantee(premiumTier);
 

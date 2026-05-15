@@ -8,14 +8,21 @@ const { getPremiumTier } = require("../utils/premiumAccess");
 
 function fmtInfo(slot) {
   const max = Number(slot?.max || 0);
+  const used = Number(slot?.used || 0);
   const displayMax = Number(slot?.displayMax || max || 0);
-  return slot?.enabled ? `${max}/${displayMax}` : `0/${displayMax}`;
+  const remaining = slot?.enabled ? Math.max(0, max - used) : 0;
+
+  return `${remaining}/${displayMax}`;
 }
 
 function getActiveSlotTotal(slots) {
   return Object.values(slots).reduce((total, slot) => {
     if (!slot.enabled) return total;
-    return total + Number(slot.max || 0);
+
+    const max = Number(slot.max || 0);
+    const used = Number(slot.used || 0);
+
+    return total + Math.max(0, max - used);
   }, 0);
 }
 
@@ -25,27 +32,30 @@ function getPotentialSlotTotal(slots) {
   }, 0);
 }
 
-function getTierInfo(tier) {
-  if (tier === "motherFlame") {
+function syncPremiumSnapshot(snapshot, premiumTier) {
+  if (premiumTier === "motherFlame") {
     return {
-      label: "Mother Flame",
-      pity: "S at 100 pity",
-      note: "Full premium tier",
+      ...snapshot,
+      patreon: true,
+      vivreCard: false,
+      litePremium: false,
     };
   }
 
-  if (tier === "vivreCard") {
+  if (premiumTier === "vivreCard") {
     return {
-      label: "Vivre Card",
-      pity: "S at 125 pity",
-      note: "Lite premium tier",
+      ...snapshot,
+      patreon: false,
+      vivreCard: true,
+      litePremium: true,
     };
   }
 
   return {
-    label: "Normal",
-    pity: "A at 150 pity",
-    note: "Normal tier",
+    ...snapshot,
+    patreon: false,
+    vivreCard: false,
+    litePremium: false,
   };
 }
 
@@ -57,17 +67,10 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
     const premiumTier = await getPremiumTier(message);
 
-    const snapshot = buildPullAccessSnapshot(player, message);
-
-    if (premiumTier === "motherFlame") {
-      snapshot.patreon = true;
-      snapshot.vivreCard = false;
-    }
-
-    if (premiumTier === "vivreCard") {
-      snapshot.vivreCard = true;
-      snapshot.patreon = false;
-    }
+    const snapshot = syncPremiumSnapshot(
+      buildPullAccessSnapshot(player, message),
+      premiumTier
+    );
 
     updatePlayer(message.author.id, {
       pullAccessSnapshot: snapshot,
@@ -78,29 +81,29 @@ module.exports = {
     const slots = getPullSlotStatus(player, message);
     const activeSlotTotal = getActiveSlotTotal(slots);
     const potentialSlotTotal = getPotentialSlotTotal(slots);
-    const tierInfo = getTierInfo(premiumTier);
 
     const embed = new EmbedBuilder()
       .setColor(0x8e44ad)
-      .setTitle("🎰 Pull Slot Information")
+      .setTitle("Pull Slot Information")
       .setDescription(
         [
           "`op pull` and `op pa` use the same synced pity counter.",
+          "Mother Flame users guarantee **S** at 100 pity.",
+          "Vivre Card bonus slot uses **Vivre Card rates**.",
+          "Non-premium/base slots guarantee **A** at 150 pity.",
           "",
-          `↪ Premium Tier: **${tierInfo.label}**`,
-          `↪ Pity Guarantee: **${tierInfo.pity}**`,
-          `↪ Tier Note: ${tierInfo.note}`,
-          "",
-          "**Pull Slots**",
           `↪ Base Pulls: ${fmtInfo(slots.base)}`,
           `↪ Bonus Pull For Main Server Members: ${fmtInfo(slots.supportMember)}`,
           `↪ Bonus Pull For Main Server Boosters: ${fmtInfo(slots.booster)}`,
-          `↪ Bonus Pull For Server Owners (invite bot to your server): ${fmtInfo(slots.owner)}`,
+          `↪ Bonus Pull For Server Owners: ${fmtInfo(slots.owner)}`,
           `↪ Bonus Pulls From Mother Flame: ${fmtInfo(slots.patreon)}`,
+          `↪ Bonus Pulls From Vivre Card: ${fmtInfo(slots.vivreCard)}`,
           `↪ Bonus Pulls From Baccarat Card: ${fmtInfo(slots.baccaratCard)}`,
           `↪ Bonus Pulls From Baccarat Devil Fruit: ${fmtInfo(slots.baccaratFruit)}`,
           "",
-          "This page shows your unlocked pull slots, not your remaining pulls.",
+          `**Remaining Pulls:** ${activeSlotTotal}/${potentialSlotTotal}`,
+          "",
+          "This page shows your remaining pull slots.",
         ].join("\n")
       )
       .setFooter({
@@ -109,6 +112,9 @@ module.exports = {
 
     return message.reply({
       embeds: [embed],
+      allowedMentions: {
+        repliedUser: false,
+      },
     });
   },
 };
