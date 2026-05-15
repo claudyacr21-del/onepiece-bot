@@ -375,6 +375,117 @@ function getRequirementStatusLines(req, key, textKey, collection) {
   return ["↪ None"];
 }
 
+function getRequirementEntries(req) {
+  return [
+    ...((Array.isArray(req?.cards) && req.cards) || []).map((entry) => ({
+      ...entry,
+      reqType: "card",
+    })),
+    ...((Array.isArray(req?.boosts) && req.boosts) || []).map((entry) => ({
+      ...entry,
+      reqType: "boost",
+    })),
+  ];
+}
+
+function requirementMatchesCurrentCard(requirement, currentCard, currentStage) {
+  const requiredStage = Number(requirement?.stage || 1);
+  const viewedStage = Number(currentStage || 1);
+
+  if (requiredStage !== viewedStage) return false;
+
+  const requirementNames = [
+    requirement?.code,
+    requirement?.name,
+    requirement?.displayName,
+    requirement?.cardName,
+  ]
+    .map(normalizeCompare)
+    .filter(Boolean);
+
+  const currentNames = [
+    currentCard?.code,
+    currentCard?.name,
+    currentCard?.displayName,
+  ]
+    .map(normalizeCompare)
+    .filter(Boolean);
+
+  if (!requirementNames.length || !currentNames.length) return false;
+
+  return requirementNames.some((reqName) =>
+    currentNames.some(
+      (currentName) =>
+        reqName === currentName ||
+        reqName.includes(currentName) ||
+        currentName.includes(reqName)
+    )
+  );
+}
+
+function getRequiredForTargets(currentCard, currentStage) {
+  const results = [];
+
+  for (const targetCard of getAllCards()) {
+    const requirements = targetCard?.awakenRequirements || {};
+
+    for (const stageKey of ["M2", "M3"]) {
+      const req = requirements?.[stageKey];
+
+      if (!req) continue;
+
+      const entries = getRequirementEntries(req);
+      const matched = entries.some((entry) =>
+        requirementMatchesCurrentCard(entry, currentCard, currentStage)
+      );
+
+      if (!matched) continue;
+
+      results.push({
+        targetName: targetCard.displayName || targetCard.name || "Unknown",
+        targetStage: stageKey,
+        targetRole: targetCard.cardRole || "battle",
+      });
+    }
+  }
+
+  return results.sort((a, b) => {
+    const nameA = normalizeCompare(a.targetName);
+    const nameB = normalizeCompare(b.targetName);
+
+    if (nameA !== nameB) return nameA.localeCompare(nameB);
+
+    return String(a.targetStage).localeCompare(String(b.targetStage));
+  });
+}
+
+function buildRequiredForEmbed(card, stage) {
+  const stageCard = getStageCard(card, stage);
+  const stageLabel = getStageLabel(stage);
+  const displayName = stageCard.displayName || card.displayName || card.name;
+  const targets = getRequiredForTargets(card, stage);
+
+  const lines = targets.length
+    ? targets.map(
+        (target) => `↪ ${target.targetName} ${target.targetStage}`
+      )
+    : ["This card/form is not required by any other card yet."];
+
+  return new EmbedBuilder()
+    .setColor(0xe91e63)
+    .setTitle("⭐ Required For")
+    .setDescription(
+      [
+        `**${displayName} ${stageLabel}** is required for:`,
+        "",
+        ...lines,
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Requirement Lookup",
+    });
+}
+
 function buildReqEmbed(card, stage, player) {
   const stageCard = getStageCard(card, stage);
   const req =
@@ -544,6 +655,10 @@ function buildRows(stage) {
         .setStyle(ButtonStyle.Primary)
         .setDisabled(stage <= 1),
       new ButtonBuilder()
+        .setCustomId("ci_required_for")
+        .setLabel("★")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
         .setCustomId("ci_next")
         .setLabel("Next")
         .setStyle(ButtonStyle.Secondary)
@@ -592,6 +707,13 @@ module.exports = {
         return i.reply({
           ephemeral: true,
           embeds: [buildReqEmbed(globalCard, stage, player)],
+        });
+      }
+
+      if (i.customId === "ci_required_for") {
+        return i.reply({
+          ephemeral: true,
+          embeds: [buildRequiredForEmbed(globalCard, stage)],
         });
       }
 
