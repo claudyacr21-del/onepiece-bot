@@ -369,11 +369,13 @@ function getWeaponPercentAtLevel(basePercent, level) {
 }
 
 function dedupeTextList(list) {
-  return [...new Set(
-    (Array.isArray(list) ? list : [])
-      .map((value) => String(value || "").trim())
-      .filter(Boolean)
-  )];
+  return [
+    ...new Set(
+      (Array.isArray(list) ? list : [])
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+    ),
+  ];
 }
 
 function addWeaponToPool(pool, template, options = {}) {
@@ -392,16 +394,7 @@ function addWeaponToPool(pool, template, options = {}) {
   existing.amount += Math.max(0, Number(options.amount || 0));
 
   if (options.equippedOn) {
-    const equippedName = String(options.equippedOn || "").trim();
-
-    if (
-      equippedName &&
-      !existing.equippedOn.some(
-        (name) => normalize(name) === normalize(equippedName)
-      )
-    ) {
-      existing.equippedOn.push(equippedName);
-    }
+    pushUnique(existing.equippedOn, options.equippedOn);
   }
 
   existing.equippedOn = dedupeTextList(existing.equippedOn);
@@ -572,7 +565,7 @@ function findOwnedWeapon(player, query) {
   const scored = pool
     .map((weapon) => ({
       weapon,
-      score: scoreQuery(query, [weapon.name, weapon.code, weapon.type]),
+      score: scoreQuery(query, [weapon.name]),
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -586,7 +579,7 @@ function findOwnedFruit(player, query) {
   const scored = pool
     .map((fruit) => ({
       fruit,
-      score: scoreQuery(query, [fruit.name, fruit.code, fruit.type]),
+      score: scoreQuery(query, [fruit.name]),
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -616,9 +609,7 @@ function buildWeaponEmbed(ownerName, player, weapon, index = 0, total = 1) {
   );
 
   const equippedNames = dedupeTextList(weapon.equippedOn);
-  const equippedText = equippedNames.length
-    ? equippedNames.join(", ")
-    : "Not equipped";
+  const equippedText = equippedNames.length ? equippedNames.join(", ") : "Not equipped";
 
   const fragments = getFragmentAmount(player, weapon);
 
@@ -658,10 +649,8 @@ function buildFruitEmbed(ownerName, player, fruit) {
     speed: 0,
   };
 
-  const equippedText =
-    Array.isArray(fruit.equippedOn) && fruit.equippedOn.length
-      ? fruit.equippedOn.join(", ")
-      : "Not equipped";
+  const equippedNames = dedupeTextList(fruit.equippedOn);
+  const equippedText = equippedNames.length ? equippedNames.join(", ") : "Not equipped";
 
   const fragments = getFragmentAmount(player, fruit);
 
@@ -714,10 +703,31 @@ module.exports = {
       .map((card) => applyBoostedDisplayStats(card, boosts));
 
     if (sub1 === "weapon") {
+      const weaponQuery = args.slice(1).join(" ").trim();
       const weapons = buildOwnedWeaponCollection(player);
 
       if (!weapons.length) {
         return message.reply("You do not own any weapons yet.");
+      }
+
+      if (weaponQuery) {
+        const foundWeapon = findOwnedWeapon(player, weaponQuery);
+
+        if (!foundWeapon) {
+          return message.reply(`Weapon not found by name: \`${weaponQuery}\`.`);
+        }
+
+        return message.reply({
+          embeds: [
+            buildWeaponEmbed(
+              message.author.username,
+              player,
+              foundWeapon,
+              0,
+              1
+            ),
+          ],
+        });
       }
 
       let index = 0;

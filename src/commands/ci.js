@@ -364,12 +364,59 @@ module.exports = {
   name: "ci",
   aliases: ["cardinfo"],
 
+function normalizeNameSearch(text) {
+  return String(text || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function scoreNameOnly(query, names) {
+  const q = normalizeNameSearch(query);
+  if (!q) return 0;
+
+  let best = 0;
+
+  for (const raw of names) {
+    const name = normalizeNameSearch(raw);
+    if (!name) continue;
+
+    if (name === q) best = Math.max(best, 1000 + name.length);
+    else if (name.startsWith(q)) best = Math.max(best, 700 + q.length);
+    else if (name.includes(q)) best = Math.max(best, 400 + q.length);
+    else {
+      const words = q.split(" ").filter(Boolean);
+      if (words.length && words.every((word) => name.includes(word))) {
+        best = Math.max(best, 250 + words.join("").length);
+      }
+    }
+  }
+
+  return best;
+}
+
+function findCardTemplateByNameOnly(query) {
+  const scored = getAllCards()
+    .map((card) => ({
+      card,
+      score: scoreNameOnly(query, [
+        card.displayName,
+        card.name,
+      ]),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored.length ? scored[0].card : null;
+}
+
   async execute(message, args) {
     const query = args.join(" ").trim();
     if (!query) return message.reply("Usage: `op ci <card>`");
 
     const player = getPlayer(message.author.id, message.author.username);
-    const globalCard = findCardTemplate(query);
+    const globalCard = findCardTemplateByNameOnly(query);
 
     if (!globalCard) return message.reply("Card not found in global database.");
 
