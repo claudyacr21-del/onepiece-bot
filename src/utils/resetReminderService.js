@@ -134,19 +134,33 @@ async function sendUserDm(client, userId, type) {
   if (!user) return false;
 
   const isDaily = type === "daily";
+  const isTreasure = type === "treasure";
+  const isVote = type === "vote";
+
+  const emoji = isDaily ? "🎁" : isTreasure ? "🔥" : "🗳️";
 
   const embed = new EmbedBuilder()
-    .setColor(isDaily ? 0x2ecc71 : 0xe67e22)
-    .setTitle(isDaily ? "🎁 Daily Reward Is Ready!" : "💎 Treasure Is Ready!")
+    .setColor(isDaily ? 0x2ecc71 : isTreasure ? 0xe67e22 : 0x8e44ad)
+    .setTitle(
+      isDaily
+        ? `${emoji} Daily Reward Is Ready!`
+        : isTreasure
+        ? `${emoji} Treasure Is Ready!`
+        : `${emoji} Vote Is Ready!`
+    )
     .setDescription(
       isDaily
         ? "Your daily reward cooldown is finished.\nUse `op daily` in the server to claim it."
-        : "Your Mother Flame treasure cooldown is finished.\nUse `op treasure` in the server to claim it."
+        : isTreasure
+        ? "Your Mother Flame treasure cooldown is finished.\nUse `op treasure` in the server to claim it."
+        : "Your Top.gg vote cooldown is finished.\nUse `op vote` in the server, then vote again to claim the reward."
     )
     .setFooter({
       text: isDaily
         ? "One Piece Bot • Daily Reminder"
-        : "One Piece Bot • Treasure Reminder",
+        : isTreasure
+        ? "One Piece Bot • Treasure Reminder"
+        : "One Piece Bot • Vote Reminder",
     });
 
   await user.send({ embeds: [embed] }).catch(() => null);
@@ -168,6 +182,7 @@ async function checkUserCooldownReminders(client) {
     const cooldowns = player?.cooldowns || {};
     const dailyReadyAt = Number(cooldowns.daily || 0);
     const treasureReadyAt = Number(cooldowns.treasure || 0);
+    const voteReadyAt = Number(cooldowns.vote || 0);
 
     if (!state.userCooldowns[userId]) {
       state.userCooldowns[userId] = {};
@@ -192,6 +207,15 @@ async function checkUserCooldownReminders(client) {
     ) {
       await sendUserDm(client, userId, "treasure");
       userState.treasureNotifiedAt = treasureReadyAt;
+      changed = true;
+    }
+    if (
+      voteReadyAt > 0 &&
+      voteReadyAt <= now &&
+      Number(userState.voteNotifiedAt || 0) !== voteReadyAt
+    ) {
+      await sendUserDm(client, userId, "vote");
+      userState.voteNotifiedAt = voteReadyAt;
       changed = true;
     }
   }
