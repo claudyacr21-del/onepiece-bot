@@ -49,6 +49,7 @@ function setPatreonRole(userId, payload) {
 
   data[String(userId)] = {
     userId: String(userId),
+    tier: String(payload.tier || "mother_flame"),
     roleId: String(payload.roleId),
     guildId: String(payload.guildId),
     grantedBy: String(payload.grantedBy || ""),
@@ -57,7 +58,6 @@ function setPatreonRole(userId, payload) {
   };
 
   writePatreonRoles(data);
-
   return data[String(userId)];
 }
 
