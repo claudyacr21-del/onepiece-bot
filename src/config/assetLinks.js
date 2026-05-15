@@ -876,7 +876,9 @@ const WEAPON_IMAGES = {
   wax_blade: "https://cdn.discordapp.com/attachments/1493204525975076944/1501434942511648879/content.png?ex=69fc0fc1&is=69fabe41&hm=68d59e7adcf2feace620b318d3b4b3120de9b34a3bfed5f9d9f9b6d61dba2c5e&",
   wootz_steel_spear: "https://cdn.discordapp.com/attachments/1493204525975076944/1501434943178543124/content.png?ex=69fc0fc1&is=69fabe41&hm=59a01916850f9f0386a01689b112484614204663a681503c55948441a57d5cd8&",
   yoru: "https://cdn.discordapp.com/attachments/1493204525975076944/1501434943685918951/content.png?ex=69fc0fc1&is=69fabe41&hm=ea9c49283fb1d56e23642a518a9aa0641439733fddaf8cf3dd463182188d85b4&",
-  trident: "https://cdn.discordapp.com/attachments/1493204525975076944/1501434944248086569/content.png?ex=69fc0fc2&is=69fabe42&hm=025e5356b4f39bb4b70d953bde540df37af8379ef057a27b73bcab2bcf5f2bff&"
+  trident: "https://cdn.discordapp.com/attachments/1493204525975076944/1501434944248086569/content.png?ex=69fc0fc2&is=69fabe42&hm=025e5356b4f39bb4b70d953bde540df37af8379ef057a27b73bcab2bcf5f2bff&",
+  metal_arm: "https://cdn.discordapp.com/attachments/1493204525975076944/1504790663214923796/content.png?ex=6a084503&is=6a06f383&hm=c7752126ffd114d7ffc3941cf2c28978212b403475c08cb455a93c150e27e20b&",
+  kikoku: "https://cdn.discordapp.com/attachments/1493204525975076944/1504790662707544124/content.png?ex=6a084503&is=6a06f383&hm=f5b9878fcc41743c685878c8db0a676a4652d2481595e3838b33f4d30dad9b2e&",
 };
 
 const DEVIL_FRUIT_IMAGES = {

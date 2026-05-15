@@ -658,5 +658,27 @@ module.exports = [
     ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "A brutal trident used by Hody Jones in close-range domination and piercing attacks."
+  },
+  {
+    code: "metal_arm",
+    name: "Metal Arm",
+    rarity: "S",
+    owners: ["kid_captain"],
+    type: "Mechanical Arm",
+    statPercent: { atk: 6, hp: 4, speed: 3, },
+    ownerBonusPercent: { atk: 3, hp: 2, speed: 1, },
+    image: "",
+    description: "Eustass Kid's magnetic metal arm, assembled with the Jiki Jiki no Mi for crushing close-range attacks.",
+  },
+  {
+    code: "kikoku",
+    name: "Kikoku",
+    rarity: "S",
+    owners: ["law_surgeon_of_death"],
+    type: "Nodachi",
+    statPercent: { atk: 6, hp: 4, speed: 3, },
+    ownerBonusPercent: { atk: 3, hp: 2, speed: 1, },
+    image: "",
+    description: "Trafalgar Law's long nodachi, used with Ope Ope no Mi techniques for precise surgical slashes.",
   }
 ];
