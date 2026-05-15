@@ -168,7 +168,19 @@ module.exports = {
       );
     }
 
-    const tier = normalizeTier(args[1] || "mother_flame");
+    const raw = String(message.content || "").trim().split(/\s+/);
+    const usedCommandRaw = String(raw[1] || "").toLowerCase();
+
+    function getTierFromCommandOrArgs(commandName, tierArg) {
+      const cmd = normalize(commandName);
+
+      if (cmd === "vc30" || cmd === "vivre30") return "vivre_card";
+      if (cmd === "mf30") return "mother_flame";
+
+      return normalizeTier(tierArg || "mother_flame");
+    }
+
+    const tier = getTierFromCommandOrArgs(usedCommandRaw, args[1]);
     const config = TIER_CONFIG[tier] || TIER_CONFIG.mother_flame;
 
     const role = await resolveTierRole(message, tier);
