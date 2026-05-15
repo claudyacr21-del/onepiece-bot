@@ -24,6 +24,50 @@ function formatAtkRange(atk) {
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
+function normalizeNameSearch(text) {
+  return String(text || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function scoreNameOnly(query, names) {
+  const q = normalizeNameSearch(query);
+  if (!q) return 0;
+
+  let best = 0;
+
+  for (const raw of names) {
+    const name = normalizeNameSearch(raw);
+    if (!name) continue;
+
+    if (name === q) best = Math.max(best, 1000 + name.length);
+    else if (name.startsWith(q)) best = Math.max(best, 700 + q.length);
+    else if (name.includes(q)) best = Math.max(best, 400 + q.length);
+    else {
+      const words = q.split(" ").filter(Boolean);
+      if (words.length && words.every((word) => name.includes(word))) {
+        best = Math.max(best, 250 + words.join("").length);
+      }
+    }
+  }
+
+  return best;
+}
+
+function findCardTemplateByNameOnly(query) {
+  const scored = getAllCards()
+    .map((card) => ({
+      card,
+      score: scoreNameOnly(query, [card.displayName, card.name]),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored.length ? scored[0].card : null;
+}
+
 function getAllGlobalCard(card) {
   const code = String(card?.code || "").toLowerCase();
 
@@ -121,18 +165,6 @@ function formatReqEntry(entry) {
   return `${name} M${stage}`;
 }
 
-function getReqLines(req, key, textKey) {
-  if (Array.isArray(req?.[key]) && req[key].length) {
-    return req[key].map((entry) => `↪ ${formatReqEntry(entry)}`);
-  }
-
-  if (Array.isArray(req?.[textKey]) && req[textKey].length) {
-    return req[textKey].map((entry) => `↪ ${entry}`);
-  }
-
-  return ["↪ None"];
-}
-
 function getStageCard(card, stage) {
   return hydrateCard({
     ...card,
@@ -156,60 +188,6 @@ function getDisplayAwakenGemsCost(req, stage) {
   }
 
   return getDefaultAwakenGemsCostForStage(stage);
-}
-
-function buildReqEmbed(card, stage) {
-  const stageCard = getStageCard(card, stage);
-  const req =
-    stageCard.awakenRequirements?.[`M${stage}`] ||
-    card.awakenRequirements?.[`M${stage}`];
-
-  if (!req) {
-    return new EmbedBuilder()
-      .setColor(0x2ecc71)
-      .setTitle(
-        `ℹ️ Requirement • ${
-          stageCard.displayName || card.displayName || card.name
-        } • M${stage}`
-      )
-      .setDescription("Base form.\nNo requirement.");
-  }
-
-  const levelText =
-    stageCard.cardRole === "battle" ? Number(req.minLevel || 0) : "Not required";
-
-  return new EmbedBuilder()
-    .setColor(0x2ecc71)
-    .setTitle(
-      `ℹ️ Requirement • ${
-        stageCard.displayName || card.displayName || card.name
-      } • M${stage}`
-    )
-    .setDescription(
-      [
-        "**Requirement Panel**",
-        "",
-        "**Berries Required**",
-        `↪ ${Number(req.berries || 0).toLocaleString("en-US")}`,
-        "",
-        "**Gems Required**",
-        `↪ ${getDisplayAwakenGemsCost(req, stage).toLocaleString("en-US")}`,
-        "",
-        "**Self Fragments Required**",
-        `↪ ${Number(req.selfFragments || 0)}x ${
-          stageCard.displayName || card.displayName || card.name
-        }`,
-        "",
-        "**Level Requirement**",
-        `↪ ${levelText}`,
-        "",
-        "**Cards Required**",
-        ...getReqLines(req, "cards", "cardsText"),
-        "",
-        "✨ **Boosts Required**",
-        ...getReqLines(req, "boosts", "boostsText"),
-      ].join("\n")
-    );
 }
 
 function getStageImage(card, stageCard, stage) {
@@ -251,7 +229,6 @@ function getStageLabel(stage) {
 
 function isBadSpecialFormName(value) {
   const text = String(value || "").trim().toLowerCase();
-
   return !text || ["base", "m1", "m2", "m3", "unknown form"].includes(text);
 }
 
@@ -280,52 +257,202 @@ function getSpecialFormName(card, stageCard, form, stage) {
   ];
 
   const found = candidates.find((value) => !isBadSpecialFormName(value));
-
   return found || getStageLabel(stage);
 }
 
-function normalizeNameSearch(text) {
-  return String(text || "")
+function normalizeCompare(value) {
+  return String(value || "")
     .toLowerCase()
     .trim()
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ");
 }
 
-function scoreNameOnly(query, names) {
-  const q = normalizeNameSearch(query);
-  if (!q) return 0;
+function getOwnedEvolutionStage(item) {
+  if (!item) return 1;
 
-  let best = 0;
-
-  for (const raw of names) {
-    const name = normalizeNameSearch(raw);
-    if (!name) continue;
-
-    if (name === q) best = Math.max(best, 1000 + name.length);
-    else if (name.startsWith(q)) best = Math.max(best, 700 + q.length);
-    else if (name.includes(q)) best = Math.max(best, 400 + q.length);
-    else {
-      const words = q.split(" ").filter(Boolean);
-      if (words.length && words.every((word) => name.includes(word))) {
-        best = Math.max(best, 250 + words.join("").length);
-      }
-    }
+  if (Number.isFinite(Number(item.evolutionStage)) && Number(item.evolutionStage) > 0) {
+    return Number(item.evolutionStage);
   }
 
-  return best;
+  const evoKey = String(item.evolutionKey || item.form || item.stage || "").toUpperCase();
+  const matched = evoKey.match(/M([123])/);
+
+  if (matched) {
+    return Number(matched[1]);
+  }
+
+  return 1;
 }
 
-function findCardTemplateByNameOnly(query) {
-  const scored = getAllCards()
-    .map((card) => ({
-      card,
-      score: scoreNameOnly(query, [card.displayName, card.name]),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
+function doesEntryMatchRequirement(entry, requirement) {
+  const requirementNames = [
+    requirement?.code,
+    requirement?.name,
+    requirement?.displayName,
+  ]
+    .map(normalizeCompare)
+    .filter(Boolean);
 
-  return scored.length ? scored[0].card : null;
+  const entryNames = [
+    entry?.code,
+    entry?.name,
+    entry?.displayName,
+    entry?.title,
+  ]
+    .map(normalizeCompare)
+    .filter(Boolean);
+
+  if (!requirementNames.length || !entryNames.length) return false;
+
+  return requirementNames.some((reqName) =>
+    entryNames.some(
+      (entryName) =>
+        entryName === reqName ||
+        entryName.includes(reqName) ||
+        reqName.includes(entryName)
+    )
+  );
+}
+
+function findOwnedRequirementEntry(collection, requirement) {
+  const list = Array.isArray(collection) ? collection : [];
+  return list.find((entry) => doesEntryMatchRequirement(entry, requirement)) || null;
+}
+
+function getOwnedBaseCard(player, card) {
+  return (
+    findOwnedRequirementEntry(player?.cards || [], {
+      code: card?.code,
+      name: card?.name,
+      displayName: card?.displayName,
+    }) || null
+  );
+}
+
+function formatCheckedLine(text, ok) {
+  return ok ? `${text} ✅` : text;
+}
+
+function getRequirementStatusLines(req, key, textKey, collection) {
+  if (Array.isArray(req?.[key]) && req[key].length) {
+    return req[key].map((entry) => {
+      const ownedEntry = findOwnedRequirementEntry(collection, entry);
+      const ownedStage = getOwnedEvolutionStage(ownedEntry);
+      const requiredStage = Number(entry?.stage || 1);
+      const ok = Boolean(ownedEntry) && ownedStage >= requiredStage;
+
+      return formatCheckedLine(`↪ ${formatReqEntry(entry)}`, ok);
+    });
+  }
+
+  if (Array.isArray(req?.[textKey]) && req[textKey].length) {
+    return req[textKey].map((entry) => `↪ ${entry}`);
+  }
+
+  return ["↪ None"];
+}
+
+function buildReqEmbed(card, stage, player) {
+  const stageCard = getStageCard(card, stage);
+  const req =
+    stageCard.awakenRequirements?.[`M${stage}`] ||
+    card.awakenRequirements?.[`M${stage}`];
+
+  if (!req) {
+    return new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle(
+        `ℹ️ Requirement • ${
+          stageCard.displayName || card.displayName || card.name
+        } • M${stage}`
+      )
+      .setDescription("Base form.\nNo requirement.");
+  }
+
+  const ownedBaseCard = getOwnedBaseCard(player, card);
+  const playerBerries = Number(player?.berries || 0);
+  const playerGems = Number(player?.gems || 0);
+  const ownedFragments = Number(ownedBaseCard?.fragments || 0);
+  const ownedLevel = Number(
+    ownedBaseCard?.level ||
+      ownedBaseCard?.currentLevel ||
+      ownedBaseCard?.lvl ||
+      0
+  );
+
+  const requiredBerries = Number(req.berries || 0);
+  const requiredGems = getDisplayAwakenGemsCost(req, stage);
+  const requiredFragments = Number(req.selfFragments || 0);
+  const requiredLevel =
+    stageCard.cardRole === "battle" ? Number(req.minLevel || 0) : 0;
+
+  const berriesOk = playerBerries >= requiredBerries;
+  const gemsOk = playerGems >= requiredGems;
+  const fragmentsOk = ownedFragments >= requiredFragments;
+  const levelOk =
+    stageCard.cardRole === "battle" ? ownedLevel >= requiredLevel : true;
+
+  const cardsRequiredLines = getRequirementStatusLines(
+    req,
+    "cards",
+    "cardsText",
+    player?.cards || []
+  );
+
+  const boostsRequiredLines = getRequirementStatusLines(
+    req,
+    "boosts",
+    "boostsText",
+    player?.boostCards || player?.boosts || []
+  );
+
+  return new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle(
+      `ℹ️ Requirement • ${
+        stageCard.displayName || card.displayName || card.name
+      } • M${stage}`
+    )
+    .setDescription(
+      [
+        "**Requirement Panel**",
+        "",
+        "**Berries Required**",
+        formatCheckedLine(
+          `↪ ${requiredBerries.toLocaleString("en-US")}`,
+          berriesOk
+        ),
+        "",
+        "**Gems Required**",
+        formatCheckedLine(
+          `↪ ${requiredGems.toLocaleString("en-US")}`,
+          gemsOk
+        ),
+        "",
+        "**Self Fragments Required**",
+        formatCheckedLine(
+          `↪ ${requiredFragments}x ${
+            stageCard.displayName || card.displayName || card.name
+          }`,
+          fragmentsOk
+        ),
+        "",
+        "**Level Requirement**",
+        formatCheckedLine(
+          `↪ ${
+            stageCard.cardRole === "battle" ? requiredLevel : "Not required"
+          }`,
+          levelOk
+        ),
+        "",
+        "**Cards Required**",
+        ...cardsRequiredLines,
+        "",
+        "✨ **Boosts Required**",
+        ...boostsRequiredLines,
+      ].join("\n")
+    );
 }
 
 function buildEmbed(card, owned, stage) {
@@ -442,7 +569,7 @@ module.exports = {
       if (i.customId === "ci_info") {
         return i.reply({
           ephemeral: true,
-          embeds: [buildReqEmbed(globalCard, stage)],
+          embeds: [buildReqEmbed(globalCard, stage, player)],
         });
       }
 
