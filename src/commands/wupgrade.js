@@ -29,6 +29,18 @@ function getStoneCost(nextLevel) {
   return table[nextLevel] || null;
 }
 
+function getWeaponFragmentCost(nextLevel) {
+  const table = {
+    1: 1,
+    2: 2,
+    3: 3,
+    4: 4,
+    5: 5,
+  };
+
+  return table[nextLevel] || null;
+}
+
 function getStoneAmount(materials) {
   const found = (Array.isArray(materials) ? materials : []).find(
     (x) => x.code === "enhancement_stone"
@@ -47,6 +59,72 @@ function consumeStones(materials, amount) {
 
   if (current < amount) {
     throw new Error(`You need ${amount} Enhancement Stones.`);
+  }
+
+  if (current === amount) {
+    arr.splice(idx, 1);
+  } else {
+    arr[idx] = {
+      ...arr[idx],
+      amount: current - amount,
+    };
+  }
+
+  return arr;
+}
+
+function getWeaponFragmentCode(template) {
+  return `weapon_fragment_${String(template?.code || "").toLowerCase()}`;
+}
+
+function getWeaponFragmentAmount(fragments, template) {
+  const fragmentCode = normalize(getWeaponFragmentCode(template));
+  const weaponCode = normalize(template?.code);
+  const weaponName = normalize(template?.name);
+
+  const found = (Array.isArray(fragments) ? fragments : []).find((entry) => {
+    const entryCode = normalize(entry.code);
+    const entryName = normalize(entry.name || entry.displayName);
+    const entryWeaponCode = normalize(entry.weaponCode);
+
+    return (
+      entryCode === fragmentCode ||
+      entryWeaponCode === weaponCode ||
+      entryName === normalize(`${template.name} Fragment`) ||
+      entryName === weaponName
+    );
+  });
+
+  return Math.max(0, Number(found?.amount || 0));
+}
+
+function consumeWeaponFragments(fragments, template, amount) {
+  const arr = [...(Array.isArray(fragments) ? fragments : [])];
+  const fragmentCode = normalize(getWeaponFragmentCode(template));
+  const weaponCode = normalize(template?.code);
+  const weaponName = normalize(template?.name);
+
+  const idx = arr.findIndex((entry) => {
+    const entryCode = normalize(entry.code);
+    const entryName = normalize(entry.name || entry.displayName);
+    const entryWeaponCode = normalize(entry.weaponCode);
+
+    return (
+      entryCode === fragmentCode ||
+      entryWeaponCode === weaponCode ||
+      entryName === normalize(`${template.name} Fragment`) ||
+      entryName === weaponName
+    );
+  });
+
+  if (idx === -1) {
+    throw new Error(`${template.name} Fragment not found.`);
+  }
+
+  const current = Number(arr[idx].amount || 0);
+
+  if (current < amount) {
+    throw new Error(`You need ${amount} ${template.name} Fragment.`);
   }
 
   if (current === amount) {
@@ -441,7 +519,7 @@ function buildUpgradeConfirmEmbed({
         `**Weapon:** ${template.name}`,
         `**Current Level:** +${currentLevel}`,
         `**Next Level:** +${nextLevel}`,
-        `**Cost:** ${stoneCost} Enhancement Stones`,
+        `**Cost:** ${stoneCost} Enhancement Stones + ${fragmentCost} ${template.name} Fragment`,
         `**Your Stones:** ${currentStone}`,
         "",
         "**Weapon Percent After Upgrade**",
@@ -482,16 +560,22 @@ module.exports = {
 
     const nextLevel = currentLevel + 1;
     const stoneCost = getStoneCost(nextLevel);
+    const fragmentCost = getWeaponFragmentCost(nextLevel);
 
-    if (!stoneCost) {
+    if (!stoneCost || !fragmentCost) {
       return message.reply("This weapon already reached max upgrade level.");
     }
 
     const currentStone = getStoneAmount(player.materials || []);
+    const currentFragment = getWeaponFragmentAmount(player.fragments || [], template);
 
-    if (currentStone < stoneCost) {
+    if (currentStone < stoneCost || currentFragment < fragmentCost) {
       return message.reply(
-        `You need **${stoneCost} Enhancement Stones** to upgrade **${template.name}**.\nCurrent: **${currentStone}**`
+        [
+          `You need these materials to upgrade **${template.name}** to **+${nextLevel}**:`,
+          `• Enhancement Stone: **${currentStone}/${stoneCost}**`,
+          `• ${template.name} Fragment: **${currentFragment}/${fragmentCost}**`,
+        ].join("\n")
       );
     }
 
@@ -603,7 +687,12 @@ module.exports = {
         });
       }
 
-      const updatedMaterials = consumeStones(fresh.materials || [], freshStoneCost);
+      const updatedMaterials = consumeStones(player.materials || [], stoneCost);
+      const updatedFragments = consumeWeaponFragments(
+        player.fragments || [],
+        template,
+        fragmentCost
+      );
       const updatedWeapons = updateInventoryWeaponLevels(
         fresh.weapons || [],
         freshTemplate,
@@ -620,6 +709,7 @@ module.exports = {
         weapons: updatedWeapons,
         cards: updatedCards,
         materials: updatedMaterials,
+        fragments: updatedFragments,
         quests: updatedQuests,
       });
 
