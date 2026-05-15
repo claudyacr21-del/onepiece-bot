@@ -17,19 +17,6 @@ function isAdmin(userId) {
   return getAdminIds().includes(String(userId));
 }
 
-function normalize(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[<@!>]/g, "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
-}
-
-function normalizeCode(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -38,31 +25,123 @@ function parseUserId(value) {
   return String(value || "").replace(/[<@!>]/g, "").trim();
 }
 
+function normalizeName(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
 function toPositiveInt(value, fallback = 1) {
   const n = Math.floor(Number(value));
+
   if (!Number.isFinite(n) || n <= 0) return fallback;
+
   return n;
 }
 
-function buildCardIndex(cards) {
-  const map = new Map();
+function isPositiveNumberText(value) {
+  const text = String(value || "").trim();
 
-  for (const card of cards) {
-    const displayName = card?.displayName;
+  if (!/^\d+$/.test(text)) return false;
 
-    if (!displayName) continue;
-
-    map.set(normalize(displayName), card);
-  }
-
-  return map;
+  return Number(text) > 0;
 }
 
-const cardIndex = buildCardIndex(cardsData);
+function parseGiveArgs(args) {
+  const parts = [...args];
 
-function findCardTemplate(query) {
-  const q = normalize(query);
-  return cardIndex.get(q) || null;
+  const userId = parseUserId(parts.shift());
+
+  let stage = 1;
+  let levelOrAmount = 1;
+
+  if (parts.length && isPositiveNumberText(parts[parts.length - 1])) {
+    const last = Number(parts[parts.length - 1]);
+
+    if (parts.length >= 2 && last >= 1 && last <= 3) {
+      stage = toPositiveInt(parts.pop(), 1);
+    }
+  }
+
+  if (parts.length && isPositiveNumberText(parts[parts.length - 1])) {
+    levelOrAmount = toPositiveInt(parts.pop(), 1);
+  }
+
+  const query = parts.join(" ").trim();
+
+  return {
+    userId,
+    query,
+    levelOrAmount,
+    stage: Math.max(1, Math.min(3, stage)),
+  };
+}
+
+function scoreNameOnly(query, names) {
+  const q = normalizeName(query);
+
+  if (!q) return 0;
+
+  let best = 0;
+
+  for (const raw of names) {
+    const name = normalizeName(raw);
+
+    if (!name) continue;
+
+    if (name === q) {
+      best = Math.max(best, 1000 + name.length);
+      continue;
+    }
+
+    if (name.startsWith(q)) {
+      best = Math.max(best, 750 + q.length);
+      continue;
+    }
+
+    if (name.includes(q)) {
+      best = Math.max(best, 500 + q.length);
+      continue;
+    }
+
+    const words = q.split(" ").filter(Boolean);
+
+    if (words.length && words.every((word) => name.includes(word))) {
+      best = Math.max(best, 300 + words.join("").length);
+    }
+  }
+
+  return best;
+}
+
+function getBattleCards() {
+  return ensureArray(cardsData).filter(
+    (card) => String(card?.cardRole || "").toLowerCase() === "battle"
+  );
+}
+
+function findBattleCardByNameOnly(query) {
+  const scored = getBattleCards()
+    .map((card) => ({
+      card,
+      score: scoreNameOnly(query, [
+        card.displayName,
+        card.name,
+      ]),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+
+      const aName = normalizeName(a.card.displayName || a.card.name);
+      const bName = normalizeName(b.card.displayName || b.card.name);
+
+      return aName.length - bName.length;
+    });
+
+  return scored.length ? scored[0].card : null;
 }
 
 function makeInstanceId(cardCode) {
@@ -72,13 +151,17 @@ function makeInstanceId(cardCode) {
 
 function clampStage(stage) {
   const n = Number(stage || 1);
+
   if (!Number.isFinite(n)) return 1;
+
   return Math.max(1, Math.min(3, Math.floor(n)));
 }
 
 function clampLevel(level) {
   const n = Number(level || 1);
+
   if (!Number.isFinite(n)) return 1;
+
   return Math.max(1, Math.floor(n));
 }
 
@@ -121,11 +204,13 @@ function getStageMultiplier(template, stage) {
 
   if (stage === 1) return 1;
   if (stage === 2) return 1.2;
+
   return 1.45;
 }
 
 function scaleStat(base, stageMultiplier, level) {
   const lvlBonus = Math.max(0, level - 1) * 2;
+
   return Math.floor(Number(base || 0) * stageMultiplier) + lvlBonus;
 }
 
@@ -142,11 +227,9 @@ function makeOwnedBattleCard(template, level = 1, stage = 1) {
   const stageKey = `M${finalStage}`;
   const currentTier = getStageTier(template, finalStage);
   const stageMultiplier = getStageMultiplier(template, finalStage);
-
   const baseAtk = Number(template.baseAtk ?? template.atk ?? 0);
   const baseHp = Number(template.baseHp ?? template.hp ?? 0);
   const baseSpeed = Number(template.baseSpeed ?? template.speed ?? 0);
-
   const atk = scaleStat(baseAtk, stageMultiplier, finalLevel);
   const hp = scaleStat(baseHp, stageMultiplier, finalLevel);
   const speed = scaleStat(baseSpeed, stageMultiplier, finalLevel);
@@ -184,35 +267,24 @@ function makeOwnedBattleCard(template, level = 1, stage = 1) {
 }
 
 function alreadyOwnsCard(player, template) {
-  const targetCode = normalizeCode(template.code);
-  const targetName = normalize(template.displayName || template.name);
+  const targetName = normalizeName(template.displayName || template.name);
 
   return ensureArray(player.cards).some((card) => {
-    const code = normalizeCode(card.code);
-    const name = normalize(card.displayName || card.name);
+    const cardName = normalizeName(card.displayName || card.name);
 
-    return (
-      (targetCode && code === targetCode) ||
-      (targetName && name === targetName)
-    );
+    return targetName && cardName === targetName;
   });
 }
 
 function addFragment(player, template, amount = 1) {
   const fragments = ensureArray(player.fragments);
   const finalAmount = toPositiveInt(amount, 1);
-
-  const targetCode = normalizeCode(template.code);
-  const targetName = normalize(template.displayName || template.name);
+  const targetName = normalizeName(template.displayName || template.name);
 
   const existing = fragments.find((entry) => {
-    const code = normalizeCode(entry.code);
-    const name = normalize(entry.name || entry.displayName);
+    const name = normalizeName(entry.name || entry.displayName);
 
-    return (
-      (targetCode && code === targetCode) ||
-      (targetName && name === targetName)
-    );
+    return targetName && name === targetName;
   });
 
   if (existing) {
@@ -222,6 +294,7 @@ function addFragment(player, template, amount = 1) {
     existing.category = existing.category || template.cardRole || "battle";
     existing.code = existing.code || template.code;
     existing.image = existing.image || template.image || "";
+
     return fragments;
   }
 
@@ -243,30 +316,40 @@ module.exports = {
 
   async execute(message, args) {
     if (!isAdmin(message.author.id)) {
-      return message.reply("Owner only command.");
+      return message.reply({
+        content: "Owner only command.",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    const userId = parseUserId(args.shift());
-    const query = String(args.shift() || "").trim();
-    const levelOrAmount = toPositiveInt(args[0], 1);
-    const stage = toPositiveInt(args[1], 1);
+    const { userId, query, levelOrAmount, stage } = parseGiveArgs(args);
 
     if (!userId || !query) {
-      return message.reply("Usage: `op givecard <userId/@user> <card_code> [level/amount] [stage]`");
+      return message.reply({
+        content:
+          "Usage: `op givecard <@user/userId> <battle card name> [level/fragment amount] [stage]`\nExample: `op givecard 697763966650417193 saturn 1`",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     const players = readPlayers();
 
     if (!players[userId]) {
-      return message.reply(`User not found: \`${userId}\``);
+      return message.reply({
+        content: `User not found: \`${userId}\``,
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    const template = findCardTemplate(query);
+    const template = findBattleCardByNameOnly(query);
 
-    if (!template || template.cardRole !== "battle") {
-      return message.reply(
-        "Invalid battle card.\nUse the exact battle card display name."
-      );
+    if (!template) {
+      return message.reply({
+        content:
+          `Invalid battle card: \`${query}\`\n` +
+          "Search only uses the battle card display name. Example: `saturn`, `luffy`, `zoro`.",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     players[userId].cards = ensureArray(players[userId].cards);
@@ -274,21 +357,30 @@ module.exports = {
 
     if (alreadyOwnsCard(players[userId], template)) {
       players[userId].fragments = addFragment(players[userId], template, levelOrAmount);
+
       writePlayers(players);
 
-      return message.reply(
-        `User already owns \`${template.displayName || template.name}\` (${template.code}).\n` +
-          `Converted admin give into **${levelOrAmount} Fragment${levelOrAmount > 1 ? "s" : ""}** for \`${userId}\`.`
-      );
+      return message.reply({
+        content:
+          `User already owns \`${template.displayName || template.name}\`.\n` +
+          `Converted admin give into **${levelOrAmount} Fragment${
+            levelOrAmount > 1 ? "s" : ""
+          }** for \`${userId}\`.`,
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     const ownedCard = makeOwnedBattleCard(template, levelOrAmount, stage);
+
     players[userId].cards.push(ownedCard);
 
     writePlayers(players);
 
-    return message.reply(
-      `Added battle card \`${ownedCard.displayName || ownedCard.name}\` (${ownedCard.code}) to \`${userId}\` • Level ${ownedCard.level} • ${ownedCard.evolutionKey} • ${ownedCard.currentTier}`
-    );
+    return message.reply({
+      content:
+        `Added battle card \`${ownedCard.displayName || ownedCard.name}\` to \`${userId}\`` +
+        ` • Level ${ownedCard.level} • ${ownedCard.evolutionKey} • ${ownedCard.currentTier}`,
+      allowedMentions: { repliedUser: false },
+    });
   },
 };
