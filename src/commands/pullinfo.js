@@ -8,21 +8,15 @@ const { getPremiumTier } = require("../utils/premiumAccess");
 
 function fmtInfo(slot) {
   const max = Number(slot?.max || 0);
-  const used = Number(slot?.used || 0);
   const displayMax = Number(slot?.displayMax || max || 0);
-  const remaining = slot?.enabled ? Math.max(0, max - used) : 0;
 
-  return `${remaining}/${displayMax}`;
+  return slot?.enabled ? `${max}/${displayMax}` : `0/${displayMax}`;
 }
 
 function getActiveSlotTotal(slots) {
   return Object.values(slots).reduce((total, slot) => {
     if (!slot.enabled) return total;
-
-    const max = Number(slot.max || 0);
-    const used = Number(slot.used || 0);
-
-    return total + Math.max(0, max - used);
+    return total + Number(slot.max || 0);
   }, 0);
 }
 
@@ -100,7 +94,6 @@ module.exports = {
           `↪ Bonus Pulls From Baccarat Card: ${fmtInfo(slots.baccaratCard)}`,
           `↪ Bonus Pulls From Baccarat Devil Fruit: ${fmtInfo(slots.baccaratFruit)}`,
           "",
-          `**Remaining Pulls:** ${activeSlotTotal}/${potentialSlotTotal}`,
           "",
           "This page shows your remaining pull slots.",
         ].join("\n")
