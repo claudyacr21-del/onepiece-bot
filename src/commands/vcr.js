@@ -5,18 +5,17 @@ const {
 } = require("../utils/patreonRoleStore");
 
 const CONFIG = {
-  tier: "mother_flame",
-  label: "Mother Flame",
-  emoji: "🔥",
-  color: 0xe74c3c,
+  tier: "vivre_card",
+  label: "Vivre Card",
+  emoji: "💎",
+  color: 0x3498db,
   roleEnvIds: [
-    "MOTHER_FLAME_ROLE_ID",
-    "PATREON_MOTHER_FLAME_ROLE_ID",
-    "PATREON_ROLE_ID",
-    "PREMIUM_ROLE_ID",
+    "VIVRE_CARD_ROLE_ID",
+    "PATREON_VIVRE_CARD_ROLE_ID",
+    "LITE_PREMIUM_ROLE_ID",
   ],
-  roleEnvNames: ["PATREON_PREMIUM_ROLE_NAME", "PREMIUM_ROLE_NAME"],
-  fallbackRoleNames: ["Mother Flame", "MotherFlame"],
+  roleEnvNames: ["PATREON_LITE_ROLE_NAME", "LITE_PREMIUM_ROLE_NAME"],
+  fallbackRoleNames: ["Vivre Card", "VivreCard", "Vivre"],
 };
 
 function getAdminIds() {
@@ -44,7 +43,7 @@ function normalize(value) {
 }
 
 function getUsageText() {
-  return "Usage:\n`op mfr <@user/userId>`";
+  return "Usage:\n`op vcr <@user/userId>`";
 }
 
 function getConfiguredRoleNames() {
@@ -118,7 +117,7 @@ function shouldClearStoredEntry(storedEntry) {
 
   const storedTier = String(storedEntry.tier || "").toLowerCase().trim();
 
-  return storedTier === CONFIG.tier || !storedTier;
+  return storedTier === CONFIG.tier;
 }
 
 function formatIndonesiaDate(timestamp) {
@@ -134,8 +133,8 @@ function formatIndonesiaDate(timestamp) {
 }
 
 module.exports = {
-  name: "mfr",
-  aliases: ["mfreset"],
+  name: "vcr",
+  aliases: ["vcremove"],
 
   async execute(message, args) {
     if (!isAdmin(message.author.id)) {
@@ -229,13 +228,13 @@ module.exports = {
           ...failedLines,
           "",
           shouldClearStoredEntry(storedEntry)
-            ? "Mother Flame store data has been cleared for this user."
-            : "No Mother Flame store data was cleared.",
+            ? "Vivre Card store data has been cleared for this user."
+            : "No Vivre Card store data was cleared.",
         ]
           .filter(Boolean)
           .join("\n")
       )
-      .setFooter({ text: "One Piece Bot • Mother Flame Reset" });
+      .setFooter({ text: "One Piece Bot • Vivre Card Reset" });
 
     return message.reply({
       embeds: [embed],
