@@ -73,12 +73,14 @@ function queueArenaRankRoleSync(message) {
 }
 
 function getDateKey() {
-  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(
-    2,
-    "0"
-  )}-${String(now.getUTCDate()).padStart(2, "0")}`;
+  return formatter.format(new Date());
 }
 
 function getArenaDailyUses(arena) {
