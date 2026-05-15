@@ -389,7 +389,6 @@ function buildOwnedFruitEmbed(ownerName, player, fruit) {
         "",
         `${fruit.description || "No description."}`,
         "",
-        `Fragment: ${fragments}`,
       ].join("\n")
     )
     .setThumbnail(getRarityBadge(fruit.rarity || "B") || null)
