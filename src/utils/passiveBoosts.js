@@ -146,46 +146,127 @@ function findBoostFruitByCode(value) {
   );
 }
 
+function isBaccaratBoostCard(card) {
+  const values = [
+    card?.code,
+    card?.name,
+    card?.displayName,
+    card?.title,
+  ]
+    .map(normalize)
+    .filter(Boolean);
+
+  return values.some((value) => value.includes("baccarat"));
+}
+
+function getFruitDataForBoostCard(card) {
+  return (
+    findBoostFruitByCode(card?.equippedDevilFruit) ||
+    findBoostFruitByCode(card?.equippedDevilFruitCode) ||
+    findBoostFruitByCode(card?.equippedDevilFruitName) ||
+    null
+  );
+}
+
+function getBoostFruitGlobalBonus(card) {
+  if (!card || String(card.cardRole || "").toLowerCase() !== "boost") {
+    return {
+      atk: 0,
+      hp: 0,
+      spd: 0,
+      dmg: 0,
+      exp: 0,
+      daily: 0,
+      pullChance: 0,
+      fragmentStorageBonus: 0,
+    };
+  }
+
+  // Baccarat is excluded from devil fruit global conversion.
+  if (isBaccaratBoostCard(card)) {
+    return {
+      atk: 0,
+      hp: 0,
+      spd: 0,
+      dmg: 0,
+      exp: 0,
+      daily: 0,
+      pullChance: 0,
+      fragmentStorageBonus: 0,
+    };
+  }
+
+  const fruit = getFruitDataForBoostCard(card);
+  if (!fruit) {
+    return {
+      atk: 0,
+      hp: 0,
+      spd: 0,
+      dmg: 0,
+      exp: 0,
+      daily: 0,
+      pullChance: 0,
+      fragmentStorageBonus: 0,
+    };
+  }
+
+  const statPercent = fruit.statPercent || {};
+  const amount = getBoostAmount(card);
+
+  return {
+    atk: Number(statPercent.atk || 0) * amount,
+    hp: Number(statPercent.hp || 0) * amount,
+    spd: Number(statPercent.speed || statPercent.spd || 0) * amount,
+    dmg: Number(statPercent.dmg || 0) * amount,
+    exp: Number(statPercent.exp || 0) * amount,
+    daily: 0,
+    pullChance: 0,
+    fragmentStorageBonus: 0,
+  };
+}
+
+function sumBoostFruitGlobalBonuses(cards) {
+  return cards.reduce(
+    (total, card) => {
+      const bonus = getBoostFruitGlobalBonus(card);
+
+      total.atk += Number(bonus.atk || 0);
+      total.hp += Number(bonus.hp || 0);
+      total.spd += Number(bonus.spd || 0);
+      total.dmg += Number(bonus.dmg || 0);
+      total.exp += Number(bonus.exp || 0);
+      total.daily += Number(bonus.daily || 0);
+      total.pullChance += Number(bonus.pullChance || 0);
+      total.fragmentStorageBonus += Number(bonus.fragmentStorageBonus || 0);
+
+      return total;
+    },
+    {
+      atk: 0,
+      hp: 0,
+      spd: 0,
+      dmg: 0,
+      exp: 0,
+      daily: 0,
+      pullChance: 0,
+      fragmentStorageBonus: 0,
+    }
+  );
+}
+
 function getFruitBonusForBoostCard(card) {
   if (!card || String(card.cardRole || "").toLowerCase() !== "boost") return 0;
 
-  const fruit =
-    findBoostFruitByCode(card.equippedDevilFruit) ||
-    findBoostFruitByCode(card.equippedDevilFruitCode) ||
-    findBoostFruitByCode(card.equippedDevilFruitName);
-
+  const fruit = getFruitDataForBoostCard(card);
   if (!fruit) return 0;
 
   const boostType = normalizeBoostType(card.boostType);
 
+  // Custom boostBonus tetap berlaku ke boost card effect.
+  // statPercent tidak lagi dipakai sebagai bonus boostType langsung,
+  // karena statPercent sekarang dikonversi jadi global boost.
   if (fruit.boostBonus && fruit.boostBonus[boostType] != null) {
     return Number(fruit.boostBonus[boostType] || 0);
-  }
-
-  const statPercent = fruit.statPercent || {};
-
-  if (boostType === "atk") return Number(statPercent.atk || 0);
-  if (boostType === "hp") return Number(statPercent.hp || 0);
-  if (boostType === "spd") return Number(statPercent.speed || statPercent.spd || 0);
-
-  if (boostType === "dmg") {
-    return Math.floor(Number(statPercent.atk || 0) / 2);
-  }
-
-  if (boostType === "exp") {
-    return Math.floor(Number(statPercent.hp || 0) / 2);
-  }
-
-  if (boostType === "daily") {
-    return Number(fruit.dailyResetToken || fruit.resetPullBonus || 0);
-  }
-
-  if (boostType === "pullChance") {
-    return Number(fruit.resetPullBonus || 0);
-  }
-
-  if (boostType === "fragmentStorage") {
-    return 0;
   }
 
   return 0;
@@ -280,11 +361,11 @@ function buildBoostEffectLines(boosts = {}) {
 function getPassiveBoostSummary(player) {
   const boostCards = getBoostCards(player);
   const uniqueBoostCards = getUniqueBoostCards(player);
-
   const highestPullChance = getHighestBoost(boostCards, "pullChance");
   const dailyCards = boostCards.filter(
     (card) => normalizeBoostType(card.boostType) === "daily"
   );
+  const fruitGlobalBoosts = sumBoostFruitGlobalBonuses(boostCards);
 
   return {
     boostCards: boostCards.map((card) => ({
@@ -292,12 +373,10 @@ function getPassiveBoostSummary(player) {
       boostType: normalizeBoostType(card.boostType),
       boostAmount: getBoostAmount(card),
       fruitBonus: getFruitBonusForBoostCard(card),
+      fruitGlobalBonus: getBoostFruitGlobalBonus(card),
       effectiveBoostValue: getEffectiveBoostValue(card),
       totalBoostValue: getEffectiveBoostValue(card) * getBoostAmount(card),
-      equippedFruitData:
-        findBoostFruitByCode(card.equippedDevilFruit) ||
-        findBoostFruitByCode(card.equippedDevilFruitCode) ||
-        findBoostFruitByCode(card.equippedDevilFruitName),
+      equippedFruitData: getFruitDataForBoostCard(card),
     })),
 
     uniqueBoostCards: uniqueBoostCards.map((card) => ({
@@ -305,12 +384,10 @@ function getPassiveBoostSummary(player) {
       boostType: normalizeBoostType(card.boostType),
       boostAmount: getBoostAmount(card),
       fruitBonus: getFruitBonusForBoostCard(card),
+      fruitGlobalBonus: getBoostFruitGlobalBonus(card),
       effectiveBoostValue: getEffectiveBoostValue(card),
       totalBoostValue: getEffectiveBoostValue(card) * getBoostAmount(card),
-      equippedFruitData:
-        findBoostFruitByCode(card.equippedDevilFruit) ||
-        findBoostFruitByCode(card.equippedDevilFruitCode) ||
-        findBoostFruitByCode(card.equippedDevilFruitName),
+      equippedFruitData: getFruitDataForBoostCard(card),
     })),
 
     pullChance: highestPullChance ? getEffectiveBoostValue(highestPullChance) : 0,
@@ -320,12 +397,16 @@ function getPassiveBoostSummary(player) {
     dailyCards,
     dailyCard: dailyCards.length ? dailyCards[0] : null,
 
-    atk: sumBoost(boostCards, "atk"),
-    hp: sumBoost(boostCards, "hp"),
-    spd: sumBoost(boostCards, "spd"),
-    exp: sumBoost(boostCards, "exp"),
-    dmg: sumBoost(boostCards, "dmg"),
-    fragmentStorageBonus: getFragmentStorageBonus(player),
+    fruitGlobalBoosts,
+
+    atk: sumBoost(boostCards, "atk") + Number(fruitGlobalBoosts.atk || 0),
+    hp: sumBoost(boostCards, "hp") + Number(fruitGlobalBoosts.hp || 0),
+    spd: sumBoost(boostCards, "spd") + Number(fruitGlobalBoosts.spd || 0),
+    exp: sumBoost(boostCards, "exp") + Number(fruitGlobalBoosts.exp || 0),
+    dmg: sumBoost(boostCards, "dmg") + Number(fruitGlobalBoosts.dmg || 0),
+    fragmentStorageBonus:
+      getFragmentStorageBonus(player) +
+      Number(fruitGlobalBoosts.fragmentStorageBonus || 0),
   };
 }
 
@@ -335,6 +416,9 @@ module.exports = {
   getPassiveBoostSummary,
   getFragmentStorageBonus,
   getFruitBonusForBoostCard,
+  getBoostFruitGlobalBonus,
+  sumBoostFruitGlobalBonuses,
+  getFruitDataForBoostCard,
   getEffectiveBoostValue,
   findBoostFruitByCode,
   formatBoostValue,
