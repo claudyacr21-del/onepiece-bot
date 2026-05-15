@@ -7,6 +7,49 @@ const { getRarityBadge, getWeaponImage } = require("../config/assetLinks");
 const normalize = (s = "") =>
   String(s).toLowerCase().trim().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
 
+function scoreNameOnly(query, name) {
+  const q = normalize(query);
+  const n = normalize(name);
+
+  if (!q || !n) return 0;
+
+  if (n === q) return 1000 + n.length;
+  if (n.startsWith(q)) return 800 + q.length;
+  if (n.includes(q)) return 650 + q.length;
+
+  const qWords = q.split(" ").filter(Boolean);
+  if (qWords.length && qWords.every((word) => n.includes(word))) {
+    return 500 + qWords.join("").length;
+  }
+
+  let qi = 0;
+  for (const ch of n) {
+    if (ch === q[qi]) qi += 1;
+    if (qi >= q.length) break;
+  }
+
+  if (q.length >= 3 && qi >= q.length) {
+    return 250 + q.length;
+  }
+
+  return 0;
+}
+
+function findBestWeaponMatch(query) {
+  const scored = weapons
+    .map((weapon) => ({
+      weapon,
+      score: scoreNameOnly(query, weapon.name),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return normalize(a.weapon.name).length - normalize(b.weapon.name).length;
+    });
+
+  return scored.length ? scored[0].weapon : null;
+}
+
 function getCardSearchNames(card) {
   const hydrated = hydrateCard(card);
 
@@ -61,31 +104,21 @@ function getWeaponSlotLimit(card) {
 function splitCardAndWeaponInput(rawArgs) {
   if (!rawArgs.length) return null;
 
-  const joined = rawArgs.join(" ").trim();
-  const normalizedJoined = normalize(joined);
+  const parts = rawArgs.map((x) => String(x || "").trim()).filter(Boolean);
 
-  const weaponCandidates = [...weapons]
-    .filter((weapon) => weapon?.name)
-    .sort((a, b) => normalize(b.name).length - normalize(a.name).length);
+  for (let i = 1; i < parts.length; i++) {
+    const cardName = parts.slice(0, i).join(" ").trim();
+    const weaponQuery = parts.slice(i).join(" ").trim();
 
-  for (const weapon of weaponCandidates) {
-    const weaponName = normalize(weapon.name);
+    if (!cardName || !weaponQuery) continue;
 
-    if (!weaponName) continue;
-
-    if (normalizedJoined === weaponName) continue;
-
-    if (!normalizedJoined.endsWith(weaponName)) continue;
-
-    const cardName = joined
-      .slice(0, joined.length - String(weapon.name || "").length)
-      .trim();
-
-    if (!cardName) continue;
+    const weapon = findBestWeaponMatch(weaponQuery);
+    if (!weapon) continue;
 
     return {
       cardName,
       weaponName: weapon.name,
+      weaponQuery,
     };
   }
 
@@ -93,16 +126,9 @@ function splitCardAndWeaponInput(rawArgs) {
 }
 
 function findWeaponTemplate(query) {
-  const q = normalize(query);
-
-  if (!q) return null;
-
-  return (
-    weapons.find((weapon) => normalize(weapon.name) === q) ||
-    weapons.find((weapon) => normalize(weapon.name).startsWith(q)) ||
-    weapons.find((weapon) => normalize(weapon.name).includes(q)) ||
-    null
-  );
+  // Weapon search must use item name only.
+  // Do not match by code/type so "trident" won't trigger unrelated weapon type.
+  return findBestWeaponMatch(query);
 }
 
 function findOwnedWeaponEntry(ownedWeapons, weaponCode) {
