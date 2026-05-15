@@ -6,7 +6,7 @@ const {
   StringSelectMenuBuilder,
 } = require("discord.js");
 
-const { getPlayer, updatePlayer, readPlayers } = require("../playerStore");
+const { getPlayer, updatePlayer, readPlayers, writePlayers } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
@@ -22,7 +22,8 @@ const { ITEMS, cloneItem } = require("../data/items");
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const ARENA_DAILY_LIMIT = 5;
 const ARENA_TOTAL_RANK_SLOTS = 500;
-const ARENA_POINTS_PER_RANK = 10;
+const ARENA_TOP_BOT_POINTS = 300;
+const ARENA_POINT_STEP = 1;
 const ARENA_WIN_EXP_PER_CARD = 200;
 const ARENA_LOSE_EXP_PER_CARD = 100;
 
@@ -102,7 +103,7 @@ function getArenaBotPointsForSeed(seed) {
     Math.min(ARENA_TOTAL_RANK_SLOTS, Number(seed || 1))
   );
 
-  return Math.max(0, (ARENA_TOTAL_RANK_SLOTS - safeSeed) * ARENA_POINTS_PER_RANK);
+  return Math.max(0, ARENA_TOP_BOT_POINTS - (safeSeed - 1) * ARENA_POINT_STEP);
 }
 
 function getPower(card) {
@@ -640,21 +641,54 @@ function updateArenaPlayer(message, result) {
     },
   });
 
-function queueArenaRankRoleSync(message) {
-  if (!message?.client || !message?.guild) return;
-
-  setTimeout(() => {
-    syncArenaRankRoles(message.client, message.guild).catch((error) => {
-      console.error("[ARENA RANK ROLES SYNC ERROR]", error);
-    });
-  }, 1500);
-}
-
   return {
     ...updatedArena,
     arenaRank: getArenaRankForUser(message, message.author.id),
     streakRewardLine: streakBoxReward.rewardLine,
   };
+}
+
+function applyArenaOpponentLoss(arena) {
+  const current = {
+    points: Number(arena?.points || 0),
+    wins: Number(arena?.wins || 0),
+    losses: Number(arena?.losses || 0),
+    draws: Number(arena?.draws || 0),
+    streak: Number(arena?.streak || 0),
+    bestStreak: Number(arena?.bestStreak || 0),
+    matches: Number(arena?.matches || 0),
+    dailyDateKey: arena?.dailyDateKey || getDateKey(),
+    dailyUses: Number(arena?.dailyUses || 0),
+  };
+
+  current.points = Math.max(0, current.points - 5);
+  current.losses += 1;
+  current.matches += 1;
+  current.streak = 0;
+
+  return current;
+}
+
+function updateArenaOpponentAfterBattle(opponent, result) {
+  if (!opponent || opponent.isBot) return null;
+  if (result !== "win") return null;
+
+  const players = readPlayers();
+  const opponentId = String(opponent.userId || opponent.id || "");
+
+  if (!opponentId || !players[opponentId]) return null;
+
+  const opponentPlayer = players[opponentId];
+  const updatedArena = applyArenaOpponentLoss(opponentPlayer.arena || {});
+
+  players[opponentId] = {
+    ...opponentPlayer,
+    arena: updatedArena,
+  };
+
+  writePlayers(players);
+
+  return updatedArena;
 }
 
 function getResultTitle(result) {
@@ -1088,6 +1122,8 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       ended = true;
       result = "win";
       currentArena = updateArenaPlayer(message, result);
+      updateArenaOpponentAfterBattle(opponent, result);
+      queueArenaRankRoleSync(message);
       const expLines = applyArenaExp(message, myTeam, true);
 
       await interaction.update({
@@ -1158,6 +1194,8 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       logs.length = 0;
       logs.push("⌛ Arena battle timed out. Result decided by remaining units and HP.");
       currentArena = updateArenaPlayer(message, result);
+      updateArenaOpponentAfterBattle(opponent, result);
+      queueArenaRankRoleSync(message);
 
       try {
         await lobbyMessage.edit({
