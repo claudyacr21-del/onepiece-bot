@@ -272,11 +272,10 @@ function normalizePulls(pulls) {
     booster: normalizePullSlot(pulls?.booster, 1),
     owner: normalizePullSlot(pulls?.owner, 1),
     patreon: normalizePullSlot(pulls?.patreon, 3),
+    vivreCard: normalizePullSlot(pulls?.vivreCard, 1),
     baccaratCard: normalizePullSlot(pulls?.baccaratCard, 3),
     baccaratFruit: normalizePullSlot(pulls?.baccaratFruit, 2),
-    lastResetBucket: Number.isInteger(pulls?.lastResetBucket)
-      ? pulls.lastResetBucket
-      : null,
+    lastResetBucket: Number.isInteger(pulls?.lastResetBucket) ? pulls.lastResetBucket : null,
     slotSchemaVersion: Number(pulls?.slotSchemaVersion || 0),
   };
 }
@@ -580,6 +579,7 @@ function getDefaultPlayer(username) {
       booster: { used: 0, max: 1 },
       owner: { used: 0, max: 1 },
       patreon: { used: 0, max: 3 },
+      vivreCard: { used: 0, max: 1 },
       baccaratCard: { used: 0, max: 3 },
       baccaratFruit: { used: 0, max: 2 },
       lastResetBucket: null,

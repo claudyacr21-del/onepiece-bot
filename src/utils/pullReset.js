@@ -11,34 +11,14 @@ function getNextResetTime(now = Date.now()) {
 
 function buildResetPullState(existingPulls = {}) {
   return {
-    base: {
-      used: 0,
-      max: 6,
-    },
-    supportMember: {
-      used: 0,
-      max: 1,
-    },
-    booster: {
-      used: 0,
-      max: 1,
-    },
-    owner: {
-      used: 0,
-      max: 1,
-    },
-    patreon: {
-      used: 0,
-      max: 3,
-    },
-    baccaratCard: {
-      used: 0,
-      max: 3,
-    },
-    baccaratFruit: {
-      used: 0,
-      max: 2,
-    },
+    base: { used: 0, max: 6 },
+    supportMember: { used: 0, max: 1 },
+    booster: { used: 0, max: 1 },
+    owner: { used: 0, max: 1 },
+    patreon: { used: 0, max: 3 },
+    vivreCard: { used: 0, max: 1 },
+    baccaratCard: { used: 0, max: 3 },
+    baccaratFruit: { used: 0, max: 2 },
     lastResetBucket: getCurrentResetBucket(),
     slotSchemaVersion: PULL_SLOT_SCHEMA_VERSION,
   };
@@ -47,41 +27,14 @@ function buildResetPullState(existingPulls = {}) {
 function buildManualTicketResetPullState(existingPulls = {}) {
   return {
     ...existingPulls,
-    base: {
-      ...(existingPulls?.base || {}),
-      used: 0,
-      max: 6,
-    },
-    supportMember: {
-      ...(existingPulls?.supportMember || {}),
-      used: 0,
-      max: 1,
-    },
-    booster: {
-      ...(existingPulls?.booster || {}),
-      used: 0,
-      max: 1,
-    },
-    owner: {
-      ...(existingPulls?.owner || {}),
-      used: 0,
-      max: 1,
-    },
-    patreon: {
-      ...(existingPulls?.patreon || {}),
-      used: 0,
-      max: 3,
-    },
-    baccaratCard: {
-      ...(existingPulls?.baccaratCard || {}),
-      used: 0,
-      max: 3,
-    },
-    baccaratFruit: {
-      ...(existingPulls?.baccaratFruit || {}),
-      used: 0,
-      max: 2,
-    },
+    base: { ...(existingPulls?.base || {}), used: 0, max: 6 },
+    supportMember: { ...(existingPulls?.supportMember || {}), used: 0, max: 1 },
+    booster: { ...(existingPulls?.booster || {}), used: 0, max: 1 },
+    owner: { ...(existingPulls?.owner || {}), used: 0, max: 1 },
+    patreon: { ...(existingPulls?.patreon || {}), used: 0, max: 3 },
+    vivreCard: { ...(existingPulls?.vivreCard || {}), used: 0, max: 1 },
+    baccaratCard: { ...(existingPulls?.baccaratCard || {}), used: 0, max: 3 },
+    baccaratFruit: { ...(existingPulls?.baccaratFruit || {}), used: 0, max: 2 },
     lastResetBucket: Number.isInteger(existingPulls?.lastResetBucket)
       ? existingPulls.lastResetBucket
       : getCurrentResetBucket(),

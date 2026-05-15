@@ -607,6 +607,7 @@ module.exports = {
     }
 
     const updatedPulls = consumePullSlot(player, pullKey);
+    player.pulls = updatedPulls;
     const updatedDailyState = incrementQuestCounter(player, "pullsUsed", 1);
 
     let updatedTickets = [...(player.tickets || [])];

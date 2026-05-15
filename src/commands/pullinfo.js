@@ -53,6 +53,18 @@ function syncPremiumSnapshot(snapshot, premiumTier) {
   };
 }
 
+function getPremiumLabel(tier) {
+  if (tier === "motherFlame") return "Mother Flame";
+  if (tier === "vivreCard") return "Vivre Card";
+  return "Normal";
+}
+
+function getPityGuarantee(tier) {
+  if (tier === "motherFlame") return "S at 100 pity";
+  if (tier === "vivreCard") return "S at 125 pity";
+  return "A at 150 pity";
+}
+
 module.exports = {
   name: "pullinfo",
   aliases: ["pi"],
@@ -78,24 +90,33 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(0x8e44ad)
-      .setTitle("Pull Slot Information")
+      .setTitle("🎰 Pull Slot Information")
       .setDescription(
         [
           "`op pull` and `op pa` use the same synced pity counter.",
-          "Mother Flame users guarantee **S** at 100 pity.",
-          "Vivre Card bonus slot uses **Vivre Card rates**.",
-          "Non-premium/base slots guarantee **A** at 150 pity.",
           "",
+          `↪ Premium Tier: ${getPremiumLabel(premiumTier)}`,
+          `↪ Pity Guarantee: ${getPityGuarantee(premiumTier)}`,
+          `↪ Tier Note: ${
+            premiumTier === "motherFlame"
+              ? "Mother Flame tier"
+              : premiumTier === "vivreCard"
+              ? "Vivre Card tier only applies to Vivre Card slot"
+              : "Normal tier"
+          }`,
+          "",
+          "**Pull Slots**",
           `↪ Base Pulls: ${fmtInfo(slots.base)}`,
           `↪ Bonus Pull For Main Server Members: ${fmtInfo(slots.supportMember)}`,
           `↪ Bonus Pull For Main Server Boosters: ${fmtInfo(slots.booster)}`,
-          `↪ Bonus Pull For Server Owners: ${fmtInfo(slots.owner)}`,
+          `↪ Bonus Pull For Server Owners (invite bot to your server): ${fmtInfo(slots.owner)}`,
           `↪ Bonus Pulls From Mother Flame: ${fmtInfo(slots.patreon)}`,
+          `↪ Bonus Pulls From Vivre Card: ${fmtInfo(slots.vivreCard)}`,
           `↪ Bonus Pulls From Baccarat Card: ${fmtInfo(slots.baccaratCard)}`,
           `↪ Bonus Pulls From Baccarat Devil Fruit: ${fmtInfo(slots.baccaratFruit)}`,
           "",
           "",
-          "This page shows your remaining pull slots.",
+          "This page shows your unlocked pull slots.",
         ].join("\n")
       )
       .setFooter({
