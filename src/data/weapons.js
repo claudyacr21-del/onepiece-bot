@@ -1,7 +1,7 @@
 module.exports = [
   {
-    code: "ace",
-    name: "Ace",
+    code: "aces",
+    name: "Aces",
     rarity: "UR",
     owners: ["roger_king_of_the_pirates"],
     type: "Supreme Grade Sword",
