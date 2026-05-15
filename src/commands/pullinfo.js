@@ -97,7 +97,6 @@ module.exports = {
           `↪ Bonus Pull For Main Server Boosters: ${fmtInfo(slots.booster)}`,
           `↪ Bonus Pull For Server Owners: ${fmtInfo(slots.owner)}`,
           `↪ Bonus Pulls From Mother Flame: ${fmtInfo(slots.patreon)}`,
-          `↪ Bonus Pulls From Vivre Card: ${fmtInfo(slots.vivreCard)}`,
           `↪ Bonus Pulls From Baccarat Card: ${fmtInfo(slots.baccaratCard)}`,
           `↪ Bonus Pulls From Baccarat Devil Fruit: ${fmtInfo(slots.baccaratFruit)}`,
           "",
