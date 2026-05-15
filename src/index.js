@@ -30,6 +30,10 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
   ],
   partials: [Partials.Channel, Partials.Message],
+  allowedMentions: {
+    parse: ["users", "roles"],
+    repliedUser: false,
+  },
 });
 
 const PREFIX = String(process.env.PREFIX || "op").toLowerCase();
