@@ -121,7 +121,18 @@ function formatAtkRange(atk) {
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
-function teamSummary
+function teamSummary(units) {
+  return units
+    .map((unit) =>
+      [
+        `**${unit.slot}. ${unit.name}**`,
+        `PWR \`${unit.power}\` • LV \`${unit.level}\``,
+        `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
+        renderHpBar(unit.hp, unit.maxHp),
+      ].join("\n")
+    )
+    .join("\n\n");
+}
 
 function getResultColor(result, ended) {
   if (!ended) return 0x5865f2;
