@@ -352,9 +352,43 @@ function resolveRaidBoss(query) {
   };
 }
 
-function deriveRaidBossStats(template) {
+function getRaidBossModeMultiplier(raidMode = {}) {
+  const ticketCode = String(raidMode?.ticketCode || "").toLowerCase();
+  const fixedBossCode = String(raidMode?.fixedBossCode || "").toLowerCase();
+  const modeName = String(raidMode?.modeName || "").toLowerCase();
+
+  if (
+    ticketCode === "empty_throne_raid_writ" ||
+    fixedBossCode === "imu" ||
+    modeName.includes("throne")
+  ) {
+    return {
+      hp: 2.4,
+      speed: 1.35,
+      atk: 1.65,
+    };
+  }
+
+  if (ticketCode === "gold_raid_ticket" || modeName.includes("gold")) {
+    return {
+      hp: 1.65,
+      speed: 1.2,
+      atk: 1.35,
+    };
+  }
+
+  // Common Raid and normal Raid stay unchanged.
+  return {
+    hp: 1,
+    speed: 1,
+    atk: 1,
+  };
+}
+
+function deriveRaidBossStats(template, raidMode = {}) {
   const hydrated = hydrateCard(template);
   const tier = String(hydrated.rarity || hydrated.currentTier || "B").toUpperCase();
+  const modeMultiplier = getRaidBossModeMultiplier(raidMode);
 
   const profile =
     {
@@ -396,10 +430,15 @@ function deriveRaidBossStats(template) {
     hydrated.powerCaps?.M3 || hydrated.currentPower || hydrated.basePower || 0
   );
 
-  const maxHp = Math.floor(profile.hp + baseHp * 2.8 + basePower * 1.2);
-  const speed = Math.floor(profile.speed + baseSpeed * 0.9);
-  const atkMin = Math.floor(profile.atkMin + baseAtk * 0.8 + basePower * 0.025);
-  const atkMax = Math.floor(profile.atkMax + baseAtk * 1.2 + basePower * 0.05);
+  const rawMaxHp = Math.floor(profile.hp + baseHp * 2.8 + basePower * 1.2);
+  const rawSpeed = Math.floor(profile.speed + baseSpeed * 0.9);
+  const rawAtkMin = Math.floor(profile.atkMin + baseAtk * 0.8 + basePower * 0.025);
+  const rawAtkMax = Math.floor(profile.atkMax + baseAtk * 1.2 + basePower * 0.05);
+
+  const maxHp = Math.floor(rawMaxHp * modeMultiplier.hp);
+  const speed = Math.floor(rawSpeed * modeMultiplier.speed);
+  const atkMin = Math.floor(rawAtkMin * modeMultiplier.atk);
+  const atkMax = Math.floor(rawAtkMax * modeMultiplier.atk);
 
   return {
     code: hydrated.code,
@@ -567,7 +606,7 @@ function getThroneTeamCards(player) {
   return getBattleTeamCards(player).slice(0, 3);
 }
 
-function buildBattleState(room, bossTemplate) {
+function buildBattleState(room, bossTemplate, raidMode = {}) {
   const members = buildBattleRoster(room).map((member) => ({
     ...member,
     actionCooldown: 0,
@@ -579,7 +618,7 @@ function buildBattleState(room, bossTemplate) {
     hostName: room.hostName,
     members,
     boss: {
-      ...deriveRaidBossStats(bossTemplate),
+      ...deriveRaidBossStats(bossTemplate, raidMode),
       bossCode: bossTemplate.code,
       bossName: bossTemplate.displayName || bossTemplate.name,
       rarity:
@@ -1492,7 +1531,7 @@ module.exports = {
       uniqueCardCodesOnly: !isThroneRaid,
     });
 
-    const bossPreviewStats = deriveRaidBossStats(bossInfo.template);
+    const bossPreviewStats = deriveRaidBossStats(bossInfo.template, raidMode);
 
     const lobbyMessage = await message.reply({
       embeds: [buildLobbyEmbed(message.author.username, room, false, bossPreviewStats)],
@@ -1803,7 +1842,7 @@ module.exports = {
           });
         }
 
-        const battleState = buildBattleState(startedRoom, bossInfo.template);
+        const battleState = buildBattleState(startedRoom, bossInfo.template, raidMode);
 
         if (!battleState.members.length) {
           try {
