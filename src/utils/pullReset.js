@@ -1,22 +1,12 @@
 const PULL_SLOT_SCHEMA_VERSION = 4;
 const RESET_TIMEZONE = "Asia/Jakarta";
+const RESET_INTERVAL_HOURS = 8;
+const RESET_INTERVAL_MS = RESET_INTERVAL_HOURS * 60 * 60 * 1000;
 
-function getWibDateKey(now = Date.now()) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: RESET_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-
-  return formatter.format(new Date(now));
-}
-
-function getCurrentResetBucket(now = Date.now()) {
-  return getWibDateKey(now);
-}
-
-function getNextResetTime(now = Date.now()) {
+// 00:00 WIB = 17:00 UTC previous day.
+// This anchor makes reset windows:
+// 00:00 WIB, 08:00 WIB, 16:00 WIB, then repeat.
+function getWibResetAnchorUtcMs(now = Date.now()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: RESET_TIMEZONE,
     year: "numeric",
@@ -36,8 +26,32 @@ function getNextResetTime(now = Date.now()) {
   const month = Number(data.month);
   const day = Number(data.day);
 
-  // 00:00 WIB = 17:00 UTC previous day.
-  return Date.UTC(year, month - 1, day + 1, 17, 0, 0, 0);
+  return Date.UTC(year, month - 1, day, 17, 0, 0, 0);
+}
+
+function getCurrentResetBucket(now = Date.now()) {
+  const anchor = getWibResetAnchorUtcMs(now);
+  const elapsed = Math.max(0, Number(now) - anchor);
+  const slotIndex = Math.floor(elapsed / RESET_INTERVAL_MS);
+
+  return `${new Intl.DateTimeFormat("en-CA", {
+    timeZone: RESET_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(now))}:${slotIndex}`;
+}
+
+function getCurrentResetStartTime(now = Date.now()) {
+  const anchor = getWibResetAnchorUtcMs(now);
+  const elapsed = Math.max(0, Number(now) - anchor);
+  const slotIndex = Math.floor(elapsed / RESET_INTERVAL_MS);
+
+  return anchor + slotIndex * RESET_INTERVAL_MS;
+}
+
+function getNextResetTime(now = Date.now()) {
+  return getCurrentResetStartTime(now) + RESET_INTERVAL_MS;
 }
 
 function buildResetPullState(existingPulls = {}) {
@@ -109,7 +123,10 @@ function applyManualPullReset(existingPulls = {}) {
 module.exports = {
   PULL_SLOT_SCHEMA_VERSION,
   RESET_TIMEZONE,
+  RESET_INTERVAL_HOURS,
+  RESET_INTERVAL_MS,
   getCurrentResetBucket,
+  getCurrentResetStartTime,
   getNextResetTime,
   buildResetPullState,
   buildManualTicketResetPullState,
