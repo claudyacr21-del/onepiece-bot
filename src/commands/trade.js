@@ -270,9 +270,25 @@ function isRaidTicketCode(code) {
 function ensureNotTicket(player, query) {
   const hit = findStackEntry(player.tickets, query);
 
-  if (hit) {
-    throw new Error(`Ticket item \`${getDisplayName(hit.entry, query)}\` is untradeable.`);
+  if (!hit) return null;
+
+  const code = String(hit.entry?.code || "").toLowerCase().trim();
+
+  if (isBlockedTradeItemCode(code)) {
+    throw new Error(
+      `Ticket item \`${getDisplayName(hit.entry, query)}\` is untradeable.`
+    );
   }
+
+  return {
+    kind: "stack",
+    store: "tickets",
+    amount: null,
+    code: hit.entry?.code || query,
+    displayName: getDisplayName(hit.entry, query),
+    sourceEntry: hit.entry,
+    storeLabel: "Ticket",
+  };
 }
 
 function resolveEntry(player, entry) {
@@ -289,7 +305,22 @@ function resolveEntry(player, entry) {
     };
   }
 
-  ensureNotTicket(player, entry.raw || entry.code);
+  const ticketEntry = ensureNotTicket(player, entry.raw || entry.code);
+
+  if (ticketEntry) {
+    const have = num(ticketEntry.sourceEntry?.amount, 1);
+
+    if (have < entry.amount) {
+      throw new Error(
+        `${player.username} lacks ${ticketEntry.displayName} x${entry.amount}.`
+      );
+    }
+
+    return {
+      ...ticketEntry,
+      amount: entry.amount,
+    };
+  }
 
   const stores = ["weapons", "devilFruits", "materials", "items", "boxes", "fragments"];
 
@@ -398,6 +429,7 @@ function applyResolvedTrade(from, to, resolved) {
     items: [...(from.items || [])],
     boxes: [...(from.boxes || [])],
     fragments: [...(from.fragments || [])],
+    tickets: [...(from.tickets || [])],
   };
 
   const toNext = {
@@ -409,6 +441,7 @@ function applyResolvedTrade(from, to, resolved) {
     items: [...(to.items || [])],
     boxes: [...(to.boxes || [])],
     fragments: [...(to.fragments || [])],
+    tickets: [...(to.tickets || [])],
   };
 
   for (const entry of resolved) {
