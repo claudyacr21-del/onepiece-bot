@@ -666,7 +666,8 @@ function applyArenaOpponentLoss(arena) {
   current.points = Math.max(0, current.points - 5);
   current.losses += 1;
   current.matches += 1;
-  current.streak = 0;
+
+  current.streak = Number(arena?.streak || 0);
 
   return current;
 }

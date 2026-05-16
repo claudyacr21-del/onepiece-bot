@@ -1,12 +1,41 @@
-const RESET_INTERVAL_MS = 8 * 60 * 60 * 1000;
 const PULL_SLOT_SCHEMA_VERSION = 3;
+const RESET_TIMEZONE = "Asia/Jakarta";
+
+function getWibDateParts(now = Date.now()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: RESET_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(now));
+
+  const data = {};
+
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      data[part.type] = part.value;
+    }
+  }
+
+  return {
+    year: Number(data.year),
+    month: Number(data.month),
+    day: Number(data.day),
+    key: `${data.year}-${data.month}-${data.day}`,
+  };
+}
 
 function getCurrentResetBucket(now = Date.now()) {
-  return Math.floor(now / RESET_INTERVAL_MS);
+  return getWibDateParts(now).key;
 }
 
 function getNextResetTime(now = Date.now()) {
-  return (getCurrentResetBucket(now) + 1) * RESET_INTERVAL_MS;
+  const { year, month, day } = getWibDateParts(now);
+
+  // 00:00 WIB equals 17:00 UTC on the previous UTC day.
+  const nextWibMidnightUtc = Date.UTC(year, month - 1, day + 1, 17, 0, 0, 0);
+
+  return nextWibMidnightUtc;
 }
 
 function buildResetPullState(existingPulls = {}) {
@@ -45,11 +74,7 @@ function buildManualTicketResetPullState(existingPulls = {}) {
 function applyGlobalPullReset(player) {
   const currentBucket = getCurrentResetBucket();
   const pulls = player?.pulls || {};
-
-  const savedBucket = Number.isInteger(pulls?.lastResetBucket)
-    ? pulls.lastResetBucket
-    : null;
-
+  const savedBucket = pulls?.lastResetBucket || null;
   const savedSchemaVersion = Number(pulls?.slotSchemaVersion || 0);
 
   if (
@@ -78,8 +103,8 @@ function applyManualPullReset(existingPulls = {}) {
 }
 
 module.exports = {
-  RESET_INTERVAL_MS,
   PULL_SLOT_SCHEMA_VERSION,
+  RESET_TIMEZONE,
   getCurrentResetBucket,
   getNextResetTime,
   buildResetPullState,

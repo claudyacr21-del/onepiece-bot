@@ -507,7 +507,9 @@ function buildUpgradeConfirmEmbed({
   currentLevel,
   nextLevel,
   stoneCost,
+  fragmentCost,
   currentStone,
+  currentFragment,
   shownPercent,
   equippedOwners,
 }) {
@@ -521,6 +523,7 @@ function buildUpgradeConfirmEmbed({
         `**Next Level:** +${nextLevel}`,
         `**Cost:** ${stoneCost} Enhancement Stones + ${fragmentCost} ${template.name} Fragment`,
         `**Your Stones:** ${currentStone}`,
+        `**Your Fragments:** ${currentFragment}`,
         "",
         "**Weapon Percent After Upgrade**",
         `ATK: +${shownPercent.atk}%`,
@@ -542,7 +545,10 @@ module.exports = {
     const weaponQuery = args.join(" ").trim();
 
     if (!weaponQuery) {
-      return message.reply("Usage: `op wupgrade <weapon>`");
+      return message.reply({
+        content: "Usage: `op wupgrade <weapon>`",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     const player = getPlayer(message.author.id, message.author.username);
@@ -597,7 +603,9 @@ module.exports = {
           currentLevel,
           nextLevel,
           stoneCost,
+          fragmentCost,
           currentStone,
+          currentFragment,
           shownPercent,
           equippedOwners,
         }),
@@ -654,8 +662,9 @@ module.exports = {
       const freshCurrentLevel = Number(freshMatch.currentLevel || 0);
       const freshNextLevel = freshCurrentLevel + 1;
       const freshStoneCost = getStoneCost(freshNextLevel);
+      const freshFragmentCost = getWeaponFragmentCost(freshNextLevel);
 
-      if (!freshStoneCost) {
+      if (!freshStoneCost || !freshFragmentCost) {
         collector.stop("max");
 
         return interaction.update({
@@ -670,8 +679,9 @@ module.exports = {
       }
 
       const freshStone = getStoneAmount(fresh.materials || []);
+      const freshFragment = getWeaponFragmentAmount(fresh.fragments || [], freshTemplate);
 
-      if (freshStone < freshStoneCost) {
+      if (freshStone < freshStoneCost || freshFragment < freshFragmentCost) {
         collector.stop("nostone");
 
         return interaction.update({
@@ -680,18 +690,22 @@ module.exports = {
               .setColor(0xe74c3c)
               .setTitle("Weapon Upgrade Failed")
               .setDescription(
-                `You need **${freshStoneCost} Enhancement Stones** to upgrade **${freshTemplate.name}**.\nCurrent: **${freshStone}**`
-              ),
+                [
+                  `You need these materials to upgrade **${freshTemplate.name}** to **+${freshNextLevel}**:`,
+                  `• Enhancement Stone: **${freshStone}/${freshStoneCost}**`,
+                  `• ${freshTemplate.name} Fragment: **${freshFragment}/${freshFragmentCost}**`,
+                ].join("\n")
+              )
           ],
           components: [],
         });
       }
 
-      const updatedMaterials = consumeStones(player.materials || [], stoneCost);
+      const updatedMaterials = consumeStones(fresh.materials || [], freshStoneCost);
       const updatedFragments = consumeWeaponFragments(
-        player.fragments || [],
-        template,
-        fragmentCost
+        fresh.fragments || [],
+        freshTemplate,
+        freshFragmentCost
       );
       const updatedWeapons = updateInventoryWeaponLevels(
         fresh.weapons || [],
@@ -735,7 +749,7 @@ module.exports = {
               [
                 `**Weapon:** ${freshTemplate.name}`,
                 `**Weapon Level:** +${freshNextLevel}`,
-                `**Cost:** ${freshStoneCost} Enhancement Stones`,
+                `**Cost:** ${freshStoneCost} Enhancement Stones + ${freshFragmentCost} ${freshTemplate.name} Fragment`,
                 "",
                 "**Weapon Percent Now**",
                 `ATK: +${freshShownPercent.atk}%`,
@@ -765,7 +779,7 @@ module.exports = {
             new EmbedBuilder()
               .setColor(0x95a5a6)
               .setTitle("Weapon Upgrade Expired")
-              .setDescription("No Enhancement Stones were consumed."),
+              .setDescription("No materials were consumed."),
           ],
           components: [],
         });

@@ -44,11 +44,7 @@ function rollTreasureRewards() {
   const gems = 35 + Math.floor(Math.random() * 16);
   const boxes = [cloneItem(ITEMS.motherFlameTreasureBox, 1)];
   const materials = [];
-  const tickets = [];
-
-  if (Math.random() < 0.5) {
-    tickets.push(cloneItem(ITEMS.pullResetTicket, 1));
-  }
+  const tickets = [cloneItem(ITEMS.pullResetTicket, 1)];
 
   if (Math.random() < 0.35) {
     materials.push(cloneItem(ITEMS.enhancementStone, 4));
@@ -68,9 +64,12 @@ module.exports = {
 
   async execute(message) {
     if (!(await isPremiumUser(message))) {
-      return message.reply(
-        `Only ${PREMIUM_ROLE_NAME} users can claim \`op treasure\`.`
-      );
+      return message.reply({
+        content: `Only ${PREMIUM_ROLE_NAME} users can claim \`op treasure\`.`,
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     const player = getPlayer(message.author.id, message.author.username);
@@ -79,11 +78,14 @@ module.exports = {
     const nextTreasureAt = Number(cooldowns.treasure || 0);
 
     if (nextTreasureAt > now) {
-      return message.reply(
-        `You already claimed your treasure.\nNext treasure: ${formatRemaining(
+      return message.reply({
+        content: `You already claimed your treasure.\nNext treasure: ${formatRemaining(
           nextTreasureAt - now
-        )}`
-      );
+        )}`,
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     const reward = rollTreasureRewards();
@@ -151,6 +153,9 @@ module.exports = {
 
     return message.reply({
       embeds: [embed],
+      allowedMentions: {
+        repliedUser: false,
+      },
     });
   },
 };

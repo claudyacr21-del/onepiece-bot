@@ -249,6 +249,24 @@ function getTradableCardMatches(player, query) {
     .map((hit) => hit.card);
 }
 
+function isBlockedTradeItemCode(code) {
+  const normalized = String(code || "").toLowerCase().trim();
+
+  // Empty Throne Raid Writ must not be tradeable.
+  return normalized === "empty_throne_raid_writ";
+}
+
+function isRaidTicketCode(code) {
+  const normalized = String(code || "").toLowerCase().trim();
+
+  return [
+    "common_raid_ticket",
+    "raid_ticket",
+    "gold_raid_ticket",
+    "empty_throne_raid_writ",
+  ].includes(normalized);
+}
+
 function ensureNotTicket(player, query) {
   const hit = findStackEntry(player.tickets, query);
 

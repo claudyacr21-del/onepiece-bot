@@ -1746,6 +1746,22 @@ module.exports = {
           });
         }
 
+        const latestRoom = getRoom(hostId);
+
+        if (!latestRoom || String(latestRoom.roomId) !== String(room.roomId)) {
+          return interaction.reply({
+            content: "This raid room is no longer active.",
+            ephemeral: true,
+          });
+        }
+
+        if (!hasParticipantJoined(latestRoom, hostId)) {
+          return interaction.reply({
+            content: "Host must join the raid first before starting the raid.",
+            ephemeral: true,
+          });
+        }
+
         let startedRoom;
 
         try {
