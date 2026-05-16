@@ -222,6 +222,27 @@ function findStackEntry(list, codeOrQuery) {
   };
 }
 
+function findExactStackIndexByCode(list, code) {
+  const target = String(code || "").toLowerCase().trim();
+
+  if (!target) return -1;
+
+  return (Array.isArray(list) ? list : []).findIndex(
+    (entry) => String(entry?.code || "").toLowerCase().trim() === target
+  );
+}
+
+function findExactStackEntryByCode(list, code) {
+  const index = findExactStackIndexByCode(list, code);
+
+  if (index < 0) return null;
+
+  return {
+    index,
+    entry: list[index],
+  };
+}
+
 function getTradableCardMatches(player, query) {
   const teamIds = getTeamIds(player);
   const q = String(query || "");
@@ -374,7 +395,9 @@ function resolveOffer(player, offer) {
 
 function removeStack(list, codeOrQuery, amount) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const hit = findStackEntry(arr, codeOrQuery);
+
+  const exactHit = findExactStackEntryByCode(arr, codeOrQuery);
+  const hit = exactHit || findStackEntry(arr, codeOrQuery);
 
   if (!hit) {
     throw new Error(`Missing stack item ${codeOrQuery}.`);
@@ -399,22 +422,25 @@ function removeStack(list, codeOrQuery, amount) {
 
 function addStack(list, incoming, amount) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const code = incoming?.code || slug(incoming?.name);
-  const hit = findStackEntry(arr, code);
+  const code = String(incoming?.code || slug(incoming?.name || "")).trim();
 
-  if (!hit) {
+  const exactIndex = findExactStackIndexByCode(arr, code);
+
+  if (exactIndex < 0) {
     arr.push({
       ...incoming,
       code,
       name: incoming?.name || getDisplayName(incoming, code),
       amount,
     });
-  } else {
-    arr[hit.index] = {
-      ...arr[hit.index],
-      amount: num(arr[hit.index]?.amount, 1) + amount,
-    };
+
+    return arr;
   }
+
+  arr[exactIndex] = {
+    ...arr[exactIndex],
+    amount: num(arr[exactIndex]?.amount, 1) + amount,
+  };
 
   return arr;
 }
@@ -452,7 +478,9 @@ function applyResolvedTrade(from, to, resolved) {
     }
 
     if (entry.kind === "stack") {
-      const sourceHit = findStackEntry(fromNext[entry.store], entry.code);
+      const sourceHit =
+        findExactStackEntryByCode(fromNext[entry.store], entry.code) ||
+        findStackEntry(fromNext[entry.store], entry.code);
 
       if (!sourceHit) {
         throw new Error(`Missing ${entry.displayName || entry.code} during trade apply.`);
@@ -460,11 +488,16 @@ function applyResolvedTrade(from, to, resolved) {
 
       fromNext[entry.store] = removeStack(
         fromNext[entry.store],
-        entry.code,
+        sourceHit.entry.code || entry.code,
         entry.amount
       );
 
-      toNext[entry.store] = addStack(toNext[entry.store], sourceHit.entry, entry.amount);
+      toNext[entry.store] = addStack(
+        toNext[entry.store],
+        sourceHit.entry,
+        entry.amount
+      );
+
       continue;
     }
 
