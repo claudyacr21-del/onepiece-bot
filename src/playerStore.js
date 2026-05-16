@@ -266,6 +266,15 @@ function normalizePullSlot(slot, fallbackMax) {
 }
 
 function normalizePulls(pulls) {
+  const rawBucket = pulls?.lastResetBucket;
+
+  const lastResetBucket =
+    typeof rawBucket === "string" && rawBucket.trim()
+      ? rawBucket.trim()
+      : Number.isInteger(rawBucket)
+      ? rawBucket
+      : null;
+
   return {
     base: normalizePullSlot(pulls?.base, 6),
     supportMember: normalizePullSlot(pulls?.supportMember, 1),
@@ -275,7 +284,7 @@ function normalizePulls(pulls) {
     vivreCard: normalizePullSlot(pulls?.vivreCard, 1),
     baccaratCard: normalizePullSlot(pulls?.baccaratCard, 3),
     baccaratFruit: normalizePullSlot(pulls?.baccaratFruit, 2),
-    lastResetBucket: Number.isInteger(pulls?.lastResetBucket) ? pulls.lastResetBucket : null,
+    lastResetBucket,
     slotSchemaVersion: Number(pulls?.slotSchemaVersion || 0),
   };
 }

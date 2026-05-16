@@ -8,7 +8,6 @@ const { applyGlobalPullReset } = require("../utils/pullReset");
 const { applyAutoLevelForDuplicate } = require("../utils/autoLevel");
 const {
   addFragmentWithAutoSac,
-  removeFragmentAmount,
 } = require("../utils/autoSac");
 const {
   getNextAvailablePullKey,

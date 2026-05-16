@@ -1,7 +1,22 @@
-const PULL_SLOT_SCHEMA_VERSION = 3;
+const PULL_SLOT_SCHEMA_VERSION = 4;
 const RESET_TIMEZONE = "Asia/Jakarta";
 
-function getWibDateParts(now = Date.now()) {
+function getWibDateKey(now = Date.now()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: RESET_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  return formatter.format(new Date(now));
+}
+
+function getCurrentResetBucket(now = Date.now()) {
+  return getWibDateKey(now);
+}
+
+function getNextResetTime(now = Date.now()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: RESET_TIMEZONE,
     year: "numeric",
@@ -17,37 +32,24 @@ function getWibDateParts(now = Date.now()) {
     }
   }
 
-  return {
-    year: Number(data.year),
-    month: Number(data.month),
-    day: Number(data.day),
-    key: `${data.year}-${data.month}-${data.day}`,
-  };
-}
+  const year = Number(data.year);
+  const month = Number(data.month);
+  const day = Number(data.day);
 
-function getCurrentResetBucket(now = Date.now()) {
-  return getWibDateParts(now).key;
-}
-
-function getNextResetTime(now = Date.now()) {
-  const { year, month, day } = getWibDateParts(now);
-
-  // 00:00 WIB equals 17:00 UTC on the previous UTC day.
-  const nextWibMidnightUtc = Date.UTC(year, month - 1, day + 1, 17, 0, 0, 0);
-
-  return nextWibMidnightUtc;
+  // 00:00 WIB = 17:00 UTC previous day.
+  return Date.UTC(year, month - 1, day + 1, 17, 0, 0, 0);
 }
 
 function buildResetPullState(existingPulls = {}) {
   return {
-    base: { used: 0, max: 6 },
-    supportMember: { used: 0, max: 1 },
-    booster: { used: 0, max: 1 },
-    owner: { used: 0, max: 1 },
-    patreon: { used: 0, max: 3 },
-    vivreCard: { used: 0, max: 1 },
-    baccaratCard: { used: 0, max: 3 },
-    baccaratFruit: { used: 0, max: 2 },
+    base: { ...(existingPulls?.base || {}), used: 0, max: 6 },
+    supportMember: { ...(existingPulls?.supportMember || {}), used: 0, max: 1 },
+    booster: { ...(existingPulls?.booster || {}), used: 0, max: 1 },
+    owner: { ...(existingPulls?.owner || {}), used: 0, max: 1 },
+    patreon: { ...(existingPulls?.patreon || {}), used: 0, max: 3 },
+    vivreCard: { ...(existingPulls?.vivreCard || {}), used: 0, max: 1 },
+    baccaratCard: { ...(existingPulls?.baccaratCard || {}), used: 0, max: 3 },
+    baccaratFruit: { ...(existingPulls?.baccaratFruit || {}), used: 0, max: 2 },
     lastResetBucket: getCurrentResetBucket(),
     slotSchemaVersion: PULL_SLOT_SCHEMA_VERSION,
   };
@@ -64,9 +66,11 @@ function buildManualTicketResetPullState(existingPulls = {}) {
     vivreCard: { ...(existingPulls?.vivreCard || {}), used: 0, max: 1 },
     baccaratCard: { ...(existingPulls?.baccaratCard || {}), used: 0, max: 3 },
     baccaratFruit: { ...(existingPulls?.baccaratFruit || {}), used: 0, max: 2 },
-    lastResetBucket: Number.isInteger(existingPulls?.lastResetBucket)
-      ? existingPulls.lastResetBucket
-      : getCurrentResetBucket(),
+    lastResetBucket:
+      typeof existingPulls?.lastResetBucket === "string" &&
+      existingPulls.lastResetBucket.trim()
+        ? existingPulls.lastResetBucket.trim()
+        : getCurrentResetBucket(),
     slotSchemaVersion: PULL_SLOT_SCHEMA_VERSION,
   };
 }
