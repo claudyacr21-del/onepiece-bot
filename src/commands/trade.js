@@ -50,6 +50,26 @@ function getDisplayName(entry, fallbackCode = "") {
   );
 }
 
+function normalizeTradeAliasCode(value) {
+  const code = slug(value);
+
+  const aliases = {
+    craid: "common_raid_ticket",
+
+    raid: "raid_ticket",
+
+    graid: "gold_raid_ticket",
+
+    throne: "empty_throne_raid_writ",
+  };
+
+  return aliases[code] || code;
+}
+
+function isBlockedTradeItemCode(code) {
+  return normalizeTradeAliasCode(code) === "empty_throne_raid_writ";
+}
+
 function fmtEntry(e) {
   if (e.type === "berries") {
     return `${e.amount.toLocaleString("en-US")} berries`;
@@ -100,12 +120,15 @@ function parseOfferBlock(raw) {
       throw new Error(`Invalid trade entry: ${part}`);
     }
 
-    return {
-      type: "asset",
-      code: slug(m[1]),
-      raw: m[1].trim(),
-      amount: num(m[2]),
-    };
+  const rawCode = m[1].trim();
+  const normalizedCode = normalizeTradeAliasCode(rawCode);
+
+  return {
+    type: "asset",
+    code: normalizedCode,
+    raw: rawCode,
+    amount: num(m[2]),
+  };
   });
 }
 
@@ -223,13 +246,25 @@ function findStackEntry(list, codeOrQuery) {
 }
 
 function findExactStackIndexByCode(list, code) {
-  const target = String(code || "").toLowerCase().trim();
+  const target = normalizeTradeAliasCode(code);
 
   if (!target) return -1;
 
   return (Array.isArray(list) ? list : []).findIndex(
-    (entry) => String(entry?.code || "").toLowerCase().trim() === target
+    (entry) =>
+      normalizeTradeAliasCode(entry?.code || "") === target
   );
+}
+
+function findExactStackEntryByCode(list, code) {
+  const index = findExactStackIndexByCode(list, code);
+
+  if (index < 0) return null;
+
+  return {
+    index,
+    entry: list[index],
+  };
 }
 
 function findExactStackEntryByCode(list, code) {
@@ -288,12 +323,16 @@ function isRaidTicketCode(code) {
   ].includes(normalized);
 }
 
-function ensureNotTicket(player, query) {
-  const hit = findStackEntry(player.tickets, query);
+function resolveTicketEntry(player, query) {
+  const normalizedQuery = normalizeTradeAliasCode(query);
+
+  const hit =
+    findExactStackEntryByCode(player.tickets, normalizedQuery) ||
+    findStackEntry(player.tickets, normalizedQuery);
 
   if (!hit) return null;
 
-  const code = String(hit.entry?.code || "").toLowerCase().trim();
+  const code = normalizeTradeAliasCode(hit.entry?.code || normalizedQuery);
 
   if (isBlockedTradeItemCode(code)) {
     throw new Error(
@@ -305,7 +344,7 @@ function ensureNotTicket(player, query) {
     kind: "stack",
     store: "tickets",
     amount: null,
-    code: hit.entry?.code || query,
+    code,
     displayName: getDisplayName(hit.entry, query),
     sourceEntry: hit.entry,
     storeLabel: "Ticket",
@@ -326,7 +365,7 @@ function resolveEntry(player, entry) {
     };
   }
 
-  const ticketEntry = ensureNotTicket(player, entry.raw || entry.code);
+  const ticketEntry = resolveTicketEntry(player, entry.code || entry.raw);
 
   if (ticketEntry) {
     const have = num(ticketEntry.sourceEntry?.amount, 1);
@@ -395,9 +434,10 @@ function resolveOffer(player, offer) {
 
 function removeStack(list, codeOrQuery, amount) {
   const arr = Array.isArray(list) ? [...list] : [];
+  const normalizedCode = normalizeTradeAliasCode(codeOrQuery);
 
-  const exactHit = findExactStackEntryByCode(arr, codeOrQuery);
-  const hit = exactHit || findStackEntry(arr, codeOrQuery);
+  const exactHit = findExactStackEntryByCode(arr, normalizedCode);
+  const hit = exactHit || findStackEntry(arr, normalizedCode);
 
   if (!hit) {
     throw new Error(`Missing stack item ${codeOrQuery}.`);
@@ -406,7 +446,9 @@ function removeStack(list, codeOrQuery, amount) {
   const have = num(hit.entry?.amount, 1);
   const left = have - amount;
 
-  if (left < 0) throw new Error(`Not enough ${getDisplayName(hit.entry, codeOrQuery)}.`);
+  if (left < 0) {
+    throw new Error(`Not enough ${getDisplayName(hit.entry, codeOrQuery)}.`);
+  }
 
   if (left === 0) {
     arr.splice(hit.index, 1);
@@ -422,7 +464,7 @@ function removeStack(list, codeOrQuery, amount) {
 
 function addStack(list, incoming, amount) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const code = String(incoming?.code || slug(incoming?.name || "")).trim();
+  const code = normalizeTradeAliasCode(incoming?.code || slug(incoming?.name || ""));
 
   const exactIndex = findExactStackIndexByCode(arr, code);
 
