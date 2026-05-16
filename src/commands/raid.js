@@ -982,6 +982,8 @@ function findLinkedRaidItem(db, boss) {
       item.knownUserCode,
       item.userCode,
       item.equippedByCode,
+      ...(Array.isArray(item.owners) ? item.owners : []),
+      ...(Array.isArray(item.ownerCodes) ? item.ownerCodes : []),
     ]
       .map(normalizeText)
       .filter(Boolean);
@@ -999,6 +1001,8 @@ function findLinkedRaidItem(db, boss) {
       item.owner,
       item.ownerDisplayName,
       item.equippedBy,
+      ...(Array.isArray(item.ownerNames) ? item.ownerNames : []),
+      ...(Array.isArray(item.knownUsers) ? item.knownUsers : []),
     ]
       .map(normalizeText)
       .filter(Boolean);
@@ -1059,17 +1063,18 @@ function addRaidBossFragment(fragments, boss, amount) {
   );
 }
 
-function addRaidWeapon(weapons, weapon) {
+function addRaidWeaponFragment(fragments, weapon, amount = 1) {
   return addAmountEntry(
-    weapons,
+    fragments,
     {
-      code: weapon.code,
-      name: weapon.name,
+      code: `weapon_fragment_${weapon.code}`,
+      name: `${weapon.name} Fragment`,
       rarity: weapon.rarity || "C",
+      category: "weapon",
       image: weapon.image || "",
-      upgradeLevel: 0,
+      weaponCode: weapon.code,
     },
-    1
+    amount
   );
 }
 
@@ -1121,10 +1126,16 @@ function giveRaidWinRewards(state) {
       gems: Number(player.gems || 0) + gems,
 
       fragments: isHost
-        ? addRaidBossFragment(player.fragments, boss, fragments)
+        ? gotWeapon
+          ? addRaidWeaponFragment(
+              addRaidBossFragment(player.fragments, boss, fragments),
+              linkedWeapon,
+              1
+            )
+          : addRaidBossFragment(player.fragments, boss, fragments)
         : player.fragments,
 
-      weapons: gotWeapon ? addRaidWeapon(player.weapons, linkedWeapon) : player.weapons,
+      weapons: player.weapons,
 
       devilFruits: gotFruit
         ? addRaidFruit(player.devilFruits, linkedFruit)
@@ -1169,7 +1180,7 @@ function formatRaidWinRewardLines(state) {
 
     const extras = [];
 
-    if (reward.weapon) extras.push(`⚔️ ${reward.weapon}`);
+    if (reward.weapon) extras.push(`⚔️ ${reward.weapon} Fragment x1`);
     if (reward.fruit) extras.push(`🍈 ${reward.fruit}`);
 
     if (reward.isHost && extras.length) {

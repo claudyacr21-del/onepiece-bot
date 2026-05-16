@@ -2,6 +2,7 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { createOwnedCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
+const weaponsDb = require("../data/weapons");
 
 const SUMMON_FRAGMENT_COST = 25;
 const SUMMONABLE_CARD_ROLES = new Set(["battle", "boost"]);
@@ -12,6 +13,102 @@ function normalize(value) {
     .trim()
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ");
+}
+
+function findWeaponByNameOnly(query) {
+  const q = normalize(query);
+  if (!q) return null;
+
+  const scored = weaponsDb
+    .map((weapon) => {
+      const name = normalize(weapon.name);
+      let score = 0;
+
+      if (name === q) score = 1000;
+      else if (name.startsWith(q)) score = 700;
+      else if (name.includes(q)) score = 400;
+      else {
+        const words = q.split(" ").filter(Boolean);
+        if (words.length && words.every((word) => name.includes(word))) {
+          score = 250;
+        }
+      }
+
+      return { weapon, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored.length ? scored[0].weapon : null;
+}
+
+function getWeaponFragmentCode(weapon) {
+  return `weapon_fragment_${String(weapon.code || "").toLowerCase()}`;
+}
+
+function getWeaponFragmentEntry(fragments, weapon) {
+  const fragmentCode = normalize(getWeaponFragmentCode(weapon));
+  const weaponCode = normalize(weapon.code);
+  const weaponName = normalize(`${weapon.name} Fragment`);
+
+  return (Array.isArray(fragments) ? fragments : []).find((entry) => {
+    const entryCode = normalize(entry.code);
+    const entryName = normalize(entry.name || entry.displayName);
+    const entryWeaponCode = normalize(entry.weaponCode);
+
+    return (
+      entryCode === fragmentCode ||
+      entryWeaponCode === weaponCode ||
+      entryName === weaponName
+    );
+  });
+}
+
+function consumeWeaponFragments(fragments, weapon, amount) {
+  const arr = [...(Array.isArray(fragments) ? fragments : [])];
+  const entry = getWeaponFragmentEntry(arr, weapon);
+  if (!entry) return null;
+
+  const index = arr.indexOf(entry);
+  const current = Number(entry.amount || 0);
+
+  if (current < amount) return null;
+
+  if (current === amount) arr.splice(index, 1);
+  else arr[index] = { ...entry, amount: current - amount };
+
+  return arr;
+}
+
+function addSummonedWeapon(weapons, weapon) {
+  const arr = [...(Array.isArray(weapons) ? weapons : [])];
+  const index = arr.findIndex(
+    (entry) => normalize(entry.code) === normalize(weapon.code)
+  );
+
+  if (index >= 0) {
+    arr[index] = {
+      ...arr[index],
+      amount: Number(arr[index].amount || 1) + 1,
+    };
+    return arr;
+  }
+
+  arr.push({
+    code: weapon.code,
+    name: weapon.name,
+    rarity: weapon.rarity || "C",
+    type: weapon.type || "Weapon",
+    image: weapon.image || "",
+    statPercent: weapon.statPercent || { atk: 0, hp: 0, speed: 0 },
+    ownerBonusPercent: weapon.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
+    owners: weapon.owners || [],
+    description: weapon.description || "",
+    amount: 1,
+    upgradeLevel: 0,
+  });
+
+  return arr;
 }
 
 function getCardName(card) {
@@ -109,6 +206,39 @@ module.exports = {
 
     const player = getPlayer(message.author.id, message.author.username);
     const card = findSummonableCard(query);
+
+    const weaponTemplate = findWeaponByNameOnly(query);
+
+    if (weaponTemplate) {
+      const cost = 25;
+      const fragmentEntry = getWeaponFragmentEntry(player.fragments || [], weaponTemplate);
+      const ownedAmount = Number(fragmentEntry?.amount || 0);
+
+      if (ownedAmount < cost) {
+        return message.reply({
+          content: `You need **${cost}x ${weaponTemplate.name} Fragment** to summon this weapon.\nCurrent: **${ownedAmount}/${cost}**`,
+          allowedMentions: { repliedUser: false },
+        });
+      }
+
+      const updatedFragments = consumeWeaponFragments(
+        player.fragments || [],
+        weaponTemplate,
+        cost
+      );
+
+      const updatedWeapons = addSummonedWeapon(player.weapons || [], weaponTemplate);
+
+      updatePlayer(message.author.id, {
+        fragments: updatedFragments,
+        weapons: updatedWeapons,
+      });
+
+      return message.reply({
+        content: `✅ Summoned weapon **${weaponTemplate.name}** using **${cost}x ${weaponTemplate.name} Fragment**.`,
+        allowedMentions: { repliedUser: false },
+      });
+    }
 
     if (!card) {
       return message.reply(
