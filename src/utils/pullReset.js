@@ -3,10 +3,7 @@ const RESET_TIMEZONE = "Asia/Jakarta";
 const RESET_INTERVAL_HOURS = 8;
 const RESET_INTERVAL_MS = RESET_INTERVAL_HOURS * 60 * 60 * 1000;
 
-// 00:00 WIB = 17:00 UTC previous day.
-// This anchor makes reset windows:
-// 00:00 WIB, 08:00 WIB, 16:00 WIB, then repeat.
-function getWibResetAnchorUtcMs(now = Date.now()) {
+function getWibDateParts(now = Date.now()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: RESET_TIMEZONE,
     year: "numeric",
@@ -22,32 +19,40 @@ function getWibResetAnchorUtcMs(now = Date.now()) {
     }
   }
 
-  const year = Number(data.year);
-  const month = Number(data.month);
-  const day = Number(data.day);
+  return {
+    year: Number(data.year),
+    month: Number(data.month),
+    day: Number(data.day),
+    key: `${data.year}-${data.month}-${data.day}`,
+  };
+}
 
-  return Date.UTC(year, month - 1, day, 17, 0, 0, 0);
+function getWibMidnightUtcMs(now = Date.now()) {
+  const { year, month, day } = getWibDateParts(now);
+
+  // 00:00 WIB = 17:00 UTC on the previous UTC day.
+  return Date.UTC(year, month - 1, day - 1, 17, 0, 0, 0);
+}
+
+function getCurrentResetSlot(now = Date.now()) {
+  const anchor = getWibMidnightUtcMs(now);
+  const elapsed = Math.max(0, Number(now) - anchor);
+
+  return Math.floor(elapsed / RESET_INTERVAL_MS);
 }
 
 function getCurrentResetBucket(now = Date.now()) {
-  const anchor = getWibResetAnchorUtcMs(now);
-  const elapsed = Math.max(0, Number(now) - anchor);
-  const slotIndex = Math.floor(elapsed / RESET_INTERVAL_MS);
+  const { key } = getWibDateParts(now);
+  const slot = getCurrentResetSlot(now);
 
-  return `${new Intl.DateTimeFormat("en-CA", {
-    timeZone: RESET_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(now))}:${slotIndex}`;
+  return `${key}:${slot}`;
 }
 
 function getCurrentResetStartTime(now = Date.now()) {
-  const anchor = getWibResetAnchorUtcMs(now);
-  const elapsed = Math.max(0, Number(now) - anchor);
-  const slotIndex = Math.floor(elapsed / RESET_INTERVAL_MS);
+  const anchor = getWibMidnightUtcMs(now);
+  const slot = getCurrentResetSlot(now);
 
-  return anchor + slotIndex * RESET_INTERVAL_MS;
+  return anchor + slot * RESET_INTERVAL_MS;
 }
 
 function getNextResetTime(now = Date.now()) {

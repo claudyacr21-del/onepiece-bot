@@ -74,6 +74,7 @@ module.exports = {
       "raidteamremove",
       "add",
       "remove",
+      "bal",
       "swap",
       "team",
       "killraid",
@@ -94,6 +95,7 @@ module.exports = {
       "raidteamremove",
       "add",
       "remove",
+      "bal",
       "swap",
       "team",
       "killraid",
@@ -114,6 +116,7 @@ module.exports = {
       "raidteamremove",
       "add",
       "remove",
+      "bal",
       "swap",
       "team",
       "killraid",
@@ -134,6 +137,7 @@ module.exports = {
       "raidteamremove",
       "add",
       "remove",
+      "bal",
       "swap",
       "team",
       "killraid",
@@ -154,6 +158,7 @@ module.exports = {
       "raidteamremove",
       "add",
       "remove",
+      "bal",
       "swap",
       "team",
       "killraid",
@@ -177,9 +182,20 @@ module.exports = {
     "1497574814762663936": ["raid"],
     "1497574860942086335": ["raid"],
     "1500131876101423154": ["raid"],
+    "1503018874289782834": ["raid"],
+    "1503018907936489492": ["raid"],
+    "1503018937250615478": ["raid"],
+    "1504795525935796315": ["raid"],
+    "1504795551550410872": ["raid"],
 
     // mother flame
     "1502557193415823401": ["raid"],
+
+    // vivre card
+    "1504462180135997492": ["raid"],
+
+    //pangea castle
+    "1504743963729330296": ["raid"],
   },
 
   alwaysAllowedCommands: [],
