@@ -25,6 +25,9 @@ const {
   rollVivreBaseTier,
   rollVivreContentType,
   rollVivreDevilFruitTier,
+  rollStandardWeaponTier,
+  rollVivreWeaponTier,
+  rollPremiumWeaponTier,
 } = require("../utils/pullRates");
 
 const { getPremiumTier } = require("../utils/premiumAccess");
@@ -109,6 +112,12 @@ function pickBaseTier(tier, contentType, triggeredPity) {
     if (tier === "motherFlame") return rollPremiumDevilFruitTier();
     if (tier === "vivreCard") return rollVivreDevilFruitTier();
     return rollStandardDevilFruitTier();
+  }
+
+  if (contentType === "weapon") {
+    if (tier === "motherFlame") return rollPremiumWeaponTier();
+    if (tier === "vivreCard") return rollVivreWeaponTier();
+    return rollStandardWeaponTier();
   }
 
   if (triggeredPity) return getPityGuarantee(tier);
