@@ -50,7 +50,12 @@ const MARINE_EVENT_DESPAWN_MS = Math.max(
 );
 
 const activeEvents = new Map();
-const channelChatUsers = new Map();
+const channelChatCounters = new Map();
+
+const MARINE_EVENT_MAX_COUNT_PER_USER = Math.max(
+  1,
+  Number(process.env.MARINE_EVENT_MAX_COUNT_PER_USER || 5)
+);
 const guildCooldowns = new Map();
 const channelCooldowns = new Map();
 
@@ -211,14 +216,46 @@ function getChannelUserKey(guildId, channelId) {
   return `${guildId}:${channelId}`;
 }
 
-function getChannelChatUserSet(guildId, channelId) {
+function getChannelChatCounter(guildId, channelId) {
   const key = getChannelUserKey(guildId, channelId);
 
-  if (!channelChatUsers.has(key)) {
-    channelChatUsers.set(key, new Set());
+  if (!channelChatCounters.has(key)) {
+    channelChatCounters.set(key, new Map());
   }
 
-  return channelChatUsers.get(key);
+  return channelChatCounters.get(key);
+}
+
+function getChannelWeightedChatCount(guildId, channelId) {
+  const counter = getChannelChatCounter(guildId, channelId);
+  let total = 0;
+
+  for (const amount of counter.values()) {
+    total += Math.min(
+      Number(amount || 0),
+      MARINE_EVENT_MAX_COUNT_PER_USER
+    );
+  }
+
+  return total;
+}
+
+function addChannelChatCount(guildId, channelId, userId) {
+  const counter = getChannelChatCounter(guildId, channelId);
+  const id = String(userId);
+
+  const current = Number(counter.get(id) || 0);
+
+  counter.set(
+    id,
+    Math.min(current + 1, MARINE_EVENT_MAX_COUNT_PER_USER)
+  );
+
+  return getChannelWeightedChatCount(guildId, channelId);
+}
+
+function resetChannelChatCounter(guildId, channelId) {
+  channelChatCounters.set(getChannelUserKey(guildId, channelId), new Map());
 }
 
 function resetChannelChatUsers(guildId, channelId) {
@@ -685,22 +722,24 @@ async function maybeSpawnMarineEvent(client, message) {
 
   if (activeInChannel) return false;
 
-  const uniqueUsers = getChannelChatUserSet(guildId, channelId);
-  uniqueUsers.add(String(message.author.id));
+const currentMessageCount = addChannelChatCount(
+  guildId,
+  channelId,
+  message.author.id
+);
 
-  if (uniqueUsers.size < MARINE_EVENT_MIN_MESSAGES) {
-    return false;
-  }
+if (currentMessageCount < MARINE_EVENT_MIN_MESSAGES) {
+  return false;
+}
 
-  if (Math.random() > MARINE_EVENT_CHANCE) {
-    return false;
-  }
+if (Math.random() > MARINE_EVENT_CHANCE) {
+  return false;
+}
 
-  resetChannelChatUsers(guildId, channelId);
-  globalCooldownUntil = now + MARINE_EVENT_GLOBAL_COOLDOWN_MS;
-  guildCooldowns.set(guildId, now + MARINE_EVENT_GUILD_COOLDOWN_MS);
-  channelCooldowns.set(channelKey, now + MARINE_EVENT_CHANNEL_COOLDOWN_MS);
-
+resetChannelChatCounter(guildId, channelId);
+globalCooldownUntil = now + MARINE_EVENT_GLOBAL_COOLDOWN_MS;
+guildCooldowns.set(guildId, now + MARINE_EVENT_GUILD_COOLDOWN_MS);
+channelCooldowns.set(channelKey, now + MARINE_EVENT_CHANNEL_COOLDOWN_MS);
   try {
     await spawnMarineEvent(message);
     return true;
