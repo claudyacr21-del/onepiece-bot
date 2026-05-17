@@ -298,8 +298,86 @@ function buildRows(index, total, prevId = "mc_prev", nextId = "mc_next") {
   ];
 }
 
+function getTierRank(tier) {
+  const order = {
+    C: 1,
+    B: 2,
+    A: 3,
+    S: 4,
+    SS: 5,
+    UR: 6,
+  };
+
+  return order[String(tier || "C").toUpperCase()] || 0;
+}
+
+function getCardUniqueKey(card) {
+  const role = String(card?.cardRole || "battle").toLowerCase();
+  const code = String(card?.code || card?.name || card?.displayName || "")
+    .toLowerCase()
+    .trim();
+
+  return `${role}:${code}`;
+}
+
+function isBetterDuplicateCard(candidate, current) {
+  if (!current) return true;
+
+  const candidateStage = Number(candidate?.evolutionStage || 1);
+  const currentStage = Number(current?.evolutionStage || 1);
+
+  if (candidateStage !== currentStage) {
+    return candidateStage > currentStage;
+  }
+
+  const candidateTier = getTierRank(candidate?.currentTier || candidate?.rarity);
+  const currentTier = getTierRank(current?.currentTier || current?.rarity);
+
+  if (candidateTier !== currentTier) {
+    return candidateTier > currentTier;
+  }
+
+  const candidatePower = Number(candidate?.currentPower || 0);
+  const currentPower = Number(current?.currentPower || 0);
+
+  if (candidatePower !== currentPower) {
+    return candidatePower > currentPower;
+  }
+
+  const candidateLevel = Number(candidate?.level || 1);
+  const currentLevel = Number(current?.level || 1);
+
+  if (candidateLevel !== currentLevel) {
+    return candidateLevel > currentLevel;
+  }
+
+  const candidateKills = Number(candidate?.kills || 0);
+  const currentKills = Number(current?.kills || 0);
+
+  if (candidateKills !== currentKills) {
+    return candidateKills > currentKills;
+  }
+
+  return false;
+}
+
 function dedupeCollection(cards) {
-  return (Array.isArray(cards) ? cards : []).filter(Boolean);
+  const map = new Map();
+
+  for (const card of Array.isArray(cards) ? cards : []) {
+    if (!card) continue;
+
+    const key = getCardUniqueKey(card);
+    if (!key || key === "battle:") continue;
+
+    const existing = map.get(key);
+
+    if (isBetterDuplicateCard(card, existing)) {
+      map.set(key, card);
+    }
+  }
+
+  return [...map.values()];
 }
 
 function buildTextLines(cards) {
@@ -726,10 +804,12 @@ module.exports = {
       query = "";
     }
 
-    const cards = (player.cards || [])
-      .map(mergeOwnedCardWithLatestTemplate)
-      .filter(Boolean)
-      .map((card) => applyBoostedDisplayStats(card, boosts));
+    const cards = dedupeCollection(
+      (player.cards || [])
+        .map(mergeOwnedCardWithLatestTemplate)
+        .filter(Boolean)
+        .map((card) => applyBoostedDisplayStats(card, boosts))
+    );
 
     if (sub1 === "weapon") {
       const weaponQuery = args.slice(1).join(" ").trim();
