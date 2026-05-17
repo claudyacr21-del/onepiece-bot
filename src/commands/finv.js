@@ -195,7 +195,7 @@ function buildPageEmbed(message, player, fragments, currentPage, isPrivate, sear
         const name = getDisplayName(fragment);
         const amount = getFragmentAmount(fragment).toLocaleString("en-US");
         const rarity = formatRarity(fragment?.rarity);
-        const category = String(fragment?.category || "fragment");
+        const category = String(fragment?.category || "fragment").toLowerCase();
 
         return `${icon} **${name}** x${amount} • ${rarity} • ${category}`;
       })
@@ -203,17 +203,16 @@ function buildPageEmbed(message, player, fragments, currentPage, isPrivate, sear
 
   const description = [
     "Fragments are used to summon and upgrade battle cards, boost cards, and weapons.",
+    "",
     searchQuery ? `**Search:** \`${searchQuery}\`` : null,
-    "",
-    "",
+    searchQuery ? "" : null,
     ...lines,
-    "",
     "",
     `**Fragment Storage:** ${storage.total}/${storage.max}`,
     storage.bonus > 0 ? `**Storage Bonus:** +${storage.bonus}` : null,
     `**Visibility Mode:** ${isPrivate ? "Private" : "Public"}`,
   ]
-    .filter(Boolean)
+    .filter((line) => line !== null)
     .join("\n");
 
   const embed = new EmbedBuilder()

@@ -281,6 +281,18 @@ function addWeaponFragment(list, weapon, amount = 1) {
   return arr;
 }
 
+function buildWeaponFragmentPayload(weapon) {
+  return {
+    name: `${weapon.name} Fragment`,
+    amount: 1,
+    rarity: weapon.rarity || "C",
+    category: "weapon",
+    code: `weapon_fragment_${weapon.code}`,
+    image: weapon.image || "",
+    weaponCode: weapon.code,
+  };
+}
+
 function addNamedItem(list, reward) {
   const arr = Array.isArray(list) ? [...list] : [];
   const code = String(reward.code || "");
@@ -698,12 +710,23 @@ module.exports = {
     } else if (contentType === "weapon") {
       const alreadyOwnedWeapon = hasNamedItemByCode(updatedWeapons, picked.code);
 
-      if (alreadyOwnedWeapon) {
-        updatedFragments = addWeaponFragment(updatedFragments, picked, 1);
-        duplicateLine = `You already own **${picked.name}**.\nConverted into **1 ${picked.name} Fragment** instead.`;
+    if (alreadyOwnedWeapon) {
+      const weaponFragment = buildWeaponFragmentPayload(picked);
+      const sacResult = addFragmentWithAutoSac(player, updatedFragments, weaponFragment, 1);
+
+      updatedFragments = sacResult.fragments;
+      autoSacBerries += Number(sacResult.berries || 0);
+
+      if (Number(sacResult.sacrificed || 0) > 0) {
+        duplicateLine = `You already own **${picked.name}**.\n${sacResult.reason}: **${sacResult.sacrificed} Fragment** → **+${Number(
+          sacResult.berries || 0
+        ).toLocaleString("en-US")} berries**.`;
       } else {
-        updatedWeapons = addNamedItem(updatedWeapons, picked);
+        duplicateLine = `You already own **${picked.name}**.\nConverted into **1 ${picked.name} Fragment** instead.`;
       }
+    } else {
+      updatedWeapons = addNamedItem(updatedWeapons, picked);
+    }
     } else {
       updatedDevilFruits = addNamedItem(updatedDevilFruits, picked);
     }

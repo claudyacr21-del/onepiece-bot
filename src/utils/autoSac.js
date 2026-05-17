@@ -1,227 +1,313 @@
-const SAC_BERRY_BY_RARITY = {
+const { getFragmentStorageBonus } = require("./passiveBoosts");
+
+const BASE_FRAGMENT_STORAGE = 200;
+const MAX_FRAGMENT_STORAGE = 500;
+
+const SAC_BERRY_VALUE = {
   C: 500,
   B: 1000,
   A: 2500,
-  S: 5000,
-  SS: 10000,
-  UR: 20000,
+  S: 6000,
+  SS: 12000,
+  UR: 25000,
 };
 
-function normalize(value) {
-  return String(value || "")
+function normalize(text) {
+  return String(text || "")
     .toLowerCase()
-    .trim()
-    .replace(/[_-]+/g, " ")
-    .replace(/[^a-z0-9\s]+/g, "")
-    .replace(/\s+/g, " ");
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
-function normalizeCode(value) {
-  return String(value || "")
+function normalizeCode(text) {
+  return String(text || "")
     .toLowerCase()
     .trim()
     .replace(/\s+/g, "_");
 }
 
-function getCardName(card) {
-  return String(card?.displayName || card?.name || card?.cardName || "Unknown Card");
+function getFragmentStorageInfo(player, fragments = null) {
+  const list = Array.isArray(fragments)
+    ? fragments
+    : Array.isArray(player?.fragments)
+    ? player.fragments
+    : [];
+
+  const total = list.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const max = Math.min(
+    BASE_FRAGMENT_STORAGE + Number(getFragmentStorageBonus(player) || 0),
+    MAX_FRAGMENT_STORAGE
+  );
+
+  return { total, max };
 }
 
-function getCardCode(card) {
-  return String(card?.code || card?.cardCode || "").trim();
-}
-
-function getCardRarity(card) {
-  return String(card?.baseTier || card?.currentTier || card?.rarity || "C").toUpperCase();
-}
-
-function getSacBerryValue(card) {
-  return SAC_BERRY_BY_RARITY[getCardRarity(card)] || SAC_BERRY_BY_RARITY.C;
+function getSacBerryValue(rarity, amount = 1) {
+  const key = String(rarity || "C").toUpperCase();
+  return (SAC_BERRY_VALUE[key] || SAC_BERRY_VALUE.C) * Number(amount || 1);
 }
 
 function getAutoSacSettings(player) {
   const raw = player?.autoSac || {};
-  const rawRarities = raw.rarities || {};
 
   return {
     rarities: {
-      C: Boolean(rawRarities.C),
-      B: Boolean(rawRarities.B),
-      A: Boolean(rawRarities.A),
-      S: Boolean(rawRarities.S),
-      SS: Boolean(rawRarities.SS),
-      UR: Boolean(rawRarities.UR),
+      C: Boolean(raw.rarities?.C),
+      B: Boolean(raw.rarities?.B),
+      A: Boolean(raw.rarities?.A),
+      S: Boolean(raw.rarities?.S),
+      SS: Boolean(raw.rarities?.SS),
+      UR: Boolean(raw.rarities?.UR),
     },
     cards: Array.isArray(raw.cards) ? raw.cards : [],
     safeCards: Array.isArray(raw.safeCards) ? raw.safeCards : [],
   };
 }
 
-function isSameCardEntry(entry, card) {
-  const entryCode = normalizeCode(entry?.code || entry?.cardCode || "");
-  const entryName = normalize(entry?.name || entry?.displayName || entry?.cardName || "");
-
-  const cardCode = normalizeCode(getCardCode(card));
-  const cardName = normalize(getCardName(card));
-
-  return (
-    (entryCode && cardCode && entryCode === cardCode) ||
-    (entryName && cardName && entryName === cardName)
+function getFragmentName(cardOrFragment) {
+  return String(
+    cardOrFragment?.displayName ||
+      cardOrFragment?.name ||
+      cardOrFragment?.cardName ||
+      "Unknown Fragment"
   );
 }
 
-function isSafeCard(player, card) {
-  const settings = getAutoSacSettings(player);
-
-  return settings.safeCards.some((entry) => isSameCardEntry(entry, card));
+function getFragmentCode(cardOrFragment) {
+  return String(
+    cardOrFragment?.code ||
+      cardOrFragment?.cardCode ||
+      cardOrFragment?.weaponCode ||
+      ""
+  );
 }
 
-function getSpecificSacEntry(player, card) {
-  const settings = getAutoSacSettings(player);
-
-  return settings.cards.find((entry) => isSameCardEntry(entry, card)) || null;
+function getFragmentRarity(cardOrFragment) {
+  return String(
+    cardOrFragment?.baseTier ||
+      cardOrFragment?.currentTier ||
+      cardOrFragment?.rarity ||
+      "C"
+  ).toUpperCase();
 }
 
-function shouldAutoSacCard(player, card) {
-  if (isSafeCard(player, card)) {
-    return {
-      shouldSac: false,
-      reason: "Safe-sac protected",
-    };
+function getFragmentCategory(cardOrFragment) {
+  const rawCategory = String(cardOrFragment?.category || "").toLowerCase();
+  const role = String(cardOrFragment?.cardRole || "").toLowerCase();
+
+  if (rawCategory) return rawCategory;
+  if (role === "boost") return "boost";
+  if (cardOrFragment?.weaponCode || String(cardOrFragment?.code || "").startsWith("weapon_fragment_")) {
+    return "weapon";
   }
 
-  const specificEntry = getSpecificSacEntry(player, card);
+  return "battle";
+}
 
-  if (specificEntry) {
-    return {
-      shouldSac: true,
-      reason: "Auto-Sac card rule",
-      mode: specificEntry.mode || "all",
-    };
-  }
+function isSameFragmentEntry(entry, cardOrFragment) {
+  const entryCode = normalizeCode(entry?.code || entry?.cardCode || entry?.weaponCode || "");
+  const entryName = normalize(entry?.name || entry?.displayName || entry?.cardName || "");
 
+  const targetCode = normalizeCode(getFragmentCode(cardOrFragment));
+  const targetName = normalize(getFragmentName(cardOrFragment));
+
+  return (
+    (entryCode && targetCode && entryCode === targetCode) ||
+    (entryName && targetName && entryName === targetName)
+  );
+}
+
+function isCardAutoSacEnabled(player, cardOrFragment) {
   const settings = getAutoSacSettings(player);
-  const rarity = getCardRarity(card);
+  const rarity = getFragmentRarity(cardOrFragment);
 
-  if (settings.rarities?.[rarity]) {
-    return {
-      shouldSac: true,
-      reason: `Auto-Sac ${rarity} rarity rule`,
-      mode: "all",
-    };
-  }
+  const isSafeListed = settings.safeCards.some((entry) =>
+    isSameFragmentEntry(entry, cardOrFragment)
+  );
 
-  return {
-    shouldSac: false,
-    reason: "Auto-Sac disabled",
-  };
+  if (isSafeListed) return false;
+
+  // Rarity filter now applies to battle, boost, and weapon fragments.
+  if (settings.rarities[rarity]) return true;
+
+  return settings.cards.some((entry) => isSameFragmentEntry(entry, cardOrFragment));
 }
 
-function findFragmentIndex(fragments, card) {
-  const cardCode = normalizeCode(getCardCode(card));
-  const cardName = normalize(getCardName(card));
-
-  return (Array.isArray(fragments) ? fragments : []).findIndex((entry) => {
-    const entryCode = normalizeCode(entry?.code || entry?.cardCode || "");
-    const entryName = normalize(entry?.name || entry?.displayName || "");
-
-    return (
-      (entryCode && cardCode && entryCode === cardCode) ||
-      (entryName && cardName && entryName === cardName)
-    );
-  });
-}
-
-function addFragmentAmount(fragments, card, amount = 1) {
-  const arr = Array.isArray(fragments) ? [...fragments] : [];
+function addFragmentRaw(fragments, cardOrFragment, amount = 1) {
+  const list = Array.isArray(fragments) ? [...fragments] : [];
   const addAmount = Math.max(1, Number(amount || 1));
-  const index = findFragmentIndex(arr, card);
 
-  if (index >= 0) {
-    arr[index] = {
-      ...arr[index],
-      amount: Number(arr[index].amount || 0) + addAmount,
+  const code = getFragmentCode(cardOrFragment);
+  const name = getFragmentName(cardOrFragment);
+  const rarity = getFragmentRarity(cardOrFragment);
+  const category = getFragmentCategory(cardOrFragment);
+
+  const index = list.findIndex((entry) => isSameFragmentEntry(entry, cardOrFragment));
+
+  if (index !== -1) {
+    list[index] = {
+      ...list[index],
+      amount: Number(list[index].amount || 0) + addAmount,
     };
 
-    return arr;
+    return list;
   }
 
-  arr.push({
-    name: getCardName(card),
+  list.push({
+    name,
     amount: addAmount,
-    rarity: getCardRarity(card),
-    category: String(card?.cardRole || "").toLowerCase() === "boost" ? "boost" : "battle",
-    code: getCardCode(card),
-    image: card?.image || "",
+    rarity,
+    category,
+    code,
+    image: cardOrFragment?.image || "",
+    weaponCode: cardOrFragment?.weaponCode || undefined,
+    cardCode: cardOrFragment?.cardCode || undefined,
+    sourceCode: cardOrFragment?.sourceCode || undefined,
   });
 
-  return arr;
+  return list;
 }
 
-function removeFragmentAmount(fragments, cardOrCode, amount = 1) {
-  const arr = Array.isArray(fragments) ? [...fragments] : [];
+function removeFragmentAmount(fragments, cardCode, amount = 1) {
+  const list = Array.isArray(fragments) ? [...fragments] : [];
+  const targetCode = normalizeCode(cardCode);
   const removeAmount = Math.max(1, Number(amount || 1));
 
-  const card =
-    typeof cardOrCode === "object"
-      ? cardOrCode
-      : {
-          code: cardOrCode,
-          name: cardOrCode,
-        };
+  const index = list.findIndex((entry) => {
+    const entryCode = normalizeCode(entry?.code || entry?.cardCode || entry?.weaponCode || "");
+    return entryCode === targetCode;
+  });
 
-  const index = findFragmentIndex(arr, card);
+  if (index === -1) return list;
 
-  if (index < 0) return arr;
-
-  const current = Number(arr[index].amount || 0);
-  const left = current - removeAmount;
+  const left = Number(list[index].amount || 0) - removeAmount;
 
   if (left <= 0) {
-    arr.splice(index, 1);
+    list.splice(index, 1);
   } else {
-    arr[index] = {
-      ...arr[index],
+    list[index] = {
+      ...list[index],
       amount: left,
     };
   }
 
-  return arr;
+  return list;
 }
 
-function addFragmentWithAutoSac(player, fragments, card, amount = 1) {
+function addFragmentWithAutoSac(player, fragments, cardOrFragment, amount = 1) {
   const addAmount = Math.max(1, Number(amount || 1));
-  const sacCheck = shouldAutoSacCard(player, card);
+  const rarity = getFragmentRarity(cardOrFragment);
+  const storage = getFragmentStorageInfo(player, fragments);
+  const freeSlots = Math.max(0, storage.max - storage.total);
+  const shouldAutoSac = isCardAutoSacEnabled(player, cardOrFragment);
 
-  if (!sacCheck.shouldSac) {
+  let fragmentAddAmount = addAmount;
+  let sacAmount = 0;
+  let reason = "";
+
+  if (shouldAutoSac) {
+    sacAmount = addAmount;
+    fragmentAddAmount = 0;
+    reason = `Auto-Sac ${rarity} rarity rule`;
+  } else if (freeSlots <= 0) {
+    sacAmount = addAmount;
+    fragmentAddAmount = 0;
+    reason = "Storage Full";
+  } else if (fragmentAddAmount > freeSlots) {
+    sacAmount = fragmentAddAmount - freeSlots;
+    fragmentAddAmount = freeSlots;
+    reason = "Storage Full";
+  }
+
+  const updatedFragments =
+    fragmentAddAmount > 0
+      ? addFragmentRaw(fragments, cardOrFragment, fragmentAddAmount)
+      : Array.isArray(fragments)
+      ? [...fragments]
+      : [];
+
+  const berries = getSacBerryValue(rarity, sacAmount);
+
+  return {
+    fragments: updatedFragments,
+    added: fragmentAddAmount,
+    sacrificed: sacAmount,
+    berries,
+    reason,
+    rarity,
+    name: getFragmentName(cardOrFragment),
+  };
+}
+
+function findFragmentByName(fragments, query) {
+  const q = normalize(query);
+  if (!q) return null;
+
+  const list = Array.isArray(fragments) ? fragments : [];
+
+  return (
+    list.find((item) => normalize(item.code) === q) ||
+    list.find((item) => normalize(item.name) === q) ||
+    list.find((item) => normalize(item.name).includes(q)) ||
+    null
+  );
+}
+
+function sacrificeFragment(player, query, amountText) {
+  const fragments = Array.isArray(player.fragments) ? [...player.fragments] : [];
+  const target = findFragmentByName(fragments, query);
+
+  if (!target) {
     return {
-      fragments: addFragmentAmount(fragments, card, addAmount),
-      berries: 0,
-      sacrificed: 0,
-      reason: "Converted into fragment",
+      ok: false,
+      message: "Fragment was not found in your inventory.",
     };
   }
 
-  const berryValue = getSacBerryValue(card);
-  const berries = berryValue * addAmount;
+  const owned = Number(target.amount || 0);
+  const amount =
+    String(amountText || "").toLowerCase() === "all"
+      ? owned
+      : Math.max(1, Math.floor(Number(amountText || 1)));
 
-  // Important:
-  // Auto-sac means the new duplicate fragment is converted directly into berries.
-  // Do not add the new fragment to finv.
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return {
+      ok: false,
+      message: "Invalid amount. Use a number or `all`.",
+    };
+  }
+
+  if (owned < amount) {
+    return {
+      ok: false,
+      message: `You only have **${owned}x ${target.name}**.`,
+    };
+  }
+
+  const updatedFragments = removeFragmentAmount(fragments, target.code, amount);
+  const berries = getSacBerryValue(target.rarity, amount);
+
   return {
-    fragments: Array.isArray(fragments) ? [...fragments] : [],
+    ok: true,
+    fragments: updatedFragments,
     berries,
-    sacrificed: addAmount,
-    reason: sacCheck.reason,
+    amount,
+    name: target.name,
+    rarity: String(target.rarity || "C").toUpperCase(),
   };
 }
 
 module.exports = {
+  BASE_FRAGMENT_STORAGE,
+  SAC_BERRY_VALUE,
   normalize,
+  getFragmentStorageInfo,
+  getSacBerryValue,
   getAutoSacSettings,
-  shouldAutoSacCard,
-  isSafeCard,
-  addFragmentAmount,
-  removeFragmentAmount,
+  isCardAutoSacEnabled,
   addFragmentWithAutoSac,
+  addFragmentRaw,
+  removeFragmentAmount,
+  findFragmentByName,
+  sacrificeFragment,
 };
