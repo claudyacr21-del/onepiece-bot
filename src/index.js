@@ -20,7 +20,7 @@ const { readPlayers, writePlayers } = require("./playerStore");
 const {
   isEligibleMilestoneChat,
   incrementMessageMilestone,
-  applyMessageMilestoneReward,
+  applyMessageMilestoneRewards,
 } = require("./utils/messageMilestones");
 
 const client = new Client({
@@ -168,19 +168,18 @@ function trackMessageMilestone(message) {
   const players = readPlayers();
   const userId = String(message.author.id);
   const player = players[userId] || createDefaultPlayerForMilestone(message);
+
   const milestoneState = incrementMessageMilestone(player);
 
-  const updatedPlayer = applyMessageMilestoneReward(
+  const result = applyMessageMilestoneRewards(
     {
       ...player,
       username: message.author.username || player.username,
-      messageMilestones: milestoneState,
     },
     milestoneState
   );
 
-  players[userId] = updatedPlayer;
-
+  players[userId] = result.player;
   writePlayers(players);
 }
 
@@ -238,7 +237,11 @@ client.on("messageCreate", async (message) => {
     if (!message.author || message.author.bot) return;
     if (typeof message.content !== "string") return;
 
-    trackMessageMilestone(message);
+    try {
+      trackMessageMilestone(message);
+    } catch (error) {
+      console.error("[MESSAGE MILESTONE ERROR]", error);
+    }
     await maybeSpawnMarineEvent(client, message);
     const parsed = parsePrefixedCommand(message.content);
 

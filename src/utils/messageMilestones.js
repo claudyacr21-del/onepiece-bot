@@ -26,18 +26,18 @@ const MESSAGE_MILESTONE_REWARDS = [
     },
   },
   {
-    key: "rareResourceBox",
-    emoji: "📦",
-    label: "Rare Resource Box",
+    key: "weaponScroll",
+    emoji: "📜",
+    label: "Weapon Scroll",
     target: 750,
     reward: {
-      boxes: [
+      items: [
         {
-          code: "rare_resource_box",
-          name: "Rare Resource Box",
+          code: "weapon_scroll",
+          name: "Weapon Scroll",
           amount: 1,
-          rarity: "B",
-          type: "Box",
+          rarity: "A",
+          type: "Item",
         },
       ],
     },
@@ -112,16 +112,15 @@ function countSentenceLikeParts(content) {
 
   if (!text) return 0;
 
-  const words = text
+  return text
     .split(/\s+/)
     .map((word) => word.trim())
-    .filter(Boolean);
-
-  return words.length;
+    .filter(Boolean).length;
 }
 
 function isEligibleMilestoneChat(message, prefix = "op") {
   const content = String(message?.content || "").trim();
+
   if (!content) return false;
   if (message.author?.bot) return false;
   if (!isMainChatMessage(message)) return false;
@@ -146,14 +145,12 @@ function getTotalMessageMilestoneCount(player) {
 
 function getMilestoneProgress(player, reward) {
   const progressMap = player?.messageMilestones?.progress || {};
-  const current = Number(progressMap?.[reward.key] || 0);
-
-  return Math.max(0, Math.min(current, Number(reward.target || 1)));
+  return Math.max(0, Number(progressMap?.[reward.key] || 0));
 }
 
 function getMilestoneClaimCount(player, key) {
   const claimMap = player?.messageMilestones?.claims || {};
-  return Number(claimMap?.[key] || 0);
+  return Math.max(0, Number(claimMap?.[key] || 0));
 }
 
 function incrementMessageMilestone(player) {
@@ -183,12 +180,16 @@ function incrementMessageMilestone(player) {
     ...currentState,
 
     // Backward compatible display counter.
-    // This one follows the first milestone target, so after 75 it goes back to 0.
+    // This follows the first reward only, so 75 -> 0.
     messages: progress.gems || 0,
 
-    // Lifetime count, never resets.
+    // Lifetime count never resets.
     totalMessages: Number(currentState.totalMessages || 0) + 1,
 
+    // Each reward has its own looping progress.
+    // Example:
+    // gems: 75 -> 0
+    // resetToken: 75 -> 76 -> 77 until 350
     progress,
     claims,
     completed,
@@ -227,23 +228,13 @@ function applyMessageMilestoneRewards(player, milestoneState) {
     ? milestoneState.completed
     : [];
 
-  if (!completed.length) {
-    return {
-      player: {
-        ...player,
-        messageMilestones: milestoneState,
-      },
-      rewards: [],
-    };
-  }
-
   let nextPlayer = {
     ...player,
     messageMilestones: {
       ...milestoneState,
       completed: [],
       lastCompleted: completed,
-      lastRewardAt: Date.now(),
+      lastRewardAt: completed.length ? Date.now() : milestoneState?.lastRewardAt || null,
     },
   };
 
@@ -263,6 +254,7 @@ function applyMessageMilestoneRewards(player, milestoneState) {
     if (Number(reward.berries || 0) > 0) {
       nextPlayer.berries =
         Number(nextPlayer.berries || 0) + Number(reward.berries || 0);
+
       rewards.push(
         `${milestone.emoji} ${milestone.label}: +${Number(
           reward.berries || 0
@@ -299,6 +291,21 @@ function applyMessageMilestoneRewards(player, milestoneState) {
 
       nextPlayer.boxes = boxes;
     }
+
+    if (Array.isArray(reward.items)) {
+      let items = Array.isArray(nextPlayer.items) ? [...nextPlayer.items] : [];
+
+      for (const item of reward.items) {
+        items = addStack(items, item);
+        rewards.push(
+          `${milestone.emoji} ${item.name || milestone.label} x${Number(
+            item.amount || 1
+          )}`
+        );
+      }
+
+      nextPlayer.items = items;
+    }
   }
 
   return {
@@ -312,9 +319,10 @@ function formatMessageMilestoneLines(player) {
     const current = getMilestoneProgress(player, reward);
     const claims = getMilestoneClaimCount(player, reward.key);
 
-    return `${reward.emoji} **${reward.label}**\n${current}/${reward.target}${
-      claims > 0 ? ` • Claimed ${claims}x` : ""
-    }`;
+    return `${reward.emoji} **${reward.label}**\n${Math.min(
+      current,
+      reward.target
+    )}/${reward.target}${claims > 0 ? ` • Claimed ${claims}x` : ""}`;
   });
 }
 
