@@ -87,6 +87,60 @@ function isExactRarityQuery(query) {
   return VALID_RARITIES.has(String(query || "").trim().toUpperCase());
 }
 
+function normalizeSearch(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function getFragmentSearchNames(fragment) {
+  const rawName = String(fragment?.name || fragment?.displayName || "").trim();
+  const rawCode = String(fragment?.code || "").trim();
+
+  const cleanName = rawName
+    .replace(/\s+fragment$/i, "")
+    .trim();
+
+  const cleanCode = rawCode
+    .replace(/^weapon_fragment_/i, "")
+    .replace(/_fragment$/i, "")
+    .trim();
+
+  return [
+    rawName,
+    cleanName,
+    rawCode,
+    cleanCode,
+    fragment?.weaponCode,
+    fragment?.cardCode,
+    fragment?.sourceCode,
+  ]
+    .map(normalizeSearch)
+    .filter(Boolean);
+}
+
+function fragmentMatchesQuery(fragment, query) {
+  const q = normalizeSearch(query);
+  if (!q) return true;
+
+  const names = getFragmentSearchNames(fragment);
+
+  return names.some((name) => {
+    if (name === q) return true;
+    if (name.startsWith(q)) return true;
+
+    const qWords = q.split(" ").filter(Boolean);
+    if (qWords.length && qWords.every((word) => name.split(" ").includes(word))) {
+      return true;
+    }
+
+    return false;
+  });
+}
+
 function filterFragments(fragments, query) {
   const list = Array.isArray(fragments) ? fragments : [];
 
@@ -94,34 +148,12 @@ function filterFragments(fragments, query) {
 
   const rawQuery = String(query || "").trim();
   const upperQuery = rawQuery.toUpperCase();
-  const normalizedQuery = normalize(rawQuery);
 
   if (isExactRarityQuery(rawQuery)) {
-    return list.filter((fragment) => formatRarity(fragment?.rarity) === upperQuery);
+    return list.filter((fragment) => formatRarity(fragment.rarity) === upperQuery);
   }
 
-  return list.filter((fragment) => {
-    const fields = [
-      fragment?.code,
-      fragment?.name,
-      fragment?.displayName,
-      fragment?.title,
-      fragment?.category,
-      fragment?.rarity,
-      fragment?.weaponCode,
-      fragment?.cardCode,
-      fragment?.sourceCode,
-    ]
-      .map(normalize)
-      .filter(Boolean);
-
-    return fields.some(
-      (field) =>
-        field === normalizedQuery ||
-        field.includes(normalizedQuery) ||
-        normalizedQuery.includes(field)
-    );
-  });
+  return list.filter((fragment) => fragmentMatchesQuery(fragment, rawQuery));
 }
 
 function getFragmentIcon(fragment) {

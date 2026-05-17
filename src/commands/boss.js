@@ -452,7 +452,8 @@ function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
           speed: 165 + Math.floor(order * 1.15),
           image: getIslandBossImage(currentIsland, phaseBoss, null),
         },
-        phaseBoss
+        phaseBoss,
+        currentIsland
       )
     );
   }
@@ -460,8 +461,17 @@ function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
   return null;
 }
 
-function getBossPhaseStatMultiplier(phaseBoss = null) {
+function getBossPhaseStatMultiplier(phaseBoss = null, currentIsland = null) {
   const phase = Number(phaseBoss?.phase || 0);
+  const islandCode = String(currentIsland?.code || "").toLowerCase();
+
+  if (phase >= 2 && ["egghead", "elbaf"].includes(islandCode)) {
+    return {
+      atk: 1.12,
+      hp: 1.45,
+      speed: 1.28,
+    };
+  }
 
   if (phase >= 2) {
     return {
@@ -478,9 +488,8 @@ function getBossPhaseStatMultiplier(phaseBoss = null) {
   };
 }
 
-function applyPhaseStatMultiplier(template, phaseBoss = null) {
-  const mult = getBossPhaseStatMultiplier(phaseBoss);
-
+function applyPhaseStatMultiplier(template, phaseBoss = null, currentIsland = null) {
+  const mult = getBossPhaseStatMultiplier(phaseBoss, currentIsland);
   const hp = Math.floor(Number(template.hp || template.maxHp || 1) * mult.hp);
   const atk = Math.floor(Number(template.atk || 1) * mult.atk);
   const speed = Math.floor(Number(template.speed || 1) * mult.speed);
@@ -644,7 +653,8 @@ function getBossTemplate(currentIsland, phaseBoss = null) {
           speed: Math.floor(baseSpeed * spdMul),
           image: getIslandBossImage(currentIsland, phaseBoss, fromDb),
         },
-        phaseBoss
+        phaseBoss,
+        currentIsland
       )
     );
   }
@@ -664,7 +674,8 @@ function getBossTemplate(currentIsland, phaseBoss = null) {
         speed: fallbackSpeed,
         image: getIslandBossImage(currentIsland, phaseBoss, null),
       },
-      phaseBoss
+      phaseBoss,
+      currentIsland
     )
   );
 }
