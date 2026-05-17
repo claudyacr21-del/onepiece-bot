@@ -8,6 +8,7 @@ const { applyGlobalPullReset } = require("../utils/pullReset");
 const { applyAutoLevelForDuplicate } = require("../utils/autoLevel");
 const {
   addFragmentWithAutoSac,
+  removeFragmentAmount,
 } = require("../utils/autoSac");
 const {
   getNextAvailablePullKey,
@@ -696,20 +697,36 @@ module.exports = {
             autoLevelResult.levelGained
           } Level**.`;
         } else {
-          const sacResult = addFragmentWithAutoSac(player, autoLevelResult.fragments, picked, 1);
-          updatedFragments = sacResult.fragments;
-          autoSacBerries += sacResult.berries;
+          const storedAmount = Number(autoLevelResult.fragmentsStored || 1);
 
-          if (sacResult.sacrificed > 0) {
+          const fragmentsBeforeAutoSac = removeFragmentAmount(
+            autoLevelResult.fragments,
+            picked,
+            storedAmount
+          );
+
+          const sacResult = addFragmentWithAutoSac(
+            player,
+            fragmentsBeforeAutoSac,
+            picked,
+            storedAmount
+          );
+
+          updatedFragments = sacResult.fragments;
+          autoSacBerries += Number(sacResult.berries || 0);
+
+          if (Number(sacResult.sacrificed || 0) > 0) {
             duplicateLine = `You already own **${
               picked.displayName || picked.name
             }**.\n${sacResult.reason}: **${
               sacResult.sacrificed
-            } Fragment** → **+${sacResult.berries.toLocaleString("en-US")} berries**.`;
+            } Fragment** → **+${Number(sacResult.berries || 0).toLocaleString(
+              "en-US"
+            )} berries**.`;
           } else {
             duplicateLine = `You already own **${
               picked.displayName || picked.name
-            }**.\nConverted into **1 Fragment** instead.`;
+            }**.\nConverted into **${Number(sacResult.added || storedAmount)} Fragment** instead.`;
           }
         }
       } else {

@@ -8,6 +8,7 @@ const { applyGlobalPullReset, applyManualPullReset } = require("../utils/pullRes
 const { applyAutoLevelForDuplicate } = require("../utils/autoLevel");
 const {
   addFragmentWithAutoSac,
+  removeFragmentAmount,
 } = require("../utils/autoSac");
 const {
   getTotalPullUsage,
@@ -357,7 +358,21 @@ function addDuplicateCardReward({
   if (autoLevelResult.levelGained > 0) {
     duplicateNote = ` → Auto Level +${autoLevelResult.levelGained}`;
   } else {
-    const sacResult = addFragmentWithAutoSac(player, autoLevelResult.fragments, reward, 1);
+    const storedAmount = Number(autoLevelResult.fragmentsStored || 1);
+
+    const fragmentsBeforeAutoSac = removeFragmentAmount(
+      autoLevelResult.fragments,
+      reward,
+      storedAmount
+    );
+
+    const sacResult = addFragmentWithAutoSac(
+      player,
+      fragmentsBeforeAutoSac,
+      reward,
+      storedAmount
+    );
+
     nextFragments = sacResult.fragments;
 
     if (Number(sacResult.sacrificed || 0) > 0) {
@@ -367,8 +382,8 @@ function addDuplicateCardReward({
         sacResult.berries || 0
       ).toLocaleString("en-US")} berries)`;
     } else {
-      fragmentCount += Number(sacResult.added || 1);
-      duplicateNote = ` → Duplicate (+${Number(sacResult.added || 1)} fragment)`;
+      fragmentCount += Number(sacResult.added || 0);
+      duplicateNote = ` → Duplicate (+${Number(sacResult.added || storedAmount)} fragment)`;
     }
   }
 

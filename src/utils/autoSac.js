@@ -23,7 +23,8 @@ function normalizeCode(text) {
   return String(text || "")
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, "_");
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 function getFragmentStorageInfo(player, fragments = null) {
@@ -94,26 +95,65 @@ function getFragmentRarity(cardOrFragment) {
 function getFragmentCategory(cardOrFragment) {
   const rawCategory = String(cardOrFragment?.category || "").toLowerCase();
   const role = String(cardOrFragment?.cardRole || "").toLowerCase();
+  const code = String(cardOrFragment?.code || "").toLowerCase();
 
   if (rawCategory) return rawCategory;
   if (role === "boost") return "boost";
-  if (cardOrFragment?.weaponCode || String(cardOrFragment?.code || "").startsWith("weapon_fragment_")) {
+  if (cardOrFragment?.weaponCode || code.startsWith("weapon_fragment_")) {
     return "weapon";
   }
 
   return "battle";
 }
 
-function isSameFragmentEntry(entry, cardOrFragment) {
-  const entryCode = normalizeCode(entry?.code || entry?.cardCode || entry?.weaponCode || "");
-  const entryName = normalize(entry?.name || entry?.displayName || entry?.cardName || "");
+function getCompareKeys(cardOrFragment) {
+  const code = getFragmentCode(cardOrFragment);
+  const name = getFragmentName(cardOrFragment);
+  const weaponCode = cardOrFragment?.weaponCode;
+  const cardCode = cardOrFragment?.cardCode;
+  const sourceCode = cardOrFragment?.sourceCode;
 
-  const targetCode = normalizeCode(getFragmentCode(cardOrFragment));
-  const targetName = normalize(getFragmentName(cardOrFragment));
+  const cleanName = String(name || "")
+    .replace(/\s+fragment$/i, "")
+    .trim();
+
+  const cleanWeaponCode = String(code || "")
+    .replace(/^weapon_fragment_/i, "")
+    .replace(/_fragment$/i, "")
+    .trim();
+
+  return [
+    code,
+    name,
+    cleanName,
+    weaponCode,
+    cardCode,
+    sourceCode,
+    cleanWeaponCode,
+  ]
+    .flatMap((value) => [normalize(value), normalizeCode(value)])
+    .filter(Boolean);
+}
+
+function isSameFragmentEntry(entry, cardOrFragment) {
+  const entryKeys = getCompareKeys(entry);
+  const targetKeys = getCompareKeys(cardOrFragment);
+
+  return entryKeys.some((key) => targetKeys.includes(key));
+}
+
+function isAutoSacSafeListed(player, cardOrFragment) {
+  const settings = getAutoSacSettings(player);
+
+  return settings.safeCards.some((entry) => isSameFragmentEntry(entry, cardOrFragment));
+}
+
+function getSpecificAutoSacEntry(player, cardOrFragment) {
+  const settings = getAutoSacSettings(player);
 
   return (
-    (entryCode && targetCode && entryCode === targetCode) ||
-    (entryName && targetName && entryName === targetName)
+    settings.cards.find((entry) => isSameFragmentEntry(entry, cardOrFragment)) ||
+    null
   );
 }
 
@@ -121,27 +161,17 @@ function isCardAutoSacEnabled(player, cardOrFragment) {
   const settings = getAutoSacSettings(player);
   const rarity = getFragmentRarity(cardOrFragment);
 
-  const isSafeListed = settings.safeCards.some((entry) =>
-    isSameFragmentEntry(entry, cardOrFragment)
-  );
+  if (isAutoSacSafeListed(player, cardOrFragment)) return false;
 
-  if (isSafeListed) return false;
+  if (getSpecificAutoSacEntry(player, cardOrFragment)) return true;
 
-  // Rarity filter now applies to battle, boost, and weapon fragments.
-  if (settings.rarities[rarity]) return true;
-
-  return settings.cards.some((entry) => isSameFragmentEntry(entry, cardOrFragment));
+  // Rarity auto-sac covers battle, boost, and weapon fragments.
+  return Boolean(settings.rarities[rarity]);
 }
 
 function addFragmentRaw(fragments, cardOrFragment, amount = 1) {
   const list = Array.isArray(fragments) ? [...fragments] : [];
   const addAmount = Math.max(1, Number(amount || 1));
-
-  const code = getFragmentCode(cardOrFragment);
-  const name = getFragmentName(cardOrFragment);
-  const rarity = getFragmentRarity(cardOrFragment);
-  const category = getFragmentCategory(cardOrFragment);
-
   const index = list.findIndex((entry) => isSameFragmentEntry(entry, cardOrFragment));
 
   if (index !== -1) {
@@ -154,11 +184,11 @@ function addFragmentRaw(fragments, cardOrFragment, amount = 1) {
   }
 
   list.push({
-    name,
+    name: getFragmentName(cardOrFragment),
     amount: addAmount,
-    rarity,
-    category,
-    code,
+    rarity: getFragmentRarity(cardOrFragment),
+    category: getFragmentCategory(cardOrFragment),
+    code: getFragmentCode(cardOrFragment),
     image: cardOrFragment?.image || "",
     weaponCode: cardOrFragment?.weaponCode || undefined,
     cardCode: cardOrFragment?.cardCode || undefined,
@@ -168,15 +198,10 @@ function addFragmentRaw(fragments, cardOrFragment, amount = 1) {
   return list;
 }
 
-function removeFragmentAmount(fragments, cardCode, amount = 1) {
+function removeFragmentAmount(fragments, cardOrFragment, amount = 1) {
   const list = Array.isArray(fragments) ? [...fragments] : [];
-  const targetCode = normalizeCode(cardCode);
   const removeAmount = Math.max(1, Number(amount || 1));
-
-  const index = list.findIndex((entry) => {
-    const entryCode = normalizeCode(entry?.code || entry?.cardCode || entry?.weaponCode || "");
-    return entryCode === targetCode;
-  });
+  const index = list.findIndex((entry) => isSameFragmentEntry(entry, cardOrFragment));
 
   if (index === -1) return list;
 
@@ -199,6 +224,7 @@ function addFragmentWithAutoSac(player, fragments, cardOrFragment, amount = 1) {
   const rarity = getFragmentRarity(cardOrFragment);
   const storage = getFragmentStorageInfo(player, fragments);
   const freeSlots = Math.max(0, storage.max - storage.total);
+  const specificEntry = getSpecificAutoSacEntry(player, cardOrFragment);
   const shouldAutoSac = isCardAutoSacEnabled(player, cardOrFragment);
 
   let fragmentAddAmount = addAmount;
@@ -208,7 +234,9 @@ function addFragmentWithAutoSac(player, fragments, cardOrFragment, amount = 1) {
   if (shouldAutoSac) {
     sacAmount = addAmount;
     fragmentAddAmount = 0;
-    reason = `Auto-Sac ${rarity} rarity rule`;
+    reason = specificEntry
+      ? "Auto-Sac card rule"
+      : `Auto-Sac ${rarity} rarity rule`;
   } else if (freeSlots <= 0) {
     sacAmount = addAmount;
     fragmentAddAmount = 0;
@@ -284,7 +312,7 @@ function sacrificeFragment(player, query, amountText) {
     };
   }
 
-  const updatedFragments = removeFragmentAmount(fragments, target.code, amount);
+  const updatedFragments = removeFragmentAmount(fragments, target, amount);
   const berries = getSacBerryValue(target.rarity, amount);
 
   return {
@@ -299,8 +327,10 @@ function sacrificeFragment(player, query, amountText) {
 
 module.exports = {
   BASE_FRAGMENT_STORAGE,
+  MAX_FRAGMENT_STORAGE,
   SAC_BERRY_VALUE,
   normalize,
+  normalizeCode,
   getFragmentStorageInfo,
   getSacBerryValue,
   getAutoSacSettings,
