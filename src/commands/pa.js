@@ -8,7 +8,6 @@ const { applyGlobalPullReset, applyManualPullReset } = require("../utils/pullRes
 const { applyAutoLevelForDuplicate } = require("../utils/autoLevel");
 const {
   addFragmentWithAutoSac,
-  removeFragmentAmount,
 } = require("../utils/autoSac");
 const {
   getTotalPullUsage,
@@ -20,6 +19,7 @@ const {
   rollPremiumBaseTier,
   rollPremiumContentType,
   rollPremiumDevilFruitTier,
+  rollPremiumWeaponTier,
 } = require("../utils/pullRates");
 const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 
@@ -64,6 +64,15 @@ function createOwnedCardLocal(template) {
 
 function getContentType() {
   return rollPremiumContentType();
+}
+
+function getPremiumRewardTier(contentType, triggeredPity) {
+  if (contentType === "devilFruit") return rollPremiumDevilFruitTier();
+  if (contentType === "weapon") return rollPremiumWeaponTier();
+
+  if (triggeredPity) return "S";
+
+  return rollPremiumBaseTier();
 }
 
 function getTicketPool() {
@@ -154,32 +163,6 @@ function hasOwnedCardByCode(cards, code) {
   );
 }
 
-function addFragment(list, card, amount = 1) {
-  const items = Array.isArray(list) ? [...list] : [];
-  const code = String(card.code || "");
-  const index = items.findIndex((entry) => String(entry.code || "") === code);
-
-  if (index !== -1) {
-    items[index] = {
-      ...items[index],
-      amount: Number(items[index].amount || 0) + Number(amount || 1),
-    };
-
-    return items;
-  }
-
-  items.push({
-    name: card.displayName || card.name,
-    amount: Number(amount || 1),
-    rarity: card.baseTier || card.rarity || "C",
-    category: card.cardRole === "boost" ? "boost" : "battle",
-    code: card.code,
-    image: card.image || "",
-  });
-
-  return items;
-}
-
 function hasNamedItemByCode(list, code) {
   return (Array.isArray(list) ? list : []).some(
     (entry) =>
@@ -187,32 +170,16 @@ function hasNamedItemByCode(list, code) {
   );
 }
 
-function addWeaponFragment(list, weapon, amount = 1) {
-  const items = Array.isArray(list) ? [...list] : [];
-  const fragmentCode = `weapon_fragment_${weapon.code}`;
-  const index = items.findIndex(
-    (entry) => String(entry.code || "").toLowerCase() === fragmentCode.toLowerCase()
-  );
-
-  if (index !== -1) {
-    items[index] = {
-      ...items[index],
-      amount: Number(items[index].amount || 0) + Number(amount || 1),
-    };
-    return items;
-  }
-
-  items.push({
+function buildWeaponFragmentPayload(weapon) {
+  return {
     name: `${weapon.name} Fragment`,
-    amount: Number(amount || 1),
+    amount: 1,
     rarity: weapon.rarity || "C",
     category: "weapon",
-    code: fragmentCode,
+    code: `weapon_fragment_${weapon.code}`,
     image: weapon.image || "",
     weaponCode: weapon.code,
-  });
-
-  return items;
+  };
 }
 
 function addNamedItem(list, reward) {
@@ -326,7 +293,9 @@ function getTypeLabel(contentType) {
 function getCollectionStorageInfo(player) {
   const cards = Array.isArray(player.cards) ? player.cards.length : 0;
   const weapons = Array.isArray(player.weapons) ? player.weapons.length : 0;
-  const devilFruits = Array.isArray(player.devilFruits) ? player.devilFruits.length : 0;
+  const devilFruits = Array.isArray(player.devilFruits)
+    ? player.devilFruits.length
+    : 0;
 
   const used = cards + weapons + devilFruits;
   const max = Number(player?.storage?.max || player?.storageLimit || 250);
@@ -357,6 +326,97 @@ function getConvertBerries(reward, contentType) {
   return Math.floor((rarityValue[rarity] || 500) * (typeBonus[contentType] || 1));
 }
 
+function addTicketSummary(summary, reward) {
+  if (reward.code === "common_raid_ticket") summary.commonRaidTicket += 1;
+  if (reward.code === "raid_ticket") summary.raidTicket += 1;
+  if (reward.code === "gold_raid_ticket") summary.goldRaidTicket += 1;
+  if (reward.code === "empty_throne_raid_writ") summary.emptyThroneRaidWrit += 1;
+}
+
+function addDuplicateCardReward({
+  player,
+  reward,
+  updatedCards,
+  updatedFragments,
+}) {
+  const autoLevelResult = applyAutoLevelForDuplicate({
+    cards: updatedCards,
+    fragments: updatedFragments,
+    autoLevel: player.autoLevel,
+    pulledCard: reward,
+    amount: 1,
+  });
+
+  let nextCards = autoLevelResult.cards;
+  let nextFragments = autoLevelResult.fragments;
+  let duplicateNote = "";
+  let convertedBerries = 0;
+  let convertedCount = 0;
+  let fragmentCount = 0;
+
+  if (autoLevelResult.levelGained > 0) {
+    duplicateNote = ` → Auto Level +${autoLevelResult.levelGained}`;
+  } else {
+    const sacResult = addFragmentWithAutoSac(player, autoLevelResult.fragments, reward, 1);
+    nextFragments = sacResult.fragments;
+
+    if (Number(sacResult.sacrificed || 0) > 0) {
+      convertedBerries += Number(sacResult.berries || 0);
+      convertedCount += Number(sacResult.sacrificed || 0);
+      duplicateNote = ` → ${sacResult.reason} (+${Number(
+        sacResult.berries || 0
+      ).toLocaleString("en-US")} berries)`;
+    } else {
+      fragmentCount += Number(sacResult.added || 1);
+      duplicateNote = ` → Duplicate (+${Number(sacResult.added || 1)} fragment)`;
+    }
+  }
+
+  return {
+    cards: nextCards,
+    fragments: nextFragments,
+    duplicateNote,
+    convertedBerries,
+    convertedCount,
+    fragmentCount,
+  };
+}
+
+function addDuplicateWeaponReward({
+  player,
+  reward,
+  updatedFragments,
+}) {
+  const weaponFragment = buildWeaponFragmentPayload(reward);
+  const sacResult = addFragmentWithAutoSac(player, updatedFragments, weaponFragment, 1);
+
+  let duplicateNote = "";
+  let convertedBerries = 0;
+  let convertedCount = 0;
+  let fragmentCount = 0;
+
+  if (Number(sacResult.sacrificed || 0) > 0) {
+    convertedBerries += Number(sacResult.berries || 0);
+    convertedCount += Number(sacResult.sacrificed || 0);
+    duplicateNote = ` → ${sacResult.reason} (+${Number(
+      sacResult.berries || 0
+    ).toLocaleString("en-US")} berries)`;
+  } else {
+    fragmentCount += Number(sacResult.added || 1);
+    duplicateNote = ` → Duplicate (+${Number(sacResult.added || 1)} ${
+      reward.name
+    } Fragment)`;
+  }
+
+  return {
+    fragments: sacResult.fragments,
+    duplicateNote,
+    convertedBerries,
+    convertedCount,
+    fragmentCount,
+  };
+}
+
 module.exports = {
   name: "pa",
   aliases: ["pullall"],
@@ -366,7 +426,12 @@ module.exports = {
     const premiumAccess = await isPremiumUser(message);
 
     if (!premiumAccess) {
-      return message.reply(`Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`);
+      return message.reply({
+        content: `Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`,
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     const player = getPlayer(message.author.id, message.author.username);
@@ -405,7 +470,12 @@ module.exports = {
     const availableTotal = Math.max(0, totalMax - totalUsed);
 
     if (availableTotal <= 0) {
-      return message.reply("You do not have any available pulls right now.");
+      return message.reply({
+        content: "You do not have any available pulls right now.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     let updatedCards = [...(player.cards || [])];
@@ -449,12 +519,7 @@ module.exports = {
       const triggeredPity = pityCounter >= PREMIUM_PITY_TARGET;
       const contentType = getContentType();
       const pool = getRewardPool(contentType);
-      const rarity =
-        contentType === "devilFruit"
-          ? rollPremiumDevilFruitTier()
-          : triggeredPity
-          ? "S"
-          : rollPremiumBaseTier();
+      const rarity = getPremiumRewardTier(contentType, triggeredPity);
       const reward =
         contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, rarity);
 
@@ -467,9 +532,14 @@ module.exports = {
         rewardResult.storageKey === "cards" &&
         hasOwnedCardByCode(updatedCards, rewardResult.storedReward.code);
 
+      const isDuplicateWeapon =
+        rewardResult.storageKey === "weapons" &&
+        hasNamedItemByCode(updatedWeapons, rewardResult.storedReward.code);
+
       const needsStorageSlot =
         rewardResult.storageKey !== "tickets" &&
-        (rewardResult.storageKey !== "cards" || !isDuplicateCard);
+        !isDuplicateCard &&
+        !isDuplicateWeapon;
 
       if (needsStorageSlot && storageInfo.used >= storageInfo.max) {
         const berryValue = getConvertBerries(reward, contentType);
@@ -513,34 +583,19 @@ module.exports = {
         );
 
         if (alreadyOwned) {
-          const autoLevelResult = applyAutoLevelForDuplicate({
-            cards: updatedCards,
-            fragments: updatedFragments,
-            autoLevel: player.autoLevel,
-            pulledCard: reward,
-            amount: 1,
+          const duplicateResult = addDuplicateCardReward({
+            player,
+            reward,
+            updatedCards,
+            updatedFragments,
           });
 
-          updatedCards = autoLevelResult.cards;
-          updatedFragments = autoLevelResult.fragments;
-
-          if (autoLevelResult.levelGained > 0) {
-            duplicateNote = ` → Auto Level +${autoLevelResult.levelGained}`;
-          } else {
-            updatedFragments = removeFragmentAmount(autoLevelResult.fragments, reward.code, 1);
-
-            const sacResult = addFragmentWithAutoSac(player, updatedFragments, reward, 1);
-            updatedFragments = sacResult.fragments;
-
-            if (sacResult.sacrificed > 0) {
-              convertedBerries += sacResult.berries;
-              convertedCount += sacResult.sacrificed;
-              duplicateNote = ` → ${sacResult.reason} (+${sacResult.berries.toLocaleString("en-US")} berries)`;
-            } else {
-              summary.fragments += 1;
-              duplicateNote = " → Duplicate (+1 fragments)";
-            }
-          }
+          updatedCards = duplicateResult.cards;
+          updatedFragments = duplicateResult.fragments;
+          duplicateNote = duplicateResult.duplicateNote;
+          convertedBerries += duplicateResult.convertedBerries;
+          convertedCount += duplicateResult.convertedCount;
+          summary.fragments += duplicateResult.fragmentCount;
         } else {
           updatedCards.push(rewardResult.storedReward);
         }
@@ -551,9 +606,17 @@ module.exports = {
         );
 
         if (alreadyOwnedWeapon) {
-          updatedFragments = addWeaponFragment(updatedFragments, rewardResult.storedReward, 1);
-          duplicateNote = ` → Duplicate (+1 ${rewardResult.storedReward.name} Fragment)`;
-          summary.fragments += 1;
+          const duplicateResult = addDuplicateWeaponReward({
+            player,
+            reward: rewardResult.storedReward,
+            updatedFragments,
+          });
+
+          updatedFragments = duplicateResult.fragments;
+          duplicateNote = duplicateResult.duplicateNote;
+          convertedBerries += duplicateResult.convertedBerries;
+          convertedCount += duplicateResult.convertedCount;
+          summary.fragments += duplicateResult.fragmentCount;
         } else {
           updatedWeapons = addNamedItem(updatedWeapons, rewardResult.storedReward);
         }
@@ -572,10 +635,7 @@ module.exports = {
       } else if (contentType === "devilFruit") {
         summary.devilFruit += 1;
       } else {
-        if (reward.code === "common_raid_ticket") summary.commonRaidTicket += 1;
-        if (reward.code === "raid_ticket") summary.raidTicket += 1;
-        if (reward.code === "gold_raid_ticket") summary.goldRaidTicket += 1;
-        if (reward.code === "common_raid_ticket") summary.commonRaidTicket += 1;
+        addTicketSummary(summary, reward);
       }
 
       const rewardRarity = String(reward.baseTier || reward.rarity || "C").toUpperCase();
@@ -585,7 +645,6 @@ module.exports = {
       }
 
       const rewardName = reward.displayName || reward.name || "Unknown";
-      const typeLabel = getTypeLabel(contentType);
       const pityLabel = triggeredPity ? " [PITY]" : "";
 
       const targetGroup =
@@ -609,6 +668,7 @@ module.exports = {
     const updatedPity = {
       ...(player.pity || {}),
       pullPity: pityCounter,
+      normalAPity: pityCounter,
       normalSPity: pityCounter,
       premiumSPity: pityCounter,
     };
@@ -624,7 +684,8 @@ module.exports = {
       );
 
       if (ticketIndex === -1 || Number(updatedTickets[ticketIndex].amount || 0) <= 0) {
-        resetFailedReason = "You do not have Pull Reset Ticket left, so pull reset was not applied.";
+        resetFailedReason =
+          "You do not have Pull Reset Ticket left, so pull reset was not applied.";
       } else {
         updatedTickets[ticketIndex] = {
           ...updatedTickets[ticketIndex],
@@ -689,7 +750,7 @@ module.exports = {
 
     if (convertedCount > 0) {
       groupedLines.push("");
-      groupedLines.push("## Storage Full Convert");
+      groupedLines.push("## Auto Convert");
       groupedLines.push(
         `${convertedCount} reward(s) converted into **${convertedBerries.toLocaleString("en-US")} berries**.`
       );
@@ -740,6 +801,9 @@ module.exports = {
 
     return message.reply({
       embeds,
+      allowedMentions: {
+        repliedUser: false,
+      },
     });
   },
 };

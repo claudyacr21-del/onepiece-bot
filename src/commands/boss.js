@@ -567,8 +567,8 @@ function getSpecialIslandBossTemplate(currentIsland) {
       name: "Magellan",
       rarity: "SS",
       atk: 850,
-      hp: 18100,
-      speed: 160,
+      hp: 15100,
+      speed: 150,
       image,
     },
   };
