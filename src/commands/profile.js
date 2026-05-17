@@ -9,15 +9,18 @@ const {
   getRaidPrestigeBadgeEmoji,
 } = require("../data/profileBadges");
 const { hydrateCard } = require("../utils/evolution");
-const {
-  getPlayerCombatCards,
-  getPlayerCombatBoosts,
-} = require("../utils/combatStats");
+const { getPlayerCombatCards } = require("../utils/combatStats");
 const { getShipByCode, SHIPS } = require("../data/ships");
+const weaponsDb = require("../data/weapons");
+const devilFruitsDb = require("../data/devilFruits");
 
 const DEFAULT_START_ISLAND = "Foosha Village";
 const ARENA_START_RANK = 500;
 const ARENA_POINTS_PER_RANK = 10;
+
+function normalize(value) {
+  return String(value || "").toLowerCase().trim();
+}
 
 function countTotalAmount(list) {
   if (!Array.isArray(list)) return 0;
@@ -75,29 +78,143 @@ function getHydratedCards(player) {
     .filter(Boolean);
 }
 
-function calculateSyncedCardPower(card) {
-  if (!card) return 0;
-
-  const storedPower = Number(card.currentPower || card.power || 0);
-  const atk = Number(card.atk || 0);
-  const hp = Number(card.hp || 0);
-  const speed = Number(card.speed || card.spd || 0);
-
-  if (String(card.cardRole || "").toLowerCase() === "boost") {
-    return storedPower;
-  }
-
-  const statPower = Math.floor(atk * 1.4 + hp * 0.22 + speed * 9);
-
-  return Math.max(storedPower, statPower);
+function getRarityPower(rarity) {
+  return (
+    {
+      C: 400,
+      B: 800,
+      A: 1400,
+      S: 2400,
+      SS: 3800,
+      UR: 5600,
+    }[String(rarity || "").toUpperCase()] || 400
+  );
 }
 
-function getSyncedCards(player) {
-  return getPlayerCombatCards(player);
+function getWeaponPowerByRarityAndLevel(rarity, level = 0) {
+  return getRarityPower(rarity) + Math.max(0, Number(level || 0)) * 250;
+}
+
+function getFruitPowerByRarity(rarity) {
+  return getRarityPower(rarity);
+}
+
+function findWeaponTemplate(value) {
+  const q = normalize(value);
+  if (!q) return null;
+
+  return (
+    weaponsDb.find((item) => normalize(item.code) === q) ||
+    weaponsDb.find((item) => normalize(item.name) === q) ||
+    weaponsDb.find((item) => normalize(item.code).includes(q)) ||
+    weaponsDb.find((item) => normalize(item.name).includes(q)) ||
+    null
+  );
+}
+
+function findFruitTemplate(value) {
+  const q = normalize(value);
+  if (!q) return null;
+
+  return (
+    devilFruitsDb.find((item) => normalize(item.code) === q) ||
+    devilFruitsDb.find((item) => normalize(item.name) === q) ||
+    devilFruitsDb.find((item) => normalize(item.code).includes(q)) ||
+    devilFruitsDb.find((item) => normalize(item.name).includes(q)) ||
+    null
+  );
+}
+
+function getAllOwnedCardsPower(player) {
+  const cards = getHydratedCards(player);
+
+  return cards.reduce((sum, card) => {
+    return sum + Number(card.currentPower || 0);
+  }, 0);
+}
+
+function getInventoryWeaponsPower(player) {
+  const inventoryWeapons = Array.isArray(player.weapons) ? player.weapons : [];
+
+  return inventoryWeapons.reduce((sum, entry) => {
+    const template = findWeaponTemplate(entry.code || entry.name);
+    if (!template) return sum;
+
+    const amount = Math.max(0, Number(entry.amount || 0));
+    const level = Math.max(0, Number(entry.upgradeLevel || 0));
+
+    return sum + getWeaponPowerByRarityAndLevel(template.rarity, level) * amount;
+  }, 0);
+}
+
+function getEquippedWeaponsPower(player) {
+  const cards = Array.isArray(player.cards) ? player.cards : [];
+
+  return cards.reduce((sum, rawCard) => {
+    const equipped = Array.isArray(rawCard.equippedWeapons)
+      ? rawCard.equippedWeapons
+      : [];
+
+    const equippedPower = equipped.reduce((sub, entry) => {
+      const template = findWeaponTemplate(entry.code || entry.name);
+      if (!template) return sub;
+
+      return (
+        sub +
+        getWeaponPowerByRarityAndLevel(
+          template.rarity,
+          Number(entry.upgradeLevel || 0)
+        )
+      );
+    }, 0);
+
+    return sum + equippedPower;
+  }, 0);
+}
+
+function getInventoryFruitsPower(player) {
+  const inventoryFruits = Array.isArray(player.devilFruits)
+    ? player.devilFruits
+    : [];
+
+  return inventoryFruits.reduce((sum, entry) => {
+    const template = findFruitTemplate(entry.code || entry.name);
+    if (!template) return sum;
+
+    const amount = Math.max(0, Number(entry.amount || 0));
+
+    return sum + getFruitPowerByRarity(template.rarity) * amount;
+  }, 0);
+}
+
+function getEquippedFruitsPower(player) {
+  const cards = Array.isArray(player.cards) ? player.cards : [];
+
+  return cards.reduce((sum, rawCard) => {
+    if (!rawCard.equippedDevilFruit) return sum;
+
+    const template = findFruitTemplate(
+      rawCard.equippedDevilFruitName || rawCard.equippedDevilFruit
+    );
+
+    if (!template) return sum;
+
+    return sum + getFruitPowerByRarity(template.rarity);
+  }, 0);
+}
+
+function getCollectionPower(player) {
+  return (
+    getAllOwnedCardsPower(player) +
+    getInventoryWeaponsPower(player) +
+    getEquippedWeaponsPower(player) +
+    getInventoryFruitsPower(player) +
+    getEquippedFruitsPower(player)
+  );
 }
 
 function getTeamUnits(player) {
-  const cards = getSyncedCards(player);
+  const cards = getPlayerCombatCards(player);
   const slots = Array.isArray(player?.team?.slots)
     ? player.team.slots.slice(0, 3)
     : [null, null, null];
@@ -125,10 +242,7 @@ function getTeamPower(player) {
 }
 
 function getTotalPower(player) {
-  return getHydratedCards(player).reduce(
-    (sum, card) => sum + Number(card?.currentPower || 0),
-    0
-  );
+  return getCollectionPower(player);
 }
 
 function getStoryProgress(player) {
@@ -143,6 +257,7 @@ function getStoryProgress(player) {
 
 function getArenaRankFromPoints(points) {
   const safePoints = Math.max(0, Number(points || 0));
+
   return Math.max(
     1,
     ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK)
@@ -263,6 +378,7 @@ module.exports = {
       isVivreCard,
       isBooster: booster,
     });
+
     const totalPower = getTotalPower(player);
     const teamPower = getTeamPower(player);
     const storyProgress = getStoryProgress(player);
@@ -321,6 +437,9 @@ module.exports = {
 
     return message.reply({
       embeds: [embed],
+      allowedMentions: {
+        repliedUser: false,
+      },
     });
   },
 };
