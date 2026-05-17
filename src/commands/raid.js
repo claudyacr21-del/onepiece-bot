@@ -373,7 +373,7 @@ function getRaidBossModeMultiplier(raidMode = {}) {
     return {
       hp: 1.4,
       speed: 1.2,
-      atk: 1.3,
+      atk: 1.1,
     };
   }
 
