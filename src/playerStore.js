@@ -120,6 +120,9 @@ function normalizeFragmentList(value) {
         category: entry.category || "battle",
         code: entry.code || undefined,
         image: entry.image || "",
+        weaponCode: entry.weaponCode || undefined,
+        cardCode: entry.cardCode || undefined,
+        sourceCode: entry.sourceCode || undefined,
       };
     })
     .filter(Boolean);
@@ -156,6 +159,45 @@ function normalizeAutoLevel(autoLevel) {
 function normalizeAutoSac(autoSac) {
   const rawRarities = autoSac?.rarities || {};
   const rawCards = Array.isArray(autoSac?.cards) ? autoSac.cards : [];
+  const rawSafeCards = Array.isArray(autoSac?.safeCards) ? autoSac.safeCards : [];
+
+  const normalizeSacEntry = (entry) => {
+    if (typeof entry === "string") {
+      return {
+        code: null,
+        name: entry,
+        rarity: "C",
+        mode: "all",
+      };
+    }
+
+    if (!entry || typeof entry !== "object") return null;
+
+    return {
+      code: entry.code || null,
+      name: entry.name || entry.displayName || "Unknown Card",
+      rarity: entry.rarity || "C",
+      mode: entry.mode || "all",
+    };
+  };
+
+  const normalizeSafeEntry = (entry) => {
+    if (typeof entry === "string") {
+      return {
+        code: null,
+        name: entry,
+        rarity: "C",
+      };
+    }
+
+    if (!entry || typeof entry !== "object") return null;
+
+    return {
+      code: entry.code || null,
+      name: entry.name || entry.displayName || "Unknown Card",
+      rarity: entry.rarity || "C",
+    };
+  };
 
   return {
     rarities: {
@@ -166,27 +208,8 @@ function normalizeAutoSac(autoSac) {
       SS: Boolean(rawRarities.SS),
       UR: Boolean(rawRarities.UR),
     },
-    cards: rawCards
-      .map((entry) => {
-        if (typeof entry === "string") {
-          return {
-            code: null,
-            name: entry,
-            rarity: "C",
-            mode: "all",
-          };
-        }
-
-        if (!entry || typeof entry !== "object") return null;
-
-        return {
-          code: entry.code || null,
-          name: entry.name || entry.displayName || "Unknown Card",
-          rarity: entry.rarity || "C",
-          mode: entry.mode || "all",
-        };
-      })
-      .filter(Boolean),
+    cards: rawCards.map(normalizeSacEntry).filter(Boolean),
+    safeCards: rawSafeCards.map(normalizeSafeEntry).filter(Boolean),
   };
 }
 
@@ -377,6 +400,7 @@ function normalizeCooldowns(cooldowns) {
     daily: cooldowns?.daily ?? null,
     fight: cooldowns?.fight ?? null,
     fightMotherFlame: cooldowns?.fightMotherFlame ?? null,
+    fightVivreCard: cooldowns?.fightVivreCard ?? null,
     boss: cooldowns?.boss ?? null,
     pullReset: cooldowns?.pullReset ?? null,
     ship: cooldowns?.ship ?? null,
@@ -514,8 +538,13 @@ function normalizePlayer(player, username = "Unknown") {
     tickets: normalizeNamedList(player.tickets),
     materials: normalizeNamedList(player.materials),
     pity: {
-      normalSPity: Number(player?.pity?.normalSPity) >= 0 ? Number(player.pity.normalSPity) : 0,
-      premiumSPity: Number(player?.pity?.premiumSPity) >= 0 ? Number(player.pity.premiumSPity) : 0,
+      pullPity: Number(player?.pity?.pullPity) >= 0 ? Number(player.pity.pullPity) : 0,
+      normalAPity:
+        Number(player?.pity?.normalAPity) >= 0 ? Number(player.pity.normalAPity) : 0,
+      normalSPity:
+        Number(player?.pity?.normalSPity) >= 0 ? Number(player.pity.normalSPity) : 0,
+      premiumSPity:
+        Number(player?.pity?.premiumSPity) >= 0 ? Number(player.pity.premiumSPity) : 0,
     },
     pulls: normalizePulls(player.pulls),
     boosts: normalizeBoosts(player.boosts),
@@ -649,6 +678,7 @@ function getDefaultPlayer(username) {
       daily: null,
       fight: null,
       fightMotherFlame: null,
+      fightVivreCard: null,
       boss: null,
       pullReset: null,
       ship: null,
