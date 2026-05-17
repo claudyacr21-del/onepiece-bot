@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayer, readPlayers, writePlayers } = require("../playerStore");
 const { createOwnedCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
 const rawWeapons = require("../data/weapons");
@@ -546,6 +546,35 @@ function buildRewardStatsText(contentType, reward) {
   ];
 }
 
+function savePullResultFresh(userId, payload) {
+  const players = readPlayers();
+  const existing = players[String(userId)] || {};
+
+  players[String(userId)] = {
+    ...existing,
+    cards: payload.cards,
+    weapons: payload.weapons,
+    devilFruits: payload.devilFruits,
+    fragments: payload.fragments,
+    tickets: payload.tickets,
+    berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
+    pulls: payload.pulls,
+    pity: payload.pity,
+    stats: {
+      ...(existing.stats || {}),
+      ...(payload.stats || {}),
+    },
+    quests: {
+      ...(existing.quests || {}),
+      ...(payload.quests || {}),
+    },
+  };
+
+  writePlayers(players);
+
+  return players[String(userId)];
+}
+
 module.exports = {
   name: "pull",
   aliases: ["gacha"],
@@ -691,23 +720,21 @@ module.exports = {
       premiumSPity: pityCounter,
     };
 
-    updatePlayer(message.author.id, {
+    savePullResultFresh(message.author.id, {
       cards: updatedCards,
       weapons: updatedWeapons,
       devilFruits: updatedDevilFruits,
       fragments: updatedFragments,
       tickets: updatedTickets,
-      berries: Number(player.berries || 0) + autoSacBerries,
+      addBerries: autoSacBerries,
       pulls: updatedPulls,
       pity: updatedPity,
       stats: {
-        ...(player.stats || {}),
         cardsPulled:
           Number(player?.stats?.cardsPulled || 0) +
           (contentType === "battleCard" || contentType === "boostCard" ? 1 : 0),
       },
       quests: {
-        ...(player.quests || {}),
         dailyState: updatedDailyState,
       },
     });
