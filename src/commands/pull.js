@@ -66,11 +66,7 @@ function getPityGuarantee(tier) {
 function getEffectivePullTierForSlot(roleTier, pullKey) {
   if (roleTier === "motherFlame") return "motherFlame";
 
-  // Vivre Card rate only applies when the consumed slot is the Vivre Card slot.
-  // Other slots stay normal, so Vivre cannot be spammed after its slot is used.
-  if (roleTier === "vivreCard") {
-    return pullKey === "vivreCard" ? "vivreCard" : "normal";
-  }
+  if (roleTier === "vivreCard") return "vivreCard";
 
   return "normal";
 }
