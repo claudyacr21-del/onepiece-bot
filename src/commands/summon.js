@@ -151,6 +151,46 @@ function alreadyOwnsCard(player, card) {
   );
 }
 
+function isImuCard(card) {
+  const code = normalize(card?.code);
+  const name = normalize(getCardName(card));
+
+  return code === "imu" || name === "imu";
+}
+
+function hasLuffyM3(player) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+
+  return cards.some((owned) => {
+    const code = normalize(owned?.code);
+    const name = normalize(owned?.displayName || owned?.name);
+    const stage = Number(owned?.evolutionStage || 1);
+    const key = String(owned?.evolutionKey || "").toUpperCase();
+
+    const isLuffy =
+      code.includes("luffy") ||
+      name.includes("luffy") ||
+      name.includes("monkey d luffy");
+
+    const isM3 = stage >= 3 || key === "M3";
+
+    return isLuffy && isM3;
+  });
+}
+
+function getSpecialSummonRequirementError(player, card) {
+  if (isImuCard(card) && !hasLuffyM3(player)) {
+    return [
+      `You cannot summon **${getCardName(card)}** yet.`,
+      "",
+      "**Special Requirement:**",
+      "You must own **Monkey D. Luffy Mastery 3** first.",
+    ].join("\n");
+  }
+
+  return null;
+}
+
 function alreadyOwnsWeapon(player, weapon) {
   const code = normalize(weapon.code);
 
@@ -250,6 +290,15 @@ module.exports = {
       if (alreadyOwnsCard(player, card)) {
         return message.reply({
           content: `You already own **${getCardName(card)}**.`,
+          allowedMentions: { repliedUser: false },
+        });
+      }
+
+      const requirementError = getSpecialSummonRequirementError(player, card);
+
+      if (requirementError) {
+        return message.reply({
+          content: requirementError,
           allowedMentions: { repliedUser: false },
         });
       }
