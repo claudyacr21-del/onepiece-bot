@@ -14,6 +14,7 @@ const { startTopggWebhookServer } = require("./topggWebhook");
 const { syncArenaRankRoles } = require("./utils/arenaRankRoles");
 const { syncExpiredPatreonRoles } = require("./utils/patreonRoleStore");
 const { startResetReminderService } = require("./utils/resetReminderService");
+const { maybeSpawnMarineEvent } = require("./utils/marineEvent");
 const channelRules = require("./config/channelRules");
 const { readPlayers, writePlayers } = require("./playerStore");
 const {
@@ -231,7 +232,7 @@ client.on("messageCreate", async (message) => {
     if (typeof message.content !== "string") return;
 
     trackMessageMilestone(message);
-
+    await maybeSpawnMarineEvent(client, message);
     const parsed = parsePrefixedCommand(message.content);
 
     if (!parsed) return;
