@@ -5,35 +5,81 @@ const {
   ButtonStyle,
 } = require("discord.js");
 
-const { getPlayer, updatePlayer } = require("../playerStore");
-const { getFragmentStorageInfo } = require("../utils/autoSac");
+const { getPlayer } = require("../playerStore");
+const { getFragmentStorageBonus } = require("../utils/passiveBoosts");
 
 const PAGE_SIZE = 8;
 const COLOR = 0x8e44ad;
-
+const BASE_FRAGMENT_STORAGE = 200;
+const MAX_FRAGMENT_STORAGE = 500;
 const VALID_RARITIES = new Set(["C", "B", "A", "S", "SS", "UR"]);
+
+function normalize(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/\s+/g, " ");
+}
 
 function formatRarity(rarity) {
   return String(rarity || "C").toUpperCase();
 }
 
+function getDisplayName(fragment) {
+  return (
+    fragment?.displayName ||
+    fragment?.name ||
+    fragment?.title ||
+    String(fragment?.code || "Unknown Fragment")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (m) => m.toUpperCase())
+  );
+}
+
+function getFragmentAmount(fragment) {
+  const amount = Number(fragment?.amount || 0);
+  return Number.isFinite(amount) && amount > 0 ? amount : 0;
+}
+
 function getStorageInfo(player, fragments) {
-  return getFragmentStorageInfo(player, fragments);
+  const total = (Array.isArray(fragments) ? fragments : []).reduce(
+    (sum, item) => sum + getFragmentAmount(item),
+    0
+  );
+
+  const bonus = Number(getFragmentStorageBonus(player) || 0);
+  const max = Math.min(BASE_FRAGMENT_STORAGE + bonus, MAX_FRAGMENT_STORAGE);
+
+  return {
+    total,
+    max,
+    bonus,
+  };
 }
 
 function sortFragments(fragments) {
-  const rarityOrder = { S: 4, A: 3, B: 2, C: 1 };
+  const rarityOrder = {
+    UR: 6,
+    SS: 5,
+    S: 4,
+    A: 3,
+    B: 2,
+    C: 1,
+  };
 
-  return [...fragments].sort((a, b) => {
-    const amountDiff = Number(b.amount || 0) - Number(a.amount || 0);
+  return [...(Array.isArray(fragments) ? fragments : [])].sort((a, b) => {
+    const amountDiff = getFragmentAmount(b) - getFragmentAmount(a);
     if (amountDiff !== 0) return amountDiff;
 
     const rarityDiff =
-      (rarityOrder[formatRarity(b.rarity)] || 0) -
-      (rarityOrder[formatRarity(a.rarity)] || 0);
+      (rarityOrder[formatRarity(b?.rarity)] || 0) -
+      (rarityOrder[formatRarity(a?.rarity)] || 0);
+
     if (rarityDiff !== 0) return rarityDiff;
 
-    return String(a.name || "").localeCompare(String(b.name || ""));
+    return getDisplayName(a).localeCompare(getDisplayName(b));
   });
 }
 
@@ -42,33 +88,44 @@ function isExactRarityQuery(query) {
 }
 
 function filterFragments(fragments, query) {
-  if (!query) return fragments;
+  const list = Array.isArray(fragments) ? fragments : [];
+
+  if (!query) return list;
 
   const rawQuery = String(query || "").trim();
   const upperQuery = rawQuery.toUpperCase();
-  const lowerQuery = rawQuery.toLowerCase();
+  const normalizedQuery = normalize(rawQuery);
 
   if (isExactRarityQuery(rawQuery)) {
-    return fragments.filter((fragment) => formatRarity(fragment.rarity) === upperQuery);
+    return list.filter((fragment) => formatRarity(fragment?.rarity) === upperQuery);
   }
 
-  return fragments.filter((fragment) => {
-    const name = String(fragment.name || "").toLowerCase();
-    const code = String(fragment.code || "").toLowerCase();
-    const category = String(fragment.category || "").toLowerCase();
-    const rarity = String(fragment.rarity || "").toLowerCase();
+  return list.filter((fragment) => {
+    const fields = [
+      fragment?.code,
+      fragment?.name,
+      fragment?.displayName,
+      fragment?.title,
+      fragment?.category,
+      fragment?.rarity,
+      fragment?.weaponCode,
+      fragment?.cardCode,
+      fragment?.sourceCode,
+    ]
+      .map(normalize)
+      .filter(Boolean);
 
-    return (
-      name.includes(lowerQuery) ||
-      code.includes(lowerQuery) ||
-      category.includes(lowerQuery) ||
-      rarity.includes(lowerQuery)
+    return fields.some(
+      (field) =>
+        field === normalizedQuery ||
+        field.includes(normalizedQuery) ||
+        normalizedQuery.includes(field)
     );
   });
 }
 
 function getFragmentIcon(fragment) {
-  const category = String(fragment.category || "").toLowerCase();
+  const category = String(fragment?.category || "").toLowerCase();
 
   if (category === "weapon") return "⚔️";
   if (category === "boost") return "✨";
@@ -79,7 +136,7 @@ function getFragmentIcon(fragment) {
 
 function getMemberAvatar(message) {
   return (
-    message.member?.displayAvatarURL({
+    message.member?.displayAvatarURL?.({
       extension: "png",
       size: 512,
     }) ||
@@ -96,37 +153,52 @@ function buildPageEmbed(message, player, fragments, currentPage, isPrivate, sear
   const safePage = Math.min(Math.max(currentPage, 0), totalPages - 1);
   const start = safePage * PAGE_SIZE;
   const pageItems = sorted.slice(start, start + PAGE_SIZE);
-  const storage = getStorageInfo(player, Array.isArray(player.fragments) ? player.fragments : []);
+  const allFragments = Array.isArray(player.fragments) ? player.fragments : [];
+  const storage = getStorageInfo(player, allFragments);
   const memberAvatar = getMemberAvatar(message);
 
   const lines = pageItems.length
     ? pageItems.map((fragment) => {
         const icon = getFragmentIcon(fragment);
-        return `${icon} **${fragment.name}**: ${Number(fragment.amount || 0).toLocaleString("en-US")} (${formatRarity(fragment.rarity)})`;
+        const name = getDisplayName(fragment);
+        const amount = getFragmentAmount(fragment).toLocaleString("en-US");
+        const rarity = formatRarity(fragment?.rarity);
+        const category = String(fragment?.category || "fragment");
+
+        return `${icon} **${name}** x${amount} • ${rarity} • ${category}`;
       })
     : ["No fragments found."];
 
+  const description = [
+    "Fragments are used to summon and upgrade battle cards, boost cards, and weapons.",
+    searchQuery ? `**Search:** \`${searchQuery}\`` : null,
+    "",
+    ...lines,
+    "",
+    `**Fragment Storage:** ${storage.total}/${storage.max}`,
+    storage.bonus > 0 ? `**Storage Bonus:** +${storage.bonus}` : null,
+    `**Visibility Mode:** ${isPrivate ? "Private" : "Public"}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   const embed = new EmbedBuilder()
     .setColor(COLOR)
-    .setTitle(`${message.member?.displayName || message.author.username}'s Fragment Storage!`)
-    .setDescription(
-      [
-        "Fragments are used to upgrade cards and boost cards.",
-        searchQuery ? `\n**Search:** \`${searchQuery}\`` : "",
-        "",
-        lines.join("\n"),
-        "",
-        `Fragment storage capacity: ${storage.total}/${storage.max}`,
-        `Visibility Mode: ${isPrivate ? "Private" : "Public"}`,
-      ].join("\n")
+    .setTitle(
+      `${message.member?.displayName || message.author.username}'s Fragment Storage`
     )
+    .setDescription(description)
     .setThumbnail(memberAvatar)
     .setFooter({
       text: `Page ${safePage + 1}/${totalPages} • ${sorted.length} fragment entries`,
       iconURL: memberAvatar,
     });
 
-  return { embed, totalPages, safePage };
+  return {
+    embed,
+    totalPages,
+    safePage,
+  };
 }
 
 function buildButtons(currentPage, totalPages, isPrivate) {
@@ -136,13 +208,11 @@ function buildButtons(currentPage, totalPages, isPrivate) {
       .setLabel("Previous")
       .setStyle(ButtonStyle.Primary)
       .setDisabled(currentPage <= 0),
-
     new ButtonBuilder()
       .setCustomId("finv_next")
       .setLabel("Next")
       .setStyle(ButtonStyle.Primary)
       .setDisabled(currentPage >= totalPages - 1),
-
     new ButtonBuilder()
       .setCustomId("finv_toggle_mode")
       .setLabel(isPrivate ? "Private" : "Public")
@@ -150,82 +220,14 @@ function buildButtons(currentPage, totalPages, isPrivate) {
   );
 }
 
-function addOrIncreaseFragment(list, fragment) {
-  const arr = Array.isArray(list) ? [...list] : [];
-  const index = arr.findIndex(
-    (entry) => String(entry.code || "").toLowerCase() === String(fragment.code || "").toLowerCase()
-  );
-
-  if (index !== -1) {
-    arr[index] = {
-      ...arr[index],
-      amount: Number(arr[index].amount || 0) + Number(fragment.amount || 0),
-    };
-    return arr;
-  }
-
-  arr.push(fragment);
-  return arr;
-}
-
-function syncDuplicateWeaponsToFragments(player) {
-  let changed = false;
-  let fragments = Array.isArray(player.fragments) ? [...player.fragments] : [];
-  const weapons = Array.isArray(player.weapons) ? [...player.weapons] : [];
-
-  const updatedWeapons = weapons.map((weapon) => {
-    const amount = Number(weapon.amount || 1);
-
-    if (amount <= 1) return weapon;
-
-    const duplicateAmount = amount - 1;
-    const fragmentCode = `weapon_fragment_${weapon.code}`;
-
-    fragments = addOrIncreaseFragment(fragments, {
-      name: `${weapon.name} Fragment`,
-      amount: duplicateAmount,
-      rarity: weapon.rarity || "C",
-      category: "weapon",
-      code: fragmentCode,
-      image: weapon.image || "",
-      weaponCode: weapon.code,
-    });
-
-    changed = true;
-
-    return {
-      ...weapon,
-      amount: 1,
-    };
-  });
-
-  return {
-    changed,
-    weapons: updatedWeapons,
-    fragments,
-  };
-}
-
 module.exports = {
   name: "finv",
   aliases: ["fragmentinv", "fragments"],
 
   async execute(message, args) {
-    let player = getPlayer(message.author.id, message.author.username);
-
-    const syncResult = syncDuplicateWeaponsToFragments(player);
-
-    if (syncResult.changed) {
-      updatePlayer(message.author.id, {
-        weapons: syncResult.weapons,
-        fragments: syncResult.fragments,
-      });
-
-      player = getPlayer(message.author.id, message.author.username);
-    }
-
+    const player = getPlayer(message.author.id, message.author.username);
     const allFragments = Array.isArray(player.fragments) ? player.fragments : [];
-    const searchQuery = args.length ? args.join(" ") : "";
+    const searchQuery = args.length ? args.join(" ").trim() : "";
     const filteredFragments = filterFragments(allFragments, searchQuery);
 
     let currentPage = 0;
@@ -243,6 +245,9 @@ module.exports = {
     const sentMessage = await message.reply({
       embeds: [initial.embed],
       components: [buildButtons(initial.safePage, initial.totalPages, isPrivate)],
+      allowedMentions: {
+        repliedUser: false,
+      },
     });
 
     const collector = sentMessage.createMessageComponentCollector({
@@ -295,10 +300,34 @@ module.exports = {
 
       currentPage = pageData.safePage;
 
-      await interaction.update({
+      return interaction.update({
         embeds: [pageData.embed],
         components: [buildButtons(currentPage, pageData.totalPages, isPrivate)],
       });
+    });
+
+    collector.on("end", async () => {
+      try {
+        const refreshedPlayer = getPlayer(message.author.id, message.author.username);
+        const refreshedFragments = filterFragments(
+          Array.isArray(refreshedPlayer.fragments) ? refreshedPlayer.fragments : [],
+          searchQuery
+        );
+
+        const pageData = buildPageEmbed(
+          message,
+          refreshedPlayer,
+          refreshedFragments,
+          currentPage,
+          isPrivate,
+          searchQuery
+        );
+
+        await sentMessage.edit({
+          embeds: [pageData.embed],
+          components: [],
+        });
+      } catch (_) {}
     });
   },
 };
