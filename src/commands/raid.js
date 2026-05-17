@@ -371,9 +371,9 @@ function getRaidBossModeMultiplier(raidMode = {}) {
 
   if (ticketCode === "gold_raid_ticket" || modeName.includes("gold")) {
     return {
-      hp: 1.65,
+      hp: 1.4,
       speed: 1.2,
-      atk: 1.35,
+      atk: 1.3,
     };
   }
 

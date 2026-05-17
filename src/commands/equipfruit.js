@@ -8,6 +8,83 @@ const devilFruits = require("../data/devilFruits");
 const { findOwnedCard, hydrateCard } = require("../utils/evolution");
 const { getEffectiveBoostValue, findBoostFruitByCode } = require("../utils/passiveBoosts");
 
+function normalizeCompare(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function normalizeCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+}
+
+function getCardOwnerKeys(card) {
+  const keys = [
+    card?.code,
+    card?.baseCode,
+    card?.cardCode,
+    card?.characterCode,
+    card?.templateCode,
+    card?.name,
+    card?.displayName,
+    card?.title,
+    card?.evolutionKey,
+    card?.specialForm,
+    card?.formName,
+  ];
+
+  // Special hard sync for Luffy/Nika forms.
+  const joined = keys.map(normalizeCompare).filter(Boolean).join(" ");
+
+  if (
+    joined.includes("luffy") ||
+    joined.includes("monkey d luffy") ||
+    joined.includes("nika")
+  ) {
+    keys.push(
+      "luffy_straw_hat",
+      "monkey_d_luffy",
+      "luffy",
+      "luffy_nika",
+      "gear_5_luffy"
+    );
+  }
+
+  return new Set(
+    keys
+      .map((value) => [normalizeCode(value), normalizeCompare(value)])
+      .flat()
+      .filter(Boolean)
+  );
+}
+
+function getFruitOwnerKeys(fruit) {
+  const owners = Array.isArray(fruit?.owners) ? fruit.owners : [];
+
+  return new Set(
+    owners
+      .flatMap((owner) => [normalizeCode(owner), normalizeCompare(owner)])
+      .filter(Boolean)
+  );
+}
+
+function canCardUseDevilFruit(card, fruit) {
+  const cardKeys = getCardOwnerKeys(card);
+  const fruitOwnerKeys = getFruitOwnerKeys(fruit);
+
+  for (const key of cardKeys) {
+    if (fruitOwnerKeys.has(key)) return true;
+  }
+
+  return false;
+}
+
 function normalize(text) {
   return String(text || "")
     .toLowerCase()
@@ -210,11 +287,35 @@ async function equipFruitToCard(message, player, card, fruit) {
     return message.reply("You do not own that devil fruit.");
   }
 
+  const ownedFruitData =
+    devilFruits.find(
+      (entry) =>
+        String(entry.code || "").toLowerCase() ===
+        String(fruit.code || "").toLowerCase()
+    ) || fruit;
+
+  const fruitForValidation = {
+    ...ownedFruitData,
+    ...ownedFruits[fruitIndex],
+    owners:
+      Array.isArray(ownedFruitData?.owners) && ownedFruitData.owners.length
+        ? ownedFruitData.owners
+        : Array.isArray(ownedFruits[fruitIndex]?.owners)
+        ? ownedFruits[fruitIndex].owners
+        : [],
+  };
+
   if (
-    !Array.isArray(ownedFruits[fruitIndex].owners) ||
-    !ownedFruits[fruitIndex].owners.includes(cards[cardIndex].code)
+    Array.isArray(fruitForValidation.owners) &&
+    fruitForValidation.owners.length &&
+    !canCardUseDevilFruit(cards[cardIndex], fruitForValidation)
   ) {
-    return message.reply("That devil fruit cannot be used by this card.");
+    return message.reply({
+      content: "That devil fruit cannot be used by this card.",
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
   }
 
   cards[cardIndex] = hydrateCard({
