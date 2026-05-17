@@ -262,10 +262,10 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       );
     }
 
-    // Reduced from 50% to 12%.
-    // Removed x2 outcome so it can only drop x1.
-    if (Math.random() < 0.12) {
-      addTicket(ITEMS.pullResetTicket, 1);
+    // 40% chance to drop Pull Reset Ticket.
+    // If it drops, it always gives x2.
+    if (Math.random() < 0.40) {
+      addTicket(ITEMS.pullResetTicket, 2);
     }
   } else if (box.code === "mother_flame_treasure_box") {
     addBerries(15000);
