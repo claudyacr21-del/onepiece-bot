@@ -5,7 +5,7 @@ const {
   ButtonStyle,
 } = require("discord.js");
 
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayer, readPlayers, writePlayers } = require("../playerStore");
 const { hydrateCard } = require("./evolution");
 const { getPlayerCombatBoosts } = require("./combatStats");
 const { ITEMS, cloneItem } = require("../data/items");
@@ -20,13 +20,13 @@ const MARINE_EVENT_GUILD_IDS = String(process.env.MARINE_EVENT_GUILD_IDS || "")
   .filter(Boolean);
 
 const MARINE_EVENT_MIN_MESSAGES = Math.max(
-  5,
-  Number(process.env.MARINE_EVENT_MIN_MESSAGES || 18)
+  1,
+  Number(process.env.MARINE_EVENT_MIN_MESSAGES || 10)
 );
 
 const MARINE_EVENT_CHANCE = Math.max(
   0,
-  Math.min(1, Number(process.env.MARINE_EVENT_CHANCE || 0.08))
+  Math.min(1, Number(process.env.MARINE_EVENT_CHANCE || 0.2))
 );
 
 const MARINE_EVENT_GLOBAL_COOLDOWN_MS = Math.max(
@@ -39,15 +39,24 @@ const MARINE_EVENT_GUILD_COOLDOWN_MS = Math.max(
   Number(process.env.MARINE_EVENT_GUILD_COOLDOWN_MS || 18 * 60 * 1000)
 );
 
+const MARINE_EVENT_CHANNEL_COOLDOWN_MS = Math.max(
+  60_000,
+  Number(process.env.MARINE_EVENT_CHANNEL_COOLDOWN_MS || MARINE_EVENT_GUILD_COOLDOWN_MS)
+);
+
 const MARINE_EVENT_DESPAWN_MS = Math.max(
   60_000,
   Number(process.env.MARINE_EVENT_DESPAWN_MS || 3 * 60 * 1000)
 );
 
 const activeEvents = new Map();
-const guildChatCounters = new Map();
+const channelChatUsers = new Map();
 const guildCooldowns = new Map();
+const channelCooldowns = new Map();
+
 let globalCooldownUntil = 0;
+
+const MARINE_CHANNEL_STORE_KEY = "__marine_event_channels__";
 
 const RARITY_ORDER = {
   C: 1,
@@ -138,6 +147,84 @@ function isAllowedGuild(guildId) {
   return MARINE_EVENT_GUILD_IDS.includes(id);
 }
 
+function getMarineConfigStore(players = null) {
+  const data = players || readPlayers();
+
+  if (!data[MARINE_CHANNEL_STORE_KEY]) {
+    data[MARINE_CHANNEL_STORE_KEY] = {
+      guilds: {},
+    };
+  }
+
+  if (!data[MARINE_CHANNEL_STORE_KEY].guilds) {
+    data[MARINE_CHANNEL_STORE_KEY].guilds = {};
+  }
+
+  return data[MARINE_CHANNEL_STORE_KEY];
+}
+
+function getAllowedMarineChannels(guildId) {
+  const players = readPlayers();
+  const store = getMarineConfigStore(players);
+  const guildConfig = store.guilds[String(guildId)] || {};
+
+  return Array.isArray(guildConfig.allowedChannels)
+    ? guildConfig.allowedChannels.map(String)
+    : [];
+}
+
+function isMarineChannelAllowed(guildId, channelId) {
+  const allowedChannels = getAllowedMarineChannels(guildId);
+
+  return allowedChannels.includes(String(channelId));
+}
+
+function setMarineChannelAllowed(guildId, channelId, allowed) {
+  const players = readPlayers();
+  const store = getMarineConfigStore(players);
+  const guildKey = String(guildId);
+  const channelKey = String(channelId);
+
+  if (!store.guilds[guildKey]) {
+    store.guilds[guildKey] = {
+      allowedChannels: [],
+    };
+  }
+
+  const current = Array.isArray(store.guilds[guildKey].allowedChannels)
+    ? store.guilds[guildKey].allowedChannels.map(String)
+    : [];
+
+  const next = allowed
+    ? [...new Set([...current, channelKey])]
+    : current.filter((id) => id !== channelKey);
+
+  store.guilds[guildKey].allowedChannels = next;
+  players[MARINE_CHANNEL_STORE_KEY] = store;
+
+  writePlayers(players);
+
+  return next;
+}
+
+function getChannelUserKey(guildId, channelId) {
+  return `${guildId}:${channelId}`;
+}
+
+function getChannelChatUserSet(guildId, channelId) {
+  const key = getChannelUserKey(guildId, channelId);
+
+  if (!channelChatUsers.has(key)) {
+    channelChatUsers.set(key, new Set());
+  }
+
+  return channelChatUsers.get(key);
+}
+
+function resetChannelChatUsers(guildId, channelId) {
+  channelChatUsers.set(getChannelUserKey(guildId, channelId), new Set());
+}
+
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -158,22 +245,13 @@ function rollMarineRarity() {
   return "C";
 }
 
-function getRarityLabel(rarity) {
-  return String(rarity || "C").toUpperCase();
-}
-
-function getAtkRange(atk) {
-  const value = Number(atk || 0);
-  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+function applyBoost(value, percent) {
+  return Math.floor(Number(value || 0) * (1 + Number(percent || 0) / 100));
 }
 
 function rollDamage(atk, defenderSpeed = 0) {
   const rolled = Math.floor(Number(atk || 1) * (0.85 + Math.random() * 0.3));
   return Math.max(1, rolled - Math.floor(Number(defenderSpeed || 0) * 0.12));
-}
-
-function applyBoost(value, percent) {
-  return Math.floor(Number(value || 0) * (1 + Number(percent || 0) / 100));
 }
 
 function addOrIncrease(list, item) {
@@ -213,6 +291,7 @@ function addBoxes(existingBoxes, boxRewards) {
 function getTeamCards(player) {
   const boosts = getPlayerCombatBoosts(player);
   const rawCards = Array.isArray(player.cards) ? player.cards : [];
+
   const hydratedCards = rawCards
     .map((rawCard, sourceIndex) => {
       const card = hydrateCard(rawCard);
@@ -310,7 +389,8 @@ function simulateMarineBattle(playerTeam, marineTeam) {
 
     if (!playerUnit || !marineUnit) break;
 
-    const playerFirst = Number(playerUnit.speed || 0) >= Number(marineUnit.speed || 0);
+    const playerFirst =
+      Number(playerUnit.speed || 0) >= Number(marineUnit.speed || 0);
 
     const turns = playerFirst
       ? [
@@ -328,15 +408,11 @@ function simulateMarineBattle(playerTeam, marineTeam) {
 
       const damage = performAttack(turn.actor, turn.target);
 
-      if (turn.isPlayer) {
-        logs.push(
-          `⚔️ ${turn.actor.name} dealt **${damage}** damage to ${turn.target.name}.`
-        );
-      } else {
-        logs.push(
-          `🛡️ ${turn.actor.name} dealt **${damage}** damage to ${turn.target.name}.`
-        );
-      }
+      logs.push(
+        turn.isPlayer
+          ? `⚔️ ${turn.actor.name} dealt **${damage}** damage to ${turn.target.name}.`
+          : `🛡️ ${turn.actor.name} dealt **${damage}** damage to ${turn.target.name}.`
+      );
 
       if (Number(turn.target.hp || 0) <= 0) {
         logs.push(`☠️ ${turn.target.name} was defeated.`);
@@ -517,7 +593,9 @@ async function spawnMarineEvent(message) {
     };
 
     const updatedCards = applyMarineKills(player, result.playerTeam);
-    const updatedBoxes = result.won ? addBoxes(player.boxes || [], profile.boxes) : player.boxes || [];
+    const updatedBoxes = result.won
+      ? addBoxes(player.boxes || [], profile.boxes)
+      : player.boxes || [];
 
     updatePlayer(interaction.user.id, {
       cards: updatedCards,
@@ -579,35 +657,49 @@ async function maybeSpawnMarineEvent(client, message) {
   if (!message?.guild || !message?.channel) return false;
   if (message.author?.bot) return false;
   if (!isAllowedGuild(message.guild.id)) return false;
+  if (!isMarineChannelAllowed(message.guild.id, message.channel.id)) return false;
 
   const content = String(message.content || "").trim();
   const prefix = String(process.env.PREFIX || "op").toLowerCase();
 
-  if (content.toLowerCase().startsWith(`${prefix} `) || content.toLowerCase() === prefix) {
+  if (
+    content.toLowerCase().startsWith(`${prefix} `) ||
+    content.toLowerCase() === prefix
+  ) {
     return false;
   }
 
   const now = Date.now();
   const guildId = String(message.guild.id);
+  const channelId = String(message.channel.id);
+  const channelKey = getChannelUserKey(guildId, channelId);
 
   if (now < globalCooldownUntil) return false;
   if (now < Number(guildCooldowns.get(guildId) || 0)) return false;
+  if (now < Number(channelCooldowns.get(channelKey) || 0)) return false;
 
-  const activeInGuild = [...activeEvents.values()].some(
-    (event) => String(event.guildId) === guildId
+  const activeInChannel = [...activeEvents.values()].some(
+    (event) =>
+      String(event.guildId) === guildId && String(event.channelId) === channelId
   );
 
-  if (activeInGuild) return false;
+  if (activeInChannel) return false;
 
-  const currentCount = Number(guildChatCounters.get(guildId) || 0) + 1;
-  guildChatCounters.set(guildId, currentCount);
+  const uniqueUsers = getChannelChatUserSet(guildId, channelId);
+  uniqueUsers.add(String(message.author.id));
 
-  if (currentCount < MARINE_EVENT_MIN_MESSAGES) return false;
-  if (Math.random() > MARINE_EVENT_CHANCE) return false;
+  if (uniqueUsers.size < MARINE_EVENT_MIN_MESSAGES) {
+    return false;
+  }
 
-  guildChatCounters.set(guildId, 0);
+  if (Math.random() > MARINE_EVENT_CHANCE) {
+    return false;
+  }
+
+  resetChannelChatUsers(guildId, channelId);
   globalCooldownUntil = now + MARINE_EVENT_GLOBAL_COOLDOWN_MS;
   guildCooldowns.set(guildId, now + MARINE_EVENT_GUILD_COOLDOWN_MS);
+  channelCooldowns.set(channelKey, now + MARINE_EVENT_CHANNEL_COOLDOWN_MS);
 
   try {
     await spawnMarineEvent(message);
@@ -620,4 +712,7 @@ async function maybeSpawnMarineEvent(client, message) {
 
 module.exports = {
   maybeSpawnMarineEvent,
+  setMarineChannelAllowed,
+  getAllowedMarineChannels,
+  isMarineChannelAllowed,
 };

@@ -20,6 +20,7 @@ const { readPlayers, writePlayers } = require("./playerStore");
 const {
   isEligibleMilestoneChat,
   incrementMessageMilestone,
+  applyMessageMilestoneReward,
 } = require("./utils/messageMilestones");
 
 const client = new Client({
@@ -167,12 +168,18 @@ function trackMessageMilestone(message) {
   const players = readPlayers();
   const userId = String(message.author.id);
   const player = players[userId] || createDefaultPlayerForMilestone(message);
+  const milestoneState = incrementMessageMilestone(player);
 
-  players[userId] = {
-    ...player,
-    username: message.author.username || player.username,
-    messageMilestones: incrementMessageMilestone(player),
-  };
+  const updatedPlayer = applyMessageMilestoneReward(
+    {
+      ...player,
+      username: message.author.username || player.username,
+      messageMilestones: milestoneState,
+    },
+    milestoneState
+  );
+
+  players[userId] = updatedPlayer;
 
   writePlayers(players);
 }
