@@ -9,6 +9,10 @@ const {
   getRaidPrestigeBadgeEmoji,
 } = require("../data/profileBadges");
 const { hydrateCard } = require("../utils/evolution");
+const {
+  getPlayerCombatCards,
+  getPlayerCombatBoosts,
+} = require("../utils/combatStats");
 const { getShipByCode, SHIPS } = require("../data/ships");
 
 const DEFAULT_START_ISLAND = "Foosha Village";
@@ -71,10 +75,31 @@ function getHydratedCards(player) {
     .filter(Boolean);
 }
 
+function calculateSyncedCardPower(card) {
+  if (!card) return 0;
+
+  const storedPower = Number(card.currentPower || card.power || 0);
+  const atk = Number(card.atk || 0);
+  const hp = Number(card.hp || 0);
+  const speed = Number(card.speed || card.spd || 0);
+
+  if (String(card.cardRole || "").toLowerCase() === "boost") {
+    return storedPower;
+  }
+
+  const statPower = Math.floor(atk * 1.4 + hp * 0.22 + speed * 9);
+
+  return Math.max(storedPower, statPower);
+}
+
+function getSyncedCards(player) {
+  return getPlayerCombatCards(player);
+}
+
 function getTeamUnits(player) {
-  const cards = getHydratedCards(player);
+  const cards = getSyncedCards(player);
   const slots = Array.isArray(player?.team?.slots)
-    ? player.team.slots
+    ? player.team.slots.slice(0, 3)
     : [null, null, null];
 
   return slots
