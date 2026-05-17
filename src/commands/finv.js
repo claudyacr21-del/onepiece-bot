@@ -97,12 +97,17 @@ function normalizeSearch(value) {
 }
 
 function getFragmentSearchNames(fragment) {
+  const category = String(fragment?.category || "").toLowerCase();
   const rawName = String(fragment?.name || fragment?.displayName || "").trim();
   const rawCode = String(fragment?.code || "").trim();
 
-  const cleanName = rawName
-    .replace(/\s+fragment$/i, "")
-    .trim();
+  const cleanName = rawName.replace(/\s+fragment$/i, "").trim();
+
+  const baseNames = [rawName, cleanName, rawCode];
+
+  if (category !== "weapon") {
+    return baseNames.map(normalizeSearch).filter(Boolean);
+  }
 
   const cleanCode = rawCode
     .replace(/^weapon_fragment_/i, "")
@@ -115,7 +120,6 @@ function getFragmentSearchNames(fragment) {
     rawCode,
     cleanCode,
     fragment?.weaponCode,
-    fragment?.cardCode,
     fragment?.sourceCode,
   ]
     .map(normalizeSearch)
