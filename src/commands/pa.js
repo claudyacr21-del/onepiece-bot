@@ -1,5 +1,10 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const {
+  getPlayer,
+  updatePlayer,
+  readPlayers,
+  writePlayers,
+} = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
 const rawWeapons = require("../data/weapons");
@@ -332,6 +337,76 @@ function addTicketSummary(summary, reward) {
   if (reward.code === "raid_ticket") summary.raidTicket += 1;
   if (reward.code === "gold_raid_ticket") summary.goldRaidTicket += 1;
   if (reward.code === "empty_throne_raid_writ") summary.emptyThroneRaidWrit += 1;
+}
+
+function getCardMergeKey(card) {
+  const instanceId = String(card?.instanceId || "").trim();
+  if (instanceId) return `instance:${instanceId}`;
+
+  const code = String(card?.code || "").toLowerCase().trim();
+  const stage = String(card?.evolutionStage || card?.evolutionKey || "1").toLowerCase();
+
+  return `code:${code}:${stage}`;
+}
+
+function mergeCardCollections(existingCards, nextCards) {
+  const map = new Map();
+
+  for (const card of Array.isArray(existingCards) ? existingCards : []) {
+    if (!card) continue;
+    map.set(getCardMergeKey(card), card);
+  }
+
+  for (const card of Array.isArray(nextCards) ? nextCards : []) {
+    if (!card) continue;
+
+    const key = getCardMergeKey(card);
+    const existing = map.get(key);
+
+    map.set(key, {
+      ...(existing || {}),
+      ...card,
+    });
+  }
+
+  return [...map.values()];
+}
+
+function savePullAllResultFresh(userId, payload) {
+  const players = readPlayers();
+  const id = String(userId);
+  const existing = players[id] || {};
+
+  players[id] = {
+    ...existing,
+
+    cards: mergeCardCollections(existing.cards, payload.cards),
+
+    // These are the final PA results, so keep them exact.
+    weapons: payload.weapons,
+    devilFruits: payload.devilFruits,
+    fragments: payload.fragments,
+    tickets: payload.tickets,
+
+    berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
+
+    pulls: payload.pulls,
+    pity: payload.pity,
+
+    stats: {
+      ...(existing.stats || {}),
+      ...(payload.stats || {}),
+    },
+
+    quests: {
+      ...(existing.quests || {}),
+      ...(payload.quests || {}),
+    },
+  };
+
+  writePlayers(players);
+
+  return players[id];
 }
 
 function addDuplicateCardReward({
@@ -719,13 +794,13 @@ module.exports = {
 
     const updatedDailyState = incrementQuestCounter(player, "pullsUsed", availableTotal);
 
-    updatePlayer(message.author.id, {
+    savePullAllResultFresh(message.author.id, {
       cards: updatedCards,
       weapons: updatedWeapons,
       devilFruits: updatedDevilFruits,
       fragments: updatedFragments,
       tickets: updatedTickets,
-      berries: Number(player.berries || 0) + convertedBerries,
+      addBerries: convertedBerries,
       pulls: updatedPulls,
       pity: updatedPity,
       stats: {

@@ -190,22 +190,22 @@ function grantBoxRewards(box, amount, state, rewardMap) {
   if (box.code === "wooden_material_box") {
     addMaterial(ITEMS.hardwood, 3);
     addMaterial(ITEMS.sailCloth, 2);
-    addMaterial(ITEMS.enhancementStone, 8);
+    addMaterial(ITEMS.enhancementStone, 3);
   } else if (box.code === "iron_material_box") {
     addMaterial(ITEMS.hardwood, 4);
-    addMaterial(ITEMS.ironPlating, 2);
+    addMaterial(ITEMS.ironPlating, 1);
     addMaterial(ITEMS.sailCloth, 2);
-    addMaterial(ITEMS.enhancementStone, 15);
+    addMaterial(ITEMS.enhancementStone, 6);
   } else if (box.code === "royal_material_box") {
     addMaterial(ITEMS.hardwood, 5);
-    addMaterial(ITEMS.ironPlating, 3);
+    addMaterial(ITEMS.ironPlating, 2);
     addMaterial(ITEMS.sailCloth, 3);
     addMaterial(ITEMS.colaEnginePart, 1);
-    addMaterial(ITEMS.enhancementStone, 25);
+    addMaterial(ITEMS.enhancementStone, 10);
   } else if (box.code === "basic_resource_box") {
     addBerries(2000);
     addGems(10);
-    addMaterial(ITEMS.enhancementStone, 3);
+    addMaterial(ITEMS.enhancementStone, 1);
 
     if (Math.random() < 0.25) {
       addItem(ITEMS.rumBeer, 1);
@@ -218,8 +218,8 @@ function grantBoxRewards(box, amount, state, rewardMap) {
   } else if (box.code === "rare_resource_box") {
     addBerries(5000);
     addGems(20);
-    addMaterial(ITEMS.ironPlating, 2);
-    addMaterial(ITEMS.enhancementStone, 10);
+    addMaterial(ITEMS.ironPlating, 1);
+    addMaterial(ITEMS.enhancementStone, 4);
 
     if (Math.random() < 0.45) {
       addItem(ITEMS.rumBeer, Math.random() < 0.5 ? 2 : 1);
@@ -235,9 +235,9 @@ function grantBoxRewards(box, amount, state, rewardMap) {
   } else if (box.code === "elite_resource_box") {
     addBerries(9000);
     addGems(35);
-    addMaterial(ITEMS.ironPlating, 3);
+    addMaterial(ITEMS.ironPlating, 2);
     addMaterial(ITEMS.colaEnginePart, 1);
-    addMaterial(ITEMS.enhancementStone, 18);
+    addMaterial(ITEMS.enhancementStone, 8);
     addItem(ITEMS.rumBeer, 3 + Math.floor(Math.random() * 2));
 
     if (Math.random() < 0.45) {
@@ -250,9 +250,9 @@ function grantBoxRewards(box, amount, state, rewardMap) {
   } else if (box.code === "legend_resource_box") {
     addBerries(15000);
     addGems(60);
-    addMaterial(ITEMS.ironPlating, 5);
+    addMaterial(ITEMS.ironPlating, 3);
     addMaterial(ITEMS.colaEnginePart, 2);
-    addMaterial(ITEMS.enhancementStone, 30);
+    addMaterial(ITEMS.enhancementStone, 15);
     addItem(ITEMS.rumBeer, 5 + Math.floor(Math.random() * 3));
 
     if (Math.random() < 0.60) {
@@ -271,7 +271,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addBerries(15000);
     addGems(50);
     addMaterial(ITEMS.colaEnginePart, 2);
-    addMaterial(ITEMS.enhancementStone, 30);
+    addMaterial(ITEMS.enhancementStone, 15);
   } else {
     return null;
   }
