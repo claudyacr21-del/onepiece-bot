@@ -701,6 +701,7 @@ module.exports = {
       : [null, null, null];
 
     const teamCards = teamSlots
+      .slice(0, 3)
       .map((instanceId, index) => {
         if (!instanceId) return null;
 
@@ -714,8 +715,14 @@ module.exports = {
       })
       .filter(Boolean);
 
-    if (teamCards.length === 0) {
-      return message.reply("You do not have any battle cards in your team.");
+    if (teamCards.length < 3) {
+      return message.reply({
+        content:
+          "You need **3 battle cards** in your team before using `op fight`.\nUse `op team` / `op setteam` to fill all 3 battle card slots.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     updatePlayer(message.author.id, {
