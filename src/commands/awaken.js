@@ -292,7 +292,7 @@ module.exports = {
                 "**Missing / Error Detail**",
                 String(error?.message || "Unknown awaken requirement error."),
                 "",
-                `Use \`op ci ${owned.code}\` to check the full requirements.`,
+                `Use \`op ci ${owned.name}\` to check the full requirements.`,
               ].join("\n")
             ),
         ],
