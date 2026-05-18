@@ -173,13 +173,13 @@ function teamSummary(units) {
   return units
     .map((unit) =>
       [
-        `**${unit.slot}. ${unit.name}**`,
+        `${unit.name}`,
         `PWR ${Number(unit.power || 0).toLocaleString("en-US")}`,
         `ATK ${formatAtkRange(unit.atk)} • SPD ${unit.speed}`,
         renderHpBar(unit.hp, unit.maxHp),
       ].join("\n")
     )
-    .join("\n");
+    .join("\n\n");
 }
 
 function getResultColor(result, ended) {
