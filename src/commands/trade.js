@@ -245,6 +245,32 @@ function findStackEntry(list, codeOrQuery) {
   };
 }
 
+function getMatchingStackEntries(list, codeOrQuery) {
+  const arr = Array.isArray(list) ? list : [];
+  const normalizedCode = normalizeTradeAliasCode(codeOrQuery);
+
+  const exactMatches = arr
+    .map((entry, index) => ({ entry, index, score: 2000 }))
+    .filter(({ entry }) => {
+      return normalizeTradeAliasCode(entry?.code || "") === normalizedCode;
+    });
+
+  if (exactMatches.length) return exactMatches;
+
+  return findStackMatches(arr, codeOrQuery);
+}
+
+function getStackAmount(entry) {
+  return Math.max(0, num(entry?.amount, 1));
+}
+
+function getStackTotal(list, codeOrQuery) {
+  return getMatchingStackEntries(list, codeOrQuery).reduce(
+    (total, hit) => total + getStackAmount(hit.entry),
+    0
+  );
+}
+
 function findExactStackIndexByCode(list, code) {
   const target = normalizeTradeAliasCode(code);
 
@@ -383,27 +409,35 @@ function resolveEntry(player, entry) {
   }
 
   const stores = ["weapons", "devilFruits", "materials", "items", "boxes", "fragments"];
+  let bestInsufficient = null;
 
   for (const store of stores) {
-    const hit = findStackEntry(player[store], entry.raw || entry.code);
+    const hits = getMatchingStackEntries(player[store], entry.raw || entry.code);
 
-    if (!hit) continue;
+    if (!hits.length) continue;
 
-    const have = num(hit.entry?.amount, 1);
+    const totalHave = getStackTotal(player[store], entry.raw || entry.code);
+    const displayEntry = hits[0].entry;
+    const displayName = getDisplayName(displayEntry, entry.code);
 
-    if (have < entry.amount) {
-      throw new Error(
-        `${player.username} lacks ${getDisplayName(hit.entry, entry.code)} x${entry.amount}.`
-      );
+    if (totalHave < entry.amount) {
+      if (!bestInsufficient) {
+        bestInsufficient = {
+          displayName,
+          have: totalHave,
+        };
+      }
+
+      continue;
     }
 
     return {
       kind: "stack",
       store,
       amount: entry.amount,
-      code: hit.entry?.code || entry.code,
-      displayName: getDisplayName(hit.entry, entry.code),
-      sourceEntry: hit.entry,
+      code: displayEntry?.code || entry.code,
+      displayName,
+      sourceEntry: displayEntry,
       storeLabel: STORE_LABELS[store] || store,
     };
   }
@@ -423,6 +457,12 @@ function resolveEntry(player, entry) {
     };
   }
 
+  if (bestInsufficient) {
+    throw new Error(
+      `${player.username} lacks ${bestInsufficient.displayName} x${entry.amount}.`
+    );
+  }
+
   throw new Error(
     `${player.username} does not own tradable ${entry.raw || entry.code}_${entry.amount}.`
   );
@@ -434,29 +474,42 @@ function resolveOffer(player, offer) {
 
 function removeStack(list, codeOrQuery, amount) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const normalizedCode = normalizeTradeAliasCode(codeOrQuery);
+  let remaining = Number(amount || 0);
 
-  const exactHit = findExactStackEntryByCode(arr, normalizedCode);
-  const hit = exactHit || findStackEntry(arr, normalizedCode);
+  const hits = getMatchingStackEntries(arr, codeOrQuery).sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.index - b.index;
+  });
 
-  if (!hit) {
-    throw new Error(`Missing stack item ${codeOrQuery}.`);
+  const totalHave = hits.reduce((total, hit) => {
+    return total + getStackAmount(hit.entry);
+  }, 0);
+
+  if (totalHave < remaining) {
+    throw new Error(`Not enough ${getDisplayName(hits[0]?.entry, codeOrQuery)}.`);
   }
 
-  const have = num(hit.entry?.amount, 1);
-  const left = have - amount;
+  for (const hit of hits) {
+    if (remaining <= 0) break;
 
-  if (left < 0) {
-    throw new Error(`Not enough ${getDisplayName(hit.entry, codeOrQuery)}.`);
-  }
+    const currentIndex = arr.findIndex((entry) => entry === hit.entry);
 
-  if (left === 0) {
-    arr.splice(hit.index, 1);
-  } else {
-    arr[hit.index] = {
-      ...arr[hit.index],
-      amount: left,
-    };
+    if (currentIndex === -1) continue;
+
+    const currentAmount = getStackAmount(arr[currentIndex]);
+    const take = Math.min(currentAmount, remaining);
+    const left = currentAmount - take;
+
+    remaining -= take;
+
+    if (left <= 0) {
+      arr.splice(currentIndex, 1);
+    } else {
+      arr[currentIndex] = {
+        ...arr[currentIndex],
+        amount: left,
+      };
+    }
   }
 
   return arr;
