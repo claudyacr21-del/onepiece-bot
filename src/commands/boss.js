@@ -33,9 +33,9 @@ const BOSS_WIN_EXP_PER_CARD = 180;
 const BOSS_LOSE_EXP_PER_CARD = 95;
 const BOSS_MAX_LOG_LINES = 2;
 
-const BOSS_GLOBAL_ATK_MULT = 1.2;
-const BOSS_GLOBAL_HP_MULT = 1.35;
-const BOSS_GLOBAL_SPD_MULT = 1.04;
+const BOSS_GLOBAL_ATK_MULT = 1.3;
+const BOSS_GLOBAL_HP_MULT = 1.5;
+const BOSS_GLOBAL_SPD_MULT = 1.1;
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];

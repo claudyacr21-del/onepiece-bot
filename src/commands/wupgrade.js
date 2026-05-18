@@ -31,11 +31,11 @@ function getStoneCost(nextLevel) {
 
 function getWeaponFragmentCost(nextLevel) {
   const table = {
-    1: 1,
-    2: 2,
-    3: 3,
-    4: 4,
-    5: 5,
+    1: 5,
+    2: 10,
+    3: 15,
+    4: 20,
+    5: 25,
   };
 
   return table[nextLevel] || null;

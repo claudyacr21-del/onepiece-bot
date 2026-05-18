@@ -97,7 +97,6 @@ function parseAmount(value) {
 
 module.exports = {
   name: "fbuy",
-  aliases: ["fruitbuy", "essencebuy"],
 
   async execute(message, args = []) {
     const itemQuery = args[0];

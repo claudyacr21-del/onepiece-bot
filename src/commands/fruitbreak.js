@@ -125,7 +125,7 @@ function parseArgs(args) {
     return {
       ok: false,
       message:
-        "Usage: `op fruitbreak <fruit name> <amount/all>`\nExample: `op fruitbreak sube all`",
+        "Usage: `op fbreak <fruit name> <amount/all>`\nExample: `op fbreak sube all`",
     };
   }
 
@@ -136,7 +136,7 @@ function parseArgs(args) {
     return {
       ok: false,
       message:
-        "Usage: `op fruitbreak <fruit name> <amount/all>`\nExample: `op fruitbreak sube all`",
+        "Usage: `op fbreak <fruit name> <amount/all>`\nExample: `op fbreak sube all`",
     };
   }
 
@@ -168,7 +168,7 @@ function parseArgs(args) {
 
 module.exports = {
   name: "fruitbreak",
-  aliases: ["fbreak", "breakfruit"],
+  aliases: ["fbreak"],
 
   async execute(message, args = []) {
     const parsed = parseArgs(args);
