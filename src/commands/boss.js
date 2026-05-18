@@ -1126,7 +1126,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
           }).catch(() => null);
         }
 
-                if (confirmInteraction.customId === "boss_join_cancel") {
+        if (confirmInteraction.customId === "boss_join_cancel") {
           return confirmInteraction.update({
             content: "Join cancelled.",
             embeds: [],
@@ -1188,6 +1188,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
       }
 
       if (interaction.customId === "boss_lobby_cancel") {
+        await safeDeferUpdate(interaction);
+
         cancelled = true;
 
         const cancelParticipants = await getJoinedParticipantsPreview();
@@ -1219,17 +1221,19 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
           });
         }
 
+        await safeDeferUpdate(interaction);
+
         const participants = await getJoinedParticipantsPreview();
         const duplicates = getDuplicatePartyCards(participants);
 
         if (duplicates.length) {
-          return interaction.reply({
-            content: [
+          return safeEphemeralReply(
+            interaction,
+            [
               "Cannot start because duplicate cards exist in the party:",
               ...duplicates.map((dup) => `- ${dup.name} used by ${dup.users.join(" and ")}`),
-            ].join("\n"),
-            ephemeral: true,
-          });
+            ].join("\n")
+          );
         }
 
         approved = true;
@@ -1938,6 +1942,7 @@ module.exports = {
       const logs = [];
       let ended = false;
       let lastUsedUnitKey = "";
+      const allUnits = participants.flatMap((participant) => participant.units);
 
       updatePlayer(message.author.id, {
         cooldowns: {
@@ -1948,9 +1953,21 @@ module.exports = {
 
       const reply = await message.reply({
         embeds: [
-          buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, ended, lastUsedUnitKey ? [lastUsedUnitKey] : []),
+          buildRaidBossEmbed(
+            currentIsland,
+            phaseBoss,
+            participants,
+            boss,
+            logs,
+            ended,
+            lastUsedUnitKey ? [lastUsedUnitKey] : []
+          ),
         ],
-        components: buildRaidBossButtons(participants, ended, lastUsedUnitKey ? [lastUsedUnitKey] : []),
+        components: buildRaidBossButtons(
+          participants,
+          ended,
+          lastUsedUnitKey ? [lastUsedUnitKey] : []
+        ),
       });
 
       const collector = reply.createMessageComponentCollector({
@@ -1959,29 +1976,37 @@ module.exports = {
 
       collector.on("collect", async (interaction) => {
         if (interaction.user.id !== message.author.id) {
-          return safeEphemeralReply(
-            interaction,
-            "Only the command user can control this boss battle."
-          );
+          return interaction.reply({
+            content: "Only the command user can control this boss battle.",
+            ephemeral: true,
+          });
         }
 
         if (ended) {
-          return safeEphemeralReply(
-            interaction,
-            "This boss battle has already ended."
-          );
+          return interaction.reply({
+            content: "This boss battle has already ended.",
+            ephemeral: true,
+          });
         }
 
         await safeDeferUpdate(interaction);
 
-        if (interaction.customId === "boss_run") {
+        if (interaction.customId === "boss_raid_run") {
           logs.length = 0;
           pushBossLog(logs, "⚠️ Run away confirmation requested.");
           pushBossLog(logs, "Confirm run away or cancel to continue.");
 
           await safeEditInteractionMessage(interaction, {
             embeds: [
-              buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, lastUsedUnitKey ? [lastUsedUnitKey] : []),
+              buildRaidBossEmbed(
+                currentIsland,
+                phaseBoss,
+                participants,
+                boss,
+                logs,
+                false,
+                lastUsedUnitKey ? [lastUsedUnitKey] : []
+              ),
             ],
             components: buildRaidBossRunConfirmButtons(),
           });
@@ -1995,9 +2020,21 @@ module.exports = {
 
           await safeEditInteractionMessage(interaction, {
             embeds: [
-              buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, lastUsedUnitKey ? [lastUsedUnitKey] : []),
+              buildRaidBossEmbed(
+                currentIsland,
+                phaseBoss,
+                participants,
+                boss,
+                logs,
+                false,
+                lastUsedUnitKey ? [lastUsedUnitKey] : []
+              ),
             ],
-            components: buildRaidBossButtons(participants, false, lastUsedUnitKey ? [lastUsedUnitKey] : []),
+            components: buildRaidBossButtons(
+              participants,
+              false,
+              lastUsedUnitKey ? [lastUsedUnitKey] : []
+            ),
           });
           return;
         }
@@ -2032,26 +2069,25 @@ module.exports = {
           return;
         }
 
+        if (!interaction.customId.startsWith("boss_raid_attack_")) {
+          return safeEphemeralReply(interaction, "Unknown boss raid action.");
+        }
+
         const index = Number(interaction.customId.replace("boss_raid_attack_", ""));
         const attacker = allUnits.find((unit) => unit.globalSlot === index);
 
         if (!attacker || Number(attacker.battleHp ?? attacker.hp) <= 0) {
-          return interaction.reply({
-            content: "That raid unit cannot attack right now.",
-            ephemeral: true,
-          });
+          return safeEphemeralReply(interaction, "That raid unit cannot attack right now.");
         }
 
         const unitKey = getUnitActionKey(attacker);
 
         if (shouldDisableLastUsed(allUnits, lastUsedUnitKey, attacker)) {
-          return interaction.reply({
-            content: "This unit acted last turn. Choose another available unit first.",
-            ephemeral: true,
-          });
+          return safeEphemeralReply(
+            interaction,
+            "This unit acted last turn. Choose another available unit first."
+          );
         }
-
-        await safeDeferUpdate(interaction);
 
         const owner = participants.find((p) => p.userId === attacker.ownerId);
         const combatLogs = [];
@@ -2243,9 +2279,21 @@ module.exports = {
 
         await safeEditInteractionMessage(interaction, {
           embeds: [
-            buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, lastUsedUnitKey ? [lastUsedUnitKey] : []),
+            buildRaidBossEmbed(
+              currentIsland,
+              phaseBoss,
+              participants,
+              boss,
+              logs,
+              false,
+              lastUsedUnitKey ? [lastUsedUnitKey] : []
+            ),
           ],
-          components: buildRaidBossButtons(participants, false, lastUsedUnitKey ? [lastUsedUnitKey] : []),
+          components: buildRaidBossButtons(
+            participants,
+            false,
+            lastUsedUnitKey ? [lastUsedUnitKey] : []
+          ),
         });
       });
 
@@ -2329,12 +2377,14 @@ module.exports = {
         });
       }
 
+      await safeDeferUpdate(interaction);
+
       if (interaction.customId === "boss_run") {
         logs.length = 0;
         pushBossLog(logs, "⚠️ Run away confirmation requested.");
         pushBossLog(logs, "Confirm run away or cancel to continue.");
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildBossEmbed(
               player.username || message.author.username,
@@ -2356,7 +2406,7 @@ module.exports = {
         pushBossLog(logs, "✅ Run away cancelled.");
         pushBossLog(logs, "Choose a card to continue.");
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildBossEmbed(
               player.username || message.author.username,
@@ -2385,7 +2435,7 @@ module.exports = {
           quests: updatedQuests,
         });
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildBossResultEmbed({
               title: "🏃 Boss Battle Escaped",
@@ -2403,14 +2453,16 @@ module.exports = {
         return;
       }
 
+      if (!interaction.customId.startsWith("boss_attack_")) {
+        return safeEphemeralReply(interaction, "Unknown boss action.");
+      }
+
       const index = Number(interaction.customId.replace("boss_attack_", ""));
       const attacker = playerTeam[index];
 
       if (!attacker || Number(attacker.battleHp ?? attacker.hp) <= 0) {
         return safeEphemeralReply(interaction, "That card cannot attack right now.");
       }
-
-      await safeDeferUpdate(interaction);
 
       const combatLogs = [];
       const turns = resolveTurnOrder(attacker, boss);
@@ -2527,7 +2579,7 @@ module.exports = {
 
         pushBossLog(logs, `🏆 ${boss.name} was defeated!`);
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildBossResultEmbed({
               title: "🏆 Boss Victory",
@@ -2561,7 +2613,7 @@ module.exports = {
 
         pushBossLog(logs, `💀 Your team was wiped out by ${boss.name}.`);
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildBossResultEmbed({
               title: "💀 Boss Defeat",
@@ -2578,7 +2630,7 @@ module.exports = {
         return;
       }
 
-      await interaction.update({
+      await safeEditInteractionMessage(interaction, {
         embeds: [
           buildBossEmbed(
             player.username || message.author.username,
