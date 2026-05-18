@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
@@ -175,20 +175,25 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
     const boosts = getPassiveBoostSummary(player);
     const dailyTier = Number(boosts.daily || 0);
-    const cooldowns = player.cooldowns || {};
     const now = Date.now();
-
     const nextDailyAt = getGlobalDailyReadyAt(player);
 
     if (nextDailyAt > now) {
-      if (Number(cooldowns.daily || 0) !== nextDailyAt) {
-        updatePlayer(message.author.id, {
-          cooldowns: {
-            ...cooldowns,
-            daily: nextDailyAt,
-          },
-        });
-      }
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const freshNextDailyAt = getGlobalDailyReadyAt(fresh);
+
+          return {
+            ...fresh,
+            cooldowns: {
+              ...(fresh.cooldowns || {}),
+              daily: freshNextDailyAt,
+            },
+          };
+        },
+        message.author.username
+      );
 
       return message.reply(
         `You already claimed your daily reward.\nNext daily: ${formatRemaining(
@@ -198,49 +203,70 @@ module.exports = {
     }
 
     const rewardBundle = getDailyTierRewards(dailyTier);
-
-    let updatedBoxes = [...(player.boxes || [])];
-    let updatedTickets = [...(player.tickets || [])];
-    let updatedMaterials = [...(player.materials || [])];
-    let updatedItems = [...(player.items || [])];
-
-    for (const reward of rewardBundle.rewards) {
-      const result = applyRewardToInventory(
-        {
-          boxes: updatedBoxes,
-          tickets: updatedTickets,
-          materials: updatedMaterials,
-          items: updatedItems,
-        },
-        reward
-      );
-
-      if (result.boxes) updatedBoxes = result.boxes;
-      if (result.tickets) updatedTickets = result.tickets;
-      if (result.materials) updatedMaterials = result.materials;
-      if (result.items) updatedItems = result.items;
-    }
-
     const nextReadyAt = now + DAILY_COOLDOWN_MS;
-    const updatedDailyState = incrementQuestCounter(player, "dailyClaims", 1);
 
-    updatePlayer(message.author.id, {
-      berries: Number(player.berries || 0) + rewardBundle.berries,
-      gems: Number(player.gems || 0) + rewardBundle.gems,
-      boxes: updatedBoxes,
-      tickets: updatedTickets,
-      materials: updatedMaterials,
-      items: updatedItems,
-      dailyLastClaim: now,
-      quests: {
-        ...(player.quests || {}),
-        dailyState: updatedDailyState,
-      },
-      cooldowns: {
-        ...cooldowns,
-        daily: nextReadyAt,
-      },
-    });
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const freshNextDailyAt = getGlobalDailyReadyAt(fresh);
+
+          if (freshNextDailyAt > now) {
+            throw new Error(
+              `You already claimed your daily reward.\nNext daily: ${formatRemaining(
+                freshNextDailyAt - now
+              )}`
+            );
+          }
+
+          let updatedBoxes = [...(fresh.boxes || [])];
+          let updatedTickets = [...(fresh.tickets || [])];
+          let updatedMaterials = [...(fresh.materials || [])];
+          let updatedItems = [...(fresh.items || [])];
+
+          for (const reward of rewardBundle.rewards) {
+            const result = applyRewardToInventory(
+              {
+                boxes: updatedBoxes,
+                tickets: updatedTickets,
+                materials: updatedMaterials,
+                items: updatedItems,
+              },
+              reward
+            );
+
+            if (result.boxes) updatedBoxes = result.boxes;
+            if (result.tickets) updatedTickets = result.tickets;
+            if (result.materials) updatedMaterials = result.materials;
+            if (result.items) updatedItems = result.items;
+          }
+
+          const updatedDailyState = incrementQuestCounter(fresh, "dailyClaims", 1);
+
+          return {
+            ...fresh,
+            berries: Number(fresh.berries || 0) + rewardBundle.berries,
+            gems: Number(fresh.gems || 0) + rewardBundle.gems,
+            boxes: updatedBoxes,
+            tickets: updatedTickets,
+            materials: updatedMaterials,
+            items: updatedItems,
+            dailyLastClaim: now,
+            quests: {
+              ...(fresh.quests || {}),
+              dailyState: updatedDailyState,
+            },
+            cooldowns: {
+              ...(fresh.cooldowns || {}),
+              daily: nextReadyAt,
+            },
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
+      return message.reply(error.message || "Failed to claim daily reward.");
+    }
 
     const extraLines = rewardBundle.rewards.length
       ? rewardBundle.rewards.map((reward) => `↪ ${reward.name} x${reward.amount}`)
@@ -248,7 +274,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
-      .setTitle("🎁 Daily Reward Claimed")
+      .setTitle(" Daily Reward Claimed")
       .setDescription(
         [
           `↪ Daily Tier: ${dailyTier}`,

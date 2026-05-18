@@ -1,8 +1,9 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 
 module.exports = {
   name: "swap",
+
   async execute(message, args) {
     if (args.length < 2) {
       return message.reply("Usage: `op swap <from> <to>`");
@@ -19,29 +20,51 @@ module.exports = {
       return message.reply("Choose two different positions.");
     }
 
-    const player = getPlayer(message.author.id, message.author.username);
-    const team = player.team || { slots: [null, null, null] };
-    const newSlots = [...team.slots];
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const team = fresh.team || {
+            slots: [null, null, null],
+          };
 
-    const fromIndex = from - 1;
-    const toIndex = to - 1;
+          const newSlots = Array.isArray(team.slots)
+            ? team.slots.slice(0, 3)
+            : [null, null, null];
 
-    const temp = newSlots[fromIndex];
-    newSlots[fromIndex] = newSlots[toIndex];
-    newSlots[toIndex] = temp;
+          while (newSlots.length < 3) newSlots.push(null);
 
-    updatePlayer(message.author.id, {
-      team: {
-        slots: newSlots
-      }
-    });
+          const fromIndex = from - 1;
+          const toIndex = to - 1;
+
+          const temp = newSlots[fromIndex];
+          newSlots[fromIndex] = newSlots[toIndex];
+          newSlots[toIndex] = temp;
+
+          return {
+            ...fresh,
+            team: {
+              ...(fresh.team || {}),
+              slots: newSlots,
+            },
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
+      return message.reply(error.message || "Failed to swap team positions.");
+    }
 
     const embed = new EmbedBuilder()
       .setColor(0xf1c40f)
-      .setTitle("🔄 Team Positions Swapped")
+      .setTitle(" Team Positions Swapped")
       .setDescription(`Swapped position **${from}** with position **${to}**.`)
-      .setFooter({ text: "One Piece Bot • Team Setup" });
+      .setFooter({
+        text: "One Piece Bot • Team Setup",
+      });
 
-    return message.reply({ embeds: [embed] });
-  }
+    return message.reply({
+      embeds: [embed],
+    });
+  },
 };

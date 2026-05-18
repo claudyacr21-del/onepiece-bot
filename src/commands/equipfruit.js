@@ -3,7 +3,7 @@ const {
   ActionRowBuilder,
   StringSelectMenuBuilder,
 } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const devilFruits = require("../data/devilFruits");
 const { findOwnedCard, hydrateCard } = require("../utils/evolution");
 const { getEffectiveBoostValue, findBoostFruitByCode } = require("../utils/passiveBoosts");
@@ -270,88 +270,85 @@ function buildChoiceMenu(type, roomId, options) {
 }
 
 async function equipFruitToCard(message, player, card, fruit) {
-  const cards = [...(player.cards || [])];
-  const ownedFruits = [...(player.devilFruits || [])];
+  let syncedCard = null;
+  let resolvedFruitData = null;
+  let effectiveValue = null;
+  let isBoost = false;
 
-  const cardIndex = cards.findIndex((x) => x.instanceId === card.instanceId);
-  if (cardIndex === -1) {
-    return message.reply("You do not own that card.");
-  }
+  try {
+    updatePlayerAtomic(
+      message.author.id,
+      (fresh) => {
+        const cards = [...(fresh.cards || [])];
+        const ownedFruits = [...(fresh.devilFruits || [])];
 
-  if (cards[cardIndex].equippedDevilFruit) {
-    return message.reply("This card already has a devil fruit equipped, and it cannot be removed.");
-  }
+        const cardIndex = cards.findIndex(
+          (x) => String(x.instanceId) === String(card.instanceId)
+        );
 
-  const fruitIndex = ownedFruits.findIndex((x) => x.code === fruit.code);
-  if (fruitIndex === -1) {
-    return message.reply("You do not own that devil fruit.");
-  }
+        if (cardIndex === -1) {
+          throw new Error("You do not own that card.");
+        }
 
-  const ownedFruitData =
-    devilFruits.find(
-      (entry) =>
-        String(entry.code || "").toLowerCase() ===
-        String(fruit.code || "").toLowerCase()
-    ) || fruit;
+        if (cards[cardIndex].equippedDevilFruit) {
+          throw new Error("This card already has a devil fruit equipped, and it cannot be removed.");
+        }
 
-  const fruitForValidation = {
-    ...ownedFruitData,
-    ...ownedFruits[fruitIndex],
-    owners:
-      Array.isArray(ownedFruitData?.owners) && ownedFruitData.owners.length
-        ? ownedFruitData.owners
-        : Array.isArray(ownedFruits[fruitIndex]?.owners)
-        ? ownedFruits[fruitIndex].owners
-        : [],
-  };
+        const fruitIndex = ownedFruits.findIndex(
+          (x) => String(x.code) === String(fruit.code)
+        );
 
-  if (
-    Array.isArray(fruitForValidation.owners) &&
-    fruitForValidation.owners.length &&
-    !canCardUseDevilFruit(cards[cardIndex], fruitForValidation)
-  ) {
-    return message.reply({
-      content: "That devil fruit cannot be used by this card.",
-      allowedMentions: {
-        repliedUser: false,
+        if (fruitIndex === -1) {
+          throw new Error("You do not own that devil fruit.");
+        }
+
+        if (
+          !Array.isArray(ownedFruits[fruitIndex].owners) ||
+          !ownedFruits[fruitIndex].owners.includes(cards[cardIndex].code)
+        ) {
+          throw new Error("That devil fruit cannot be used by this card.");
+        }
+
+        cards[cardIndex] = hydrateCard({
+          ...cards[cardIndex],
+          equippedDevilFruit: fruit.code,
+          equippedDevilFruitName: fruit.name,
+        });
+
+        syncedCard = hydrateCard(cards[cardIndex]);
+        cards[cardIndex] = syncedCard;
+
+        const currentAmount = Number(ownedFruits[fruitIndex].amount || 1);
+
+        if (currentAmount <= 1) {
+          ownedFruits.splice(fruitIndex, 1);
+        } else {
+          ownedFruits[fruitIndex] = {
+            ...ownedFruits[fruitIndex],
+            amount: currentAmount - 1,
+          };
+        }
+
+        return {
+          ...fresh,
+          cards,
+          devilFruits: ownedFruits,
+        };
       },
-    });
+      message.author.username
+    );
+  } catch (error) {
+    return message.reply(error.message || "Failed to equip Devil Fruit.");
   }
-
-  cards[cardIndex] = hydrateCard({
-    ...cards[cardIndex],
-    equippedDevilFruit: fruit.code,
-    equippedDevilFruitName: fruit.name,
-  });
-
-  const syncedCard = hydrateCard(cards[cardIndex]);
-  cards[cardIndex] = syncedCard;
-
-  const currentAmount = Number(ownedFruits[fruitIndex].amount || 1);
-
-  if (currentAmount <= 1) {
-    ownedFruits.splice(fruitIndex, 1);
-  } else {
-    ownedFruits[fruitIndex] = {
-      ...ownedFruits[fruitIndex],
-      amount: currentAmount - 1,
-    };
-  }
-
-  updatePlayer(message.author.id, {
-    cards,
-    devilFruits: ownedFruits,
-  });
 
   const boostFruitData = findBoostFruitByCode(fruit.code);
-
-  const resolvedFruitData =
+  resolvedFruitData =
     syncedCard.equippedDevilFruitData ||
     devilFruits.find((entry) => entry.code === fruit.code) ||
     fruit;
 
-  const isBoost = syncedCard.cardRole === "boost";
-  const effectiveValue = isBoost ? getEffectiveBoostValue(syncedCard) : null;
+  isBoost = syncedCard.cardRole === "boost";
+  effectiveValue = isBoost ? getEffectiveBoostValue(syncedCard) : null;
 
   const suffix =
     isBoost && ["atk", "hp", "spd", "exp", "dmg"].includes(syncedCard.boostType)
@@ -366,28 +363,31 @@ async function equipFruitToCard(message, player, card, fruit) {
 
   const embed = new EmbedBuilder()
     .setColor(isBoost ? 0x9b59b6 : 0x2ecc71)
-    .setTitle("🍈 Devil Fruit Equipped")
+    .setTitle(" Devil Fruit Equipped")
     .setDescription(
       [
         `**Card:** ${syncedCard.displayName || syncedCard.name}`,
         `**Fruit:** ${resolvedFruitData?.name || fruit.name}`,
-        !isBoost
-          ? `**Fruit Bonus:** +${Number(percent.atk || 0)}% ATK / +${Number(percent.hp || 0)}% HP / +${Number(percent.speed || 0)}% SPD`
-          : null,
+        !isBoost ? `**ATK:** ${Math.floor(Number(syncedCard.atk || 0) * 0.85)}-${Math.floor(Number(syncedCard.atk || 0) * 1.15)}` : null,
+        !isBoost ? `**HP:** ${Number(syncedCard.hp || 0)}` : null,
+        !isBoost ? `**SPD:** ${Number(syncedCard.speed || 0)}` : null,
+        !isBoost ? `**Fruit Bonus:** +${Number(percent.atk || 0)}% ATK / +${Number(percent.hp || 0)}% HP / +${Number(percent.speed || 0)}% SPD` : null,
         isBoost ? `**Boost Type:** \`${syncedCard.boostType}\`` : null,
         isBoost ? `**Final Boost Value:** \`${effectiveValue}${suffix}\`` : null,
-        isBoost && boostFruitData?.boostBonus
-          ? `**Fruit Bonus Applied:** \`${Number(boostFruitData.boostBonus[syncedCard.boostType] || 0)}${suffix}\``
-          : null,
+        isBoost && boostFruitData?.boostBonus ? `**Fruit Bonus Applied:** \`${Number(boostFruitData.boostBonus[syncedCard.boostType] || 0)}${suffix}\`` : null,
         "",
         "This equip is permanent and cannot be removed.",
       ]
         .filter(Boolean)
         .join("\n")
     )
-    .setFooter({ text: "One Piece Bot • Devil Fruit Equip" });
+    .setFooter({
+      text: "One Piece Bot • Devil Fruit Equip",
+    });
 
-  return message.reply({ embeds: [embed] });
+  return message.reply({
+    embeds: [embed],
+  });
 }
 
 module.exports = {

@@ -40,7 +40,7 @@ function formatRemaining(ms) {
 
 module.exports = {
   name: "resetpull",
-  aliases: ["rpull", "pr"],
+  aliases: ["reset", "rpull", "pr", "pullreset"],
 
   async execute(message) {
     const previewPlayer = getPlayer(message.author.id, message.author.username);
@@ -61,6 +61,7 @@ module.exports = {
 
           const updatedTickets = consumeTicket(tickets, ticketIndex);
           resetResult = applyManualPullReset(fresh.pulls || {});
+
           const updatedDailyState = incrementQuestCounter(
             {
               ...fresh,
@@ -100,7 +101,7 @@ module.exports = {
           "↪ Bonus pull slots reset",
           "↪ Baccarat slots reset",
           "↪ Global 8-hour reset timer is unchanged",
-          `↪ Next Global Reset: ${formatRemaining(resetResult.nextResetAt - now)}`,
+          `↪ Next Global Reset: ${formatRemaining(Number(resetResult?.nextResetAt || now) - now)}`,
           "↪ 1 Pull Reset Ticket consumed",
         ].join("\n")
       )
