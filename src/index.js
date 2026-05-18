@@ -162,13 +162,13 @@ function createDefaultPlayerForMilestone(message) {
   };
 }
 
-function trackMessageMilestone(message) {
+async function trackMessageMilestone(message) {
   if (!isEligibleMilestoneChat(message, PREFIX)) return;
 
   const players = readPlayers();
   const userId = String(message.author.id);
-  const player = players[userId] || createDefaultPlayerForMilestone(message);
 
+  const player = players[userId] || createDefaultPlayerForMilestone(message);
   const milestoneState = incrementMessageMilestone(player);
 
   const result = applyMessageMilestoneRewards(
@@ -181,6 +181,26 @@ function trackMessageMilestone(message) {
 
   players[userId] = result.player;
   writePlayers(players);
+
+  if (Array.isArray(result.rewards) && result.rewards.length) {
+    const rewardText = result.rewards.map((line) => `↪ ${line}`).join("\n");
+
+    await message.channel
+      .send({
+        content: [
+          `🎉 <@${message.author.id}> reached a **Main Chat Milestone**!`,
+          rewardText,
+        ].join("\n"),
+        allowedMentions: {
+          users: [message.author.id],
+          roles: [],
+          repliedUser: false,
+        },
+      })
+      .catch((error) => {
+        console.error("[MESSAGE MILESTONE NOTIFY ERROR]", error);
+      });
+  }
 }
 
 client.once("clientReady", async () => {
@@ -238,7 +258,7 @@ client.on("messageCreate", async (message) => {
     if (typeof message.content !== "string") return;
 
     try {
-      trackMessageMilestone(message);
+      await trackMessageMilestone(message);
     } catch (error) {
       console.error("[MESSAGE MILESTONE ERROR]", error);
     }

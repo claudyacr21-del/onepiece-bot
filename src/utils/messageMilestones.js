@@ -10,7 +10,7 @@ const MESSAGE_MILESTONE_REWARDS = [
   },
   {
     key: "resetToken",
-    emoji: "🔁",
+    emoji: "🎟️",
     label: "Pull Reset Ticket",
     target: 350,
     reward: {
@@ -26,25 +26,25 @@ const MESSAGE_MILESTONE_REWARDS = [
     },
   },
   {
-    key: "weaponScroll",
-    emoji: "📜",
-    label: "Weapon Scroll",
+    key: "rareResourceBox",
+    emoji: "🎁",
+    label: "Rare Resource Box",
     target: 750,
     reward: {
-      items: [
+      boxes: [
         {
-          code: "weapon_scroll",
-          name: "Weapon Scroll",
+          code: "rare_resource_box",
+          name: "Rare Resource Box",
           amount: 1,
-          rarity: "A",
-          type: "Item",
+          rarity: "B",
+          type: "Box",
         },
       ],
     },
   },
   {
     key: "raidTicket",
-    emoji: "🎟️",
+    emoji: "🎫",
     label: "Raid Ticket",
     target: 3500,
     reward: {
@@ -61,7 +61,7 @@ const MESSAGE_MILESTONE_REWARDS = [
   },
   {
     key: "goldRaidTicket",
-    emoji: "🏷️",
+    emoji: "🎫",
     label: "Gold Raid Ticket",
     target: 10000,
     reward: {
@@ -79,10 +79,7 @@ const MESSAGE_MILESTONE_REWARDS = [
 ];
 
 function getMainChatChannelIds() {
-  return [
-    process.env.MAIN_CHAT_CHANNEL_ID,
-    process.env.MAIN_CHAT_CHANNEL_IDS,
-  ]
+  return [process.env.MAIN_CHAT_CHANNEL_ID, process.env.MAIN_CHAT_CHANNEL_IDS]
     .filter(Boolean)
     .join(",")
     .split(",")
@@ -104,7 +101,8 @@ function isMainChatMessage(message) {
 
 function countSentenceLikeParts(content) {
   const text = String(content || "")
-    .replace(/<a?:\w+:\d+>/g, "")
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`[^`]*`/g, "")
     .replace(/<@!?\d+>/g, "")
     .replace(/<#\d+>/g, "")
     .replace(/https?:\/\/\S+/gi, "")
@@ -112,10 +110,12 @@ function countSentenceLikeParts(content) {
 
   if (!text) return 0;
 
-  return text
+  const words = text
     .split(/\s+/)
     .map((word) => word.trim())
-    .filter(Boolean).length;
+    .filter(Boolean);
+
+  return words.length;
 }
 
 function isEligibleMilestoneChat(message, prefix = "op") {
@@ -136,7 +136,7 @@ function isEligibleMilestoneChat(message, prefix = "op") {
 }
 
 function getMessageMilestoneCount(player) {
-  return Number(player?.messageMilestones?.messages || 0);
+  return Number(player?.messageMilestones?.totalMessages || 0);
 }
 
 function getTotalMessageMilestoneCount(player) {
@@ -145,12 +145,14 @@ function getTotalMessageMilestoneCount(player) {
 
 function getMilestoneProgress(player, reward) {
   const progressMap = player?.messageMilestones?.progress || {};
-  return Math.max(0, Number(progressMap?.[reward.key] || 0));
+  const current = Number(progressMap?.[reward.key] || 0);
+
+  return Math.max(0, Math.min(current, Number(reward.target || 1)));
 }
 
 function getMilestoneClaimCount(player, key) {
   const claimMap = player?.messageMilestones?.claims || {};
-  return Math.max(0, Number(claimMap?.[key] || 0));
+  return Number(claimMap?.[key] || 0);
 }
 
 function incrementMessageMilestone(player) {
@@ -163,37 +165,30 @@ function incrementMessageMilestone(player) {
   const completed = [];
 
   for (const reward of MESSAGE_MILESTONE_REWARDS) {
+    const key = reward.key;
     const target = Math.max(1, Number(reward.target || 1));
-    const next = Number(oldProgress[reward.key] || 0) + 1;
+    const previous = Math.max(0, Number(oldProgress[key] || 0));
+    const next = previous + 1;
 
     if (next >= target) {
-      progress[reward.key] = 0;
-      claims[reward.key] = Number(oldClaims[reward.key] || 0) + 1;
-      completed.push(reward.key);
+      progress[key] = 0;
+      claims[key] = Number(oldClaims[key] || 0) + 1;
+      completed.push(key);
     } else {
-      progress[reward.key] = next;
-      claims[reward.key] = Number(oldClaims[reward.key] || 0);
+      progress[key] = next;
+      claims[key] = Number(oldClaims[key] || 0);
     }
   }
 
+  const totalMessages = Number(currentState.totalMessages || currentState.messages || 0) + 1;
+
   return {
     ...currentState,
-
-    // Backward compatible display counter.
-    // This follows the first reward only, so 75 -> 0.
-    messages: progress.gems || 0,
-
-    // Lifetime count never resets.
-    totalMessages: Number(currentState.totalMessages || 0) + 1,
-
-    // Each reward has its own looping progress.
-    // Example:
-    // gems: 75 -> 0
-    // resetToken: 75 -> 76 -> 77 until 350
+    messages: totalMessages,
+    totalMessages,
     progress,
     claims,
     completed,
-
     updatedAt: Date.now(),
   };
 }
@@ -211,7 +206,6 @@ function addStack(list, item) {
       ...arr[index],
       amount: Number(arr[index].amount || 0) + Number(item.amount || 1),
     };
-
     return arr;
   }
 
@@ -228,13 +222,23 @@ function applyMessageMilestoneRewards(player, milestoneState) {
     ? milestoneState.completed
     : [];
 
+  if (!completed.length) {
+    return {
+      player: {
+        ...player,
+        messageMilestones: milestoneState,
+      },
+      rewards: [],
+    };
+  }
+
   let nextPlayer = {
     ...player,
     messageMilestones: {
       ...milestoneState,
       completed: [],
       lastCompleted: completed,
-      lastRewardAt: completed.length ? Date.now() : milestoneState?.lastRewardAt || null,
+      lastRewardAt: Date.now(),
     },
   };
 
@@ -247,18 +251,16 @@ function applyMessageMilestoneRewards(player, milestoneState) {
     const reward = milestone.reward || {};
 
     if (Number(reward.gems || 0) > 0) {
-      nextPlayer.gems = Number(nextPlayer.gems || 0) + Number(reward.gems || 0);
-      rewards.push(`${milestone.emoji} ${milestone.label}: +${reward.gems}`);
+      const amount = Number(reward.gems || 0);
+      nextPlayer.gems = Number(nextPlayer.gems || 0) + amount;
+      rewards.push(`${milestone.emoji} ${milestone.label}: +${amount}`);
     }
 
     if (Number(reward.berries || 0) > 0) {
-      nextPlayer.berries =
-        Number(nextPlayer.berries || 0) + Number(reward.berries || 0);
-
+      const amount = Number(reward.berries || 0);
+      nextPlayer.berries = Number(nextPlayer.berries || 0) + amount;
       rewards.push(
-        `${milestone.emoji} ${milestone.label}: +${Number(
-          reward.berries || 0
-        ).toLocaleString("en-US")} berries`
+        `${milestone.emoji} ${milestone.label}: +${amount.toLocaleString("en-US")} berries`
       );
     }
 
@@ -268,9 +270,7 @@ function applyMessageMilestoneRewards(player, milestoneState) {
       for (const ticket of reward.tickets) {
         tickets = addStack(tickets, ticket);
         rewards.push(
-          `${milestone.emoji} ${ticket.name || milestone.label} x${Number(
-            ticket.amount || 1
-          )}`
+          `${milestone.emoji} ${ticket.name || milestone.label} x${Number(ticket.amount || 1)}`
         );
       }
 
@@ -283,28 +283,11 @@ function applyMessageMilestoneRewards(player, milestoneState) {
       for (const box of reward.boxes) {
         boxes = addStack(boxes, box);
         rewards.push(
-          `${milestone.emoji} ${box.name || milestone.label} x${Number(
-            box.amount || 1
-          )}`
+          `${milestone.emoji} ${box.name || milestone.label} x${Number(box.amount || 1)}`
         );
       }
 
       nextPlayer.boxes = boxes;
-    }
-
-    if (Array.isArray(reward.items)) {
-      let items = Array.isArray(nextPlayer.items) ? [...nextPlayer.items] : [];
-
-      for (const item of reward.items) {
-        items = addStack(items, item);
-        rewards.push(
-          `${milestone.emoji} ${item.name || milestone.label} x${Number(
-            item.amount || 1
-          )}`
-        );
-      }
-
-      nextPlayer.items = items;
     }
   }
 
@@ -319,10 +302,9 @@ function formatMessageMilestoneLines(player) {
     const current = getMilestoneProgress(player, reward);
     const claims = getMilestoneClaimCount(player, reward.key);
 
-    return `${reward.emoji} **${reward.label}**\n${Math.min(
-      current,
-      reward.target
-    )}/${reward.target}${claims > 0 ? ` • Claimed ${claims}x` : ""}`;
+    return `${reward.emoji} **${reward.label}**\n${current}/${reward.target}${
+      claims > 0 ? ` • Claimed ${claims}x` : ""
+    }`;
   });
 }
 
