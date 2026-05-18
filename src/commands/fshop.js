@@ -54,14 +54,12 @@ function buildFruitShopEmbed(player) {
       `↪ ${item.description}`,
       `↪ Buy: \`op fbuy ${item.key}\``,
     ].join("\n")
-  ).join("\n\n");
+  ).join("\n");
 
   const lines = [
     `**Your Fruit Essence:** ${Number(essence || 0).toLocaleString("en-US")}`,
-    "",
     "**Available Items**",
     shopLines,
-    "",
     "**Usage**",
     "`op fbuy basic`",
     "`op fbuy rare 2`",
