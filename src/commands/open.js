@@ -214,7 +214,6 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     if (Math.random() < 0.30) {
       addRandomUniversalFragment([ITEMS.universalCFragment], 1);
     }
-
   } else if (box.code === "rare_resource_box") {
     addBerries(5000);
     addGems(20);
@@ -231,7 +230,6 @@ function grantBoxRewards(box, amount, state, rewardMap) {
         Math.random() < 0.5 ? 2 : 1
       );
     }
-
   } else if (box.code === "elite_resource_box") {
     addBerries(9000);
     addGems(35);
@@ -246,7 +244,6 @@ function grantBoxRewards(box, amount, state, rewardMap) {
         Math.random() < 0.5 ? 2 : 1
       );
     }
-
   } else if (box.code === "legend_resource_box") {
     addBerries(15000);
     addGems(60);
@@ -262,8 +259,6 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       );
     }
 
-    // 40% chance to drop Pull Reset Ticket.
-    // If it drops, it always gives x2.
     if (Math.random() < 0.40) {
       addTicket(ITEMS.pullResetTicket, 2);
     }
@@ -352,7 +347,6 @@ module.exports = {
     }
 
     const rewardMap = new Map();
-    let rewardState = null;
 
     try {
       updatePlayerAtomic(
@@ -376,7 +370,7 @@ module.exports = {
             throw new Error(`You do not own enough **${box.name}**.`);
           }
 
-          rewardState = grantBoxRewards(
+          const rewardState = grantBoxRewards(
             box,
             openAmount,
             {
@@ -411,6 +405,8 @@ module.exports = {
     } catch (error) {
       return message.reply(error.message || "Failed to open box.");
     }
+
+    const rewardLines = formatRewardLines(rewardMap);
 
     return message.reply({
       embeds: [
