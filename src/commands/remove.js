@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 
 function normalize(text) {
@@ -29,12 +29,12 @@ function scoreQuery(query, candidates) {
 
 function getOwnedCards(player) {
   return (Array.isArray(player.cards) ? player.cards : [])
-    .map((rawCard) => hydrateCard(rawCard))
-    .filter(Boolean);
+    .map((card) => hydrateCard(card))
+    .filter((card) => String(card.cardRole || "").toLowerCase() !== "boost");
 }
 
 function findCardByInstanceId(cards, instanceId) {
-  return cards.find((card) => card.instanceId === instanceId) || null;
+  return cards.find((card) => String(card.instanceId) === String(instanceId)) || null;
 }
 
 module.exports = {
@@ -46,46 +46,126 @@ module.exports = {
       return message.reply("Usage: `op remove <card name>` or `op remove all`");
     }
 
-    const player = getPlayer(message.author.id, message.author.username);
-    const cards = getOwnedCards(player);
-    const team = player.team || {
-      slots: [null, null, null],
-    };
-
-    const slots = Array.isArray(team.slots)
-      ? team.slots.slice(0, 3)
+    const query = normalize(args.join(" "));
+    const previewPlayer = getPlayer(message.author.id, message.author.username);
+    const previewCards = getOwnedCards(previewPlayer);
+    const previewTeam = previewPlayer.team || { slots: [null, null, null] };
+    const previewSlots = Array.isArray(previewTeam.slots)
+      ? previewTeam.slots.slice(0, 3)
       : [null, null, null];
 
-    while (slots.length < 3) {
-      slots.push(null);
-    }
-
-    const query = normalize(args.join(" "));
+    while (previewSlots.length < 3) previewSlots.push(null);
 
     if (query === "all") {
-      const removedCards = slots
+      const hasAny = previewSlots.some(Boolean);
+      if (!hasAny) return message.reply("Your team is already empty.");
+    } else {
+      const previewMatches = previewSlots
         .map((instanceId, index) => {
           if (!instanceId) return null;
-
-          const card = findCardByInstanceId(cards, instanceId);
+          const card = findCardByInstanceId(previewCards, instanceId);
+          if (!card) return null;
 
           return {
-            position: index + 1,
-            name: card?.displayName || card?.name || "Unknown Card",
+            slotIndex: index,
+            card,
+            score: scoreQuery(query, [card.name, card.displayName, card.code, card.instanceId]),
           };
         })
-        .filter(Boolean);
+        .filter((entry) => entry && entry.score > 0);
 
-      if (!removedCards.length) {
-        return message.reply("Your team is already empty.");
+      if (!previewMatches.length) {
+        return message.reply(`No team card found matching \`${args.join(" ")}\`.`);
       }
+    }
 
-      updatePlayer(message.author.id, {
-        team: {
-          slots: [null, null, null],
+    let removedCards = [];
+    let selected = null;
+
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const cards = getOwnedCards(fresh);
+          const team = fresh.team || { slots: [null, null, null] };
+          const slots = Array.isArray(team.slots)
+            ? team.slots.slice(0, 3)
+            : [null, null, null];
+
+          while (slots.length < 3) slots.push(null);
+
+          if (query === "all") {
+            removedCards = slots
+              .map((instanceId, index) => {
+                if (!instanceId) return null;
+
+                const card = findCardByInstanceId(cards, instanceId);
+
+                return {
+                  position: index + 1,
+                  name: card?.displayName || card?.name || "Unknown Card",
+                };
+              })
+              .filter(Boolean);
+
+            if (!removedCards.length) {
+              throw new Error("Your team is already empty.");
+            }
+
+            return {
+              ...fresh,
+              team: {
+                ...(fresh.team || {}),
+                slots: [null, null, null],
+              },
+            };
+          }
+
+          const scoredSlots = slots
+            .map((instanceId, index) => {
+              if (!instanceId) return null;
+
+              const card = findCardByInstanceId(cards, instanceId);
+              if (!card) return null;
+
+              return {
+                slotIndex: index,
+                card,
+                score: scoreQuery(query, [
+                  card.name,
+                  card.displayName,
+                  card.code,
+                  card.instanceId,
+                ]),
+              };
+            })
+            .filter((entry) => entry && entry.score > 0)
+            .sort((a, b) => b.score - a.score);
+
+          if (!scoredSlots.length) {
+            throw new Error(`No team card found matching \`${args.join(" ")}\`.`);
+          }
+
+          selected = scoredSlots[0];
+
+          const newSlots = [...slots];
+          newSlots[selected.slotIndex] = null;
+
+          return {
+            ...fresh,
+            team: {
+              ...(fresh.team || {}),
+              slots: newSlots,
+            },
+          };
         },
-      });
+        message.author.username
+      );
+    } catch (error) {
+      return message.reply(error.message || "Failed to remove card from team.");
+    }
 
+    if (query === "all") {
       const embed = new EmbedBuilder()
         .setColor(0xe74c3c)
         .setTitle("❌ All Cards Removed From Team")
@@ -96,48 +176,10 @@ module.exports = {
             ...removedCards.map((entry) => `**${entry.position}.** ${entry.name}`),
           ].join("\n")
         )
-        .setFooter({
-          text: "One Piece Bot • Team Setup",
-        });
+        .setFooter({ text: "One Piece Bot • Team Setup" });
 
-      return message.reply({
-        embeds: [embed],
-      });
+      return message.reply({ embeds: [embed] });
     }
-
-    const scoredSlots = slots
-      .map((instanceId, index) => {
-        if (!instanceId) return null;
-
-        const card = findCardByInstanceId(cards, instanceId);
-        if (!card) return null;
-
-        return {
-          slotIndex: index,
-          card,
-          score: scoreQuery(query, [
-            card.name,
-            card.displayName,
-          ]),
-        };
-      })
-      .filter((entry) => entry && entry.score > 0)
-      .sort((a, b) => b.score - a.score);
-
-    if (!scoredSlots.length) {
-      return message.reply(`No team card found matching \`${args.join(" ")}\`.`);
-    }
-
-    const selected = scoredSlots[0];
-    const newSlots = [...slots];
-
-    newSlots[selected.slotIndex] = null;
-
-    updatePlayer(message.author.id, {
-      team: {
-        slots: newSlots,
-      },
-    });
 
     const embed = new EmbedBuilder()
       .setColor(0xe74c3c)
@@ -148,12 +190,8 @@ module.exports = {
           `**Position:** ${selected.slotIndex + 1}`,
         ].join("\n")
       )
-      .setFooter({
-        text: "One Piece Bot • Team Setup",
-      });
+      .setFooter({ text: "One Piece Bot • Team Setup" });
 
-    return message.reply({
-      embeds: [embed],
-    });
+    return message.reply({ embeds: [embed] });
   },
 };

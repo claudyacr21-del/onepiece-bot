@@ -1,53 +1,30 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
-const { hydrateCard } = require("../utils/evolution");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 
 function normalize(text) {
-  return String(text || "")
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, " ");
+  return String(text || "").toLowerCase().trim().replace(/\s+/g, " ");
 }
 
-function scoreQuery(query, candidates) {
+function findMatchingCards(cards, query) {
   const q = normalize(query);
-  if (!q) return 0;
 
-  let best = 0;
+  return cards.filter((card) => {
+    if (card.cardRole === "boost") return false;
 
-  for (const raw of candidates) {
-    const candidate = normalize(raw);
-    if (!candidate) continue;
+    const fields = [
+      card.displayName,
+      card.name,
+      card.title,
+      card.code,
+      card.variant,
+      card.arc,
+      card.instanceId,
+    ]
+      .filter(Boolean)
+      .map((value) => normalize(value));
 
-    if (candidate === q) best = Math.max(best, 1000 + candidate.length);
-    else if (candidate.startsWith(q)) best = Math.max(best, 700 + q.length);
-    else if (candidate.includes(q)) best = Math.max(best, 400 + q.length);
-  }
-
-  return best;
-}
-
-function getOwnedBattleCards(player) {
-  return (Array.isArray(player.cards) ? player.cards : [])
-    .map((rawCard) => hydrateCard(rawCard))
-    .filter((card) => card && card.cardRole !== "boost");
-}
-
-function findMatchingCard(player, query) {
-  const cards = getOwnedBattleCards(player);
-
-  const scored = cards
-    .map((card) => ({
-      card,
-      score: scoreQuery(query, [
-        card.name,
-        card.displayName,
-      ]),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
-
-  return scored.length ? scored[0].card : null;
+    return fields.some((value) => value.includes(q));
+  });
 }
 
 module.exports = {
@@ -58,66 +35,85 @@ module.exports = {
       return message.reply("Usage: `op add <card name>`");
     }
 
-    const player = getPlayer(message.author.id, message.author.username);
-    const team = player.team || {
-      slots: [null, null, null],
-    };
-
-    const slots = Array.isArray(team.slots)
-      ? team.slots.slice(0, 3)
-      : [null, null, null];
-
-    while (slots.length < 3) {
-      slots.push(null);
-    }
-
     const query = args.join(" ");
-    const card = findMatchingCard(player, query);
+    const previewPlayer = getPlayer(message.author.id, message.author.username);
+    const previewCards = Array.isArray(previewPlayer.cards) ? previewPlayer.cards : [];
+    const previewMatches = findMatchingCards(previewCards, query);
 
-    if (!card) {
+    if (!previewMatches.length) {
       return message.reply(`No battle card found matching \`${query}\`.`);
     }
 
-    if (!card.instanceId) {
-      return message.reply("That card is missing an instance ID. Please repull or resave your data.");
+    let selectedCard = null;
+    let position = 0;
+
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const cards = Array.isArray(fresh.cards) ? fresh.cards : [];
+          const team = fresh.team || { slots: [null, null, null] };
+          const slots = Array.isArray(team.slots)
+            ? team.slots.slice(0, 3)
+            : [null, null, null];
+
+          while (slots.length < 3) slots.push(null);
+
+          const matches = findMatchingCards(cards, query);
+
+          if (!matches.length) {
+            throw new Error(`No battle card found matching \`${query}\`.`);
+          }
+
+          const card = matches[0];
+
+          if (!card.instanceId) {
+            throw new Error("That card is missing an instance ID. Please repull or resave your data.");
+          }
+
+          if (slots.includes(card.instanceId)) {
+            throw new Error(`${card.displayName || card.name} is already in your team.`);
+          }
+
+          const emptyIndex = slots.findIndex((slot) => !slot);
+
+          if (emptyIndex === -1) {
+            throw new Error("Your team is full. Use `op remove <card name>` or `op swap <from> <to>` first.");
+          }
+
+          const newSlots = [...slots];
+          newSlots[emptyIndex] = card.instanceId;
+
+          selectedCard = card;
+          position = emptyIndex + 1;
+
+          return {
+            ...fresh,
+            team: {
+              ...(fresh.team || {}),
+              slots: newSlots,
+            },
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
+      return message.reply(error.message || "Failed to add card to team.");
     }
-
-    if (slots.includes(card.instanceId)) {
-      return message.reply(`${card.displayName || card.name} is already in your team.`);
-    }
-
-    const emptyIndex = slots.findIndex((slot) => !slot);
-
-    if (emptyIndex === -1) {
-      return message.reply("Your team is full. Use `op remove <card>` or `op swap <from> <to>` first.");
-    }
-
-    const newSlots = [...slots];
-    newSlots[emptyIndex] = card.instanceId;
-
-    updatePlayer(message.author.id, {
-      team: {
-        slots: newSlots,
-      },
-    });
 
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
       .setTitle("✅ Card Added To Team")
       .setDescription(
         [
-          `**Card:** ${card.displayName || card.name}`,
-          `**Position:** ${emptyIndex + 1}`,
+          `**Card:** ${selectedCard.displayName || selectedCard.name}`,
+          `**Position:** ${position}`,
           "",
           "Use `op team` to view your full team.",
         ].join("\n")
       )
-      .setFooter({
-        text: "One Piece Bot • Team Setup",
-      });
+      .setFooter({ text: "One Piece Bot • Team Setup" });
 
-    return message.reply({
-      embeds: [embed],
-    });
+    return message.reply({ embeds: [embed] });
   },
 };

@@ -1,14 +1,14 @@
 const { EmbedBuilder } = require("discord.js");
-const { readPlayers, writePlayers } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 
 const MAX_PRESTIGE = 200;
 
 function getAdminIds() {
   return String(
     process.env.ADMIN_USER_IDS ||
-    process.env.DISCORD_OWNER_ID ||
-    process.env.BOT_OWNER_ID ||
-    ""
+      process.env.DISCORD_OWNER_ID ||
+      process.env.BOT_OWNER_ID ||
+      ""
   )
     .split(",")
     .map((x) => x.trim())
@@ -35,6 +35,7 @@ function normalize(value) {
 function clampPrestige(value) {
   const n = Number(value || 0);
   if (!Number.isFinite(n)) return 0;
+
   return Math.max(0, Math.min(MAX_PRESTIGE, Math.floor(n)));
 }
 
@@ -53,6 +54,7 @@ function scoreQuery(query, candidates) {
     else if (candidate.includes(q)) best = Math.max(best, 400 + q.length);
     else {
       const qWords = q.split(" ").filter(Boolean);
+
       if (qWords.length && qWords.every((word) => candidate.includes(word))) {
         best = Math.max(best, 250 + qWords.join("").length);
       }
@@ -75,6 +77,7 @@ function findOwnedBattleCard(player, query) {
         card.displayName,
         card.variant,
         card.title,
+        card.instanceId,
       ]),
     }))
     .filter((entry) => {
@@ -84,7 +87,19 @@ function findOwnedBattleCard(player, query) {
     })
     .sort((a, b) => b.score - a.score);
 
-  return scored.length ? scored[0] : null;
+  if (!scored.length) return null;
+
+  const topScore = scored[0].score;
+  const topMatches = scored.filter((entry) => entry.score === topScore);
+
+  if (topMatches.length > 1) {
+    return {
+      ambiguous: true,
+      matches: topMatches,
+    };
+  }
+
+  return topMatches[0];
 }
 
 module.exports = {
@@ -93,51 +108,102 @@ module.exports = {
 
   async execute(message, args) {
     if (!isAdmin(message.author.id)) {
-      return message.reply("Owner only command.");
+      return message.reply({
+        content: "Owner only command.",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    const targetId = parseUserId(args.shift());
+    const targetId =
+      message.mentions.users.first()?.id ||
+      parseUserId(args.shift());
+
+    if (message.mentions.users.first()) {
+      const mentionIndex = args.findIndex((arg) =>
+        String(arg || "").includes(targetId)
+      );
+      if (mentionIndex !== -1) args.splice(mentionIndex, 1);
+    }
+
     const amountRaw = args.shift();
     const amount = Number(amountRaw);
     const query = args.join(" ").trim();
 
     if (!targetId || !Number.isFinite(amount) || amount <= 0 || !query) {
-      return message.reply(
-        "Usage: `op addprestige <@user/userId> <amount> <card name/code>`\nExample: `op addprestige @peace 10 imu`"
-      );
+      return message.reply({
+        content:
+          "Usage: `op addprestige <@user/userId> <amount> <card>`\nExample: `op addprestige @peace 10 imu`",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    const players = readPlayers();
+    let cardName = query;
+    let oldPrestige = 0;
+    let newPrestige = 0;
+    let realAdded = 0;
+    let notFound = false;
+    let ambiguous = [];
 
-    if (!players[targetId]) {
-      return message.reply(`User not found: \`${targetId}\``);
+    updatePlayerAtomic(
+      targetId,
+      (fresh) => {
+        const found = findOwnedBattleCard(fresh, query);
+
+        if (!found) {
+          notFound = true;
+          return fresh;
+        }
+
+        if (found.ambiguous) {
+          ambiguous = found.matches;
+          return fresh;
+        }
+
+        const cards = Array.isArray(fresh.cards)
+          ? fresh.cards.map((card) => ({ ...card }))
+          : [];
+
+        const card = cards[found.index];
+        oldPrestige = clampPrestige(card.raidPrestige);
+        const requestedAdd = Math.floor(amount);
+        newPrestige = clampPrestige(oldPrestige + requestedAdd);
+        realAdded = newPrestige - oldPrestige;
+
+        cards[found.index] = {
+          ...card,
+          raidPrestige: newPrestige,
+        };
+
+        cardName = card.displayName || card.name || card.code || "Unknown Card";
+
+        return {
+          ...fresh,
+          cards,
+        };
+      },
+      message.mentions.users.first()?.username || targetId
+    );
+
+    if (ambiguous.length) {
+      return message.reply({
+        content: [
+          "Multiple battle cards matched that query. Use exact code or instance ID.",
+          "",
+          ...ambiguous.slice(0, 10).map((entry, i) => {
+            const card = entry.card || {};
+            return `${i + 1}. ${card.displayName || card.name || card.code || "Unknown"} • code: \`${card.code || "none"}\` • id: \`${card.instanceId || "none"}\``;
+          }),
+        ].join("\n"),
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    const player = players[targetId];
-    player.cards = Array.isArray(player.cards) ? player.cards : [];
-
-    const found = findOwnedBattleCard(player, query);
-
-    if (!found) {
-      return message.reply(
-        `Battle card not found for \`${targetId}\` matching \`${query}\`.`
-      );
+    if (notFound) {
+      return message.reply({
+        content: `Battle card not found for \`${targetId}\` matching \`${query}\`.`,
+        allowedMentions: { repliedUser: false },
+      });
     }
-
-    const card = found.card;
-    const oldPrestige = clampPrestige(card.raidPrestige);
-    const requestedAdd = Math.floor(amount);
-    const newPrestige = clampPrestige(oldPrestige + requestedAdd);
-    const realAdded = newPrestige - oldPrestige;
-
-    player.cards[found.index] = {
-      ...card,
-      raidPrestige: newPrestige,
-    };
-
-    writePlayers(players);
-
-    const cardName = card.displayName || card.name || card.code || "Unknown Card";
 
     const embed = new EmbedBuilder()
       .setColor(0xf1c40f)
@@ -154,8 +220,13 @@ module.exports = {
             : "Raid prestige updated successfully.",
         ].join("\n")
       )
-      .setFooter({ text: "One Piece Bot • Admin Prestige" });
+      .setFooter({
+        text: "One Piece Bot • Admin Prestige",
+      });
 
-    return message.reply({ embeds: [embed] });
+    return message.reply({
+      embeds: [embed],
+      allowedMentions: { users: [String(targetId)], repliedUser: false },
+    });
   },
 };

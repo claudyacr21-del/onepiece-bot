@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { readPlayers, writePlayers, getPlayer } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const {
   canUseAdminCommand,
@@ -47,7 +47,6 @@ function scoreNameOnly(query, names) {
 
 function parseArgs(message, args) {
   const parts = [...args];
-
   const mentionedUser = message.mentions?.users?.first();
   let targetId = mentionedUser?.id || null;
 
@@ -57,6 +56,7 @@ function parseArgs(message, args) {
     const mentionIndex = parts.findIndex((arg) =>
       String(arg || "").includes(mentionedUser.id)
     );
+
     if (mentionIndex !== -1) parts.splice(mentionIndex, 1);
   }
 
@@ -64,7 +64,7 @@ function parseArgs(message, args) {
     return {
       ok: false,
       message:
-        "Usage: `op addkill <@user/userId> <amount> <battle card name>`\nExample: `op addkill @user 10 luffy`",
+        "Usage: `op addkill <@user/userId> <amount> <card>`\nExample: `op addkill @user 10 luffy`",
     };
   }
 
@@ -82,7 +82,7 @@ function parseArgs(message, args) {
     return {
       ok: false,
       message:
-        "Usage: `op addkill <@user/userId> <amount> <battle card name>`\nExample: `op addkill @user 10 luffy`",
+        "Usage: `op addkill <@user/userId> <amount> <card>`\nExample: `op addkill @user 10 luffy`",
     };
   }
 
@@ -113,13 +113,28 @@ function findOwnedBattleCardIndex(player, query) {
           card?.name,
           rawCard?.displayName,
           rawCard?.name,
+          card?.code,
+          rawCard?.code,
+          rawCard?.instanceId,
         ]),
       };
     })
     .filter((entry) => entry && entry.score > 0)
     .sort((a, b) => b.score - a.score);
 
-  return scored.length ? scored[0] : null;
+  if (!scored.length) return null;
+
+  const topScore = scored[0].score;
+  const topMatches = scored.filter((entry) => entry.score === topScore);
+
+  if (topMatches.length > 1) {
+    return {
+      ambiguous: true,
+      matches: topMatches,
+    };
+  }
+
+  return topMatches[0];
 }
 
 module.exports = {
@@ -149,21 +164,66 @@ module.exports = {
       });
     }
 
-    getPlayer(parsed.targetId, parsed.targetId);
+    let displayName = parsed.query;
+    let beforeKills = 0;
+    let afterKills = 0;
+    let notFound = false;
+    let ambiguous = [];
 
-    const players = readPlayers();
-    const player = players[String(parsed.targetId)];
+    updatePlayerAtomic(
+      parsed.targetId,
+      (fresh) => {
+        const found = findOwnedBattleCardIndex(fresh, parsed.query);
 
-    if (!player) {
+        if (!found) {
+          notFound = true;
+          return fresh;
+        }
+
+        if (found.ambiguous) {
+          ambiguous = found.matches;
+          return fresh;
+        }
+
+        const cards = [...(fresh.cards || [])];
+        beforeKills = Math.max(0, Number(cards[found.index]?.kills || 0));
+        afterKills = beforeKills + parsed.amount;
+
+        cards[found.index] = {
+          ...cards[found.index],
+          kills: afterKills,
+        };
+
+        displayName =
+          found.card?.displayName ||
+          found.card?.name ||
+          found.rawCard?.displayName ||
+          found.rawCard?.name ||
+          parsed.query;
+
+        return {
+          ...fresh,
+          cards,
+        };
+      },
+      message.mentions?.users?.first()?.username || parsed.targetId
+    );
+
+    if (ambiguous.length) {
       return message.reply({
-        content: `Player data was not found for \`${parsed.targetId}\`.`,
-        allowedMentions: { repliedUser: false },
+        content: [
+          "Multiple battle cards matched that query. Use exact code or instance ID.",
+          "",
+          ...ambiguous.slice(0, 10).map((entry, i) => {
+            const card = entry.rawCard || entry.card || {};
+            return `${i + 1}. ${card.displayName || card.name || card.code || "Unknown"} • code: \`${card.code || "none"}\` • id: \`${card.instanceId || "none"}\``;
+          }),
+        ].join("\n"),
+        allowedMentions: { users: [String(parsed.targetId)], repliedUser: false },
       });
     }
 
-    const found = findOwnedBattleCardIndex(player, parsed.query);
-
-    if (!found) {
+    if (notFound) {
       return message.reply({
         content: `Battle card matching \`${parsed.query}\` was not found for <@${parsed.targetId}>.`,
         allowedMentions: {
@@ -172,29 +232,6 @@ module.exports = {
         },
       });
     }
-
-    const cards = [...(player.cards || [])];
-    const beforeKills = Math.max(0, Number(cards[found.index]?.kills || 0));
-    const afterKills = beforeKills + parsed.amount;
-
-    cards[found.index] = {
-      ...cards[found.index],
-      kills: afterKills,
-    };
-
-    players[String(parsed.targetId)] = {
-      ...player,
-      cards,
-    };
-
-    writePlayers(players);
-
-    const displayName =
-      found.card?.displayName ||
-      found.card?.name ||
-      found.rawCard?.displayName ||
-      found.rawCard?.name ||
-      parsed.query;
 
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
