@@ -29,7 +29,7 @@ const SHOP_ITEMS = [
   {
     key: "reset",
     name: "Pull Reset Ticket x1",
-    cost: 160,
+    cost: 150,
     description: "Reset your pull slots manually.",
   },
 ];
@@ -44,35 +44,14 @@ function getFruitEssenceAmount(player) {
   );
 }
 
-function buildFruitShopEmbed(player) {
-  const essence = getFruitEssenceAmount(player);
-
-  const shopLines = SHOP_ITEMS.map((item, index) =>
+function buildShopLines() {
+  return SHOP_ITEMS.map((item, index) =>
     [
-      `**${index + 1}. ${item.name}**`,
-      `↪ Cost: **${item.cost} Fruit Essence**`,
+      `**${index + 1}. ${item.name}** • ${Number(item.cost).toLocaleString("en-US")} Fruit Essence`,
       `↪ ${item.description}`,
       `↪ Buy: \`op fbuy ${item.key}\``,
     ].join("\n")
-  ).join("\n");
-
-  const lines = [
-    `**Your Fruit Essence:** ${Number(essence || 0).toLocaleString("en-US")}`,
-    "**Available Items**",
-    shopLines,
-    "**Usage**",
-    "`op fbuy basic`",
-    "`op fbuy rare 2`",
-    "`op fbuy elite`",
-    "`op fbuy reset`",
-    "`op fbuy legend`",
-  ];
-
-  return new EmbedBuilder()
-    .setColor(0x9b59b6)
-    .setTitle("🟢 Fruit Essence Shop")
-    .setDescription(lines.join("\n"))
-    .setFooter({ text: "One Piece Bot • Fruit Essence Shop" });
+  ).join("\n\n");
 }
 
 module.exports = {
@@ -81,10 +60,35 @@ module.exports = {
 
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
+    const essence = getFruitEssenceAmount(player);
+
+    const description = [
+      `**Your Fruit Essence:** ${Number(essence || 0).toLocaleString("en-US")}`,
+      "",
+      "**Available Items**",
+      buildShopLines(),
+      "",
+      "**Usage**",
+      "`op fbuy basic`",
+      "`op fbuy rare 2`",
+      "`op fbuy elite`",
+      "`op fbuy legend`",
+      "`op fbuy reset`",
+    ].join("\n");
+
+    const embed = new EmbedBuilder()
+      .setColor(0x9b59b6)
+      .setTitle("🟢 Fruit Essence Shop")
+      .setDescription(description)
+      .setFooter({
+        text: "One Piece Bot • Fruit Essence Shop",
+      });
 
     return message.reply({
-      embeds: [buildFruitShopEmbed(player)],
-      allowedMentions: { repliedUser: false },
+      embeds: [embed],
+      allowedMentions: {
+        repliedUser: false,
+      },
     });
   },
 };
