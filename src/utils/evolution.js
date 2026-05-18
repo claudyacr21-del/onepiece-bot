@@ -833,19 +833,49 @@ function consumeOwnedFragments(player, targetIndex, targetCard, amount) {
   };
 }
 
-function findOwnedCardIndexForAwaken(cardsOwned, query) {
+function scoreAwakenOwnedCard(card, query) {
   const q = normalize(query);
+  if (!q) return 0;
+
+  const fields = [
+    card?.name,
+    card?.displayName,
+    String(card?.code || "").replace(/_/g, " "),
+  ]
+    .map(normalize)
+    .filter(Boolean);
+
+  let best = 0;
+
+  for (const field of fields) {
+    if (field === q) best = Math.max(best, 1000 + field.length);
+    else if (field.startsWith(q)) best = Math.max(best, 800 + q.length);
+    else if (field.includes(q)) best = Math.max(best, 500 + q.length);
+    else {
+      const qWords = q.split(" ").filter(Boolean);
+      const fieldWords = field.split(" ").filter(Boolean);
+
+      if (qWords.length && qWords.every((word) => fieldWords.includes(word))) {
+        best = Math.max(best, 350 + qWords.join("").length);
+      }
+    }
+  }
+
+  return best;
+}
+
+function findOwnedCardIndexForAwaken(cardsOwned, query) {
   const list = safeArray(cardsOwned);
 
-  const exactIndex = list.findIndex(
-    (card) => normalize(card.code) === q
-  );
+  const scored = list
+    .map((card, index) => ({
+      index,
+      score: scoreAwakenOwnedCard(card, query),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
 
-  if (exactIndex !== -1) return exactIndex;
-
-  return list.findIndex(
-    (card) => normalize(card.code).startsWith(q)
-  );
+  return scored.length ? scored[0].index : -1;
 }
 
 function findOwnedRequirementCard(player, code) {

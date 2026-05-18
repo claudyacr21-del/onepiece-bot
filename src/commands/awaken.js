@@ -26,17 +26,49 @@ function normalizeCode(value) {
     .replace(/\s+/g, " ");
 }
 
-function findOwnedCardByCodeOnly(cardsOwned, query) {
+function scoreOwnedCardQuery(card, query) {
   const q = normalizeCode(query);
+  if (!q) return 0;
+
+  const fields = [
+    card?.name,
+    card?.displayName,
+    String(card?.code || "").replace(/_/g, " "),
+  ]
+    .map(normalizeCode)
+    .filter(Boolean);
+
+  let best = 0;
+
+  for (const field of fields) {
+    if (field === q) best = Math.max(best, 1000 + field.length);
+    else if (field.startsWith(q)) best = Math.max(best, 800 + q.length);
+    else if (field.includes(q)) best = Math.max(best, 500 + q.length);
+    else {
+      const qWords = q.split(" ").filter(Boolean);
+      const fieldWords = field.split(" ").filter(Boolean);
+
+      if (qWords.length && qWords.every((word) => fieldWords.includes(word))) {
+        best = Math.max(best, 350 + qWords.join("").length);
+      }
+    }
+  }
+
+  return best;
+}
+
+function findOwnedCardByNameOrCode(cardsOwned, query) {
   const list = Array.isArray(cardsOwned) ? cardsOwned : [];
 
-  const exact = list.find((card) => normalizeCode(card.code) === q);
-  if (exact) return hydrateCard(exact);
+  const scored = list
+    .map((card) => ({
+      card,
+      score: scoreOwnedCardQuery(card, query),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
 
-  const startsWith = list.find((card) => normalizeCode(card.code).startsWith(q));
-  if (startsWith) return hydrateCard(startsWith);
-
-  return null;
+  return scored.length ? hydrateCard(scored[0].card) : null;
 }
 
 function findCardTemplateSafe(card) {
@@ -263,10 +295,14 @@ module.exports = {
     }
 
     const player = getPlayer(message.author.id, message.author.username);
-    const owned = findOwnedCardByCodeOnly(player.cards || [], query);
-
+    const owned = findOwnedCardByNameOrCode(player.cards || [], query);
     if (!owned) {
-      return message.reply("You do not own that card code.");
+      return message.reply({
+        content: "You do not own that card.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     if (Number(owned.evolutionStage || 1) >= 3) {
