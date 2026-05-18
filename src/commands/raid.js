@@ -9,7 +9,6 @@ const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard, findCardTemplate } = require("../utils/evolution");
 const activeRaidReadyNotices = new Set();
 const {
-  getPlayerCombatCards,
   getPlayerCombatBoosts,
 } = require("../utils/combatStats");
 const {
@@ -133,17 +132,12 @@ function getRaidDisplayPower(card) {
 function applyBoostedRaidDisplayStats(card, boosts = {}) {
   if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
 
-  const boosted = {
+  return {
     ...card,
     atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
     hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
     speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
   };
-
-  boosted.currentPower = getRaidDisplayPower(boosted);
-  boosted.power = boosted.currentPower;
-
-  return boosted;
 }
 
 function getRaidModeConfig(commandName) {
@@ -249,14 +243,19 @@ function getSavedRaidTeam(player) {
     .filter(Boolean);
 }
 
-function getBattleTeamCards(player) {
-  const cards = getPlayerCombatCards(player).filter(
-    (card) => String(card.cardRole || "").toLowerCase() === "battle"
-  );
+function getRaidBaseBattleCards(player) {
+  return (Array.isArray(player?.cards) ? player.cards : [])
+    .map((card) => hydrateCard(card))
+    .filter(
+      (card) =>
+        card &&
+        String(card.cardRole || "").toLowerCase() === "battle"
+    );
+}
 
-  const slots = Array.isArray(player?.team?.slots)
-    ? player.team.slots.slice(0, 3)
-    : [];
+function getBattleTeamCards(player) {
+  const cards = getRaidBaseBattleCards(player);
+  const slots = Array.isArray(player?.team?.slots) ? player.team.slots.slice(0, 3) : [];
 
   return slots
     .map((instanceId) => {
@@ -289,9 +288,7 @@ function toRoomCard(card) {
 
 function getFreshOwnedBattleCard(userId, username, picked) {
   const player = getPlayer(userId, username);
-  const cards = getPlayerCombatCards(player).filter(
-    (card) => String(card.cardRole || "").toLowerCase() === "battle"
-  );
+  const cards = getRaidBaseBattleCards(player);
 
   const byInstance = cards.find(
     (card) =>
@@ -303,8 +300,7 @@ function getFreshOwnedBattleCard(userId, username, picked) {
 
   const byCode = cards.find(
     (card) =>
-      String(card.code || "").toLowerCase() ===
-        String(picked?.code || "").toLowerCase() &&
+      String(card.code || "").toLowerCase() === String(picked?.code || "").toLowerCase() &&
       String(card.cardRole || "").toLowerCase() === "battle"
   );
 
