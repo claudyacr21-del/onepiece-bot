@@ -49,7 +49,7 @@ function buildShopLines() {
 
   SHOP_ITEMS.forEach((item, index) => {
     lines.push(`**${index + 1}. ${item.name}**`);
-    lines.push(`- ${item.cost} Fruit Essence`);
+    lines.push(`↪ Cost: **${item.cost} Fruit Essence**`);
     lines.push(`↪ ${item.description}`);
     lines.push(`↪ Buy: \`op fbuy ${item.key}\``);
 
@@ -79,8 +79,8 @@ module.exports = {
       "`op fbuy basic`",
       "`op fbuy rare 2`",
       "`op fbuy elite`",
-      "`op fbuy reset`",
       "`op fbuy legend`",
+      "`op fbuy reset`",
     ].join("\n");
 
     const embed = new EmbedBuilder()
