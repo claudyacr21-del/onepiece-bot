@@ -406,14 +406,14 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode,
   const makeUnitLine = (unit, index, isEnemy = false) => {
     const slot = isEnemy ? index + 1 : unit.slot;
     const levelText = isEnemy
-      ? `LV \`${unit.level || 1}\` • ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``
-      : `ATK \`${formatAtkRange(unit.battleAtk)}\` • SPD \`${unit.battleSpeed}\` • LV \`${unit.level}\``;
+      ? `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``
+      : `ATK \`${formatAtkRange(unit.battleAtk)}\` • SPD \`${unit.battleSpeed}\``;
 
     const hp = isEnemy
       ? renderHpBar(unit.hp, unit.maxHp)
       : renderHpBar(unit.battleHp, unit.battleMaxHp);
 
-    return `**${slot}. ${unit.name}** — [${unit.rarity}] • ${levelText}\n${hp}`;
+    return `**${slot}. ${unit.name}** — ${levelText}\n${hp}`;
   };
 
   const enemyLines = enemyTeam.map((unit, index) => makeUnitLine(unit, index, true));
