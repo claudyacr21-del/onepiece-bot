@@ -58,28 +58,40 @@ function getPower(card) {
   );
 }
 
+function applyBoostedDisplayStats(card, boosts = {}) {
+  if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
+
+  return {
+    ...card,
+    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+  };
+}
+
 function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}) {
   const synced = hydrateCard(card);
+  const boosted = applyBoostedDisplayStats(synced, boosts);
 
   return {
     slot: slot + 1,
     ownerTag,
-    instanceId: synced.instanceId,
-    name: synced.displayName || synced.name || "Unknown",
-    rarity: synced.currentTier || synced.rarity || "C",
-    atk: Number(synced.atk || 0),
-    hp: Number(synced.hp || 0),
-    maxHp: Number(synced.hp || 0),
-    speed: Number(synced.speed || 0),
-    level: Number(synced.level || 1),
-    power: getPower(synced),
+    instanceId: boosted.instanceId,
+    name: boosted.displayName || boosted.name || "Unknown",
+    rarity: boosted.currentTier || boosted.rarity || "C",
+    atk: Number(boosted.atk || 0),
+    hp: Number(boosted.hp || 0),
+    maxHp: Number(boosted.hp || 0),
+    speed: Number(boosted.speed || 0),
+    level: Number(boosted.level || 1),
+    power: getPower(boosted),
     passiveBoostsApplied: {
-    atk: Number(boosts.atk || 0),
-    hp: Number(boosts.hp || 0),
-    spd: Number(boosts.spd || 0),
-    dmg: Number(boosts.dmg || 0),
-    exp: Number(boosts.exp || 0),
-  },
+      atk: Number(boosts.atk || 0),
+      hp: Number(boosts.hp || 0),
+      spd: Number(boosts.spd || 0),
+      dmg: Number(boosts.dmg || 0),
+      exp: Number(boosts.exp || 0),
+    },
   };
 }
 
@@ -162,12 +174,12 @@ function teamSummary(units) {
     .map((unit) =>
       [
         `**${unit.slot}. ${unit.name}**`,
-        `PWR \`${unit.power}\` • LV \`${unit.level}\``,
+        `PWR \`${Number(unit.power || 0).toLocaleString("en-US")}\` • LV \`${unit.level}\``,
         `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
         renderHpBar(unit.hp, unit.maxHp),
       ].join("\n")
     )
-    .join("\n\n");
+    .join("\n");
 }
 
 function getResultColor(result, ended) {
@@ -213,17 +225,12 @@ function buildChallengeEmbed({ player, targetPlayer, myTeam, enemyTeam, logs, re
         `**Opponent:** ${targetPlayer.username || "Unknown"}`,
         ended ? `**Result:** ${String(result || "lose").toUpperCase()}` : "**Result:** In Progress",
         "**Mode:** Friendly test match",
-        "",
         "## Your Team",
         teamSummary(myTeam),
-        "",
         "## Opponent Team",
         teamSummary(enemyTeam),
-        "",
         "## Battle Log",
-        ...(recentLogs.length
-          ? recentLogs
-          : ["Choose one of your cards to attack. Target starts from opponent slot 1. SPD decides turn order."]),
+        ...(recentLogs.length ? recentLogs : ["Choose one of your cards to attack.\nTarget starts from opponent slot 1.\nSPD decides turn order."]),
       ].join("\n")
     )
     .setFooter({
