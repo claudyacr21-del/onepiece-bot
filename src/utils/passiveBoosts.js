@@ -330,6 +330,7 @@ function sumBoost(cards, boostType) {
 
 function getFragmentStorageBonus(player) {
   const boostCards = getBoostCards(player);
+
   const total = boostCards
     .filter((card) => normalizeBoostType(card.boostType) === "fragmentStorage")
     .reduce((sum, card) => {
@@ -338,7 +339,7 @@ function getFragmentStorageBonus(player) {
       return sum + value * amount;
     }, 0);
 
-  return Math.min(total, 250);
+  return Math.max(0, Math.min(total, 250));
 }
 
 function formatBoostValue(value, suffix = "") {
@@ -404,9 +405,13 @@ function getPassiveBoostSummary(player) {
     spd: sumBoost(boostCards, "spd") + Number(fruitGlobalBoosts.spd || 0),
     exp: sumBoost(boostCards, "exp") + Number(fruitGlobalBoosts.exp || 0),
     dmg: sumBoost(boostCards, "dmg") + Number(fruitGlobalBoosts.dmg || 0),
-    fragmentStorageBonus:
-      getFragmentStorageBonus(player) +
-      Number(fruitGlobalBoosts.fragmentStorageBonus || 0),
+    fragmentStorageBonus: Math.max(
+      0,
+      Math.min(
+        getFragmentStorageBonus(player) + Number(fruitGlobalBoosts.fragmentStorageBonus || 0),
+        250
+      )
+    ),
   };
 }
 

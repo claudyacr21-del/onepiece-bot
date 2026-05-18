@@ -6,7 +6,7 @@ const {
 } = require("discord.js");
 
 const { getPlayer } = require("../playerStore");
-const { getFragmentStorageBonus } = require("../utils/passiveBoosts");
+const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 
 const PAGE_SIZE = 8;
 const COLOR = 0x8e44ad;
@@ -49,7 +49,8 @@ function getStorageInfo(player, fragments) {
     0
   );
 
-  const bonus = Number(getFragmentStorageBonus(player) || 0);
+  const boostSummary = getPassiveBoostSummary(player);
+  const bonus = Math.max(0, Number(boostSummary?.fragmentStorageBonus || 0));
   const max = Math.min(BASE_FRAGMENT_STORAGE + bonus, MAX_FRAGMENT_STORAGE);
 
   return {
