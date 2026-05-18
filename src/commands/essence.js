@@ -74,12 +74,6 @@ function setEssenceAmount(player, amount) {
 
 function buildUsage() {
   return [
-    "**Usage**",
-    "`op fe check <@user/user_id>`",
-    "`op fe add <@user/user_id> <amount>`",
-    "`op fe remove <@user/user_id> <amount>`",
-    "`op fe set <@user/user_id> <amount>`",
-    "",
     "**Examples**",
     "`op fe check @user`",
     "`op fe add 123456789012345678 100`",
