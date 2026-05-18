@@ -730,7 +730,7 @@ function buildBattleEmbed(state) {
           `**${index + 1}. ${member.name}** • ${member.username}`,
           `${hpIcon} ${Math.max(0, Number(member.hp || 0))}/${Number(
             member.maxHp || 0
-          )} | SPD ${formatDisplayStat(member.speed)} | ATK ${formatDisplayStat(
+          )} | SPD ${formatDisplayStat(member.speed)} | ATK ${formatAtkRange(
             member.atk
           )} | ${status}`,
         ].join("\n");
@@ -787,7 +787,7 @@ function buildResultEmbed(state) {
           `**${index + 1}. ${member.name}** • ${member.username}`,
           `${hpIcon} ${Math.max(0, Number(member.hp || 0))}/${Number(
             member.maxHp || 0
-          )} | SPD ${formatDisplayStat(member.speed)} | ATK ${formatDisplayStat(
+          )} | SPD ${formatDisplayStat(member.speed)} | ATK ${formatAtkRange(
             member.atk
           )} | ${status}`,
         ].join("\n");
