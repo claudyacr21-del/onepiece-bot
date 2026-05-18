@@ -39,8 +39,8 @@ const BOSS_LOSE_EXP_PER_CARD = 95;
 const BOSS_MAX_LOG_LINES = 2;
 
 const BOSS_GLOBAL_ATK_MULT = 1.25;
-const BOSS_GLOBAL_HP_MULT = 1.35;
-const BOSS_GLOBAL_SPD_MULT = 1.35;
+const BOSS_GLOBAL_HP_MULT = 1.2;
+const BOSS_GLOBAL_SPD_MULT = 1.5;
 
 async function safeDeferUpdate(interaction) {
   if (!interaction || interaction.deferred || interaction.replied) return;
