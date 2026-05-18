@@ -183,13 +183,11 @@ async function trackMessageMilestone(message) {
   writePlayers(players);
 
   if (Array.isArray(result.rewards) && result.rewards.length) {
-    const rewardText = result.rewards.map((line) => `↪ ${line}`).join("\n");
-
     await message.channel
       .send({
         content: [
-          `🎉 <@${message.author.id}> reached a **Main Chat Milestone**!`,
-          rewardText,
+          `🎉 <@${message.author.id}> reached a **Message Milestone**!`,
+          ...result.rewards.map((line) => `↪ ${line}`),
         ].join("\n"),
         allowedMentions: {
           users: [message.author.id],

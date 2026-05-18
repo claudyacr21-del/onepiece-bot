@@ -144,10 +144,16 @@ function getTotalMessageMilestoneCount(player) {
 }
 
 function getMilestoneProgress(player, reward) {
-  const progressMap = player?.messageMilestones?.progress || {};
-  const current = Number(progressMap?.[reward.key] || 0);
+  const state = player?.messageMilestones || {};
+  const progressMap = state.progress || {};
+  const target = Math.max(1, Number(reward.target || 1));
 
-  return Math.max(0, Math.min(current, Number(reward.target || 1)));
+  if (Object.prototype.hasOwnProperty.call(progressMap, reward.key)) {
+    return Math.max(0, Math.min(Number(progressMap[reward.key] || 0), target));
+  }
+
+  const legacyTotal = Number(state.totalMessages || state.messages || 0);
+  return Math.max(0, legacyTotal % target);
 }
 
 function getMilestoneClaimCount(player, key) {
@@ -165,18 +171,21 @@ function incrementMessageMilestone(player) {
   const completed = [];
 
   for (const reward of MESSAGE_MILESTONE_REWARDS) {
-    const key = reward.key;
     const target = Math.max(1, Number(reward.target || 1));
-    const previous = Math.max(0, Number(oldProgress[key] || 0));
+    const hasProgress = Object.prototype.hasOwnProperty.call(oldProgress, reward.key);
+    const legacyTotal = Number(currentState.totalMessages || currentState.messages || 0);
+    const previous = hasProgress
+      ? Number(oldProgress[reward.key] || 0)
+      : legacyTotal % target;
     const next = previous + 1;
 
     if (next >= target) {
-      progress[key] = 0;
-      claims[key] = Number(oldClaims[key] || 0) + 1;
-      completed.push(key);
+      progress[reward.key] = 0;
+      claims[reward.key] = Number(oldClaims[reward.key] || 0) + 1;
+      completed.push(reward.key);
     } else {
-      progress[key] = next;
-      claims[key] = Number(oldClaims[key] || 0);
+      progress[reward.key] = next;
+      claims[reward.key] = Number(oldClaims[reward.key] || 0);
     }
   }
 
