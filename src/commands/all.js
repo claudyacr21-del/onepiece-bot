@@ -15,13 +15,29 @@ const {
   getDevilFruitImage,
 } = require("../config/assetLinks");
 
-function getCardPower(card) {
-  return Number(card.currentPower || card.powerCaps?.M3 || 0);
+function getCardPower(card, stageKey = "M1") {
+  return Number(
+    card.powerCaps?.[stageKey] ||
+      card.basePower ||
+      card.power ||
+      card.currentPower ||
+      0
+  );
 }
 
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
+function getBaseCardStats(card, form = null) {
+  return {
+    atk: Number(form?.atk ?? form?.baseAtk ?? card.baseAtk ?? card.atk ?? 0),
+    hp: Number(form?.hp ?? form?.baseHp ?? card.baseHp ?? card.hp ?? 0),
+    speed: Number(
+      form?.speed ?? form?.spd ?? form?.baseSpeed ?? card.baseSpeed ?? card.speed ?? 0
+    ),
+  };
 }
 
 function getUpgradedWeaponPercent(item, level = 5) {
@@ -97,7 +113,8 @@ function formatOwnersByDisplayName(item, fallback = "Unknown") {
 function buildCardEmbed(card, index, total, mode) {
   const stageIndex = 0;
   const stageKey = "M1";
-  const form = card.evolutionForms?.[stageIndex];
+  const form = card.evolutionForms?.[stageIndex] || null;
+  const baseStats = getBaseCardStats(card, form);
 
   const stageImage =
     form?.image ||
@@ -114,17 +131,17 @@ function buildCardEmbed(card, index, total, mode) {
           `Form: ${form?.name || "M1"}`,
           `Effect: ${form?.effectText || card.effectText || "No effect text"}`,
           "",
-          `Power: ${getCardPower(card)}`,
+          `Power: ${getCardPower(card, stageKey)}`,
         ]
       : [
           `Role: ${card.cardRole}`,
           `Type: ${card.type || "Battle"}`,
           `Form: ${form?.name || "M1"}`,
-          `ATK: ${formatAtkRange(card.atk)}`,
-          `HP: ${Number(card.hp || 0)}`,
-          `SPD: ${Number(card.speed || 0)}`,
+          `ATK: ${formatAtkRange(baseStats.atk)}`,
+          `HP: ${baseStats.hp}`,
+          `SPD: ${baseStats.speed}`,
           "",
-          `Power: ${getCardPower(card)}`,
+          `Power: ${getCardPower(card, stageKey)}`,
         ];
 
   return buildCardStyleEmbed({
@@ -132,12 +149,16 @@ function buildCardEmbed(card, index, total, mode) {
     header: mode === "boost" ? "All Boost Cards" : "All Battle Cards",
     card: {
       ...card,
+      atk: baseStats.atk,
+      hp: baseStats.hp,
+      speed: baseStats.speed,
+      currentPower: getCardPower(card, stageKey),
       badgeImage: form?.badgeImage || card.badgeImage || "",
     },
     badgeImage: form?.badgeImage || card.badgeImage || "",
     image: stageImage,
     formName: form?.name || stageKey,
-    tier: form?.tier || card.currentTier || card.rarity,
+    tier: form?.tier || card.baseTier || card.rarity,
     footerText: `${mode === "boost" ? "Boost" : "Battle"} ${
       index + 1
     }/${total} • Code: ${card.code}`,
