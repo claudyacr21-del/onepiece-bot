@@ -7,30 +7,35 @@ const SHOP_ITEMS = [
     name: "Basic Resource Box x3",
     cost: 25,
     description: "Good for early materials and basic resources.",
+    buyExample: "basic",
   },
   {
     key: "rare",
     name: "Rare Resource Box x1",
     cost: 40,
     description: "Better resource box for mid progression.",
+    buyExample: "rare",
   },
   {
     key: "elite",
     name: "Elite Resource Box x1",
     cost: 75,
     description: "High-grade resource box.",
+    buyExample: "elite",
   },
   {
     key: "reset",
     name: "Pull Reset Ticket x1",
     cost: 100,
     description: "Reset your pull slots manually.",
+    buyExample: "reset",
   },
   {
     key: "legend",
     name: "Legend Resource Box x1",
     cost: 160,
     description: "Premium resource box for late progression.",
+    buyExample: "legend",
   },
 ];
 
@@ -44,43 +49,52 @@ function getFruitEssenceAmount(player) {
   );
 }
 
+function buildFruitShopEmbed(player) {
+  const essence = getFruitEssenceAmount(player);
+
+  const shopLines = SHOP_ITEMS.map((item, index) =>
+    [
+      `**${index + 1}. ${item.name}**`,
+      `- ${Number(item.cost).toLocaleString("en-US")} Fruit Essence`,
+      `↪ ${item.description}`,
+      `↪ Buy: \`op fbuy ${item.buyExample}\``,
+    ].join("\n")
+  ).join("\n\n");
+
+  const lines = [
+    `**Your Fruit Essence:** ${Number(essence || 0).toLocaleString("en-US")}`,
+    "",
+    "**Available Items**",
+    shopLines,
+    "",
+    "**Usage**",
+    "`op fbuy basic`",
+    "`op fbuy rare 2`",
+    "`op fbuy elite`",
+    "`op fbuy reset`",
+    "`op fbuy legend`",
+  ];
+
+  return new EmbedBuilder()
+    .setColor(0x9b59b6)
+    .setTitle("🍈 Fruit Essence Shop")
+    .setDescription(lines.join("\n"))
+    .setFooter({
+      text: "One Piece Bot • Fruit Essence Shop",
+    });
+}
+
 module.exports = {
   name: "fshop",
-  aliases: ["fruitshop", "essenceshop"],
 
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
-    const essence = getFruitEssenceAmount(player);
-
-    const lines = SHOP_ITEMS.map((item) => {
-      return `**${item.key}** — ${item.name}\nCost: **${item.cost} Fruit Essence**\n${item.description}`;
-    });
-
-    const embed = new EmbedBuilder()
-      .setColor(0x9b59b6)
-      .setTitle("🍈 Fruit Essence Shop")
-      .setDescription(
-        [
-          `Your Fruit Essence: **${essence}**`,
-          "",
-          ...lines,
-          "",
-          "**Buy Format**",
-          "`op fbuy <item> [amount]`",
-          "",
-          "**Examples**",
-          "`op fbuy rare`",
-          "`op fbuy basic 2`",
-          "`op fbuy reset`",
-        ].join("\n\n")
-      )
-      .setFooter({
-        text: "One Piece Bot • Fruit Essence Shop",
-      });
 
     return message.reply({
-      embeds: [embed],
-      allowedMentions: { repliedUser: false },
+      embeds: [buildFruitShopEmbed(player)],
+      allowedMentions: {
+        repliedUser: false,
+      },
     });
   },
 };
