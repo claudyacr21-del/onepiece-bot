@@ -174,12 +174,12 @@ function teamSummary(units) {
     .map((unit) =>
       [
         `**${unit.slot}. ${unit.name}**`,
-        `PWR ${Number(unit.power || 0).toLocaleString("en-US")} • LV ${unit.level}`,
+        `PWR ${Number(unit.power || 0).toLocaleString("en-US")}`,
         `ATK ${formatAtkRange(unit.atk)} • SPD ${unit.speed}`,
         renderHpBar(unit.hp, unit.maxHp),
       ].join("\n")
     )
-    .join("\n\n");
+    .join("\n");
 }
 
 function getResultColor(result, ended) {
@@ -230,13 +230,15 @@ function buildChallengeEmbed({ player, targetPlayer, myTeam, enemyTeam, logs, re
         "## Opponent Team",
         teamSummary(enemyTeam),
         "## Battle Log",
-        ...(recentLogs.length ? recentLogs : ["Choose one of your cards to attack.\nTarget starts from opponent slot 1.\nSPD decides turn order."]),
+        ...(recentLogs.length
+          ? recentLogs
+          : [
+              "Choose one of your cards to attack.\nTarget starts from opponent slot 1.\nSPD decides turn order.",
+            ]),
       ].join("\n")
     )
     .setFooter({
-      text: ended
-        ? "One Piece Bot • Challenge Result"
-        : "One Piece Bot • Manual Challenge Match",
+      text: ended ? "One Piece Bot • Challenge Result" : "One Piece Bot • Manual Challenge Match",
     });
 }
 
