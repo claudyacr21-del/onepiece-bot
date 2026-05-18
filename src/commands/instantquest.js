@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const {
   ensureDailyQuestState,
   getQuestProgress,
@@ -72,87 +72,129 @@ module.exports = {
     const maxInstantQuestPerDay = getMaxInstantQuestPerDay(premiumTier);
 
     if (!maxInstantQuestPerDay) {
-      return message.reply(
-        [
+      return message.reply({
+        content: [
           `This command is only for **${PREMIUM_ROLE_NAME}** or **${LITE_PREMIUM_ROLE_NAME}** users.`,
           "Use `op patreon` to view premium packages.",
           "",
           "After payment, please open a ticket and send your order proof + payment proof.",
-        ].join("\n")
-      );
+        ].join("\n"),
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     const questNumber = Math.floor(Number(args[0] || 0));
 
     if (!questNumber || questNumber < 1) {
-      return message.reply("Usage: `op iq <quest number>`\nExample: `op iq 1`");
+      return message.reply({
+        content: "Usage: `op iq <quest#>`\nExample: `op iq 1`",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    const player = getPlayer(message.author.id, message.author.username);
-    const dailyState = ensureDailyQuestState(player);
-    const quests = Array.isArray(dailyState.quests) ? dailyState.quests : [];
+    const previewPlayer = getPlayer(message.author.id, message.author.username);
+    const previewDailyState = ensureDailyQuestState(previewPlayer);
+    const previewQuests = Array.isArray(previewDailyState.quests)
+      ? previewDailyState.quests
+      : [];
 
-    if (!quests.length) {
-      return message.reply("No daily quest is available right now.\nUse `op quest` first.");
+    if (!previewQuests.length) {
+      return message.reply({
+        content: "No daily quest is available right now.\nUse `op quest` first.",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    if (questNumber > quests.length) {
-      return message.reply(`Invalid quest number.\nChoose between **1-${quests.length}**.`);
+    if (questNumber > previewQuests.length) {
+      return message.reply({
+        content: `Invalid quest number.\nChoose between **1-${previewQuests.length}**.`,
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    const instantQuestState = getInstantQuestState(player);
+    let selectedQuest = previewQuests[questNumber - 1];
+    let updatedDailyState = null;
+    let updatedInstantQuestState = null;
+    let summary = null;
 
-    if (instantQuestState.used >= maxInstantQuestPerDay) {
-      return message.reply(
-        `You already used **${maxInstantQuestPerDay}/${maxInstantQuestPerDay}** Instant Quest today.`
-      );
-    }
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const dailyState = ensureDailyQuestState(fresh);
+          const quests = Array.isArray(dailyState.quests) ? dailyState.quests : [];
 
-    const selectedQuest = quests[questNumber - 1];
+          if (!quests.length) {
+            throw new Error("No daily quest is available right now.\nUse `op quest` first.");
+          }
 
-    if (!selectedQuest) {
-      return message.reply("Quest not found.");
-    }
+          if (questNumber > quests.length) {
+            throw new Error(`Invalid quest number.\nChoose between **1-${quests.length}**.`);
+          }
 
-    if (isQuestDone(dailyState, selectedQuest)) {
-      return message.reply(`Quest **#${questNumber}** is already completed.`);
-    }
+          const instantQuestState = getInstantQuestState(fresh);
 
-    const updatedDailyState = {
-      ...dailyState,
-      progress: {
-        ...(dailyState.progress || {}),
-        [selectedQuest.key]: Number(selectedQuest.target || 0),
-      },
-    };
+          if (instantQuestState.used >= maxInstantQuestPerDay) {
+            throw new Error(
+              `You already used **${maxInstantQuestPerDay}/${maxInstantQuestPerDay}** Instant Quest today.`
+            );
+          }
 
-    const summary = getQuestCompletionSummary(updatedDailyState);
+          selectedQuest = quests[questNumber - 1];
 
-    const updatedInstantQuestState = {
-      ...instantQuestState,
-      used: instantQuestState.used + 1,
-      completedQuestIds: [
-        ...new Set([
-          ...(instantQuestState.completedQuestIds || []),
-          selectedQuest.id,
-        ]),
-      ],
-    };
+          if (!selectedQuest) {
+            throw new Error("Quest not found.");
+          }
 
-    updatePlayer(message.author.id, {
-      quests: {
-        ...(player.quests || {}),
-        dailyState: updatedDailyState,
-        instantQuest: updatedInstantQuestState,
-        daily: {
-          ...(player?.quests?.daily || {}),
-          total: summary.total,
-          completed: summary.completed,
-          left: summary.left,
-          lastSyncedAt: Date.now(),
+          if (isQuestDone(dailyState, selectedQuest)) {
+            throw new Error(`Quest **#${questNumber}** is already completed.`);
+          }
+
+          updatedDailyState = {
+            ...dailyState,
+            progress: {
+              ...(dailyState.progress || {}),
+              [selectedQuest.key]: Number(selectedQuest.target || 0),
+            },
+          };
+
+          summary = getQuestCompletionSummary(updatedDailyState);
+
+          updatedInstantQuestState = {
+            ...instantQuestState,
+            used: instantQuestState.used + 1,
+            completedQuestIds: [
+              ...new Set([
+                ...(instantQuestState.completedQuestIds || []),
+                selectedQuest.id,
+              ]),
+            ],
+          };
+
+          return {
+            ...fresh,
+            quests: {
+              ...(fresh.quests || {}),
+              dailyState: updatedDailyState,
+              instantQuest: updatedInstantQuestState,
+              daily: {
+                ...(fresh?.quests?.daily || {}),
+                total: summary.total,
+                completed: summary.completed,
+                left: summary.left,
+                lastSyncedAt: Date.now(),
+              },
+            },
+          };
         },
-      },
-    });
+        message.author.username
+      );
+    } catch (error) {
+      return message.reply({
+        content: error.message || "Failed to complete instant quest.",
+        allowedMentions: { repliedUser: false },
+      });
+    }
 
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
@@ -160,9 +202,7 @@ module.exports = {
       .setDescription(
         [
           `**Completed Quest:** #${questNumber} • ${selectedQuest.title || "Quest"}`,
-          `**Progress:** ${Number(selectedQuest.target || 0)}/${Number(
-            selectedQuest.target || 0
-          )}`,
+          `**Progress:** ${Number(selectedQuest.target || 0)}/${Number(selectedQuest.target || 0)}`,
           "",
           `**Instant Quest Used:** ${updatedInstantQuestState.used}/${maxInstantQuestPerDay}`,
           `**Quest Left:** ${summary.left}/${summary.total}`,
@@ -180,6 +220,7 @@ module.exports = {
 
     return message.reply({
       embeds: [embed],
+      allowedMentions: { repliedUser: false },
     });
   },
 };

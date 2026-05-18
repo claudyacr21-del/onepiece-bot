@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
 
 function pickRandomUniversalFragment() {
@@ -235,55 +235,58 @@ module.exports = {
       return message.reply("That market item was not found.");
     }
 
-    const totalPrice = found.price * amount;
-    const currency = found.currency || "gems";
-    const currentCurrency = Number(player[currency] || 0);
+  const totalPrice = found.price * amount;
+  const currency = found.currency || "gems";
+  const inventoryKey = found.inventory || "boxes";
+  const obtainedMap = new Map();
 
-    if (currentCurrency < totalPrice) {
-      return message.reply(
-        `You need **${totalPrice.toLocaleString(
-          "en-US"
-        )} ${currency}** to buy **${found.name} x${amount}**.`
-      );
-    }
+  let currentCurrency = 0;
+  let remainingCurrency = 0;
 
-    const inventoryKey = found.inventory || "boxes";
-    let updatedInventory = [...(player[inventoryKey] || [])];
-    const obtainedMap = new Map();
+  try {
+    updatePlayerAtomic(
+      message.author.id,
+      (fresh) => {
+        currentCurrency = Number(fresh[currency] || 0);
 
-    function trackObtained(item, qty = 1) {
-      if (!item) return;
-
-      const key = item.code || item.name;
-      const current = obtainedMap.get(key) || {
-        name: item.name || "Unknown Item",
-        amount: 0,
-      };
-
-      current.amount += Number(qty || 1);
-      obtainedMap.set(key, current);
-    }
-
-    if (typeof found.randomItem === "function") {
-      for (let i = 0; i < amount; i++) {
-        const randomItem = found.randomItem();
-
-        if (randomItem) {
-          const cloned = cloneItem(randomItem, 1);
-          updatedInventory = addOrIncrease(updatedInventory, cloned);
-          trackObtained(cloned, 1);
+        if (currentCurrency < totalPrice) {
+          throw new Error(
+            `You need **${totalPrice.toLocaleString(
+              "en-US"
+            )} ${currency}** to buy **${found.name} x${amount}**.`
+          );
         }
-      }
-    } else {
-      const cloned = cloneItem(found.item, amount);
-      updatedInventory = addOrIncrease(updatedInventory, cloned);
-      trackObtained(cloned, amount);
-    }
 
-    updatePlayer(message.author.id, {
-      [currency]: currentCurrency - totalPrice,
-      [inventoryKey]: updatedInventory,
-    });
+        let updatedInventory = [...(fresh[inventoryKey] || [])];
+
+        if (typeof found.randomItem === "function") {
+          for (let i = 0; i < amount; i++) {
+            const randomItem = found.randomItem();
+            if (randomItem) {
+              const cloned = cloneItem(randomItem, 1);
+              updatedInventory = addOrIncrease(updatedInventory, cloned);
+              trackObtained(cloned, 1);
+            }
+          }
+        } else {
+          const cloned = cloneItem(found.item, amount);
+          updatedInventory = addOrIncrease(updatedInventory, cloned);
+          trackObtained(cloned, amount);
+        }
+
+        remainingCurrency = currentCurrency - totalPrice;
+
+        return {
+          ...fresh,
+          [currency]: remainingCurrency,
+          [inventoryKey]: updatedInventory,
+        };
+      },
+      message.author.username
+    );
+  } catch (error) {
+    return message.reply(error.message || "Market purchase failed.");
+  }
 
     return message.reply({
       embeds: [
@@ -295,9 +298,7 @@ module.exports = {
               `Bought: **${found.name} x${amount}**`,
               formatObtainedItems(obtainedMap),
               `Cost: **${totalPrice.toLocaleString("en-US")} ${currency}**`,
-              `Remaining ${currency === "berries" ? "Berries" : "Gems"}: **${(
-                currentCurrency - totalPrice
-              ).toLocaleString("en-US")}**`,
+              `Remaining ${currency === "berries" ? "Berries" : "Gems"}: **${remainingCurrency.toLocaleString("en-US")}**`,
               "",
               getPurchaseUsageText(found, inventoryKey),
             ]

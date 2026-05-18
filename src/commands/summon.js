@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { readPlayers, writePlayers, getPlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { createOwnedCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
 const weaponsDb = require("../data/weapons");
@@ -44,6 +44,7 @@ function scoreNameOnly(query, names) {
     else if (name.includes(q)) best = Math.max(best, 500 + q.length);
     else {
       const words = q.split(" ").filter(Boolean);
+
       if (words.length && words.every((word) => name.includes(word))) {
         best = Math.max(best, 300 + words.join("").length);
       }
@@ -58,7 +59,7 @@ function findSummonableCard(query) {
     .filter(isSummonableCard)
     .map((card) => ({
       card,
-      score: scoreNameOnly(query, [card.displayName, card.name]),
+      score: scoreNameOnly(query, [card.displayName, card.name, card.code]),
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -70,7 +71,7 @@ function findWeaponByNameOnly(query) {
   const scored = weaponsDb
     .map((weapon) => ({
       weapon,
-      score: scoreNameOnly(query, [weapon.name]),
+      score: scoreNameOnly(query, [weapon.name, weapon.code]),
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -171,7 +172,6 @@ function hasLuffyM3(player) {
       code.includes("luffy") ||
       name.includes("luffy") ||
       name.includes("monkey d luffy");
-
     const isM3 = stage >= 3 || key === "M3";
 
     return isLuffy && isM3;
@@ -208,7 +208,6 @@ function addWeaponToInventory(weapons, weapon) {
       ...arr[index],
       amount: Number(arr[index].amount || 1) + 1,
     };
-
     return arr;
   }
 
@@ -219,9 +218,17 @@ function addWeaponToInventory(weapons, weapon) {
     rarity: weapon.rarity || "C",
     type: weapon.type || "Weapon",
     image: weapon.image || "",
-    statPercent: weapon.statPercent || { atk: 0, hp: 0, speed: 0 },
+    statPercent: weapon.statPercent || {
+      atk: 0,
+      hp: 0,
+      speed: 0,
+    },
     baseStatPercent: weapon.baseStatPercent || weapon.statPercent || undefined,
-    ownerBonusPercent: weapon.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
+    ownerBonusPercent: weapon.ownerBonusPercent || {
+      atk: 0,
+      hp: 0,
+      speed: 0,
+    },
     owners: Array.isArray(weapon.owners) ? weapon.owners : [],
     description: weapon.description || "",
     upgradeLevel: 0,
@@ -257,7 +264,7 @@ module.exports = {
     if (!query) {
       return message.reply({
         content: [
-          "Usage: `op summon <card/weapon name>`",
+          "Usage: `op summon <name>`",
           "Example: `op summon luffy`",
           "Example: `op summon baccarat`",
           "Example: `op summon kikoku`",
@@ -265,79 +272,138 @@ module.exports = {
           `Cost: **${SUMMON_FRAGMENT_COST}x self fragments**`,
           "Summonable: **Battle Cards**, **Boost Cards**, and **Weapons**",
         ].join("\n"),
-        allowedMentions: { repliedUser: false },
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
-    getPlayer(message.author.id, message.author.username);
-
-    const players = readPlayers();
-    const userId = String(message.author.id);
-    const player = players[userId];
-
-    if (!player) {
-      return message.reply({
-        content: "Player data was not found. Please try again.",
-        allowedMentions: { repliedUser: false },
-      });
-    }
-
-    const fragments = Array.isArray(player.fragments) ? [...player.fragments] : [];
-
+    const previewPlayer = getPlayer(message.author.id, message.author.username);
     const card = findSummonableCard(query);
+    const weapon = card ? null : findWeaponByNameOnly(query);
 
-    if (card) {
-      if (alreadyOwnsCard(player, card)) {
-        return message.reply({
-          content: `You already own **${getCardName(card)}**.`,
-          allowedMentions: { repliedUser: false },
-        });
-      }
+    if (!card && !weapon) {
+      return message.reply({
+        content: `Battle card, boost card, or weapon matching \`${query}\` was not found.`,
+        allowedMentions: { repliedUser: false },
+      });
+    }
 
-      const requirementError = getSpecialSummonRequirementError(player, card);
+    let summonedType = "";
+    let summonedName = "";
+    let summonedRarity = "C";
+    let remainingFragments = 0;
+    let ownedCard = null;
+    let weaponImage = null;
+    let weaponBadge = null;
+    let weaponType = null;
+    let cardRoleLabel = null;
 
-      if (requirementError) {
-        return message.reply({
-          content: requirementError,
-          allowedMentions: { repliedUser: false },
-        });
-      }
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const fragments = Array.isArray(fresh.fragments)
+            ? fresh.fragments.map((fragment) => ({ ...fragment }))
+            : [];
 
-      const fragmentIndex = findCardFragmentIndex(fragments, card);
+          if (card) {
+            if (alreadyOwnsCard(fresh, card)) {
+              throw new Error(`You already own **${getCardName(card)}**.`);
+            }
 
-      if (fragmentIndex === -1) {
-        return message.reply({
-          content: `You need **${SUMMON_FRAGMENT_COST}x ${getCardName(
-            card
-          )} Fragment** to summon this card.`,
-          allowedMentions: { repliedUser: false },
-        });
-      }
+            const requirementError = getSpecialSummonRequirementError(fresh, card);
 
-      const ownedFragments = Number(fragments[fragmentIndex].amount || 0);
+            if (requirementError) {
+              throw new Error(requirementError);
+            }
 
-      if (ownedFragments < SUMMON_FRAGMENT_COST) {
-        return message.reply({
-          content: `You need **${SUMMON_FRAGMENT_COST}x ${getCardName(
-            card
-          )} Fragment**.\nYou currently have **${ownedFragments}x**.`,
-          allowedMentions: { repliedUser: false },
-        });
-      }
+            const fragmentIndex = findCardFragmentIndex(fragments, card);
 
-      const consumed = consumeFragments(fragments, fragmentIndex, SUMMON_FRAGMENT_COST);
-      const ownedCard = createOwnedCard(card);
+            if (fragmentIndex === -1) {
+              throw new Error(
+                `You need **${SUMMON_FRAGMENT_COST}x ${getCardName(card)} Fragment** to summon this card.`
+              );
+            }
 
-      players[userId] = {
-        ...player,
-        cards: [...(player.cards || []), ownedCard],
-        fragments: consumed.fragments,
-      };
+            const ownedFragments = Number(fragments[fragmentIndex].amount || 0);
 
-      writePlayers(players);
+            if (ownedFragments < SUMMON_FRAGMENT_COST) {
+              throw new Error(
+                `You need **${SUMMON_FRAGMENT_COST}x ${getCardName(card)} Fragment**.\nYou currently have **${ownedFragments}x**.`
+              );
+            }
 
-      const rarity = String(card.baseTier || card.rarity || "C").toUpperCase();
+            const consumed = consumeFragments(fragments, fragmentIndex, SUMMON_FRAGMENT_COST);
 
+            if (!consumed) {
+              throw new Error("Failed to consume fragments.");
+            }
+
+            ownedCard = createOwnedCard(card);
+            summonedType = "card";
+            summonedName = getCardName(card);
+            summonedRarity = String(card.baseTier || card.rarity || "C").toUpperCase();
+            remainingFragments = consumed.remaining;
+            cardRoleLabel = getRoleLabel(card);
+
+            return {
+              ...fresh,
+              cards: [...(fresh.cards || []), ownedCard],
+              fragments: consumed.fragments,
+            };
+          }
+
+          if (alreadyOwnsWeapon(fresh, weapon)) {
+            throw new Error(`You already own **${weapon.name}**.`);
+          }
+
+          const fragmentIndex = findWeaponFragmentIndex(fragments, weapon);
+
+          if (fragmentIndex === -1) {
+            throw new Error(
+              `You need **${SUMMON_FRAGMENT_COST}x ${weapon.name} Fragment** to summon this weapon.`
+            );
+          }
+
+          const ownedFragments = Number(fragments[fragmentIndex].amount || 0);
+
+          if (ownedFragments < SUMMON_FRAGMENT_COST) {
+            throw new Error(
+              `You need **${SUMMON_FRAGMENT_COST}x ${weapon.name} Fragment**.\nYou currently have **${ownedFragments}x**.`
+            );
+          }
+
+          const consumed = consumeFragments(fragments, fragmentIndex, SUMMON_FRAGMENT_COST);
+
+          if (!consumed) {
+            throw new Error("Failed to consume fragments.");
+          }
+
+          summonedType = "weapon";
+          summonedName = weapon.name;
+          summonedRarity = String(weapon.rarity || "C").toUpperCase();
+          remainingFragments = consumed.remaining;
+          weaponType = weapon.type || "Weapon";
+          weaponImage = getWeaponImage(weapon.code, weapon.image || "") || weapon.image || null;
+          weaponBadge = getRarityBadge(summonedRarity) || null;
+
+          return {
+            ...fresh,
+            weapons: addWeaponToInventory(fresh.weapons || [], weapon),
+            fragments: consumed.fragments,
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
+      return message.reply({
+        content: error.message || "Failed to summon.",
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
+    if (summonedType === "card") {
       return message.reply({
         embeds: [
           new EmbedBuilder()
@@ -345,88 +411,46 @@ module.exports = {
             .setTitle("✨ Card Summoned")
             .setDescription(
               [
-                `**Card:** ${getCardName(card)}`,
-                `**Type:** ${getRoleLabel(card)}`,
-                `**Rarity:** ${rarity}`,
-                `**Cost:** ${SUMMON_FRAGMENT_COST}x ${getCardName(card)} Fragment`,
-                `**Remaining Fragments:** ${consumed.remaining}`,
+                `**Card:** ${summonedName}`,
+                `**Type:** ${cardRoleLabel}`,
+                `**Rarity:** ${summonedRarity}`,
+                `**Cost:** ${SUMMON_FRAGMENT_COST}x ${summonedName} Fragment`,
+                `**Remaining Fragments:** ${remainingFragments}`,
                 "",
                 "The card has been added to your collection.",
               ].join("\n")
             )
             .setImage(getSummonImage(ownedCard, card))
-            .setFooter({ text: "One Piece Bot • Summon" }),
+            .setFooter({
+              text: "One Piece Bot • Summon",
+            }),
         ],
         allowedMentions: { repliedUser: false },
       });
     }
 
-    const weapon = findWeaponByNameOnly(query);
-
-    if (weapon) {
-      if (alreadyOwnsWeapon(player, weapon)) {
-        return message.reply({
-          content: `You already own **${weapon.name}**.`,
-          allowedMentions: { repliedUser: false },
-        });
-      }
-
-      const fragmentIndex = findWeaponFragmentIndex(fragments, weapon);
-
-      if (fragmentIndex === -1) {
-        return message.reply({
-          content: `You need **${SUMMON_FRAGMENT_COST}x ${weapon.name} Fragment** to summon this weapon.`,
-          allowedMentions: { repliedUser: false },
-        });
-      }
-
-      const ownedFragments = Number(fragments[fragmentIndex].amount || 0);
-
-      if (ownedFragments < SUMMON_FRAGMENT_COST) {
-        return message.reply({
-          content: `You need **${SUMMON_FRAGMENT_COST}x ${weapon.name} Fragment**.\nYou currently have **${ownedFragments}x**.`,
-          allowedMentions: { repliedUser: false },
-        });
-      }
-
-      const consumed = consumeFragments(fragments, fragmentIndex, SUMMON_FRAGMENT_COST);
-
-      players[userId] = {
-        ...player,
-        weapons: addWeaponToInventory(player.weapons || [], weapon),
-        fragments: consumed.fragments,
-      };
-
-      writePlayers(players);
-
-      const rarity = String(weapon.rarity || "C").toUpperCase();
-
-      const embed = new EmbedBuilder()
-        .setColor(0x3498db)
-        .setTitle("⚔️ Weapon Summoned")
-        .setDescription(
-          [
-            `**Weapon:** ${weapon.name}`,
-            `**Type:** ${weapon.type || "Weapon"}`,
-            `**Rarity:** ${rarity}`,
-            `**Cost:** ${SUMMON_FRAGMENT_COST}x ${weapon.name} Fragment`,
-            `**Remaining Fragments:** ${consumed.remaining}`,
-            "",
-            "The weapon has been added to your weapon inventory.",
-          ].join("\n")
-        )
-        .setThumbnail(getRarityBadge(rarity) || null)
-        .setImage(getWeaponImage(weapon.code, weapon.image || "") || weapon.image || null)
-        .setFooter({ text: "One Piece Bot • Summon" });
-
-      return message.reply({
-        embeds: [embed],
-        allowedMentions: { repliedUser: false },
-      });
-    }
-
     return message.reply({
-      content: `Battle card, boost card, or weapon matching \`${query}\` was not found.`,
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x3498db)
+          .setTitle("⚔️ Weapon Summoned")
+          .setDescription(
+            [
+              `**Weapon:** ${summonedName}`,
+              `**Type:** ${weaponType}`,
+              `**Rarity:** ${summonedRarity}`,
+              `**Cost:** ${SUMMON_FRAGMENT_COST}x ${summonedName} Fragment`,
+              `**Remaining Fragments:** ${remainingFragments}`,
+              "",
+              "The weapon has been added to your weapon inventory.",
+            ].join("\n")
+          )
+          .setThumbnail(weaponBadge)
+          .setImage(weaponImage)
+          .setFooter({
+            text: "One Piece Bot • Summon",
+          }),
+      ],
       allowedMentions: { repliedUser: false },
     });
   },
