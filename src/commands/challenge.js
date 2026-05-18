@@ -414,7 +414,6 @@ module.exports = {
       const firstDamage = performAttack(first, firstTarget);
 
       logs.push(`⚡ ${first.name} moved first by SPD.`);
-      logs.push(`⚔️ ${first.name} attacked ${firstTarget.name}.`);
       logs.push(`${firstIsPlayer ? "➡️" : "⬅️"} ${first.name} dealt **${firstDamage}** damage to ${firstTarget.name}.`);
 
       if (Number(firstTarget.hp || 0) <= 0) {
