@@ -415,7 +415,7 @@ function deriveRaidBossStats(template, raidMode = {}) {
         atkMax: 860,
       },
       S: {
-        hp: 27500,
+        hp: 26500,
         speed: 460,
         atkMin: 620,
         atkMax: 1120,
