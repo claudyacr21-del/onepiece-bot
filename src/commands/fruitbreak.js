@@ -5,10 +5,10 @@ const devilFruitsDb = require("../data/devilFruits");
 
 const ESSENCE_BY_RARITY = {
   C: 5,
-  B: 10,
-  A: 15,
-  S: 20,
-  UR: 25,
+  B: 15,
+  A: 20,
+  S: 25,
+  UR: 100,
 };
 
 function normalize(value) {
