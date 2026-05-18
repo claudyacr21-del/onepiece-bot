@@ -1878,7 +1878,7 @@ module.exports = {
           });
         }
 
-        await interaction.update({
+        await lobbyMessage.edit({
           embeds: [
             buildLobbyEmbed(
               message.author.username,

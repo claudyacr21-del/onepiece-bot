@@ -54,6 +54,26 @@ function ensureArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+async function safeDeferUpdate(interaction) {
+  if (!interaction || interaction.deferred || interaction.replied) return;
+
+  try {
+    await interaction.deferUpdate();
+  } catch (error) {
+    // Unknown interaction usually means it was already acknowledged or expired.
+    // Do not crash the collector.
+  }
+}
+
+async function safeEditInteractionMessage(interaction, payload) {
+  try {
+    return await interaction.message.edit(payload);
+  } catch (error) {
+    console.error("[ARENA MESSAGE EDIT ERROR]", error);
+    return null;
+  }
+}
+
 function queueArenaRankRoleSync(message) {
   if (!message?.client || !message?.guild) return;
 
@@ -1060,7 +1080,9 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       logs.push("🏳️ You forfeited the arena battle.");
       currentArena = updateArenaPlayer(message, result);
 
-      await interaction.update({
+      await safeDeferUpdate(interaction);
+
+      await safeEditInteractionMessage(interaction, {
         embeds: [
           buildArenaResultEmbed({
             result,
@@ -1068,6 +1090,7 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
             opponent,
             arena: currentArena,
             logs,
+            expLines,
           }),
         ],
         components: [],
@@ -1129,7 +1152,9 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       queueArenaRankRoleSync(message);
       const expLines = applyArenaExp(message, myTeam, true);
 
-      await interaction.update({
+      await safeDeferUpdate(interaction);
+
+      await safeEditInteractionMessage(interaction, {
         embeds: [
           buildArenaResultEmbed({
             result,
@@ -1153,7 +1178,9 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       currentArena = updateArenaPlayer(message, result);
       const expLines = applyArenaExp(message, myTeam, false);
 
-      await interaction.update({
+      await safeDeferUpdate(interaction);
+
+      await safeEditInteractionMessage(interaction, {
         embeds: [
           buildArenaResultEmbed({
             result,
@@ -1171,7 +1198,9 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       return;
     }
 
-    await interaction.update({
+    await safeDeferUpdate(interaction);
+
+    await safeEditInteractionMessage(interaction, {
       embeds: [
         buildArenaEmbed({
           player,

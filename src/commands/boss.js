@@ -37,6 +37,42 @@ const BOSS_GLOBAL_ATK_MULT = 1.3;
 const BOSS_GLOBAL_HP_MULT = 1.5;
 const BOSS_GLOBAL_SPD_MULT = 1.1;
 
+async function safeDeferUpdate(interaction) {
+  if (!interaction || interaction.deferred || interaction.replied) return;
+
+  try {
+    await interaction.deferUpdate();
+  } catch (_) {}
+}
+
+async function safeEditInteractionMessage(interaction, payload) {
+  try {
+    return await interaction.message.edit(payload);
+  } catch (error) {
+    console.error("[BOSS MESSAGE EDIT ERROR]", error);
+    return null;
+  }
+}
+
+async function safeEphemeralReply(interaction, content) {
+  try {
+    if (interaction.deferred || interaction.replied) {
+      return await interaction.followUp({
+        content,
+        ephemeral: true,
+      });
+    }
+
+    return await interaction.reply({
+      content,
+      ephemeral: true,
+    });
+  } catch (error) {
+    console.error("[BOSS REPLY ERROR]", error);
+    return null;
+  }
+}
+
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
   const index = arr.findIndex((entry) => entry.code === item.code);
@@ -1156,7 +1192,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
 
         const cancelParticipants = await getJoinedParticipantsPreview();
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildBossJoinEmbed(
               message.author.id,
@@ -1200,7 +1236,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
 
         const startParticipants = await getJoinedParticipantsPreview();
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildBossJoinEmbed(
               message.author.id,
@@ -1923,27 +1959,27 @@ module.exports = {
 
       collector.on("collect", async (interaction) => {
         if (interaction.user.id !== message.author.id) {
-          return interaction.reply({
-            content: "Only the host can control this Boss Phase 2 raid.",
-            ephemeral: true,
-          });
+          return safeEphemeralReply(
+            interaction,
+            "Only the command user can control this boss battle."
+          );
         }
 
         if (ended) {
-          return interaction.reply({
-            content: "This boss raid has already ended.",
-            ephemeral: true,
-          });
+          return safeEphemeralReply(
+            interaction,
+            "This boss battle has already ended."
+          );
         }
 
-        const allUnits = participants.flatMap((p) => p.units);
+        await safeDeferUpdate(interaction);
 
-        if (interaction.customId === "boss_raid_run") {
+        if (interaction.customId === "boss_run") {
           logs.length = 0;
           pushBossLog(logs, "⚠️ Run away confirmation requested.");
           pushBossLog(logs, "Confirm run away or cancel to continue.");
 
-          await interaction.update({
+          await safeEditInteractionMessage(interaction, {
             embeds: [
               buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, lastUsedUnitKey ? [lastUsedUnitKey] : []),
             ],
@@ -1957,7 +1993,7 @@ module.exports = {
           pushBossLog(logs, "✅ Run away cancelled.");
           pushBossLog(logs, "Choose a raid unit to continue.");
 
-          await interaction.update({
+          await safeEditInteractionMessage(interaction, {
             embeds: [
               buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, lastUsedUnitKey ? [lastUsedUnitKey] : []),
             ],
@@ -1978,7 +2014,7 @@ module.exports = {
             quests: updatedQuests,
           });
 
-          await interaction.update({
+          await safeEditInteractionMessage(interaction, {
             embeds: [
               buildBossResultEmbed({
                 title: "Boss Phase 2 Raid Escaped",
@@ -2014,6 +2050,8 @@ module.exports = {
             ephemeral: true,
           });
         }
+
+        await safeDeferUpdate(interaction);
 
         const owner = participants.find((p) => p.userId === attacker.ownerId);
         const combatLogs = [];
@@ -2133,7 +2171,7 @@ module.exports = {
 
           pushBossLog(logs, `🏆 ${boss.name} was defeated by the raid team!`);
 
-          await interaction.update({
+          await safeEditInteractionMessage(interaction, {
             embeds: [
               buildBossResultEmbed({
                 title: "Boss Phase 2 Raid Victory",
@@ -2186,7 +2224,7 @@ module.exports = {
 
           pushBossLog(logs, `💀 The raid team was wiped out by ${boss.name}.`);
 
-          await interaction.update({
+          await safeEditInteractionMessage(interaction, {
             embeds: [
               buildBossResultEmbed({
                 title: "Boss Phase 2 Raid Defeat",
@@ -2203,7 +2241,7 @@ module.exports = {
           return;
         }
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildRaidBossEmbed(currentIsland, phaseBoss, participants, boss, logs, false, lastUsedUnitKey ? [lastUsedUnitKey] : []),
           ],
@@ -2369,10 +2407,7 @@ module.exports = {
       const attacker = playerTeam[index];
 
       if (!attacker || Number(attacker.battleHp ?? attacker.hp) <= 0) {
-        return interaction.reply({
-          content: "That card cannot attack right now.",
-          ephemeral: true,
-        });
+        return safeEphemeralReply(interaction, "That card cannot attack right now.");
       }
 
       const combatLogs = [];

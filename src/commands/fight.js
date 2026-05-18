@@ -768,11 +768,10 @@ module.exports = {
       }
 
       if (battleEnded) {
-        return interaction.reply({
-          content: "This fight has already ended.",
-          ephemeral: true,
-        });
+        return safeEphemeralReply(interaction, "This fight has already ended.");
       }
+
+      await safeDeferUpdate(interaction);
 
 if (interaction.customId === "fight_run") {
   confirmingRunAway = true;
@@ -780,7 +779,7 @@ if (interaction.customId === "fight_run") {
   logs.push("⚠️ Run away confirmation requested.");
   logs.push("Choose **Confirm Run Away** to leave the fight, or **Cancel** to continue.");
 
-  await interaction.update({
+  await safeEditInteractionMessage(interaction, {
     embeds: [
       buildFightEmbed(
         player.username || message.author.username,
@@ -805,7 +804,7 @@ if (interaction.customId === "fight_run_cancel") {
   logs.push("✅ Run away cancelled.");
   logs.push("Choose one of your cards to continue the fight.");
 
-  await interaction.update({
+  await safeEditInteractionMessage(interaction, {
     embeds: [
       buildFightEmbed(
         player.username || message.author.username,
@@ -831,7 +830,7 @@ if (interaction.customId === "fight_run_cancel") {
         logs.push("🏃 You ran away from the fight.");
         logs.push("No EXP gained from running away.");
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildFightResultEmbed({
               title: "🏃 Fight Escaped",
@@ -855,19 +854,13 @@ if (interaction.customId === "fight_run_cancel") {
       const playerAttacker = playerTeam[index];
 
       if (!playerAttacker || Number(playerAttacker.battleHp ?? playerAttacker.hp) <= 0) {
-        return interaction.reply({
-          content: "That card cannot attack right now.",
-          ephemeral: true,
-        });
+        return safeEphemeralReply(interaction, "That card cannot attack right now.");
       }
 
       const enemyTarget = getFirstAlive(enemyTeam);
 
       if (!enemyTarget) {
-        return interaction.reply({
-          content: "No enemy is available to attack.",
-          ephemeral: true,
-        });
+        return safeEphemeralReply(interaction, "No enemy is available to attack.");
       }
 
       logs.length = 0;
@@ -980,7 +973,7 @@ if (interaction.customId === "fight_run_cancel") {
 
         logs.push("🏆 You won the fight!");
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildFightResultEmbed({
               title: "🏆 Fight Victory",
@@ -1006,7 +999,7 @@ if (interaction.customId === "fight_run_cancel") {
 
         logs.push("💀 You lost the fight.");
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildFightResultEmbed({
               title: "💀 Fight Defeat",
@@ -1023,7 +1016,7 @@ if (interaction.customId === "fight_run_cancel") {
         return;
       }
 
-      await interaction.update({
+      await safeEditInteractionMessage(interaction, {
         embeds: [
           buildFightEmbed(
             player.username || message.author.username,

@@ -11,6 +11,42 @@ const { applyDamageBoost } = require("../utils/combatStats");
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 
+async function safeDeferUpdate(interaction) {
+  if (!interaction || interaction.deferred || interaction.replied) return;
+
+  try {
+    await interaction.deferUpdate();
+  } catch (_) {}
+}
+
+async function safeEditInteractionMessage(interaction, payload) {
+  try {
+    return await interaction.message.edit(payload);
+  } catch (error) {
+    console.error("[CHALLENGE MESSAGE EDIT ERROR]", error);
+    return null;
+  }
+}
+
+async function safeEphemeralReply(interaction, content) {
+  try {
+    if (interaction.deferred || interaction.replied) {
+      return await interaction.followUp({
+        content,
+        ephemeral: true,
+      });
+    }
+
+    return await interaction.reply({
+      content,
+      ephemeral: true,
+    });
+  } catch (error) {
+    console.error("[CHALLENGE REPLY ERROR]", error);
+    return null;
+  }
+}
+
 function getPower(card) {
   return Number(
     card.currentPower ||
@@ -292,18 +328,20 @@ module.exports = {
 
     collector.on("collect", async (interaction) => {
       if (interaction.user.id !== message.author.id) {
-        return interaction.reply({
-          content: "Only the challenger can control this challenge battle.",
-          ephemeral: true,
-        });
+        return safeEphemeralReply(
+          interaction,
+          "Only the challenger can control this challenge battle."
+        );
       }
 
       if (ended) {
-        return interaction.reply({
-          content: "This challenge battle has already ended.",
-          ephemeral: true,
-        });
+        return safeEphemeralReply(
+          interaction,
+          "This challenge battle has already ended."
+        );
       }
+
+      await safeDeferUpdate(interaction);
 
       if (interaction.customId === "challenge_forfeit") {
         ended = true;
@@ -311,7 +349,7 @@ module.exports = {
         logs.length = 0;
         logs.push("🏳️ You forfeited the challenge.");
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildChallengeResultEmbed({
               result,
@@ -331,19 +369,16 @@ module.exports = {
       const attacker = myTeam[index];
 
       if (!attacker || Number(attacker.hp || 0) <= 0) {
-        return interaction.reply({
-          content: "That card cannot attack right now.",
-          ephemeral: true,
-        });
+        return safeEphemeralReply(interaction, "That card cannot attack right now.");
       }
 
       const target = getFirstAlive(enemyTeam);
 
       if (!target) {
-        return interaction.reply({
-          content: "No opponent card is available to attack.",
-          ephemeral: true,
-        });
+        return safeEphemeralReply(
+          interaction,
+          "No opponent card is available to attack."
+        );
       }
 
       logs.length = 0;
@@ -366,7 +401,7 @@ module.exports = {
         result = "win";
         logs.push("🏆 You won the challenge!");
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildChallengeResultEmbed({
               result,
@@ -387,7 +422,7 @@ module.exports = {
         result = "lose";
         logs.push("💀 You lost the challenge.");
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildChallengeResultEmbed({
               result,
@@ -420,7 +455,7 @@ module.exports = {
         result = "win";
         logs.push("🏆 You won the challenge!");
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildChallengeResultEmbed({
               result,
@@ -441,7 +476,7 @@ module.exports = {
         result = "lose";
         logs.push("💀 You lost the challenge.");
 
-        await interaction.update({
+        await safeEditInteractionMessage(interaction, {
           embeds: [
             buildChallengeResultEmbed({
               result,
@@ -457,7 +492,7 @@ module.exports = {
         return;
       }
 
-      await interaction.update({
+      await safeEditInteractionMessage(interaction, {
         embeds: [
           buildChallengeEmbed({
             player,
