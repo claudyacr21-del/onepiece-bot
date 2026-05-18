@@ -21,6 +21,8 @@ module.exports = {
       "awaken",
       "wp",
       "summon",
+      "add",
+      "remove",
       "fshop",
       "fbuy",
       "fbreak",
