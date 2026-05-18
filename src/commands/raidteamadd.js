@@ -1,4 +1,4 @@
-const { readPlayers, writePlayers } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 const { getRoom, addWhitelistUser } = require("../utils/partyRooms");
 
 function ensureArray(value) {
@@ -11,9 +11,7 @@ function normalize(value) {
 
 async function fetchGuildMembers(message) {
   if (!message.guild) return [];
-
   await message.guild.members.fetch().catch(() => null);
-
   return [...message.guild.members.cache.values()];
 }
 
@@ -95,7 +93,6 @@ async function resolveTargetUser(message, raw) {
   }
 
   const cachedUsers = [...message.client.users.cache.values()];
-
   const exactUser =
     cachedUsers.find((u) => normalize(u.username) === q) ||
     cachedUsers.find((u) => normalize(u.globalName) === q);
@@ -110,47 +107,54 @@ async function resolveTargetUser(message, raw) {
   return null;
 }
 
-function getOrCreateHostPlayer(players, hostId, username) {
-  if (!players[hostId]) {
-    players[hostId] = {
-      username,
-      raidTeam: {
-        members: [],
-      },
-    };
-  }
-
-  players[hostId].username = players[hostId].username || username;
-  players[hostId].raidTeam = players[hostId].raidTeam || {};
-  players[hostId].raidTeam.members = ensureArray(players[hostId].raidTeam.members)
-    .map(String)
-    .filter(Boolean);
-
-  return players[hostId];
-}
-
 function addToSavedRaidTeam(hostId, hostUsername, targetId) {
-  const players = readPlayers();
-  const host = getOrCreateHostPlayer(players, hostId, hostUsername);
-
-  if (host.raidTeam.members.includes(String(targetId))) {
-    return {
-      added: false,
-      total: host.raidTeam.members.length,
-    };
-  }
-
-  if (host.raidTeam.members.length >= 9) {
-    throw new Error("Saved raid team is already full. Max 9 members.");
-  }
-
-  host.raidTeam.members.push(String(targetId));
-  writePlayers(players);
-
-  return {
-    added: true,
-    total: host.raidTeam.members.length,
+  let result = {
+    added: false,
+    total: 0,
   };
+
+  updatePlayerAtomic(
+    hostId,
+    (fresh) => {
+      const raidTeam = {
+        ...(fresh.raidTeam || {}),
+        members: ensureArray(fresh?.raidTeam?.members).map(String).filter(Boolean),
+      };
+
+      if (raidTeam.members.includes(String(targetId))) {
+        result = {
+          added: false,
+          total: raidTeam.members.length,
+        };
+
+        return {
+          ...fresh,
+          username: fresh.username || hostUsername,
+          raidTeam,
+        };
+      }
+
+      if (raidTeam.members.length >= 9) {
+        throw new Error("Saved raid team is already full.\nMax 9 members.");
+      }
+
+      raidTeam.members.push(String(targetId));
+
+      result = {
+        added: true,
+        total: raidTeam.members.length,
+      };
+
+      return {
+        ...fresh,
+        username: fresh.username || hostUsername,
+        raidTeam,
+      };
+    },
+    hostUsername
+  );
+
+  return result;
 }
 
 module.exports = {
@@ -168,7 +172,7 @@ module.exports = {
       const target = await resolveTargetUser(message, rawTarget);
 
       if (!target) {
-        return message.reply("User not found. Use `@mention` or exact username only.");
+        return message.reply("User not found.\nUse `@mention` or exact username only.");
       }
 
       if (target.id === String(message.author.id)) {

@@ -1,4 +1,4 @@
-const { readPlayers, writePlayers } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 const { getRoom, removeWhitelistUser } = require("../utils/partyRooms");
 
 function ensureArray(value) {
@@ -11,9 +11,7 @@ function normalize(value) {
 
 async function fetchGuildMembers(message) {
   if (!message.guild) return [];
-
   await message.guild.members.fetch().catch(() => null);
-
   return [...message.guild.members.cache.values()];
 }
 
@@ -95,7 +93,6 @@ async function resolveTargetUser(message, raw) {
   }
 
   const cachedUsers = [...message.client.users.cache.values()];
-
   const exactUser =
     cachedUsers.find((u) => normalize(u.username) === q) ||
     cachedUsers.find((u) => normalize(u.globalName) === q);
@@ -110,35 +107,42 @@ async function resolveTargetUser(message, raw) {
   return null;
 }
 
-function removeFromSavedRaidTeam(hostId, targetId) {
-  const players = readPlayers();
+function removeFromSavedRaidTeam(hostId, targetId, username) {
+  let result = {
+    removed: false,
+    remaining: 0,
+  };
 
-  if (!players[hostId]) {
-    return {
-      removed: false,
-      remaining: 0,
-    };
-  }
+  updatePlayerAtomic(
+    hostId,
+    (fresh) => {
+      const raidTeam = {
+        ...(fresh.raidTeam || {}),
+        members: ensureArray(fresh?.raidTeam?.members).map(String).filter(Boolean),
+      };
 
-  players[hostId].raidTeam = players[hostId].raidTeam || {};
-  players[hostId].raidTeam.members = ensureArray(players[hostId].raidTeam.members)
-    .map(String)
-    .filter(Boolean);
+      const before = raidTeam.members.length;
 
-  const before = players[hostId].raidTeam.members.length;
+      raidTeam.members = raidTeam.members.filter(
+        (id) => String(id) !== String(targetId)
+      );
 
-  players[hostId].raidTeam.members = players[hostId].raidTeam.members.filter(
-    (id) => String(id) !== String(targetId)
+      const after = raidTeam.members.length;
+
+      result = {
+        removed: after < before,
+        remaining: after,
+      };
+
+      return {
+        ...fresh,
+        raidTeam,
+      };
+    },
+    username
   );
 
-  const after = players[hostId].raidTeam.members.length;
-
-  writePlayers(players);
-
-  return {
-    removed: after < before,
-    remaining: after,
-  };
+  return result;
 }
 
 module.exports = {
@@ -156,11 +160,16 @@ module.exports = {
       const target = await resolveTargetUser(message, rawTarget);
 
       if (!target) {
-        return message.reply("User not found. Use `@mention` or exact username only.");
+        return message.reply("User not found.\nUse `@mention` or exact username only.");
       }
 
       const hostId = String(message.author.id);
-      const savedResult = removeFromSavedRaidTeam(hostId, target.id);
+      const savedResult = removeFromSavedRaidTeam(
+        hostId,
+        target.id,
+        message.author.username
+      );
+
       const activeRoom = getRoom(hostId);
       let activeText = "";
 

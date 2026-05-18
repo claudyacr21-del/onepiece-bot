@@ -1,4 +1,4 @@
-const { readPlayers, writePlayers } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 const {
   getRoom,
   listRooms,
@@ -46,21 +46,20 @@ function findRelevantRoom(userId, guildId = null, channelId = null) {
 }
 
 function clearSavedRaidTeam(hostId, username) {
-  const players = readPlayers();
-
-  if (!players[hostId]) {
-    players[hostId] = {
-      username,
-      raidTeam: {
-        members: [],
-      },
-    };
-  }
-
-  players[hostId].raidTeam = players[hostId].raidTeam || {};
-  players[hostId].raidTeam.members = [];
-
-  writePlayers(players);
+  updatePlayerAtomic(
+    hostId,
+    (fresh) => {
+      return {
+        ...fresh,
+        username: fresh.username || username,
+        raidTeam: {
+          ...(fresh.raidTeam || {}),
+          members: [],
+        },
+      };
+    },
+    username
+  );
 }
 
 module.exports = {
@@ -82,7 +81,7 @@ module.exports = {
     if (activeRoom) {
       try {
         clearWhitelist(activeRoom.hostId);
-        activeText = `Cleared invited users from active ${activeRoom.mode || "raid"} room. Host stays in the room.`;
+        activeText = `Cleared invited users from active ${activeRoom.mode || "raid"} room.\nHost stays in the room.`;
       } catch (error) {
         activeText = `Active room clear failed: ${error.message || "Unknown error"}`;
       }

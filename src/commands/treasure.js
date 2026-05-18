@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 const { ITEMS, cloneItem } = require("../data/items");
 
@@ -14,7 +14,6 @@ function addOrIncrease(list, item) {
       ...arr[index],
       amount: Number(arr[index].amount || 1) + Number(item.amount || 1),
     };
-
     return arr;
   }
 
@@ -66,57 +65,76 @@ module.exports = {
     if (!(await isPremiumUser(message))) {
       return message.reply({
         content: `Only ${PREMIUM_ROLE_NAME} users can claim \`op treasure\`.`,
-        allowedMentions: {
-          repliedUser: false,
-        },
+        allowedMentions: { repliedUser: false },
       });
     }
 
-    const player = getPlayer(message.author.id, message.author.username);
-    const cooldowns = player.cooldowns || {};
+    const previewPlayer = getPlayer(message.author.id, message.author.username);
     const now = Date.now();
-    const nextTreasureAt = Number(cooldowns.treasure || 0);
+    const nextTreasureAt = Number(previewPlayer?.cooldowns?.treasure || 0);
 
     if (nextTreasureAt > now) {
       return message.reply({
         content: `You already claimed your treasure.\nNext treasure: ${formatRemaining(
           nextTreasureAt - now
         )}`,
-        allowedMentions: {
-          repliedUser: false,
-        },
+        allowedMentions: { repliedUser: false },
       });
     }
 
     const reward = rollTreasureRewards();
 
-    let updatedBoxes = [...(player.boxes || [])];
-    let updatedMaterials = [...(player.materials || [])];
-    let updatedTickets = [...(player.tickets || [])];
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const freshNextTreasureAt = Number(fresh?.cooldowns?.treasure || 0);
 
-    reward.boxes.forEach((item) => {
-      updatedBoxes = addOrIncrease(updatedBoxes, item);
-    });
+          if (freshNextTreasureAt > now) {
+            throw new Error(
+              `You already claimed your treasure.\nNext treasure: ${formatRemaining(
+                freshNextTreasureAt - now
+              )}`
+            );
+          }
 
-    reward.materials.forEach((item) => {
-      updatedMaterials = addOrIncrease(updatedMaterials, item);
-    });
+          let updatedBoxes = [...(fresh.boxes || [])];
+          let updatedMaterials = [...(fresh.materials || [])];
+          let updatedTickets = [...(fresh.tickets || [])];
 
-    reward.tickets.forEach((item) => {
-      updatedTickets = addOrIncrease(updatedTickets, item);
-    });
+          reward.boxes.forEach((item) => {
+            updatedBoxes = addOrIncrease(updatedBoxes, item);
+          });
 
-    updatePlayer(message.author.id, {
-      berries: Number(player.berries || 0) + reward.berries,
-      gems: Number(player.gems || 0) + reward.gems,
-      boxes: updatedBoxes,
-      materials: updatedMaterials,
-      tickets: updatedTickets,
-      cooldowns: {
-        ...cooldowns,
-        treasure: now + TREASURE_COOLDOWN_MS,
-      },
-    });
+          reward.materials.forEach((item) => {
+            updatedMaterials = addOrIncrease(updatedMaterials, item);
+          });
+
+          reward.tickets.forEach((item) => {
+            updatedTickets = addOrIncrease(updatedTickets, item);
+          });
+
+          return {
+            ...fresh,
+            berries: Number(fresh.berries || 0) + reward.berries,
+            gems: Number(fresh.gems || 0) + reward.gems,
+            boxes: updatedBoxes,
+            materials: updatedMaterials,
+            tickets: updatedTickets,
+            cooldowns: {
+              ...(fresh.cooldowns || {}),
+              treasure: now + TREASURE_COOLDOWN_MS,
+            },
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
+      return message.reply({
+        content: error.message || "Failed to claim treasure.",
+        allowedMentions: { repliedUser: false },
+      });
+    }
 
     const lines = [
       `↪ Berries: +${Number(reward.berries).toLocaleString("en-US")}`,
@@ -153,9 +171,7 @@ module.exports = {
 
     return message.reply({
       embeds: [embed],
-      allowedMentions: {
-        repliedUser: false,
-      },
+      allowedMentions: { repliedUser: false },
     });
   },
 };
