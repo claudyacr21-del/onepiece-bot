@@ -114,6 +114,10 @@ function formatAtkRange(atk) {
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
+function formatDisplayStat(value) {
+  return Number(value || 0).toLocaleString("en-US");
+}
+
 function getRaidModeConfig(commandName) {
   const cmd = String(commandName || "").toLowerCase();
   if (cmd === "throne") {
@@ -726,7 +730,7 @@ function buildBattleEmbed(state) {
           `**${index + 1}. ${member.name}** • ${member.username}`,
           `${hpIcon} ${Math.max(0, Number(member.hp || 0))}/${Number(
             member.maxHp || 0
-          )} | SPD ${Number(member.speed || 0)} | ATK ${formatAtkRange(
+          )} | SPD ${formatDisplayStat(member.speed)} | ATK ${formatDisplayStat(
             member.atk
           )} | ${status}`,
         ].join("\n");
@@ -783,7 +787,9 @@ function buildResultEmbed(state) {
           `**${index + 1}. ${member.name}** • ${member.username}`,
           `${hpIcon} ${Math.max(0, Number(member.hp || 0))}/${Number(
             member.maxHp || 0
-          )} • ${status}`,
+          )} | SPD ${formatDisplayStat(member.speed)} | ATK ${formatDisplayStat(
+            member.atk
+          )} | ${status}`,
         ].join("\n");
       })
     : ["None"];
