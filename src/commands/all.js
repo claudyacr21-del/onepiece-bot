@@ -95,11 +95,14 @@ function formatOwnersByDisplayName(item, fallback = "Unknown") {
 }
 
 function buildCardEmbed(card, index, total, mode) {
-  const m3 = card.evolutionForms?.[2];
+  const stageIndex = 0;
+  const stageKey = "M1";
+  const form = card.evolutionForms?.[stageIndex];
+
   const stageImage =
-    card.evolutionForms?.[2]?.image ||
-    card.stageImages?.M3 ||
-    getCardImage(card.code, "M3", card.image) ||
+    form?.image ||
+    card.stageImages?.[stageKey] ||
+    getCardImage(card.code, stageKey, card.image) ||
     card.image ||
     "";
 
@@ -108,13 +111,15 @@ function buildCardEmbed(card, index, total, mode) {
       ? [
           `Role: ${card.cardRole}`,
           `Faction: ${card.faction || "Unknown"}`,
-          `Effect: ${card.evolutionForms?.[2]?.effectText || card.effectText || "No effect text"}`,
+          `Form: ${form?.name || "M1"}`,
+          `Effect: ${form?.effectText || card.effectText || "No effect text"}`,
           "",
           `Power: ${getCardPower(card)}`,
         ]
       : [
           `Role: ${card.cardRole}`,
           `Type: ${card.type || "Battle"}`,
+          `Form: ${form?.name || "M1"}`,
           `ATK: ${formatAtkRange(card.atk)}`,
           `HP: ${Number(card.hp || 0)}`,
           `SPD: ${Number(card.speed || 0)}`,
@@ -127,13 +132,15 @@ function buildCardEmbed(card, index, total, mode) {
     header: mode === "boost" ? "All Boost Cards" : "All Battle Cards",
     card: {
       ...card,
-      badgeImage: m3?.badgeImage || card.badgeImage || "",
+      badgeImage: form?.badgeImage || card.badgeImage || "",
     },
-    badgeImage: m3?.badgeImage || card.badgeImage || "",
+    badgeImage: form?.badgeImage || card.badgeImage || "",
     image: stageImage,
-    formName: m3?.name || "Final",
-    tier: m3?.tier || card.currentTier || card.rarity,
-    footerText: `${mode === "boost" ? "Boost" : "Battle"} ${index + 1}/${total} • Code: ${card.code}`,
+    formName: form?.name || stageKey,
+    tier: form?.tier || card.currentTier || card.rarity,
+    footerText: `${mode === "boost" ? "Boost" : "Battle"} ${
+      index + 1
+    }/${total} • Code: ${card.code}`,
     extraLines,
   });
 }
