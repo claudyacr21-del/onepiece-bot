@@ -14,6 +14,8 @@ const { applyAutoLevelForDuplicate } = require("../utils/autoLevel");
 const {
   addFragmentWithAutoSac,
   removeFragmentAmount,
+  getFragmentStorageInfo,
+  getSacBerryValue,
 } = require("../utils/autoSac");
 const {
   getTotalPullUsage,
@@ -330,6 +332,104 @@ function getConvertBerries(reward, contentType) {
   };
 
   return Math.floor((rarityValue[rarity] || 500) * (typeBonus[contentType] || 1));
+}
+
+function getFragmentAmount(fragment) {
+  return Math.max(0, Number(fragment?.amount || 0));
+}
+
+function getFragmentRarity(fragment) {
+  return String(fragment?.rarity || "C").toUpperCase();
+}
+
+function getFragmentBerryValue(fragment, amount = 1) {
+  return getSacBerryValue(getFragmentRarity(fragment), amount);
+}
+
+function getFragmentSortRank(fragment) {
+  const rarityRank = {
+    C: 1,
+    B: 2,
+    A: 3,
+    S: 4,
+    SS: 5,
+    UR: 6,
+  };
+
+  return rarityRank[getFragmentRarity(fragment)] || 1;
+}
+
+function enforceFragmentStorageLimit(player, fragments) {
+  const list = Array.isArray(fragments)
+    ? fragments
+        .map((fragment) => ({
+          ...fragment,
+          amount: getFragmentAmount(fragment),
+        }))
+        .filter((fragment) => getFragmentAmount(fragment) > 0)
+    : [];
+
+  const storage = getFragmentStorageInfo(player, list);
+  const total = Number(storage.total || 0);
+  const max = Number(storage.max || 0);
+
+  if (!max || total <= max) {
+    return {
+      fragments: list,
+      convertedCount: 0,
+      convertedBerries: 0,
+      overflow: 0,
+    };
+  }
+
+  let overflow = total - max;
+  let convertedCount = 0;
+  let convertedBerries = 0;
+
+  // Convert low rarity fragments first so higher rarity fragments are preserved.
+  const indexed = list.map((fragment, index) => ({
+    fragment,
+    index,
+  }));
+
+  indexed.sort((a, b) => {
+    const rarityDiff =
+      getFragmentSortRank(a.fragment) - getFragmentSortRank(b.fragment);
+
+    if (rarityDiff !== 0) return rarityDiff;
+
+    return getFragmentAmount(b.fragment) - getFragmentAmount(a.fragment);
+  });
+
+  const next = [...list];
+
+  for (const entry of indexed) {
+    if (overflow <= 0) break;
+
+    const current = next[entry.index];
+    if (!current) continue;
+
+    const owned = getFragmentAmount(current);
+    if (owned <= 0) continue;
+
+    const convertAmount = Math.min(owned, overflow);
+
+    next[entry.index] = {
+      ...current,
+      amount: owned - convertAmount,
+    };
+
+    convertedCount += convertAmount;
+    convertedBerries += getFragmentBerryValue(current, convertAmount);
+    overflow -= convertAmount;
+  }
+
+  return {
+    fragments: next.filter((fragment) => getFragmentAmount(fragment) > 0),
+    convertedCount,
+    convertedBerries,
+    overflow: total - max,
+  };
 }
 
 function addTicketSummary(summary, reward) {
@@ -794,6 +894,14 @@ module.exports = {
 
     const updatedDailyState = incrementQuestCounter(player, "pullsUsed", availableTotal);
 
+    const fragmentStorageAudit = enforceFragmentStorageLimit(player, updatedFragments);
+
+    if (fragmentStorageAudit.convertedCount > 0) {
+      updatedFragments = fragmentStorageAudit.fragments;
+      convertedBerries += fragmentStorageAudit.convertedBerries;
+      convertedCount += fragmentStorageAudit.convertedCount;
+    }
+
     savePullAllResultFresh(message.author.id, {
       cards: updatedCards,
       weapons: updatedWeapons,
@@ -844,6 +952,12 @@ module.exports = {
       groupedLines.push(
         `${convertedCount} reward(s) converted into **${convertedBerries.toLocaleString("en-US")} berries**.`
       );
+
+      if (fragmentStorageAudit?.convertedCount > 0) {
+        groupedLines.push(
+          `Fragment storage overflow converted: **${fragmentStorageAudit.convertedCount} fragment(s)**.`
+        );
+      }
     }
 
     if (useManualResetAfterPull) {
