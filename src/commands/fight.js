@@ -4,7 +4,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
@@ -604,6 +604,42 @@ function calculateFightExp(playerTeam, won) {
   });
 }
 
+function applyFightExpToFreshCards(freshPlayer, playerTeam, expResults) {
+  return [...(freshPlayer.cards || [])].map((card, index) => {
+    const expEntry =
+      expResults.find(
+        (entry) =>
+          Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
+      ) || expResults.find((entry) => entry.instanceId === card.instanceId);
+
+    const unit =
+      playerTeam.find(
+        (entry) =>
+          Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
+      ) || playerTeam.find((entry) => entry.instanceId === card.instanceId);
+
+    if (!expEntry || !unit) return card;
+
+    const nextCard = applyExpToCard(
+      {
+        ...card,
+        kills: Number(unit.kills || 0),
+        level: Number(card.level || 1),
+        exp: getCardExp(card),
+        xp: getCardExp(card),
+      },
+      expEntry.expGain
+    );
+
+    expEntry.leveledUp = Number(nextCard.leveledUp || 0);
+
+    return {
+      ...nextCard,
+      kills: Number(unit.kills || 0),
+    };
+  });
+}
+
 function formatRemaining(ms) {
   const safeMs = Math.max(0, Number(ms || 0));
   const totalSeconds = Math.ceil(safeMs / 1000);
@@ -652,50 +688,23 @@ function getFightRewardMultiplier(tier) {
 function applyFightLoss(message, player, playerTeam) {
   const expResults = calculateFightExp(playerTeam, false);
 
-  const updatedCards = [...(player.cards || [])].map((card, index) => {
-    const expEntry =
-      expResults.find(
-        (entry) =>
-          Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
-      ) || expResults.find((entry) => entry.instanceId === card.instanceId);
+  updatePlayerAtomic(
+    message.author.id,
+    (fresh) => {
+      const updatedDailyState = incrementQuestCounter(fresh, "fightsPlayed", 1);
 
-    const unit =
-      playerTeam.find(
-        (entry) =>
-          Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
-      ) || playerTeam.find((entry) => entry.instanceId === card.instanceId);
-
-    if (!expEntry || !unit) return card;
-
-    const nextCard = applyExpToCard(
-      {
-        ...card,
-        kills: Number(unit.kills || 0),
-        level: Number(card.level || 1),
-        exp: getCardExp(card),
-        xp: getCardExp(card),
-      },
-      expEntry.expGain
-    );
-
-    expEntry.leveledUp = Number(nextCard.leveledUp || 0);
-
-    return {
-      ...nextCard,
-      kills: Number(unit.kills || 0),
-    };
-  });
-
-  const updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
-
-  updatePlayer(message.author.id, {
-    cards: updatedCards,
-    fightStreak: 0,
-    quests: {
-      ...(player.quests || {}),
-      dailyState: updatedDailyState,
+      return {
+        ...fresh,
+        cards: applyFightExpToFreshCards(fresh, playerTeam, expResults),
+        fightStreak: 0,
+        quests: {
+          ...(fresh.quests || {}),
+          dailyState: updatedDailyState,
+        },
+      };
     },
-  });
+    message.author.username
+  );
 
   return expResults;
 }
@@ -941,75 +950,47 @@ if (interaction.customId === "fight_run_cancel") {
         currentStreak += 1;
 
         const reward = calculateWinReward(currentStreak, premiumTier, currentIsland);
-        let updatedBoxes = [...(player.boxes || [])];
-
-        reward.boxes.forEach((item) => {
-          updatedBoxes = addOrIncrease(updatedBoxes, item);
-        });
-
         const expResults = calculateFightExp(playerTeam, true);
 
-        const updatedCards = [...(player.cards || [])].map((card, index) => {
-          const expEntry =
-            expResults.find(
-              (entry) =>
-                Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
-            ) || expResults.find((entry) => entry.instanceId === card.instanceId);
+        updatePlayerAtomic(
+          message.author.id,
+          (fresh) => {
+            let updatedBoxes = [...(fresh.boxes || [])];
 
-          const unit =
-            playerTeam.find(
-              (entry) =>
-                Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
-            ) || playerTeam.find((entry) => entry.instanceId === card.instanceId);
+            reward.boxes.forEach((item) => {
+              updatedBoxes = addOrIncrease(updatedBoxes, item);
+            });
 
-          if (!expEntry || !unit) return card;
+            let updatedDailyState = incrementQuestCounter(fresh, "fightsPlayed", 1);
+            updatedDailyState = incrementQuestCounter(
+              {
+                ...fresh,
+                quests: {
+                  ...(fresh.quests || {}),
+                  dailyState: updatedDailyState,
+                },
+              },
+              "fightsWon",
+              1
+            );
 
-          const nextCard = applyExpToCard(
-            {
-              ...card,
-              kills: Number(unit.kills || 0),
-              level: Number(card.level || 1),
-              exp: getCardExp(card),
-              xp: getCardExp(card),
-            },
-            expEntry.expGain
-          );
-
-          expEntry.leveledUp = Number(nextCard.leveledUp || 0);
-
-          return {
-            ...nextCard,
-            kills: Number(unit.kills || 0),
-          };
-        });
-
-        const expLines = formatExpResults(playerTeam, expResults);
-
-        let updatedDailyState = incrementQuestCounter(player, "fightsPlayed", 1);
-
-        updatedDailyState = incrementQuestCounter(
-          {
-            ...player,
-            quests: {
-              ...(player.quests || {}),
-              dailyState: updatedDailyState,
-            },
+            return {
+              ...fresh,
+              cards: applyFightExpToFreshCards(fresh, playerTeam, expResults),
+              boxes: updatedBoxes,
+              berries: Number(fresh.berries || 0) + reward.berries,
+              gems: Number(fresh.gems || 0) + reward.gems,
+              fightStreak: currentStreak,
+              quests: {
+                ...(fresh.quests || {}),
+                dailyState: updatedDailyState,
+              },
+            };
           },
-          "fightsWon",
-          1
+          message.author.username
         );
 
-        updatePlayer(message.author.id, {
-          cards: updatedCards,
-          boxes: updatedBoxes,
-          berries: Number(player.berries || 0) + reward.berries,
-          gems: Number(player.gems || 0) + reward.gems,
-          fightStreak: currentStreak,
-          quests: {
-            ...(player.quests || {}),
-            dailyState: updatedDailyState,
-          },
-        });
+        const expLines = formatExpResults(playerTeam, expResults);
 
         logs.push("🏆 You won the fight!");
 

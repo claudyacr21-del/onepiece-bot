@@ -4,7 +4,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestPayload } = require("../utils/questProgress");
 const weaponsDb = require("../data/weapons");
@@ -641,91 +641,98 @@ module.exports = {
 
       if (interaction.customId !== `wupgrade_confirm_${message.author.id}`) return;
 
-      const fresh = getPlayer(message.author.id, message.author.username);
-      const freshMatch = findOwnedOrEquippedWeapon(fresh, weaponQuery);
+      let freshTemplate = null;
+      let freshNextLevel = 0;
+      let freshStoneCost = 0;
+      let freshFragmentCost = 0;
+      let updatedCards = [];
+      let freshShownPercent = null;
+      let freshEquippedOwners = [];
 
-      if (!freshMatch || !freshMatch.template) {
-        collector.stop("missing");
+      try {
+        updatePlayerAtomic(
+          message.author.id,
+          (fresh) => {
+            const freshMatch = findOwnedOrEquippedWeapon(fresh, weaponQuery);
 
-        return interaction.update({
-          embeds: [
-            new EmbedBuilder()
-              .setColor(0xe74c3c)
-              .setTitle("Weapon Upgrade Failed")
-              .setDescription("That weapon was no longer found in your inventory or equipped cards."),
-          ],
-          components: [],
-        });
-      }
+            if (!freshMatch || !freshMatch.template) {
+              throw new Error("That weapon was no longer found in your inventory or equipped cards.");
+            }
 
-      const freshTemplate = freshMatch.template;
-      const freshCurrentLevel = Number(freshMatch.currentLevel || 0);
-      const freshNextLevel = freshCurrentLevel + 1;
-      const freshStoneCost = getStoneCost(freshNextLevel);
-      const freshFragmentCost = getWeaponFragmentCost(freshNextLevel);
+            freshTemplate = freshMatch.template;
 
-      if (!freshStoneCost || !freshFragmentCost) {
-        collector.stop("max");
+            const freshCurrentLevel = Number(freshMatch.currentLevel || 0);
+            freshNextLevel = freshCurrentLevel + 1;
+            freshStoneCost = getStoneCost(freshNextLevel);
+            freshFragmentCost = getWeaponFragmentCost(freshNextLevel);
 
-        return interaction.update({
-          embeds: [
-            new EmbedBuilder()
-              .setColor(0xe74c3c)
-              .setTitle("Weapon Upgrade Failed")
-              .setDescription("This weapon already reached max upgrade level."),
-          ],
-          components: [],
-        });
-      }
+            if (!freshStoneCost || !freshFragmentCost) {
+              throw new Error("This weapon already reached max upgrade level.");
+            }
 
-      const freshStone = getStoneAmount(fresh.materials || []);
-      const freshFragment = getWeaponFragmentAmount(fresh.fragments || [], freshTemplate);
+            const freshStone = getStoneAmount(fresh.materials || []);
+            const freshFragment = getWeaponFragmentAmount(fresh.fragments || [], freshTemplate);
 
-      if (freshStone < freshStoneCost || freshFragment < freshFragmentCost) {
-        collector.stop("nostone");
-
-        return interaction.update({
-          embeds: [
-            new EmbedBuilder()
-              .setColor(0xe74c3c)
-              .setTitle("Weapon Upgrade Failed")
-              .setDescription(
+            if (freshStone < freshStoneCost || freshFragment < freshFragmentCost) {
+              throw new Error(
                 [
                   `You need these materials to upgrade **${freshTemplate.name}** to **+${freshNextLevel}**:`,
                   `• Enhancement Stone: **${freshStone}/${freshStoneCost}**`,
                   `• ${freshTemplate.name} Fragment: **${freshFragment}/${freshFragmentCost}**`,
                 ].join("\n")
-              )
+              );
+            }
+
+            const updatedMaterials = consumeStones(fresh.materials || [], freshStoneCost);
+            const updatedFragments = consumeWeaponFragments(
+              fresh.fragments || [],
+              freshTemplate,
+              freshFragmentCost
+            );
+            const updatedWeapons = updateInventoryWeaponLevels(
+              fresh.weapons || [],
+              freshTemplate,
+              freshNextLevel
+            );
+
+            updatedCards = syncEquippedWeaponLevels(
+              fresh.cards || [],
+              freshTemplate,
+              freshNextLevel
+            );
+
+            const updatedQuests = incrementQuestPayload(fresh, "weaponUpgrades", 1);
+
+            freshShownPercent = getWeaponPercentAtLevel(
+              freshTemplate.statPercent || { atk: 0, hp: 0, speed: 0 },
+              freshNextLevel
+            );
+
+            freshEquippedOwners = getEquippedOwners(updatedCards, freshTemplate.code);
+
+            return {
+              ...fresh,
+              weapons: updatedWeapons,
+              cards: updatedCards,
+              materials: updatedMaterials,
+              fragments: updatedFragments,
+              quests: updatedQuests,
+            };
+          },
+          message.author.username
+        );
+      } catch (error) {
+        collector.stop("failed");
+        return interaction.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("Weapon Upgrade Failed")
+              .setDescription(error.message || "Weapon upgrade failed."),
           ],
           components: [],
         });
       }
-
-      const updatedMaterials = consumeStones(fresh.materials || [], freshStoneCost);
-      const updatedFragments = consumeWeaponFragments(
-        fresh.fragments || [],
-        freshTemplate,
-        freshFragmentCost
-      );
-      const updatedWeapons = updateInventoryWeaponLevels(
-        fresh.weapons || [],
-        freshTemplate,
-        freshNextLevel
-      );
-      const updatedCards = syncEquippedWeaponLevels(
-        fresh.cards || [],
-        freshTemplate,
-        freshNextLevel
-      );
-      const updatedQuests = incrementQuestPayload(fresh, "weaponUpgrades", 1);
-
-      updatePlayer(message.author.id, {
-        weapons: updatedWeapons,
-        cards: updatedCards,
-        materials: updatedMaterials,
-        fragments: updatedFragments,
-        quests: updatedQuests,
-      });
 
       const freshShownPercent = getWeaponPercentAtLevel(
         freshTemplate.statPercent || {

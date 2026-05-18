@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
 
 const SHOP_ITEMS = {
@@ -120,54 +120,70 @@ module.exports = {
     const amount = parseAmount(args[1]);
     const totalCost = shopItem.cost * amount;
 
-    const player = getPlayer(message.author.id, message.author.username);
-    const materials = Array.isArray(player.materials) ? [...player.materials] : [];
-    const essenceIndex = getFruitEssenceIndex(materials);
-    const ownedEssence =
-      essenceIndex >= 0 ? Number(materials[essenceIndex].amount || 0) : 0;
+    let ownedEssence = 0;
+    let remainingEssence = 0;
+    let rewardLines = [];
 
-    if (ownedEssence < totalCost) {
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const materials = Array.isArray(fresh.materials) ? [...fresh.materials] : [];
+          const essenceIndex = getFruitEssenceIndex(materials);
+          ownedEssence = essenceIndex >= 0 ? Number(materials[essenceIndex].amount || 0) : 0;
+
+          if (ownedEssence < totalCost) {
+            throw new Error(
+              `You need **${totalCost} Fruit Essence**, but you only have **${ownedEssence}**.`
+            );
+          }
+
+          materials[essenceIndex] = {
+            ...materials[essenceIndex],
+            amount: ownedEssence - totalCost,
+          };
+
+          if (Number(materials[essenceIndex].amount || 0) <= 0) {
+            materials.splice(essenceIndex, 1);
+          }
+
+          remainingEssence = ownedEssence - totalCost;
+
+          let boxes = Array.isArray(fresh.boxes) ? [...fresh.boxes] : [];
+          let tickets = Array.isArray(fresh.tickets) ? [...fresh.tickets] : [];
+          rewardLines = [];
+
+          if (Array.isArray(shopItem.boxes)) {
+            for (const reward of shopItem.boxes) {
+              const rewardAmount = Number(reward.amount || 1) * amount;
+              boxes = addStack(boxes, cloneItem(reward.item, rewardAmount));
+              rewardLines.push(`${reward.item.name} x${rewardAmount}`);
+            }
+          }
+
+          if (Array.isArray(shopItem.tickets)) {
+            for (const reward of shopItem.tickets) {
+              const rewardAmount = Number(reward.amount || 1) * amount;
+              tickets = addStack(tickets, cloneItem(reward.item, rewardAmount));
+              rewardLines.push(`${reward.item.name} x${rewardAmount}`);
+            }
+          }
+
+          return {
+            ...fresh,
+            materials,
+            boxes,
+            tickets,
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
       return message.reply({
-        content: `You need **${totalCost} Fruit Essence**, but you only have **${ownedEssence}**.`,
+        content: error.message || "Fruit Essence purchase failed.",
         allowedMentions: { repliedUser: false },
       });
     }
-
-    materials[essenceIndex] = {
-      ...materials[essenceIndex],
-      amount: ownedEssence - totalCost,
-    };
-
-    if (Number(materials[essenceIndex].amount || 0) <= 0) {
-      materials.splice(essenceIndex, 1);
-    }
-
-    let boxes = Array.isArray(player.boxes) ? [...player.boxes] : [];
-    let tickets = Array.isArray(player.tickets) ? [...player.tickets] : [];
-
-    const rewardLines = [];
-
-    if (Array.isArray(shopItem.boxes)) {
-      for (const reward of shopItem.boxes) {
-        const rewardAmount = Number(reward.amount || 1) * amount;
-        boxes = addStack(boxes, cloneItem(reward.item, rewardAmount));
-        rewardLines.push(`${reward.item.name} x${rewardAmount}`);
-      }
-    }
-
-    if (Array.isArray(shopItem.tickets)) {
-      for (const reward of shopItem.tickets) {
-        const rewardAmount = Number(reward.amount || 1) * amount;
-        tickets = addStack(tickets, cloneItem(reward.item, rewardAmount));
-        rewardLines.push(`${reward.item.name} x${rewardAmount}`);
-      }
-    }
-
-    updatePlayer(message.author.id, {
-      materials,
-      boxes,
-      tickets,
-    });
 
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
@@ -177,7 +193,7 @@ module.exports = {
           `**Purchased:** ${shopItem.label}`,
           `**Amount:** x${amount}`,
           `**Cost:** ${totalCost} Fruit Essence`,
-          `**Remaining Fruit Essence:** ${ownedEssence - totalCost}`,
+          `**Remaining Fruit Essence:** ${remainingEssence}`,
           "",
           "**Rewards**",
           ...rewardLines.map((line) => `↪ ${line}`),

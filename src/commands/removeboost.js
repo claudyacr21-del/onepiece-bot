@@ -1,4 +1,4 @@
-const { readPlayers, writePlayers } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 
 function getAdminIds() {
   return String(
@@ -35,22 +35,26 @@ function normalizeRaw(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function isBoostCard(card) {
+  return String(card?.cardRole || "").toLowerCase() === "boost";
+}
+
 function getCardLabel(card) {
-  return card.displayName || card.name || card.code || "Unknown Boost";
+  return card?.displayName || card?.name || card?.code || "Unknown Boost";
 }
 
 function getSearchFields(card) {
   return [
-    card.code,
-    card.name,
-    card.displayName,
-    card.variant,
-    card.title,
-    card.arc,
-    card.evolutionKey,
-    card.instanceId,
-    `${card.name || ""} ${card.variant || ""}`.trim(),
-    `${card.displayName || ""} ${card.variant || ""}`.trim(),
+    card?.instanceId,
+    card?.code,
+    card?.name,
+    card?.displayName,
+    card?.variant,
+    card?.title,
+    card?.arc,
+    card?.evolutionKey,
+    `${card?.name || ""} ${card?.variant || ""}`.trim(),
+    `${card?.displayName || ""} ${card?.variant || ""}`.trim(),
   ].filter(Boolean);
 }
 
@@ -86,15 +90,12 @@ function scoreCard(card, query) {
   return best;
 }
 
-function findBoostCardIndex(cards, query) {
-  const scored = cards
+function findBoostCardMatch(cards, query) {
+  const scored = (Array.isArray(cards) ? cards : [])
     .map((card, index) => ({
       card,
       index,
-      score:
-        String(card?.cardRole || "").toLowerCase() === "boost"
-          ? scoreCard(card, query)
-          : 0,
+      score: isBoostCard(card) ? scoreCard(card, query) : 0,
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -143,66 +144,74 @@ module.exports = {
           "",
           "Examples:",
           "`op removeboost @user chopper`",
-          "`op removeboost 697763966650417193 tony`",
-          "`op removeboost 697763966650417193 tony_tony_chopper`",
+          "`op removeboost 697763966650417193 chopper`",
+          "`op removeboost 697763966650417193 <instance_id>`",
         ].join("\n"),
         allowedMentions: { repliedUser: false },
       });
     }
 
-    const players = readPlayers();
-    const player = players[String(userId)];
+    let removed = null;
+    let notFound = false;
+    let ambiguousMatches = [];
+    let ownedBoosts = [];
 
-    if (!player) {
-      return message.reply({
-        content: `User not found: \`${userId}\``,
-        allowedMentions: { repliedUser: false },
-      });
-    }
+    updatePlayerAtomic(
+      userId,
+      (fresh) => {
+        const cards = Array.isArray(fresh.cards) ? [...fresh.cards] : [];
+        const result = findBoostCardMatch(cards, query);
 
-    player.cards = Array.isArray(player.cards) ? player.cards : [];
+        if (result.ambiguous) {
+          ambiguousMatches = result.matches;
+          return fresh;
+        }
 
-    const result = findBoostCardIndex(player.cards, query);
+        if (result.index === -1) {
+          notFound = true;
+          ownedBoosts = cards.filter(isBoostCard);
+          return fresh;
+        }
 
-    if (result.ambiguous) {
-      const lines = result.matches.slice(0, 10).map((entry, i) => {
-        const card = entry.card;
-        return `${i + 1}. ${getCardLabel(card)} • code: \`${card.code || "none"}\` • id: \`${card.instanceId || "none"}\``;
-      });
+        [removed] = cards.splice(result.index, 1);
 
+        return {
+          ...fresh,
+          cards,
+        };
+      },
+      message.mentions.users.first()?.username || "Unknown"
+    );
+
+    if (ambiguousMatches.length) {
       return message.reply({
         content: [
-          "Multiple boost cards matched that query. Use the exact code or instance ID.",
+          "Multiple boost cards matched that query. Use exact code or instance ID.",
           "",
-          ...lines,
+          ...ambiguousMatches.slice(0, 10).map((entry, i) => {
+            const card = entry.card;
+            return `${i + 1}. ${getCardLabel(card)} • code: \`${card.code || "none"}\` • id: \`${card.instanceId || "none"}\``;
+          }),
         ].join("\n"),
         allowedMentions: { repliedUser: false },
       });
     }
 
-    if (result.index === -1) {
-      const ownedBoosts = player.cards
-        .filter((card) => String(card?.cardRole || "").toLowerCase() === "boost")
-        .slice(0, 15)
-        .map((card, i) => `${i + 1}. ${getCardLabel(card)} • \`${card.code || "no_code"}\``);
-
+    if (notFound || !removed) {
       return message.reply({
         content: [
           "Boost card not found.",
           ownedBoosts.length ? "" : "This user has no boost cards.",
           ownedBoosts.length ? "**Owned Boosts:**" : "",
-          ...ownedBoosts,
+          ...ownedBoosts
+            .slice(0, 15)
+            .map((card, i) => `${i + 1}. ${getCardLabel(card)} • \`${card.code || "no_code"}\` • id: \`${card.instanceId || "none"}\``),
         ]
           .filter(Boolean)
           .join("\n"),
         allowedMentions: { repliedUser: false },
       });
     }
-
-    const [removed] = player.cards.splice(result.index, 1);
-    players[String(userId)] = player;
-
-    writePlayers(players);
 
     return message.reply({
       content: [

@@ -1,4 +1,4 @@
-const { readPlayers, writePlayers } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 
 function getAdminIds() {
   return String(
@@ -16,10 +16,17 @@ function isAdmin(userId) {
   return getAdminIds().includes(String(userId));
 }
 
+function parseUserId(value) {
+  return String(value || "")
+    .replace(/[<@!>]/g, "")
+    .trim();
+}
+
 function normalize(value) {
   return String(value || "")
     .trim()
     .toLowerCase()
+    .replace(/^model:\s*/i, "")
     .replace(/[<@!>]/g, "")
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ");
@@ -32,120 +39,187 @@ function normalizeCode(value) {
     .replace(/[<@!>]/g, "");
 }
 
-function parseUserId(value) {
-  return String(value || "").replace(/[<@!>]/g, "").trim();
-}
-
 function isBattleCard(card) {
   return String(card?.cardRole || "battle").toLowerCase() === "battle";
 }
 
+function getCardLabel(card) {
+  return card?.displayName || card?.name || card?.code || "Unknown Card";
+}
+
 function getCardFields(card) {
   return [
+    card?.instanceId,
     card?.code,
     card?.name,
     card?.displayName,
+    card?.variant,
+    card?.title,
+    card?.arc,
+    card?.evolutionKey,
   ].filter(Boolean);
 }
 
-function findOwnedBattleCardIndex(cards, query) {
+function scoreBattleCard(card, query) {
   const q = normalize(query);
   const qc = normalizeCode(query);
 
-  const list = Array.isArray(cards) ? cards : [];
+  if (!q && !qc) return 0;
 
-  let idx = list.findIndex((card) => {
-    if (!isBattleCard(card)) return false;
+  let best = 0;
 
-    return getCardFields(card).some((field) => {
-      return normalizeCode(field) === qc || normalize(field) === q;
-    });
-  });
+  for (const field of getCardFields(card)) {
+    const fieldNorm = normalize(field);
+    const fieldCode = normalizeCode(field);
 
-  if (idx !== -1) return idx;
+    if (qc && fieldCode === qc) best = Math.max(best, 2000);
+    if (q && fieldNorm === q) best = Math.max(best, 1800);
 
-  idx = list.findIndex((card) => {
-    if (!isBattleCard(card)) return false;
+    if (qc && fieldCode.startsWith(qc)) best = Math.max(best, 1400 + qc.length);
+    if (q && fieldNorm.startsWith(q)) best = Math.max(best, 1200 + q.length);
 
-    return getCardFields(card).some((field) => {
-      const fieldNorm = normalize(field);
-      const fieldCode = normalizeCode(field);
+    if (qc && fieldCode.includes(qc)) best = Math.max(best, 900 + qc.length);
+    if (q && fieldNorm.includes(q)) best = Math.max(best, 700 + q.length);
 
-      return (
-        fieldNorm.startsWith(q) ||
-        fieldCode.startsWith(qc)
-      );
-    });
-  });
+    const words = q.split(" ").filter(Boolean);
+    if (words.length && words.every((word) => fieldNorm.includes(word))) {
+      best = Math.max(best, 500 + words.join("").length);
+    }
+  }
 
-  if (idx !== -1) return idx;
+  return best;
+}
 
-  return list.findIndex((card) => {
-    if (!isBattleCard(card)) return false;
+function findBattleCardMatch(cards, query) {
+  const scored = (Array.isArray(cards) ? cards : [])
+    .map((card, index) => ({
+      card,
+      index,
+      score: isBattleCard(card) ? scoreBattleCard(card, query) : 0,
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
 
-    return getCardFields(card).some((field) => {
-      const fieldNorm = normalize(field);
-      const fieldCode = normalizeCode(field);
+  if (!scored.length) {
+    return {
+      index: -1,
+      matches: [],
+      ambiguous: false,
+    };
+  }
 
-      return (
-        fieldNorm.includes(q) ||
-        fieldCode.includes(qc)
-      );
-    });
-  });
+  const topScore = scored[0].score;
+  const topMatches = scored.filter((entry) => entry.score === topScore);
+
+  return {
+    index: topMatches.length === 1 ? topMatches[0].index : -1,
+    matches: topMatches,
+    ambiguous: topMatches.length > 1,
+  };
 }
 
 module.exports = {
   name: "removecard",
-  aliases: [],
+  aliases: ["delcard", "deletecard"],
 
-  async execute(message, args) {
+  async execute(message, args = []) {
     if (!isAdmin(message.author.id)) {
-      return message.reply("Owner only command.");
+      return message.reply({
+        content: "Owner only command.",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    const userId = parseUserId(args.shift());
+    const userId =
+      message.mentions.users.first()?.id ||
+      parseUserId(args.shift());
+
     const query = args.join(" ").trim();
 
     if (!userId || !query) {
-      return message.reply("Usage: `op removecard <userId/@user> <card>`");
+      return message.reply({
+        content: [
+          "Usage:",
+          "`op removecard <@user/user_id> <card name/code/instance_id>`",
+          "",
+          "Examples:",
+          "`op removecard @user luffy`",
+          "`op removecard 697763966650417193 zoro`",
+          "`op removecard 697763966650417193 <instance_id>`",
+        ].join("\n"),
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    const players = readPlayers();
+    let removed = null;
+    let notFound = false;
+    let ambiguousMatches = [];
+    let ownedCards = [];
 
-    if (!players[userId]) {
-      return message.reply(`User not found: \`${userId}\``);
-    }
+    updatePlayerAtomic(
+      userId,
+      (fresh) => {
+        const cards = Array.isArray(fresh.cards) ? [...fresh.cards] : [];
+        const result = findBattleCardMatch(cards, query);
 
-    players[userId].cards = Array.isArray(players[userId].cards)
-      ? players[userId].cards
-      : [];
+        if (result.ambiguous) {
+          ambiguousMatches = result.matches;
+          return fresh;
+        }
 
-    const idx = findOwnedBattleCardIndex(players[userId].cards, query);
+        if (result.index === -1) {
+          notFound = true;
+          ownedCards = cards.filter(isBattleCard);
+          return fresh;
+        }
 
-    if (idx === -1) {
-      const ownedCards = players[userId].cards
-        .filter(isBattleCard)
-        .map((card) => `\`${card.displayName || card.name || card.code}\` (${card.code || "no_code"})`)
-        .slice(0, 10);
+        [removed] = cards.splice(result.index, 1);
 
-      return message.reply(
-        [
-          `Battle card matching \`${query}\` was not found for \`${userId}\`.`,
-          ownedCards.length
-            ? `Owned battle cards sample:\n${ownedCards.join("\n")}`
-            : "This user has no battle cards saved.",
-        ].join("\n")
-      );
-    }
-
-    const removed = players[userId].cards[idx];
-    players[userId].cards.splice(idx, 1);
-
-    writePlayers(players);
-
-    return message.reply(
-      `Removed battle card \`${removed.displayName || removed.name || removed.code}\` (${removed.code || "no_code"}) from \`${userId}\`.`
+        return {
+          ...fresh,
+          cards,
+        };
+      },
+      message.mentions.users.first()?.username || "Unknown"
     );
+
+    if (ambiguousMatches.length) {
+      return message.reply({
+        content: [
+          "Multiple battle cards matched that query. Use exact code or instance ID.",
+          "",
+          ...ambiguousMatches.slice(0, 10).map((entry, i) => {
+            const card = entry.card;
+            return `${i + 1}. ${getCardLabel(card)} • code: \`${card.code || "none"}\` • id: \`${card.instanceId || "none"}\``;
+          }),
+        ].join("\n"),
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
+    if (notFound || !removed) {
+      return message.reply({
+        content: [
+          `Battle card matching \`${query}\` was not found for \`${userId}\`.`,
+          ownedCards.length ? "" : "This user has no battle cards saved.",
+          ownedCards.length ? "**Owned Battle Cards Sample:**" : "",
+          ...ownedCards
+            .slice(0, 15)
+            .map((card, i) => `${i + 1}. ${getCardLabel(card)} • \`${card.code || "no_code"}\` • id: \`${card.instanceId || "none"}\``),
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
+    return message.reply({
+      content: [
+        `Removed battle card **${getCardLabel(removed)}** from \`${userId}\`.`,
+        `Code: \`${removed.code || "none"}\``,
+        `Instance ID: \`${removed.instanceId || "none"}\``,
+      ].join("\n"),
+      allowedMentions: { repliedUser: false },
+    });
   },
 };

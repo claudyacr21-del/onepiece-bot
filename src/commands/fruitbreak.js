@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
 const devilFruitsDb = require("../data/devilFruits");
 
@@ -179,68 +179,86 @@ module.exports = {
       });
     }
 
-    const player = getPlayer(message.author.id, message.author.username);
-    const devilFruits = Array.isArray(player.devilFruits)
-      ? [...player.devilFruits]
-      : [];
+    let foundFruit = null;
+    let rarity = "C";
+    let essencePerFruit = 0;
+    let essenceAmount = 0;
+    let amountToBreak = 0;
+    let remaining = 0;
 
-    const found = findOwnedFruitIndex(devilFruits, parsed.query);
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const devilFruits = Array.isArray(fresh.devilFruits)
+            ? [...fresh.devilFruits]
+            : [];
 
-    if (!found) {
+          const found = findOwnedFruitIndex(devilFruits, parsed.query);
+
+          if (!found) {
+            throw new Error(
+              `Devil Fruit matching \`${parsed.query}\` was not found in your inventory.`
+            );
+          }
+
+          foundFruit = found.fruit;
+
+          const ownedAmount = Math.max(
+            0,
+            Number(devilFruits[found.index].amount || 0)
+          );
+
+          amountToBreak = parsed.useAll ? ownedAmount : parsed.amount;
+
+          if (ownedAmount <= 0) {
+            throw new Error(`You do not have any **${found.fruit.name}** left.`);
+          }
+
+          if (amountToBreak > ownedAmount) {
+            throw new Error(`You only have **${ownedAmount}x ${found.fruit.name}**.`);
+          }
+
+          rarity = String(found.fruit.rarity || "C").toUpperCase();
+          essencePerFruit = ESSENCE_BY_RARITY[rarity] || ESSENCE_BY_RARITY.C;
+          essenceAmount = essencePerFruit * amountToBreak;
+          remaining = ownedAmount - amountToBreak;
+
+          if (remaining <= 0) {
+            devilFruits.splice(found.index, 1);
+          } else {
+            devilFruits[found.index] = {
+              ...devilFruits[found.index],
+              amount: remaining,
+            };
+          }
+
+          const materials = addStack(
+            fresh.materials || [],
+            cloneItem(ITEMS.fruitEssence, essenceAmount)
+          );
+
+          return {
+            ...fresh,
+            devilFruits,
+            materials,
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
       return message.reply({
-        content: `Devil Fruit matching \`${parsed.query}\` was not found in your inventory.`,
+        content: error.message || "Failed to break Devil Fruit.",
         allowedMentions: { repliedUser: false },
       });
     }
-
-    const ownedAmount = Math.max(0, Number(devilFruits[found.index].amount || 0));
-    const amountToBreak = parsed.useAll ? ownedAmount : parsed.amount;
-
-    if (ownedAmount <= 0) {
-      return message.reply({
-        content: `You do not have any **${found.fruit.name}** left.`,
-        allowedMentions: { repliedUser: false },
-      });
-    }
-
-    if (amountToBreak > ownedAmount) {
-      return message.reply({
-        content: `You only have **${ownedAmount}x ${found.fruit.name}**.`,
-        allowedMentions: { repliedUser: false },
-      });
-    }
-
-    const rarity = String(found.fruit.rarity || "C").toUpperCase();
-    const essencePerFruit = ESSENCE_BY_RARITY[rarity] || ESSENCE_BY_RARITY.C;
-    const essenceAmount = essencePerFruit * amountToBreak;
-
-    const remaining = ownedAmount - amountToBreak;
-
-    if (remaining <= 0) {
-      devilFruits.splice(found.index, 1);
-    } else {
-      devilFruits[found.index] = {
-        ...devilFruits[found.index],
-        amount: remaining,
-      };
-    }
-
-    const materials = addStack(
-      player.materials || [],
-      cloneItem(ITEMS.fruitEssence, essenceAmount)
-    );
-
-    updatePlayer(message.author.id, {
-      devilFruits,
-      materials,
-    });
 
     const embed = new EmbedBuilder()
       .setColor(0x9b59b6)
       .setTitle("🍈 Devil Fruit Broken Down")
       .setDescription(
         [
-          `**Fruit:** ${found.fruit.name}`,
+          `**Fruit:** ${foundFruit.name}`,
           `**Rarity:** ${rarity}`,
           `**Broken:** x${amountToBreak}`,
           `**Fruit Essence Gained:** +${essenceAmount}`,

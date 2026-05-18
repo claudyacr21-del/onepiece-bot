@@ -5,7 +5,7 @@ const {
   ButtonStyle,
 } = require("discord.js");
 
-const { readPlayers, writePlayers, getPlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard, findCardTemplate } = require("../utils/evolution");
 const activeRaidReadyNotices = new Set();
 const {
@@ -116,6 +116,34 @@ function formatAtkRange(atk) {
 
 function formatDisplayStat(value) {
   return Number(value || 0).toLocaleString("en-US");
+}
+
+function getRaidDisplayPower(card) {
+  return Number(
+    card?.currentPower ||
+      card?.power ||
+      Math.floor(
+        Number(card?.atk || 0) * 1.4 +
+          Number(card?.hp || 0) * 0.22 +
+          Number(card?.speed || 0) * 9
+      )
+  );
+}
+
+function applyBoostedRaidDisplayStats(card, boosts = {}) {
+  if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
+
+  const boosted = {
+    ...card,
+    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+  };
+
+  boosted.currentPower = getRaidDisplayPower(boosted);
+  boosted.power = boosted.currentPower;
+
+  return boosted;
 }
 
 function getRaidModeConfig(commandName) {
@@ -305,28 +333,28 @@ function buildBattleRoster(room) {
           String(participant.userId),
           String(participant.username || "Unknown")
         );
-
         const boosts = getPlayerCombatBoosts(player);
+        const displayed = applyBoostedRaidDisplayStats(fresh, boosts);
 
         return {
           userId: String(participant.userId),
           username: String(participant.username || "Unknown"),
-          instanceId: String(fresh.instanceId || ""),
-          code: String(fresh.code || ""),
-          name: String(fresh.displayName || fresh.name || picked?.name || "Unknown"),
-          atk: Number(fresh.atk || 0),
-          maxHp: Number(fresh.hp || 1),
-          hp: Number(fresh.hp || 1),
-          speed: Number(fresh.speed || 0),
-          currentPower: Number(fresh.currentPower || 0),
-          currentTier: String(fresh.currentTier || fresh.rarity || ""),
-          evolutionStage: Number(fresh.evolutionStage || 1),
-          image: String(fresh.image || ""),
+          instanceId: String(displayed.instanceId || ""),
+          code: String(displayed.code || ""),
+          name: String(displayed.displayName || displayed.name || picked?.name || "Unknown"),
+          atk: Number(displayed.atk || 0),
+          maxHp: Number(displayed.hp || 1),
+          hp: Number(displayed.hp || 1),
+          speed: Number(displayed.speed || 0),
+          currentPower: Number(displayed.currentPower || getRaidDisplayPower(displayed)),
+          currentTier: String(displayed.currentTier || displayed.rarity || ""),
+          evolutionStage: Number(displayed.evolutionStage || 1),
+          image: String(displayed.image || ""),
           passiveBoostsApplied: {
             atk: Number(boosts.atk || 0),
             hp: Number(boosts.hp || 0),
             spd: Number(boosts.spd || 0),
-            dmg: 0,
+            dmg: Number(boosts.dmg || 0),
             exp: Number(boosts.exp || 0),
           },
           alive: true,
@@ -415,10 +443,10 @@ function deriveRaidBossStats(template, raidMode = {}) {
         atkMax: 860,
       },
       S: {
-        hp: 26500,
+        hp: 25500,
         speed: 460,
-        atkMin: 620,
-        atkMax: 1120,
+        atkMin: 570,
+        atkMax: 1020,
       },
     }[tier] || {
       hp: 12500,
@@ -1137,9 +1165,7 @@ function addRaidFruit(devilFruits, fruit) {
 }
 
 function giveRaidWinRewards(state) {
-  const players = readPlayers();
   const boss = state.boss || {};
-
   const bossTier = String(
     boss.rarity || boss.currentTier || boss.tier || "C"
   ).toUpperCase();
@@ -1147,49 +1173,51 @@ function giveRaidWinRewards(state) {
   const config = getRaidRewardConfig(bossTier, boss);
   const linkedWeapon = findLinkedRaidItem(weaponsDb, boss);
   const linkedFruit = findLinkedRaidItem(devilFruitsDb, boss);
-
   const hostId = String(state.hostId || "");
   const rewards = [];
 
   for (const member of ensureArray(state.members)) {
     const userId = String(member.userId || "");
-    const player = players[userId];
-
-    if (!player) continue;
+    if (!userId) continue;
 
     const isHost = hostId && userId === hostId;
     const berries = Number(config.berries || 0);
     const gems = Number(config.gems || 0);
-
     const fragments = isHost ? Number(config.fragments || 0) : 0;
     const gotWeapon = Boolean(isHost && linkedWeapon && randomChance(config.weaponChance));
     const gotFruit = Boolean(isHost && linkedFruit && randomChance(config.fruitChance));
 
-    players[userId] = {
-      ...player,
-      berries: Number(player.berries || 0) + berries,
-      gems: Number(player.gems || 0) + gems,
+    let username = member.username || "Unknown";
 
-      fragments: isHost
-        ? gotWeapon
-          ? addRaidWeaponFragment(
-              addRaidBossFragment(player.fragments, boss, fragments),
-              linkedWeapon,
-              1
-            )
-          : addRaidBossFragment(player.fragments, boss, fragments)
-        : player.fragments,
+    updatePlayerAtomic(
+      userId,
+      (fresh) => {
+        username = member.username || fresh.username || "Unknown";
 
-      weapons: player.weapons,
-
-      devilFruits: gotFruit
-        ? addRaidFruit(player.devilFruits, linkedFruit)
-        : player.devilFruits,
-    };
+        return {
+          ...fresh,
+          berries: Number(fresh.berries || 0) + berries,
+          gems: Number(fresh.gems || 0) + gems,
+          fragments: isHost
+            ? gotWeapon
+              ? addRaidWeaponFragment(
+                  addRaidBossFragment(fresh.fragments, boss, fragments),
+                  linkedWeapon,
+                  1
+                )
+              : addRaidBossFragment(fresh.fragments, boss, fragments)
+            : fresh.fragments,
+          devilFruits: gotFruit
+            ? addRaidFruit(fresh.devilFruits, linkedFruit)
+            : fresh.devilFruits,
+        };
+      },
+      member.username || "Unknown"
+    );
 
     rewards.push({
       userId,
-      username: member.username || player.username || "Unknown",
+      username,
       isHost,
       berries,
       gems,
@@ -1199,8 +1227,6 @@ function giveRaidWinRewards(state) {
       fruit: gotFruit ? linkedFruit.name : null,
     });
   }
-
-  writePlayers(players);
 
   return rewards;
 }
@@ -1237,9 +1263,7 @@ function formatRaidWinRewardLines(state) {
 }
 
 function addRaidPrestigeToWinnerCards(state) {
-  const players = readPlayers();
   const rewards = [];
-
   const boss = state.boss || {};
   const bossCode = String(boss.code || boss.bossCode || "").toLowerCase();
   const bossName = String(boss.name || boss.bossName || "").toLowerCase();
@@ -1263,76 +1287,63 @@ function addRaidPrestigeToWinnerCards(state) {
     ensureArray(state.members).find((member) => String(member.userId || "") === hostId) ||
     null;
 
-  const player = players[hostId];
+  let prestigeReward = null;
 
-  if (!player) {
-    return [
-      {
+  updatePlayerAtomic(
+    hostId,
+    (fresh) => {
+      const cards = ensureArray(fresh.cards).map((card) => ({ ...card }));
+
+      const index = cards.findIndex((card) => {
+        const cardCode = String(card.code || "").toLowerCase();
+        const cardName = String(card.displayName || card.name || "").toLowerCase();
+
+        return (
+          (bossCode && cardCode === bossCode) ||
+          (bossName && cardName === bossName)
+        );
+      });
+
+      if (index === -1) {
+        prestigeReward = {
+          userId: hostId,
+          username: hostMember?.username || fresh.username || "Host",
+          cardName: boss.name || boss.bossName || "Raid Boss",
+          before: 0,
+          after: 0,
+          missing: true,
+          reason: "Host does not own the raid boss card.",
+        };
+
+        return fresh;
+      }
+
+      const before = Math.max(
+        0,
+        Math.min(200, Number(cards[index].raidPrestige || 0))
+      );
+      const after = Math.min(200, before + 1);
+
+      cards[index].raidPrestige = after;
+
+      prestigeReward = {
         userId: hostId,
-        username: hostMember?.username || "Host",
-        cardName: boss.name || boss.bossName || "Raid Boss",
-        before: 0,
-        after: 0,
-        missing: true,
-        reason: "Host player data was not found.",
-      },
-    ];
-  }
+        username: hostMember?.username || fresh.username || "Host",
+        cardName: cards[index].displayName || cards[index].name || boss.name || "Raid Boss",
+        before,
+        after,
+        missing: false,
+      };
 
-  const cards = ensureArray(player.cards).map((card) => ({ ...card }));
-
-  const index = cards.findIndex((card) => {
-    const cardCode = String(card.code || "").toLowerCase();
-    const cardName = String(card.displayName || card.name || "").toLowerCase();
-
-    return (
-      (bossCode && cardCode === bossCode) ||
-      (bossName && cardName === bossName)
-    );
-  });
-
-  if (index === -1) {
-    rewards.push({
-      userId: hostId,
-      username: hostMember?.username || player.username || "Host",
-      cardName: boss.name || boss.bossName || "Raid Boss",
-      before: 0,
-      after: 0,
-      missing: true,
-      reason: "Host does not own the raid boss card.",
-    });
-
-    return rewards;
-  }
-
-  const before = Math.max(
-    0,
-    Math.min(200, Number(cards[index].raidPrestige || 0))
+      return {
+        ...fresh,
+        cards,
+      };
+    },
+    hostMember?.username || "Host"
   );
 
-  const after = Math.min(200, before + 1);
-
-  cards[index].raidPrestige = after;
-
-  players[hostId] = {
-    ...player,
-    cards,
-  };
-
-  rewards.push({
-    userId: hostId,
-    username: hostMember?.username || player.username || "Host",
-    cardName:
-      cards[index].displayName ||
-      cards[index].name ||
-      boss.name ||
-      "Raid Boss",
-    before,
-    after,
-    missing: false,
-  });
-
-  writePlayers(players);
+  if (prestigeReward) rewards.push(prestigeReward);
 
   return rewards;
 }
@@ -1502,20 +1513,32 @@ module.exports = {
       return message.reply(`You do not have any ${raidMode.label}.`);
     }
 
-    const consumed = consumeOneTicket(host, raidMode);
+    let consumedTickets = null;
 
-    if (!consumed.ok) {
-      return message.reply(`Failed to consume ${raidMode.label}.`);
+    try {
+      updatePlayerAtomic(
+        hostId,
+        (fresh) => {
+          const consumed = consumeOneTicket(fresh, raidMode);
+
+          if (!consumed.ok) {
+            throw new Error(`Failed to consume ${raidMode.label}.`);
+          }
+
+          consumedTickets = consumed.tickets;
+
+          return {
+            ...fresh,
+            tickets: consumedTickets,
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
+      return message.reply(error.message || `Failed to consume ${raidMode.label}.`);
     }
 
-    const players = readPlayers();
-
-    players[hostId] = {
-      ...players[hostId],
-      tickets: consumed.tickets,
-    };
-
-    writePlayers(players);
+    host.tickets = consumedTickets;
 
     const whitelist = getSavedRaidTeam(host);
 

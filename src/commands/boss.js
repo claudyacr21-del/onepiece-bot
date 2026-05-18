@@ -5,7 +5,12 @@ const {
   ButtonStyle,
 } = require("discord.js");
 
-const { readPlayers, getPlayer, updatePlayer } = require("../playerStore");
+const {
+  readPlayers,
+  getPlayer,
+  updatePlayer,
+  updatePlayerAtomic,
+} = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
 const { incrementQuestPayload } = require("../utils/questProgress");
 const { getCurrentIsland } = require("../data/islands");
@@ -2047,9 +2052,16 @@ module.exports = {
 
           const updatedQuests = applyBossQuestProgress(player, ["bossFights"]);
 
-          updatePlayer(message.author.id, {
-            quests: updatedQuests,
-          });
+          updatePlayerAtomic(
+            message.author.id,
+            (fresh) => {
+              return {
+                ...fresh,
+                quests: applyBossQuestProgress(fresh, ["bossFights"]),
+              };
+            },
+            message.author.username
+          );
 
           await safeEditInteractionMessage(interaction, {
             embeds: [
@@ -2192,14 +2204,59 @@ module.exports = {
               "bossesDefeated",
             ]);
 
-            updatePlayer(participant.userId, {
-              cards: updatedCards,
-              boxes: applyBoxes(participant.player.boxes, reward.boxes),
-              berries: Number(participant.player.berries || 0) + reward.berries,
-              gems: Number(participant.player.gems || 0) + reward.gems,
-              story: participantStory,
-              quests: updatedQuests,
-            });
+            updatePlayerAtomic(
+              participant.userId,
+              (fresh) => {
+                const freshStory = {
+                  ...(fresh.story || {}),
+                  clearedIslandBosses: Array.isArray(fresh?.story?.clearedIslandBosses)
+                    ? [...fresh.story.clearedIslandBosses]
+                    : [],
+                  bossPhases: {
+                    ...(fresh?.story?.bossPhases || {}),
+                  },
+                };
+
+                const freshIsland = getCurrentIsland(fresh);
+                const sameIsland = freshIsland?.code === currentIsland.code;
+
+                if (sameIsland) {
+                  const currentState = getBossPhaseState(fresh, currentIsland.code);
+
+                  const nextPhaseState = {
+                    ...currentState,
+                    phase1Cleared:
+                      Number(phaseBoss.phase) === 1 ? true : Boolean(currentState.phase1Cleared),
+                    phase2Cleared:
+                      Number(phaseBoss.phase) === 2 ? true : Boolean(currentState.phase2Cleared),
+                  };
+
+                  nextPhaseState.completed = Boolean(
+                    nextPhaseState.phase1Cleared && nextPhaseState.phase2Cleared
+                  );
+
+                  freshStory.bossPhases[currentIsland.code] = nextPhaseState;
+
+                  if (
+                    nextPhaseState.completed &&
+                    !freshStory.clearedIslandBosses.includes(currentIsland.code)
+                  ) {
+                    freshStory.clearedIslandBosses.push(currentIsland.code);
+                  }
+                }
+
+                return {
+                  ...fresh,
+                  cards: applyBossExpToCards(fresh, participant.units, expResults),
+                  boxes: applyBoxes(fresh.boxes, reward.boxes),
+                  berries: Number(fresh.berries || 0) + reward.berries,
+                  gems: Number(fresh.gems || 0) + reward.gems,
+                  story: freshStory,
+                  quests: applyBossQuestProgress(fresh, ["bossFights", "bossesDefeated"]),
+                };
+              },
+              participant.username || "Unknown"
+            );
           }
 
           storyLines.push(`✅ ${currentIsland.name} Phase ${phaseBoss.phase} cleared.`);
@@ -2252,10 +2309,17 @@ module.exports = {
               "bossFights",
             ]);
 
-            updatePlayer(participant.userId, {
-              cards: updatedCards,
-              quests: updatedQuests,
-            });
+            updatePlayerAtomic(
+              participant.userId,
+              (fresh) => {
+                return {
+                  ...fresh,
+                  cards: applyBossExpToCards(fresh, participant.units, expResults),
+                  quests: applyBossQuestProgress(fresh, ["bossFights"]),
+                };
+              },
+              participant.username || "Unknown"
+            );
           }
 
           pushBossLog(logs, `💀 The raid team was wiped out by ${boss.name}.`);
@@ -2568,14 +2632,62 @@ module.exports = {
           "bossesDefeated",
         ]);
 
-        updatePlayer(message.author.id, {
-          cards: updatedCards,
-          boxes: updatedBoxes,
-          berries: Number(player.berries || 0) + reward.berries,
-          gems: Number(player.gems || 0) + reward.gems,
-          story: nextStory,
-          quests: updatedQuests,
-        });
+        updatePlayerAtomic(
+          message.author.id,
+          (fresh) => {
+            const freshStory = {
+              ...(fresh.story || {}),
+              clearedIslandBosses: Array.isArray(fresh?.story?.clearedIslandBosses)
+                ? [...fresh.story.clearedIslandBosses]
+                : [],
+              bossPhases: {
+                ...(fresh?.story?.bossPhases || {}),
+              },
+            };
+
+            const freshRouteAlreadyCleared = isIslandBossRouteCleared(fresh, currentIsland);
+
+            if (phaseBoss && !freshRouteAlreadyCleared) {
+              const currentState = getBossPhaseState(fresh, currentIsland.code);
+
+              const nextPhaseState = {
+                ...currentState,
+                phase1Cleared:
+                  Number(phaseBoss.phase) === 1 ? true : Boolean(currentState.phase1Cleared),
+                phase2Cleared:
+                  Number(phaseBoss.phase) === 2 ? true : Boolean(currentState.phase2Cleared),
+              };
+
+              nextPhaseState.completed = Boolean(
+                nextPhaseState.phase1Cleared && nextPhaseState.phase2Cleared
+              );
+
+              freshStory.bossPhases[currentIsland.code] = nextPhaseState;
+
+              if (
+                nextPhaseState.completed &&
+                !freshStory.clearedIslandBosses.includes(currentIsland.code)
+              ) {
+                freshStory.clearedIslandBosses.push(currentIsland.code);
+              }
+            } else if (!freshRouteAlreadyCleared) {
+              if (!freshStory.clearedIslandBosses.includes(currentIsland.code)) {
+                freshStory.clearedIslandBosses.push(currentIsland.code);
+              }
+            }
+
+            return {
+              ...fresh,
+              cards: applyBossExpToCards(fresh, playerTeam, expResults),
+              boxes: applyBoxes(fresh.boxes, reward.boxes),
+              berries: Number(fresh.berries || 0) + reward.berries,
+              gems: Number(fresh.gems || 0) + reward.gems,
+              story: freshStory,
+              quests: applyBossQuestProgress(fresh, ["bossFights", "bossesDefeated"]),
+            };
+          },
+          message.author.username
+        );
 
         pushBossLog(logs, `🏆 ${boss.name} was defeated!`);
 
@@ -2606,10 +2718,17 @@ module.exports = {
         const expLines = formatExpResults(playerTeam, expResults);
         const updatedQuests = applyBossQuestProgress(player, ["bossFights"]);
 
-        updatePlayer(message.author.id, {
-          cards: updatedCards,
-          quests: updatedQuests,
-        });
+        updatePlayerAtomic(
+          message.author.id,
+          (fresh) => {
+            return {
+              ...fresh,
+              cards: applyBossExpToCards(fresh, playerTeam, expResults),
+              quests: applyBossQuestProgress(fresh, ["bossFights"]),
+            };
+          },
+          message.author.username
+        );
 
         pushBossLog(logs, `💀 Your team was wiped out by ${boss.name}.`);
 
@@ -2657,10 +2776,17 @@ module.exports = {
         const expLines = formatExpResults(playerTeam, expResults);
         const updatedQuests = applyBossQuestProgress(player, ["bossFights"]);
 
-        updatePlayer(message.author.id, {
-          cards: updatedCards,
-          quests: updatedQuests,
-        });
+        updatePlayerAtomic(
+          message.author.id,
+          (fresh) => {
+            return {
+              ...fresh,
+              cards: applyBossExpToCards(fresh, playerTeam, expResults),
+              quests: applyBossQuestProgress(fresh, ["bossFights"]),
+            };
+          },
+          message.author.username
+        );
 
         logs.length = 0;
         pushBossLog(logs, "⌛ No interaction for 10 minutes.");

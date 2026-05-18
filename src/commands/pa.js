@@ -2,8 +2,7 @@ const { EmbedBuilder } = require("discord.js");
 const {
   getPlayer,
   updatePlayer,
-  readPlayers,
-  writePlayers,
+  updatePlayerAtomic,
 } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
@@ -449,6 +448,98 @@ function getCardMergeKey(card) {
   return `code:${code}:${stage}`;
 }
 
+function getStackCode(item) {
+  return String(item?.code || item?.name || "")
+    .toLowerCase()
+    .trim();
+}
+
+function mergeStackList(existingList, nextList) {
+  const map = new Map();
+
+  for (const item of Array.isArray(existingList) ? existingList : []) {
+    if (!item) continue;
+
+    const key = getStackCode(item);
+    if (!key) continue;
+
+    map.set(key, {
+      ...item,
+      amount: Number(item.amount || 0),
+    });
+  }
+
+  for (const item of Array.isArray(nextList) ? nextList : []) {
+    if (!item) continue;
+
+    const key = getStackCode(item);
+    if (!key) continue;
+
+    const existing = map.get(key);
+
+    if (!existing) {
+      map.set(key, {
+        ...item,
+        amount: Number(item.amount || 0),
+      });
+      continue;
+    }
+
+    map.set(key, {
+      ...existing,
+      ...item,
+      amount: Math.max(Number(existing.amount || 0), Number(item.amount || 0)),
+    });
+  }
+
+  return [...map.values()].filter((item) => Number(item.amount || 0) > 0);
+}
+
+function mergeNamedInventory(existingList, nextList) {
+  const map = new Map();
+
+  for (const item of Array.isArray(existingList) ? existingList : []) {
+    if (!item) continue;
+
+    const key = getStackCode(item);
+    if (!key) continue;
+
+    map.set(key, {
+      ...item,
+      amount: Number(item.amount || 1),
+    });
+  }
+
+  for (const item of Array.isArray(nextList) ? nextList : []) {
+    if (!item) continue;
+
+    const key = getStackCode(item);
+    if (!key) continue;
+
+    const existing = map.get(key);
+
+    if (!existing) {
+      map.set(key, {
+        ...item,
+        amount: Number(item.amount || 1),
+      });
+      continue;
+    }
+
+    map.set(key, {
+      ...existing,
+      ...item,
+      amount: Math.max(Number(existing.amount || 1), Number(item.amount || 1)),
+      upgradeLevel: Math.max(
+        Number(existing.upgradeLevel || 0),
+        Number(item.upgradeLevel || 0)
+      ),
+    });
+  }
+
+  return [...map.values()].filter((item) => Number(item.amount || 0) > 0);
+}
+
 function mergeCardCollections(existingCards, nextCards) {
   const map = new Map();
 
@@ -472,41 +563,34 @@ function mergeCardCollections(existingCards, nextCards) {
   return [...map.values()];
 }
 
-function savePullAllResultFresh(userId, payload) {
-  const players = readPlayers();
-  const id = String(userId);
-  const existing = players[id] || {};
+function savePullAllResultFresh(userId, payload, username = "Unknown") {
+  return updatePlayerAtomic(
+    userId,
+    (fresh) => {
+      const existing = fresh || {};
 
-  players[id] = {
-    ...existing,
-
-    cards: mergeCardCollections(existing.cards, payload.cards),
-
-    // These are the final PA results, so keep them exact.
-    weapons: payload.weapons,
-    devilFruits: payload.devilFruits,
-    fragments: payload.fragments,
-    tickets: payload.tickets,
-
-    berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
-
-    pulls: payload.pulls,
-    pity: payload.pity,
-
-    stats: {
-      ...(existing.stats || {}),
-      ...(payload.stats || {}),
+      return {
+        ...existing,
+        cards: mergeCardCollections(existing.cards, payload.cards),
+        weapons: mergeNamedInventory(existing.weapons, payload.weapons),
+        devilFruits: mergeNamedInventory(existing.devilFruits, payload.devilFruits),
+        fragments: mergeStackList(existing.fragments, payload.fragments),
+        tickets: mergeStackList(existing.tickets, payload.tickets),
+        berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
+        pulls: payload.pulls,
+        pity: payload.pity,
+        stats: {
+          ...(existing.stats || {}),
+          ...(payload.stats || {}),
+        },
+        quests: {
+          ...(existing.quests || {}),
+          ...(payload.quests || {}),
+        },
+      };
     },
-
-    quests: {
-      ...(existing.quests || {}),
-      ...(payload.quests || {}),
-    },
-  };
-
-  writePlayers(players);
-
-  return players[id];
+    username
+  );
 }
 
 function addDuplicateCardReward({
@@ -919,7 +1003,7 @@ module.exports = {
         ...(player.quests || {}),
         dailyState: updatedDailyState,
       },
-    });
+    }, message.author.username);
 
     const groupedLines = [];
 

@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer, readPlayers, writePlayers } = require("../playerStore");
+const { getPlayer, updatePlayer, updatePlayerAtomic } = require("../playerStore");
 const { createOwnedCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
 const rawWeapons = require("../data/weapons");
@@ -628,40 +628,122 @@ function mergeNamedInventory(existingList, nextList) {
   return [...map.values()].filter((item) => Number(item.amount || 0) > 0);
 }
 
-function savePullResultFresh(userId, payload) {
-  const players = readPlayers();
-  const id = String(userId);
-  const existing = players[id] || {};
+function getCardMergeKey(card) {
+  const instanceId = String(card?.instanceId || "").trim();
+  if (instanceId) return `id:${instanceId}`;
 
-  players[id] = {
-    ...existing,
+  const code = String(card?.code || card?.name || "").toLowerCase().trim();
+  const role = String(card?.cardRole || "battle").toLowerCase().trim();
 
-    cards: payload.cards,
+  return `${role}:${code}`;
+}
 
-    weapons: mergeNamedInventory(existing.weapons, payload.weapons),
-    devilFruits: mergeNamedInventory(existing.devilFruits, payload.devilFruits),
-    fragments: mergeStackList(existing.fragments, payload.fragments),
-    tickets: mergeStackList(existing.tickets, payload.tickets),
+function getCardStageRank(card) {
+  const raw = String(card?.evolutionKey || card?.form || "").toUpperCase();
+  const stage = Number(card?.evolutionStage || 0);
 
-    berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
+  if (raw === "M3") return 3;
+  if (raw === "M2") return 2;
+  if (raw === "M1") return 1;
 
-    pulls: payload.pulls,
-    pity: payload.pity,
+  return Math.max(1, stage || 1);
+}
 
-    stats: {
-      ...(existing.stats || {}),
-      ...(payload.stats || {}),
-    },
+function mergeCardRecord(existing, next) {
+  if (!existing) return next;
+  if (!next) return existing;
 
-    quests: {
-      ...(existing.quests || {}),
-      ...(payload.quests || {}),
-    },
+  const existingStage = getCardStageRank(existing);
+  const nextStage = getCardStageRank(next);
+
+  const existingLevel = Number(existing.level || 1);
+  const nextLevel = Number(next.level || 1);
+
+  const existingExp = Number(existing.exp || existing.xp || 0);
+  const nextExp = Number(next.exp || next.xp || 0);
+
+  const existingKills = Number(existing.kills || 0);
+  const nextKills = Number(next.kills || 0);
+
+  const stronger =
+    nextStage > existingStage ||
+    (nextStage === existingStage && nextLevel > existingLevel) ||
+    (nextStage === existingStage &&
+      nextLevel === existingLevel &&
+      nextExp >= existingExp)
+      ? next
+      : existing;
+
+  const weaker = stronger === next ? existing : next;
+  const bestStage = Math.max(existingStage, nextStage);
+  const bestExp = Math.max(existingExp, nextExp);
+
+  return {
+    ...weaker,
+    ...stronger,
+    evolutionStage: bestStage,
+    evolutionKey: stronger.evolutionKey || weaker.evolutionKey || `M${bestStage}`,
+    level: Math.max(existingLevel, nextLevel),
+    exp: bestExp,
+    xp: bestExp,
+    kills: Math.max(existingKills, nextKills),
   };
+}
 
-  writePlayers(players);
+function mergeCardCollections(existingCards, nextCards) {
+  const map = new Map();
 
-  return players[id];
+  for (const card of Array.isArray(existingCards) ? existingCards : []) {
+    if (!card) continue;
+    map.set(getCardMergeKey(card), card);
+  }
+
+  for (const card of Array.isArray(nextCards) ? nextCards : []) {
+    if (!card) continue;
+
+    const key = getCardMergeKey(card);
+    const existing = map.get(key);
+
+    map.set(key, mergeCardRecord(existing, card));
+  }
+
+  return [...map.values()];
+}
+
+function savePullResultFresh(userId, payload, username = "Unknown") {
+  return updatePlayerAtomic(
+    userId,
+    (fresh) => {
+      const existing = fresh || {};
+
+      return {
+        ...existing,
+
+        cards: mergeCardCollections(existing.cards, payload.cards),
+
+        weapons: mergeNamedInventory(existing.weapons, payload.weapons),
+        devilFruits: mergeNamedInventory(existing.devilFruits, payload.devilFruits),
+        fragments: mergeStackList(existing.fragments, payload.fragments),
+        tickets: mergeStackList(existing.tickets, payload.tickets),
+
+        berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
+
+        pulls: payload.pulls,
+        pity: payload.pity,
+
+        stats: {
+          ...(existing.stats || {}),
+          ...(payload.stats || {}),
+        },
+
+        quests: {
+          ...(existing.quests || {}),
+          ...(payload.quests || {}),
+        },
+      };
+    },
+    username
+  );
 }
 
 module.exports = {
@@ -836,24 +918,28 @@ module.exports = {
       premiumSPity: pityCounter,
     };
 
-    savePullResultFresh(message.author.id, {
-      cards: updatedCards,
-      weapons: updatedWeapons,
-      devilFruits: updatedDevilFruits,
-      fragments: updatedFragments,
-      tickets: updatedTickets,
-      addBerries: autoSacBerries,
-      pulls: updatedPulls,
-      pity: updatedPity,
-      stats: {
-        cardsPulled:
-          Number(player?.stats?.cardsPulled || 0) +
-          (contentType === "battleCard" || contentType === "boostCard" ? 1 : 0),
+    savePullResultFresh(
+      message.author.id,
+      {
+        cards: updatedCards,
+        weapons: updatedWeapons,
+        devilFruits: updatedDevilFruits,
+        fragments: updatedFragments,
+        tickets: updatedTickets,
+        addBerries: autoSacBerries,
+        pulls: updatedPulls,
+        pity: updatedPity,
+        stats: {
+          cardsPulled:
+            Number(player?.stats?.cardsPulled || 0) +
+            (contentType === "battleCard" || contentType === "boostCard" ? 1 : 0),
+        },
+        quests: {
+          dailyState: updatedDailyState,
+        },
       },
-      quests: {
-        dailyState: updatedDailyState,
-      },
-    });
+      message.author.username
+    );
 
     const rewardName = picked.displayName || picked.name || "Unknown";
     const rewardRarity = String(picked.baseTier || picked.rarity || "C").toUpperCase();

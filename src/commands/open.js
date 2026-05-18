@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { ITEMS } = require("../data/items");
 const { incrementQuestPayload } = require("../utils/questProgress");
 
@@ -351,43 +351,66 @@ module.exports = {
       );
     }
 
-    const updatedBoxes = removeBoxes(player.boxes || [], box.code, openAmount);
-
-    if (!updatedBoxes) {
-      return message.reply(`You do not own enough **${box.name}**.`);
-    }
-
     const rewardMap = new Map();
+    let rewardState = null;
 
-    const rewardState = grantBoxRewards(
-      box,
-      openAmount,
-      {
-        materials: [...(player.materials || [])],
-        items: [...(player.items || [])],
-        berries: Number(player.berries || 0),
-        gems: Number(player.gems || 0),
-        tickets: [...(player.tickets || [])],
-      },
-      rewardMap
-    );
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const freshOwnedAmount = getOwnedBoxAmount(fresh.boxes || [], box.code);
 
-    if (!rewardState) {
-      return message.reply("This box is not configured yet.");
+          if (freshOwnedAmount <= 0) {
+            throw new Error(`You do not own **${box.name}**.`);
+          }
+
+          if (openAmount > freshOwnedAmount) {
+            throw new Error(
+              `You only own **${freshOwnedAmount}x ${box.name}**.\nUse \`op open ${parsed.query} all\` to open all owned boxes.`
+            );
+          }
+
+          const updatedBoxes = removeBoxes(fresh.boxes || [], box.code, openAmount);
+
+          if (!updatedBoxes) {
+            throw new Error(`You do not own enough **${box.name}**.`);
+          }
+
+          rewardState = grantBoxRewards(
+            box,
+            openAmount,
+            {
+              materials: [...(fresh.materials || [])],
+              items: [...(fresh.items || [])],
+              berries: Number(fresh.berries || 0),
+              gems: Number(fresh.gems || 0),
+              tickets: [...(fresh.tickets || [])],
+            },
+            rewardMap
+          );
+
+          if (!rewardState) {
+            throw new Error("This box is not configured yet.");
+          }
+
+          const updatedQuests = incrementQuestPayload(fresh, "boxesOpened", openAmount);
+
+          return {
+            ...fresh,
+            boxes: updatedBoxes,
+            materials: rewardState.materials,
+            items: rewardState.items,
+            tickets: rewardState.tickets,
+            berries: rewardState.berries,
+            gems: rewardState.gems,
+            quests: updatedQuests,
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
+      return message.reply(error.message || "Failed to open box.");
     }
-
-    const updatedQuests = incrementQuestPayload(player, "boxesOpened", openAmount);
-    const rewardLines = formatRewardLines(rewardMap);
-
-    updatePlayer(message.author.id, {
-      boxes: updatedBoxes,
-      materials: rewardState.materials,
-      items: rewardState.items,
-      tickets: rewardState.tickets,
-      berries: rewardState.berries,
-      gems: rewardState.gems,
-      quests: updatedQuests,
-    });
 
     return message.reply({
       embeds: [

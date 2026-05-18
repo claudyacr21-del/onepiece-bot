@@ -6,7 +6,12 @@ const {
   StringSelectMenuBuilder,
 } = require("discord.js");
 
-const { getPlayer, updatePlayer, readPlayers, writePlayers } = require("../playerStore");
+const {
+  getPlayer,
+  updatePlayer,
+  readPlayers,
+  updatePlayerAtomic,
+} = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
@@ -609,64 +614,80 @@ function applyArenaResult(arena, result) {
 }
 
 function updateArenaPlayer(message, result) {
-  const freshPlayer = getPlayer(message.author.id, message.author.username);
-  const updatedArena = applyArenaResult(freshPlayer.arena, result);
+  let finalArena = null;
+  let streakRewardLine = null;
 
-  const streakBoxReward =
-    result === "win"
-      ? applyArenaStreakBoxReward(freshPlayer, updatedArena)
-      : {
-          boxes: freshPlayer.boxes || [],
-          rewardLine: null,
-        };
+  updatePlayerAtomic(
+    message.author.id,
+    (freshPlayer) => {
+      const updatedArena = applyArenaResult(freshPlayer.arena, result);
+      const streakBoxReward =
+        result === "win"
+          ? applyArenaStreakBoxReward(freshPlayer, updatedArena)
+          : {
+              boxes: freshPlayer.boxes || [],
+              rewardLine: null,
+            };
 
-  let updatedDailyState = incrementQuestCounter(freshPlayer, "arenaMatches", 1);
+      let updatedDailyState = incrementQuestCounter(freshPlayer, "arenaMatches", 1);
 
-  if (result === "win") {
-    updatedDailyState = incrementQuestCounter(
-      {
+      if (result === "win") {
+        updatedDailyState = incrementQuestCounter(
+          {
+            ...freshPlayer,
+            quests: {
+              ...(freshPlayer.quests || {}),
+              dailyState: updatedDailyState,
+            },
+          },
+          "arenaWins",
+          1
+        );
+      }
+
+      const completed = Array.isArray(updatedDailyState.quests)
+        ? updatedDailyState.quests.filter((quest) => {
+            const progress = Number(updatedDailyState.progress?.[quest.key] || 0);
+            return progress >= Number(quest.target || 0);
+          }).length
+        : 0;
+
+      const total = Array.isArray(updatedDailyState.quests)
+        ? updatedDailyState.quests.length
+        : 0;
+
+      finalArena = {
+        ...updatedArena,
+        arenaRank: getArenaRankForUser(message, message.author.id),
+        streakRewardLine: streakBoxReward.rewardLine,
+      };
+
+      streakRewardLine = streakBoxReward.rewardLine;
+
+      return {
         ...freshPlayer,
+        arena: updatedArena,
+        boxes: streakBoxReward.boxes,
         quests: {
           ...(freshPlayer.quests || {}),
           dailyState: updatedDailyState,
+          daily: {
+            ...(freshPlayer?.quests?.daily || {}),
+            total,
+            completed,
+            left: Math.max(0, total - completed),
+            lastSyncedAt: Date.now(),
+          },
         },
-      },
-      "arenaWins",
-      1
-    );
-  }
-
-  const completed = Array.isArray(updatedDailyState.quests)
-    ? updatedDailyState.quests.filter((quest) => {
-        const progress = Number(updatedDailyState.progress?.[quest.key] || 0);
-        return progress >= Number(quest.target || 0);
-      }).length
-    : 0;
-
-  const total = Array.isArray(updatedDailyState.quests)
-    ? updatedDailyState.quests.length
-    : 0;
-
-  updatePlayer(message.author.id, {
-    arena: updatedArena,
-    boxes: streakBoxReward.boxes,
-    quests: {
-      ...(freshPlayer.quests || {}),
-      dailyState: updatedDailyState,
-      daily: {
-        ...(freshPlayer?.quests?.daily || {}),
-        total,
-        completed,
-        left: Math.max(0, total - completed),
-        lastSyncedAt: Date.now(),
-      },
+      };
     },
-  });
+    message.author.username
+  );
 
   return {
-    ...updatedArena,
+    ...(finalArena || {}),
     arenaRank: getArenaRankForUser(message, message.author.id),
-    streakRewardLine: streakBoxReward.rewardLine,
+    streakRewardLine,
   };
 }
 
@@ -696,20 +717,23 @@ function updateArenaOpponentAfterBattle(opponent, result) {
   if (!opponent || opponent.isBot) return null;
   if (result !== "win") return null;
 
-  const players = readPlayers();
   const opponentId = String(opponent.userId || opponent.id || "");
+  if (!opponentId) return null;
 
-  if (!opponentId || !players[opponentId]) return null;
+  let updatedArena = null;
 
-  const opponentPlayer = players[opponentId];
-  const updatedArena = applyArenaOpponentLoss(opponentPlayer.arena || {});
+  updatePlayerAtomic(
+    opponentId,
+    (fresh) => {
+      updatedArena = applyArenaOpponentLoss(fresh.arena || {});
 
-  players[opponentId] = {
-    ...opponentPlayer,
-    arena: updatedArena,
-  };
-
-  writePlayers(players);
+      return {
+        ...fresh,
+        arena: updatedArena,
+      };
+    },
+    opponent.username || "Unknown"
+  );
 
   return updatedArena;
 }
@@ -962,35 +986,42 @@ function formatArenaExpResults(playerTeam, expResults) {
 }
 
 function applyArenaExp(message, playerTeam, won) {
-  const freshPlayer = getPlayer(message.author.id, message.author.username);
   const expResults = calculateArenaExp(playerTeam, won);
 
-  const updatedCards = [...(freshPlayer.cards || [])].map((card, index) => {
-    const expEntry =
-      expResults.find(
-        (entry) => Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
-      ) || expResults.find((entry) => entry.instanceId === card.instanceId);
+  updatePlayerAtomic(
+    message.author.id,
+    (freshPlayer) => {
+      const updatedCards = [...(freshPlayer.cards || [])].map((card, index) => {
+        const expEntry =
+          expResults.find(
+            (entry) =>
+              Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
+          ) || expResults.find((entry) => entry.instanceId === card.instanceId);
 
-    if (!expEntry) return card;
+        if (!expEntry) return card;
 
-    const nextCard = applyExpToCard(
-      {
-        ...card,
-        level: Number(card.level || 1),
-        exp: getCardExp(card),
-        xp: getCardExp(card),
-      },
-      expEntry.expGain
-    );
+        const nextCard = applyExpToCard(
+          {
+            ...card,
+            level: Number(card.level || 1),
+            exp: getCardExp(card),
+            xp: getCardExp(card),
+          },
+          expEntry.expGain
+        );
 
-    expEntry.leveledUp = Number(nextCard.leveledUp || 0);
+        expEntry.leveledUp = Number(nextCard.leveledUp || 0);
 
-    return nextCard;
-  });
+        return nextCard;
+      });
 
-  updatePlayer(message.author.id, {
-    cards: updatedCards,
-  });
+      return {
+        ...freshPlayer,
+        cards: updatedCards,
+      };
+    },
+    message.author.username
+  );
 
   return formatArenaExpResults(playerTeam, expResults);
 }
