@@ -293,11 +293,27 @@ module.exports = {
   name: "challenge",
   aliases: ["spar"],
 
-  async execute(message) {
-    const targetUser = message.mentions.users.first();
+  async execute(message, args = []) {
+    const rawTarget = String(args[0] || "").trim();
+    const targetId =
+      message.mentions.users.first()?.id ||
+      rawTarget.replace(/[<@!>]/g, "");
 
-    if (!targetUser) return message.reply("Usage: `op challenge @user`");
-    if (targetUser.id === message.author.id) return message.reply("You cannot challenge yourself.");
+    if (!targetId) {
+      return message.reply("Usage: `op challenge @user` or `op challenge <user_id>`");
+    }
+
+    if (String(targetId) === String(message.author.id)) {
+      return message.reply("You cannot challenge yourself.");
+    }
+
+    const targetUser =
+      message.mentions.users.first() ||
+      (await message.client.users.fetch(targetId).catch(() => null));
+
+    if (!targetUser) {
+      return message.reply("User not found. Please mention the user or use a valid user ID.");
+    }
 
     const player = getPlayer(message.author.id, message.author.username);
     const targetPlayer = getPlayer(targetUser.id, targetUser.username);
