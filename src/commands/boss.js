@@ -2410,6 +2410,8 @@ module.exports = {
         return safeEphemeralReply(interaction, "That card cannot attack right now.");
       }
 
+      await safeDeferUpdate(interaction);
+
       const combatLogs = [];
       const turns = resolveTurnOrder(attacker, boss);
 

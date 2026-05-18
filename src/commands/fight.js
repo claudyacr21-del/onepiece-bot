@@ -26,6 +26,46 @@ const MOTHER_FLAME_FIGHT_COOLDOWN_MS = 5 * 60 * 1000;
 const VIVRE_CARD_FIGHT_COOLDOWN_MS = 6.5 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 
+async function safeDeferUpdate(interaction) {
+  if (!interaction || interaction.deferred || interaction.replied) return;
+  try {
+    await interaction.deferUpdate();
+  } catch (error) {
+    console.error("[FIGHT DEFER UPDATE ERROR]", error);
+  }
+}
+
+async function safeEditInteractionMessage(interaction, payload) {
+  try {
+    if (interaction?.message) {
+      return await interaction.message.edit(payload);
+    }
+    return null;
+  } catch (error) {
+    console.error("[FIGHT MESSAGE EDIT ERROR]", error);
+    return null;
+  }
+}
+
+async function safeEphemeralReply(interaction, content) {
+  try {
+    if (interaction.deferred || interaction.replied) {
+      return await interaction.followUp({
+        content,
+        ephemeral: true,
+      });
+    }
+
+    return await interaction.reply({
+      content,
+      ephemeral: true,
+    });
+  } catch (error) {
+    console.error("[FIGHT REPLY ERROR]", error);
+    return null;
+  }
+}
+
 function formatExpResults(playerTeam, expResults) {
   return expResults
     .map((entry) => {

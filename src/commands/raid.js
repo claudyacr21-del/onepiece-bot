@@ -1878,6 +1878,8 @@ module.exports = {
           });
         }
 
+        await interaction.deferUpdate().catch(() => null);
+
         await lobbyMessage.edit({
           embeds: [
             buildLobbyEmbed(

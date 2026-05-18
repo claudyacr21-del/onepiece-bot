@@ -1054,10 +1054,6 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
     components: buildActionRows(myTeam, ended),
   });
 
-  const collector = lobbyMessage.createMessageComponentCollector({
-    time: SESSION_TIMEOUT_MS,
-  });
-
   collector.on("collect", async (interaction) => {
     if (interaction.user.id !== message.author.id) {
       return interaction.reply({
@@ -1073,14 +1069,18 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       });
     }
 
+    await safeDeferUpdate(interaction);
+
     if (interaction.customId === "arena_forfeit") {
+      await safeDeferUpdate(interaction);
+
       ended = true;
       result = "lose";
       logs.length = 0;
-      logs.push("🏳️ You forfeited the arena battle.");
-      currentArena = updateArenaPlayer(message, result);
+      logs.push("️ You forfeited the arena battle.");
 
-      await safeDeferUpdate(interaction);
+      currentArena = updateArenaPlayer(message, result);
+      const expLines = applyArenaExp(message, myTeam, false);
 
       await safeEditInteractionMessage(interaction, {
         embeds: [
@@ -1198,23 +1198,23 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       return;
     }
 
-    await safeDeferUpdate(interaction);
+      await safeDeferUpdate(interaction);
 
-    await safeEditInteractionMessage(interaction, {
-      embeds: [
-        buildArenaEmbed({
-          player,
-          opponent,
-          myTeam,
-          enemyTeam,
-          logs,
-          arena: currentArena,
-          result,
-          ended,
-        }),
-      ],
-      components: buildActionRows(myTeam, ended),
-    });
+      await safeEditInteractionMessage(interaction, {
+        embeds: [
+          buildArenaEmbed({
+            player,
+            opponent,
+            myTeam,
+            enemyTeam,
+            logs,
+            arena: currentArena,
+            result,
+            ended,
+          }),
+        ],
+        components: buildActionRows(myTeam, ended),
+      });
   });
 
   collector.on("end", async (_collected, reason) => {
