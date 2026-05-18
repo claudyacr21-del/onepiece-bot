@@ -4,7 +4,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updateTwoPlayersAtomic } = require("../playerStore");
 
 const SESSION_MS = 10 * 60 * 1000;
 const MAX_ITEMS = 5;
@@ -764,17 +764,32 @@ module.exports = {
       }
 
       try {
-        const freshOwner = getPlayer(message.author.id, message.author.username);
-        const freshTarget = getPlayer(targetUser.id, targetUser.username);
+        let freshOwner = null;
+        let freshTarget = null;
+        let ownerResolved = null;
+        let targetResolved = null;
 
-        const ownerResolved = resolveOffer(freshOwner, parsed.ownerOffer);
-        const targetResolved = resolveOffer(freshTarget, parsed.targetOffer);
+        updateTwoPlayersAtomic(
+          message.author.id,
+          targetUser.id,
+          (ownerFresh, targetFresh) => {
+            freshOwner = ownerFresh;
+            freshTarget = targetFresh;
 
-        const stepA = applyResolvedTrade(freshOwner, freshTarget, ownerResolved);
-        const stepB = applyResolvedTrade(stepA.toNext, stepA.fromNext, targetResolved);
+            ownerResolved = resolveOffer(ownerFresh, parsed.ownerOffer);
+            targetResolved = resolveOffer(targetFresh, parsed.targetOffer);
 
-        updatePlayer(message.author.id, stepB.toNext);
-        updatePlayer(targetUser.id, stepB.fromNext);
+            const stepA = applyResolvedTrade(ownerFresh, targetFresh, ownerResolved);
+            const stepB = applyResolvedTrade(stepA.toNext, stepA.fromNext, targetResolved);
+
+            return {
+              playerA: stepB.toNext,
+              playerB: stepB.fromNext,
+            };
+          },
+          message.author.username,
+          targetUser.username
+        );
 
         state.done = true;
 

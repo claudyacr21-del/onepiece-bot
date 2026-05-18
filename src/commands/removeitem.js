@@ -1,4 +1,4 @@
-const { readPlayers, writePlayers } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 
 const VALID_BUCKETS = [
   "items",
@@ -27,67 +27,163 @@ function isAdmin(userId) {
 }
 
 function normalize(value) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[<@!>]/g, "")
+    .replace(/^model:\s*/i, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function normalizeCode(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[<@!>]/g, "");
 }
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function parseUserId(value) {
+  return String(value || "").replace(/[<@!>]/g, "").trim();
+}
+
+function matchEntry(entry, query) {
+  const q = normalize(query);
+  const qc = normalizeCode(query);
+
+  return (
+    normalize(entry?.name) === q ||
+    normalize(entry?.displayName) === q ||
+    normalize(entry?.code) === q ||
+    normalizeCode(entry?.code) === qc ||
+    normalizeCode(entry?.instanceId) === qc ||
+    normalize(entry?.name).includes(q) ||
+    normalize(entry?.displayName).includes(q) ||
+    normalize(entry?.code).includes(q)
+  );
+}
+
 module.exports = {
   name: "removeitem",
   aliases: ["delitem"],
 
-  async execute(message, args) {
+  async execute(message, args = []) {
     if (!isAdmin(message.author.id)) {
-      return message.reply("Owner only command.");
+      return message.reply({
+        content: "Owner only command.",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    const userId = String(args.shift() || "").trim();
+    const userId =
+      message.mentions.users.first()?.id ||
+      parseUserId(args.shift());
+
     const bucket = String(args.shift() || "").trim();
     const amount = Number(args.shift() || 0);
     const query = args.join(" ").trim();
 
     if (!userId || !bucket || !Number.isFinite(amount) || amount <= 0 || !query) {
-      return message.reply(
-        "Usage: `op removeitem <userId> <bucket> <amount> <item/weapon/fruit name or code>`"
-      );
+      return message.reply({
+        content: "Usage: `op removeitem <@user/userId> <bucket> <amount> <item name/code>`",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     if (!VALID_BUCKETS.includes(bucket)) {
-      return message.reply(`Invalid bucket. Use: ${VALID_BUCKETS.join(", ")}`);
+      return message.reply({
+        content: `Invalid bucket.\nUse: ${VALID_BUCKETS.join(", ")}`,
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    const players = readPlayers();
+    let removedName = "";
+    let notFound = false;
+    let notEnough = false;
+    let ownedAmount = 0;
+    let ambiguous = [];
 
-    if (!players[userId]) {
-      return message.reply(`User not found: \`${userId}\``);
-    }
+    updatePlayerAtomic(
+      userId,
+      (fresh) => {
+        const list = ensureArray(fresh[bucket]).map((entry) => ({ ...entry }));
+        const matches = list
+          .map((entry, index) => ({ entry, index }))
+          .filter(({ entry }) => matchEntry(entry, query));
 
-    players[userId][bucket] = ensureArray(players[userId][bucket]);
+        if (!matches.length) {
+          notFound = true;
+          return fresh;
+        }
 
-    const idx = players[userId][bucket].findIndex((entry) => {
-      return (
-        normalize(entry?.name) === normalize(query) ||
-        normalize(entry?.code) === normalize(query)
-      );
-    });
+        if (matches.length > 1) {
+          ambiguous = matches.slice(0, 10);
+          return fresh;
+        }
 
-    if (idx === -1) {
-      return message.reply(`Item not found in \`${bucket}\` for user \`${userId}\`.`);
-    }
+        const { entry, index } = matches[0];
+        ownedAmount = Number(entry.amount || 0);
 
-    const entry = players[userId][bucket][idx];
-    entry.amount = Number(entry.amount || 0) - amount;
+        if (ownedAmount < amount) {
+          notEnough = true;
+          removedName = entry.name || entry.code || query;
+          return fresh;
+        }
 
-    if (entry.amount <= 0) {
-      players[userId][bucket].splice(idx, 1);
-    }
+        const nextAmount = ownedAmount - amount;
+        removedName = entry.name || entry.code || query;
 
-    writePlayers(players);
+        if (nextAmount <= 0) {
+          list.splice(index, 1);
+        } else {
+          list[index] = {
+            ...entry,
+            amount: nextAmount,
+          };
+        }
 
-    return message.reply(
-      `Removed ${amount}x \`${entry.name || entry.code}\` from \`${userId}\` in \`${bucket}\`.`
+        return {
+          ...fresh,
+          [bucket]: list,
+        };
+      },
+      message.mentions.users.first()?.username || "Unknown"
     );
+
+    if (ambiguous.length) {
+      return message.reply({
+        content: [
+          "Multiple items matched that query. Use exact code or instance ID.",
+          "",
+          ...ambiguous.map(({ entry }, i) => {
+            return `${i + 1}. ${entry.name || entry.code || "Unknown"} • code: \`${entry.code || "none"}\` • id: \`${entry.instanceId || "none"}\``;
+          }),
+        ].join("\n"),
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
+    if (notFound) {
+      return message.reply({
+        content: `Item not found in \`${bucket}\` for user \`${userId}\`.`,
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
+    if (notEnough) {
+      return message.reply({
+        content: `Not enough \`${removedName}\` in \`${bucket}\`. Owned: ${ownedAmount}, requested remove: ${amount}.`,
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
+    return message.reply({
+      content: `Removed ${amount}x \`${removedName}\` from \`${userId}\` in \`${bucket}\`.`,
+      allowedMentions: { repliedUser: false },
+    });
   },
 };

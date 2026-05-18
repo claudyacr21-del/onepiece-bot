@@ -956,12 +956,48 @@ function updatePlayerAtomic(userId, mutator, username = "Unknown") {
   return nextPlayer;
 }
 
+function updateTwoPlayersAtomic(userIdA, userIdB, mutator, usernameA = "Unknown", usernameB = "Unknown") {
+  const players = readPlayers();
+  const idA = String(userIdA);
+  const idB = String(userIdB);
+
+  const playerA = players[idA]
+    ? normalizePlayer(players[idA], usernameA)
+    : getDefaultPlayer(usernameA);
+
+  const playerB = players[idB]
+    ? normalizePlayer(players[idB], usernameB)
+    : getDefaultPlayer(usernameB);
+
+  const result =
+    typeof mutator === "function"
+      ? mutator(playerA, playerB)
+      : {
+          playerA,
+          playerB,
+        };
+
+  const nextA = normalizePlayer(result?.playerA || playerA, playerA.username || usernameA);
+  const nextB = normalizePlayer(result?.playerB || playerB, playerB.username || usernameB);
+
+  players[idA] = nextA;
+  players[idB] = nextB;
+
+  writePlayers(players);
+
+  return {
+    playerA: nextA,
+    playerB: nextB,
+  };
+}
+
 module.exports = {
   readPlayers,
   writePlayers,
   getPlayer,
   updatePlayer,
   updatePlayerAtomic,
+  updateTwoPlayersAtomic,
   normalizePlayer,
   filePath,
 };

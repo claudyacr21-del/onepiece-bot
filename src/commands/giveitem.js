@@ -1,4 +1,4 @@
-const { readPlayers, writePlayers } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 const weaponsData = require("../data/weapons");
 const devilFruitsData = require("../data/devilFruits");
 const itemsData = require("../data/items");
@@ -41,7 +41,10 @@ function normalize(value) {
 }
 
 function normalizeCode(value) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[<@!>]/g, "");
 }
 
 function normalizeBucket(value) {
@@ -80,9 +83,7 @@ function collectCatalogEntries(source, out = []) {
     typeof source.code === "string" ||
     typeof source.id === "string";
 
-  if (hasIdentity) {
-    out.push(source);
-  }
+  if (hasIdentity) out.push(source);
 
   for (const value of Object.values(source)) {
     if (Array.isArray(value) || (value && typeof value === "object")) {
@@ -127,10 +128,7 @@ function findCatalogEntry(bucket, query) {
 
   if (bucket === "weapons") return weaponIndex.get(q) || weaponIndex.get(qc) || null;
   if (bucket === "devilFruits") return fruitIndex.get(q) || fruitIndex.get(qc) || null;
-
-  if (bucket === "fragments") {
-    return cardIndex.get(q) || cardIndex.get(qc) || null;
-  }
+  if (bucket === "fragments") return cardIndex.get(q) || cardIndex.get(qc) || null;
 
   if (
     bucket === "consumables" ||
@@ -168,12 +166,9 @@ function buildStoredEntry(bucket, catalogEntry, amount) {
   if (catalogEntry.type) base.type = catalogEntry.type;
   if (catalogEntry.description) base.description = catalogEntry.description;
   if (catalogEntry.power) base.power = catalogEntry.power;
-
   if (catalogEntry.statPercent) base.statPercent = { ...catalogEntry.statPercent };
   if (catalogEntry.statBonus) base.statBonus = { ...catalogEntry.statBonus };
-  if (catalogEntry.ownerBonusPercent) {
-    base.ownerBonusPercent = { ...catalogEntry.ownerBonusPercent };
-  }
+  if (catalogEntry.ownerBonusPercent) base.ownerBonusPercent = { ...catalogEntry.ownerBonusPercent };
   if (catalogEntry.owners) base.owners = [...catalogEntry.owners];
   if (catalogEntry.boostBonus) base.boostBonus = catalogEntry.boostBonus;
 
@@ -209,57 +204,76 @@ module.exports = {
   name: "giveitem",
   aliases: [],
 
-  async execute(message, args) {
+  async execute(message, args = []) {
     if (!isAdmin(message.author.id)) {
-      return message.reply("Owner only command.");
+      return message.reply({
+        content: "Owner only command.",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    const userId = parseUserId(args.shift());
+    const userId =
+      message.mentions.users.first()?.id ||
+      parseUserId(args.shift());
+
     const bucket = normalizeBucket(args.shift());
     const storageBucket = getStorageBucket(bucket);
     const amount = Number(args.shift() || 0);
     const query = args.join(" ").trim();
 
     if (!userId || !bucket || !Number.isFinite(amount) || amount <= 0 || !query) {
-      return message.reply("Usage: `op giveitem <@user/userId> <bucket> <amount> <item>`");
+      return message.reply({
+        content: "Usage: `op giveitem <@user/userId> <bucket> <amount> <item name/code>`",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     if (!VALID_BUCKETS.includes(bucket)) {
-      return message.reply(`Invalid bucket.\nUse: ${VALID_BUCKETS.join(", ")}`);
-    }
-
-    const players = readPlayers();
-
-    if (!players[userId]) {
-      return message.reply(`User not found: \`${userId}\``);
+      return message.reply({
+        content: `Invalid bucket.\nUse: ${VALID_BUCKETS.join(", ")}`,
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     const catalogEntry = findCatalogEntry(bucket, query);
 
     if (!catalogEntry) {
-      return message.reply(`Invalid ${bucket} entry.\nMust match data exactly by name or code.`);
+      return message.reply({
+        content: `Invalid ${bucket} entry.\nMust match data by name or code.`,
+        allowedMentions: { repliedUser: false },
+      });
     }
-
-    players[userId][storageBucket] = ensureArray(players[userId][storageBucket]);
 
     const stored = buildStoredEntry(bucket, catalogEntry, amount);
-    const existing = players[userId][storageBucket].find((entry) => sameEntry(entry, stored));
 
-    if (existing) {
-      existing.amount = Number(existing.amount || 0) + amount;
+    updatePlayerAtomic(
+      userId,
+      (fresh) => {
+        const list = ensureArray(fresh[storageBucket]).map((entry) => ({ ...entry }));
+        const existing = list.find((entry) => sameEntry(entry, stored));
 
-      for (const [key, value] of Object.entries(stored)) {
-        if (key === "amount") continue;
-        existing[key] = value;
-      }
-    } else {
-      players[userId][storageBucket].push(stored);
-    }
+        if (existing) {
+          existing.amount = Number(existing.amount || 0) + amount;
 
-    writePlayers(players);
+          for (const [key, value] of Object.entries(stored)) {
+            if (key === "amount") continue;
+            existing[key] = value;
+          }
+        } else {
+          list.push(stored);
+        }
 
-    return message.reply(
-      `Added ${amount}x \`${stored.name}\` to \`${userId}\` in \`${bucket}\`.`
+        return {
+          ...fresh,
+          [storageBucket]: list,
+        };
+      },
+      message.mentions.users.first()?.username || "Unknown"
     );
+
+    return message.reply({
+      content: `Added ${amount}x \`${stored.name}\` to \`${userId}\` in \`${bucket}\`.`,
+      allowedMentions: { repliedUser: false },
+    });
   },
 };

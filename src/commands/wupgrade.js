@@ -723,6 +723,7 @@ module.exports = {
         );
       } catch (error) {
         collector.stop("failed");
+
         return interaction.update({
           embeds: [
             new EmbedBuilder()
@@ -733,17 +734,6 @@ module.exports = {
           components: [],
         });
       }
-
-      const freshShownPercent = getWeaponPercentAtLevel(
-        freshTemplate.statPercent || {
-          atk: 0,
-          hp: 0,
-          speed: 0,
-        },
-        freshNextLevel
-      );
-
-      const freshEquippedOwners = getEquippedOwners(updatedCards, freshTemplate.code);
 
       collector.stop("confirmed");
 
@@ -776,7 +766,7 @@ module.exports = {
     });
 
     collector.on("end", async (_collected, reason) => {
-      if (["confirmed", "cancelled", "missing", "max", "nostone"].includes(reason)) {
+      if (["confirmed", "cancelled", "missing", "max", "nostone", "failed"].includes(reason)) {
         return;
       }
 
