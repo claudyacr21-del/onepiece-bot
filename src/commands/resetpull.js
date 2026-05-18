@@ -1,10 +1,12 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { applyManualPullReset } = require("../utils/pullReset");
 
 function findTicket(tickets, code) {
-  return (tickets || []).findIndex((item) => item.code === code);
+  return (tickets || []).findIndex(
+    (item) => String(item.code || "").toLowerCase() === String(code || "").toLowerCase()
+  );
 }
 
 function consumeTicket(tickets, index) {
@@ -16,7 +18,7 @@ function consumeTicket(tickets, index) {
   } else {
     updated[index] = {
       ...updated[index],
-      amount: current - 1
+      amount: current - 1,
     };
   }
 
@@ -32,35 +34,60 @@ function formatRemaining(ms) {
 
   if (hours > 0) return `${hours}h ${minutes}m`;
   if (minutes > 0) return `${minutes}m`;
+
   return "Now";
 }
 
 module.exports = {
   name: "resetpull",
-  aliases: ["reset"],
+  aliases: ["rpull", "pr"],
+
   async execute(message) {
-    const player = getPlayer(message.author.id, message.author.username);
-    const tickets = [...(player.tickets || [])];
-
-    const ticketIndex = findTicket(tickets, "pull_reset_ticket");
-
-    if (ticketIndex === -1) {
-      return message.reply("You do not have any Pull Reset Ticket.");
-    }
-
-    const updatedTickets = consumeTicket(tickets, ticketIndex);
-    const resetResult = applyManualPullReset(player.pulls || {});
-    const updatedDailyState = incrementQuestCounter(player, "resetTicketsUsed", 1);
+    const previewPlayer = getPlayer(message.author.id, message.author.username);
     const now = Date.now();
 
-    updatePlayer(message.author.id, {
-      tickets: updatedTickets,
-      pulls: resetResult.pulls,
-      quests: {
-        ...(player.quests || {}),
-        dailyState: updatedDailyState
-      }
-    });
+    let resetResult = null;
+
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const tickets = [...(fresh.tickets || [])];
+          const ticketIndex = findTicket(tickets, "pull_reset_ticket");
+
+          if (ticketIndex === -1) {
+            throw new Error("You do not have any Pull Reset Ticket.");
+          }
+
+          const updatedTickets = consumeTicket(tickets, ticketIndex);
+          resetResult = applyManualPullReset(fresh.pulls || {});
+          const updatedDailyState = incrementQuestCounter(
+            {
+              ...fresh,
+              username: fresh.username || previewPlayer.username || message.author.username,
+            },
+            "resetTicketsUsed",
+            1
+          );
+
+          return {
+            ...fresh,
+            tickets: updatedTickets,
+            pulls: resetResult.pulls,
+            quests: {
+              ...(fresh.quests || {}),
+              dailyState: updatedDailyState,
+            },
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
+      return message.reply({
+        content: error.message || "Failed to use Pull Reset Ticket.",
+        allowedMentions: { repliedUser: false },
+      });
+    }
 
     const embed = new EmbedBuilder()
       .setColor(0x3498db)
@@ -74,11 +101,16 @@ module.exports = {
           "↪ Baccarat slots reset",
           "↪ Global 8-hour reset timer is unchanged",
           `↪ Next Global Reset: ${formatRemaining(resetResult.nextResetAt - now)}`,
-          "↪ 1 Pull Reset Ticket consumed"
+          "↪ 1 Pull Reset Ticket consumed",
         ].join("\n")
       )
-      .setFooter({ text: "One Piece Bot • Pull Reset" });
+      .setFooter({
+        text: "One Piece Bot • Pull Reset",
+      });
 
-    return message.reply({ embeds: [embed] });
-  }
+    return message.reply({
+      embeds: [embed],
+      allowedMentions: { repliedUser: false },
+    });
+  },
 };
