@@ -174,12 +174,12 @@ function teamSummary(units) {
     .map((unit) =>
       [
         `**${unit.slot}. ${unit.name}**`,
-        `PWR \`${Number(unit.power || 0).toLocaleString("en-US")}\` • LV \`${unit.level}\``,
-        `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``,
+        `PWR ${Number(unit.power || 0).toLocaleString("en-US")} • LV ${unit.level}`,
+        `ATK ${formatAtkRange(unit.atk)} • SPD ${unit.speed}`,
         renderHpBar(unit.hp, unit.maxHp),
       ].join("\n")
     )
-    .join("\n");
+    .join("\n\n");
 }
 
 function getResultColor(result, ended) {
