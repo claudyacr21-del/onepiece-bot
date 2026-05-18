@@ -5,7 +5,7 @@ const rawCards = require("../data/cards");
 const weaponsDb = require("../data/weapons");
 const { getWeaponImage, getRarityBadge } = require("../config/assetLinks");
 
-const SUMMON_FRAGMENT_COST = 25;
+const SUMMON_FRAGMENT_COST = 15;
 const SUMMONABLE_CARD_ROLES = new Set(["battle", "boost"]);
 
 function normalize(value) {
