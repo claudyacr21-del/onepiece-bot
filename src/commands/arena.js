@@ -1021,7 +1021,14 @@ function buildActionRows(myTeam, ended) {
   return [attackRow, controlRow];
 }
 
-async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, lobbyMessage }) {
+async function startArenaBattle({
+  message,
+  player,
+  opponent,
+  myTeam,
+  enemyTeam,
+  lobbyMessage,
+}) {
   const logs = [];
   let ended = false;
   let result = null;
@@ -1054,6 +1061,10 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
     components: buildActionRows(myTeam, ended),
   });
 
+  const collector = lobbyMessage.createMessageComponentCollector({
+    time: SESSION_TIMEOUT_MS,
+  });
+
   collector.on("collect", async (interaction) => {
     if (interaction.user.id !== message.author.id) {
       return interaction.reply({
@@ -1072,12 +1083,10 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
     await safeDeferUpdate(interaction);
 
     if (interaction.customId === "arena_forfeit") {
-      await safeDeferUpdate(interaction);
-
       ended = true;
       result = "lose";
       logs.length = 0;
-      logs.push("️ You forfeited the arena battle.");
+      logs.push("🏳️ You forfeited the arena battle.");
 
       currentArena = updateArenaPlayer(message, result);
       const expLines = applyArenaExp(message, myTeam, false);
@@ -1100,23 +1109,35 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       return;
     }
 
+    if (!interaction.customId.startsWith("arena_attack_")) {
+      return safeEditInteractionMessage(interaction, {
+        embeds: [
+          buildArenaEmbed({
+            player,
+            opponent,
+            myTeam,
+            enemyTeam,
+            logs,
+            arena: currentArena,
+            result,
+            ended,
+          }),
+        ],
+        components: buildActionRows(myTeam, ended),
+      });
+    }
+
     const index = Number(interaction.customId.replace("arena_attack_", ""));
     const playerAttacker = myTeam[index];
 
     if (!playerAttacker || Number(playerAttacker.hp || 0) <= 0) {
-      return interaction.reply({
-        content: "That card cannot attack right now.",
-        ephemeral: true,
-      });
+      return safeEphemeralReply(interaction, "That card cannot attack right now.");
     }
 
     const enemyTarget = getFirstAlive(enemyTeam);
 
     if (!enemyTarget) {
-      return interaction.reply({
-        content: "No opponent card is available to fight.",
-        ephemeral: true,
-      });
+      return safeEphemeralReply(interaction, "No opponent card is available to fight.");
     }
 
     logs.length = 0;
@@ -1124,7 +1145,6 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
     const [first, second] = resolveSpeedOrder(playerAttacker, enemyTarget);
     const firstIsPlayer = first === playerAttacker;
     const firstTarget = firstIsPlayer ? enemyTarget : playerAttacker;
-
     const firstDamage = performAttack(first, firstTarget);
     const firstKilled = Number(firstTarget.hp || 0) <= 0;
 
@@ -1147,12 +1167,12 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
     if (aliveCount(enemyTeam) <= 0) {
       ended = true;
       result = "win";
+
       currentArena = updateArenaPlayer(message, result);
       updateArenaOpponentAfterBattle(opponent, result);
       queueArenaRankRoleSync(message);
-      const expLines = applyArenaExp(message, myTeam, true);
 
-      await safeDeferUpdate(interaction);
+      const expLines = applyArenaExp(message, myTeam, true);
 
       await safeEditInteractionMessage(interaction, {
         embeds: [
@@ -1175,10 +1195,9 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
     if (aliveCount(myTeam) <= 0) {
       ended = true;
       result = "lose";
+
       currentArena = updateArenaPlayer(message, result);
       const expLines = applyArenaExp(message, myTeam, false);
-
-      await safeDeferUpdate(interaction);
 
       await safeEditInteractionMessage(interaction, {
         embeds: [
@@ -1198,23 +1217,21 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       return;
     }
 
-      await safeDeferUpdate(interaction);
-
-      await safeEditInteractionMessage(interaction, {
-        embeds: [
-          buildArenaEmbed({
-            player,
-            opponent,
-            myTeam,
-            enemyTeam,
-            logs,
-            arena: currentArena,
-            result,
-            ended,
-          }),
-        ],
-        components: buildActionRows(myTeam, ended),
-      });
+    await safeEditInteractionMessage(interaction, {
+      embeds: [
+        buildArenaEmbed({
+          player,
+          opponent,
+          myTeam,
+          enemyTeam,
+          logs,
+          arena: currentArena,
+          result,
+          ended,
+        }),
+      ],
+      components: buildActionRows(myTeam, ended),
+    });
   });
 
   collector.on("end", async (_collected, reason) => {
@@ -1224,10 +1241,17 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
       ended = true;
       result = resolveNoDrawResult(myTeam, enemyTeam);
       logs.length = 0;
-      logs.push("⌛ Arena battle timed out. Result decided by remaining units and HP.");
+      logs.push("⌛ Arena battle timed out.");
+      logs.push("Result decided by remaining HP.");
+
       currentArena = updateArenaPlayer(message, result);
-      updateArenaOpponentAfterBattle(opponent, result);
-      queueArenaRankRoleSync(message);
+
+      if (result === "win") {
+        updateArenaOpponentAfterBattle(opponent, result);
+        queueArenaRankRoleSync(message);
+      }
+
+      const expLines = applyArenaExp(message, myTeam, result === "win");
 
       try {
         await lobbyMessage.edit({
@@ -1238,11 +1262,12 @@ async function startArenaBattle({ message, player, opponent, myTeam, enemyTeam, 
               opponent,
               arena: currentArena,
               logs,
+              expLines,
             }),
           ],
           components: [],
         });
-      } catch {}
+      } catch (_) {}
     }
   });
 }
