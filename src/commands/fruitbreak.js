@@ -4,12 +4,11 @@ const { ITEMS, cloneItem } = require("../data/items");
 const devilFruitsDb = require("../data/devilFruits");
 
 const ESSENCE_BY_RARITY = {
-  C: 3,
-  B: 5,
-  A: 8,
-  S: 10,
-  SS: 12,
-  UR: 15,
+  C: 5,
+  B: 10,
+  A: 15,
+  S: 20,
+  UR: 25,
 };
 
 function normalize(value) {
