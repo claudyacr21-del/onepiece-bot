@@ -1,7 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { getAutoSacSettings, normalize } = require("../utils/autoSac");
-
 const rawCards = require("../data/cards");
 const rawWeapons = require("../data/weapons");
 
@@ -44,7 +43,7 @@ function parseSacAddArgs(args) {
   if (!Array.isArray(args) || !args.length) {
     return {
       ok: false,
-      message: "Usage: `op sacadd <card/weapon name> <amount/all>`",
+      message: "Usage: `op sacadd <card/weapon/fragment name> <amount/all>`",
     };
   }
 
@@ -56,7 +55,7 @@ function parseSacAddArgs(args) {
   if (!query) {
     return {
       ok: false,
-      message: "Usage: `op sacadd <card/weapon name> <amount/all>`",
+      message: "Usage: `op sacadd <card/weapon/fragment name> <amount/all>`",
     };
   }
 
@@ -66,7 +65,7 @@ function parseSacAddArgs(args) {
     if (!Number.isFinite(amount) || amount <= 0) {
       return {
         ok: false,
-        message: "Invalid amount. Use a positive number or `all`.",
+        message: "Invalid amount.\nUse a positive number or `all`.",
       };
     }
 
@@ -228,74 +227,107 @@ module.exports = {
       });
     }
 
-    const player = getPlayer(message.author.id, message.author.username);
-    const target = findSacTarget(player, parsed.query);
+    const previewPlayer = getPlayer(message.author.id, message.author.username);
+    const previewTarget = findSacTarget(previewPlayer, parsed.query);
 
-    if (!target) {
+    if (!previewTarget) {
       return message.reply({
-        content: `Auto-sac target was not found: \`${parsed.query}\`.\nUse a valid battle card, boost card, or weapon name.`,
+        content: `Auto-sac target was not found: \`${parsed.query}\`.\nUse a valid battle card, boost card, weapon, or owned fragment name.`,
         allowedMentions: {
           repliedUser: false,
         },
       });
     }
 
-    const settings = getAutoSacSettings(player);
-    const cards = Array.isArray(settings.cards) ? [...settings.cards] : [];
-    const safeCards = Array.isArray(settings.safeCards) ? [...settings.safeCards] : [];
-
-    const existingSafeIndex = safeCards.findIndex((entry) =>
-      isSameAutoSacCard(entry, target)
-    );
-
-    if (existingSafeIndex !== -1) {
-      safeCards.splice(existingSafeIndex, 1);
-    }
-
-    const existingIndex = cards.findIndex((entry) => isSameAutoSacCard(entry, target));
-
+    let target = previewTarget;
+    let cards = [];
+    let safeCards = [];
     let actionText = "";
     let color = COLOR_ADD;
 
-    if (existingIndex !== -1) {
-      const removed = cards.splice(existingIndex, 1)[0];
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const freshTarget = findSacTarget(fresh, parsed.query);
 
-      actionText = [
-        `**${removed.name || target.name}** has been removed from the auto-sac list.`,
-        "",
-        "This target will no longer be auto-sacrificed unless its rarity toggle is enabled in `op autosac`.",
-      ].join("\n");
+          if (!freshTarget) {
+            throw new Error(
+              `Auto-sac target was not found: \`${parsed.query}\`.\nUse a valid battle card, boost card, weapon, or owned fragment name.`
+            );
+          }
 
-      color = COLOR_REMOVE;
-    } else {
-      cards.push({
-        code: target.code || null,
-        name: target.name || parsed.query,
-        rarity: target.rarity || "C",
-        category: target.category || "battle",
-        weaponCode: target.weaponCode || undefined,
-        cardCode: target.cardCode || undefined,
-        sourceCode: target.sourceCode || undefined,
-        mode: parsed.mode,
+          target = freshTarget;
+
+          const settings = getAutoSacSettings(fresh);
+          cards = Array.isArray(settings.cards) ? [...settings.cards] : [];
+          safeCards = Array.isArray(settings.safeCards) ? [...settings.safeCards] : [];
+
+          const existingSafeIndex = safeCards.findIndex((entry) =>
+            isSameAutoSacCard(entry, target)
+          );
+
+          if (existingSafeIndex !== -1) {
+            safeCards.splice(existingSafeIndex, 1);
+          }
+
+          const existingIndex = cards.findIndex((entry) =>
+            isSameAutoSacCard(entry, target)
+          );
+
+          if (existingIndex !== -1) {
+            const removed = cards.splice(existingIndex, 1)[0];
+
+            actionText = [
+              `**${removed.name || target.name}** has been removed from the auto-sac list.`,
+              "",
+              "This target will no longer be auto-sacrificed unless its rarity toggle is enabled in `op autosac`.",
+            ].join("\n");
+
+            color = COLOR_REMOVE;
+          } else {
+            cards.push({
+              code: target.code || null,
+              name: target.name || parsed.query,
+              rarity: target.rarity || "C",
+              category: target.category || "battle",
+              weaponCode: target.weaponCode || undefined,
+              cardCode: target.cardCode || undefined,
+              sourceCode: target.sourceCode || undefined,
+              mode: parsed.mode,
+            });
+
+            actionText = [
+              `**${target.name || parsed.query}** has been added to the auto-sac list.`,
+              `Mode: **${parsed.mode}**`,
+              "",
+              "You do not need to own the fragment first.",
+              "Existing fragments are not removed and are not converted into berries.",
+              "Auto-sac will trigger when you receive duplicate fragments from `op pull` / `op pa`.",
+            ].join("\n");
+
+            color = COLOR_ADD;
+          }
+
+          return {
+            ...fresh,
+            autoSac: {
+              ...settings,
+              cards,
+              safeCards,
+            },
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
+      return message.reply({
+        content: error.message || "Failed to update auto-sac list.",
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
-
-      actionText = [
-        `**${target.name || parsed.query}** has been added to the auto-sac list.`,
-        `Mode: **${parsed.mode}**`,
-        "",
-        "You do not need to own the fragment first.",
-        "Existing fragments are not removed and are not converted into berries.",
-        "Auto-sac will trigger when you receive duplicate fragments from `op pull` / `op pa`.",
-      ].join("\n");
     }
-
-    updatePlayer(message.author.id, {
-      autoSac: {
-        ...settings,
-        cards,
-        safeCards,
-      },
-    });
 
     const embed = new EmbedBuilder()
       .setColor(color)
