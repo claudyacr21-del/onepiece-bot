@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { readPlayers, writePlayers, getPlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestPayload } = require("../utils/questProgress");
 
@@ -89,6 +89,10 @@ function findOwnedCard(player, query) {
           hydrated.name,
           rawCard.displayName,
           rawCard.name,
+          hydrated.code,
+          rawCard.code,
+          hydrated.instanceId,
+          rawCard.instanceId,
         ]),
       };
     })
@@ -208,24 +212,10 @@ module.exports = {
       });
     }
 
-    getPlayer(message.author.id, message.author.username);
+    const previewPlayer = getPlayer(message.author.id, message.author.username);
+    const previewOwnedRum = getRumBeerAmount(previewPlayer);
 
-    const players = readPlayers();
-    const userId = String(message.author.id);
-    const player = players[userId];
-
-    if (!player) {
-      return message.reply({
-        content: "Player data was not found. Please try again.",
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
-
-    const ownedRum = getRumBeerAmount(player);
-
-    if (ownedRum <= 0) {
+    if (previewOwnedRum <= 0) {
       return message.reply({
         content: "You do not own any **Rum Beer**.",
         allowedMentions: {
@@ -234,9 +224,9 @@ module.exports = {
       });
     }
 
-    const found = findOwnedCard(player, query);
+    const previewFound = findOwnedCard(previewPlayer, query);
 
-    if (!found) {
+    if (!previewFound) {
       return message.reply({
         content: `Battle card matching \`${query}\` was not found.`,
         allowedMentions: {
@@ -245,25 +235,24 @@ module.exports = {
       });
     }
 
-    const card = found.card;
-    const beforeLevel = Number(card.level || 1);
-    const beforeExp = getCurrentExp(card);
-    const levelCap = getStageLevelCap(card);
+    const previewCard = previewFound.card;
+    const previewLevel = Number(previewCard.level || 1);
+    const previewLevelCap = getStageLevelCap(previewCard);
 
-    if (beforeLevel >= levelCap) {
+    if (previewLevel >= previewLevelCap) {
       return message.reply({
-        content: `**${card.displayName || card.name}** is already at the current form level cap (${levelCap}).\nPlease awaken it first.`,
+        content: `**${previewCard.displayName || previewCard.name}** is already at the current form level cap (${previewLevelCap}).\nPlease awaken it first.`,
         allowedMentions: {
           repliedUser: false,
         },
       });
     }
 
-    const amountToUse = useAll ? ownedRum : requestedAmount;
+    const previewAmountToUse = useAll ? previewOwnedRum : requestedAmount;
 
-    if (!useAll && amountToUse > ownedRum) {
+    if (!useAll && previewAmountToUse > previewOwnedRum) {
       return message.reply({
-        content: `You only own **${ownedRum}x Rum Beer**.`,
+        content: `You only own **${previewOwnedRum}x Rum Beer**.`,
         allowedMentions: {
           repliedUser: false,
         },
@@ -271,13 +260,13 @@ module.exports = {
     }
 
     if (useAll) {
-      const preview = applyExpToCard(card, ownedRum * EXP_PER_RUM_BEER);
+      const preview = applyExpToCard(previewCard, previewOwnedRum * EXP_PER_RUM_BEER);
 
       if (preview.blockedByCap) {
         return message.reply({
           content: [
-            `Using all Rum Beer would reach the current form level cap for **${card.displayName || card.name}**.`,
-            `Current level cap: **${levelCap}**`,
+            `Using all Rum Beer would reach the current form level cap for **${previewCard.displayName || previewCard.name}**.`,
+            `Current level cap: **${previewLevelCap}**`,
             "",
             "Please use a manual amount instead.",
             "Example: `op rum 5 luffy`",
@@ -289,71 +278,131 @@ module.exports = {
       }
     }
 
-    const totalExp = amountToUse * EXP_PER_RUM_BEER;
-    const result = applyExpToCard(card, totalExp);
+    let result = null;
+    let finalCardName = previewCard.displayName || previewCard.name;
+    let finalBeforeLevel = previewLevel;
+    let finalBeforeExp = getCurrentExp(previewCard);
+    let finalAfterLevel = previewLevel;
+    let finalAfterExp = getCurrentExp(previewCard);
+    let finalAmountToUse = previewAmountToUse;
+    let finalRemainingRum = Math.max(0, previewOwnedRum - previewAmountToUse);
 
-    if (result.blockedByCap) {
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          const ownedRum = getRumBeerAmount(fresh);
+
+          if (ownedRum <= 0) {
+            throw new Error("You do not own any **Rum Beer**.");
+          }
+
+          const found = findOwnedCard(fresh, query);
+
+          if (!found) {
+            throw new Error(`Battle card matching \`${query}\` was not found.`);
+          }
+
+          const card = found.card;
+          const beforeLevel = Number(card.level || 1);
+          const beforeExp = getCurrentExp(card);
+          const levelCap = getStageLevelCap(card);
+
+          if (beforeLevel >= levelCap) {
+            throw new Error(
+              `**${card.displayName || card.name}** is already at the current form level cap (${levelCap}).\nPlease awaken it first.`
+            );
+          }
+
+          const amountToUse = useAll ? ownedRum : requestedAmount;
+
+          if (!useAll && amountToUse > ownedRum) {
+            throw new Error(`You only own **${ownedRum}x Rum Beer**.`);
+          }
+
+          if (useAll) {
+            const preview = applyExpToCard(card, ownedRum * EXP_PER_RUM_BEER);
+
+            if (preview.blockedByCap) {
+              throw new Error(
+                [
+                  `Using all Rum Beer would reach the current form level cap for **${card.displayName || card.name}**.`,
+                  `Current level cap: **${levelCap}**`,
+                  "",
+                  "Please use a manual amount instead.",
+                  "Example: `op rum 5 luffy`",
+                ].join("\n")
+              );
+            }
+          }
+
+          const totalExp = amountToUse * EXP_PER_RUM_BEER;
+          result = applyExpToCard(card, totalExp);
+
+          if (result.blockedByCap) {
+            throw new Error(
+              [
+                `That amount would reach the current form level cap for **${card.displayName || card.name}**.`,
+                `Current level cap: **${levelCap}**`,
+                "",
+                "Please use a smaller manual amount.",
+              ].join("\n")
+            );
+          }
+
+          const updatedItems = removeRumBeer(fresh.items || [], amountToUse);
+
+          if (!updatedItems) {
+            throw new Error("Failed to consume Rum Beer.");
+          }
+
+          const updatedCards = [...(fresh.cards || [])];
+
+          updatedCards[found.index] = {
+            ...found.rawCard,
+            ...result.card,
+            level: Number(result.card.level || beforeLevel),
+            exp: getCurrentExp(result.card),
+            xp: getCurrentExp(result.card),
+          };
+
+          const questPayload = incrementQuestPayload(
+            {
+              ...fresh,
+              cards: updatedCards,
+              items: updatedItems,
+            },
+            "rumBeerUsed",
+            amountToUse
+          );
+
+          finalCardName = result.card.displayName || result.card.name;
+          finalBeforeLevel = beforeLevel;
+          finalBeforeExp = beforeExp;
+          finalAfterLevel = Number(result.card.level || beforeLevel);
+          finalAfterExp = getCurrentExp(result.card);
+          finalAmountToUse = amountToUse;
+          finalRemainingRum = ownedRum - amountToUse;
+
+          return {
+            ...fresh,
+            cards: updatedCards,
+            items: updatedItems,
+            quests: questPayload,
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
       return message.reply({
-        content: [
-          `That amount would reach the current form level cap for **${card.displayName || card.name}**.`,
-          `Current level cap: **${levelCap}**`,
-          "",
-          "Please use a smaller manual amount.",
-        ].join("\n"),
+        content: error.message || "Failed to use Rum Beer.",
         allowedMentions: {
           repliedUser: false,
         },
       });
     }
 
-    const updatedItems = removeRumBeer(player.items || [], amountToUse);
-
-    if (!updatedItems) {
-      return message.reply({
-        content: "Failed to consume Rum Beer.",
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
-
-    const updatedCards = [...(player.cards || [])];
-
-    updatedCards[found.index] = {
-      ...found.rawCard,
-      ...result.card,
-      level: Number(result.card.level || beforeLevel),
-      exp: getCurrentExp(result.card),
-      xp: getCurrentExp(result.card),
-    };
-
-    const freshPlayerForQuest = {
-      ...player,
-      cards: updatedCards,
-      items: updatedItems,
-    };
-
-    const questPayload = incrementQuestPayload(
-      freshPlayerForQuest,
-      "rumBeerUsed",
-      amountToUse
-    );
-
-    players[userId] = {
-      ...player,
-      cards: updatedCards,
-      items: updatedItems,
-      quests: questPayload,
-    };
-
-    writePlayers(players);
-
-    const afterLevel = Number(result.card.level || beforeLevel);
-    const afterExp = getCurrentExp(result.card);
-    const expText =
-      afterLevel > beforeLevel
-        ? `${beforeExp}/${EXP_PER_LEVEL} → ${afterExp}/${EXP_PER_LEVEL}`
-        : `${beforeExp}/${EXP_PER_LEVEL} → ${afterExp}/${EXP_PER_LEVEL}`;
+    const expText = `${finalBeforeExp}/${EXP_PER_LEVEL} → ${finalAfterExp}/${EXP_PER_LEVEL}`;
 
     return message.reply({
       embeds: [
@@ -362,13 +411,13 @@ module.exports = {
           .setTitle("🍺 Rum Beer Used")
           .setDescription(
             [
-              `**Card:** ${result.card.displayName || result.card.name}`,
-              `**Used:** Rum Beer x${amountToUse}`,
+              `**Card:** ${finalCardName}`,
+              `**Used:** Rum Beer x${finalAmountToUse}`,
               `**EXP Added:** +${result.usedExp}`,
               `**EXP:** ${expText}`,
-              `**Level:** ${beforeLevel} → ${afterLevel}`,
+              `**Level:** ${finalBeforeLevel} → ${finalAfterLevel}`,
               `**Level Up:** +${result.levelsGained}`,
-              `**Remaining Rum Beer:** ${ownedRum - amountToUse}`,
+              `**Remaining Rum Beer:** ${finalRemainingRum}`,
             ].join("\n")
           )
           .setFooter({

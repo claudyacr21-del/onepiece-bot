@@ -1,33 +1,64 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 const { sacrificeFragment, getFragmentStorageInfo } = require("../utils/autoSac");
 
 module.exports = {
   name: "sac",
   aliases: ["sacrifice"],
+
   async execute(message, args) {
     if (args.length < 2) {
-      return message.reply("Usage: `op sac <card name> <amount/all>`");
+      return message.reply({
+        content: "Usage: `op sac <card name> <amount/all>`",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     const amountText = args[args.length - 1];
     const query = args.slice(0, -1).join(" ");
 
-    const player = getPlayer(message.author.id, message.author.username);
-    const result = sacrificeFragment(player, query, amountText);
+    let result = null;
+    let newBerries = 0;
+    let storage = null;
 
-    if (!result.ok) {
-      return message.reply(result.message);
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          result = sacrificeFragment(fresh, query, amountText);
+
+          if (!result.ok) {
+            throw new Error(result.message);
+          }
+
+          newBerries = Number(fresh.berries || 0) + result.berries;
+
+          storage = getFragmentStorageInfo(
+            {
+              ...fresh,
+              fragments: result.fragments,
+            },
+            result.fragments
+          );
+
+          return {
+            ...fresh,
+            fragments: result.fragments,
+            berries: newBerries,
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
+      return message.reply({
+        content: error.message || "Failed to sacrifice fragment.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
-
-    const newBerries = Number(player.berries || 0) + result.berries;
-
-    updatePlayer(message.author.id, {
-      fragments: result.fragments,
-      berries: newBerries,
-    });
-
-    const storage = getFragmentStorageInfo({ ...player, fragments: result.fragments }, result.fragments);
 
     const embed = new EmbedBuilder()
       .setColor(0xf1c40f)
@@ -43,6 +74,11 @@ module.exports = {
       )
       .setFooter({ text: "One Piece Bot • Sacrifice" });
 
-    return message.reply({ embeds: [embed] });
+    return message.reply({
+      embeds: [embed],
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
   },
 };

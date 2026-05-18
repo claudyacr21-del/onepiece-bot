@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 const { sacrificeFragment, getFragmentStorageInfo } = require("../utils/autoSac");
 
 function parseMultiSacInput(text) {
@@ -12,7 +12,11 @@ function parseMultiSacInput(text) {
       const split = part.split("_");
       const amount = split.pop();
       const name = split.join(" ").trim();
-      return { name, amount };
+
+      return {
+        name,
+        amount,
+      };
     })
     .filter((entry) => entry.name && entry.amount);
 }
@@ -20,47 +24,83 @@ function parseMultiSacInput(text) {
 module.exports = {
   name: "msac",
   aliases: ["multisac", "multisacrifice"],
+
   async execute(message, args) {
     const entries = parseMultiSacInput(args.join(" "));
 
     if (!entries.length) {
-      return message.reply("Usage: `op msac (luffy_5, zoro_2, nami_6)`");
+      return message.reply({
+        content: "Usage: `op msac (luffy_5, zoro_2, nami_6)`",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
-    let player = getPlayer(message.author.id, message.author.username);
-    let fragments = Array.isArray(player.fragments) ? [...player.fragments] : [];
+    let fragments = [];
     let totalBerries = 0;
+    let newBerries = 0;
+    let storage = null;
+
     const successLines = [];
     const failLines = [];
 
-    for (const entry of entries) {
-      const tempPlayer = { ...player, fragments };
-      const result = sacrificeFragment(tempPlayer, entry.name, entry.amount);
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          fragments = Array.isArray(fresh.fragments)
+            ? fresh.fragments.map((fragment) => ({ ...fragment }))
+            : [];
 
-      if (!result.ok) {
-        failLines.push(`❌ **${entry.name}** x${entry.amount}: ${result.message}`);
-        continue;
-      }
+          totalBerries = 0;
+          successLines.length = 0;
+          failLines.length = 0;
 
-      fragments = result.fragments;
-      totalBerries += result.berries;
-      successLines.push(
-        `✅ **${result.name}** x${result.amount} (${result.rarity}) → +${result.berries.toLocaleString("en-US")} berries`
+          for (const entry of entries) {
+            const tempPlayer = {
+              ...fresh,
+              fragments,
+            };
+
+            const result = sacrificeFragment(tempPlayer, entry.name, entry.amount);
+
+            if (!result.ok) {
+              failLines.push(`❌ **${entry.name}** x${entry.amount}: ${result.message}`);
+              continue;
+            }
+
+            fragments = result.fragments;
+            totalBerries += result.berries;
+
+            successLines.push(
+              `✅ **${result.name}** x${result.amount} (${result.rarity}) → +${result.berries.toLocaleString("en-US")} berries`
+            );
+          }
+
+          if (!successLines.length) {
+            throw new Error(failLines.join("\n").slice(0, 1900));
+          }
+
+          newBerries = Number(fresh.berries || 0) + totalBerries;
+          storage = getFragmentStorageInfo({ ...fresh, fragments }, fragments);
+
+          return {
+            ...fresh,
+            fragments,
+            berries: newBerries,
+          };
+        },
+        message.author.username
       );
+    } catch (error) {
+      return message.reply({
+        content: error.message || "Failed to sacrifice fragments.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
-
-    if (!successLines.length) {
-      return message.reply(failLines.join("\n").slice(0, 1900));
-    }
-
-    const newBerries = Number(player.berries || 0) + totalBerries;
-
-    updatePlayer(message.author.id, {
-      fragments,
-      berries: newBerries,
-    });
-
-    const storage = getFragmentStorageInfo({ ...player, fragments }, fragments);
 
     const embed = new EmbedBuilder()
       .setColor(0xf1c40f)
@@ -80,6 +120,11 @@ module.exports = {
       )
       .setFooter({ text: "One Piece Bot • Multi Sacrifice" });
 
-    return message.reply({ embeds: [embed] });
+    return message.reply({
+      embeds: [embed],
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
   },
 };

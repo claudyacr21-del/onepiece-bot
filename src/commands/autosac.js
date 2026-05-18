@@ -5,28 +5,10 @@ const {
   ButtonStyle,
 } = require("discord.js");
 
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { getAutoSacSettings } = require("../utils/autoSac");
 
-const COLOR = 0x8e44ad;
 const RARITIES = ["C", "B", "A", "S"];
-
-function getMemberAvatar(message) {
-  return (
-    message.member?.displayAvatarURL({
-      extension: "png",
-      size: 512,
-    }) ||
-    message.author.displayAvatarURL({
-      extension: "png",
-      size: 512,
-    })
-  );
-}
-
-function getStatusEmoji(enabled) {
-  return enabled ? "🟢" : "🔴";
-}
 
 function buildEmbed(message, player) {
   const settings = getAutoSacSettings(player);
@@ -98,6 +80,9 @@ module.exports = {
     const sent = await message.reply({
       embeds: [buildEmbed(message, player)],
       components: buildRows(settings),
+      allowedMentions: {
+        repliedUser: false,
+      },
     });
 
     const collector = sent.createMessageComponentCollector({
@@ -117,20 +102,37 @@ module.exports = {
         .toUpperCase();
 
       if (!RARITIES.includes(rarity)) {
-        return interaction.deferUpdate();
+        return interaction.deferUpdate().catch(() => null);
       }
 
-      const freshPlayer = getPlayer(message.author.id, message.author.username);
-      const freshSettings = getAutoSacSettings(freshPlayer);
+      let updatedPlayer = null;
+      let updatedSettings = null;
 
-      freshSettings.rarities[rarity] = !Boolean(freshSettings.rarities[rarity]);
+      try {
+        updatePlayerAtomic(
+          message.author.id,
+          (fresh) => {
+            const freshSettings = getAutoSacSettings(fresh);
 
-      updatePlayer(message.author.id, {
-        autoSac: freshSettings,
-      });
+            freshSettings.rarities[rarity] = !Boolean(freshSettings.rarities[rarity]);
 
-      const updatedPlayer = getPlayer(message.author.id, message.author.username);
-      const updatedSettings = getAutoSacSettings(updatedPlayer);
+            updatedPlayer = {
+              ...fresh,
+              autoSac: freshSettings,
+            };
+
+            updatedSettings = freshSettings;
+
+            return updatedPlayer;
+          },
+          message.author.username
+        );
+      } catch (error) {
+        return interaction.reply({
+          content: error.message || "Failed to update autosac setting.",
+          ephemeral: true,
+        });
+      }
 
       return interaction.update({
         embeds: [buildEmbed(message, updatedPlayer)],
