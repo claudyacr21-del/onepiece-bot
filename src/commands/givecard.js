@@ -1,4 +1,4 @@
-const { readPlayers, writePlayers } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 const cardsData = require("../data/cards");
 
 function getAdminIds() {
@@ -332,15 +332,6 @@ module.exports = {
       });
     }
 
-    const players = readPlayers();
-
-    if (!players[userId]) {
-      return message.reply({
-        content: `User not found: \`${userId}\``,
-        allowedMentions: { repliedUser: false },
-      });
-    }
-
     const template = findBattleCardByNameOnly(query);
 
     if (!template) {
@@ -352,14 +343,39 @@ module.exports = {
       });
     }
 
-    players[userId].cards = ensureArray(players[userId].cards);
-    players[userId].fragments = ensureArray(players[userId].fragments);
+    let addedCard = null;
+    let convertedToFragment = false;
 
-    if (alreadyOwnsCard(players[userId], template)) {
-      players[userId].fragments = addFragment(players[userId], template, levelOrAmount);
+    updatePlayerAtomic(
+      userId,
+      (fresh) => {
+        const cards = ensureArray(fresh.cards).map((card) => ({ ...card }));
+        const fragments = ensureArray(fresh.fragments).map((frag) => ({ ...frag }));
+        const draft = {
+          ...fresh,
+          cards,
+          fragments,
+        };
 
-      writePlayers(players);
+        if (alreadyOwnsCard(draft, template)) {
+          convertedToFragment = true;
+          return {
+            ...draft,
+            fragments: addFragment(draft, template, levelOrAmount),
+          };
+        }
 
+        addedCard = makeOwnedBattleCard(template, levelOrAmount, stage);
+
+        return {
+          ...draft,
+          cards: [...cards, addedCard],
+        };
+      },
+      message.mentions.users.first()?.username || "Unknown"
+    );
+
+    if (convertedToFragment) {
       return message.reply({
         content:
           `User already owns \`${template.displayName || template.name}\`.\n` +
@@ -370,16 +386,10 @@ module.exports = {
       });
     }
 
-    const ownedCard = makeOwnedBattleCard(template, levelOrAmount, stage);
-
-    players[userId].cards.push(ownedCard);
-
-    writePlayers(players);
-
     return message.reply({
       content:
-        `Added battle card \`${ownedCard.displayName || ownedCard.name}\` to \`${userId}\`` +
-        ` • Level ${ownedCard.level} • ${ownedCard.evolutionKey} • ${ownedCard.currentTier}`,
+        `Added battle card \`${addedCard.displayName || addedCard.name}\` to \`${userId}\`` +
+        ` • Level ${addedCard.level} • ${addedCard.evolutionKey} • ${addedCard.currentTier}`,
       allowedMentions: { repliedUser: false },
     });
   },

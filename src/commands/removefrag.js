@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { readPlayers, writePlayers } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 
 function getAdminIds() {
   return String(
@@ -71,23 +71,52 @@ module.exports = {
       );
     }
 
-    const players = readPlayers();
+    let target = null;
+    let removedAmount = 0;
+    let remaining = 0;
+    let notFound = false;
+    let sample = [];
 
-    if (!players[userId]) {
-      return message.reply(`User not found: \`${userId}\``);
-    }
+    updatePlayerAtomic(
+      userId,
+      (fresh) => {
+        const fragments = Array.isArray(fresh.fragments)
+          ? fresh.fragments.map((frag) => ({ ...frag }))
+          : [];
 
-    const fragments = Array.isArray(players[userId].fragments)
-      ? [...players[userId].fragments]
-      : [];
+        const index = findFragmentIndex(fragments, query);
 
-    const index = findFragmentIndex(fragments, query);
+        if (index === -1) {
+          notFound = true;
+          sample = fragments
+            .map((frag) => `\`${frag.name || frag.code}\` x${Number(frag.amount || 0)}`)
+            .slice(0, 10);
+          return fresh;
+        }
 
-    if (index === -1) {
-      const sample = fragments
-        .map((frag) => `\`${frag.name || frag.code}\` x${Number(frag.amount || 0)}`)
-        .slice(0, 10);
+        target = fragments[index];
+        const current = Number(target.amount || 0);
+        removedAmount = Math.min(current, amount);
+        remaining = current - removedAmount;
 
+        if (remaining <= 0) {
+          fragments.splice(index, 1);
+        } else {
+          fragments[index] = {
+            ...target,
+            amount: remaining,
+          };
+        }
+
+        return {
+          ...fresh,
+          fragments,
+        };
+      },
+      message.mentions.users.first()?.username || "Unknown"
+    );
+
+    if (notFound) {
       return message.reply(
         [
           `Fragment matching \`${query}\` was not found for \`${userId}\`.`,
@@ -95,23 +124,6 @@ module.exports = {
         ].join("\n")
       );
     }
-
-    const target = fragments[index];
-    const current = Number(target.amount || 0);
-    const removedAmount = Math.min(current, amount);
-    const remaining = current - removedAmount;
-
-    if (remaining <= 0) {
-      fragments.splice(index, 1);
-    } else {
-      fragments[index] = {
-        ...target,
-        amount: remaining,
-      };
-    }
-
-    players[userId].fragments = fragments;
-    writePlayers(players);
 
     return message.reply({
       embeds: [
