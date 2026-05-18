@@ -5,7 +5,7 @@ const {
   ButtonStyle,
 } = require("discord.js");
 
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const {
   awakenOwnedCard,
   findCardTemplate,
@@ -379,18 +379,26 @@ module.exports = {
       }
 
       try {
-        const fresh = getPlayer(message.author.id, message.author.username);
-        const result = awakenOwnedCard(fresh, owned.code);
+        let awakenResult = null;
 
-        updatePlayer(message.author.id, {
-          cards: result.updatedCards,
-          fragments: result.updatedFragments,
-          berries: result.berries,
-          gems: result.gems,
-        });
+        updatePlayerAtomic(
+          message.author.id,
+          (fresh) => {
+            awakenResult = awakenOwnedCard(fresh, owned.code);
+
+            return {
+              ...fresh,
+              cards: awakenResult.updatedCards,
+              fragments: awakenResult.updatedFragments,
+              berries: awakenResult.berries,
+              gems: awakenResult.gems,
+            };
+          },
+          message.author.username
+        );
 
         await interaction.update({
-          embeds: [buildSuccessEmbed(result)],
+          embeds: [buildSuccessEmbed(awakenResult)],
           components: [],
         });
 

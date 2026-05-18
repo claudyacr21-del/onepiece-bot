@@ -4,7 +4,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { incrementQuestCounter } = require("../utils/questProgress");
 
 const LEVEL_CAPS_BY_STAGE = {
@@ -220,46 +220,127 @@ module.exports = {
       });
     }
 
-    const updatedCards = [...(player.cards || [])];
-    const nextLevel = currentLevel + possibleLevelGain;
+    let finalCardName = getCardName(card);
+    let finalStage = stage;
+    let finalCurrentLevel = currentLevel;
+    let finalNextLevel = currentLevel;
+    let finalFragmentsUsed = possibleLevelGain;
+    let finalFragmentsLeft = ownedFragments - possibleLevelGain;
+    let finalLevelCap = levelCap;
 
-    updatedCards[cardIndex] = {
-      ...card,
-      level: nextLevel,
-      exp: nextLevel >= levelCap ? 0 : Number(card.exp || card.xp || 0),
-      xp: nextLevel >= levelCap ? 0 : Number(card.exp || card.xp || 0),
-    };
+    updatePlayerAtomic(
+      message.author.id,
+      (fresh) => {
+        const freshFound = findOwnedBattleCard(fresh.cards || [], query);
 
-    fragments[fragmentIndex] = {
-      ...fragments[fragmentIndex],
-      amount: ownedFragments - possibleLevelGain,
-    };
+        if (!freshFound) {
+          throw new Error("You do not own that battle card anymore.");
+        }
 
-    const updatedFragments = fragments.filter((fragment) => Number(fragment.amount || 0) > 0);
-    const updatedDailyState = incrementQuestCounter(player, "cardLevels", possibleLevelGain);
+        const freshCard = freshFound.card;
+        const freshCardIndex = freshFound.index;
+        const freshCurrentLevel = Math.max(1, Number(freshCard.level || 1));
+        const freshStage = getCardStage(freshCard);
+        const freshLevelCap = getLevelCap(freshCard);
 
-    updatePlayer(message.author.id, {
-      cards: updatedCards,
-      fragments: updatedFragments,
-      quests: {
-        ...(player.quests || {}),
-        dailyState: updatedDailyState,
+        if (freshCurrentLevel >= freshLevelCap) {
+          throw new Error(
+            `${getCardName(freshCard)} is level locked at ${freshCurrentLevel}/${freshLevelCap}.`
+          );
+        }
+
+        const freshFragments = Array.isArray(fresh.fragments)
+          ? [...fresh.fragments]
+          : [];
+
+        const freshFragmentIndex = findFragmentIndex(freshFragments, freshCard);
+
+        if (freshFragmentIndex === -1) {
+          throw new Error(`You do not have any fragment for ${getCardName(freshCard)}.`);
+        }
+
+        const freshOwnedFragments = Math.max(
+          0,
+          Number(freshFragments[freshFragmentIndex].amount || 0)
+        );
+
+        if (freshOwnedFragments <= 0) {
+          throw new Error(`You do not have any fragment for ${getCardName(freshCard)}.`);
+        }
+
+        const freshPossibleGain = Math.min(
+          count,
+          freshOwnedFragments,
+          freshLevelCap - freshCurrentLevel
+        );
+
+        if (freshPossibleGain <= 0) {
+          throw new Error(`${getCardName(freshCard)} cannot gain more levels right now.`);
+        }
+
+        const freshNextLevel = freshCurrentLevel + freshPossibleGain;
+        const freshUpdatedCards = [...(fresh.cards || [])];
+
+        freshUpdatedCards[freshCardIndex] = {
+          ...freshCard,
+          level: freshNextLevel,
+          exp: freshNextLevel >= freshLevelCap
+            ? 0
+            : Number(freshCard.exp || freshCard.xp || 0),
+          xp: freshNextLevel >= freshLevelCap
+            ? 0
+            : Number(freshCard.exp || freshCard.xp || 0),
+        };
+
+        freshFragments[freshFragmentIndex] = {
+          ...freshFragments[freshFragmentIndex],
+          amount: freshOwnedFragments - freshPossibleGain,
+        };
+
+        const freshUpdatedFragments = freshFragments.filter(
+          (fragment) => Number(fragment.amount || 0) > 0
+        );
+
+        const freshUpdatedDailyState = incrementQuestCounter(
+          fresh,
+          "cardLevels",
+          freshPossibleGain
+        );
+
+        finalCardName = getCardName(freshCard);
+        finalStage = freshStage;
+        finalCurrentLevel = freshCurrentLevel;
+        finalNextLevel = freshNextLevel;
+        finalFragmentsUsed = freshPossibleGain;
+        finalFragmentsLeft = freshOwnedFragments - freshPossibleGain;
+        finalLevelCap = freshLevelCap;
+
+        return {
+          ...fresh,
+          cards: freshUpdatedCards,
+          fragments: freshUpdatedFragments,
+          quests: {
+            ...(fresh.quests || {}),
+            dailyState: freshUpdatedDailyState,
+          },
+        };
       },
-    });
+      message.author.username
+    );
 
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
       .setTitle("⬆️ Card Level Up")
       .setDescription(
         [
-          `**Card:** ${getCardName(card)}`,
-          `**Stage:** M${stage}`,
-          `**Level:** ${currentLevel} → ${nextLevel}/${levelCap}`,
-          `**Fragments Used:** ${possibleLevelGain}`,
-          `**Fragments Left:** ${ownedFragments - possibleLevelGain}`,
+          `**Card:** ${finalCardName}`,
+          `**Stage:** M${finalStage}`,
+          `**Level:** ${finalCurrentLevel} → ${finalNextLevel}/${finalLevelCap}`,
+          `**Fragments Used:** ${finalFragmentsUsed}`,
+          `**Fragments Left:** ${finalFragmentsLeft}`,
           "",
-          nextLevel >= levelCap
-            ? `🔒 Level cap reached for M${stage}. Awaken this card to continue.`
+          finalNextLevel >= finalLevelCap
+            ? `🔒 Level cap reached for M${finalStage}. Awaken this card to continue.`
             : "Level up complete.",
         ].join("\n")
       )
