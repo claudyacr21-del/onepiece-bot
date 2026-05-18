@@ -535,8 +535,34 @@ function normalizeTeam(team) {
 }
 
 function normalizeMessageMilestones(messageMilestones) {
+  const progress = messageMilestones?.progress || {};
+  const claims = messageMilestones?.claims || {};
+  const legacyMessages = Number(messageMilestones?.totalMessages || messageMilestones?.messages || 0);
+
   return {
-    messages: Number(messageMilestones?.messages || 0),
+    messages: legacyMessages,
+    totalMessages: legacyMessages,
+    progress: {
+      gems: Number(progress.gems || 0),
+      resetToken: Number(progress.resetToken || 0),
+      rareResourceBox: Number(progress.rareResourceBox || 0),
+      raidTicket: Number(progress.raidTicket || 0),
+      goldRaidTicket: Number(progress.goldRaidTicket || 0),
+    },
+    claims: {
+      gems: Number(claims.gems || 0),
+      resetToken: Number(claims.resetToken || 0),
+      rareResourceBox: Number(claims.rareResourceBox || 0),
+      raidTicket: Number(claims.raidTicket || 0),
+      goldRaidTicket: Number(claims.goldRaidTicket || 0),
+    },
+    completed: Array.isArray(messageMilestones?.completed)
+      ? messageMilestones.completed
+      : [],
+    lastCompleted: Array.isArray(messageMilestones?.lastCompleted)
+      ? messageMilestones.lastCompleted
+      : [],
+    lastRewardAt: Number(messageMilestones?.lastRewardAt || 0),
     updatedAt: Number(messageMilestones?.updatedAt || 0),
   };
 }
@@ -905,21 +931,29 @@ function getPlayer(userId, username) {
 function updatePlayer(userId, newData) {
   const players = readPlayers();
   const id = String(userId);
-  const currentPlayer = players[id]
-    ? normalizePlayer(players[id])
-    : getDefaultPlayer("Unknown");
-
+  const currentPlayer = players[id] ? normalizePlayer(players[id]) : getDefaultPlayer("Unknown");
   players[id] = normalizePlayer(
-    {
-      ...currentPlayer,
-      ...newData,
-    },
+    { ...currentPlayer, ...newData },
     currentPlayer.username
   );
+  writePlayers(players);
+  return players[id];
+}
 
+function updatePlayerAtomic(userId, mutator, username = "Unknown") {
+  const players = readPlayers();
+  const id = String(userId);
+  const currentPlayer = players[id]
+    ? normalizePlayer(players[id], username)
+    : getDefaultPlayer(username);
+
+  const result = typeof mutator === "function" ? mutator(currentPlayer) : currentPlayer;
+  const nextPlayer = normalizePlayer(result || currentPlayer, currentPlayer.username || username);
+
+  players[id] = nextPlayer;
   writePlayers(players);
 
-  return players[id];
+  return nextPlayer;
 }
 
 module.exports = {
@@ -927,6 +961,7 @@ module.exports = {
   writePlayers,
   getPlayer,
   updatePlayer,
+  updatePlayerAtomic,
   normalizePlayer,
   filePath,
 };

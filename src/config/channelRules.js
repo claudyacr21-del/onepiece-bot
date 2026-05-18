@@ -20,6 +20,7 @@ module.exports = {
       "profile",
       "awaken",
       "wp",
+      "summon",
       "fshop",
       "fbuy",
       "fbreak",
