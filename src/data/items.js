@@ -170,6 +170,15 @@ const ITEMS = {
     description: "A high-grade ship upgrade component.",
   },
 
+  fruitEssence: {
+    name: "Fruit Essence",
+    amount: 1,
+    rarity: "A",
+    code: "fruit_essence",
+    type: "Material",
+    description: "A refined essence obtained by breaking down Devil Fruits. Used in the Fruit Essence Shop.",
+  },
+
   universalCFragment: {
     name: "Universal C Fragment",
     amount: 1,
