@@ -28,6 +28,40 @@ const RAID_ROOM_TIMEOUT_MS = 10 * 60 * 1000;
 const RAID_PICK_TIMEOUT_MS = 60 * 1000;
 const MAX_BATTLE_LOG_LINES = 2;
 
+const activeRaidActionLocks = new Set();
+
+async function safeDeferInteraction(interaction) {
+  try {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferUpdate();
+    }
+
+    return true;
+  } catch (error) {
+    console.error("[raid defer interaction failed]", error?.message || error);
+    return false;
+  }
+}
+
+async function safeEditRaidMessage(message, payload) {
+  try {
+    if (!message) return false;
+    await message.edit(payload);
+    return true;
+  } catch (error) {
+    console.error("[raid message edit failed]", error?.message || error);
+    return false;
+  }
+}
+
+function clampEmbedText(text, max = 3900) {
+  const value = String(text || "");
+
+  if (value.length <= max) return value;
+
+  return `${value.slice(0, Math.max(0, max - 40))}\n\n...display truncated`;
+}
+
 function normalize(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -831,6 +865,7 @@ function buildResultEmbed(state) {
     .setColor(playersWon ? 0x2ecc71 : 0xe74c3c)
     .setTitle(playersWon ? "Raid Victory" : "Raid Defeat")
     .setDescription(
+      clampEmbedText([
       [
         `**Result:** ${playersWon ? "WIN" : "LOSE"}`,
         `**Boss:** ${boss.name}`,
@@ -863,7 +898,7 @@ function buildResultEmbed(state) {
         ...(state.log.length
           ? state.log.slice(-MAX_BATTLE_LOG_LINES).map((line) => `• ${line}`)
           : ["No final log."]),
-      ].join("\n")
+      ].join("\n"))
     )
     .setImage(boss.image || null)
     .setFooter({
@@ -873,61 +908,71 @@ function buildResultEmbed(state) {
     });
 }
 
-function buildBattleRows(state) {
-  if (state.finished) return [];
+function buildResultEmbed(state) {
+  const boss = state.boss;
+  const playersWon = state.winner === "players";
+  const alive = getAliveMembers(state);
 
-  const rows = [];
-  let chunk = [];
-
-  for (let index = 0; index < state.members.length; index++) {
-    chunk.push({ member: state.members[index], index });
-
-    if (chunk.length === 5 || index === state.members.length - 1) {
-      const row = new ActionRowBuilder();
-
-      for (const item of chunk) {
-        const member = item.member;
-        const memberIndex = item.index;
+  const raidLines = ensureArray(state.members).length
+    ? state.members.map((member, index) => {
         const isDead = Number(member.hp || 0) <= 0;
-        const isCooldown = isMemberOnActionCooldown(member);
+        const hpIcon = isDead ? "☠️" : "❤️";
+        const status = isDead ? "DEFEATED" : "SURVIVED";
 
-        let buttonStyle = ButtonStyle.Success;
-        let labelPrefix = `${memberIndex + 1}`;
+        return [
+          `**${index + 1}. ${member.name}** • ${member.username}`,
+          `${hpIcon} ${Math.max(0, Number(member.hp || 0))}/${Number(
+            member.maxHp || 0
+          )} | SPD ${formatDisplayStat(member.speed)} | ATK ${formatAtkRange(
+            member.atk
+          )} | ${status}`,
+        ].join("\n");
+      })
+    : ["None"];
 
-        if (isDead) {
-          buttonStyle = ButtonStyle.Danger;
-          labelPrefix = `☠️ ${memberIndex + 1}`;
-        } else if (isCooldown) {
-          buttonStyle = ButtonStyle.Primary;
-          labelPrefix = `⏳ ${memberIndex + 1}`;
-        }
-
-        row.addComponents(
-          new ButtonBuilder()
-            .setCustomId(`raid_act_${state.roomId}_${memberIndex}`)
-            .setLabel(`${labelPrefix} ${member.name}`.slice(0, 80))
-            .setStyle(buttonStyle)
-            .setDisabled(Boolean(isDead || isCooldown))
-        );
-      }
-
-      rows.push(row);
-      chunk = [];
-    }
-  }
-
-  if (canAdvanceRaidTurn(state)) {
-    rows.push(
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`raid_next_${state.roomId}`)
-          .setLabel("Next Turn")
-          .setStyle(ButtonStyle.Secondary)
-      )
-    );
-  }
-
-  return rows;
+  return new EmbedBuilder()
+    .setColor(playersWon ? 0x2ecc71 : 0xe74c3c)
+    .setTitle(playersWon ? "Raid Victory" : "Raid Defeat")
+    .setDescription(
+      clampEmbedText([
+        `**Result:** ${playersWon ? "WIN" : "LOSE"}`,
+        `**Boss:** ${boss.name}`,
+        `**Final Boss HP:** ${Math.max(0, Number(boss.hp || 0))}/${Number(
+          boss.maxHp || 0
+        )}`,
+        `**Survivors:** ${alive.length}/${state.members.length}`,
+        "",
+        "## Raid Team Result",
+        ...raidLines,
+        "",
+        "## Raid Win Rewards",
+        ...(playersWon
+          ? formatRaidWinRewardLines(state)
+          : ["• No reward because raid was lost."]),
+        "",
+        "## Raid Prestige Rewards",
+        ...(playersWon
+          ? ensureArray(state.prestigeRewards).length
+            ? ensureArray(state.prestigeRewards).map((reward) =>
+                reward.missing
+                  ? `• Host ${reward.username}: **${reward.cardName}** prestige not added${reward.reason ? ` (${reward.reason})` : "."}`
+                  : `• Host ${reward.username}'s **${reward.cardName}**: ${reward.before}/200 → ${reward.after}/200`
+              )
+            : ["• Prestige reward data was not found."]
+          : ["• No prestige reward because raid was lost."]),
+        "",
+        "## Final Log",
+        ...(state.log.length
+          ? state.log.slice(-MAX_BATTLE_LOG_LINES).map((line) => `• ${line}`)
+          : ["No final log."]),
+      ].join("\n"))
+    )
+    .setImage(boss.image || null)
+    .setFooter({
+      text: playersWon
+        ? "One Piece Bot • Raid Complete"
+        : "One Piece Bot • Raid Failed",
+    });
 }
 
 function chooseBossTarget(state) {
@@ -1355,14 +1400,26 @@ function addRaidPrestigeToWinnerCards(state) {
 
 function finalizeRaidBattle(state) {
   if (state.winner === "players") {
-    const winRewards = giveRaidWinRewards(state);
-    const prestigeRewards = addRaidPrestigeToWinnerCards(state);
+    try {
+      const winRewards = giveRaidWinRewards(state);
+      state.winRewards = winRewards;
+    } catch (error) {
+      console.error("[raid reward error]", error);
+      state.winRewards = [];
+      pushBattleLog(state, "Raid cleared, but reward sync failed.");
+    }
 
-    state.winRewards = winRewards;
-    state.prestigeRewards = prestigeRewards;
+    try {
+      const prestigeRewards = addRaidPrestigeToWinnerCards(state);
+      state.prestigeRewards = prestigeRewards;
+    } catch (error) {
+      console.error("[raid prestige error]", error);
+      state.prestigeRewards = [];
+      pushBattleLog(state, "Raid prestige sync failed.");
+    }
 
     pushBattleLog(state, "Raid cleared.");
-    pushBattleLog(state, "Rewards and prestige were given.");
+    pushBattleLog(state, "Rewards and prestige were processed.");
   } else {
     pushBattleLog(state, "All raid members were defeated.");
   }
@@ -1943,60 +2000,83 @@ module.exports = {
             return button.reply({
               content: "Only the raid host can control this raid battle.",
               ephemeral: true,
-            });
+            }).catch(() => null);
           }
 
-          await button.deferUpdate().catch(() => null);
+          const lockKey = String(battleState.roomId);
 
-          if (customId === `raid_next_${battleState.roomId}`) {
-            if (!canAdvanceRaidTurn(battleState)) {
-              pushBattleLog(battleState, "There are still ready raid cards.");
-
-              return battleMessage
-                .edit({
-                  embeds: [buildBattleEmbed(battleState)],
-                  components: buildBattleRows(battleState),
-                })
-                .catch(() => null);
-            }
-
-            advanceRaidTurn(battleState);
-
-            return battleMessage
-              .edit({
-                embeds: [buildBattleEmbed(battleState)],
-                components: buildBattleRows(battleState),
-              })
-              .catch(() => null);
+          if (activeRaidActionLocks.has(lockKey)) {
+            return button.reply({
+              content: "Raid action is still processing. Please wait a moment.",
+              ephemeral: true,
+            }).catch(() => null);
           }
+
+          activeRaidActionLocks.add(lockKey);
 
           try {
+            const deferred = await safeDeferInteraction(button);
+
+            if (!deferred) {
+              return;
+            }
+
+            if (battleState.finished) {
+              return safeEditRaidMessage(battleMessage, {
+                embeds: [buildResultEmbed(battleState)],
+                components: [],
+              });
+            }
+
+            if (customId === `raid_next_${battleState.roomId}`) {
+              if (!canAdvanceRaidTurn(battleState)) {
+                pushBattleLog(battleState, "There are still ready raid cards.");
+
+                return safeEditRaidMessage(battleMessage, {
+                  embeds: [buildBattleEmbed(battleState)],
+                  components: buildBattleRows(battleState),
+                });
+              }
+
+              advanceRaidTurn(battleState);
+
+              return safeEditRaidMessage(battleMessage, {
+                embeds: [buildBattleEmbed(battleState)],
+                components: buildBattleRows(battleState),
+              });
+            }
+
             const memberIndex = Number(
               customId.replace(`raid_act_${battleState.roomId}_`, "")
             );
+
+            if (!Number.isInteger(memberIndex) || memberIndex < 0) {
+              pushBattleLog(battleState, "Invalid raid action.");
+
+              return safeEditRaidMessage(battleMessage, {
+                embeds: [buildBattleEmbed(battleState)],
+                components: buildBattleRows(battleState),
+              });
+            }
 
             const actor = battleState.members[memberIndex];
 
             if (!actor || Number(actor.hp || 0) <= 0) {
               pushBattleLog(battleState, "That card can no longer act.");
 
-              return battleMessage
-                .edit({
-                  embeds: [buildBattleEmbed(battleState)],
-                  components: buildBattleRows(battleState),
-                })
-                .catch(() => null);
+              return safeEditRaidMessage(battleMessage, {
+                embeds: [buildBattleEmbed(battleState)],
+                components: buildBattleRows(battleState),
+              });
             }
 
             if (isMemberOnActionCooldown(actor)) {
               pushBattleLog(battleState, `${actor.name} is still on cooldown.`);
 
-              return battleMessage
-                .edit({
-                  embeds: [buildBattleEmbed(battleState)],
-                  components: buildBattleRows(battleState),
-                })
-                .catch(() => null);
+              return safeEditRaidMessage(battleMessage, {
+                embeds: [buildBattleEmbed(battleState)],
+                components: buildBattleRows(battleState),
+              });
             }
 
             handleRaidAttack(battleState, actor);
@@ -2006,35 +2086,33 @@ module.exports = {
 
               try {
                 deleteRoom(hostId);
-              } catch {}
+              } catch (error) {
+                console.error("[raid delete room error]", error);
+              }
 
               battleCollector.stop("finished");
 
-              return battleMessage
-                .edit({
-                  embeds: [buildResultEmbed(battleState)],
-                  components: [],
-                })
-                .catch(() => null);
+              return safeEditRaidMessage(battleMessage, {
+                embeds: [buildResultEmbed(battleState)],
+                components: [],
+              });
             }
 
-            return battleMessage
-              .edit({
-                embeds: [buildBattleEmbed(battleState)],
-                components: buildBattleRows(battleState),
-              })
-              .catch(() => null);
+            return safeEditRaidMessage(battleMessage, {
+              embeds: [buildBattleEmbed(battleState)],
+              components: buildBattleRows(battleState),
+            });
           } catch (error) {
             console.error("[raid battle interaction error]", error);
 
             pushBattleLog(battleState, "Battle interaction error. Please try again.");
 
-            return battleMessage
-              .edit({
-                embeds: [buildBattleEmbed(battleState)],
-                components: buildBattleRows(battleState),
-              })
-              .catch(() => null);
+            return safeEditRaidMessage(battleMessage, {
+              embeds: [buildBattleEmbed(battleState)],
+              components: buildBattleRows(battleState),
+            });
+          } finally {
+            activeRaidActionLocks.delete(lockKey);
           }
         });
 
@@ -2050,12 +2128,10 @@ module.exports = {
             deleteRoom(hostId);
           } catch {}
 
-          try {
-            await battleMessage.edit({
-              embeds: [buildResultEmbed(battleState)],
-              components: [],
-            });
-          } catch {}
+          await safeEditRaidMessage(battleMessage, {
+            embeds: [buildResultEmbed(battleState)],
+            components: [],
+          });
         });
 
         return;

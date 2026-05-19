@@ -251,17 +251,36 @@ function getWeaponPercentAtLevel(basePercent, level, ownerBonusPercent, ownerAct
   };
 }
 
-function isOwnerActive(weapon, cardCode) {
+function isOwnerActive(weapon, cardCode, card = null) {
   const owners = Array.isArray(weapon?.owners) ? weapon.owners : [];
-  const q = normalize(cardCode);
+  const possibleCardKeys = [
+    cardCode,
+    card?.code,
+    card?.baseCode,
+    card?.characterCode,
+    card?.name,
+    card?.displayName,
+  ]
+    .map(normalize)
+    .filter(Boolean);
 
-  return owners.some((owner) => normalize(owner) === q);
+  return owners.some((owner) => {
+    const normalizedOwner = normalize(owner);
+
+    return possibleCardKeys.some((key) => {
+      return (
+        normalizedOwner === key ||
+        normalizedOwner.includes(key) ||
+        key.includes(normalizedOwner)
+      );
+    });
+  });
 }
 
-function sumWeaponPercents(equippedWeapons = [], cardCode = "") {
+function sumWeaponPercents(equippedWeapons = [], cardCode = "", card = null) {
   return equippedWeapons.reduce(
     (acc, item) => {
-      const ownerActive = isOwnerActive(item, cardCode);
+      const ownerActive = isOwnerActive(item, cardCode, card);
 
       const percent = getWeaponPercentAtLevel(
         item.baseStatPercent || item.statPercent || { atk: 0, hp: 0, speed: 0 },
@@ -421,7 +440,7 @@ module.exports = {
 
           nextEquipped = [...existingEquipped, equippedPayload];
 
-          totalWeaponPercent = sumWeaponPercents(nextEquipped, card.code);
+          totalWeaponPercent = sumWeaponPercents(nextEquipped, card.code, card);
           equippedWeaponName = formatEquippedWeaponNames(nextEquipped);
 
           const updatedCards = (Array.isArray(fresh.cards) ? fresh.cards : []).map(
@@ -449,7 +468,7 @@ module.exports = {
               (c) => String(c.instanceId) === String(card.instanceId)
             ) || hydrateCard(rawOwnedCard);
 
-          ownerActive = isOwnerActive(weaponTemplate, card.code);
+          ownerActive = isOwnerActive(weaponTemplate, card.code, card);
 
           shownPercent = getWeaponPercentAtLevel(
             weaponTemplate.baseStatPercent ||
