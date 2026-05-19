@@ -791,11 +791,24 @@ module.exports = {
       pityCounter += 1;
 
       const triggeredPity = pityCounter >= PREMIUM_PITY_TARGET;
-      const contentType = getContentType();
+      let contentType = getContentType();
+
+      if (triggeredPity && contentType === "ticket") {
+        contentType = Math.random() < 0.5 ? "battleCard" : "boostCard";
+      }
+
       const pool = getRewardPool(contentType);
-      const rarity = getPremiumRewardTier(contentType, triggeredPity);
+      const rarity =
+        contentType === "devilFruit"
+          ? rollPremiumDevilFruitTier()
+          : triggeredPity
+          ? "S"
+          : rollPremiumBaseTier();
+
       const reward =
-        contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, rarity);
+        contentType === "ticket"
+          ? pickWeightedTicket()
+          : pickRandomByRarity(pool, rarity);
 
       if (!reward) continue;
 

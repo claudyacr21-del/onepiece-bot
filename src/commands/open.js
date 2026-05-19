@@ -263,10 +263,20 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       addTicket(ITEMS.pullResetTicket, 2);
     }
   } else if (box.code === "mother_flame_treasure_box") {
-    addBerries(15000);
-    addGems(50);
-    addMaterial(ITEMS.colaEnginePart, 2);
-    addMaterial(ITEMS.enhancementStone, 15);
+    addBerries(50000);
+    addGems(150);
+    addMaterial(ITEMS.colaEnginePart, 5);
+    addMaterial(ITEMS.hardwood, 4);
+    addMaterial(ITEMS.enhancementStone, 20);
+    addItem(ITEMS.rumBeer, 10);
+    addTicket(ITEMS.pullResetTicket, 1);
+
+    if (Math.random() < 0.75) {
+      addRandomUniversalFragment(
+        [ITEMS.universalAFragment, ITEMS.universalSFragment],
+        Math.random() < 0.4 ? 3 : 2
+      );
+    }
   } else {
     return null;
   }

@@ -246,16 +246,15 @@ function buildConfirmEmbed(owned, currentStage, nextStage) {
 }
 
 function buildSuccessEmbed(result) {
-  const card = result.target;
+  const card = hydrateCard(result.target);
   const targetStage = Number(card.evolutionStage || 1);
   const targetImage = getStageImage(card, targetStage);
-  const stageCard = getStageCard(card, targetStage);
 
   const baseLines = [
     `**${card.displayName || card.name}** reached **M${targetStage}**`,
     `**Form:** ${getFormName(card, targetStage)}`,
-    `**Tier:** ${stageCard.currentTier || card.currentTier || card.rarity}`,
-    `**Power:** ${Number(stageCard.currentPower || card.currentPower || 0).toLocaleString("en-US")}`,
+    `**Tier:** ${card.currentTier || card.rarity}`,
+    `**Power:** ${Number(card.currentPower || card.power || 0).toLocaleString("en-US")}`,
     "",
   ];
 
@@ -268,9 +267,9 @@ function buildSuccessEmbed(result) {
         ].join("\n")
       : [
           ...baseLines,
-          `ATK: ${Number(stageCard.atk || card.atk || 0).toLocaleString("en-US")}`,
-          `HP: ${Number(stageCard.hp || card.hp || 0).toLocaleString("en-US")}`,
-          `SPD: ${Number(stageCard.speed || card.speed || 0).toLocaleString("en-US")}`,
+          `ATK: ${Number(card.atk || 0).toLocaleString("en-US")}`,
+          `HP: ${Number(card.hp || 0).toLocaleString("en-US")}`,
+          `SPD: ${Number(card.speed || 0).toLocaleString("en-US")}`,
         ].join("\n");
 
   const embed = new EmbedBuilder()
