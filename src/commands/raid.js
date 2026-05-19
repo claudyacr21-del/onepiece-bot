@@ -865,40 +865,40 @@ function buildResultEmbed(state) {
     .setColor(playersWon ? 0x2ecc71 : 0xe74c3c)
     .setTitle(playersWon ? "Raid Victory" : "Raid Defeat")
     .setDescription(
-      clampEmbedText([
-      [
-        `**Result:** ${playersWon ? "WIN" : "LOSE"}`,
-        `**Boss:** ${boss.name}`,
-        `**Final Boss HP:** ${Math.max(0, Number(boss.hp || 0))}/${Number(
-          boss.maxHp || 0
-        )}`,
-        `**Survivors:** ${alive.length}/${state.members.length}`,
-        "",
-        "## Raid Team Result",
-        ...raidLines,
-        "",
-        "## Raid Win Rewards",
-        ...(playersWon
-          ? formatRaidWinRewardLines(state)
-          : ["• No reward because raid was lost."]),
-        "",
-        "## Raid Prestige Rewards",
-
-        ...(playersWon
-          ? ensureArray(state.prestigeRewards).length
-            ? ensureArray(state.prestigeRewards).map((reward) =>
-                reward.missing
-                  ? `• Host ${reward.username}: **${reward.cardName}** prestige not added${reward.reason ? ` (${reward.reason})` : "."}`
-                  : `• Host ${reward.username}'s **${reward.cardName}**: ${reward.before}/200 → ${reward.after}/200`
-              )
-            : ["• Prestige reward data was not found."]
-          : ["• No prestige reward because raid was lost."]),
-        "",
-        "## Final Log",
-        ...(state.log.length
-          ? state.log.slice(-MAX_BATTLE_LOG_LINES).map((line) => `• ${line}`)
-          : ["No final log."]),
-      ].join("\n"))
+      clampEmbedText(
+        [
+          `**Result:** ${playersWon ? "WIN" : "LOSE"}`,
+          `**Boss:** ${boss.name}`,
+          `**Final Boss HP:** ${Math.max(0, Number(boss.hp || 0))}/${Number(
+            boss.maxHp || 0
+          )}`,
+          `**Survivors:** ${alive.length}/${state.members.length}`,
+          "",
+          "## Raid Team Result",
+          ...raidLines,
+          "",
+          "## Raid Win Rewards",
+          ...(playersWon
+            ? formatRaidWinRewardLines(state)
+            : ["• No reward because raid was lost."]),
+          "",
+          "## Raid Prestige Rewards",
+          ...(playersWon
+            ? ensureArray(state.prestigeRewards).length
+              ? ensureArray(state.prestigeRewards).map((reward) =>
+                  reward.missing
+                    ? `• Host ${reward.username}: **${reward.cardName}** prestige not added${reward.reason ? ` (${reward.reason})` : "."}`
+                    : `• Host ${reward.username}'s **${reward.cardName}**: ${reward.before}/200 → ${reward.after}/200`
+                )
+              : ["• Prestige reward data was not found."]
+            : ["• No prestige reward because raid was lost."]),
+          "",
+          "## Final Log",
+          ...(state.log.length
+            ? state.log.slice(-MAX_BATTLE_LOG_LINES).map((line) => `• ${line}`)
+            : ["No final log."]),
+        ].join("\n")
+      )
     )
     .setImage(boss.image || null)
     .setFooter({
@@ -908,71 +908,64 @@ function buildResultEmbed(state) {
     });
 }
 
-function buildResultEmbed(state) {
-  const boss = state.boss;
-  const playersWon = state.winner === "players";
-  const alive = getAliveMembers(state);
+function buildBattleRows(state) {
+  if (state.finished) return [];
 
-  const raidLines = ensureArray(state.members).length
-    ? state.members.map((member, index) => {
-        const isDead = Number(member.hp || 0) <= 0;
-        const hpIcon = isDead ? "☠️" : "❤️";
-        const status = isDead ? "DEFEATED" : "SURVIVED";
+  const rows = [];
+  let chunk = [];
 
-        return [
-          `**${index + 1}. ${member.name}** • ${member.username}`,
-          `${hpIcon} ${Math.max(0, Number(member.hp || 0))}/${Number(
-            member.maxHp || 0
-          )} | SPD ${formatDisplayStat(member.speed)} | ATK ${formatAtkRange(
-            member.atk
-          )} | ${status}`,
-        ].join("\n");
-      })
-    : ["None"];
-
-  return new EmbedBuilder()
-    .setColor(playersWon ? 0x2ecc71 : 0xe74c3c)
-    .setTitle(playersWon ? "Raid Victory" : "Raid Defeat")
-    .setDescription(
-      clampEmbedText([
-        `**Result:** ${playersWon ? "WIN" : "LOSE"}`,
-        `**Boss:** ${boss.name}`,
-        `**Final Boss HP:** ${Math.max(0, Number(boss.hp || 0))}/${Number(
-          boss.maxHp || 0
-        )}`,
-        `**Survivors:** ${alive.length}/${state.members.length}`,
-        "",
-        "## Raid Team Result",
-        ...raidLines,
-        "",
-        "## Raid Win Rewards",
-        ...(playersWon
-          ? formatRaidWinRewardLines(state)
-          : ["• No reward because raid was lost."]),
-        "",
-        "## Raid Prestige Rewards",
-        ...(playersWon
-          ? ensureArray(state.prestigeRewards).length
-            ? ensureArray(state.prestigeRewards).map((reward) =>
-                reward.missing
-                  ? `• Host ${reward.username}: **${reward.cardName}** prestige not added${reward.reason ? ` (${reward.reason})` : "."}`
-                  : `• Host ${reward.username}'s **${reward.cardName}**: ${reward.before}/200 → ${reward.after}/200`
-              )
-            : ["• Prestige reward data was not found."]
-          : ["• No prestige reward because raid was lost."]),
-        "",
-        "## Final Log",
-        ...(state.log.length
-          ? state.log.slice(-MAX_BATTLE_LOG_LINES).map((line) => `• ${line}`)
-          : ["No final log."]),
-      ].join("\n"))
-    )
-    .setImage(boss.image || null)
-    .setFooter({
-      text: playersWon
-        ? "One Piece Bot • Raid Complete"
-        : "One Piece Bot • Raid Failed",
+  for (let index = 0; index < state.members.length; index++) {
+    chunk.push({
+      member: state.members[index],
+      index,
     });
+
+    if (chunk.length === 5 || index === state.members.length - 1) {
+      const row = new ActionRowBuilder();
+
+      for (const item of chunk) {
+        const member = item.member;
+        const memberIndex = item.index;
+        const isDead = Number(member.hp || 0) <= 0;
+        const isCooldown = isMemberOnActionCooldown(member);
+
+        let buttonStyle = ButtonStyle.Success;
+        let labelPrefix = `${memberIndex + 1}`;
+
+        if (isDead) {
+          buttonStyle = ButtonStyle.Danger;
+          labelPrefix = `☠️ ${memberIndex + 1}`;
+        } else if (isCooldown) {
+          buttonStyle = ButtonStyle.Primary;
+          labelPrefix = `⏳ ${memberIndex + 1}`;
+        }
+
+        row.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`raid_act_${state.roomId}_${memberIndex}`)
+            .setLabel(`${labelPrefix} ${member.name}`.slice(0, 80))
+            .setStyle(buttonStyle)
+            .setDisabled(Boolean(isDead || isCooldown))
+        );
+      }
+
+      rows.push(row);
+      chunk = [];
+    }
+  }
+
+  if (canAdvanceRaidTurn(state)) {
+    rows.push(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`raid_next_${state.roomId}`)
+          .setLabel("Next Turn")
+          .setStyle(ButtonStyle.Secondary)
+      )
+    );
+  }
+
+  return rows;
 }
 
 function chooseBossTarget(state) {
