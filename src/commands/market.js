@@ -67,7 +67,7 @@ const MARKET_ITEMS = [
     inventory: "items",
     item: ITEMS.rumBeer,
     description: "Adds 100 EXP to a battle card.",
-    usageText: "Use `op rum <amount/all> <card>` to use Rum Beer.",
+    usageText: "Use `op rum <amount> <card name>` to use Rum Beer.",
   },
 ];
 
@@ -81,18 +81,32 @@ function normalize(text) {
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const index = arr.findIndex((entry) => entry.code === item.code);
+
+  if (!item) return arr;
+
+  const code = item.code || normalize(item.name).replace(/\s+/g, "_");
+
+  const index = arr.findIndex((entry) => {
+    return (
+      String(entry.code || "").toLowerCase() === String(code || "").toLowerCase() ||
+      normalize(entry.name) === normalize(item.name)
+    );
+  });
 
   if (index !== -1) {
     arr[index] = {
       ...arr[index],
-      amount: Number(arr[index].amount || 1) + Number(item.amount || 1),
+      ...item,
+      code,
+      amount: Number(arr[index].amount || 0) + Number(item.amount || 1),
     };
+
     return arr;
   }
 
   arr.push({
     ...item,
+    code,
     amount: Number(item.amount || 1),
   });
 
@@ -153,7 +167,9 @@ function buildMarketEmbed(player) {
     .setColor(0xf39c12)
     .setTitle("Material Market")
     .setDescription(lines.join("\n"))
-    .setFooter({ text: "One Piece Bot • Market" });
+    .setFooter({
+      text: "One Piece Bot • Market",
+    });
 }
 
 function parseBuyArgs(args) {
@@ -167,7 +183,15 @@ function parseBuyArgs(args) {
   }
 
   const lastArg = String(parts[parts.length - 1] || "").toLowerCase();
-  const amount = lastArg === "all" ? 1 : Math.floor(Number(lastArg));
+
+  if (lastArg === "all") {
+    return {
+      query: parts.join(" ").trim(),
+      amount: 1,
+    };
+  }
+
+  const amount = Math.floor(Number(lastArg));
 
   if (Number.isFinite(amount) && amount > 0) {
     parts.pop();
@@ -192,10 +216,23 @@ function getPurchaseUsageText(found, inventoryKey) {
   }
 
   if (found?.item?.code === ITEMS.rumBeer?.code || found?.code === "rum_beer") {
-    return "Use `op rum <amount/all> <card>` to use Rum Beer.";
+    return "Use `op rum <amount> <card name>` to use Rum Beer.";
   }
 
   return "Use `op inv` to check your inventory.";
+}
+
+function trackObtained(obtainedMap, item, qty = 1) {
+  if (!item) return;
+
+  const key = item.code || item.name || "unknown_item";
+  const current = obtainedMap.get(key) || {
+    name: item.name || "Unknown Item",
+    amount: 0,
+  };
+
+  current.amount += Number(qty || 1);
+  obtainedMap.set(key, current);
 }
 
 function formatObtainedItems(obtainedMap) {
@@ -204,7 +241,9 @@ function formatObtainedItems(obtainedMap) {
   if (!items.length) return null;
 
   return `Obtained: **${items
-    .map((item) => `${item.name} x${Number(item.amount || 0).toLocaleString("en-US")}`)
+    .map((item) => {
+      return `${item.name} x${Number(item.amount || 0).toLocaleString("en-US")}`;
+    })
     .join(", ")}**`;
 }
 
@@ -218,6 +257,9 @@ module.exports = {
     if (!args.length) {
       return message.reply({
         embeds: [buildMarketEmbed(player)],
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
@@ -226,67 +268,98 @@ module.exports = {
     const { query, amount } = parseBuyArgs(buyArgs);
 
     if (!query) {
-      return message.reply("Usage: `op buy wooden` or `op market buy wooden`");
+      return message.reply({
+        content: "Usage: `op buy wooden` or `op market buy wooden`",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     const found = findMarketItem(query);
 
     if (!found) {
-      return message.reply("That market item was not found.");
+      return message.reply({
+        content: "That market item was not found.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
-  const totalPrice = found.price * amount;
-  const currency = found.currency || "gems";
-  const inventoryKey = found.inventory || "boxes";
-  const obtainedMap = new Map();
+    if (!Number.isInteger(amount) || amount <= 0) {
+      return message.reply({
+        content: "Buy amount must be a positive number.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
 
-  let currentCurrency = 0;
-  let remainingCurrency = 0;
+    const totalPrice = Number(found.price || 0) * amount;
+    const currency = found.currency || "gems";
+    const inventoryKey = found.inventory || "boxes";
+    const obtainedMap = new Map();
 
-  try {
-    updatePlayerAtomic(
-      message.author.id,
-      (fresh) => {
-        currentCurrency = Number(fresh[currency] || 0);
+    let currentCurrency = 0;
+    let remainingCurrency = 0;
 
-        if (currentCurrency < totalPrice) {
-          throw new Error(
-            `You need **${totalPrice.toLocaleString(
-              "en-US"
-            )} ${currency}** to buy **${found.name} x${amount}**.`
-          );
-        }
+    try {
+      updatePlayerAtomic(
+        message.author.id,
+        (fresh) => {
+          currentCurrency = Number(fresh[currency] || 0);
 
-        let updatedInventory = [...(fresh[inventoryKey] || [])];
+          if (currentCurrency < totalPrice) {
+            throw new Error(
+              `You need **${totalPrice.toLocaleString(
+                "en-US"
+              )} ${currency}** to buy **${found.name} x${amount}**.`
+            );
+          }
 
-        if (typeof found.randomItem === "function") {
-          for (let i = 0; i < amount; i++) {
-            const randomItem = found.randomItem();
-            if (randomItem) {
+          let updatedInventory = Array.isArray(fresh[inventoryKey])
+            ? [...fresh[inventoryKey]]
+            : [];
+
+          if (typeof found.randomItem === "function") {
+            for (let i = 0; i < amount; i++) {
+              const randomItem = found.randomItem();
+
+              if (!randomItem) continue;
+
               const cloned = cloneItem(randomItem, 1);
               updatedInventory = addOrIncrease(updatedInventory, cloned);
-              trackObtained(cloned, 1);
+              trackObtained(obtainedMap, cloned, 1);
             }
+          } else {
+            if (!found.item) {
+              throw new Error("This market item is not configured correctly.");
+            }
+
+            const cloned = cloneItem(found.item, amount);
+            updatedInventory = addOrIncrease(updatedInventory, cloned);
+            trackObtained(obtainedMap, cloned, amount);
           }
-        } else {
-          const cloned = cloneItem(found.item, amount);
-          updatedInventory = addOrIncrease(updatedInventory, cloned);
-          trackObtained(cloned, amount);
-        }
 
-        remainingCurrency = currentCurrency - totalPrice;
+          remainingCurrency = currentCurrency - totalPrice;
 
-        return {
-          ...fresh,
-          [currency]: remainingCurrency,
-          [inventoryKey]: updatedInventory,
-        };
-      },
-      message.author.username
-    );
-  } catch (error) {
-    return message.reply(error.message || "Market purchase failed.");
-  }
+          return {
+            ...fresh,
+            [currency]: remainingCurrency,
+            [inventoryKey]: updatedInventory,
+          };
+        },
+        message.author.username
+      );
+    } catch (error) {
+      return message.reply({
+        content: error.message || "Market purchase failed.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
 
     return message.reply({
       embeds: [
@@ -298,15 +371,22 @@ module.exports = {
               `Bought: **${found.name} x${amount}**`,
               formatObtainedItems(obtainedMap),
               `Cost: **${totalPrice.toLocaleString("en-US")} ${currency}**`,
-              `Remaining ${currency === "berries" ? "Berries" : "Gems"}: **${remainingCurrency.toLocaleString("en-US")}**`,
+              `Remaining ${
+                currency === "berries" ? "Berries" : "Gems"
+              }: **${remainingCurrency.toLocaleString("en-US")}**`,
               "",
               getPurchaseUsageText(found, inventoryKey),
             ]
               .filter(Boolean)
               .join("\n")
           )
-          .setFooter({ text: "One Piece Bot • Market" }),
+          .setFooter({
+            text: "One Piece Bot • Market",
+          }),
       ],
+      allowedMentions: {
+        repliedUser: false,
+      },
     });
   },
 };
