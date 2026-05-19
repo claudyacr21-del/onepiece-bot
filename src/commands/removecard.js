@@ -1,4 +1,5 @@
-const { updatePlayerAtomic } = require("../playerStore");
+const { EmbedBuilder } = require("discord.js");
+const { readPlayers, writePlayers } = require("../playerStore");
 
 function getAdminIds() {
   return String(
@@ -16,27 +17,74 @@ function isAdmin(userId) {
   return getAdminIds().includes(String(userId));
 }
 
-function parseUserId(value) {
-  return String(value || "")
-    .replace(/[<@!>]/g, "")
-    .trim();
+function stripMention(value) {
+  return String(value || "").replace(/[<@!>]/g, "").trim();
 }
 
 function normalize(value) {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/^model:\s*/i, "")
     .replace(/[<@!>]/g, "")
     .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
+    .replace(/[^a-z0-9\s.]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeCode(value) {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[<@!>]/g, "");
+    .replace(/[<@!>]/g, "")
+    .replace(/[^a-z0-9\s._-]+/g, "")
+    .replace(/[\s-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function normalizeCompact(value) {
+  return normalize(value).replace(/[\s._-]+/g, "");
+}
+
+function isUserId(value) {
+  return /^\d{15,25}$/.test(stripMention(value));
+}
+
+function isMention(value) {
+  return /^<@!?\d{15,25}>$/.test(String(value || "").trim());
+}
+
+function getTargetAndQuery(message, args = []) {
+  const parts = [...args].map((arg) => String(arg || "").trim()).filter(Boolean);
+  const mentionedUser = message.mentions?.users?.first() || null;
+
+  let userId = mentionedUser?.id || null;
+  let removedTarget = false;
+
+  const queryParts = [];
+
+  for (const part of parts) {
+    const cleaned = stripMention(part);
+
+    if (!removedTarget && userId && (isMention(part) || cleaned === userId)) {
+      removedTarget = true;
+      continue;
+    }
+
+    if (!removedTarget && !userId && isUserId(part)) {
+      userId = cleaned;
+      removedTarget = true;
+      continue;
+    }
+
+    queryParts.push(part);
+  }
+
+  return {
+    userId,
+    query: queryParts.join(" ").trim(),
+  };
 }
 
 function isBattleCard(card) {
@@ -44,45 +92,73 @@ function isBattleCard(card) {
 }
 
 function getCardLabel(card) {
-  return card?.displayName || card?.name || card?.code || "Unknown Card";
+  return card?.displayName || card?.name || card?.variant || card?.code || "Unknown Card";
 }
 
 function getCardFields(card) {
   return [
     card?.instanceId,
+    card?.id,
     card?.code,
+    card?.baseCode,
     card?.name,
     card?.displayName,
     card?.variant,
     card?.title,
-    card?.arc,
     card?.evolutionKey,
+    `${card?.name || ""} ${card?.variant || ""}`.trim(),
+    `${card?.displayName || ""} ${card?.variant || ""}`.trim(),
   ].filter(Boolean);
 }
 
-function scoreBattleCard(card, query) {
+function scoreCard(card, query) {
   const q = normalize(query);
   const qc = normalizeCode(query);
+  const qCompact = normalizeCompact(query);
 
-  if (!q && !qc) return 0;
+  if (!q && !qc && !qCompact) return 0;
 
   let best = 0;
 
   for (const field of getCardFields(card)) {
-    const fieldNorm = normalize(field);
-    const fieldCode = normalizeCode(field);
+    const f = normalize(field);
+    const fc = normalizeCode(field);
+    const fCompact = normalizeCompact(field);
 
-    if (qc && fieldCode === qc) best = Math.max(best, 2000);
-    if (q && fieldNorm === q) best = Math.max(best, 1800);
+    if (!f && !fc && !fCompact) continue;
 
-    if (qc && fieldCode.startsWith(qc)) best = Math.max(best, 1400 + qc.length);
-    if (q && fieldNorm.startsWith(q)) best = Math.max(best, 1200 + q.length);
+    if (fc === qc || fCompact === qCompact) {
+      best = Math.max(best, 3000);
+      continue;
+    }
 
-    if (qc && fieldCode.includes(qc)) best = Math.max(best, 900 + qc.length);
-    if (q && fieldNorm.includes(q)) best = Math.max(best, 700 + q.length);
+    if (f === q) {
+      best = Math.max(best, 2500);
+      continue;
+    }
+
+    if (fc.startsWith(qc) || fCompact.startsWith(qCompact)) {
+      best = Math.max(best, 1800 + qCompact.length);
+      continue;
+    }
+
+    if (f.startsWith(q)) {
+      best = Math.max(best, 1500 + q.length);
+      continue;
+    }
+
+    if (fc.includes(qc) || fCompact.includes(qCompact)) {
+      best = Math.max(best, 900 + qCompact.length);
+      continue;
+    }
+
+    if (f.includes(q)) {
+      best = Math.max(best, 700 + q.length);
+      continue;
+    }
 
     const words = q.split(" ").filter(Boolean);
-    if (words.length && words.every((word) => fieldNorm.includes(word))) {
+    if (words.length && words.every((word) => f.includes(word))) {
       best = Math.max(best, 500 + words.join("").length);
     }
   }
@@ -90,31 +166,76 @@ function scoreBattleCard(card, query) {
   return best;
 }
 
-function findBattleCardMatch(cards, query) {
+function findOwnedBattleCard(cards, query) {
   const scored = (Array.isArray(cards) ? cards : [])
     .map((card, index) => ({
       card,
       index,
-      score: isBattleCard(card) ? scoreBattleCard(card, query) : 0,
+      score: isBattleCard(card) ? scoreCard(card, query) : 0,
     }))
     .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+
+      const aLabel = normalize(getCardLabel(a.card));
+      const bLabel = normalize(getCardLabel(b.card));
+
+      return aLabel.length - bLabel.length;
+    });
 
   if (!scored.length) {
     return {
+      status: "not_found",
       index: -1,
+      card: null,
       matches: [],
-      ambiguous: false,
     };
   }
 
   const topScore = scored[0].score;
   const topMatches = scored.filter((entry) => entry.score === topScore);
 
+  if (topMatches.length > 1) {
+    return {
+      status: "multiple",
+      index: -1,
+      card: null,
+      matches: topMatches,
+    };
+  }
+
   return {
-    index: topMatches.length === 1 ? topMatches[0].index : -1,
-    matches: topMatches,
-    ambiguous: topMatches.length > 1,
+    status: "found",
+    index: scored[0].index,
+    card: scored[0].card,
+    matches: scored,
+  };
+}
+
+function formatCardLine(card, index) {
+  return `${index + 1}. **${getCardLabel(card)}** • code: \`${card.code || "none"}\` • id: \`${card.instanceId || "none"}\``;
+}
+
+function getOwnedBattleSample(cards) {
+  return (Array.isArray(cards) ? cards : [])
+    .filter(isBattleCard)
+    .slice(0, 15)
+    .map((card, index) => formatCardLine(card, index));
+}
+
+function clearRemovedCardFromTeam(player, removedCard) {
+  const removedId = String(removedCard?.instanceId || "");
+  if (!removedId) return player;
+
+  const slots = Array.isArray(player?.team?.slots) ? player.team.slots : null;
+  if (!slots) return player;
+
+  return {
+    ...player,
+    team: {
+      ...(player.team || {}),
+      slots: slots.map((slot) => (String(slot || "") === removedId ? null : slot)),
+    },
   };
 }
 
@@ -126,100 +247,112 @@ module.exports = {
     if (!isAdmin(message.author.id)) {
       return message.reply({
         content: "Owner only command.",
-        allowedMentions: { repliedUser: false },
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
-    const userId =
-      message.mentions.users.first()?.id ||
-      parseUserId(args.shift());
-
-    const query = args.join(" ").trim();
+    const { userId, query } = getTargetAndQuery(message, args);
 
     if (!userId || !query) {
       return message.reply({
         content: [
           "Usage:",
-          "`op removecard <@user/user_id> <card name/code/instance_id>`",
+          "`op removecard <@user/userId> <card name/code/instanceId>`",
           "",
           "Examples:",
-          "`op removecard @user luffy`",
-          "`op removecard 697763966650417193 zoro`",
-          "`op removecard 697763966650417193 <instance_id>`",
+          "`op removecard @user Monkey D. Luffy`",
+          "`op removecard 697763966650417193 luffy_straw_hat`",
+          "`op removecard 697763966650417193 luffy_straw_hat_1778409820717_w62j8c`",
         ].join("\n"),
-        allowedMentions: { repliedUser: false },
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
-    let removed = null;
-    let notFound = false;
-    let ambiguousMatches = [];
-    let ownedCards = [];
+    const players = readPlayers();
+    const player = players[String(userId)];
 
-    updatePlayerAtomic(
-      userId,
-      (fresh) => {
-        const cards = Array.isArray(fresh.cards) ? [...fresh.cards] : [];
-        const result = findBattleCardMatch(cards, query);
+    if (!player) {
+      return message.reply({
+        content: `User not found: \`${userId}\``,
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
 
-        if (result.ambiguous) {
-          ambiguousMatches = result.matches;
-          return fresh;
-        }
+    player.cards = Array.isArray(player.cards) ? player.cards : [];
 
-        if (result.index === -1) {
-          notFound = true;
-          ownedCards = cards.filter(isBattleCard);
-          return fresh;
-        }
+    const result = findOwnedBattleCard(player.cards, query);
 
-        [removed] = cards.splice(result.index, 1);
+    if (result.status === "multiple") {
+      const lines = result.matches
+        .slice(0, 10)
+        .map((entry, index) => formatCardLine(entry.card, index));
 
-        return {
-          ...fresh,
-          cards,
-        };
-      },
-      message.mentions.users.first()?.username || "Unknown"
-    );
-
-    if (ambiguousMatches.length) {
       return message.reply({
         content: [
           "Multiple battle cards matched that query. Use exact code or instance ID.",
           "",
-          ...ambiguousMatches.slice(0, 10).map((entry, i) => {
-            const card = entry.card;
-            return `${i + 1}. ${getCardLabel(card)} • code: \`${card.code || "none"}\` • id: \`${card.instanceId || "none"}\``;
-          }),
+          ...lines,
         ].join("\n"),
-        allowedMentions: { repliedUser: false },
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
-    if (notFound || !removed) {
+    if (result.status === "not_found" || result.index === -1) {
+      const sample = getOwnedBattleSample(player.cards);
+
       return message.reply({
         content: [
           `Battle card matching \`${query}\` was not found for \`${userId}\`.`,
-          ownedCards.length ? "" : "This user has no battle cards saved.",
-          ownedCards.length ? "**Owned Battle Cards Sample:**" : "",
-          ...ownedCards
-            .slice(0, 15)
-            .map((card, i) => `${i + 1}. ${getCardLabel(card)} • \`${card.code || "no_code"}\` • id: \`${card.instanceId || "none"}\``),
+          "",
+          sample.length ? "**Owned Battle Cards Sample:**" : "This user has no battle cards saved.",
+          ...sample,
         ]
           .filter(Boolean)
           .join("\n"),
-        allowedMentions: { repliedUser: false },
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
+    const [removed] = player.cards.splice(result.index, 1);
+    const cleanedPlayer = clearRemovedCardFromTeam(player, removed);
+
+    players[String(userId)] = cleanedPlayer;
+    writePlayers(players);
+
+    const embed = new EmbedBuilder()
+      .setColor(0xe74c3c)
+      .setTitle("✅ Battle Card Removed")
+      .setDescription(
+        [
+          `**Target:** <@${userId}>`,
+          `**User ID:** \`${userId}\``,
+          `**Card:** ${getCardLabel(removed)}`,
+          `**Code:** \`${removed.code || "none"}\``,
+          `**Instance ID:** \`${removed.instanceId || "none"}\``,
+          "",
+          "If this card was in the active team, its team slot has been cleared.",
+        ].join("\n")
+      )
+      .setFooter({
+        text: "One Piece Bot • Admin Remove Card",
+      });
+
     return message.reply({
-      content: [
-        `Removed battle card **${getCardLabel(removed)}** from \`${userId}\`.`,
-        `Code: \`${removed.code || "none"}\``,
-        `Instance ID: \`${removed.instanceId || "none"}\``,
-      ].join("\n"),
-      allowedMentions: { repliedUser: false },
+      embeds: [embed],
+      allowedMentions: {
+        users: [String(userId)],
+        repliedUser: false,
+      },
     });
   },
 };
