@@ -132,12 +132,21 @@ function getRaidDisplayPower(card) {
 function applyBoostedRaidDisplayStats(card, boosts = {}) {
   if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
 
-  return {
+  const boosted = {
     ...card,
     atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
     hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
     speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
   };
+
+  boosted.currentPower = getRaidDisplayPower({
+    ...boosted,
+    currentPower: 0,
+    power: 0,
+  });
+  boosted.power = boosted.currentPower;
+
+  return boosted;
 }
 
 function getRaidModeConfig(commandName) {
