@@ -212,7 +212,7 @@ module.exports = {
     if (ambiguous.length) {
       return message.reply({
         content: [
-          "Multiple battle cards matched that query. Use exact code or instance ID.",
+          "Multiple battle cards matched that query. Use exact code.",
           "",
           ...ambiguous.slice(0, 10).map((entry, i) => {
             const card = entry.rawCard || entry.card || {};

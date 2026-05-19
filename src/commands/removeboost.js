@@ -233,7 +233,7 @@ module.exports = {
       return message.reply({
         content: [
           "Usage:",
-          "`op removeboost <@user/userId> <boost name/code/instanceId>`",
+          "`op removeboost <@user/userId> <boost name/code>`",
           "",
           "Examples:",
           "`op removeboost @user chopper`",
@@ -282,7 +282,7 @@ module.exports = {
     if (resultStatus === "multiple") {
       return message.reply({
         content: [
-          "Multiple boost cards matched that query. Use exact code or instance ID.",
+          "Multiple boost cards matched that query. Use exact code.",
           "",
           ...ambiguousMatches.slice(0, 10).map((entry, index) =>
             formatBoostLine(entry.card, index)
@@ -318,8 +318,7 @@ module.exports = {
           `**Target:** <@${userId}>`,
           `**User ID:** \`${userId}\``,
           `**Boost:** ${getCardLabel(removed)}`,
-          `**Code:** \`${removed.code || "none"}\``,
-          `**Instance ID:** \`${removed.instanceId || "none"}\``,
+          `**Code:** \`${removed.code || "none"}\``,
         ].join("\n")
       )
       .setFooter({

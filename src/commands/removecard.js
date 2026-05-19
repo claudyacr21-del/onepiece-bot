@@ -259,12 +259,11 @@ module.exports = {
       return message.reply({
         content: [
           "Usage:",
-          "`op removecard <@user/userId> <card name/code/instanceId>`",
+          "`op removecard <@user/userId> <card name/code>`",
           "",
           "Examples:",
           "`op removecard @user Monkey D. Luffy`",
-          "`op removecard 697763966650417193 luffy_straw_hat`",
-          "`op removecard 697763966650417193 luffy_straw_hat_1778409820717_w62j8c`",
+          "`op removecard 697763966650417193 luffy_straw_hat`",
         ].join("\n"),
         allowedMentions: {
           repliedUser: false,
@@ -295,7 +294,7 @@ module.exports = {
 
       return message.reply({
         content: [
-          "Multiple battle cards matched that query. Use exact code or instance ID.",
+          "Multiple battle cards matched that query. Use exact code.",
           "",
           ...lines,
         ].join("\n"),
@@ -337,8 +336,7 @@ module.exports = {
           `**Target:** <@${userId}>`,
           `**User ID:** \`${userId}\``,
           `**Card:** ${getCardLabel(removed)}`,
-          `**Code:** \`${removed.code || "none"}\``,
-          `**Instance ID:** \`${removed.instanceId || "none"}\``,
+          `**Code:** \`${removed.code || "none"}\``,
           "",
           "If this card was in the active team, its team slot has been cleared.",
         ].join("\n")

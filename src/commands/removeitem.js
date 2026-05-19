@@ -297,7 +297,7 @@ module.exports = {
     if (found.status === "multiple") {
       return message.reply({
         content: [
-          "Multiple items matched that query. Use exact code or instance ID.",
+          "Multiple items matched that query. Use exact code.",
           "",
           formatMatches(found.matches),
         ].join("\n"),
@@ -333,8 +333,7 @@ module.exports = {
           `**User ID:** \`${userId}\``,
           `**Bucket:** \`${bucket}\``,
           `**Item:** ${displayName}`,
-          `**Code:** \`${displayCode}\``,
-          `**Instance ID:** \`${displayId}\``,
+          `**Code:** \`${displayCode}\``,
           `**Removed:** ${removedAmount}`,
           `**Left:** ${Math.max(0, nextAmount)}`,
         ].join("\n")
