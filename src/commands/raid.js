@@ -1025,7 +1025,7 @@ function getRaidRewardConfig(tier, boss = null) {
       berries: 25000,
       gems: 30,
       fragments: 1,
-      weaponChance: 20,
+      weaponChance: 30,
       fruitChance: 1,
     };
   }
@@ -1037,7 +1037,7 @@ function getRaidRewardConfig(tier, boss = null) {
       berries: 5000,
       gems: 10,
       fragments: 1,
-      weaponChance: 25,
+      weaponChance: 30,
       fruitChance: 1,
     },
 
@@ -1045,7 +1045,7 @@ function getRaidRewardConfig(tier, boss = null) {
       berries: 5000,
       gems: 10,
       fragments: 1,
-      weaponChance: 25,
+      weaponChance: 30,
       fruitChance: 1,
     },
 
@@ -1053,7 +1053,7 @@ function getRaidRewardConfig(tier, boss = null) {
       berries: 10000,
       gems: 15,
       fragments: 1,
-      weaponChance: 25,
+      weaponChance: 30,
       fruitChance: 1,
     },
 
@@ -1061,7 +1061,7 @@ function getRaidRewardConfig(tier, boss = null) {
       berries: 15000,
       gems: 20,
       fragments: 1,
-      weaponChance: 20,
+      weaponChance: 30,
       fruitChance: 1,
     },
   };
