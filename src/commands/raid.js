@@ -280,6 +280,61 @@ function consumeOneTicket(player, raidMode) {
   };
 }
 
+function refundOneTicket(player, raidMode) {
+  const tickets = ensureArray(player?.tickets).map((ticket) => ({ ...ticket }));
+  const ticketCode = String(raidMode.ticketCode || "").toLowerCase();
+
+  const index = tickets.findIndex((entry) => {
+    const code = String(entry?.code || "").toLowerCase();
+    const name = String(entry?.name || "").toLowerCase();
+
+    return (
+      code === ticketCode ||
+      name === String(raidMode.ticketName || "").toLowerCase()
+    );
+  });
+
+  if (index === -1) {
+    tickets.push({
+      code: raidMode.ticketCode,
+      name: raidMode.ticketName,
+      type: "ticket",
+      amount: 1,
+    });
+
+    return tickets;
+  }
+
+  tickets[index] = {
+    ...tickets[index],
+    amount: Number(tickets[index].amount || 0) + 1,
+  };
+
+  return tickets;
+}
+
+function refundRaidTicketIfUnused(userId, username, raidMode, room) {
+  if (!room?.ticketConsumed) return false;
+  if (String(room?.status || "") === "active") return false;
+
+  let refunded = false;
+
+  updatePlayerAtomic(
+    userId,
+    (fresh) => {
+      refunded = true;
+
+      return {
+        ...fresh,
+        tickets: refundOneTicket(fresh, raidMode),
+      };
+    },
+    username || "Unknown"
+  );
+
+  return refunded;
+}
+
 function getSavedRaidTeam(player) {
   return ensureArray(player?.raidTeam?.members)
     .map((id) => String(id))
@@ -1639,12 +1694,13 @@ module.exports = {
       }
 
       if (interaction.customId === `raid_join_${room.roomId}`) {
+      await interaction.deferReply({ ephemeral: true }).catch(() => null);
         const userId = String(interaction.user.id);
         const isHost = userId === hostId;
         const whitelistIds = ensureArray(activeRoom.whitelist).map(String);
 
         if (!isHost && !whitelistIds.includes(userId)) {
-          return interaction.reply({
+          return interaction.editReply({
             content: "You are not in the host's saved raid team.",
             ephemeral: true,
           });
@@ -1654,7 +1710,7 @@ module.exports = {
         const teamCards = getBattleTeamCards(joiningPlayer);
 
         if (hasParticipantJoined(activeRoom, userId)) {
-          return interaction.reply({
+          return interaction.editReply({
             content: "You already joined this raid.",
             ephemeral: true,
           });
@@ -1664,7 +1720,7 @@ module.exports = {
         const joinedCount = getSelectedParticipantCount(activeRoom);
 
         if (joinedCount >= maxRaidUsers) {
-          return interaction.reply({
+          return interaction.editReply({
             content: isThroneRoom(activeRoom)
               ? "This Throne Raid is already full. Max 4 users / 12 cards."
               : "This raid room is already full.",
@@ -1676,20 +1732,19 @@ module.exports = {
           const throneCards = getThroneTeamCards(joiningPlayer);
 
           if (throneCards.length < 3) {
-            return interaction.reply({
+            return interaction.editReply({
               content:
                 "Throne Raid requires **3 battle cards** in your current team slots.",
               ephemeral: true,
             });
           }
 
-          await interaction.reply({
+          await interaction.editReply({
             content: [
               `${interaction.user.username}, this is the team that will be deployed for this battle, press button to confirm`,
               formatThroneTeamPreview(throneCards),
             ].join("\n"),
             components: buildThroneConfirmRows(room.roomId, userId),
-            ephemeral: true,
           });
 
           const confirmReply = await interaction.fetchReply();
@@ -1795,10 +1850,9 @@ module.exports = {
           });
         }
 
-        await interaction.reply({
+        await interaction.editReply({
           content: `Pick 1 battle card for raid against ${activeRoom.bossName}.`,
           components: buildPickRows(room.roomId, teamCards),
-          ephemeral: true,
         });
 
         const pickReply = await interaction.fetchReply();
@@ -2137,16 +2191,55 @@ module.exports = {
       if (!activeRoom || String(activeRoom.roomId) !== String(room.roomId)) return;
       if (battleMessage) return;
 
+      let refunded = false;
+
+      try {
+        refunded = refundRaidTicketIfUnused(
+          hostId,
+          message.author.username,
+          raidMode,
+          activeRoom
+        );
+      } catch (error) {
+        console.error("[raid ticket refund error]", error);
+      }
+
       try {
         deleteRoom(hostId);
       } catch {}
 
       try {
         await lobbyMessage.edit({
-          embeds: [buildLobbyEmbed(message.author.username, activeRoom, true, bossPreviewStats)],
+          embeds: [
+            buildLobbyEmbed(
+              message.author.username,
+              {
+                ...activeRoom,
+                ticketConsumed: refunded ? false : activeRoom.ticketConsumed,
+              },
+              true,
+              bossPreviewStats
+            ).setFooter({
+              text: refunded
+                ? "Raid room closed • Ticket refunded because raid did not start"
+                : "Raid room closed",
+            }),
+          ],
           components: buildLobbyRows(activeRoom, true),
         });
       } catch {}
+
+      if (refunded) {
+        await message.channel
+          .send({
+            content: `↩️ ${userMention(hostId)} raid did not start, so **${raidMode.label}** was refunded.`,
+            allowedMentions: {
+              users: [hostId],
+              repliedUser: false,
+            },
+          })
+          .catch(() => null);
+      }
     });
   },
 };
