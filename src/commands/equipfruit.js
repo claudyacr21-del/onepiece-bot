@@ -3,15 +3,20 @@ const {
   ActionRowBuilder,
   StringSelectMenuBuilder,
 } = require("discord.js");
-const { getPlayer, updatePlayerAtomic } = require("../playerStore");
+
+const { getPlayer, updatePlayer } = require("../playerStore");
 const devilFruits = require("../data/devilFruits");
-const { findOwnedCard, hydrateCard } = require("../utils/evolution");
-const { getEffectiveBoostValue, findBoostFruitByCode } = require("../utils/passiveBoosts");
+const { hydrateCard } = require("../utils/evolution");
+const {
+  getEffectiveBoostValue,
+  findBoostFruitByCode,
+} = require("../utils/passiveBoosts");
 
 function normalizeCompare(value) {
   return String(value || "")
     .toLowerCase()
     .trim()
+    .replace(/^model:\s*/i, "")
     .replace(/[_-]+/g, " ")
     .replace(/[^a-z0-9\s]+/g, "")
     .replace(/\s+/g, " ");
@@ -21,62 +26,153 @@ function normalizeCode(value) {
   return String(value || "")
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, "_");
+    .replace(/^model:\s*/i, "")
+    .replace(/[^a-z0-9\s_-]+/g, "")
+    .replace(/[\s-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function normalizeCompact(value) {
+  return normalizeCompare(value).replace(/\s+/g, "");
+}
+
+function pushKey(keys, value) {
+  const raw = String(value || "").trim();
+  if (!raw) return;
+
+  keys.push(raw);
+  keys.push(normalizeCode(raw));
+  keys.push(normalizeCompare(raw));
+  keys.push(normalizeCompact(raw));
+}
+
+function getCurrentForm(card) {
+  const stage = Math.max(1, Math.min(3, Number(card?.evolutionStage || 1)));
+  return Array.isArray(card?.evolutionForms) ? card.evolutionForms[stage - 1] : null;
 }
 
 function getCardOwnerKeys(card) {
-  const keys = [
-    card?.code,
-    card?.baseCode,
-    card?.cardCode,
-    card?.characterCode,
-    card?.templateCode,
-    card?.name,
-    card?.displayName,
-    card?.title,
-    card?.evolutionKey,
-    card?.specialForm,
-    card?.formName,
-  ];
+  const hydrated = hydrateCard(card) || card || {};
+  const form = getCurrentForm(hydrated);
+  const keys = [];
 
-  // Special hard sync for Luffy/Nika forms.
+  [
+    hydrated.code,
+    hydrated.id,
+    hydrated.baseCode,
+    hydrated.cardCode,
+    hydrated.characterCode,
+    hydrated.templateCode,
+    hydrated.name,
+    hydrated.displayName,
+    hydrated.title,
+    hydrated.variant,
+    hydrated.evolutionKey,
+    hydrated.specialForm,
+    hydrated.formName,
+    hydrated.currentForm,
+    form?.name,
+    form?.title,
+    form?.code,
+    form?.evolutionKey,
+  ].forEach((value) => pushKey(keys, value));
+
   const joined = keys.map(normalizeCompare).filter(Boolean).join(" ");
+  const compactJoined = keys.map(normalizeCompact).filter(Boolean).join(" ");
 
-  if (
+  const isLuffyLike =
     joined.includes("luffy") ||
     joined.includes("monkey d luffy") ||
-    joined.includes("nika")
-  ) {
-    keys.push(
+    joined.includes("nika") ||
+    joined.includes("gear 5") ||
+    joined.includes("gear fifth") ||
+    compactJoined.includes("monkeydluffy") ||
+    compactJoined.includes("gear5") ||
+    compactJoined.includes("gearfifth");
+
+  if (isLuffyLike) {
+    [
       "luffy_straw_hat",
       "monkey_d_luffy",
+      "monkey d luffy",
       "luffy",
       "luffy_nika",
-      "gear_5_luffy"
-    );
+      "gear_5_luffy",
+      "gear 5 luffy",
+      "gear fifth luffy",
+      "sun god nika",
+      "nika",
+      "joy boy",
+    ].forEach((value) => pushKey(keys, value));
   }
 
-  return new Set(
-    keys
-      .map((value) => [normalizeCode(value), normalizeCompare(value)])
-      .flat()
-      .filter(Boolean)
-  );
+  return new Set(keys.map(String).filter(Boolean));
 }
 
 function getFruitOwnerKeys(fruit) {
+  const keys = [];
   const owners = Array.isArray(fruit?.owners) ? fruit.owners : [];
 
-  return new Set(
-    owners
-      .flatMap((owner) => [normalizeCode(owner), normalizeCompare(owner)])
-      .filter(Boolean)
+  owners.forEach((owner) => pushKey(keys, owner));
+
+  return new Set(keys.map(String).filter(Boolean));
+}
+
+function findFruitTemplate(value) {
+  const queryCode = normalizeCode(value);
+  const queryText = normalizeCompare(value);
+  const queryCompact = normalizeCompact(value);
+
+  return (
+    devilFruits.find((fruit) => normalizeCode(fruit.code) === queryCode) ||
+    devilFruits.find((fruit) => normalizeCompare(fruit.name) === queryText) ||
+    devilFruits.find((fruit) => normalizeCompact(fruit.name) === queryCompact) ||
+    devilFruits.find((fruit) => normalizeCode(fruit.code).includes(queryCode)) ||
+    devilFruits.find((fruit) => normalizeCompare(fruit.name).includes(queryText)) ||
+    devilFruits.find((fruit) => normalizeCompact(fruit.name).includes(queryCompact)) ||
+    null
   );
 }
 
+function resolveFruitData(ownedFruit) {
+  const template = findFruitTemplate(ownedFruit?.code || ownedFruit?.name);
+
+  return {
+    ...(template || {}),
+    ...(ownedFruit || {}),
+    owners:
+      Array.isArray(template?.owners) && template.owners.length
+        ? template.owners
+        : Array.isArray(ownedFruit?.owners)
+          ? ownedFruit.owners
+          : [],
+    statPercent:
+      template?.statPercent ||
+      ownedFruit?.statPercent ||
+      ownedFruit?.statBonus ||
+      {
+        atk: 0,
+        hp: 0,
+        speed: 0,
+      },
+    name: template?.name || ownedFruit?.name || "Unknown Devil Fruit",
+    code: template?.code || ownedFruit?.code || "",
+    type: template?.type || ownedFruit?.type || "Devil Fruit",
+    rarity: template?.rarity || ownedFruit?.rarity || "B",
+    description: template?.description || ownedFruit?.description || "",
+  };
+}
+
 function canCardUseDevilFruit(card, fruit) {
+  const resolvedFruit = resolveFruitData(fruit);
+
+  if (!Array.isArray(resolvedFruit.owners) || resolvedFruit.owners.length === 0) {
+    return true;
+  }
+
   const cardKeys = getCardOwnerKeys(card);
-  const fruitOwnerKeys = getFruitOwnerKeys(fruit);
+  const fruitOwnerKeys = getFruitOwnerKeys(resolvedFruit);
 
   for (const key of cardKeys) {
     if (fruitOwnerKeys.has(key)) return true;
@@ -86,27 +182,40 @@ function canCardUseDevilFruit(card, fruit) {
 }
 
 function normalize(text) {
-  return String(text || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
+  return normalizeCompare(text);
 }
 
 function getCardSearchStrings(card) {
+  const hydrated = hydrateCard(card) || card || {};
+  const form = getCurrentForm(hydrated);
+
   return [
-    card.displayName,
-    card.name,
-    card.title,
-    card.code,
-    `${card.name} ${card.title || ""}`.trim(),
+    hydrated.displayName,
+    hydrated.name,
+    hydrated.title,
+    hydrated.variant,
+    hydrated.code,
+    hydrated.baseCode,
+    hydrated.evolutionKey,
+    form?.name,
+    form?.title,
+    `${hydrated.name || ""} ${hydrated.title || ""}`.trim(),
+    `${hydrated.displayName || ""} ${form?.name || ""}`.trim(),
   ]
     .filter(Boolean)
     .map(normalize);
 }
 
 function getFruitSearchStrings(fruit) {
-  return [fruit.name, fruit.code, fruit.type]
+  const resolved = resolveFruitData(fruit);
+
+  return [
+    resolved.name,
+    resolved.code,
+    resolved.type,
+    String(resolved.name || "").replace(/^Hito Hito no Mi,\s*/i, ""),
+    String(resolved.name || "").replace(/^.*Model:\s*/i, ""),
+  ]
     .filter(Boolean)
     .map(normalize);
 }
@@ -136,7 +245,8 @@ function scoreMatch(query, candidates) {
     }
 
     const qWords = q.split(" ").filter(Boolean);
-    if (qWords.length && qWords.every((w) => candidate.includes(w))) {
+
+    if (qWords.length && qWords.every((word) => candidate.includes(word))) {
       best = Math.max(best, 250 + qWords.join("").length);
     }
   }
@@ -147,20 +257,24 @@ function scoreMatch(query, candidates) {
 function findCardCandidates(cards, query) {
   return cards
     .map((card) => ({
-      card,
+      card: hydrateCard(card) || card,
       score: scoreMatch(query, getCardSearchStrings(card)),
     }))
-    .filter((x) => x.score > 0)
+    .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
 }
 
 function findFruitCandidates(fruits, query) {
   return fruits
-    .map((fruit) => ({
-      fruit,
-      score: scoreMatch(query, getFruitSearchStrings(fruit)),
-    }))
-    .filter((x) => x.score > 0)
+    .map((fruit) => {
+      const resolved = resolveFruitData(fruit);
+
+      return {
+        fruit: resolved,
+        score: scoreMatch(query, getFruitSearchStrings(resolved)),
+      };
+    })
+    .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
 }
 
@@ -180,6 +294,7 @@ function splitIntoAllPairs(rawArgs) {
 
 function parseCardAndFruit(cards, fruits, rawArgs) {
   const joined = normalize(rawArgs.join(" "));
+
   if (!joined) {
     return {
       card: null,
@@ -229,8 +344,8 @@ function parseCardAndFruit(cards, fruits, rawArgs) {
     card: cardCandidates.length === 1 ? cardCandidates[0].card : null,
     fruit: fruitCandidates.length === 1 ? fruitCandidates[0].fruit : null,
     ambiguous: cardCandidates.length > 1 || fruitCandidates.length > 1,
-    cardOptions: cardCandidates.map((x) => x.card),
-    fruitOptions: fruitCandidates.map((x) => x.fruit),
+    cardOptions: cardCandidates.map((entry) => entry.card),
+    fruitOptions: fruitCandidates.map((entry) => entry.fruit),
   };
 }
 
@@ -241,10 +356,10 @@ function buildChoiceEmbed(type, options) {
     .setDescription(
       options.length
         ? options
-            .map((item, i) =>
+            .map((item, index) =>
               type === "card"
-                ? `${i + 1}. ${item.displayName || item.name}`
-                : `${i + 1}. ${item.name}`
+                ? `${index + 1}. ${item.displayName || item.name}`
+                : `${index + 1}. ${item.name}`
             )
             .join("\n")
         : "No options found."
@@ -257,11 +372,11 @@ function buildChoiceMenu(type, roomId, options) {
       .setCustomId(`equipfruit_pick_${type}_${roomId}`)
       .setPlaceholder(type === "card" ? "Select a card" : "Select a devil fruit")
       .addOptions(
-        options.slice(0, 25).map((item, i) => ({
+        options.slice(0, 25).map((item, index) => ({
           label:
             type === "card"
-              ? String(item.displayName || item.name || `Card ${i + 1}`).slice(0, 100)
-              : String(item.name || `Fruit ${i + 1}`).slice(0, 100),
+              ? String(item.displayName || item.name || `Card ${index + 1}`).slice(0, 100)
+              : String(item.name || `Fruit ${index + 1}`).slice(0, 100),
           value: type === "card" ? String(item.instanceId) : String(item.code),
           description: `Code: ${String(item.code || "-").slice(0, 100)}`,
         }))
@@ -269,87 +384,119 @@ function buildChoiceMenu(type, roomId, options) {
   );
 }
 
-async function equipFruitToCard(message, player, card, fruit) {
-  let syncedCard = null;
-  let resolvedFruitData = null;
-  let effectiveValue = null;
-  let isBoost = false;
-
+async function safeUpdateInteraction(interaction, payload) {
   try {
-    updatePlayerAtomic(
-      message.author.id,
-      (fresh) => {
-        const cards = [...(fresh.cards || [])];
-        const ownedFruits = [...(fresh.devilFruits || [])];
+    if (!interaction.deferred && !interaction.replied) {
+      return await interaction.update(payload);
+    }
 
-        const cardIndex = cards.findIndex(
-          (x) => String(x.instanceId) === String(card.instanceId)
-        );
+    if (interaction.message) {
+      return await interaction.message.edit(payload);
+    }
 
-        if (cardIndex === -1) {
-          throw new Error("You do not own that card.");
-        }
-
-        if (cards[cardIndex].equippedDevilFruit) {
-          throw new Error("This card already has a devil fruit equipped, and it cannot be removed.");
-        }
-
-        const fruitIndex = ownedFruits.findIndex(
-          (x) => String(x.code) === String(fruit.code)
-        );
-
-        if (fruitIndex === -1) {
-          throw new Error("You do not own that devil fruit.");
-        }
-
-        if (
-          !Array.isArray(ownedFruits[fruitIndex].owners) ||
-          !ownedFruits[fruitIndex].owners.includes(cards[cardIndex].code)
-        ) {
-          throw new Error("That devil fruit cannot be used by this card.");
-        }
-
-        cards[cardIndex] = hydrateCard({
-          ...cards[cardIndex],
-          equippedDevilFruit: fruit.code,
-          equippedDevilFruitName: fruit.name,
-        });
-
-        syncedCard = hydrateCard(cards[cardIndex]);
-        cards[cardIndex] = syncedCard;
-
-        const currentAmount = Number(ownedFruits[fruitIndex].amount || 1);
-
-        if (currentAmount <= 1) {
-          ownedFruits.splice(fruitIndex, 1);
-        } else {
-          ownedFruits[fruitIndex] = {
-            ...ownedFruits[fruitIndex],
-            amount: currentAmount - 1,
-          };
-        }
-
-        return {
-          ...fresh,
-          cards,
-          devilFruits: ownedFruits,
-        };
-      },
-      message.author.username
-    );
+    return null;
   } catch (error) {
-    return message.reply(error.message || "Failed to equip Devil Fruit.");
+    console.error("[EQUIP FRUIT INTERACTION ERROR]", error);
+    return null;
+  }
+}
+
+async function equipFruitToCard(message, player, card, fruit) {
+  const cards = [...(player.cards || [])];
+  const ownedFruits = [...(player.devilFruits || [])];
+
+  const cardIndex = cards.findIndex(
+    (item) => String(item.instanceId) === String(card.instanceId)
+  );
+
+  if (cardIndex === -1) {
+    return message.reply({
+      content: "You do not own that card.",
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
   }
 
-  const boostFruitData = findBoostFruitByCode(fruit.code);
-  resolvedFruitData =
+  const hydratedCard = hydrateCard(cards[cardIndex]) || cards[cardIndex];
+
+  if (hydratedCard.equippedDevilFruit || cards[cardIndex].equippedDevilFruit) {
+    return message.reply({
+      content: "This card already has a devil fruit equipped, and it cannot be removed.",
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
+
+  const fruitIndex = ownedFruits.findIndex(
+    (item) =>
+      normalizeCode(item.code) === normalizeCode(fruit.code) ||
+      normalizeCompare(item.name) === normalizeCompare(fruit.name)
+  );
+
+  if (fruitIndex === -1) {
+    return message.reply({
+      content: "You do not own that devil fruit.",
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
+
+  const fruitForValidation = resolveFruitData(ownedFruits[fruitIndex]);
+
+  if (
+    Array.isArray(fruitForValidation.owners) &&
+    fruitForValidation.owners.length &&
+    !canCardUseDevilFruit(hydratedCard, fruitForValidation)
+  ) {
+    return message.reply({
+      content: [
+        "That devil fruit cannot be used by this card.",
+        "",
+        `**Card:** ${hydratedCard.displayName || hydratedCard.name || hydratedCard.code}`,
+        `**Fruit:** ${fruitForValidation.name}`,
+        `**Owner Signature:** ${fruitForValidation.owners.join(", ")}`,
+      ].join("\n"),
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
+
+  cards[cardIndex] = hydrateCard({
+    ...cards[cardIndex],
+    equippedDevilFruit: fruitForValidation.code,
+    equippedDevilFruitName: fruitForValidation.name,
+  });
+
+  const syncedCard = hydrateCard(cards[cardIndex]) || cards[cardIndex];
+
+  const currentAmount = Number(ownedFruits[fruitIndex].amount || 1);
+
+  if (currentAmount <= 1) {
+    ownedFruits.splice(fruitIndex, 1);
+  } else {
+    ownedFruits[fruitIndex] = {
+      ...ownedFruits[fruitIndex],
+      amount: currentAmount - 1,
+    };
+  }
+
+  updatePlayer(message.author.id, {
+    cards,
+    devilFruits: ownedFruits,
+  });
+
+  const boostFruitData = findBoostFruitByCode(fruitForValidation.code);
+  const resolvedFruitData =
     syncedCard.equippedDevilFruitData ||
-    devilFruits.find((entry) => entry.code === fruit.code) ||
-    fruit;
+    resolveFruitData(fruitForValidation) ||
+    fruitForValidation;
 
-  isBoost = syncedCard.cardRole === "boost";
-  effectiveValue = isBoost ? getEffectiveBoostValue(syncedCard) : null;
-
+  const isBoost = syncedCard.cardRole === "boost";
+  const effectiveValue = isBoost ? getEffectiveBoostValue(syncedCard) : null;
   const suffix =
     isBoost && ["atk", "hp", "spd", "exp", "dmg"].includes(syncedCard.boostType)
       ? "%"
@@ -363,18 +510,23 @@ async function equipFruitToCard(message, player, card, fruit) {
 
   const embed = new EmbedBuilder()
     .setColor(isBoost ? 0x9b59b6 : 0x2ecc71)
-    .setTitle(" Devil Fruit Equipped")
+    .setTitle("🍎 Devil Fruit Equipped")
     .setDescription(
       [
         `**Card:** ${syncedCard.displayName || syncedCard.name}`,
-        `**Fruit:** ${resolvedFruitData?.name || fruit.name}`,
-        !isBoost ? `**ATK:** ${Math.floor(Number(syncedCard.atk || 0) * 0.85)}-${Math.floor(Number(syncedCard.atk || 0) * 1.15)}` : null,
-        !isBoost ? `**HP:** ${Number(syncedCard.hp || 0)}` : null,
-        !isBoost ? `**SPD:** ${Number(syncedCard.speed || 0)}` : null,
-        !isBoost ? `**Fruit Bonus:** +${Number(percent.atk || 0)}% ATK / +${Number(percent.hp || 0)}% HP / +${Number(percent.speed || 0)}% SPD` : null,
+        `**Fruit:** ${resolvedFruitData?.name || fruitForValidation.name}`,
+        !isBoost
+          ? `**Fruit Bonus:** +${Number(percent.atk || 0)}% ATK / +${Number(
+              percent.hp || 0
+            )}% HP / +${Number(percent.speed || 0)}% SPD`
+          : null,
         isBoost ? `**Boost Type:** \`${syncedCard.boostType}\`` : null,
         isBoost ? `**Final Boost Value:** \`${effectiveValue}${suffix}\`` : null,
-        isBoost && boostFruitData?.boostBonus ? `**Fruit Bonus Applied:** \`${Number(boostFruitData.boostBonus[syncedCard.boostType] || 0)}${suffix}\`` : null,
+        isBoost && boostFruitData?.boostBonus
+          ? `**Fruit Bonus Applied:** \`${Number(
+              boostFruitData.boostBonus[syncedCard.boostType] || 0
+            )}${suffix}\``
+          : null,
         "",
         "This equip is permanent and cannot be removed.",
       ]
@@ -387,6 +539,9 @@ async function equipFruitToCard(message, player, card, fruit) {
 
   return message.reply({
     embeds: [embed],
+    allowedMentions: {
+      repliedUser: false,
+    },
   });
 }
 
@@ -396,7 +551,12 @@ module.exports = {
 
   async execute(message, args) {
     if (!args.length) {
-      return message.reply("Usage: `op df <card> <fruit>`");
+      return message.reply({
+        content: "Usage: `op df <card name> <devil fruit name>`",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     const player = getPlayer(message.author.id, message.author.username);
@@ -404,11 +564,21 @@ module.exports = {
     const ownedFruits = [...(player.devilFruits || [])];
 
     if (!cards.length) {
-      return message.reply("You do not own any cards.");
+      return message.reply({
+        content: "You do not own any cards.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     if (!ownedFruits.length) {
-      return message.reply("You do not own any devil fruits.");
+      return message.reply({
+        content: "You do not own any devil fruits.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     const parsed = parseCardAndFruit(cards, ownedFruits, args);
@@ -423,6 +593,9 @@ module.exports = {
       const sent = await message.reply({
         embeds: [buildChoiceEmbed("card", parsed.cardOptions)],
         components: [buildChoiceMenu("card", roomId, parsed.cardOptions)],
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
 
       try {
@@ -434,23 +607,24 @@ module.exports = {
         });
 
         const pickedCard = cards.find(
-          (c) => String(c.instanceId) === String(interaction.values[0])
+          (card) => String(card.instanceId) === String(interaction.values[0])
         );
+
         if (!pickedCard) {
-          return interaction.update({
+          return safeUpdateInteraction(interaction, {
             content: "Selected card not found.",
             embeds: [],
             components: [],
           });
         }
 
-        return interaction.update({
-          content: `Now run: \`op df ${pickedCard.displayName || pickedCard.name} <fruit>\``,
+        return safeUpdateInteraction(interaction, {
+          content: `Now run: \`op df ${pickedCard.displayName || pickedCard.name} <fruit name>\``,
           embeds: [],
           components: [],
         });
       } catch {
-        return;
+        return null;
       }
     }
 
@@ -460,6 +634,9 @@ module.exports = {
       const sent = await message.reply({
         embeds: [buildChoiceEmbed("fruit", parsed.fruitOptions)],
         components: [buildChoiceMenu("fruit", roomId, parsed.fruitOptions)],
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
 
       try {
@@ -471,28 +648,35 @@ module.exports = {
         });
 
         const pickedFruit = ownedFruits.find(
-          (f) => String(f.code) === String(interaction.values[0])
+          (fruit) => String(fruit.code) === String(interaction.values[0])
         );
+
         if (!pickedFruit) {
-          return interaction.update({
+          return safeUpdateInteraction(interaction, {
             content: "Selected fruit not found.",
             embeds: [],
             components: [],
           });
         }
 
-        return interaction.update({
-          content: `Now run: \`op df <card> ${pickedFruit.name}\``,
+        const resolvedFruit = resolveFruitData(pickedFruit);
+
+        return safeUpdateInteraction(interaction, {
+          content: `Now run: \`op df <card name> ${resolvedFruit.name}\``,
           embeds: [],
           components: [],
         });
       } catch {
-        return;
+        return null;
       }
     }
 
-    return message.reply(
-      "Could not match that card and fruit.\nUse: `op df <card> <fruit>`\nYou can also use partial names, for example: `op df luffy nika`."
-    );
+    return message.reply({
+      content:
+        "Could not match that card and fruit.\nUse: `op df <card name> <devil fruit name>`\nExample: `op df luffy nika`.",
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
   },
 };
