@@ -4,11 +4,11 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require("discord.js");
+
 const { getPlayer, updateTwoPlayersAtomic } = require("../playerStore");
 
 const SESSION_MS = 10 * 60 * 1000;
 const MAX_ITEMS = 5;
-const UNTRADEABLE_STORES = ["tickets"];
 
 const STORE_LABELS = {
   weapons: "Weapon",
@@ -18,26 +18,32 @@ const STORE_LABELS = {
   boxes: "Box",
   fragments: "Fragment",
   cards: "Card",
+  tickets: "Ticket",
 };
 
-const slug = (s = "") =>
-  String(s)
+function slug(value = "") {
+  return String(value)
     .toLowerCase()
     .trim()
     .replace(/['".]/g, "")
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
 
-const normalize = (s = "") =>
-  String(s)
+function normalize(value = "") {
+  return String(value)
     .toLowerCase()
     .trim()
     .replace(/['".]/g, "")
     .replace(/[_-]+/g, " ")
     .replace(/[^a-z0-9\s]+/g, "")
     .replace(/\s+/g, " ");
+}
 
-const num = (v, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
+function num(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
 
 function getDisplayName(entry, fallbackCode = "") {
   return (
@@ -55,12 +61,28 @@ function normalizeTradeAliasCode(value) {
 
   const aliases = {
     craid: "common_raid_ticket",
+    commonraid: "common_raid_ticket",
+    common_raid: "common_raid_ticket",
 
     raid: "raid_ticket",
+    raidticket: "raid_ticket",
+    raid_ticket: "raid_ticket",
 
     graid: "gold_raid_ticket",
+    goldraid: "gold_raid_ticket",
+    gold_raid: "gold_raid_ticket",
 
     throne: "empty_throne_raid_writ",
+    emptythrone: "empty_throne_raid_writ",
+    empty_throne: "empty_throne_raid_writ",
+
+    cola: "cola_engine_part",
+    engine: "cola_engine_part",
+    cola_engine: "cola_engine_part",
+    engine_part: "cola_engine_part",
+
+    sniper: "sniper",
+    sniper_king: "sniper",
   };
 
   return aliases[code] || code;
@@ -70,12 +92,12 @@ function isBlockedTradeItemCode(code) {
   return normalizeTradeAliasCode(code) === "empty_throne_raid_writ";
 }
 
-function fmtEntry(e) {
-  if (e.type === "berries") {
-    return `${e.amount.toLocaleString("en-US")} berries`;
+function fmtEntry(entry) {
+  if (entry.type === "berries") {
+    return `${entry.amount.toLocaleString("en-US")} berries`;
   }
 
-  return `${e.raw || e.code}_${e.amount}`;
+  return `${entry.raw || entry.code}_${entry.amount}`;
 }
 
 function fmtResolvedEntry(entry) {
@@ -83,23 +105,19 @@ function fmtResolvedEntry(entry) {
     return `${entry.amount.toLocaleString("en-US")} berries`;
   }
 
-  if (entry.kind === "cards") {
-    return `${entry.displayName || entry.code} x${entry.amount}`;
-  }
-
   return `${entry.displayName || entry.code} x${entry.amount}`;
 }
 
 function parseOfferBlock(raw) {
   const text = String(raw || "").trim();
+
   if (!text) return [];
 
   const parts = text
     .split(",")
-    .map((x) => x.trim())
+    .map((entry) => entry.trim())
     .filter(Boolean);
 
-  if (!parts.length) return [];
   if (parts.length > MAX_ITEMS) {
     throw new Error(`Max ${MAX_ITEMS} different entries per side.`);
   }
@@ -114,34 +132,38 @@ function parseOfferBlock(raw) {
       };
     }
 
-    const m = part.match(/^(.+?)_(\d+)$/);
+    const match = part.match(/^(.+?)_(\d+)$/);
 
-    if (!m) {
+    if (!match) {
       throw new Error(`Invalid trade entry: ${part}`);
     }
 
-  const rawCode = m[1].trim();
-  const normalizedCode = normalizeTradeAliasCode(rawCode);
+    const rawCode = match[1].trim();
+    const amount = num(match[2]);
 
-  return {
-    type: "asset",
-    code: normalizedCode,
-    raw: rawCode,
-    amount: num(m[2]),
-  };
+    if (!amount || amount <= 0) {
+      throw new Error(`Invalid amount in trade entry: ${part}`);
+    }
+
+    return {
+      type: "asset",
+      code: normalizeTradeAliasCode(rawCode),
+      raw: rawCode,
+      amount,
+    };
   });
 }
 
 function parseTradeContent(content) {
-  const m = String(content).match(/<@!?\d+>\s*\(([^)]*)\)\s*\(([^)]*)\)/);
+  const match = String(content).match(/<@!?\d+>\s*\(([^)]*)\)\s*\(([^)]*)\)/);
 
-  if (!m) {
+  if (!match) {
     throw new Error("Format: `op trade @mention (your offer) (their offer)`");
   }
 
   return {
-    ownerOffer: parseOfferBlock(m[1]),
-    targetOffer: parseOfferBlock(m[2]),
+    ownerOffer: parseOfferBlock(match[1]),
+    targetOffer: parseOfferBlock(match[2]),
   };
 }
 
@@ -156,6 +178,8 @@ function isCardTradable(card, teamIds) {
   if (teamIds.has(card.instanceId)) return false;
   if (card.slot_locked) return false;
   if (card.equippedWeapon || card.equippedDevilFruit) return false;
+  if (Array.isArray(card.equippedWeapons) && card.equippedWeapons.length > 0) return false;
+
   return true;
 }
 
@@ -166,7 +190,7 @@ function scoreQuery(query, fields) {
   if (!q && !qs) return 0;
 
   let best = 0;
-  const qWords = q.split(" ").filter(Boolean);
+  const words = q.split(" ").filter(Boolean);
 
   for (const rawField of fields.filter(Boolean)) {
     const field = normalize(rawField);
@@ -189,8 +213,8 @@ function scoreQuery(query, fields) {
       continue;
     }
 
-    if (qWords.length && qWords.every((word) => field.includes(word))) {
-      best = Math.max(best, 400 + qWords.join("").length);
+    if (words.length && words.every((word) => field.includes(word))) {
+      best = Math.max(best, 400 + words.join("").length);
     }
   }
 
@@ -205,6 +229,9 @@ function getEntryFields(entry) {
     entry?.title,
     entry?.type,
     entry?.rarity,
+    entry?.weaponCode,
+    entry?.cardCode,
+    entry?.sourceCode,
   ];
 }
 
@@ -218,31 +245,8 @@ function findStackMatches(list, query) {
     .filter((hit) => hit.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return String(getDisplayName(a.entry)).localeCompare(
-        String(getDisplayName(b.entry))
-      );
+      return String(getDisplayName(a.entry)).localeCompare(String(getDisplayName(b.entry)));
     });
-}
-
-function findBestStackEntry(list, query) {
-  const matches = findStackMatches(list, query);
-  return matches[0] || null;
-}
-
-function findStackIndex(list, codeOrQuery) {
-  const hit = findBestStackEntry(list, codeOrQuery);
-  return hit ? hit.index : -1;
-}
-
-function findStackEntry(list, codeOrQuery) {
-  const hit = findBestStackEntry(list, codeOrQuery);
-  if (!hit) return null;
-
-  return {
-    index: hit.index,
-    entry: hit.entry,
-    score: hit.score,
-  };
 }
 
 function getMatchingStackEntries(list, codeOrQuery) {
@@ -250,7 +254,11 @@ function getMatchingStackEntries(list, codeOrQuery) {
   const normalizedCode = normalizeTradeAliasCode(codeOrQuery);
 
   const exactMatches = arr
-    .map((entry, index) => ({ entry, index, score: 2000 }))
+    .map((entry, index) => ({
+      entry,
+      index,
+      score: 3000,
+    }))
     .filter(({ entry }) => {
       return normalizeTradeAliasCode(entry?.code || "") === normalizedCode;
     });
@@ -273,12 +281,10 @@ function getStackTotal(list, codeOrQuery) {
 
 function findExactStackIndexByCode(list, code) {
   const target = normalizeTradeAliasCode(code);
-
   if (!target) return -1;
 
   return (Array.isArray(list) ? list : []).findIndex(
-    (entry) =>
-      normalizeTradeAliasCode(entry?.code || "") === target
+    (entry) => normalizeTradeAliasCode(entry?.code || "") === target
   );
 }
 
@@ -290,17 +296,7 @@ function findExactStackEntryByCode(list, code) {
   return {
     index,
     entry: list[index],
-  };
-}
-
-function findExactStackEntryByCode(list, code) {
-  const index = findExactStackIndexByCode(list, code);
-
-  if (index < 0) return null;
-
-  return {
-    index,
-    entry: list[index],
+    score: 3000,
   };
 }
 
@@ -319,34 +315,15 @@ function getTradableCardMatches(player, query) {
         card?.name,
         card?.variant,
         card?.title,
+        card?.instanceId,
       ]),
     }))
     .filter((hit) => hit.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return String(getDisplayName(a.card)).localeCompare(
-        String(getDisplayName(b.card))
-      );
+      return String(getDisplayName(a.card)).localeCompare(String(getDisplayName(b.card)));
     })
     .map((hit) => hit.card);
-}
-
-function isBlockedTradeItemCode(code) {
-  const normalized = String(code || "").toLowerCase().trim();
-
-  // Empty Throne Raid Writ must not be tradeable.
-  return normalized === "empty_throne_raid_writ";
-}
-
-function isRaidTicketCode(code) {
-  const normalized = String(code || "").toLowerCase().trim();
-
-  return [
-    "common_raid_ticket",
-    "raid_ticket",
-    "gold_raid_ticket",
-    "empty_throne_raid_writ",
-  ].includes(normalized);
 }
 
 function resolveTicketEntry(player, query) {
@@ -354,16 +331,14 @@ function resolveTicketEntry(player, query) {
 
   const hit =
     findExactStackEntryByCode(player.tickets, normalizedQuery) ||
-    findStackEntry(player.tickets, normalizedQuery);
+    getMatchingStackEntries(player.tickets, normalizedQuery)[0];
 
   if (!hit) return null;
 
   const code = normalizeTradeAliasCode(hit.entry?.code || normalizedQuery);
 
   if (isBlockedTradeItemCode(code)) {
-    throw new Error(
-      `Ticket item \`${getDisplayName(hit.entry, query)}\` is untradeable.`
-    );
+    throw new Error(`Ticket item \`${getDisplayName(hit.entry, query)}\` is untradeable.`);
   }
 
   return {
@@ -394,12 +369,10 @@ function resolveEntry(player, entry) {
   const ticketEntry = resolveTicketEntry(player, entry.code || entry.raw);
 
   if (ticketEntry) {
-    const have = num(ticketEntry.sourceEntry?.amount, 1);
+    const totalHave = getStackTotal(player.tickets, entry.code || entry.raw);
 
-    if (have < entry.amount) {
-      throw new Error(
-        `${player.username} lacks ${ticketEntry.displayName} x${entry.amount}.`
-      );
+    if (totalHave < entry.amount) {
+      throw new Error(`${player.username} lacks ${ticketEntry.displayName} x${entry.amount}.`);
     }
 
     return {
@@ -409,7 +382,7 @@ function resolveEntry(player, entry) {
   }
 
   const stores = ["weapons", "devilFruits", "materials", "items", "boxes", "fragments"];
-  let bestInsufficient = null;
+  let insufficient = null;
 
   for (const store of stores) {
     const hits = getMatchingStackEntries(player[store], entry.raw || entry.code);
@@ -421,13 +394,10 @@ function resolveEntry(player, entry) {
     const displayName = getDisplayName(displayEntry, entry.code);
 
     if (totalHave < entry.amount) {
-      if (!bestInsufficient) {
-        bestInsufficient = {
-          displayName,
-          have: totalHave,
-        };
-      }
-
+      insufficient = {
+        displayName,
+        have: totalHave,
+      };
       continue;
     }
 
@@ -436,6 +406,7 @@ function resolveEntry(player, entry) {
       store,
       amount: entry.amount,
       code: displayEntry?.code || entry.code,
+      query: entry.raw || entry.code,
       displayName,
       sourceEntry: displayEntry,
       storeLabel: STORE_LABELS[store] || store,
@@ -457,15 +428,11 @@ function resolveEntry(player, entry) {
     };
   }
 
-  if (bestInsufficient) {
-    throw new Error(
-      `${player.username} lacks ${bestInsufficient.displayName} x${entry.amount}.`
-    );
+  if (insufficient) {
+    throw new Error(`${player.username} lacks ${insufficient.displayName} x${entry.amount}.`);
   }
 
-  throw new Error(
-    `${player.username} does not own tradable ${entry.raw || entry.code}_${entry.amount}.`
-  );
+  throw new Error(`${player.username} does not own tradable ${entry.raw || entry.code}_${entry.amount}.`);
 }
 
 function resolveOffer(player, offer) {
@@ -481,9 +448,7 @@ function removeStack(list, codeOrQuery, amount) {
     return a.index - b.index;
   });
 
-  const totalHave = hits.reduce((total, hit) => {
-    return total + getStackAmount(hit.entry);
-  }, 0);
+  const totalHave = hits.reduce((total, hit) => total + getStackAmount(hit.entry), 0);
 
   if (totalHave < remaining) {
     throw new Error(`Not enough ${getDisplayName(hits[0]?.entry, codeOrQuery)}.`);
@@ -493,7 +458,6 @@ function removeStack(list, codeOrQuery, amount) {
     if (remaining <= 0) break;
 
     const currentIndex = arr.findIndex((entry) => entry === hit.entry);
-
     if (currentIndex === -1) continue;
 
     const currentAmount = getStackAmount(arr[currentIndex]);
@@ -534,6 +498,8 @@ function addStack(list, incoming, amount) {
 
   arr[exactIndex] = {
     ...arr[exactIndex],
+    ...incoming,
+    code,
     amount: num(arr[exactIndex]?.amount, 1) + amount,
   };
 
@@ -573,26 +539,23 @@ function applyResolvedTrade(from, to, resolved) {
     }
 
     if (entry.kind === "stack") {
+      const query = entry.query || entry.code;
+
       const sourceHit =
         findExactStackEntryByCode(fromNext[entry.store], entry.code) ||
-        findStackEntry(fromNext[entry.store], entry.code);
+        getMatchingStackEntries(fromNext[entry.store], query)[0];
 
       if (!sourceHit) {
         throw new Error(`Missing ${entry.displayName || entry.code} during trade apply.`);
       }
 
-      fromNext[entry.store] = removeStack(
-        fromNext[entry.store],
-        sourceHit.entry.code || entry.code,
-        entry.amount
-      );
+      const transferPayload = {
+        ...sourceHit.entry,
+        amount: entry.amount,
+      };
 
-      toNext[entry.store] = addStack(
-        toNext[entry.store],
-        sourceHit.entry,
-        entry.amount
-      );
-
+      fromNext[entry.store] = removeStack(fromNext[entry.store], query, entry.amount);
+      toNext[entry.store] = addStack(toNext[entry.store], transferPayload, entry.amount);
       continue;
     }
 
@@ -634,7 +597,7 @@ function tradeEmbed(owner, target, ownerOffer, targetOffer, status = "pending", 
 
   return new EmbedBuilder()
     .setColor(color)
-    .setTitle("🤝 Trade Session")
+    .setTitle("Trade Session")
     .setDescription(
       [
         `**${owner.username}** ↔ **${target.username}**`,
@@ -645,8 +608,8 @@ function tradeEmbed(owner, target, ownerOffer, targetOffer, status = "pending", 
         status === "pending"
           ? "Both players must confirm."
           : status === "done"
-            ? "Trade completed successfully."
-            : "Trade cancelled.",
+          ? "Trade completed successfully."
+          : "Trade cancelled.",
       ].join("\n")
     );
 }
@@ -658,24 +621,42 @@ module.exports = {
     const targetUser = message.mentions.users.first();
 
     if (!targetUser) {
-      return message.reply("Usage: `op trade @mention (your offer) (their offer)`");
+      return message.reply({
+        content: "Usage: `op trade @mention (your offer) (their offer)`",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
-    if (targetUser.bot) return message.reply("You cannot trade with a bot.");
+    if (targetUser.bot) {
+      return message.reply({
+        content: "You cannot trade with a bot.",
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
     if (targetUser.id === message.author.id) {
-      return message.reply("You cannot trade with yourself.");
+      return message.reply({
+        content: "You cannot trade with yourself.",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     let parsed;
 
     try {
       parsed = parseTradeContent(message.content);
-    } catch (err) {
-      return message.reply(err.message);
+    } catch (error) {
+      return message.reply({
+        content: error.message,
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     if (!parsed.ownerOffer.length && !parsed.targetOffer.length) {
-      return message.reply("Trade cannot be empty.");
+      return message.reply({
+        content: "Trade cannot be empty.",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     const owner = getPlayer(message.author.id, message.author.username);
@@ -688,8 +669,11 @@ module.exports = {
         ownerResolved: resolveOffer(owner, parsed.ownerOffer),
         targetResolved: resolveOffer(target, parsed.targetOffer),
       };
-    } catch (err) {
-      return message.reply(`Trade validation failed: ${err.message}`);
+    } catch (error) {
+      return message.reply({
+        content: `Trade validation failed: ${error.message}`,
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     const state = {
@@ -701,11 +685,11 @@ module.exports = {
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("trade_owner_confirm")
-        .setLabel(`${message.author.username} Confirm`)
+        .setLabel(`${message.author.username} Confirm`.slice(0, 80))
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
         .setCustomId("trade_target_confirm")
-        .setLabel(`${targetUser.username} Confirm`)
+        .setLabel(`${targetUser.username} Confirm`.slice(0, 80))
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId("trade_cancel")
@@ -725,31 +709,32 @@ module.exports = {
         ),
       ],
       components: [row],
+      allowedMentions: { repliedUser: false },
     });
 
     const collector = sent.createMessageComponentCollector({
       time: SESSION_MS,
     });
 
-    collector.on("collect", async (i) => {
-      if (![message.author.id, targetUser.id].includes(i.user.id)) {
-        return i.reply({
+    collector.on("collect", async (interaction) => {
+      if (![message.author.id, targetUser.id].includes(interaction.user.id)) {
+        return interaction.reply({
           content: "Only the two trade players can use these buttons.",
           ephemeral: true,
         });
       }
 
       if (state.done) {
-        return i.reply({
+        return interaction.reply({
           content: "This trade session is already closed.",
           ephemeral: true,
         });
       }
 
-      if (i.customId === "trade_cancel") {
+      if (interaction.customId === "trade_cancel") {
         state.done = true;
 
-        await i.update({
+        await interaction.update({
           embeds: [
             tradeEmbed(
               owner,
@@ -767,9 +752,9 @@ module.exports = {
         return;
       }
 
-      if (i.customId === "trade_owner_confirm") {
-        if (i.user.id !== message.author.id) {
-          return i.reply({
+      if (interaction.customId === "trade_owner_confirm") {
+        if (interaction.user.id !== message.author.id) {
+          return interaction.reply({
             content: "Only the trade owner can press this button.",
             ephemeral: true,
           });
@@ -778,9 +763,9 @@ module.exports = {
         state.ownerConfirmed = true;
       }
 
-      if (i.customId === "trade_target_confirm") {
-        if (i.user.id !== targetUser.id) {
-          return i.reply({
+      if (interaction.customId === "trade_target_confirm") {
+        if (interaction.user.id !== targetUser.id) {
+          return interaction.reply({
             content: "Only the mentioned player can press this button.",
             ephemeral: true,
           });
@@ -799,7 +784,7 @@ module.exports = {
             : `⌛ ${targetUser.username} waiting`,
         ].join("\n");
 
-        return i.update({
+        return interaction.update({
           embeds: [
             tradeEmbed(
               owner,
@@ -808,13 +793,13 @@ module.exports = {
               parsed.targetOffer,
               "pending",
               initialResolved
-            ).setFooter({
-              text: pendingText,
-            }),
+            ).setFooter({ text: pendingText }),
           ],
           components: [row],
         });
       }
+
+      await interaction.deferUpdate().catch(() => null);
 
       try {
         let freshOwner = null;
@@ -846,7 +831,7 @@ module.exports = {
 
         state.done = true;
 
-        await i.update({
+        await sent.edit({
           embeds: [
             tradeEmbed(
               freshOwner,
@@ -864,10 +849,10 @@ module.exports = {
         });
 
         collector.stop("done");
-      } catch (err) {
+      } catch (error) {
         state.done = true;
 
-        await i.update({
+        await sent.edit({
           embeds: [
             tradeEmbed(
               owner,
@@ -877,7 +862,7 @@ module.exports = {
               "cancelled",
               initialResolved
             ).setFooter({
-              text: `Failed: ${err.message}`,
+              text: `Failed: ${error.message}`,
             }),
           ],
           components: [],
@@ -887,7 +872,7 @@ module.exports = {
       }
     });
 
-    collector.on("end", async (_, reason) => {
+    collector.on("end", async (_collected, reason) => {
       if (state.done) return;
 
       try {
@@ -906,7 +891,7 @@ module.exports = {
           ],
           components: [],
         });
-      } catch (_) {}
+      } catch {}
     });
   },
 };
