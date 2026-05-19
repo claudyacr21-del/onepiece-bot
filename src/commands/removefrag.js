@@ -17,7 +17,7 @@ function isAdmin(userId) {
   return getAdminIds().includes(String(userId));
 }
 
-function parseUserId(value) {
+function stripMention(value) {
   return String(value || "").replace(/[<@!>]/g, "").trim();
 }
 
@@ -27,54 +27,229 @@ function normalize(value) {
     .trim()
     .replace(/[<@!>]/g, "")
     .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
+    .replace(/[^a-z0-9\s.]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function findFragmentIndex(fragments, query) {
+function normalizeCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[<@!>]/g, "")
+    .replace(/[^a-z0-9\s._-]+/g, "")
+    .replace(/[\s-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function normalizeCompact(value) {
+  return normalize(value).replace(/[\s._-]+/g, "");
+}
+
+function isUserId(value) {
+  return /^\d{15,25}$/.test(stripMention(value));
+}
+
+function isMention(value) {
+  return /^<@!?\d{15,25}>$/.test(String(value || "").trim());
+}
+
+function getTargetAmountAndQuery(message, args = []) {
+  const parts = [...args].map((arg) => String(arg || "").trim()).filter(Boolean);
+  const mentionedUser = message.mentions?.users?.first() || null;
+
+  let userId = mentionedUser?.id || null;
+  let removedTarget = false;
+  let amount = 0;
+  let removedAmount = false;
+  const queryParts = [];
+
+  for (const part of parts) {
+    const cleaned = stripMention(part);
+
+    if (!removedTarget && userId && (isMention(part) || cleaned === userId)) {
+      removedTarget = true;
+      continue;
+    }
+
+    if (!removedTarget && !userId && isUserId(part)) {
+      userId = cleaned;
+      removedTarget = true;
+      continue;
+    }
+
+    if (!removedAmount && /^\d+$/.test(cleaned)) {
+      amount = Math.floor(Number(cleaned));
+      removedAmount = true;
+      continue;
+    }
+
+    queryParts.push(part);
+  }
+
+  return {
+    userId,
+    username: mentionedUser?.username || `User ${userId || "Unknown"}`,
+    amount,
+    query: queryParts.join(" ").trim(),
+  };
+}
+
+function getFragmentLabel(fragment) {
+  return fragment?.name || fragment?.displayName || fragment?.code || "Unknown Fragment";
+}
+
+function getFragmentFields(fragment) {
+  return [
+    fragment?.code,
+    fragment?.name,
+    fragment?.displayName,
+    fragment?.id,
+    fragment?.key,
+    fragment?.cardCode,
+    fragment?.baseCode,
+    fragment?.characterCode,
+  ].filter(Boolean);
+}
+
+function scoreFragment(fragment, query) {
   const q = normalize(query);
-  const list = Array.isArray(fragments) ? fragments : [];
+  const qc = normalizeCode(query);
+  const qCompact = normalizeCompact(query);
 
-  let index = list.findIndex((frag) => {
-    return normalize(frag.code) === q || normalize(frag.name) === q;
-  });
+  if (!q && !qc && !qCompact) return 0;
 
-  if (index !== -1) return index;
+  let best = 0;
 
-  index = list.findIndex((frag) => {
-    return normalize(frag.code).startsWith(q) || normalize(frag.name).startsWith(q);
-  });
+  for (const field of getFragmentFields(fragment)) {
+    const f = normalize(field);
+    const fc = normalizeCode(field);
+    const fCompact = normalizeCompact(field);
 
-  if (index !== -1) return index;
+    if (fc === qc || fCompact === qCompact) {
+      best = Math.max(best, 3000);
+      continue;
+    }
 
-  return list.findIndex((frag) => {
-    return normalize(frag.code).includes(q) || normalize(frag.name).includes(q);
-  });
+    if (f === q) {
+      best = Math.max(best, 2500);
+      continue;
+    }
+
+    if (fc.startsWith(qc) || fCompact.startsWith(qCompact)) {
+      best = Math.max(best, 1800 + qCompact.length);
+      continue;
+    }
+
+    if (f.startsWith(q)) {
+      best = Math.max(best, 1500 + q.length);
+      continue;
+    }
+
+    if (fc.includes(qc) || fCompact.includes(qCompact)) {
+      best = Math.max(best, 900 + qCompact.length);
+      continue;
+    }
+
+    if (f.includes(q)) {
+      best = Math.max(best, 700 + q.length);
+      continue;
+    }
+
+    const words = q.split(" ").filter(Boolean);
+    if (words.length && words.every((word) => f.includes(word))) {
+      best = Math.max(best, 500 + words.join("").length);
+    }
+  }
+
+  return best;
+}
+
+function findFragmentMatch(fragments, query) {
+  const scored = (Array.isArray(fragments) ? fragments : [])
+    .map((fragment, index) => ({
+      fragment,
+      index,
+      score: scoreFragment(fragment, query),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return normalize(getFragmentLabel(a.fragment)).length - normalize(getFragmentLabel(b.fragment)).length;
+    });
+
+  if (!scored.length) {
+    return {
+      status: "not_found",
+      index: -1,
+      fragment: null,
+      matches: [],
+    };
+  }
+
+  const topScore = scored[0].score;
+  const topMatches = scored.filter((entry) => entry.score === topScore);
+
+  if (topMatches.length > 1) {
+    return {
+      status: "multiple",
+      index: -1,
+      fragment: null,
+      matches: topMatches,
+    };
+  }
+
+  return {
+    status: "found",
+    index: scored[0].index,
+    fragment: scored[0].fragment,
+    matches: scored,
+  };
+}
+
+function formatFragmentLine(fragment, index) {
+  return `${index + 1}. **${getFragmentLabel(fragment)}** • code: \`${fragment.code || "none"}\` • amount: \`${Number(fragment.amount || 0)}\``;
 }
 
 module.exports = {
   name: "removefrag",
   aliases: ["rfrag"],
 
-  async execute(message, args) {
+  async execute(message, args = []) {
     if (!isAdmin(message.author.id)) {
-      return message.reply("Owner only command.");
+      return message.reply({
+        content: "Owner only command.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
-    const userId = parseUserId(args.shift());
-    const amountRaw = args.shift();
-    const amount = Math.floor(Number(amountRaw || 0));
-    const query = args.join(" ").trim();
+    const { userId, username, amount, query } = getTargetAmountAndQuery(message, args);
 
     if (!userId || !amount || amount <= 0 || !query) {
-      return message.reply(
-        "Usage: `op removefrag <userId/@user> <amount> <fragment/card/weapon>`"
-      );
+      return message.reply({
+        content: [
+          "Usage:",
+          "`op removefrag <@user/userId> <amount> <fragment name/code>`",
+          "",
+          "Examples:",
+          "`op removefrag @user 5 luffy`",
+          "`op removefrag 697763966650417193 5 luffy_straw_hat`",
+          "`op removefrag 697763966650417193 10 Monkey D. Luffy`",
+        ].join("\n"),
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     let target = null;
     let removedAmount = 0;
     let remaining = 0;
-    let notFound = false;
+    let resultStatus = "not_found";
+    let ambiguousMatches = [];
     let sample = [];
 
     updatePlayerAtomic(
@@ -84,25 +259,29 @@ module.exports = {
           ? fresh.fragments.map((frag) => ({ ...frag }))
           : [];
 
-        const index = findFragmentIndex(fragments, query);
+        const result = findFragmentMatch(fragments, query);
+        resultStatus = result.status;
 
-        if (index === -1) {
-          notFound = true;
-          sample = fragments
-            .map((frag) => `\`${frag.name || frag.code}\` x${Number(frag.amount || 0)}`)
-            .slice(0, 10);
+        if (result.status === "multiple") {
+          ambiguousMatches = result.matches;
           return fresh;
         }
 
-        target = fragments[index];
+        if (result.status === "not_found" || result.index === -1) {
+          sample = fragments.slice(0, 15);
+          return fresh;
+        }
+
+        target = fragments[result.index];
         const current = Number(target.amount || 0);
+
         removedAmount = Math.min(current, amount);
         remaining = current - removedAmount;
 
         if (remaining <= 0) {
-          fragments.splice(index, 1);
+          fragments.splice(result.index, 1);
         } else {
-          fragments[index] = {
+          fragments[result.index] = {
             ...target,
             amount: remaining,
           };
@@ -113,33 +292,63 @@ module.exports = {
           fragments,
         };
       },
-      message.mentions.users.first()?.username || "Unknown"
+      username
     );
 
-    if (notFound) {
-      return message.reply(
-        [
-          `Fragment matching \`${query}\` was not found for \`${userId}\`.`,
-          sample.length ? `Fragment sample:\n${sample.join("\n")}` : "This user has no fragments.",
-        ].join("\n")
-      );
+    if (resultStatus === "multiple") {
+      return message.reply({
+        content: [
+          "Multiple fragments matched that query. Use exact code.",
+          "",
+          ...ambiguousMatches.slice(0, 10).map((entry, index) =>
+            formatFragmentLine(entry.fragment, index)
+          ),
+        ].join("\n"),
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
+    if (!target) {
+      return message.reply({
+        content: [
+          `Fragment matching \`${query}\` was not found for \`${userId}\`.`,
+          "",
+          sample.length ? "**Fragment Sample:**" : "This user has no fragments.",
+          ...sample.map((fragment, index) => formatFragmentLine(fragment, index)),
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xe74c3c)
+      .setTitle("✅ Fragment Removed")
+      .setDescription(
+        [
+          `**Target:** <@${userId}>`,
+          `**User ID:** \`${userId}\``,
+          `**Fragment:** ${getFragmentLabel(target)}`,
+          `**Code:** \`${target.code || "none"}\``,
+          `**Removed:** ${removedAmount}`,
+          `**Remaining:** ${Math.max(0, remaining)}`,
+        ].join("\n")
+      )
+      .setFooter({
+        text: "One Piece Bot • Admin Remove Fragment",
+      });
+
     return message.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(0xe74c3c)
-          .setTitle("Fragment Removed")
-          .setDescription(
-            [
-              `**User:** ${userId}`,
-              `**Fragment:** ${target.name || target.code}`,
-              `**Removed:** ${removedAmount}`,
-              `**Remaining:** ${Math.max(0, remaining)}`,
-            ].join("\n")
-          )
-          .setFooter({ text: "One Piece Bot • Admin Remove Fragment" }),
-      ],
+      embeds: [embed],
+      allowedMentions: {
+        users: [String(userId)],
+        repliedUser: false,
+      },
     });
   },
 };
