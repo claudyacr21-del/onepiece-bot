@@ -1,454 +1,523 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
-const { createOwnedCard } = require("../utils/evolution");
-const rawCards = require("../data/cards");
 const weaponsDb = require("../data/weapons");
-const { getWeaponImage, getRarityBadge } = require("../config/assetLinks");
+const { hydrateCard } = require("../utils/evolution");
+const { getRarityBadge, getWeaponImage } = require("../config/assetLinks");
 
-const SUMMON_FRAGMENT_COST = 15;
-const SUMMONABLE_CARD_ROLES = new Set(["battle", "boost"]);
+function flattenDb(db) {
+  if (Array.isArray(db)) return db;
 
-function normalize(value) {
-  return String(value || "")
+  if (db && typeof db === "object") {
+    return Object.values(db).flatMap((entry) => {
+      if (Array.isArray(entry)) return entry;
+      if (entry && typeof entry === "object") return [entry];
+      return [];
+    });
+  }
+
+  return [];
+}
+
+const weapons = flattenDb(weaponsDb);
+
+const normalize = (s = "") =>
+  String(s)
     .toLowerCase()
     .trim()
     .replace(/[_-]+/g, " ")
     .replace(/[^a-z0-9\s]+/g, "")
     .replace(/\s+/g, " ");
-}
-
-function getCardName(card) {
-  return card.displayName || card.name || "Unknown Card";
-}
-
-function getCardRole(card) {
-  return String(card?.cardRole || "battle").toLowerCase();
-}
-
-function isSummonableCard(card) {
-  return SUMMONABLE_CARD_ROLES.has(getCardRole(card));
-}
 
 function scoreNameOnly(query, names) {
   const q = normalize(query);
   if (!q) return 0;
 
   let best = 0;
+  const qWords = q.split(" ").filter(Boolean);
 
   for (const raw of names.filter(Boolean)) {
-    const name = normalize(raw);
-    if (!name) continue;
+    const n = normalize(raw);
+    if (!n) continue;
 
-    if (name === q) best = Math.max(best, 1000 + name.length);
-    else if (name.startsWith(q)) best = Math.max(best, 750 + q.length);
-    else if (name.includes(q)) best = Math.max(best, 500 + q.length);
-    else {
-      const words = q.split(" ").filter(Boolean);
-
-      if (words.length && words.every((word) => name.includes(word))) {
-        best = Math.max(best, 300 + words.join("").length);
-      }
+    if (n === q) best = Math.max(best, 1000 + n.length);
+    else if (n.startsWith(q)) best = Math.max(best, 800 + q.length);
+    else if (n.includes(q)) best = Math.max(best, 650 + q.length);
+    else if (qWords.length && qWords.every((word) => n.includes(word))) {
+      best = Math.max(best, 500 + qWords.join("").length);
     }
   }
 
   return best;
 }
 
-function findSummonableCard(query) {
-  const scored = rawCards
-    .filter(isSummonableCard)
-    .map((card) => ({
-      card,
-      score: scoreNameOnly(query, [card.displayName, card.name, card.code]),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
-
-  return scored.length ? scored[0].card : null;
-}
-
-function findWeaponByNameOnly(query) {
-  const scored = weaponsDb
+function findBestWeaponMatch(query) {
+  const scored = weapons
     .map((weapon) => ({
       weapon,
-      score: scoreNameOnly(query, [weapon.name, weapon.code]),
+      score: scoreNameOnly(query, [
+        weapon.name,
+        weapon.code,
+        weapon.type,
+        ...(Array.isArray(weapon.aliases) ? weapon.aliases : []),
+      ]),
     }))
     .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return normalize(a.weapon.name).length - normalize(b.weapon.name).length;
+    });
 
   return scored.length ? scored[0].weapon : null;
 }
 
-function findCardFragmentIndex(fragments, card) {
-  const cardCode = normalize(card.code);
-  const cardName = normalize(getCardName(card));
+function getCardSearchNames(card) {
+  const hydrated = hydrateCard(card);
 
-  return fragments.findIndex((frag) => {
-    const fragCode = normalize(frag.code);
-    const fragName = normalize(frag.name || frag.displayName);
-
-    return (
-      fragCode === cardCode ||
-      fragName === cardName ||
-      fragName === `${cardName} fragment` ||
-      fragName.includes(cardName) ||
-      cardName.includes(fragName)
-    );
-  });
+  return [
+    hydrated.displayName,
+    hydrated.name,
+    hydrated.code,
+    hydrated.title,
+    hydrated.variant,
+    hydrated.instanceId,
+  ]
+    .map(normalize)
+    .filter(Boolean);
 }
 
-function getWeaponFragmentCode(weapon) {
-  return `weapon_fragment_${String(weapon.code || "").toLowerCase()}`;
-}
+function findOwnedCardByName(cardsOwned, query) {
+  const q = normalize(query);
+  const cards = Array.isArray(cardsOwned) ? cardsOwned : [];
+  let best = null;
 
-function findWeaponFragmentIndex(fragments, weapon) {
-  const fragmentCode = normalize(getWeaponFragmentCode(weapon));
-  const weaponCode = normalize(weapon.code);
-  const weaponName = normalize(weapon.name);
-  const fragmentName = normalize(`${weapon.name} Fragment`);
+  for (const raw of cards) {
+    const hydrated = hydrateCard(raw);
 
-  return fragments.findIndex((frag) => {
-    const fragCode = normalize(frag.code);
-    const fragName = normalize(frag.name || frag.displayName);
-    const fragWeaponCode = normalize(frag.weaponCode);
+    if (String(hydrated.cardRole || "").toLowerCase() === "boost") continue;
 
-    return (
-      fragCode === fragmentCode ||
-      fragWeaponCode === weaponCode ||
-      fragName === fragmentName ||
-      fragName === weaponName
-    );
-  });
-}
+    const names = getCardSearchNames(hydrated);
+    const score = scoreNameOnly(q, names);
 
-function consumeFragments(fragments, index, amount) {
-  const arr = Array.isArray(fragments) ? [...fragments] : [];
-  const owned = Number(arr[index]?.amount || 0);
-
-  if (index < 0 || owned < amount) return null;
-
-  const remaining = owned - amount;
-
-  if (remaining <= 0) {
-    arr.splice(index, 1);
-  } else {
-    arr[index] = {
-      ...arr[index],
-      amount: remaining,
-    };
+    if (score && (!best || score > best.score)) {
+      best = {
+        score,
+        card: hydrated,
+      };
+    }
   }
 
-  return {
-    fragments: arr,
-    remaining,
-  };
+  return best?.card || null;
 }
 
-function alreadyOwnsCard(player, card) {
-  const code = normalize(card.code);
-
-  return (Array.isArray(player.cards) ? player.cards : []).some(
-    (owned) => normalize(owned.code) === code
-  );
+function formatAtkRange(atk) {
+  const value = Number(atk || 0);
+  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
-function isImuCard(card) {
-  const code = normalize(card?.code);
-  const name = normalize(getCardName(card));
+function getWeaponSlotLimit(card) {
+  const code = String(card?.code || "").toLowerCase();
 
-  return code === "imu" || name === "imu";
+  if (code === "zoro_pirate_hunter" || code.includes("zoro")) return 3;
+  if (code === "oden" || code.includes("oden")) return 2;
+
+  return 1;
 }
 
-function hasLuffyM3(player) {
-  const cards = Array.isArray(player?.cards) ? player.cards : [];
+function splitCardAndWeaponInput(rawArgs) {
+  if (!rawArgs.length) return null;
 
-  return cards.some((owned) => {
-    const code = normalize(owned?.code);
-    const name = normalize(owned?.displayName || owned?.name);
-    const stage = Number(owned?.evolutionStage || 1);
-    const key = String(owned?.evolutionKey || "").toUpperCase();
+  const parts = rawArgs.map((x) => String(x || "").trim()).filter(Boolean);
 
-    const isLuffy =
-      code.includes("luffy") ||
-      name.includes("luffy") ||
-      name.includes("monkey d luffy");
-    const isM3 = stage >= 3 || key === "M3";
+  for (let i = 1; i < parts.length; i++) {
+    const cardName = parts.slice(0, i).join(" ").trim();
+    const weaponQuery = parts.slice(i).join(" ").trim();
 
-    return isLuffy && isM3;
-  });
-}
+    if (!cardName || !weaponQuery) continue;
 
-function getSpecialSummonRequirementError(player, card) {
-  if (isImuCard(card) && !hasLuffyM3(player)) {
-    return [
-      `You cannot summon **${getCardName(card)}** yet.`,
-      "",
-      "**Special Requirement:**",
-      "You must own **Monkey D. Luffy Mastery 3** first.",
-    ].join("\n");
+    const weapon = findBestWeaponMatch(weaponQuery);
+    if (!weapon) continue;
+
+    return {
+      cardName,
+      weaponName: weapon.name,
+      weaponQuery,
+    };
   }
 
   return null;
 }
 
-function alreadyOwnsWeapon(player, weapon) {
-  const code = normalize(weapon.code);
+function findOwnedWeaponEntry(ownedWeapons, weaponCode) {
+  const q = normalize(weaponCode);
 
-  return (Array.isArray(player.weapons) ? player.weapons : []).some(
-    (owned) => normalize(owned.code) === code
+  return (
+    (Array.isArray(ownedWeapons) ? ownedWeapons : [])
+      .filter(
+        (x) =>
+          normalize(x.code || x.name) === q &&
+          Number(x.amount || 0) > 0
+      )
+      .sort(
+        (a, b) =>
+          Number(b.upgradeLevel || 0) - Number(a.upgradeLevel || 0)
+      )[0] || null
   );
 }
 
-function addWeaponToInventory(weapons, weapon) {
-  const arr = Array.isArray(weapons) ? [...weapons] : [];
-  const index = arr.findIndex((entry) => normalize(entry.code) === normalize(weapon.code));
+function consumeWeapon(list, weaponCode) {
+  const arr = [...(Array.isArray(list) ? list : [])];
+  const q = normalize(weaponCode);
 
-  if (index !== -1) {
-    arr[index] = {
-      ...arr[index],
-      amount: Number(arr[index].amount || 1) + 1,
-    };
-    return arr;
+  const candidates = arr
+    .map((entry, index) => ({ entry, index }))
+    .filter(
+      ({ entry }) =>
+        normalize(entry.code || entry.name) === q &&
+        Number(entry.amount || 0) > 0
+    )
+    .sort(
+      (a, b) =>
+        Number(b.entry.upgradeLevel || 0) -
+        Number(a.entry.upgradeLevel || 0)
+    );
+
+  if (!candidates.length) {
+    throw new Error("Weapon not owned.");
   }
 
-  arr.push({
-    code: weapon.code,
-    name: weapon.name,
-    amount: 1,
-    rarity: weapon.rarity || "C",
-    type: weapon.type || "Weapon",
-    image: weapon.image || "",
-    statPercent: weapon.statPercent || {
-      atk: 0,
-      hp: 0,
-      speed: 0,
-    },
-    baseStatPercent: weapon.baseStatPercent || weapon.statPercent || undefined,
-    ownerBonusPercent: weapon.ownerBonusPercent || {
-      atk: 0,
-      hp: 0,
-      speed: 0,
-    },
-    owners: Array.isArray(weapon.owners) ? weapon.owners : [],
-    description: weapon.description || "",
-    upgradeLevel: 0,
-  });
+  const idx = candidates[0].index;
+
+  if (Number(arr[idx].amount || 0) <= 1) {
+    arr.splice(idx, 1);
+  } else {
+    arr[idx] = {
+      ...arr[idx],
+      amount: Number(arr[idx].amount || 0) - 1,
+    };
+  }
 
   return arr;
 }
 
-function getRoleLabel(card) {
-  const role = getCardRole(card);
-  if (role === "boost") return "Boost Card";
-  return "Battle Card";
+function getRawOwnedCard(player, instanceId) {
+  return (Array.isArray(player.cards) ? player.cards : []).find(
+    (raw) => String(raw.instanceId) === String(instanceId)
+  );
 }
 
-function getSummonImage(ownedCard, card) {
-  return (
-    ownedCard?.evolutionForms?.[0]?.image ||
-    ownedCard?.stageImages?.M1 ||
-    ownedCard?.image ||
-    card?.evolutionForms?.[0]?.image ||
-    card?.stageImages?.M1 ||
-    card?.image ||
-    null
+function getCleanEquippedWeapons(rawCard) {
+  const list = Array.isArray(rawCard?.equippedWeapons)
+    ? rawCard.equippedWeapons
+    : [];
+
+  return list.filter((w) => {
+    if (!w) return false;
+
+    const codeOrName = normalize(w.code || w.name);
+
+    if (!codeOrName) return false;
+    if (codeOrName === "none") return false;
+
+    return true;
+  });
+}
+
+function formatEquippedWeaponNames(equippedWeapons = []) {
+  if (!equippedWeapons.length) return null;
+
+  return equippedWeapons
+    .map((x) => {
+      const level = Number(x.upgradeLevel || 0);
+      return `${x.name}${level > 0 ? ` +${level}` : ""}`;
+    })
+    .join(", ");
+}
+
+function getWeaponPercentAtLevel(basePercent, level, ownerBonusPercent, ownerActive) {
+  const lv = Math.max(0, Number(level || 0));
+
+  return {
+    atk:
+      Number(basePercent?.atk || 0) +
+      lv +
+      (ownerActive ? Number(ownerBonusPercent?.atk || 0) : 0),
+    hp:
+      Number(basePercent?.hp || 0) +
+      lv +
+      (ownerActive ? Number(ownerBonusPercent?.hp || 0) : 0),
+    speed:
+      Number(basePercent?.speed || 0) +
+      (ownerActive ? Number(ownerBonusPercent?.speed || 0) : 0),
+  };
+}
+
+function isOwnerActive(weapon, cardCode) {
+  const owners = Array.isArray(weapon?.owners) ? weapon.owners : [];
+  const q = normalize(cardCode);
+
+  return owners.some((owner) => normalize(owner) === q);
+}
+
+function sumWeaponPercents(equippedWeapons = [], cardCode = "") {
+  return equippedWeapons.reduce(
+    (acc, item) => {
+      const ownerActive = isOwnerActive(item, cardCode);
+
+      const percent = getWeaponPercentAtLevel(
+        item.baseStatPercent || item.statPercent || { atk: 0, hp: 0, speed: 0 },
+        item.upgradeLevel || 0,
+        item.ownerBonusPercent || { atk: 0, hp: 0, speed: 0 },
+        ownerActive
+      );
+
+      acc.atk += Number(percent.atk || 0);
+      acc.hp += Number(percent.hp || 0);
+      acc.speed += Number(percent.speed || 0);
+
+      return acc;
+    },
+    { atk: 0, hp: 0, speed: 0 }
   );
 }
 
 module.exports = {
-  name: "summon",
+  name: "wp",
+  aliases: ["weapon", "equipweapon"],
 
   async execute(message, args) {
-    const query = args.join(" ").trim();
+    const split = splitCardAndWeaponInput(args || []);
 
-    if (!query) {
+    if (!split) {
       return message.reply({
-        content: [
-          "Usage: `op summon <name>`",
-          "Example: `op summon luffy`",
-          "Example: `op summon baccarat`",
-          "Example: `op summon kikoku`",
-          "",
-          `Cost: **${SUMMON_FRAGMENT_COST}x self fragments**`,
-          "Summonable: **Battle Cards**, **Boost Cards**, and **Weapons**",
-        ].join("\n"),
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
-
-    const previewPlayer = getPlayer(message.author.id, message.author.username);
-    const card = findSummonableCard(query);
-    const weapon = card ? null : findWeaponByNameOnly(query);
-
-    if (!card && !weapon) {
-      return message.reply({
-        content: `Battle card, boost card, or weapon matching \`${query}\` was not found.`,
+        content: "Usage: `op wp <card name> <weapon name>`",
         allowedMentions: { repliedUser: false },
       });
     }
 
-    let summonedType = "";
-    let summonedName = "";
-    let summonedRarity = "C";
-    let remainingFragments = 0;
-    let ownedCard = null;
-    let weaponImage = null;
-    let weaponBadge = null;
-    let weaponType = null;
-    let cardRoleLabel = null;
+    const previewPlayer = getPlayer(message.author.id, message.author.username);
+    const previewCard = findOwnedCardByName(
+      previewPlayer.cards || [],
+      split.cardName
+    );
+
+    if (!previewCard) {
+      return message.reply({
+        content: `No owned card found matching \`${split.cardName}\`.`,
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
+    const previewWeaponTemplate = findBestWeaponMatch(split.weaponName);
+
+    if (!previewWeaponTemplate) {
+      return message.reply({
+        content: `No weapon found matching \`${split.weaponName}\`.`,
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
+    const previewOwnedEntry = findOwnedWeaponEntry(
+      previewPlayer.weapons || [],
+      previewWeaponTemplate.code
+    );
+
+    if (!previewOwnedEntry) {
+      return message.reply({
+        content: `You do not own \`${previewWeaponTemplate.name}\`.`,
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
+    let synced = null;
+    let weaponTemplate = previewWeaponTemplate;
+    let inheritedLevel = 0;
+    let nextEquipped = [];
+    let slotLimit = 1;
+    let equippedWeaponName = null;
+    let totalWeaponPercent = { atk: 0, hp: 0, speed: 0 };
+    let ownerActive = false;
+    let shownPercent = { atk: 0, hp: 0, speed: 0 };
 
     try {
       updatePlayerAtomic(
         message.author.id,
         (fresh) => {
-          const fragments = Array.isArray(fresh.fragments)
-            ? fresh.fragments.map((fragment) => ({ ...fragment }))
-            : [];
+          const card = findOwnedCardByName(fresh.cards || [], split.cardName);
 
-          if (card) {
-            if (alreadyOwnsCard(fresh, card)) {
-              throw new Error(`You already own **${getCardName(card)}**.`);
-            }
-
-            const requirementError = getSpecialSummonRequirementError(fresh, card);
-
-            if (requirementError) {
-              throw new Error(requirementError);
-            }
-
-            const fragmentIndex = findCardFragmentIndex(fragments, card);
-
-            if (fragmentIndex === -1) {
-              throw new Error(
-                `You need **${SUMMON_FRAGMENT_COST}x ${getCardName(card)} Fragment** to summon this card.`
-              );
-            }
-
-            const ownedFragments = Number(fragments[fragmentIndex].amount || 0);
-
-            if (ownedFragments < SUMMON_FRAGMENT_COST) {
-              throw new Error(
-                `You need **${SUMMON_FRAGMENT_COST}x ${getCardName(card)} Fragment**.\nYou currently have **${ownedFragments}x**.`
-              );
-            }
-
-            const consumed = consumeFragments(fragments, fragmentIndex, SUMMON_FRAGMENT_COST);
-
-            if (!consumed) {
-              throw new Error("Failed to consume fragments.");
-            }
-
-            ownedCard = createOwnedCard(card);
-            summonedType = "card";
-            summonedName = getCardName(card);
-            summonedRarity = String(card.baseTier || card.rarity || "C").toUpperCase();
-            remainingFragments = consumed.remaining;
-            cardRoleLabel = getRoleLabel(card);
-
-            return {
-              ...fresh,
-              cards: [...(fresh.cards || []), ownedCard],
-              fragments: consumed.fragments,
-            };
+          if (!card) {
+            throw new Error(`No owned card found matching \`${split.cardName}\`.`);
           }
 
-          if (alreadyOwnsWeapon(fresh, weapon)) {
-            throw new Error(`You already own **${weapon.name}**.`);
+          const rawOwnedCard = getRawOwnedCard(fresh, card.instanceId);
+
+          if (!rawOwnedCard) {
+            throw new Error("Owned card data was not found. Please try again.");
           }
 
-          const fragmentIndex = findWeaponFragmentIndex(fragments, weapon);
+          weaponTemplate = findBestWeaponMatch(split.weaponName);
 
-          if (fragmentIndex === -1) {
+          if (!weaponTemplate) {
+            throw new Error(`No weapon found matching \`${split.weaponName}\`.`);
+          }
+
+          const ownedEntry = findOwnedWeaponEntry(
+            fresh.weapons || [],
+            weaponTemplate.code
+          );
+
+          if (!ownedEntry) {
+            throw new Error(`You do not own \`${weaponTemplate.name}\`.`);
+          }
+
+          const existingEquipped = getCleanEquippedWeapons(rawOwnedCard);
+          slotLimit = getWeaponSlotLimit(card);
+
+          if (existingEquipped.length >= slotLimit) {
             throw new Error(
-              `You need **${SUMMON_FRAGMENT_COST}x ${weapon.name} Fragment** to summon this weapon.`
+              `This card already reached its weapon limit (${slotLimit}).`
             );
           }
 
-          const ownedFragments = Number(fragments[fragmentIndex].amount || 0);
-
-          if (ownedFragments < SUMMON_FRAGMENT_COST) {
-            throw new Error(
-              `You need **${SUMMON_FRAGMENT_COST}x ${weapon.name} Fragment**.\nYou currently have **${ownedFragments}x**.`
-            );
+          if (
+            existingEquipped.some(
+              (x) => normalize(x.code || x.name) === normalize(weaponTemplate.code)
+            )
+          ) {
+            throw new Error("That weapon is already equipped on this card.");
           }
 
-          const consumed = consumeFragments(fragments, fragmentIndex, SUMMON_FRAGMENT_COST);
+          const nextWeapons = consumeWeapon(fresh.weapons || [], weaponTemplate.code);
+          inheritedLevel = Math.max(0, Number(ownedEntry.upgradeLevel || 0));
 
-          if (!consumed) {
-            throw new Error("Failed to consume fragments.");
-          }
+          const equippedPayload = {
+            name: weaponTemplate.name,
+            code: weaponTemplate.code,
+            rarity: weaponTemplate.rarity || "C",
+            type: weaponTemplate.type || "Weapon",
+            statPercent: weaponTemplate.statPercent || {
+              atk: 0,
+              hp: 0,
+              speed: 0,
+            },
+            baseStatPercent:
+              weaponTemplate.baseStatPercent ||
+              weaponTemplate.statPercent || {
+                atk: 0,
+                hp: 0,
+                speed: 0,
+              },
+            ownerBonusPercent: weaponTemplate.ownerBonusPercent || {
+              atk: 0,
+              hp: 0,
+              speed: 0,
+            },
+            upgradeLevel: inheritedLevel,
+            image: weaponTemplate.image || "",
+            owners: Array.isArray(weaponTemplate.owners)
+              ? weaponTemplate.owners
+              : [],
+            description: weaponTemplate.description || "",
+          };
 
-          summonedType = "weapon";
-          summonedName = weapon.name;
-          summonedRarity = String(weapon.rarity || "C").toUpperCase();
-          remainingFragments = consumed.remaining;
-          weaponType = weapon.type || "Weapon";
-          weaponImage = getWeaponImage(weapon.code, weapon.image || "") || weapon.image || null;
-          weaponBadge = getRarityBadge(summonedRarity) || null;
+          nextEquipped = [...existingEquipped, equippedPayload];
+
+          totalWeaponPercent = sumWeaponPercents(nextEquipped, card.code);
+          equippedWeaponName = formatEquippedWeaponNames(nextEquipped);
+
+          const updatedCards = (Array.isArray(fresh.cards) ? fresh.cards : []).map(
+            (raw) => {
+              if (String(raw.instanceId) !== String(card.instanceId)) return raw;
+
+              return hydrateCard({
+                ...raw,
+                equippedWeapons: nextEquipped,
+                equippedWeapon: equippedWeaponName,
+                equippedWeaponName,
+                equippedWeaponCode:
+                  nextEquipped.length === 1 ? nextEquipped[0].code : null,
+                equippedWeaponLevel:
+                  nextEquipped.length === 1
+                    ? Number(nextEquipped[0].upgradeLevel || 0)
+                    : 0,
+                weaponBonusPercent: totalWeaponPercent,
+              });
+            }
+          );
+
+          synced =
+            updatedCards.find(
+              (c) => String(c.instanceId) === String(card.instanceId)
+            ) || hydrateCard(rawOwnedCard);
+
+          ownerActive = isOwnerActive(weaponTemplate, card.code);
+
+          shownPercent = getWeaponPercentAtLevel(
+            weaponTemplate.baseStatPercent ||
+              weaponTemplate.statPercent || {
+                atk: 0,
+                hp: 0,
+                speed: 0,
+              },
+            inheritedLevel,
+            weaponTemplate.ownerBonusPercent || {
+              atk: 0,
+              hp: 0,
+              speed: 0,
+            },
+            ownerActive
+          );
 
           return {
             ...fresh,
-            weapons: addWeaponToInventory(fresh.weapons || [], weapon),
-            fragments: consumed.fragments,
+            cards: updatedCards,
+            weapons: nextWeapons,
           };
         },
         message.author.username
       );
     } catch (error) {
       return message.reply({
-        content: error.message || "Failed to summon.",
+        content: error.message || "Failed to equip weapon.",
         allowedMentions: { repliedUser: false },
       });
     }
 
-    if (summonedType === "card") {
-      return message.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(getCardRole(card) === "boost" ? 0x9b59b6 : 0xf1c40f)
-            .setTitle("✨ Card Summoned")
-            .setDescription(
-              [
-                `**Card:** ${summonedName}`,
-                `**Type:** ${cardRoleLabel}`,
-                `**Rarity:** ${summonedRarity}`,
-                `**Cost:** ${SUMMON_FRAGMENT_COST}x ${summonedName} Fragment`,
-                `**Remaining Fragments:** ${remainingFragments}`,
-                "",
-                "The card has been added to your collection.",
-              ].join("\n")
-            )
-            .setImage(getSummonImage(ownedCard, card))
-            .setFooter({
-              text: "One Piece Bot • Summon",
-            }),
-        ],
-        allowedMentions: { repliedUser: false },
-      });
-    }
+    const weaponBadge = getRarityBadge(weaponTemplate.rarity || "B");
+    const weaponImage = getWeaponImage(
+      weaponTemplate.code,
+      weaponTemplate.image || ""
+    );
+    const slotText = `${nextEquipped.length}/${slotLimit}`;
 
     return message.reply({
       embeds: [
         new EmbedBuilder()
           .setColor(0x3498db)
-          .setTitle("⚔️ Weapon Summoned")
+          .setTitle("⚔️ Weapon Equipped")
           .setDescription(
             [
-              `**Weapon:** ${summonedName}`,
-              `**Type:** ${weaponType}`,
-              `**Rarity:** ${summonedRarity}`,
-              `**Cost:** ${SUMMON_FRAGMENT_COST}x ${summonedName} Fragment`,
-              `**Remaining Fragments:** ${remainingFragments}`,
+              `**Card:** ${synced.displayName || synced.name}`,
+              `**Added Weapon:** ${weaponTemplate.name}`,
+              `**Weapon Rarity:** ${String(
+                weaponTemplate.rarity || "B"
+              ).toUpperCase()}`,
+              `**Weapon Level:** +${inheritedLevel}`,
+              `**Weapon Slots:** ${slotText}`,
+              `**Equipped Weapons:** ${equippedWeaponName || weaponTemplate.name}`,
+              `**Owner Bonus Active:** ${ownerActive ? "Yes" : "No"}`,
               "",
-              "The weapon has been added to your weapon inventory.",
+              `**ATK:** ${formatAtkRange(synced.atk)}`,
+              `**HP:** ${Number(synced.hp || 0).toLocaleString("en-US")}`,
+              `**SPD:** ${Number(synced.speed || 0).toLocaleString("en-US")}`,
+              "",
+              `Weapon Bonus Applied: +${shownPercent.atk}% ATK / +${shownPercent.hp}% HP / +${shownPercent.speed}% SPD`,
+              `Total Weapon Bonus: +${totalWeaponPercent.atk}% ATK / +${totalWeaponPercent.hp}% HP / +${totalWeaponPercent.speed}% SPD`,
             ].join("\n")
           )
-          .setThumbnail(weaponBadge)
-          .setImage(weaponImage)
+          .setThumbnail(weaponBadge || null)
+          .setImage(weaponImage || null)
           .setFooter({
-            text: "One Piece Bot • Summon",
+            text: "One Piece Bot • Weapon Equip",
           }),
       ],
       allowedMentions: { repliedUser: false },
