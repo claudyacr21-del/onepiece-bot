@@ -6,12 +6,18 @@ const {
 
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const devilFruits = require("../data/devilFruits");
-const assetLinks = require("../config/assetLinks");
 const { hydrateCard } = require("../utils/evolution");
 const {
   getEffectiveBoostValue,
   findBoostFruitByCode,
 } = require("../utils/passiveBoosts");
+
+let assetLinks = {};
+try {
+  assetLinks = require("../config/assetLinks") || {};
+} catch (_) {
+  assetLinks = {};
+}
 
 function normalizeCompare(value) {
   return String(value || "")
@@ -179,6 +185,8 @@ function getFruitAssetKeys(fruit) {
   add(fruit?.displayName);
   add(fruit?.id);
   add(fruit?.key);
+  add(fruit?.assetKey);
+  add(fruit?.imageKey);
 
   const name = String(fruit?.name || "");
 
@@ -222,6 +230,9 @@ function pickImageFromValue(value) {
     pickImageFromValue(value.thumbnail) ||
     pickImageFromValue(value.asset) ||
     pickImageFromValue(value.url) ||
+    pickImageFromValue(value.poster) ||
+    pickImageFromValue(value.card) ||
+    pickImageFromValue(value.full) ||
     ""
   );
 }
@@ -241,10 +252,14 @@ function findFruitImageInAssetLinks(fruit) {
     assetLinks?.FRUIT_IMAGES,
     assetLinks?.fruits,
     assetLinks?.FRUITS,
+    assetLinks?.fruit,
+    assetLinks?.FRUIT,
     assetLinks?.assets?.devilFruits,
     assetLinks?.assets?.fruits,
     assetLinks?.images?.devilFruits,
     assetLinks?.images?.fruits,
+    assetLinks?.links?.devilFruits,
+    assetLinks?.links?.fruits,
   ].filter(Boolean);
 
   for (const bucket of directBuckets) {
@@ -290,7 +305,14 @@ function findFruitImageInAssetLinks(fruit) {
 
       if (value && typeof value === "object") {
         const valueKey = normalizeAssetKey(
-          value.code || value.id || value.key || value.name || value.displayName || ""
+          value.code ||
+            value.id ||
+            value.key ||
+            value.assetKey ||
+            value.imageKey ||
+            value.name ||
+            value.displayName ||
+            ""
         );
 
         if (normalizedKeys.has(valueKey)) {
@@ -310,11 +332,7 @@ function findFruitImageInAssetLinks(fruit) {
 }
 
 function getFruitImage(fruit) {
-  return (
-    pickImageFromValue(fruit) ||
-    findFruitImageInAssetLinks(fruit) ||
-    ""
-  );
+  return pickImageFromValue(fruit) || findFruitImageInAssetLinks(fruit) || "";
 }
 
 function resolveFruitData(ownedFruit) {
@@ -345,10 +363,7 @@ function resolveFruitData(ownedFruit) {
     description: template?.description || ownedFruit?.description || "",
   };
 
-  resolved.image =
-    getFruitImage(template) ||
-    getFruitImage(ownedFruit) ||
-    "";
+  resolved.image = getFruitImage(template) || getFruitImage(ownedFruit) || "";
 
   return resolved;
 }
@@ -747,7 +762,7 @@ async function equipFruitToCard(message, player, card, fruit) {
     });
 
   if (fruitImage) {
-    embed.setThumbnail(fruitImage);
+    embed.setImage(fruitImage);
   }
 
   return message.reply({
