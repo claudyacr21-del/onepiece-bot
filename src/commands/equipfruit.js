@@ -6,6 +6,7 @@ const {
 
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const devilFruits = require("../data/devilFruits");
+const assetLinks = require("../config/assetLinks");
 const { hydrateCard } = require("../utils/evolution");
 const {
   getEffectiveBoostValue,
@@ -135,6 +136,174 @@ function findFruitTemplate(value) {
   );
 }
 
+function isImageUrl(value) {
+  const text = String(value || "").trim();
+
+  return (
+    /^https?:\/\//i.test(text) &&
+    /\.(png|jpg|jpeg|webp|gif)(\?.*)?$/i.test(text)
+  );
+}
+
+function normalizeAssetKey(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/^model:\s*/i, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function getFruitAssetKeys(fruit) {
+  const keys = new Set();
+
+  const add = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw) return;
+
+    keys.add(raw);
+    keys.add(normalizeAssetKey(raw));
+    keys.add(normalizeCode(raw));
+    keys.add(normalizeCompare(raw));
+    keys.add(normalizeCompact(raw));
+  };
+
+  add(fruit?.code);
+  add(fruit?.name);
+  add(fruit?.displayName);
+  add(fruit?.id);
+  add(fruit?.key);
+
+  const name = String(fruit?.name || "");
+
+  if (name.includes(",")) {
+    name
+      .split(",")
+      .map((x) => x.trim())
+      .forEach(add);
+  }
+
+  const modelMatch = name.match(/model:\s*(.+)$/i);
+  if (modelMatch?.[1]) add(modelMatch[1]);
+
+  const noMiMatch = name.match(/^(.+?)\s+no\s+mi/i);
+  if (noMiMatch?.[1]) add(noMiMatch[1]);
+
+  const codeParts = String(fruit?.code || "").split("_").filter(Boolean);
+  if (codeParts.length) {
+    add(codeParts[codeParts.length - 1]);
+    add(codeParts.slice(-2).join("_"));
+    add(codeParts.slice(-2).join(" "));
+  }
+
+  return [...keys].filter(Boolean);
+}
+
+function pickImageFromValue(value) {
+  if (!value) return "";
+
+  if (typeof value === "string") {
+    return isImageUrl(value) ? value : "";
+  }
+
+  if (typeof value !== "object") return "";
+
+  return (
+    pickImageFromValue(value.image) ||
+    pickImageFromValue(value.imageUrl) ||
+    pickImageFromValue(value.img) ||
+    pickImageFromValue(value.icon) ||
+    pickImageFromValue(value.thumbnail) ||
+    pickImageFromValue(value.url) ||
+    pickImageFromValue(value.asset) ||
+    ""
+  );
+}
+
+function findFruitImageInAssetLinks(fruit) {
+  const keys = getFruitAssetKeys(fruit);
+  const normalizedKeys = new Set(keys.map(normalizeAssetKey).filter(Boolean));
+
+  const directBuckets = [
+    assetLinks?.devilFruits,
+    assetLinks?.DEVIL_FRUITS,
+    assetLinks?.devilFruitImages,
+    assetLinks?.DEVIL_FRUIT_IMAGES,
+    assetLinks?.fruitImages,
+    assetLinks?.FRUIT_IMAGES,
+    assetLinks?.fruits,
+    assetLinks?.FRUITS,
+    assetLinks?.assets?.devilFruits,
+    assetLinks?.assets?.fruits,
+    assetLinks?.images?.devilFruits,
+    assetLinks?.images?.fruits,
+  ].filter(Boolean);
+
+  for (const bucket of directBuckets) {
+    if (Array.isArray(bucket)) {
+      const found = bucket.find((entry) => {
+        const entryKeys = getFruitAssetKeys(entry).map(normalizeAssetKey);
+        return entryKeys.some((key) => normalizedKeys.has(key));
+      });
+
+      const image = pickImageFromValue(found);
+      if (image) return image;
+    }
+
+    if (bucket && typeof bucket === "object") {
+      for (const key of keys) {
+        const value =
+          bucket[key] ||
+          bucket[normalizeAssetKey(key)] ||
+          bucket[normalizeCode(key)] ||
+          bucket[normalizeCompare(key)] ||
+          bucket[normalizeCompact(key)];
+
+        const image = pickImageFromValue(value);
+        if (image) return image;
+      }
+    }
+  }
+
+  const visited = new Set();
+
+  function deepSearch(node, parentKey = "") {
+    if (!node || visited.has(node)) return "";
+    if (typeof node !== "object") return "";
+
+    visited.add(node);
+
+    for (const [key, value] of Object.entries(node)) {
+      const normalizedKey = normalizeAssetKey(key);
+
+      if (normalizedKeys.has(normalizedKey)) {
+        const image = pickImageFromValue(value);
+        if (image) return image;
+      }
+
+      if (typeof value === "string" && normalizedKeys.has(normalizedKey)) {
+        const image = pickImageFromValue(value);
+        if (image) return image;
+      }
+
+      if (value && typeof value === "object") {
+        const codeKey = normalizeAssetKey(value.code || value.id || value.name || "");
+        const image = pickImageFromValue(value);
+
+        if (image && normalizedKeys.has(codeKey)) return image;
+
+        const nested = deepSearch(value, key);
+        if (nested) return nested;
+      }
+    }
+
+    return "";
+  }
+
+  return deepSearch(assetLinks);
+}
+
 function getFruitImage(fruit) {
   return (
     fruit?.image ||
@@ -142,7 +311,9 @@ function getFruitImage(fruit) {
     fruit?.img ||
     fruit?.icon ||
     fruit?.thumbnail ||
+    fruit?.asset ||
     fruit?.url ||
+    findFruitImageInAssetLinks(fruit) ||
     ""
   );
 }
@@ -173,7 +344,11 @@ function resolveFruitData(ownedFruit) {
     type: template?.type || ownedFruit?.type || "Devil Fruit",
     rarity: template?.rarity || ownedFruit?.rarity || "B",
     description: template?.description || ownedFruit?.description || "",
-    image: getFruitImage(template) || getFruitImage(ownedFruit),
+    image:
+      getFruitImage(template) ||
+      getFruitImage(ownedFruit) ||
+      findFruitImageInAssetLinks(template) ||
+      findFruitImageInAssetLinks(ownedFruit),
   };
 }
 
@@ -506,10 +681,31 @@ async function equipFruitToCard(message, player, card, fruit) {
   }
 
   const boostFruitData = findBoostFruitByCode(fruit.code);
-  resolvedFruitData =
-    syncedCard.equippedDevilFruitData ||
-    resolveFruitData(fruit) ||
-    fruit;
+  const fruitTemplate =
+    devilFruits.find((entry) => String(entry.code) === String(fruit.code)) ||
+    devilFruits.find(
+      (entry) =>
+        normalizeCode(entry.code) === normalizeCode(fruit.code) ||
+        normalizeCompare(entry.name) === normalizeCompare(fruit.name)
+    ) ||
+    null;
+
+  const fruitTemplate = findFruitTemplate(fruit?.code || fruit?.name);
+
+  resolvedFruitData = {
+    ...(fruitTemplate || {}),
+    ...(fruit || {}),
+    ...(syncedCard.equippedDevilFruitData || {}),
+  };
+
+  resolvedFruitData.image =
+    getFruitImage(syncedCard.equippedDevilFruitData) ||
+    getFruitImage(fruitTemplate) ||
+    getFruitImage(fruit) ||
+    findFruitImageInAssetLinks(syncedCard.equippedDevilFruitData) ||
+    findFruitImageInAssetLinks(fruitTemplate) ||
+    findFruitImageInAssetLinks(fruit) ||
+    "";
 
   isBoost = syncedCard.cardRole === "boost";
   effectiveValue = isBoost ? getEffectiveBoostValue(syncedCard) : null;
@@ -562,6 +758,8 @@ async function equipFruitToCard(message, player, card, fruit) {
     .setFooter({
       text: "One Piece Bot • Devil Fruit Equip",
     });
+
+  const fruitImage = getFruitImage(resolvedFruitData);
 
   if (fruitImage) {
     embed.setThumbnail(fruitImage);
