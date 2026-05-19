@@ -212,10 +212,9 @@ module.exports = {
       });
     }
 
-    const userId =
-      message.mentions.users.first()?.id ||
-      parseUserId(args.shift());
-
+    const mentionedUser = message.mentions.users.first();
+    const firstArg = args.shift();
+    const userId = mentionedUser?.id || parseUserId(firstArg);
     const bucket = normalizeBucket(args.shift());
     const storageBucket = getStorageBucket(bucket);
     const amount = Number(args.shift() || 0);

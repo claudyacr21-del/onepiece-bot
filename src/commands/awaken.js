@@ -290,7 +290,7 @@ module.exports = {
     const query = args.join(" ").trim();
 
     if (!query) {
-      return message.reply("Usage: `op awaken <card code>`");
+      return message.reply("Usage: `op awaken <card name>`");
     }
 
     const player = getPlayer(message.author.id, message.author.username);
@@ -313,7 +313,7 @@ module.exports = {
 
     try {
       const validationPlayer = cloneDeep(player);
-      awakenOwnedCard(validationPlayer, owned.code);
+      awakenOwnedCard(validationPlayer, query);
     } catch (error) {
       return message.reply({
         embeds: [
@@ -383,7 +383,7 @@ module.exports = {
         updatePlayerAtomic(
           message.author.id,
           (fresh) => {
-            awakenResult = awakenOwnedCard(fresh, owned.code);
+            awakenResult = awakenOwnedCard(fresh, query);
 
             return {
               ...fresh,
@@ -415,7 +415,7 @@ module.exports = {
                   "**Missing / Error Detail**",
                   String(error?.message || "Unknown awaken requirement error."),
                   "",
-                  `Use \`op ci ${owned.code}\` to check the full requirements.`,
+                  `Use \`op ci ${owned.displayName || owned.name || query}\` to check the full requirements.`,
                 ].join("\n")
               )
           ],

@@ -43,6 +43,48 @@ async function safeDeferInteraction(interaction) {
   }
 }
 
+async function safeDeferReplyInteraction(interaction) {
+  try {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true });
+    }
+
+    return true;
+  } catch (error) {
+    console.error("[raid defer reply failed]", error?.message || error);
+    return false;
+  }
+}
+
+async function safeReplyOrEdit(interaction, payload) {
+  try {
+    if (interaction.deferred || interaction.replied) {
+      return await interaction.editReply(payload);
+    }
+
+    return await interaction.reply({
+      ...payload,
+      ephemeral: true,
+    });
+  } catch (error) {
+    console.error("[raid interaction reply/edit failed]", error?.message || error);
+    return null;
+  }
+}
+
+async function safeInteractionUpdate(interaction, payload) {
+  try {
+    if (!interaction.deferred && !interaction.replied) {
+      return await interaction.update(payload);
+    }
+
+    return await interaction.editReply(payload);
+  } catch (error) {
+    console.error("[raid interaction update failed]", error?.message || error);
+    return null;
+  }
+}
+
 async function safeEditRaidMessage(message, payload) {
   try {
     if (!message) return false;
@@ -185,6 +227,7 @@ function applyBoostedRaidDisplayStats(card, boosts = {}) {
 
 function getRaidModeConfig(commandName) {
   const cmd = String(commandName || "").toLowerCase();
+
   if (cmd === "throne") {
     return {
       allowed: new Set(["S"]),
@@ -503,7 +546,6 @@ function getRaidBossModeMultiplier(raidMode = {}) {
     };
   }
 
-  // Common Raid and normal Raid stay unchanged.
   return {
     hp: 1,
     speed: 1,
@@ -789,8 +831,6 @@ function isMemberOnActionCooldown(member) {
 function tickActionCooldownsAfterAttack(state, actor) {
   const aliveMembers = getAliveMembers(state);
 
-  // If only 1 battle card remains alive, raid cooldown is disabled.
-  // This lets the last card keep attacking without pressing Next Turn.
   if (aliveMembers.length <= 1) {
     for (const member of aliveMembers) {
       member.actionCooldown = 0;
@@ -821,8 +861,6 @@ function tickActionCooldownsAfterAttack(state, actor) {
 function canAdvanceRaidTurn(state) {
   const alive = getAliveMembers(state);
 
-  // If only 1 card is alive, do not show Next Turn.
-  // Last card can attack repeatedly.
   if (alive.length <= 1) return false;
 
   return alive.every((member) => isMemberOnActionCooldown(member));
@@ -1481,8 +1519,6 @@ function performRaidMemberAttack(state, actor, combatLogs) {
     Math.floor(Number(actor.atk || 1) * 1.15)
   );
 
-  // Raid does not use DMG% passive boost.
-  // DMG% boost only applies to fight, arena, boss, and challenge.
   const damage = baseDamage;
 
   boss.hp = Math.max(0, Number(boss.hp || 0) - damage);
@@ -1525,8 +1561,6 @@ function handleRaidAttack(state, actor) {
     return;
   }
 
-  // Raid does not use SPD turn order.
-  // Selected raid card always attacks first.
   performRaidMemberAttack(state, actor, combatLogs);
 
   if (checkEndState(state)) {
@@ -1534,7 +1568,6 @@ function handleRaidAttack(state, actor) {
     return;
   }
 
-  // Boss counter target is random among alive raid cards.
   const target = chooseBossTarget(state);
 
   if (target) {
@@ -1651,7 +1684,6 @@ module.exports = {
     host.tickets = consumedTickets;
 
     const whitelist = getSavedRaidTeam(host);
-
     const isThroneRaid = usedCommand === "throne";
 
     const room = createRaidRoom({
@@ -1664,7 +1696,6 @@ module.exports = {
       bossImage: bossInfo.bossImage || "",
       ticketConsumed: true,
       whitelist,
-
       cardsPerUser: isThroneRaid ? 3 : 1,
       maxParticipants: isThroneRaid ? 4 : 10,
       uniqueCardCodesOnly: !isThroneRaid,
@@ -1687,22 +1718,28 @@ module.exports = {
       const activeRoom = getRoom(hostId);
 
       if (!activeRoom || String(activeRoom.roomId) !== String(room.roomId)) {
-        return interaction.reply({
-          content: "This raid room is no longer active.",
-          ephemeral: true,
-        });
+        return interaction
+          .reply({
+            content: "This raid room is no longer active.",
+            ephemeral: true,
+          })
+          .catch(() => null);
       }
 
       if (interaction.customId === `raid_join_${room.roomId}`) {
-      await interaction.deferReply({ ephemeral: true }).catch(() => null);
+        const joinDeferred = await safeDeferReplyInteraction(interaction);
+
+        if (!joinDeferred) {
+          return;
+        }
+
         const userId = String(interaction.user.id);
         const isHost = userId === hostId;
         const whitelistIds = ensureArray(activeRoom.whitelist).map(String);
 
         if (!isHost && !whitelistIds.includes(userId)) {
-          return interaction.editReply({
+          return safeReplyOrEdit(interaction, {
             content: "You are not in the host's saved raid team.",
-            ephemeral: true,
           });
         }
 
@@ -1710,9 +1747,8 @@ module.exports = {
         const teamCards = getBattleTeamCards(joiningPlayer);
 
         if (hasParticipantJoined(activeRoom, userId)) {
-          return interaction.editReply({
+          return safeReplyOrEdit(interaction, {
             content: "You already joined this raid.",
-            ephemeral: true,
           });
         }
 
@@ -1720,11 +1756,10 @@ module.exports = {
         const joinedCount = getSelectedParticipantCount(activeRoom);
 
         if (joinedCount >= maxRaidUsers) {
-          return interaction.editReply({
+          return safeReplyOrEdit(interaction, {
             content: isThroneRoom(activeRoom)
               ? "This Throne Raid is already full. Max 4 users / 12 cards."
               : "This raid room is already full.",
-            ephemeral: true,
           });
         }
 
@@ -1732,14 +1767,13 @@ module.exports = {
           const throneCards = getThroneTeamCards(joiningPlayer);
 
           if (throneCards.length < 3) {
-            return interaction.editReply({
+            return safeReplyOrEdit(interaction, {
               content:
                 "Throne Raid requires **3 battle cards** in your current team slots.",
-              ephemeral: true,
             });
           }
 
-          await interaction.editReply({
+          await safeReplyOrEdit(interaction, {
             content: [
               `${interaction.user.username}, this is the team that will be deployed for this battle, press button to confirm`,
               formatThroneTeamPreview(throneCards),
@@ -1765,7 +1799,7 @@ module.exports = {
           }
 
           if (confirmInteraction.customId === `raid_throne_cancel_${room.roomId}_${userId}`) {
-            return confirmInteraction.update({
+            return safeInteractionUpdate(confirmInteraction, {
               content: "Throne Raid join cancelled.",
               components: [],
             });
@@ -1775,24 +1809,24 @@ module.exports = {
             const latestRoom = getRoom(hostId);
 
             if (!latestRoom || String(latestRoom.roomId) !== String(room.roomId)) {
-              return confirmInteraction.update({
+              return safeInteractionUpdate(confirmInteraction, {
                 content: "This raid room is no longer active.",
                 components: [],
               });
             }
 
             if (hasParticipantJoined(latestRoom, userId)) {
-              return confirmInteraction.update({
+              return safeInteractionUpdate(confirmInteraction, {
                 content: "You already joined this raid.",
                 components: [],
               });
             }
 
-            const maxRaidUsers = getMaxRaidUsers(latestRoom);
-            const joinedCount = getSelectedParticipantCount(latestRoom);
+            const latestMaxRaidUsers = getMaxRaidUsers(latestRoom);
+            const latestJoinedCount = getSelectedParticipantCount(latestRoom);
 
-            if (joinedCount >= maxRaidUsers) {
-              return confirmInteraction.update({
+            if (latestJoinedCount >= latestMaxRaidUsers) {
+              return safeInteractionUpdate(confirmInteraction, {
                 content: "This Throne Raid is already full. Max 4 users / 12 cards.",
                 components: [],
               });
@@ -1804,7 +1838,7 @@ module.exports = {
               selectedCards: throneCards.map(toRoomCard),
             });
 
-            await confirmInteraction.update({
+            await safeInteractionUpdate(confirmInteraction, {
               content: [
                 `${interaction.user.username} joined the raid with`,
                 formatThroneTeamPreview(throneCards),
@@ -1812,7 +1846,7 @@ module.exports = {
               components: [],
             });
 
-            await lobbyMessage.edit({
+            await safeEditRaidMessage(lobbyMessage, {
               embeds: [
                 buildLobbyEmbed(
                   message.author.username,
@@ -1824,16 +1858,18 @@ module.exports = {
               components: buildLobbyRows(updatedRoom, false),
             });
 
-            await message.channel.send(
-              [
-                `${interaction.user.username} joined the raid with`,
-                formatThroneTeamPreview(throneCards),
-              ].join("\n")
-            );
+            await message.channel
+              .send(
+                [
+                  `${interaction.user.username} joined the raid with`,
+                  formatThroneTeamPreview(throneCards),
+                ].join("\n")
+              )
+              .catch(() => null);
 
             await notifyHostIfRaidReady(message, updatedRoom);
           } catch (error) {
-            return confirmInteraction.update({
+            return safeInteractionUpdate(confirmInteraction, {
               content: error.message || "Failed to join Throne Raid.",
               components: [],
             });
@@ -1843,14 +1879,13 @@ module.exports = {
         }
 
         if (!teamCards.length) {
-          return interaction.reply({
+          return safeReplyOrEdit(interaction, {
             content:
               "You need at least 1 battle card in your current team to join this raid.",
-            ephemeral: true,
           });
         }
 
-        await interaction.editReply({
+        await safeReplyOrEdit(interaction, {
           content: `Pick 1 battle card for raid against ${activeRoom.bossName}.`,
           components: buildPickRows(room.roomId, teamCards),
         });
@@ -1879,7 +1914,7 @@ module.exports = {
         );
 
         if (!picked) {
-          return pickInteraction.update({
+          return safeInteractionUpdate(pickInteraction, {
             content: "Selected card not found in your current team.",
             components: [],
           });
@@ -1892,12 +1927,12 @@ module.exports = {
             selectedCards: [toRoomCard(picked)],
           });
 
-          await pickInteraction.update({
+          await safeInteractionUpdate(pickInteraction, {
             content: `Joined raid with ${picked.displayName || picked.name}.`,
             components: [],
           });
 
-          await lobbyMessage.edit({
+          await safeEditRaidMessage(lobbyMessage, {
             embeds: [
               buildLobbyEmbed(
                 message.author.username,
@@ -1909,15 +1944,17 @@ module.exports = {
             components: buildLobbyRows(updatedRoom, false),
           });
 
-          await message.channel.send(
-            `${interaction.user.username} joined the raid with **${
-              picked.displayName || picked.name
-            }**.`
-          );
+          await message.channel
+            .send(
+              `${interaction.user.username} joined the raid with **${
+                picked.displayName || picked.name
+              }**.`
+            )
+            .catch(() => null);
 
           await notifyHostIfRaidReady(message, updatedRoom);
         } catch (error) {
-          return pickInteraction.update({
+          return safeInteractionUpdate(pickInteraction, {
             content: error.message || "Failed to join raid.",
             components: [],
           });
@@ -1928,25 +1965,31 @@ module.exports = {
 
       if (interaction.customId === `raid_start_${room.roomId}`) {
         if (String(interaction.user.id) !== hostId) {
-          return interaction.reply({
-            content: "Only the host can start this raid.",
-            ephemeral: true,
-          });
+          return interaction
+            .reply({
+              content: "Only the host can start this raid.",
+              ephemeral: true,
+            })
+            .catch(() => null);
+        }
+
+        const startDeferred = await safeDeferReplyInteraction(interaction);
+
+        if (!startDeferred) {
+          return;
         }
 
         const latestRoom = getRoom(hostId);
 
         if (!latestRoom || String(latestRoom.roomId) !== String(room.roomId)) {
-          return interaction.reply({
+          return safeReplyOrEdit(interaction, {
             content: "This raid room is no longer active.",
-            ephemeral: true,
           });
         }
 
         if (!hasParticipantJoined(latestRoom, hostId)) {
-          return interaction.reply({
+          return safeReplyOrEdit(interaction, {
             content: "Host must join the raid first before starting the raid.",
-            ephemeral: true,
           });
         }
 
@@ -1955,9 +1998,8 @@ module.exports = {
         try {
           startedRoom = startRoom(hostId);
         } catch (error) {
-          return interaction.reply({
+          return safeReplyOrEdit(interaction, {
             content: error.message || "Failed to start raid.",
-            ephemeral: true,
           });
         }
 
@@ -1965,32 +2007,44 @@ module.exports = {
         const maxRaidUsers = getMaxRaidUsers(startedRoom);
 
         if (joinedCount < 1) {
-          return interaction.reply({
+          return safeReplyOrEdit(interaction, {
             content: "No participants have joined yet.",
-            ephemeral: true,
           });
         }
 
         if (joinedCount > maxRaidUsers) {
-          return interaction.reply({
+          return safeReplyOrEdit(interaction, {
             content: isThroneRoom(startedRoom)
               ? "Throne Raid can only have max 4 users."
               : "This raid has too many participants.",
-            ephemeral: true,
           });
         }
 
-        const battleState = buildBattleState(startedRoom, bossInfo.template, raidMode);
+        let battleState;
+
+        try {
+          battleState = buildBattleState(startedRoom, bossInfo.template, raidMode);
+        } catch (error) {
+          console.error("[raid build battle state error]", error);
+
+          try {
+            deleteRoom(hostId);
+          } catch {}
+
+          return safeReplyOrEdit(interaction, {
+            content:
+              "Failed to build raid battle state.\nPlease re-open raid and try again.",
+          });
+        }
 
         if (!battleState.members.length) {
           try {
             deleteRoom(hostId);
           } catch {}
 
-          return interaction.reply({
+          return safeReplyOrEdit(interaction, {
             content:
               "Failed to sync raid participants from latest card data.\nPlease re-open raid and join again.",
-            ephemeral: true,
           });
         }
 
@@ -2003,16 +2057,17 @@ module.exports = {
             deleteRoom(hostId);
           } catch {}
 
-          return interaction.reply({
+          return safeReplyOrEdit(interaction, {
             content:
               "A raid card failed to sync correctly.\nPlease re-open raid and join again.",
-            ephemeral: true,
           });
         }
 
-        await interaction.deferUpdate().catch(() => null);
+        await safeReplyOrEdit(interaction, {
+          content: "Starting raid battle...",
+        });
 
-        await lobbyMessage.edit({
+        await safeEditRaidMessage(lobbyMessage, {
           embeds: [
             buildLobbyEmbed(
               message.author.username,
@@ -2024,10 +2079,26 @@ module.exports = {
           components: buildLobbyRows(startedRoom, true),
         });
 
-        battleMessage = await message.channel.send({
-          embeds: [buildBattleEmbed(battleState)],
-          components: buildBattleRows(battleState),
-        });
+        battleMessage = await message.channel
+          .send({
+            embeds: [buildBattleEmbed(battleState)],
+            components: buildBattleRows(battleState),
+          })
+          .catch((error) => {
+            console.error("[raid battle message send failed]", error);
+            return null;
+          });
+
+        if (!battleMessage) {
+          try {
+            deleteRoom(hostId);
+          } catch {}
+
+          return safeReplyOrEdit(interaction, {
+            content:
+              "Failed to send raid battle message.\nYour room was closed. If the raid does not start, ticket will be refunded on room cleanup.",
+          });
+        }
 
         const battleCollector = battleMessage.createMessageComponentCollector({
           time: RAID_ROOM_TIMEOUT_MS,
@@ -2044,19 +2115,23 @@ module.exports = {
           }
 
           if (String(button.user.id) !== hostId) {
-            return button.reply({
-              content: "Only the raid host can control this raid battle.",
-              ephemeral: true,
-            }).catch(() => null);
+            return button
+              .reply({
+                content: "Only the raid host can control this raid battle.",
+                ephemeral: true,
+              })
+              .catch(() => null);
           }
 
           const lockKey = String(battleState.roomId);
 
           if (activeRaidActionLocks.has(lockKey)) {
-            return button.reply({
-              content: "Raid action is still processing. Please wait a moment.",
-              ephemeral: true,
-            }).catch(() => null);
+            return button
+              .reply({
+                content: "Raid action is still processing. Please wait a moment.",
+                ephemeral: true,
+              })
+              .catch(() => null);
           }
 
           activeRaidActionLocks.add(lockKey);

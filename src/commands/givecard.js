@@ -49,10 +49,11 @@ function isPositiveNumberText(value) {
   return Number(text) > 0;
 }
 
-function parseGiveArgs(args) {
+function parseGiveArgs(args, message = null) {
   const parts = [...args];
-
-  const userId = parseUserId(parts.shift());
+  const mentionedUser = message?.mentions?.users?.first?.() || null;
+  const firstArg = parts.shift();
+  const userId = mentionedUser?.id || parseUserId(firstArg);
 
   let stage = 1;
   let levelOrAmount = 1;
@@ -322,7 +323,7 @@ module.exports = {
       });
     }
 
-    const { userId, query, levelOrAmount, stage } = parseGiveArgs(args);
+    const { userId, query, levelOrAmount, stage } = parseGiveArgs(args, message);
 
     if (!userId || !query) {
       return message.reply({
