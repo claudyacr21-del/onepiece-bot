@@ -24,7 +24,7 @@ const raidBossImages = require("../config/raidBossImages");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 
-const RAID_ROOM_TIMEOUT_MS = 10 * 60 * 1000;
+const RAID_ROOM_TIMEOUT_MS = 30 * 60 * 1000;
 const RAID_PICK_TIMEOUT_MS = 60 * 1000;
 const MAX_BATTLE_LOG_LINES = 2;
 
@@ -133,6 +133,14 @@ async function safeInteractionUpdate(interaction, payload) {
   }
 }
 
+async function replyRoomExpired(interaction) {
+  await safeDeferReplyInteraction(interaction);
+  return safeReplyOrEdit(interaction, {
+    content:
+      "This raid room is no longer active. Railway may have restarted or the raid room expired. Please create a new raid with `op raid <boss>`.",
+  });
+}
+
 async function safeEditRaidMessage(message, payload) {
   try {
     if (!message) return false;
@@ -140,6 +148,31 @@ async function safeEditRaidMessage(message, payload) {
     return true;
   } catch (error) {
     console.error("[raid message edit failed]", error?.message || error);
+    return false;
+  }
+}
+
+function safeDeleteRaidRoom(hostId, reason = "unknown") {
+  try {
+    const room = getRoom(hostId);
+
+    if (!room) return false;
+
+    const status = String(room.status || "");
+
+    if (status === "active") {
+      console.warn("[raid safe delete skipped active room]", {
+        hostId,
+        reason,
+        roomId: room.roomId,
+      });
+      return false;
+    }
+
+    safeDeleteRaidRoom(hostId, "raid-flow");
+    return true;
+  } catch (error) {
+    console.error("[raid safe delete room failed]", error?.message || error);
     return false;
   }
 }
@@ -2072,7 +2105,7 @@ module.exports = {
           console.error("[raid build battle state error]", error);
 
           try {
-            deleteRoom(hostId);
+            safeDeleteRaidRoom(hostId, "raid-flow");
           } catch {}
 
           return safeReplyOrEdit(interaction, {
@@ -2083,7 +2116,7 @@ module.exports = {
 
         if (!battleState.members.length) {
           try {
-            deleteRoom(hostId);
+            safeDeleteRaidRoom(hostId, "raid-flow");
           } catch {}
 
           return safeReplyOrEdit(interaction, {
@@ -2098,7 +2131,7 @@ module.exports = {
 
         if (invalidMember) {
           try {
-            deleteRoom(hostId);
+            safeDeleteRaidRoom(hostId, "raid-flow");
           } catch {}
 
           return safeReplyOrEdit(interaction, {
@@ -2135,7 +2168,7 @@ module.exports = {
 
         if (!battleMessage) {
           try {
-            deleteRoom(hostId);
+            safeDeleteRaidRoom(hostId, "raid-flow");
           } catch {}
 
           return safeReplyOrEdit(interaction, {
@@ -2249,7 +2282,7 @@ module.exports = {
               finalizeRaidBattle(battleState);
 
               try {
-                deleteRoom(hostId);
+                safeDeleteRaidRoom(hostId, "raid-flow");
               } catch (error) {
                 console.error("[raid delete room error]", error);
               }
@@ -2289,7 +2322,7 @@ module.exports = {
           pushBattleLog(battleState, "Raid timed out.");
 
           try {
-            deleteRoom(hostId);
+            safeDeleteRaidRoom(hostId, "raid-flow");
           } catch {}
 
           await safeEditRaidMessage(battleMessage, {
@@ -2322,7 +2355,7 @@ module.exports = {
       }
 
       try {
-        deleteRoom(hostId);
+        safeDeleteRaidRoom(hostId, "raid-flow");
       } catch {}
 
       try {
