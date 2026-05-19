@@ -28,7 +28,7 @@ const RAID_ROOM_TIMEOUT_MS = 10 * 60 * 1000;
 const RAID_PICK_TIMEOUT_MS = 60 * 1000;
 const MAX_BATTLE_LOG_LINES = 2;
 
-const activeRaidActionLocks = new Set();
+const activeRaidActionLocks = new Set(); const activeRaidLobbyLocks = new Set(); const activeRaidJoinLocks = new Set(); const activeRaidStartLocks = new Set();
 
 async function safeDeferInteraction(interaction) {
   try {
@@ -1766,12 +1766,10 @@ module.exports = {
       const activeRoom = getRoom(hostId);
 
       if (!activeRoom || String(activeRoom.roomId) !== String(room.roomId)) {
-        return interaction
-          .reply({
-            content: "This raid room is no longer active.",
-            ephemeral: true,
-          })
-          .catch(() => null);
+        await safeDeferReplyInteraction(interaction);
+      return safeReplyOrEdit(interaction, {
+        content: "This raid room is no longer active.",
+      });
       }
 
       if (interaction.customId === `raid_join_${room.roomId}`) {
@@ -2013,12 +2011,10 @@ module.exports = {
 
       if (interaction.customId === `raid_start_${room.roomId}`) {
         if (String(interaction.user.id) !== hostId) {
-          return interaction
-            .reply({
-              content: "Only the host can start this raid.",
-              ephemeral: true,
-            })
-            .catch(() => null);
+          await safeDeferReplyInteraction(interaction);
+        return safeReplyOrEdit(interaction, {
+          content: "Only the host can start this raid.",
+        });
         }
 
         const startDeferred = await safeDeferReplyInteraction(interaction);
@@ -2174,12 +2170,10 @@ module.exports = {
           const lockKey = String(battleState.roomId);
 
           if (activeRaidActionLocks.has(lockKey)) {
-            return button
-              .reply({
-                content: "Raid action is still processing. Please wait a moment.",
-                ephemeral: true,
-              })
-              .catch(() => null);
+            await safeDeferReplyInteraction(button);
+        return safeReplyOrEdit(button, {
+          content: "Raid action is still processing. Please wait a moment.",
+        });
           }
 
           activeRaidActionLocks.add(lockKey);
