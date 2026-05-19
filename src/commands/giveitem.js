@@ -15,6 +15,27 @@ const VALID_BUCKETS = [
   "fragments",
 ];
 
+const TICKET_ALIAS_TO_CODE = {
+  craid: "common_raid_ticket",
+  commonraid: "common_raid_ticket",
+  common_raid: "common_raid_ticket",
+  common_raid_ticket: "common_raid_ticket",
+  "common raid": "common_raid_ticket",
+  "common raid ticket": "common_raid_ticket",
+
+  raid: "raid_ticket",
+  raidticket: "raid_ticket",
+  raid_ticket: "raid_ticket",
+  "raid ticket": "raid_ticket",
+
+  graid: "gold_raid_ticket",
+  goldraid: "gold_raid_ticket",
+  gold_raid: "gold_raid_ticket",
+  gold_raid_ticket: "gold_raid_ticket",
+  "gold raid": "gold_raid_ticket",
+  "gold raid ticket": "gold_raid_ticket",
+};
+
 function getAdminIds() {
   return String(
     process.env.ADMIN_USER_IDS ||
@@ -190,6 +211,25 @@ function getCatalogKeys(entry) {
     addKey(keys, codeParts.slice(-2).join(" "));
   }
 
+  const codeNorm = normalizeCode(code);
+  const nameNorm = normalize(name);
+
+  if (codeNorm === "common_raid_ticket" || nameNorm === "common raid ticket") {
+    ["craid", "commonraid", "common raid", "common raid ticket"].forEach((value) =>
+      addKey(keys, value)
+    );
+  }
+
+  if (codeNorm === "raid_ticket" || nameNorm === "raid ticket") {
+    ["raid", "raidticket", "raid ticket"].forEach((value) => addKey(keys, value));
+  }
+
+  if (codeNorm === "gold_raid_ticket" || nameNorm === "gold raid ticket") {
+    ["graid", "goldraid", "gold raid", "gold raid ticket"].forEach((value) =>
+      addKey(keys, value)
+    );
+  }
+
   if (
     normalize(name).includes("nika") ||
     normalizeCode(code).includes("nika") ||
@@ -217,9 +257,13 @@ function buildIndex(entries) {
     const keys = getCatalogKeys(entry);
 
     for (const key of keys) {
-      map.set(normalize(key), entry);
-      map.set(normalizeCode(key), entry);
-      map.set(normalizeCompact(key), entry);
+      const normalized = normalize(key);
+      const code = normalizeCode(key);
+      const compact = normalizeCompact(key);
+
+      if (!map.has(normalized)) map.set(normalized, entry);
+      if (!map.has(code)) map.set(code, entry);
+      if (!map.has(compact)) map.set(compact, entry);
     }
   }
 
@@ -250,12 +294,41 @@ function getIndexForBucket(bucket) {
   return itemIndex;
 }
 
+function resolveTicketAlias(query) {
+  const q = normalize(query);
+  const qc = normalizeCode(query);
+  const compact = normalizeCompact(query);
+
+  return (
+    TICKET_ALIAS_TO_CODE[q] ||
+    TICKET_ALIAS_TO_CODE[qc] ||
+    TICKET_ALIAS_TO_CODE[compact] ||
+    null
+  );
+}
+
+function findExactCodeEntry(entries, code) {
+  const target = normalizeCode(code);
+
+  return (
+    entries.find((entry) => normalizeCode(entry?.code) === target) ||
+    entries.find((entry) => normalizeCode(entry?.id) === target) ||
+    null
+  );
+}
+
 function scoreEntry(entry, query) {
   const q = normalize(query);
   const qc = normalizeCode(query);
   const qCompact = normalizeCompact(query);
 
   if (!q && !qc && !qCompact) return 0;
+
+  const entryCode = normalizeCode(entry?.code);
+  const entryName = normalize(entry?.name || entry?.displayName);
+
+  if (entryCode && entryCode === qc) return 5000;
+  if (entryName && entryName === q) return 4500;
 
   let best = 0;
 
@@ -280,6 +353,7 @@ function scoreEntry(entry, query) {
     }
 
     const words = q.split(" ").filter(Boolean);
+
     if (words.length && words.every((word) => k.includes(word))) {
       best = Math.max(best, 250);
     }
@@ -289,11 +363,24 @@ function scoreEntry(entry, query) {
 }
 
 function findCatalogEntry(bucket, query) {
+  const entries = getEntriesForBucket(bucket);
+
+  if (bucket === "tickets") {
+    const aliasCode = resolveTicketAlias(query);
+
+    if (aliasCode) {
+      return findExactCodeEntry(entries, aliasCode);
+    }
+  }
+
   const q = normalize(query);
   const qc = normalizeCode(query);
   const qCompact = normalizeCompact(query);
-
   const index = getIndexForBucket(bucket);
+
+  const exactCode = findExactCodeEntry(entries, qc);
+  if (exactCode) return exactCode;
+
   const exact =
     index.get(q) ||
     index.get(qc) ||
@@ -301,8 +388,6 @@ function findCatalogEntry(bucket, query) {
     null;
 
   if (exact) return exact;
-
-  const entries = getEntriesForBucket(bucket);
 
   const ranked = entries
     .map((entry) => ({
@@ -392,10 +477,17 @@ function getUsageText() {
   return [
     "Usage: `op giveitem <@user/userId> <bucket> <amount> <item_code/name>`",
     "",
+    "Ticket aliases:",
+    "`craid` = Common Raid Ticket",
+    "`raid` = Raid Ticket",
+    "`graid` = Gold Raid Ticket",
+    "",
     "Examples:",
+    "`op giveitem @user tickets 1 craid`",
+    "`op giveitem @user tickets 1 raid`",
+    "`op giveitem @user tickets 1 graid`",
     "`op giveitem @user devilfruits 1 nika`",
     "`op giveitem 123456789012345678 devilfruits 1 hito_hito_no_mi_model_nika`",
-    "`op giveitem @user tickets 2 raid_ticket`",
     "",
     `Buckets: ${VALID_BUCKETS.join(", ")}`,
   ].join("\n");
