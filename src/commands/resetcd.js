@@ -36,7 +36,7 @@ function getMode(args = []) {
   const cleanedArgs = args.map(cleanArg).filter(Boolean);
 
   for (const arg of cleanedArgs) {
-    if (["sail", "ship", "travel", "berlayar"].includes(arg)) return "sail";
+    if (["sail", "ship", "travel", "berlayar"].includes(arg)) return "travel";
     if (["boss", "islandboss", "island-boss"].includes(arg)) return "boss";
     if (["fight", "battle", "pvp", "islandfight", "island-fight"].includes(arg)) {
       return "fight";
@@ -50,14 +50,14 @@ function getMode(args = []) {
 }
 
 function getModeLabel(mode) {
-  if (mode === "sail") return "Sail cooldown";
+  if (mode === "travel") return "Travel cooldown";
   if (mode === "boss") return "Boss cooldown";
   if (mode === "fight") return "Fight cooldown";
   return "All cooldowns";
 }
 
 function getHintText(mode) {
-  if (mode === "sail") return "The target can use `op sail` again.";
+  if (mode === "travel") return "The target can use `op sail` / travel again.";
   if (mode === "boss") return "The target can use `op boss` again.";
   if (mode === "fight") return "The target can use `op fight` again.";
   return "The target can use `op sail`, `op boss`, and `op fight` again.";
@@ -65,15 +65,32 @@ function getHintText(mode) {
 
 module.exports = {
   name: "resetcd",
-  aliases: ["resetcooldown", "rcd", "resetboss", "resetsail", "resetfight"],
+  aliases: [
+    "resetcooldown",
+    "rcd",
+    "resetboss",
+    "resetsail",
+    "resettravel",
+    "resetfight",
+  ],
 
   async execute(message, args = []) {
     if (!message.guild) {
-      return message.reply("This command can only be used in a server.");
+      return message.reply({
+        content: "This command can only be used in a server.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     if (!canUseAdminCommand(message)) {
-      return message.reply(getAdminAccessError());
+      return message.reply({
+        content: getAdminAccessError(),
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     const mode = getMode(args);
@@ -87,13 +104,22 @@ module.exports = {
           ...fresh,
         };
 
-        if (mode === "sail" || mode === "all") {
+        if (mode === "travel" || mode === "all") {
           next.ship = {
             ...(fresh.ship || {}),
             nextTravelAt: 0,
+            travelStartedAt: 0,
+            travelEndsAt: 0,
+            currentTravel: null,
           };
 
-          changed.push("Sail cooldown");
+          next.cooldowns = {
+            ...(next.cooldowns || fresh.cooldowns || {}),
+            sail: 0,
+            travel: 0,
+          };
+
+          changed.push("Travel cooldown");
         }
 
         if (mode === "boss" || mode === "all") {
