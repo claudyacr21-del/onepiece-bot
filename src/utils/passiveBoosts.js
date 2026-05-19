@@ -339,7 +339,7 @@ function getFragmentStorageBonus(player) {
       return sum + value * amount;
     }, 0);
 
-  return Math.max(0, Math.min(total, 250));
+  return Math.max(0, total);
 }
 
 function formatBoostValue(value, suffix = "") {
@@ -407,10 +407,7 @@ function getPassiveBoostSummary(player) {
     dmg: sumBoost(boostCards, "dmg") + Number(fruitGlobalBoosts.dmg || 0),
     fragmentStorageBonus: Math.max(
       0,
-      Math.min(
-        getFragmentStorageBonus(player) + Number(fruitGlobalBoosts.fragmentStorageBonus || 0),
-        250
-      )
+      getFragmentStorageBonus(player) + Number(fruitGlobalBoosts.fragmentStorageBonus || 0)
     ),
   };
 }

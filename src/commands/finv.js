@@ -11,7 +11,7 @@ const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const PAGE_SIZE = 8;
 const COLOR = 0x8e44ad;
 const BASE_FRAGMENT_STORAGE = 200;
-const MAX_FRAGMENT_STORAGE = 500;
+const MAX_FRAGMENT_STORAGE = 5000;
 const VALID_RARITIES = new Set(["C", "B", "A", "S", "SS", "UR"]);
 
 function normalize(value) {
@@ -51,7 +51,7 @@ function getStorageInfo(player, fragments) {
 
   const boostSummary = getPassiveBoostSummary(player);
   const bonus = Math.max(0, Number(boostSummary?.fragmentStorageBonus || 0));
-  const max = Math.min(BASE_FRAGMENT_STORAGE + bonus, MAX_FRAGMENT_STORAGE);
+  const max = BASE_FRAGMENT_STORAGE + bonus;
 
   return {
     total,

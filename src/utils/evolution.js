@@ -734,24 +734,55 @@ function createOwnedCard(template) {
 function getBoostStageValue(card, stage = 1) {
   const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
   const base = Number(card?.boostValue || 0);
-  const explicitValues = card?.boostValues || card?.stageBoostValues || null;
   const key = `M${safeStage}`;
+
+  const explicitValues = card?.boostValues || card?.stageBoostValues || null;
 
   if (explicitValues && Number.isFinite(Number(explicitValues[key]))) {
     return Number(explicitValues[key]);
   }
 
+  const explicitMultipliers =
+    card?.boostMultipliers ||
+    card?.stageBoostMultipliers ||
+    card?.boostStageMultipliers ||
+    null;
+
+  if (explicitMultipliers && Number.isFinite(Number(explicitMultipliers[key]))) {
+    return Math.floor(base * Number(explicitMultipliers[key]));
+  }
+
+  const directMultiplier =
+    safeStage === 1
+      ? card?.boostMultiplierM1 ?? card?.m1BoostMultiplier
+      : safeStage === 2
+      ? card?.boostMultiplierM2 ?? card?.m2BoostMultiplier
+      : card?.boostMultiplierM3 ?? card?.m3BoostMultiplier;
+
+  if (Number.isFinite(Number(directMultiplier))) {
+    return Math.floor(base * Number(directMultiplier));
+  }
+
   const cardCode = String(card?.code || "").toLowerCase();
   const cardName = String(card?.name || card?.displayName || "").toLowerCase();
+  const boostType = String(card?.boostType || "")
+    .toLowerCase()
+    .replace(/[_\-\s]+/g, "");
 
-  const isBaccarat =
-    cardCode.includes("baccarat") || cardName.includes("baccarat");
+  const isBaccarat = cardCode.includes("baccarat") || cardName.includes("baccarat");
 
   if (isBaccarat) {
     return safeStage;
   }
 
+  if (boostType === "fragmentstorage" || boostType === "fragstorage" || boostType === "storage") {
+    if (safeStage === 1) return base;
+    if (safeStage === 2) return Number(card?.boostValueM2 ?? card?.m2BoostValue ?? base * 2);
+    return Number(card?.boostValueM3 ?? card?.m3BoostValue ?? base * 3);
+  }
+
   if (safeStage === 1) return base;
+
   if (safeStage === 2) {
     return Number(card?.boostValueM2 ?? card?.m2BoostValue ?? base + 2);
   }
