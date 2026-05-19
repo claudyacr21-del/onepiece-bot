@@ -271,7 +271,6 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addMaterial(ITEMS.hardwood, 3);
     addMaterial(ITEMS.enhancementStone, 20);
     addItem(ITEMS.rumBeer, 10);
-    addTicket(ITEMS.pullResetTicket, 1);
 
     if (Math.random() < 0.75) {
       addRandomUniversalFragment(
