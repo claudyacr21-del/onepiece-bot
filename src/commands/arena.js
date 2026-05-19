@@ -8,7 +8,6 @@ const {
 
 const {
   getPlayer,
-  updatePlayer,
   readPlayers,
   updatePlayerAtomic,
 } = require("../playerStore");
@@ -61,12 +60,31 @@ function ensureArray(value) {
 
 async function safeDeferUpdate(interaction) {
   if (!interaction || interaction.deferred || interaction.replied) return;
-
   try {
     await interaction.deferUpdate();
   } catch (error) {
     // Unknown interaction usually means it was already acknowledged or expired.
-    // Do not crash the collector.
+  }
+}
+
+async function safeEphemeralReply(interaction, content) {
+  try {
+    if (!interaction) return null;
+
+    if (interaction.deferred || interaction.replied) {
+      return await interaction.followUp({
+        content,
+        ephemeral: true,
+      });
+    }
+
+    return await interaction.reply({
+      content,
+      ephemeral: true,
+    });
+  } catch (error) {
+    console.error("[ARENA EPHEMERAL REPLY ERROR]", error);
+    return null;
   }
 }
 
@@ -658,7 +676,7 @@ function updateArenaPlayer(message, result) {
 
       finalArena = {
         ...updatedArena,
-        arenaRank: getArenaRankForUser(message, message.author.id),
+        arenaRank: null,
         streakRewardLine: streakBoxReward.rewardLine,
       };
 
@@ -684,9 +702,11 @@ function updateArenaPlayer(message, result) {
     message.author.username
   );
 
+  const arenaRank = getArenaRankForUser(message, message.author.id);
+
   return {
     ...(finalArena || {}),
-    arenaRank: getArenaRankForUser(message, message.author.id),
+    arenaRank,
     streakRewardLine,
   };
 }
@@ -1063,6 +1083,7 @@ async function startArenaBattle({
   const logs = [];
   let ended = false;
   let result = null;
+  let processing = false;
   let currentArena = {
     points: Number(player?.arena?.points || 0),
     wins: Number(player?.arena?.wins || 0),
@@ -1098,50 +1119,170 @@ async function startArenaBattle({
 
   collector.on("collect", async (interaction) => {
     if (interaction.user.id !== message.author.id) {
-      return interaction.reply({
-        content: "Only the command user can control this arena battle.",
-        ephemeral: true,
-      });
-    }
-
-    if (ended) {
-      return interaction.reply({
-        content: "This arena battle has already ended.",
-        ephemeral: true,
-      });
-    }
-
-    await safeDeferUpdate(interaction);
-
-    if (interaction.customId === "arena_forfeit") {
-      ended = true;
-      result = "lose";
-      logs.length = 0;
-      logs.push("🏳️ You forfeited the arena battle.");
-
-      currentArena = updateArenaPlayer(message, result);
-      const expLines = applyArenaExp(message, myTeam, false);
-
-      await safeEditInteractionMessage(interaction, {
-        embeds: [
-          buildArenaResultEmbed({
-            result,
-            player,
-            opponent,
-            arena: currentArena,
-            logs,
-            expLines,
-          }),
-        ],
-        components: [],
-      });
-
-      collector.stop("forfeit");
+      await safeEphemeralReply(
+        interaction,
+        "Only the command user can control this arena battle."
+      );
       return;
     }
 
-    if (!interaction.customId.startsWith("arena_attack_")) {
-      return safeEditInteractionMessage(interaction, {
+    if (ended) {
+      await safeEphemeralReply(interaction, "This arena battle has already ended.");
+      return;
+    }
+
+    if (processing) {
+      await safeDeferUpdate(interaction);
+      return;
+    }
+
+    processing = true;
+
+    try {
+      await safeDeferUpdate(interaction);
+
+      if (interaction.customId === "arena_forfeit") {
+        ended = true;
+        result = "lose";
+        logs.length = 0;
+        logs.push("🏳️ You forfeited the arena battle.");
+
+        currentArena = updateArenaPlayer(message, result);
+        const expLines = applyArenaExp(message, myTeam, false);
+
+        await safeEditInteractionMessage(interaction, {
+          embeds: [
+            buildArenaResultEmbed({
+              result,
+              player,
+              opponent,
+              arena: currentArena,
+              logs,
+              expLines,
+            }),
+          ],
+          components: [],
+        });
+
+        collector.stop("forfeit");
+        return;
+      }
+
+      if (!interaction.customId.startsWith("arena_attack_")) {
+        await safeEditInteractionMessage(interaction, {
+          embeds: [
+            buildArenaEmbed({
+              player,
+              opponent,
+              myTeam,
+              enemyTeam,
+              logs,
+              arena: currentArena,
+              result,
+              ended,
+            }),
+          ],
+          components: buildActionRows(myTeam, ended),
+        });
+        return;
+      }
+
+      const index = Number(interaction.customId.replace("arena_attack_", ""));
+      const playerAttacker = myTeam[index];
+
+      if (!playerAttacker || Number(playerAttacker.hp || 0) <= 0) {
+        await safeEphemeralReply(interaction, "That card cannot attack right now.");
+        return;
+      }
+
+      const enemyTarget = getFirstAlive(enemyTeam);
+
+      if (!enemyTarget) {
+        await safeEphemeralReply(
+          interaction,
+          "No opponent card is available to fight."
+        );
+        return;
+      }
+
+      logs.length = 0;
+
+      const [first, second] = resolveSpeedOrder(playerAttacker, enemyTarget);
+      const firstIsPlayer = first === playerAttacker;
+      const firstTarget = firstIsPlayer ? enemyTarget : playerAttacker;
+      const firstDamage = performAttack(first, firstTarget);
+      const firstKilled = Number(firstTarget.hp || 0) <= 0;
+
+      logs.push(
+        `⚡ ${first.name} moved first by SPD and dealt **${firstDamage}** damage to ${firstTarget.name}${firstKilled ? " (defeated)" : ""}.`
+      );
+
+      if (!firstKilled && Number(second.hp || 0) > 0) {
+        const secondTarget = firstIsPlayer ? playerAttacker : enemyTarget;
+        const secondDamage = performAttack(second, secondTarget);
+        const secondKilled = Number(secondTarget.hp || 0) <= 0;
+
+        logs.push(
+          `⚔️ ${second.name} countered and dealt **${secondDamage}** damage to ${secondTarget.name}${secondKilled ? " (defeated)" : ""}.`
+        );
+      } else {
+        logs.push(`☠️ ${firstTarget.name} was defeated and could not counter.`);
+      }
+
+      if (aliveCount(enemyTeam) <= 0) {
+        ended = true;
+        result = "win";
+
+        currentArena = updateArenaPlayer(message, result);
+        updateArenaOpponentAfterBattle(opponent, result);
+        queueArenaRankRoleSync(message);
+
+        const expLines = applyArenaExp(message, myTeam, true);
+
+        await safeEditInteractionMessage(interaction, {
+          embeds: [
+            buildArenaResultEmbed({
+              result,
+              player,
+              opponent,
+              arena: currentArena,
+              logs,
+              expLines,
+            }),
+          ],
+          components: [],
+        });
+
+        collector.stop("win");
+        return;
+      }
+
+      if (aliveCount(myTeam) <= 0) {
+        ended = true;
+        result = "lose";
+
+        currentArena = updateArenaPlayer(message, result);
+        const expLines = applyArenaExp(message, myTeam, false);
+
+        await safeEditInteractionMessage(interaction, {
+          embeds: [
+            buildArenaResultEmbed({
+              result,
+              player,
+              opponent,
+              arena: currentArena,
+              logs,
+              expLines,
+            }),
+          ],
+          components: [],
+        });
+
+        collector.stop("lose");
+        return;
+      }
+
+      await safeEditInteractionMessage(interaction, {
         embeds: [
           buildArenaEmbed({
             player,
@@ -1156,113 +1297,15 @@ async function startArenaBattle({
         ],
         components: buildActionRows(myTeam, ended),
       });
-    }
-
-    const index = Number(interaction.customId.replace("arena_attack_", ""));
-    const playerAttacker = myTeam[index];
-
-    if (!playerAttacker || Number(playerAttacker.hp || 0) <= 0) {
-      return safeEphemeralReply(interaction, "That card cannot attack right now.");
-    }
-
-    const enemyTarget = getFirstAlive(enemyTeam);
-
-    if (!enemyTarget) {
-      return safeEphemeralReply(interaction, "No opponent card is available to fight.");
-    }
-
-    logs.length = 0;
-
-    const [first, second] = resolveSpeedOrder(playerAttacker, enemyTarget);
-    const firstIsPlayer = first === playerAttacker;
-    const firstTarget = firstIsPlayer ? enemyTarget : playerAttacker;
-    const firstDamage = performAttack(first, firstTarget);
-    const firstKilled = Number(firstTarget.hp || 0) <= 0;
-
-    logs.push(
-      `⚡ ${first.name} moved first by SPD and dealt **${firstDamage}** damage to ${firstTarget.name}${firstKilled ? " (defeated)" : ""}.`
-    );
-
-    if (!firstKilled && Number(second.hp || 0) > 0) {
-      const secondTarget = firstIsPlayer ? playerAttacker : enemyTarget;
-      const secondDamage = performAttack(second, secondTarget);
-      const secondKilled = Number(secondTarget.hp || 0) <= 0;
-
-      logs.push(
-        `⚔️ ${second.name} countered and dealt **${secondDamage}** damage to ${secondTarget.name}${secondKilled ? " (defeated)" : ""}.`
+    } catch (error) {
+      console.error("[ARENA BATTLE COLLECTOR ERROR]", error);
+      await safeEphemeralReply(
+        interaction,
+        "Arena interaction error. Please try again."
       );
-    } else {
-      logs.push(`☠️ ${firstTarget.name} was defeated and could not counter.`);
+    } finally {
+      processing = false;
     }
-
-    if (aliveCount(enemyTeam) <= 0) {
-      ended = true;
-      result = "win";
-
-      currentArena = updateArenaPlayer(message, result);
-      updateArenaOpponentAfterBattle(opponent, result);
-      queueArenaRankRoleSync(message);
-
-      const expLines = applyArenaExp(message, myTeam, true);
-
-      await safeEditInteractionMessage(interaction, {
-        embeds: [
-          buildArenaResultEmbed({
-            result,
-            player,
-            opponent,
-            arena: currentArena,
-            logs,
-            expLines,
-          }),
-        ],
-        components: [],
-      });
-
-      collector.stop("win");
-      return;
-    }
-
-    if (aliveCount(myTeam) <= 0) {
-      ended = true;
-      result = "lose";
-
-      currentArena = updateArenaPlayer(message, result);
-      const expLines = applyArenaExp(message, myTeam, false);
-
-      await safeEditInteractionMessage(interaction, {
-        embeds: [
-          buildArenaResultEmbed({
-            result,
-            player,
-            opponent,
-            arena: currentArena,
-            logs,
-            expLines,
-          }),
-        ],
-        components: [],
-      });
-
-      collector.stop("lose");
-      return;
-    }
-
-    await safeEditInteractionMessage(interaction, {
-      embeds: [
-        buildArenaEmbed({
-          player,
-          opponent,
-          myTeam,
-          enemyTeam,
-          logs,
-          arena: currentArena,
-          result,
-          ended,
-        }),
-      ],
-      components: buildActionRows(myTeam, ended),
-    });
   });
 
   collector.on("end", async (_collected, reason) => {
@@ -1346,20 +1389,19 @@ module.exports = {
 
     lobbyCollector.on("collect", async (interaction) => {
       if (interaction.user.id !== message.author.id) {
-        return interaction.reply({
-          content: "Only the command user can select an arena opponent.",
-          ephemeral: true,
-        });
+        await safeEphemeralReply(
+          interaction,
+          "Only the command user can select an arena opponent."
+        );
+        return;
       }
 
       const selectedIndex = Number(interaction.values?.[0] || 0);
       const opponent = opponents[selectedIndex];
 
       if (!opponent) {
-        return interaction.reply({
-          content: "That opponent is no longer available.",
-          ephemeral: true,
-        });
+        await safeEphemeralReply(interaction, "That opponent is no longer available.");
+        return;
       }
 
       const freshPlayer = getPlayer(message.author.id, message.author.username);
@@ -1368,15 +1410,16 @@ module.exports = {
       const freshUsesLeft = getArenaUsesLeft(freshPlayer.arena || {});
 
       if (freshUsesLeft <= 0) {
-        return interaction.reply({
-          content: `You already used all **${ARENA_DAILY_LIMIT}/5** arena battles today.`,
-          ephemeral: true,
-        });
+        await safeEphemeralReply(
+          interaction,
+          `You already used all **${ARENA_DAILY_LIMIT}/5** arena battles today.`
+        );
+        return;
       }
 
       lobbyCollector.stop("selected");
 
-      await interaction.deferUpdate();
+      await safeDeferUpdate(interaction);
 
       await startArenaBattle({
         message,

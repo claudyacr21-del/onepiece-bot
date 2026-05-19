@@ -271,7 +271,10 @@ function buildListEmbed(data, options = {}) {
     const aCreated = Number(a.createdAt || 0);
     const bCreated = Number(b.createdAt || 0);
 
-    if (aCreated && bCreated && aCreated !== bCreated) return aCreated - bCreated;
+    if (aCreated && bCreated && aCreated !== bCreated) {
+      return aCreated - bCreated;
+    }
+
     if (aCreated && !bCreated) return -1;
     if (!aCreated && bCreated) return 1;
 
@@ -280,11 +283,14 @@ function buildListEmbed(data, options = {}) {
 
   const entries = isAdminView
     ? allEntries
-    : allEntries.filter((entry) => entry && entry.active !== false && !isRedeemCodeExpired(entry));
+    : allEntries.filter((entry) => entry && entry.active !== false);
 
   const lines = entries.length
     ? entries.slice(0, 25).map((entry, index) => {
-        const usedBy = Array.isArray(entry.usedBy) ? entry.usedBy.map(String) : [];
+        const usedBy = Array.isArray(entry.usedBy)
+          ? entry.usedBy.map(String)
+          : [];
+
         const alreadyUsed = viewerId && usedBy.includes(viewerId);
 
         if (!isAdminView) {
@@ -302,17 +308,11 @@ function buildListEmbed(data, options = {}) {
             ? `${Number(usedBy.length || 0)}/${Number(entry.maxUses)}`
             : `${Number(usedBy.length || 0)}/Unlimited`;
 
-        const status =
-          entry.active === false
-            ? "Disabled"
-            : isRedeemCodeExpired(entry)
-            ? "Expired"
-            : "Active";
+        const status = entry.active === false ? "Disabled" : "Active";
 
         return [
           `${index + 1}. **${entry.code}**`,
           `Status: ${status}`,
-          `Expires: ${formatExpiryText(entry)}`,
           `Rewards: ${rewardText}`,
           `Uses: ${usage}`,
         ].join("\n");
@@ -326,8 +326,10 @@ function buildListEmbed(data, options = {}) {
   return new EmbedBuilder()
     .setColor(0xf1c40f)
     .setTitle(isAdminView ? "Redeem Code List" : "Available Redeem Codes")
-    .setDescription(lines.join("\n\n"))
-    .setFooter({ text: "One Piece Bot • Redeem Codes" });
+    .setDescription(lines.join("\n"))
+    .setFooter({
+      text: "One Piece Bot • Redeem Codes",
+    });
 }
 
 module.exports = {

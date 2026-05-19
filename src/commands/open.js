@@ -233,7 +233,8 @@ function grantBoxRewards(box, amount, state, rewardMap) {
   } else if (box.code === "elite_resource_box") {
     addBerries(9000);
     addGems(35);
-    addMaterial(ITEMS.ironPlating, 2);
+    addMaterial(ITEMS.ironPlating, 1);
+    addMaterial(ITEMS.hardwood, 1);
     addMaterial(ITEMS.colaEnginePart, 1);
     addMaterial(ITEMS.enhancementStone, 8);
     addItem(ITEMS.rumBeer, 3 + Math.floor(Math.random() * 2));
@@ -247,7 +248,8 @@ function grantBoxRewards(box, amount, state, rewardMap) {
   } else if (box.code === "legend_resource_box") {
     addBerries(15000);
     addGems(60);
-    addMaterial(ITEMS.ironPlating, 3);
+    addMaterial(ITEMS.ironPlating, 2);
+    addMaterial(ITEMS.hardwood, 1);
     addMaterial(ITEMS.colaEnginePart, 2);
     addMaterial(ITEMS.enhancementStone, 15);
     addItem(ITEMS.rumBeer, 5 + Math.floor(Math.random() * 3));
@@ -266,7 +268,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addBerries(50000);
     addGems(150);
     addMaterial(ITEMS.colaEnginePart, 5);
-    addMaterial(ITEMS.hardwood, 4);
+    addMaterial(ITEMS.hardwood, 3);
     addMaterial(ITEMS.enhancementStone, 20);
     addItem(ITEMS.rumBeer, 10);
     addTicket(ITEMS.pullResetTicket, 1);

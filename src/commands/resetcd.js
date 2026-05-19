@@ -1,4 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
+
 const { updatePlayerAtomic } = require("../playerStore");
 const {
   canUseAdminCommand,
@@ -9,11 +10,17 @@ function normalize(value) {
   return String(value || "").toLowerCase().trim();
 }
 
-function getTargetUser(message, args) {
+function cleanArg(value) {
+  return normalize(value).replace(/[<@!>]/g, "");
+}
+
+function getTargetUser(message, args = []) {
   const mentionedUser = message.mentions?.users?.first();
   if (mentionedUser) return mentionedUser;
 
-  const rawId = args.find((arg) => /^\d{15,25}$/.test(String(arg || "")));
+  const rawId = args
+    .map(cleanArg)
+    .find((arg) => /^\d{15,25}$/.test(arg));
 
   if (rawId) {
     return {
@@ -25,19 +32,40 @@ function getTargetUser(message, args) {
   return message.author;
 }
 
-function getMode(args) {
-  const first = normalize(args[0]);
+function getMode(args = []) {
+  const cleanedArgs = args.map(cleanArg).filter(Boolean);
 
-  if (["sail", "ship", "travel"].includes(first)) return "sail";
-  if (["boss", "islandboss"].includes(first)) return "boss";
-  if (["all", "both", "cd", "cooldown", "cooldowns"].includes(first)) return "all";
+  for (const arg of cleanedArgs) {
+    if (["sail", "ship", "travel", "berlayar"].includes(arg)) return "sail";
+    if (["boss", "islandboss", "island-boss"].includes(arg)) return "boss";
+    if (["fight", "battle", "pvp", "islandfight", "island-fight"].includes(arg)) {
+      return "fight";
+    }
+    if (["all", "both", "cd", "cooldown", "cooldowns", "semua"].includes(arg)) {
+      return "all";
+    }
+  }
 
   return "all";
 }
 
+function getModeLabel(mode) {
+  if (mode === "sail") return "Sail cooldown";
+  if (mode === "boss") return "Boss cooldown";
+  if (mode === "fight") return "Fight cooldown";
+  return "All cooldowns";
+}
+
+function getHintText(mode) {
+  if (mode === "sail") return "The target can use `op sail` again.";
+  if (mode === "boss") return "The target can use `op boss` again.";
+  if (mode === "fight") return "The target can use `op fight` again.";
+  return "The target can use `op sail`, `op boss`, and `op fight` again.";
+}
+
 module.exports = {
   name: "resetcd",
-  aliases: ["resetcooldown", "rcd", "resetboss", "resetsail"],
+  aliases: ["resetcooldown", "rcd", "resetboss", "resetsail", "resetfight"],
 
   async execute(message, args = []) {
     if (!message.guild) {
@@ -64,15 +92,29 @@ module.exports = {
             ...(fresh.ship || {}),
             nextTravelAt: 0,
           };
+
           changed.push("Sail cooldown");
         }
 
         if (mode === "boss" || mode === "all") {
           next.cooldowns = {
-            ...(fresh.cooldowns || {}),
+            ...(next.cooldowns || fresh.cooldowns || {}),
             boss: 0,
           };
+
           changed.push("Boss cooldown");
+        }
+
+        if (mode === "fight" || mode === "all") {
+          next.cooldowns = {
+            ...(next.cooldowns || fresh.cooldowns || {}),
+            fight: 0,
+            fightMotherFlame: 0,
+            fightVivreCard: 0,
+            islandFight: 0,
+          };
+
+          changed.push("Fight cooldown");
         }
 
         return next;
@@ -86,13 +128,11 @@ module.exports = {
       .setDescription(
         [
           `**Target:** <@${targetUser.id}>`,
-          `**Reset:** ${changed.join(" + ")}`,
+          `**User ID:** \`${targetUser.id}\``,
+          `**Mode:** ${getModeLabel(mode)}`,
+          `**Reset:** ${changed.join(" + ") || "None"}`,
           "",
-          mode === "sail"
-            ? "The target can use `op sail` again."
-            : mode === "boss"
-            ? "The target can use `op boss` again."
-            : "The target can use `op sail` and `op boss` again.",
+          getHintText(mode),
         ].join("\n")
       )
       .setFooter({
@@ -101,7 +141,10 @@ module.exports = {
 
     return message.reply({
       embeds: [embed],
-      allowedMentions: { repliedUser: false },
+      allowedMentions: {
+        users: [String(targetUser.id)],
+        repliedUser: false,
+      },
     });
   },
 };
