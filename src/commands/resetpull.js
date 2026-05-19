@@ -6,20 +6,10 @@ const {
   applyManualPullReset,
 } = require("../utils/pullReset");
 
-const RESETTABLE_PULL_SLOTS = [
-  "base",
-  "supportMember",
-  "booster",
-  "owner",
-  "patreon",
-  "vivreCard",
-  "baccaratCard",
-  "baccaratFruit",
-];
-
 function findTicket(tickets, code) {
   return (Array.isArray(tickets) ? tickets : []).findIndex(
-    (item) => String(item.code || "").toLowerCase() === String(code || "").toLowerCase()
+    (item) =>
+      String(item.code || "").toLowerCase() === String(code || "").toLowerCase()
   );
 }
 
@@ -27,9 +17,7 @@ function consumeTicket(tickets, index) {
   const updated = [...(Array.isArray(tickets) ? tickets : [])];
   const current = Number(updated[index]?.amount || 0);
 
-  if (index < 0 || current <= 0) {
-    return null;
-  }
+  if (index < 0 || current <= 0) return null;
 
   if (current <= 1) {
     updated.splice(index, 1);
@@ -56,33 +44,6 @@ function formatRemaining(ms) {
   return "Now";
 }
 
-function getSlotUsed(slot) {
-  return Math.max(0, Number(slot?.used || 0));
-}
-
-function getSlotMax(slot) {
-  return Math.max(0, Number(slot?.max || 0));
-}
-
-function getPullSlotStatusLines(pulls = {}) {
-  return RESETTABLE_PULL_SLOTS.map((key) => {
-    const slot = pulls?.[key] || {};
-    const used = getSlotUsed(slot);
-    const max = getSlotMax(slot);
-
-    return {
-      key,
-      used,
-      max,
-      left: Math.max(0, max - used),
-    };
-  }).filter((slot) => slot.max > 0);
-}
-
-function getAvailablePullSlots(pulls = {}) {
-  return getPullSlotStatusLines(pulls).filter((slot) => slot.left > 0);
-}
-
 function formatSlotName(key) {
   const names = {
     base: "Base Pulls",
@@ -98,50 +59,83 @@ function formatSlotName(key) {
   return names[key] || key;
 }
 
+function isPullSlotObject(slot) {
+  if (!slot || typeof slot !== "object") return false;
+
+  const max = Number(slot.max || 0);
+  const used = Number(slot.used || 0);
+
+  return Number.isFinite(max) && max > 0 && Number.isFinite(used);
+}
+
+function getOwnedPullSlots(pulls = {}) {
+  return Object.entries(pulls)
+    .filter(([key, slot]) => {
+      if (["lastResetBucket", "slotSchemaVersion"].includes(key)) return false;
+      return isPullSlotObject(slot);
+    })
+    .map(([key, slot]) => {
+      const max = Math.max(0, Number(slot.max || 0));
+      const used = Math.max(0, Number(slot.used || 0));
+      const left = Math.max(0, max - used);
+
+      return {
+        key,
+        used,
+        max,
+        left,
+      };
+    });
+}
+
+function getAvailableOwnedPullSlots(pulls = {}) {
+  return getOwnedPullSlots(pulls).filter((slot) => slot.left > 0);
+}
+
 function buildAvailableSlotText(pulls = {}) {
-  const available = getAvailablePullSlots(pulls);
+  const available = getAvailableOwnedPullSlots(pulls);
 
   if (!available.length) return "No pull slots available.";
 
   return available
-    .map((slot) => {
-      return `↪ ${formatSlotName(slot.key)}: ${slot.left}/${slot.max} left`;
-    })
+    .map((slot) => `↪ ${formatSlotName(slot.key)}: ${slot.left}/${slot.max} left`)
     .join("\n");
+}
+
+function buildBlockedEmbed(pulls, nextResetAt) {
+  return new EmbedBuilder()
+    .setColor(0xe74c3c)
+    .setTitle("Pull Reset Blocked")
+    .setDescription(
+      [
+        "You still have available pull slots.",
+        "Use your remaining pulls first before using a Pull Reset Ticket.",
+        "",
+        "**Available Slots**",
+        buildAvailableSlotText(pulls),
+        "",
+        `↪ Next Global Reset: ${formatRemaining(Number(nextResetAt || 0) - Date.now())}`,
+        "↪ Pull Reset Ticket was not consumed.",
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Pull Reset",
+    });
 }
 
 module.exports = {
   name: "resetpull",
-  aliases: ["reset"],
+  aliases: ["reset", "rpull", "pr", "pullreset"],
 
   async execute(message) {
     const previewPlayer = getPlayer(message.author.id, message.author.username);
-    const globalReset = applyGlobalPullReset(previewPlayer);
-    const previewPulls = globalReset.pulls || previewPlayer.pulls || {};
-    const availableSlots = getAvailablePullSlots(previewPulls);
+    const previewGlobalReset = applyGlobalPullReset(previewPlayer);
+    const previewPulls = previewGlobalReset.pulls || previewPlayer.pulls || {};
+    const previewAvailable = getAvailableOwnedPullSlots(previewPulls);
 
-    if (availableSlots.length > 0) {
+    if (previewAvailable.length > 0) {
       return message.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(0xe74c3c)
-            .setTitle("Pull Reset Blocked")
-            .setDescription(
-              [
-                "You still have available pull slots.",
-                "Use your remaining pulls first before using a Pull Reset Ticket.",
-                "",
-                "**Available Slots**",
-                buildAvailableSlotText(previewPulls),
-                "",
-                `↪ Next Global Reset: ${formatRemaining(globalReset.nextResetAt - Date.now())}`,
-                "↪ Pull Reset Ticket was not consumed.",
-              ].join("\n")
-            )
-            .setFooter({
-              text: "One Piece Bot • Pull Reset",
-            }),
-        ],
+        embeds: [buildBlockedEmbed(previewPulls, previewGlobalReset.nextResetAt)],
         allowedMentions: {
           repliedUser: false,
         },
@@ -157,9 +151,9 @@ module.exports = {
         (fresh) => {
           const freshGlobalReset = applyGlobalPullReset(fresh);
           const freshPulls = freshGlobalReset.pulls || fresh.pulls || {};
-          const freshAvailableSlots = getAvailablePullSlots(freshPulls);
+          const freshAvailable = getAvailableOwnedPullSlots(freshPulls);
 
-          if (freshAvailableSlots.length > 0) {
+          if (freshAvailable.length > 0) {
             throw new Error(
               [
                 "RESET_BLOCKED_AVAILABLE_SLOTS",
@@ -183,10 +177,19 @@ module.exports = {
           }
 
           resetResult = applyManualPullReset(freshPulls);
-          const updatedDailyState = incrementQuestCounter(fresh, "resetTicketsUsed", 1);
+
+          const updatedDailyState = incrementQuestCounter(
+            {
+              ...fresh,
+              username: fresh.username || previewPlayer.username || message.author.username,
+            },
+            "resetTicketsUsed",
+            1
+          );
 
           const ticketLeft = updatedTickets.find(
-            (item) => String(item.code || "").toLowerCase() === "pull_reset_ticket"
+            (item) =>
+              String(item.code || "").toLowerCase() === "pull_reset_ticket"
           );
 
           remainingTickets = Number(ticketLeft?.amount || 0);
@@ -204,10 +207,10 @@ module.exports = {
         message.author.username
       );
     } catch (error) {
-      const messageText = String(error.message || "");
+      const text = String(error.message || "");
 
-      if (messageText.startsWith("RESET_BLOCKED_AVAILABLE_SLOTS|||")) {
-        const [, slotText, nextResetAtRaw] = messageText.split("|||");
+      if (text.startsWith("RESET_BLOCKED_AVAILABLE_SLOTS|||")) {
+        const [, slotText, nextResetAtRaw] = text.split("|||");
         const nextResetAt = Number(nextResetAtRaw || 0);
 
         return message.reply({
@@ -256,12 +259,12 @@ module.exports = {
             [
               "Your pull usage has been reset manually.",
               "",
-              "↪ Base Pulls reset",
-              "↪ Bonus pull slots reset",
-              "↪ Baccarat slots reset",
-              "↪ Global 8-hour reset timer is unchanged",
-              `↪ Next Global Reset: ${formatRemaining(resetResult.nextResetAt - now)}`,
-              "↪ 1 Pull Reset Ticket consumed",
+              "↪ Only your owned pull slots were checked before reset.",
+              "↪ Global 8-hour reset timer is unchanged.",
+              `↪ Next Global Reset: ${formatRemaining(
+                Number(resetResult?.nextResetAt || now) - now
+              )}`,
+              "↪ 1 Pull Reset Ticket consumed.",
               `↪ Remaining Pull Reset Ticket: ${remainingTickets}`,
             ].join("\n")
           )
