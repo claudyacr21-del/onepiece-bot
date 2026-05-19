@@ -20,7 +20,8 @@ function normalizeCompare(value) {
     .replace(/^model:\s*/i, "")
     .replace(/[_-]+/g, " ")
     .replace(/[^a-z0-9\s]+/g, "")
-    .replace(/\s+/g, " ");
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeCode(value) {
@@ -38,6 +39,16 @@ function normalizeCompact(value) {
   return normalizeCompare(value).replace(/\s+/g, "");
 }
 
+function normalizeAssetKey(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/^model:\s*/i, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 function pushKey(keys, value) {
   const raw = String(value || "").trim();
   if (!raw) return;
@@ -46,6 +57,7 @@ function pushKey(keys, value) {
   keys.push(normalizeCode(raw));
   keys.push(normalizeCompare(raw));
   keys.push(normalizeCompact(raw));
+  keys.push(normalizeAssetKey(raw));
 }
 
 function getCurrentForm(card) {
@@ -125,34 +137,27 @@ function findFruitTemplate(value) {
   const queryText = normalizeCompare(value);
   const queryCompact = normalizeCompact(value);
 
+  if (!queryCode && !queryText && !queryCompact) return null;
+
   return (
     devilFruits.find((fruit) => normalizeCode(fruit.code) === queryCode) ||
     devilFruits.find((fruit) => normalizeCompare(fruit.name) === queryText) ||
     devilFruits.find((fruit) => normalizeCompact(fruit.name) === queryCompact) ||
-    devilFruits.find((fruit) => normalizeCode(fruit.code).includes(queryCode)) ||
-    devilFruits.find((fruit) => normalizeCompare(fruit.name).includes(queryText)) ||
-    devilFruits.find((fruit) => normalizeCompact(fruit.name).includes(queryCompact)) ||
+    devilFruits.find(
+      (fruit) => queryCode && normalizeCode(fruit.code).includes(queryCode)
+    ) ||
+    devilFruits.find(
+      (fruit) => queryText && normalizeCompare(fruit.name).includes(queryText)
+    ) ||
+    devilFruits.find(
+      (fruit) => queryCompact && normalizeCompact(fruit.name).includes(queryCompact)
+    ) ||
     null
   );
 }
 
-function isImageUrl(value) {
-  const text = String(value || "").trim();
-
-  return (
-    /^https?:\/\//i.test(text) &&
-    /\.(png|jpg|jpeg|webp|gif)(\?.*)?$/i.test(text)
-  );
-}
-
-function normalizeAssetKey(value) {
-  return String(value || "")
-    .toLowerCase()
-    .trim()
-    .replace(/^model:\s*/i, "")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
+function isUrl(value) {
+  return /^https?:\/\//i.test(String(value || "").trim());
 }
 
 function getFruitAssetKeys(fruit) {
@@ -204,7 +209,7 @@ function pickImageFromValue(value) {
   if (!value) return "";
 
   if (typeof value === "string") {
-    return isImageUrl(value) ? value : "";
+    return isUrl(value) ? value.trim() : "";
   }
 
   if (typeof value !== "object") return "";
@@ -215,13 +220,15 @@ function pickImageFromValue(value) {
     pickImageFromValue(value.img) ||
     pickImageFromValue(value.icon) ||
     pickImageFromValue(value.thumbnail) ||
-    pickImageFromValue(value.url) ||
     pickImageFromValue(value.asset) ||
+    pickImageFromValue(value.url) ||
     ""
   );
 }
 
 function findFruitImageInAssetLinks(fruit) {
+  if (!fruit || !assetLinks) return "";
+
   const keys = getFruitAssetKeys(fruit);
   const normalizedKeys = new Set(keys.map(normalizeAssetKey).filter(Boolean));
 
@@ -268,9 +275,8 @@ function findFruitImageInAssetLinks(fruit) {
 
   const visited = new Set();
 
-  function deepSearch(node, parentKey = "") {
-    if (!node || visited.has(node)) return "";
-    if (typeof node !== "object") return "";
+  function deepSearch(node) {
+    if (!node || typeof node !== "object" || visited.has(node)) return "";
 
     visited.add(node);
 
@@ -282,18 +288,17 @@ function findFruitImageInAssetLinks(fruit) {
         if (image) return image;
       }
 
-      if (typeof value === "string" && normalizedKeys.has(normalizedKey)) {
-        const image = pickImageFromValue(value);
-        if (image) return image;
-      }
-
       if (value && typeof value === "object") {
-        const codeKey = normalizeAssetKey(value.code || value.id || value.name || "");
-        const image = pickImageFromValue(value);
+        const valueKey = normalizeAssetKey(
+          value.code || value.id || value.key || value.name || value.displayName || ""
+        );
 
-        if (image && normalizedKeys.has(codeKey)) return image;
+        if (normalizedKeys.has(valueKey)) {
+          const image = pickImageFromValue(value);
+          if (image) return image;
+        }
 
-        const nested = deepSearch(value, key);
+        const nested = deepSearch(value);
         if (nested) return nested;
       }
     }
@@ -306,13 +311,7 @@ function findFruitImageInAssetLinks(fruit) {
 
 function getFruitImage(fruit) {
   return (
-    fruit?.image ||
-    fruit?.imageUrl ||
-    fruit?.img ||
-    fruit?.icon ||
-    fruit?.thumbnail ||
-    fruit?.asset ||
-    fruit?.url ||
+    pickImageFromValue(fruit) ||
     findFruitImageInAssetLinks(fruit) ||
     ""
   );
@@ -321,7 +320,7 @@ function getFruitImage(fruit) {
 function resolveFruitData(ownedFruit) {
   const template = findFruitTemplate(ownedFruit?.code || ownedFruit?.name);
 
-  return {
+  const resolved = {
     ...(template || {}),
     ...(ownedFruit || {}),
     owners:
@@ -344,12 +343,14 @@ function resolveFruitData(ownedFruit) {
     type: template?.type || ownedFruit?.type || "Devil Fruit",
     rarity: template?.rarity || ownedFruit?.rarity || "B",
     description: template?.description || ownedFruit?.description || "",
-    image:
-      getFruitImage(template) ||
-      getFruitImage(ownedFruit) ||
-      findFruitImageInAssetLinks(template) ||
-      findFruitImageInAssetLinks(ownedFruit),
   };
+
+  resolved.image =
+    getFruitImage(template) ||
+    getFruitImage(ownedFruit) ||
+    "";
+
+  return resolved;
 }
 
 function canCardUseDevilFruit(card, fruit) {
@@ -592,8 +593,6 @@ async function safeUpdateInteraction(interaction, payload) {
 async function equipFruitToCard(message, player, card, fruit) {
   let syncedCard = null;
   let resolvedFruitData = null;
-  let effectiveValue = null;
-  let isBoost = false;
 
   try {
     updatePlayerAtomic(
@@ -680,17 +679,8 @@ async function equipFruitToCard(message, player, card, fruit) {
     });
   }
 
-  const boostFruitData = findBoostFruitByCode(fruit.code);
-  const fruitTemplate =
-    devilFruits.find((entry) => String(entry.code) === String(fruit.code)) ||
-    devilFruits.find(
-      (entry) =>
-        normalizeCode(entry.code) === normalizeCode(fruit.code) ||
-        normalizeCompare(entry.name) === normalizeCompare(fruit.name)
-    ) ||
-    null;
-
   const fruitTemplate = findFruitTemplate(fruit?.code || fruit?.name);
+  const boostFruitData = findBoostFruitByCode(fruit?.code);
 
   resolvedFruitData = {
     ...(fruitTemplate || {}),
@@ -702,13 +692,10 @@ async function equipFruitToCard(message, player, card, fruit) {
     getFruitImage(syncedCard.equippedDevilFruitData) ||
     getFruitImage(fruitTemplate) ||
     getFruitImage(fruit) ||
-    findFruitImageInAssetLinks(syncedCard.equippedDevilFruitData) ||
-    findFruitImageInAssetLinks(fruitTemplate) ||
-    findFruitImageInAssetLinks(fruit) ||
     "";
 
-  isBoost = syncedCard.cardRole === "boost";
-  effectiveValue = isBoost ? getEffectiveBoostValue(syncedCard) : null;
+  const isBoost = syncedCard.cardRole === "boost";
+  const effectiveValue = isBoost ? getEffectiveBoostValue(syncedCard) : null;
 
   const suffix =
     isBoost && ["atk", "hp", "spd", "exp", "dmg"].includes(syncedCard.boostType)
@@ -758,8 +745,6 @@ async function equipFruitToCard(message, player, card, fruit) {
     .setFooter({
       text: "One Piece Bot • Devil Fruit Equip",
     });
-
-  const fruitImage = getFruitImage(resolvedFruitData);
 
   if (fruitImage) {
     embed.setThumbnail(fruitImage);
