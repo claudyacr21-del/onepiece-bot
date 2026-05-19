@@ -352,6 +352,57 @@ function getOwnedBaseCard(player, card) {
   );
 }
 
+function getFragmentAmount(fragment) {
+  const amount = Number(fragment?.amount ?? fragment?.count ?? fragment?.quantity ?? 0);
+  return Number.isFinite(amount) && amount > 0 ? amount : 0;
+}
+
+function getFragmentMatchKeys(source) {
+  return [
+    source?.code,
+    source?.name,
+    source?.displayName,
+    source?.cardName,
+    source?.title,
+    source?.baseCode,
+    source?.cardCode,
+    source?.characterCode,
+    source?.sourceCode,
+    source?.key,
+    source?.id,
+    String(source?.code || "").replace(/^fragment_/i, ""),
+    String(source?.code || "").replace(/_fragment$/i, ""),
+  ]
+    .map(normalizeCompare)
+    .filter(Boolean);
+}
+
+function doesFragmentMatchCard(fragment, card) {
+  const fragmentKeys = getFragmentMatchKeys(fragment);
+  const cardKeys = getFragmentMatchKeys(card);
+
+  if (!fragmentKeys.length || !cardKeys.length) return false;
+
+  return cardKeys.some((cardKey) =>
+    fragmentKeys.some((fragmentKey) => {
+      if (fragmentKey === cardKey) return true;
+      if (fragmentKey.includes(cardKey)) return true;
+      if (cardKey.includes(fragmentKey)) return true;
+      return false;
+    })
+  );
+}
+
+function getOwnedSelfFragmentAmount(player, card, ownedBaseCard = null) {
+  const inventoryAmount = (Array.isArray(player?.fragments) ? player.fragments : [])
+    .filter((fragment) => doesFragmentMatchCard(fragment, card))
+    .reduce((total, fragment) => total + getFragmentAmount(fragment), 0);
+
+  const oldCardAmount = Number(ownedBaseCard?.fragments || 0);
+
+  return Math.max(inventoryAmount, oldCardAmount);
+}
+
 function formatCheckedLine(text, ok) {
   return ok ? `${text} ✅` : text;
 }
@@ -506,7 +557,7 @@ function buildReqEmbed(card, stage, player) {
   const ownedBaseCard = getOwnedBaseCard(player, card);
   const playerBerries = Number(player?.berries || 0);
   const playerGems = Number(player?.gems || 0);
-  const ownedFragments = Number(ownedBaseCard?.fragments || 0);
+  const ownedFragments = getOwnedSelfFragmentAmount(player, card, ownedBaseCard);
   const ownedLevel = Number(
     ownedBaseCard?.level ||
       ownedBaseCard?.currentLevel ||
@@ -565,7 +616,7 @@ function buildReqEmbed(card, stage, player) {
         "",
         "**Self Fragments Required**",
         formatCheckedLine(
-          `↪ ${requiredFragments}x ${
+          `↪ ${ownedFragments}/${requiredFragments}x ${
             stageCard.displayName || card.displayName || card.name
           }`,
           fragmentsOk
