@@ -43,15 +43,26 @@ const BOSS_GLOBAL_HP_MULT = 1.2;
 const BOSS_GLOBAL_SPD_MULT = 1.5;
 
 async function safeDeferUpdate(interaction) {
-  if (!interaction || interaction.deferred || interaction.replied) return;
+  if (!interaction || interaction.deferred || interaction.replied) return true;
 
   try {
     await interaction.deferUpdate();
-  } catch (_) {}
+    return true;
+  } catch (error) {
+    const code = error?.code;
+    const message = String(error?.message || "");
+
+    if (code !== 10062 && code !== 40060 && !message.includes("Unknown interaction")) {
+      console.error("[BOSS DEFER UPDATE ERROR]", error);
+    }
+
+    return false;
+  }
 }
 
 async function safeEditInteractionMessage(interaction, payload) {
   try {
+    if (!interaction?.message) return null;
     return await interaction.message.edit(payload);
   } catch (error) {
     console.error("[BOSS MESSAGE EDIT ERROR]", error);
@@ -59,8 +70,43 @@ async function safeEditInteractionMessage(interaction, payload) {
   }
 }
 
+async function safeUpdateInteraction(interaction, payload) {
+  try {
+    if (!interaction) return null;
+
+    if (!interaction.deferred && !interaction.replied) {
+      return await interaction.update(payload);
+    }
+
+    if (interaction.message) {
+      return await interaction.message.edit(payload);
+    }
+
+    return null;
+  } catch (error) {
+    const code = error?.code;
+    const message = String(error?.message || "");
+
+    if (code !== 10062 && code !== 40060 && !message.includes("Unknown interaction")) {
+      console.error("[BOSS UPDATE ERROR]", error);
+    }
+
+    try {
+      if (interaction?.message) {
+        return await interaction.message.edit(payload);
+      }
+    } catch (editError) {
+      console.error("[BOSS UPDATE FALLBACK EDIT ERROR]", editError);
+    }
+
+    return null;
+  }
+}
+
 async function safeEphemeralReply(interaction, content) {
   try {
+    if (!interaction) return null;
+
     if (interaction.deferred || interaction.replied) {
       return await interaction.followUp({
         content,
@@ -73,7 +119,39 @@ async function safeEphemeralReply(interaction, content) {
       ephemeral: true,
     });
   } catch (error) {
-    console.error("[BOSS REPLY ERROR]", error);
+    const code = error?.code;
+    const message = String(error?.message || "");
+
+    if (code !== 10062 && code !== 40060 && !message.includes("Unknown interaction")) {
+      console.error("[BOSS REPLY ERROR]", error);
+    }
+
+    return null;
+  }
+}
+
+async function safeInteractionUpdate(interaction, payload) {
+  try {
+    if (!interaction) return null;
+
+    if (!interaction.deferred && !interaction.replied) {
+      return await interaction.update(payload);
+    }
+
+    if (interaction.message) {
+      return await interaction.message.edit(payload);
+    }
+
+    return await interaction.editReply(payload);
+  } catch (error) {
+    console.error("[BOSS INTERACTION UPDATE ERROR]", error?.message || error);
+
+    try {
+      if (interaction?.message) {
+        return await interaction.message.edit(payload);
+      }
+    } catch (_) {}
+
     return null;
   }
 }
@@ -791,11 +869,13 @@ async function chooseBossPhase(message, player, island) {
         ["boss_phase_1", "boss_phase_2"].includes(button.customId),
     });
 
+    await safeDeferUpdate(interaction);
+
     const selectedPhase = interaction.customId === "boss_phase_2" ? 2 : 1;
     const phaseBoss = getRequestedBossPhase(player, island, [String(selectedPhase)]);
 
     if (phaseBoss?.error) {
-      await interaction.update({
+      await sent.edit({
         embeds: [
           new EmbedBuilder()
             .setColor(0xe74c3c)
@@ -810,7 +890,7 @@ async function chooseBossPhase(message, player, island) {
       };
     }
 
-    await interaction.update({
+    await sent.edit({
       embeds: [
         new EmbedBuilder()
           .setColor(0x2ecc71)
@@ -821,7 +901,14 @@ async function chooseBossPhase(message, player, island) {
     });
 
     return phaseBoss;
-  } catch (_) {
+  } catch (error) {
+    const code = error?.code;
+    const messageText = String(error?.message || "");
+
+    if (code !== 10062 && code !== 40060 && !messageText.includes("Unknown interaction")) {
+      console.error("[BOSS PHASE SELECT ERROR]", error);
+    }
+
     try {
       await sent.edit({
         components: [],
@@ -1034,42 +1121,44 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
   });
 
   await new Promise((resolve) => {
+    let lobbyProcessing = false;
     collector.on("collect", async (interaction) => {
+      if (lobbyProcessing) {
+        await safeDeferUpdate(interaction);
+        return;
+      }
+
+      lobbyProcessing = true;
+
+      try {
+        
       if (interaction.customId === "boss_lobby_join") {
         const userId = String(interaction.user.id);
 
         if (joinedIds.size >= BOSS_PHASE_JOIN_MAX) {
-          return interaction.reply({
-            content: `This Boss Phase 2 party is already full. Max **${BOSS_PHASE_JOIN_MAX} players** / **${BOSS_PHASE_JOIN_MAX * 3} cards**.`,
-            ephemeral: true,
-          });
+          await safeEphemeralReply(interaction, "....");
+          return;
         }
 
         if (joinedIds.has(userId)) {
-          return interaction.reply({
-            content: "You already joined this Boss Phase 2 raid.",
-            ephemeral: true,
-          });
+          await safeEphemeralReply(interaction, "....");
+          return;
         }
 
         const players = readPlayers();
         const joiningPlayer = players[userId];
 
         if (!joiningPlayer) {
-          return interaction.reply({
-            content: "You do not have player data yet.",
-            ephemeral: true,
-          });
+          await safeEphemeralReply(interaction, "....");
+          return;
         }
 
         const username = await resolveUsernameSafe(message, userId);
         const { teamCards } = getFullTeamFromPlayer(joiningPlayer);
 
         if (teamCards.length < 3) {
-          return interaction.reply({
-            content: "You need a full battle team of 3 cards to join Boss Phase 2.",
-            ephemeral: true,
-          });
+          await safeEphemeralReply(interaction, "....");
+          return;
         }
 
         const previewParticipants = await getJoinedParticipantsPreview(userId, joiningPlayer, username);
@@ -1186,10 +1275,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
       }
 
       if (interaction.user.id !== message.author.id) {
-        return interaction.reply({
-          content: "Only the host can start or cancel this boss lobby.",
-          ephemeral: true,
-        });
+        await safeEphemeralReply(interaction, "....");
+        return;
       }
 
       if (interaction.customId === "boss_lobby_cancel") {
@@ -1220,10 +1307,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
 
       if (interaction.customId === "boss_lobby_start") {
         if (joinedIds.size < BOSS_PHASE_JOIN_MIN) {
-          return interaction.reply({
-            content: `You need at least **${BOSS_PHASE_JOIN_MIN} users** to start this boss phase.\nAsk another user to press **Join** first.`,
-            ephemeral: true,
-          });
+          await safeEphemeralReply(interaction, "....");
+          return;
         }
 
         await safeDeferUpdate(interaction);
@@ -1261,6 +1346,12 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
 
         collector.stop("started");
         resolve();
+      }
+      } catch (error) {
+        console.error("[BOSS JOIN LOBBY COLLECTOR ERROR]", error?.message || error);
+        await safeEphemeralReply(interaction, "Boss lobby interaction error. Please try again.");
+      } finally {
+        lobbyProcessing = false;
       }
     });
 
@@ -1981,17 +2072,13 @@ module.exports = {
 
       collector.on("collect", async (interaction) => {
         if (interaction.user.id !== message.author.id) {
-          return interaction.reply({
-            content: "Only the command user can control this boss battle.",
-            ephemeral: true,
-          });
+          await safeEphemeralReply(interaction, "....");
+          return;
         }
 
         if (ended) {
-          return interaction.reply({
-            content: "This boss battle has already ended.",
-            ephemeral: true,
-          });
+          await safeEphemeralReply(interaction, "....");
+          return;
         }
 
         await safeDeferUpdate(interaction);
@@ -2428,17 +2515,13 @@ module.exports = {
 
     collector.on("collect", async (interaction) => {
       if (interaction.user.id !== message.author.id) {
-        return interaction.reply({
-          content: "Only the command user can control this boss battle.",
-          ephemeral: true,
-        });
+        await safeEphemeralReply(interaction, "....");
+        return;
       }
 
       if (ended) {
-        return interaction.reply({
-          content: "This boss battle has already ended.",
-          ephemeral: true,
-        });
+        await safeEphemeralReply(interaction, "....");
+        return;
       }
 
       await safeDeferUpdate(interaction);

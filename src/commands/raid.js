@@ -32,55 +32,103 @@ const activeRaidActionLocks = new Set();
 
 async function safeDeferInteraction(interaction) {
   try {
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferUpdate();
-    }
+    if (!interaction || interaction.deferred || interaction.replied) return true;
 
+    await interaction.deferUpdate();
     return true;
   } catch (error) {
-    console.error("[raid defer interaction failed]", error?.message || error);
+    const code = error?.code;
+    const message = String(error?.message || "");
+
+    if (code !== 10062 && code !== 40060 && !message.includes("Unknown interaction")) {
+      console.error("[raid defer interaction failed]", error?.message || error);
+    }
+
     return false;
   }
 }
 
 async function safeDeferReplyInteraction(interaction) {
   try {
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ ephemeral: true });
-    }
+    if (!interaction || interaction.deferred || interaction.replied) return true;
 
+    await interaction.deferReply({ ephemeral: true });
     return true;
   } catch (error) {
-    console.error("[raid defer reply failed]", error?.message || error);
+    const code = error?.code;
+    const message = String(error?.message || "");
+
+    if (code !== 10062 && code !== 40060 && !message.includes("Unknown interaction")) {
+      console.error("[raid defer reply failed]", error?.message || error);
+    }
+
     return false;
   }
 }
 
-async function safeReplyOrEdit(interaction, payload) {
+async function safeReplyOrEdit(interaction, payload = {}) {
   try {
-    if (interaction.deferred || interaction.replied) {
-      return await interaction.editReply(payload);
+    if (!interaction) return null;
+
+    const safePayload = {
+      ...payload,
+      ephemeral: payload.ephemeral ?? true,
+    };
+
+    if (interaction.replied) {
+      return await interaction.followUp(safePayload);
     }
 
-    return await interaction.reply({
-      ...payload,
-      ephemeral: true,
-    });
+    if (interaction.deferred) {
+      try {
+        return await interaction.editReply(payload);
+      } catch (_) {
+        return await interaction.followUp(safePayload);
+      }
+    }
+
+    return await interaction.reply(safePayload);
   } catch (error) {
-    console.error("[raid interaction reply/edit failed]", error?.message || error);
+    const code = error?.code;
+    const message = String(error?.message || "");
+
+    if (code !== 10062 && code !== 40060 && !message.includes("Unknown interaction")) {
+      console.error("[raid interaction reply/edit failed]", error?.message || error);
+    }
+
     return null;
   }
 }
 
 async function safeInteractionUpdate(interaction, payload) {
   try {
+    if (!interaction) return null;
+
     if (!interaction.deferred && !interaction.replied) {
       return await interaction.update(payload);
     }
 
+    if (interaction.message) {
+      return await interaction.message.edit(payload);
+    }
+
     return await interaction.editReply(payload);
   } catch (error) {
-    console.error("[raid interaction update failed]", error?.message || error);
+    const code = error?.code;
+    const message = String(error?.message || "");
+
+    if (code !== 10062 && code !== 40060 && !message.includes("Unknown interaction")) {
+      console.error("[raid interaction update failed]", error?.message || error);
+    }
+
+    try {
+      if (interaction?.message) {
+        return await interaction.message.edit(payload);
+      }
+    } catch (editError) {
+      console.error("[raid interaction update fallback failed]", editError?.message || editError);
+    }
+
     return null;
   }
 }
