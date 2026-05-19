@@ -594,9 +594,9 @@ function getBossPhaseStatMultiplier(phaseBoss = null, currentIsland = null) {
 
   if (phase >= 2) {
     return {
-      atk: 1.08,
-      hp: 1.12,
-      speed: 1.06,
+      atk: 1.2,
+      hp: 1.3,
+      speed: 1.2,
     };
   }
 
@@ -806,14 +806,30 @@ function buildPhaseSelectEmbed(island, player) {
   const lines = phases.map((phase) => {
     const num = Number(phase.phase || 0);
     const cleared =
-      num === 1 ? phaseState.phase1Cleared :
-      num === 2 ? phaseState.phase2Cleared :
-      false;
+      num === 1 ? phaseState.phase1Cleared : num === 2 ? phaseState.phase2Cleared : false;
+    const locked = num === 2 && !phaseState.phase1Cleared;
+    const template = getBossTemplate(island, phase);
 
-    return `**Phase ${num}:** ${phase.name || phase.bossName || "Boss"} ${
-      cleared ? "✅ Cleared" : "⚔️ Available"
-    }`;
+    const status = cleared ? "✅ Cleared" : locked ? "🔒 Locked" : "⚔️ Available";
+    const partyStatus =
+      num === 2
+        ? `\nParty: **${BOSS_PHASE_JOIN_MIN}-${BOSS_PHASE_JOIN_MAX} players** • Full 3-card team each`
+        : "";
+
+    return [
+      `**Phase ${num}:** ${phase.name || phase.bossName || template?.name || "Boss"} — ${status}`,
+      `Rarity: **${template?.rarity || "S"}**`,
+      `ATK: \`${formatAtkRange(template?.atk || 0)}\` • HP: \`${Number(
+        template?.hp || template?.maxHp || 0
+      )}\` • SPD: \`${Number(template?.speed || 0)}\`${partyStatus}`,
+    ].join("\n");
   });
+
+  const phase2Text = phaseState.phase2Cleared
+    ? "Phase 2 Status: **Cleared**"
+    : phaseState.phase1Cleared
+      ? "Phase 2 Status: **Unlocked / Ready for party raid**"
+      : "Phase 2 Status: **Locked until Phase 1 is cleared**";
 
   return new EmbedBuilder()
     .setColor(0x5865f2)
@@ -824,9 +840,11 @@ function buildPhaseSelectEmbed(island, player) {
         "",
         ...lines,
         "",
-        `Phase 2 uses raid-style party room.`,
+        `**${phase2Text}**`,
+        "",
+        "Phase 2 uses raid-style party room.",
         `Minimum **${BOSS_PHASE_JOIN_MIN} players**, maximum **${BOSS_PHASE_JOIN_MAX} players**.`,
-        `Each player joins with their current full **3-card team**.`,
+        "Each player joins with their current full **3-card team**.",
         `Max total party cards: **${BOSS_PHASE_JOIN_MAX * 3} cards**.`,
       ].join("\n")
     )
