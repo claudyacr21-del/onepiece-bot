@@ -1,3 +1,4 @@
+const { EmbedBuilder } = require("discord.js");
 const { updatePlayerAtomic } = require("../playerStore");
 const weaponsData = require("../data/weapons");
 const devilFruitsData = require("../data/devilFruits");
@@ -37,22 +38,57 @@ function normalize(value) {
     .replace(/[<@!>]/g, "")
     .replace(/^model:\s*/i, "")
     .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
+    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeCode(value) {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[<@!>]/g, "");
+    .replace(/[<@!>]/g, "")
+    .replace(/^model:\s*/i, "")
+    .replace(/[^a-z0-9\s_-]+/g, "")
+    .replace(/[\s-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function normalizeCompact(value) {
+  return normalize(value).replace(/\s+/g, "");
+}
+
+function parseUserId(value) {
+  return String(value || "").replace(/[<@!>]/g, "").trim();
 }
 
 function normalizeBucket(value) {
-  const bucket = String(value || "").trim();
+  const bucket = String(value || "").trim().toLowerCase();
 
-  if (bucket === "item" || bucket === "items" || bucket === "consumable") {
+  if (["item", "items", "consumable", "consumables"].includes(bucket)) {
     return "consumables";
   }
+
+  if (
+    [
+      "devilfruit",
+      "devilfruits",
+      "devil_fruit",
+      "devil_fruits",
+      "fruit",
+      "fruits",
+      "df",
+    ].includes(bucket)
+  ) {
+    return "devilFruits";
+  }
+
+  if (["weapon", "weapons"].includes(bucket)) return "weapons";
+  if (["box", "boxes"].includes(bucket)) return "boxes";
+  if (["ticket", "tickets"].includes(bucket)) return "tickets";
+  if (["material", "materials"].includes(bucket)) return "materials";
+  if (["fragment", "fragments", "frag", "frags"].includes(bucket)) return "fragments";
 
   return bucket;
 }
@@ -66,13 +102,9 @@ function ensureArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-function parseUserId(value) {
-  return String(value || "").replace(/[<@!>]/g, "").trim();
-}
-
-function collectCatalogEntries(source, out = []) {
+function collectCatalogEntries(source, out = [], seen = new Set()) {
   if (Array.isArray(source)) {
-    for (const entry of source) collectCatalogEntries(entry, out);
+    for (const entry of source) collectCatalogEntries(entry, out, seen);
     return out;
   }
 
@@ -81,65 +113,206 @@ function collectCatalogEntries(source, out = []) {
   const hasIdentity =
     typeof source.name === "string" ||
     typeof source.code === "string" ||
-    typeof source.id === "string";
+    typeof source.id === "string" ||
+    typeof source.displayName === "string";
 
-  if (hasIdentity) out.push(source);
+  if (hasIdentity) {
+    const key = source.code || source.id || source.name || source.displayName;
+    const seenKey = `${key}_${out.length}`;
+
+    if (!seen.has(seenKey)) {
+      seen.add(seenKey);
+      out.push(source);
+    }
+  }
 
   for (const value of Object.values(source)) {
     if (Array.isArray(value) || (value && typeof value === "object")) {
-      collectCatalogEntries(value, out);
+      collectCatalogEntries(value, out, seen);
     }
   }
 
   return out;
 }
 
+function addKey(keys, value) {
+  const raw = String(value || "").trim();
+  if (!raw) return;
+
+  keys.push(raw);
+  keys.push(normalize(raw));
+  keys.push(normalizeCode(raw));
+  keys.push(normalizeCompact(raw));
+}
+
+function getCatalogKeys(entry) {
+  const keys = [];
+
+  [
+    entry?.code,
+    entry?.name,
+    entry?.displayName,
+    entry?.id,
+    entry?.key,
+    entry?.title,
+    entry?.variant,
+    entry?.type,
+  ].forEach((value) => addKey(keys, value));
+
+  if (Array.isArray(entry?.owners)) {
+    entry.owners.forEach((owner) => addKey(keys, owner));
+  }
+
+  const name = String(entry?.name || "");
+  const code = String(entry?.code || "");
+
+  if (name.includes(",")) {
+    name
+      .split(",")
+      .map((x) => x.trim())
+      .forEach((part) => addKey(keys, part));
+  }
+
+  const modelMatch = name.match(/model:\s*(.+)$/i);
+  if (modelMatch?.[1]) {
+    addKey(keys, modelMatch[1]);
+  }
+
+  const noMiMatch = name.match(/^(.+?)\s+no\s+mi/i);
+  if (noMiMatch?.[1]) {
+    addKey(keys, noMiMatch[1]);
+  }
+
+  const codeParts = code.split("_").filter(Boolean);
+  if (codeParts.length) {
+    addKey(keys, codeParts[codeParts.length - 1]);
+    addKey(keys, codeParts.slice(-2).join("_"));
+    addKey(keys, codeParts.slice(-2).join(" "));
+  }
+
+  if (
+    normalize(name).includes("nika") ||
+    normalizeCode(code).includes("nika") ||
+    normalize(name).includes("hito hito no mi model nika")
+  ) {
+    [
+      "nika",
+      "hito hito nika",
+      "hito hito no mi nika",
+      "hito hito no mi model nika",
+      "hito_hito_no_mi_model_nika",
+      "sun god nika",
+      "luffy fruit",
+      "luffy df",
+    ].forEach((value) => addKey(keys, value));
+  }
+
+  return [...new Set(keys.map(String).filter(Boolean))];
+}
+
 function buildIndex(entries) {
   const map = new Map();
 
   for (const entry of entries) {
-    const keys = [
-      entry?.code,
-      entry?.name,
-      entry?.displayName,
-      entry?.id,
-      entry?.key,
-      entry?.title,
-      entry?.variant,
-    ].filter(Boolean);
+    const keys = getCatalogKeys(entry);
 
     for (const key of keys) {
       map.set(normalize(key), entry);
       map.set(normalizeCode(key), entry);
+      map.set(normalizeCompact(key), entry);
     }
   }
 
   return map;
 }
 
-const weaponIndex = buildIndex(collectCatalogEntries(weaponsData));
-const fruitIndex = buildIndex(collectCatalogEntries(devilFruitsData));
-const itemIndex = buildIndex(collectCatalogEntries(itemsData));
-const cardIndex = buildIndex(cardsData);
+const weaponEntries = collectCatalogEntries(weaponsData);
+const fruitEntries = collectCatalogEntries(devilFruitsData);
+const itemEntries = collectCatalogEntries(itemsData);
+const cardEntries = collectCatalogEntries(cardsData);
+
+const weaponIndex = buildIndex(weaponEntries);
+const fruitIndex = buildIndex(fruitEntries);
+const itemIndex = buildIndex(itemEntries);
+const cardIndex = buildIndex(cardEntries);
+
+function getEntriesForBucket(bucket) {
+  if (bucket === "weapons") return weaponEntries;
+  if (bucket === "devilFruits") return fruitEntries;
+  if (bucket === "fragments") return cardEntries;
+  return itemEntries;
+}
+
+function getIndexForBucket(bucket) {
+  if (bucket === "weapons") return weaponIndex;
+  if (bucket === "devilFruits") return fruitIndex;
+  if (bucket === "fragments") return cardIndex;
+  return itemIndex;
+}
+
+function scoreEntry(entry, query) {
+  const q = normalize(query);
+  const qc = normalizeCode(query);
+  const qCompact = normalizeCompact(query);
+
+  if (!q && !qc && !qCompact) return 0;
+
+  let best = 0;
+
+  for (const key of getCatalogKeys(entry)) {
+    const k = normalize(key);
+    const kc = normalizeCode(key);
+    const kCompact = normalizeCompact(key);
+
+    if (k === q || kc === qc || kCompact === qCompact) {
+      best = Math.max(best, 1000);
+      continue;
+    }
+
+    if (k.startsWith(q) || kc.startsWith(qc) || kCompact.startsWith(qCompact)) {
+      best = Math.max(best, 700);
+      continue;
+    }
+
+    if (k.includes(q) || kc.includes(qc) || kCompact.includes(qCompact)) {
+      best = Math.max(best, 400);
+      continue;
+    }
+
+    const words = q.split(" ").filter(Boolean);
+    if (words.length && words.every((word) => k.includes(word))) {
+      best = Math.max(best, 250);
+    }
+  }
+
+  return best;
+}
 
 function findCatalogEntry(bucket, query) {
   const q = normalize(query);
   const qc = normalizeCode(query);
+  const qCompact = normalizeCompact(query);
 
-  if (bucket === "weapons") return weaponIndex.get(q) || weaponIndex.get(qc) || null;
-  if (bucket === "devilFruits") return fruitIndex.get(q) || fruitIndex.get(qc) || null;
-  if (bucket === "fragments") return cardIndex.get(q) || cardIndex.get(qc) || null;
+  const index = getIndexForBucket(bucket);
+  const exact =
+    index.get(q) ||
+    index.get(qc) ||
+    index.get(qCompact) ||
+    null;
 
-  if (
-    bucket === "consumables" ||
-    bucket === "boxes" ||
-    bucket === "tickets" ||
-    bucket === "materials"
-  ) {
-    return itemIndex.get(q) || itemIndex.get(qc) || null;
-  }
+  if (exact) return exact;
 
-  return null;
+  const entries = getEntriesForBucket(bucket);
+
+  const ranked = entries
+    .map((entry) => ({
+      entry,
+      score: scoreEntry(entry, query),
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return ranked[0]?.entry || null;
 }
 
 function buildStoredEntry(bucket, catalogEntry, amount) {
@@ -166,11 +339,26 @@ function buildStoredEntry(bucket, catalogEntry, amount) {
   if (catalogEntry.type) base.type = catalogEntry.type;
   if (catalogEntry.description) base.description = catalogEntry.description;
   if (catalogEntry.power) base.power = catalogEntry.power;
-  if (catalogEntry.statPercent) base.statPercent = { ...catalogEntry.statPercent };
-  if (catalogEntry.statBonus) base.statBonus = { ...catalogEntry.statBonus };
-  if (catalogEntry.ownerBonusPercent) base.ownerBonusPercent = { ...catalogEntry.ownerBonusPercent };
-  if (catalogEntry.owners) base.owners = [...catalogEntry.owners];
-  if (catalogEntry.boostBonus) base.boostBonus = catalogEntry.boostBonus;
+
+  if (catalogEntry.statPercent) {
+    base.statPercent = { ...catalogEntry.statPercent };
+  }
+
+  if (catalogEntry.statBonus) {
+    base.statBonus = { ...catalogEntry.statBonus };
+  }
+
+  if (catalogEntry.ownerBonusPercent) {
+    base.ownerBonusPercent = { ...catalogEntry.ownerBonusPercent };
+  }
+
+  if (Array.isArray(catalogEntry.owners)) {
+    base.owners = [...catalogEntry.owners];
+  }
+
+  if (catalogEntry.boostBonus) {
+    base.boostBonus = { ...catalogEntry.boostBonus };
+  }
 
   if (
     bucket === "consumables" ||
@@ -200,6 +388,19 @@ function sameEntry(a, b) {
   return normalize(a?.name) === normalize(b?.name);
 }
 
+function getUsageText() {
+  return [
+    "Usage: `op giveitem <@user/userId> <bucket> <amount> <item_code/name>`",
+    "",
+    "Examples:",
+    "`op giveitem @user devilfruits 1 nika`",
+    "`op giveitem 123456789012345678 devilfruits 1 hito_hito_no_mi_model_nika`",
+    "`op giveitem @user tickets 2 raid_ticket`",
+    "",
+    `Buckets: ${VALID_BUCKETS.join(", ")}`,
+  ].join("\n");
+}
+
 module.exports = {
   name: "giveitem",
   aliases: [],
@@ -208,13 +409,16 @@ module.exports = {
     if (!isAdmin(message.author.id)) {
       return message.reply({
         content: "Owner only command.",
-        allowedMentions: { repliedUser: false },
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
+    const targetArg = args.shift();
     const mentionedUser = message.mentions.users.first();
-    const firstArg = args.shift();
-    const userId = mentionedUser?.id || parseUserId(firstArg);
+    const userId = mentionedUser?.id || parseUserId(targetArg);
+
     const bucket = normalizeBucket(args.shift());
     const storageBucket = getStorageBucket(bucket);
     const amount = Number(args.shift() || 0);
@@ -222,15 +426,19 @@ module.exports = {
 
     if (!userId || !bucket || !Number.isFinite(amount) || amount <= 0 || !query) {
       return message.reply({
-        content: "Usage: `op giveitem <@user/userId> <bucket> <amount> <item name/code>`",
-        allowedMentions: { repliedUser: false },
+        content: getUsageText(),
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
     if (!VALID_BUCKETS.includes(bucket)) {
       return message.reply({
         content: `Invalid bucket.\nUse: ${VALID_BUCKETS.join(", ")}`,
-        allowedMentions: { repliedUser: false },
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
@@ -238,8 +446,10 @@ module.exports = {
 
     if (!catalogEntry) {
       return message.reply({
-        content: `Invalid ${bucket} entry.\nMust match data by name or code.`,
-        allowedMentions: { repliedUser: false },
+        content: `Invalid ${bucket} entry.\nMust match data by name or code.\nQuery: \`${query}\``,
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
@@ -267,12 +477,32 @@ module.exports = {
           [storageBucket]: list,
         };
       },
-      message.mentions.users.first()?.username || "Unknown"
+      mentionedUser?.username || `User ${userId}`
     );
 
+    const embed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle("✅ Item Added")
+      .setDescription(
+        [
+          `**Target:** <@${userId}>`,
+          `**User ID:** \`${userId}\``,
+          `**Bucket:** \`${bucket}\``,
+          `**Item:** ${stored.name}`,
+          `**Code:** \`${stored.code || "none"}\``,
+          `**Amount:** ${amount}`,
+        ].join("\n")
+      )
+      .setFooter({
+        text: "One Piece Bot • Admin Give Item",
+      });
+
     return message.reply({
-      content: `Added ${amount}x \`${stored.name}\` to \`${userId}\` in \`${bucket}\`.`,
-      allowedMentions: { repliedUser: false },
+      embeds: [embed],
+      allowedMentions: {
+        users: [String(userId)],
+        repliedUser: false,
+      },
     });
   },
 };
