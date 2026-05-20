@@ -69,6 +69,8 @@ function normalizeTradeAliasCode(value) {
     throne: "empty_throne_raid_writ",
 
     cola: "cola_engine",
+    
+    cola_part: "cola_engine_part",
 
     sniper: "sniper",
     sniper_king: "sniper",
@@ -342,6 +344,29 @@ function getTradableCardMatches(player, query) {
     .map((hit) => hit.card);
 }
 
+function shouldResolveCardBeforeStacks(entry) {
+  const code = normalizeTradeAliasCode(entry?.code || entry?.raw || "");
+
+  return code === "cola_engine";
+}
+
+function resolveCardEntry(player, entry) {
+  const cardMatches = getTradableCardMatches(player, entry.raw || entry.code);
+
+  if (cardMatches.length < entry.amount) return null;
+
+  const firstCard = cardMatches[0];
+
+  return {
+    kind: "cards",
+    store: "cards",
+    amount: entry.amount,
+    code: firstCard?.code || entry.code,
+    displayName: getDisplayName(firstCard, entry.code),
+    cards: cardMatches.slice(0, entry.amount),
+  };
+}
+
 function resolveTicketEntry(player, query) {
   const normalizedQuery = normalizeTradeAliasCode(query);
   const hit =
@@ -381,6 +406,12 @@ function resolveEntry(player, entry) {
       code: "berries",
       displayName: "Berries",
     };
+  }
+
+  if (shouldResolveCardBeforeStacks(entry)) {
+    const cardEntry = resolveCardEntry(player, entry);
+
+    if (cardEntry) return cardEntry;
   }
 
   const ticketEntry = resolveTicketEntry(player, entry.code || entry.raw);
@@ -435,20 +466,9 @@ function resolveEntry(player, entry) {
     };
   }
 
-  const cardMatches = getTradableCardMatches(player, entry.raw || entry.code);
+  const cardEntry = resolveCardEntry(player, entry);
 
-  if (cardMatches.length >= entry.amount) {
-    const firstCard = cardMatches[0];
-
-    return {
-      kind: "cards",
-      store: "cards",
-      amount: entry.amount,
-      code: firstCard?.code || entry.code,
-      displayName: getDisplayName(firstCard, entry.code),
-      cards: cardMatches.slice(0, entry.amount),
-    };
-  }
+  if (cardEntry) return cardEntry;
 
   if (insufficient) {
     throw new Error(`${player.username} lacks ${insufficient.displayName} x${entry.amount}.`);
