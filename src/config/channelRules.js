@@ -215,7 +215,7 @@ module.exports = {
       "raidteamdelete",
       "raidteamremove",
       "summon",
-      "wp",      
+      "wp",
       "add",
       "op",
       "remove",
