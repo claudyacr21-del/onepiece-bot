@@ -68,9 +68,6 @@ function normalizeTradeAliasCode(value) {
 
     throne: "empty_throne_raid_writ",
 
-    cola: "cola_engine_part",
-    engine: "cola_engine_part",
-    cola_engine: "cola_engine_part",
     engine_part: "cola_engine_part",
 
     sniper: "sniper",
