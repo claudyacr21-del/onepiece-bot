@@ -15,8 +15,35 @@ const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 
 const DEFAULT_START_ISLAND = "Foosha Village";
+
 const ARENA_START_RANK = 500;
 const ARENA_POINTS_PER_RANK = 10;
+const ARENA_TOTAL_RANKS = 500;
+const ARENA_TOP_BOT_POINTS = 300;
+const ARENA_POINT_STEP = 1;
+
+const BOT_NAMES = [
+  "Pirate King Bot",
+  "Yonko Bot",
+  "Fleet Admiral Bot",
+  "Revolutionary Bot",
+  "Warlord Bot",
+  "CP0 Bot",
+  "Supernova Bot",
+  "Commander Bot",
+  "Vice Admiral Bot",
+  "New World Bot",
+  "Grand Line Bot",
+  "Marine Hero Bot",
+  "Shichibukai Bot",
+  "Worst Generation Bot",
+  "Cipher Pol Bot",
+  "Sky Island Bot",
+  "Fishman Bot",
+  "Dressrosa Bot",
+  "Wano Samurai Bot",
+  "Egghead Bot",
+];
 
 function normalize(value) {
   return String(value || "").toLowerCase().trim();
@@ -35,41 +62,45 @@ function getProfileImage(message) {
 }
 
 async function isServerBooster(message) {
-  const mainGuildId =
-    process.env.ONEPIECE_MAIN_GUILD_ID ||
-    process.env.MAIN_SERVER_ID ||
-    process.env.SUPPORT_GUILD_ID ||
-    process.env.SUPPORT_SERVER_ID ||
-    null;
+  try {
+    const mainGuildId =
+      process.env.ONEPIECE_MAIN_GUILD_ID ||
+      process.env.MAIN_SERVER_ID ||
+      process.env.SUPPORT_GUILD_ID ||
+      process.env.SUPPORT_SERVER_ID ||
+      null;
 
-  let member = null;
+    let member = null;
 
-  if (
-    mainGuildId &&
-    message.guild &&
-    String(message.guild.id) === String(mainGuildId) &&
-    message.member
-  ) {
-    member = message.member;
-  }
-
-  if (!member && mainGuildId && message.client?.guilds) {
-    const guild =
-      message.client.guilds.cache.get(String(mainGuildId)) ||
-      (await message.client.guilds.fetch(String(mainGuildId)).catch(() => null));
-
-    if (guild) {
-      member =
-        guild.members.cache.get(String(message.author.id)) ||
-        (await guild.members.fetch(String(message.author.id)).catch(() => null));
+    if (
+      mainGuildId &&
+      message.guild &&
+      String(message.guild.id) === String(mainGuildId) &&
+      message.member
+    ) {
+      member = message.member;
     }
-  }
 
-  if (!member && message.member) {
-    member = message.member;
-  }
+    if (!member && mainGuildId && message.client?.guilds) {
+      const guild =
+        message.client.guilds.cache.get(String(mainGuildId)) ||
+        (await message.client.guilds.fetch(String(mainGuildId)).catch(() => null));
 
-  return Boolean(member?.premiumSince || member?.premiumSinceTimestamp);
+      if (guild) {
+        member =
+          guild.members.cache.get(String(message.author.id)) ||
+          (await guild.members.fetch(String(message.author.id)).catch(() => null));
+      }
+    }
+
+    if (!member && message.member) {
+      member = message.member;
+    }
+
+    return Boolean(member?.premiumSince || member?.premiumSinceTimestamp);
+  } catch (_) {
+    return false;
+  }
 }
 
 function getHydratedCards(player) {
@@ -258,6 +289,7 @@ function getStoryProgress(player) {
 function getBotName(index) {
   const base = BOT_NAMES[index % BOT_NAMES.length];
   const cycle = Math.floor(index / BOT_NAMES.length);
+
   return cycle === 0 ? base : `${base} ${cycle + 1}`;
 }
 
@@ -276,39 +308,7 @@ function getBotLosses(index) {
 function buildProfileArenaBots(count = ARENA_TOTAL_RANKS) {
   return Array.from({ length: count }, (_, index) => {
     const points = getBotPoints(index);
-    return {
-      id: `arena_bot_${String(index + 1).padStart(3, "0")}`,
-      username: getBotName(index),
-      points,
-      wins: getBotWins(points),
-      losses: getBotLosses(index),
-      matches: getBotWins(points) + getBotLosses(index),
-      isBot: true,
-    };
-  });
-}
 
-function getBotName(index) {
-  const base = BOT_NAMES[index % BOT_NAMES.length];
-  const cycle = Math.floor(index / BOT_NAMES.length);
-  return cycle === 0 ? base : `${base} ${cycle + 1}`;
-}
-
-function getBotPoints(index) {
-  return Math.max(0, ARENA_TOP_BOT_POINTS - index * ARENA_POINT_STEP);
-}
-
-function getBotWins(points) {
-  return Math.max(0, Math.floor(Number(points || 0) / 10));
-}
-
-function getBotLosses(index) {
-  return Math.floor(index / 25);
-}
-
-function buildProfileArenaBots(count = ARENA_TOTAL_RANKS) {
-  return Array.from({ length: count }, (_, index) => {
-    const points = getBotPoints(index);
     return {
       id: `arena_bot_${String(index + 1).padStart(3, "0")}`,
       username: getBotName(index),
@@ -323,6 +323,7 @@ function buildProfileArenaBots(count = ARENA_TOTAL_RANKS) {
 
 function getArenaRankFromPoints(points) {
   const safePoints = Math.max(0, Number(points || 0));
+
   return Math.max(
     1,
     ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK)
@@ -341,7 +342,12 @@ function getArenaLeaderboardRankForUser(userId, playersMap) {
       isBot: false,
     }))
     .filter((entry) => {
-      return entry.matches > 0 || entry.points > 0 || entry.wins > 0 || entry.losses > 0;
+      return (
+        entry.matches > 0 ||
+        entry.points > 0 ||
+        entry.wins > 0 ||
+        entry.losses > 0
+      );
     });
 
   const botCount = Math.max(0, ARENA_TOTAL_RANKS - realPlayers.length);
@@ -352,21 +358,29 @@ function getArenaLeaderboardRankForUser(userId, playersMap) {
       if (b.wins !== a.wins) return b.wins - a.wins;
       if (a.losses !== b.losses) return a.losses - b.losses;
       if (a.isBot !== b.isBot) return a.isBot ? -1 : 1;
+
       return String(a.username).localeCompare(String(b.username));
     })
-    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
 
   return rows.find((row) => String(row.id) === String(userId))?.rank || null;
 }
 
 function formatArenaRank(points, userId = null) {
-  const rank = userId ? getArenaLeaderboardRankForUser(userId, readPlayers() || {}) : null;
+  const rank = userId
+    ? getArenaLeaderboardRankForUser(userId, readPlayers() || {})
+    : null;
+
   return `#${rank || getArenaRankFromPoints(points)}`;
 }
 
 function getArenaSummary(player, userId = null) {
   const arena = player?.arena || {};
   const points = Number(arena.points || 0);
+
   return {
     points,
     rank: formatArenaRank(points, userId),
@@ -382,6 +396,7 @@ function getShipSummary(player) {
   const tier = Number(shipState.tier || 1);
   const shipByCode = getShipByCode(shipState.shipCode || "");
   const shipByTier = SHIPS.find((ship) => Number(ship.tier || 1) === tier);
+
   const resolvedShip =
     shipByCode && shipByCode.code !== "small_boat"
       ? shipByCode
@@ -446,7 +461,14 @@ function getCaptainBadges(player, options = {}) {
     addBadge(getRaidPrestigeBadgeEmoji(card));
   }
 
-  return badges.length ? badges.join(" ") : "None";
+  if (!badges.length) return "None";
+
+  const visibleBadges = badges.slice(0, 18);
+  const hiddenCount = Math.max(0, badges.length - visibleBadges.length);
+
+  return hiddenCount
+    ? `${visibleBadges.join(" ")} +${hiddenCount} more`
+    : visibleBadges.join(" ");
 }
 
 function line(label, value) {
@@ -457,84 +479,100 @@ function rawLine(label, value) {
   return `↪ ${label}: ${value}`;
 }
 
+function safeLocaleNumber(value) {
+  return Number(value || 0).toLocaleString("en-US");
+}
+
 module.exports = {
   name: "profile",
-  aliases: ["pf", "me"],
 
   async execute(message) {
-    const player = getPlayer(message.author.id, message.author.username);
-    const totalFragments = countTotalAmount(player.fragments);
-    const isMotherFlame = await isPremiumUser(message).catch(() => false);
-    const isVivreCard = await isLitePremiumUser(message).catch(() => false);
-    const booster = await isServerBooster(message).catch(() => false);
+    try {
+      const player = getPlayer(message.author.id, message.author.username);
 
-    const captainBadges = getCaptainBadges(player, {
-      isMotherFlame,
-      isVivreCard,
-      isBooster: booster,
-    });
+      const totalFragments = countTotalAmount(player.fragments);
 
-    const totalPower = getTotalPower(player);
-    const teamPower = getTeamPower(player);
-    const storyProgress = getStoryProgress(player);
-    const arena = getArenaSummary(player, message.author.id);
-    const ship = getShipSummary(player);
-    const cardStats = getCardStatistics(player);
-    const avatar = getProfileImage(message);
+      const isMotherFlame = await isPremiumUser(message).catch(() => false);
+      const isVivreCard = await isLitePremiumUser(message).catch(() => false);
+      const booster = await isServerBooster(message).catch(() => false);
 
-    const embed = new EmbedBuilder()
-      .setColor(0x3498db)
-      .setAuthor({
-        name: `${player.username}'s Profile`,
-        iconURL: avatar,
-      })
-      .setDescription(
-        [
-          "**🌊 Captain**",
-          line("Island", player.currentIsland || DEFAULT_START_ISLAND),
-          line(
-            "Premium",
-            isMotherFlame ? "Mother Flame" : isVivreCard ? "Vivre Card" : "Normal"
-          ),
-          line("Clan", player?.clan?.name || "Coming Soon"),
-          line("Ship", `${ship.name} • Tier ${ship.tier}`),
-          rawLine("Badges", captainBadges),
-          "",
-          "**💰 Wallet**",
-          line("Berries", Number(player.berries || 0).toLocaleString("en-US")),
-          line("Gems", Number(player.gems || 0).toLocaleString("en-US")),
-          "",
-          "**🃏 Cards**",
-          line("Cards Owned", cardStats.totalCards),
-          line("Mastery 1 Cards", cardStats.mastery1Cards),
-          line("Mastery 2 Cards", cardStats.mastery2Cards),
-          line("Mastery 3 Cards", cardStats.mastery3Cards),
-          line("Boost Cards", cardStats.boostCards),
-          line("Fragments", totalFragments),
-          "",
-          "**🧩 Progress**",
-          line("Total Power", totalPower.toLocaleString("en-US")),
-          line("Team Power", teamPower.toLocaleString("en-US")),
-          line("Story", storyProgress),
-          "",
-          "**⚔️ Arena**",
-          line("Rank", arena.rank),
-          line("Points", arena.points),
-          line("Record", `${arena.wins}W / ${arena.losses}L`),
-          line("Streak", arena.streak),
-          line("Best Streak", arena.bestStreak),
-        ].join("\n")
-      )
-      .setThumbnail(avatar)
-      .setFooter({
-        text: "One Piece Bot • Profile",
+      const captainBadges = getCaptainBadges(player, {
+        isMotherFlame,
+        isVivreCard,
+        isBooster: booster,
       });
 
-    return message.reply({
-      embeds: [embed],
-      allowedMentions: {
-        repliedUser: false,
-      },
-    });
+      const totalPower = getTotalPower(player);
+      const teamPower = getTeamPower(player);
+      const storyProgress = getStoryProgress(player);
+      const arena = getArenaSummary(player, message.author.id);
+      const ship = getShipSummary(player);
+      const cardStats = getCardStatistics(player);
+      const avatar = getProfileImage(message);
+
+      const embed = new EmbedBuilder()
+        .setColor(0x3498db)
+        .setAuthor({
+          name: `${player.username || message.author.username}'s Profile`,
+          iconURL: avatar,
+        })
+        .setDescription(
+          [
+            "** Captain**",
+            line("Island", player.currentIsland || DEFAULT_START_ISLAND),
+            line(
+              "Premium",
+              isMotherFlame ? "Mother Flame" : isVivreCard ? "Vivre Card" : "Normal"
+            ),
+            line("Clan", player?.clan?.name || "Coming Soon"),
+            line("Ship", `${ship.name} • Tier ${ship.tier}`),
+            rawLine("Badges", captainBadges),
+            "",
+            "** Wallet**",
+            line("Berries", safeLocaleNumber(player.berries)),
+            line("Gems", safeLocaleNumber(player.gems)),
+            "",
+            "** Cards**",
+            line("Cards Owned", cardStats.totalCards),
+            line("Mastery 1 Cards", cardStats.mastery1Cards),
+            line("Mastery 2 Cards", cardStats.mastery2Cards),
+            line("Mastery 3 Cards", cardStats.mastery3Cards),
+            line("Boost Cards", cardStats.boostCards),
+            line("Fragments", totalFragments),
+            "",
+            "** Progress**",
+            line("Total Power", safeLocaleNumber(totalPower)),
+            line("Team Power", safeLocaleNumber(teamPower)),
+            line("Story", storyProgress),
+            "",
+            "**⚔️ Arena**",
+            line("Rank", arena.rank),
+            line("Points", arena.points),
+            line("Record", `${arena.wins}W / ${arena.losses}L`),
+            line("Streak", arena.streak),
+            line("Best Streak", arena.bestStreak),
+          ].join("\n")
+        )
+        .setThumbnail(avatar)
+        .setFooter({
+          text: "One Piece Bot • Profile",
+        });
+
+      return message.reply({
+        embeds: [embed],
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    } catch (error) {
+      console.error("[PROFILE COMMAND ERROR]", error);
+
+      return message.reply({
+        content: `❌ Failed to load profile: \`${error.message || "Unknown error"}\``,
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
   },
 };
