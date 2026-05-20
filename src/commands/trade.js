@@ -61,20 +61,12 @@ function normalizeTradeAliasCode(value) {
 
   const aliases = {
     craid: "common_raid_ticket",
-    commonraid: "common_raid_ticket",
-    common_raid: "common_raid_ticket",
 
     raid: "raid_ticket",
-    raidticket: "raid_ticket",
-    raid_ticket: "raid_ticket",
 
     graid: "gold_raid_ticket",
-    goldraid: "gold_raid_ticket",
-    gold_raid: "gold_raid_ticket",
 
     throne: "empty_throne_raid_writ",
-    emptythrone: "empty_throne_raid_writ",
-    empty_throne: "empty_throne_raid_writ",
 
     cola: "cola_engine_part",
     engine: "cola_engine_part",
