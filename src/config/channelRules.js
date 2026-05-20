@@ -20,6 +20,7 @@ module.exports = {
       "profile",
       "awaken",
       "wp",
+      "unequip",
       "summon",
       "add",
       "remove",

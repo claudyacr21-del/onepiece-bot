@@ -8,7 +8,7 @@ const {
 } = require("../data/islands");
 const { getShipByCode } = require("../data/ships");
 
-const BASE_TRAVEL_COOLDOWN_MS = 60 * 60 * 1000;
+const BASE_TRAVEL_COOLDOWN_MS = 60 * 60 * 1000; const ISLANDS_PER_PAGE = 5;
 
 function formatRemaining(ms) {
   if (ms <= 0) return "Now";
@@ -108,10 +108,7 @@ function getBossStatus(player, island) {
   return "⚔️ Phase 1 Pending";
 }
 
-function getRouteStatus(currentIsland, island) {
-  if (island.code === currentIsland.code) return "Current";
-  return "✅ Unlocked";
-}
+function getRouteStatus(currentIsland, island) { if (island.code === currentIsland.code) return "📍 Current"; return "✅ Unlocked"; }
 
 function getTravelReadiness(player, currentIsland, nextIsland, ship, now) {
   if (!nextIsland) {
@@ -146,12 +143,28 @@ module.exports = {
     const now = Date.now();
     const query = args.join(" ").trim();
 
-    if (!query) {
-      const unlockedText = unlockedIslands.length
-        ? unlockedIslands
+    if (!query || /^\d+$/.test(query)) {
+      const pageRaw = Number(query || 1);
+      const maxPage = Math.max(
+        1,
+        Math.ceil(unlockedIslands.length / ISLANDS_PER_PAGE)
+      );
+
+      const page = Math.min(
+        maxPage,
+        Math.max(1, Number.isFinite(pageRaw) ? Math.floor(pageRaw) : 1)
+      );
+
+      const start = (page - 1) * ISLANDS_PER_PAGE;
+      const pageIslands = unlockedIslands.slice(start, start + ISLANDS_PER_PAGE);
+
+      const unlockedText = pageIslands.length
+        ? pageIslands
             .map((island, index) => {
+              const globalIndex = start + index + 1;
+
               return [
-                `**${index + 1}. ${island.name}**`,
+                `**${globalIndex}. ${island.name}**`,
                 `↪ Status: ${getRouteStatus(currentIsland, island)}`,
                 `↪ Sea: ${island.sea || "Unknown"}`,
                 `↪ Boss: ${getBossStatus(player, island)}`,
@@ -164,14 +177,16 @@ module.exports = {
         embeds: [
           new EmbedBuilder()
             .setColor(0x1abc9c)
-            .setTitle("Travel Route")
+            .setTitle(`Travel Route • Page ${page}/${maxPage}`)
             .setDescription(
               [
                 `**Current Island:** ${currentIsland.name}`,
                 `**Current Sea:** ${currentIsland.sea || "Unknown"}`,
                 `**Ship:** ${ship.name} • Tier ${ship.tier}`,
                 `**Ship Ready:** ${
-                  ship.nextTravelAt > now ? formatRemaining(ship.nextTravelAt - now) : "Ready"
+                  ship.nextTravelAt > now
+                    ? formatRemaining(ship.nextTravelAt - now)
+                    : "Ready"
                 }`,
                 "",
                 "## Route Readiness",
@@ -180,6 +195,9 @@ module.exports = {
                 "## Unlocked Islands",
                 unlockedText,
                 "",
+                page < maxPage
+                  ? `Use \`op travel ${page + 1}\` to view next page.`
+                  : "Use `op travel 1` to view first page.",
                 "Use `op sail` to unlock the next canon island.",
                 "Use `op travel <island>` to move between unlocked islands.",
               ].join("\n")
