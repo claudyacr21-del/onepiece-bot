@@ -177,8 +177,7 @@ function buildIslandList(player, currentIsland, unlockedIslands, page) {
             `↪ Sea: ${island.sea || "Unknown"}`,
             `↪ Boss: ${getBossStatus(player, island)}`,
           ].join("\n");
-        })
-        .join("\n")
+        }).join("\n\n")
     : "No islands unlocked yet.";
 
   return {
