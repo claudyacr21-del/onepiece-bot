@@ -162,7 +162,6 @@ function buildIslandList(player, currentIsland, unlockedIslands, page) {
     1,
     Math.ceil(unlockedIslands.length / ISLANDS_PER_PAGE)
   );
-
   const safePage = Math.min(maxPage, Math.max(1, Number(page || 1)));
   const start = (safePage - 1) * ISLANDS_PER_PAGE;
   const pageIslands = unlockedIslands.slice(start, start + ISLANDS_PER_PAGE);
