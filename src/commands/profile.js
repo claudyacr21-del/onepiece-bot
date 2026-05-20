@@ -288,9 +288,45 @@ function buildProfileArenaBots(count = ARENA_TOTAL_RANKS) {
   });
 }
 
+function getBotName(index) {
+  const base = BOT_NAMES[index % BOT_NAMES.length];
+  const cycle = Math.floor(index / BOT_NAMES.length);
+  return cycle === 0 ? base : `${base} ${cycle + 1}`;
+}
+
+function getBotPoints(index) {
+  return Math.max(0, ARENA_TOP_BOT_POINTS - index * ARENA_POINT_STEP);
+}
+
+function getBotWins(points) {
+  return Math.max(0, Math.floor(Number(points || 0) / 10));
+}
+
+function getBotLosses(index) {
+  return Math.floor(index / 25);
+}
+
+function buildProfileArenaBots(count = ARENA_TOTAL_RANKS) {
+  return Array.from({ length: count }, (_, index) => {
+    const points = getBotPoints(index);
+    return {
+      id: `arena_bot_${String(index + 1).padStart(3, "0")}`,
+      username: getBotName(index),
+      points,
+      wins: getBotWins(points),
+      losses: getBotLosses(index),
+      matches: getBotWins(points) + getBotLosses(index),
+      isBot: true,
+    };
+  });
+}
+
 function getArenaRankFromPoints(points) {
   const safePoints = Math.max(0, Number(points || 0));
-  return Math.max(1, ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK));
+  return Math.max(
+    1,
+    ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK)
+  );
 }
 
 function getArenaLeaderboardRankForUser(userId, playersMap) {
@@ -304,7 +340,9 @@ function getArenaLeaderboardRankForUser(userId, playersMap) {
       matches: Number(player?.arena?.matches || 0),
       isBot: false,
     }))
-    .filter((entry) => entry.matches > 0 || entry.points > 0 || entry.wins > 0 || entry.losses > 0);
+    .filter((entry) => {
+      return entry.matches > 0 || entry.points > 0 || entry.wins > 0 || entry.losses > 0;
+    });
 
   const botCount = Math.max(0, ARENA_TOTAL_RANKS - realPlayers.length);
 
@@ -426,9 +464,9 @@ module.exports = {
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
     const totalFragments = countTotalAmount(player.fragments);
-    const isMotherFlame = await isPremiumUser(message);
-    const isVivreCard = await isLitePremiumUser(message);
-    const booster = await isServerBooster(message);
+    const isMotherFlame = await isPremiumUser(message).catch(() => false);
+    const isVivreCard = await isLitePremiumUser(message).catch(() => false);
+    const booster = await isServerBooster(message).catch(() => false);
 
     const captainBadges = getCaptainBadges(player, {
       isMotherFlame,
