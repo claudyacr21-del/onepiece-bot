@@ -16,7 +16,7 @@ const { syncExpiredPatreonRoles } = require("./utils/patreonRoleStore");
 const { startResetReminderService } = require("./utils/resetReminderService");
 const { maybeSpawnMarineEvent } = require("./utils/marineEvent");
 const channelRules = require("./config/channelRules");
-const { readPlayers, writePlayers } = require("./playerStore");
+const { readPlayers, writePlayers, initPlayerStore } = require("./playerStore");
 const {
   isEligibleMilestoneChat,
   incrementMessageMilestone,
@@ -331,4 +331,9 @@ client.on("warn", (info) => {
   console.warn("[CLIENT WARN]", info);
 });
 
-client.login(process.env.DISCORD_TOKEN);
+initPlayerStore()
+  .then(() => client.login(process.env.DISCORD_TOKEN))
+  .catch((error) => {
+    console.error("[PLAYER STORE INIT FATAL]", error);
+    process.exit(1);
+  });

@@ -9,6 +9,201 @@ const persistentDir =
 const fallbackDir = path.join(__dirname, "data");
 const PULL_SLOT_SCHEMA_VERSION = 4;
 
+const PLAYER_STORE_MODE = String(process.env.PLAYER_STORE_MODE || "").toLowerCase();
+const USE_POSTGRES = PLAYER_STORE_MODE === "postgres" && Boolean(process.env.DATABASE_URL);
+
+let playersCache = null;
+let dbPool = null;
+let dbReady = false;
+let dbFlushTimer = null;
+let dbFlushInFlight = false;
+let dbFlushQueued = false;
+
+function cloneJson(value) {
+  return value && typeof value === "object" ? JSON.parse(JSON.stringify(value)) : {};
+}
+
+function setPlayersCache(value) {
+  playersCache = value && typeof value === "object" ? value : {};
+  return playersCache;
+}
+
+function getDbPool() {
+  if (!USE_POSTGRES) return null;
+
+  if (!dbPool) {
+    dbPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: Number(process.env.PLAYER_DB_POOL_MAX || 5),
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    });
+
+    dbPool.on("error", (error) => {
+      console.error("[PLAYER DB POOL ERROR]", error);
+    });
+  }
+
+  return dbPool;
+}
+
+async function ensurePlayersTable() {
+  const pool = getDbPool();
+  if (!pool) return;
+
+  await pool.query(`
+    create table if not exists players (
+      user_id text primary key,
+      username text,
+      data jsonb not null default '{}'::jsonb,
+      updated_at timestamptz not null default now()
+    );
+  `);
+
+  await pool.query(`
+    create index if not exists players_username_idx on players (username);
+  `);
+
+  await pool.query(`
+    create index if not exists players_updated_at_idx on players (updated_at);
+  `);
+}
+
+async function loadPlayersFromPostgres() {
+  const pool = getDbPool();
+  if (!pool) return {};
+
+  await ensurePlayersTable();
+
+  const result = await pool.query("select user_id, data from players");
+  const players = {};
+
+  for (const row of result.rows || []) {
+    players[String(row.user_id)] = row.data || {};
+  }
+
+  return players;
+}
+
+async function flushPlayersToPostgresNow(snapshot) {
+  if (!USE_POSTGRES || !dbReady) return;
+
+  if (dbFlushInFlight) {
+    dbFlushQueued = true;
+    return;
+  }
+
+  dbFlushInFlight = true;
+
+  const pool = getDbPool();
+  const entries = Object.entries(snapshot || {});
+
+  try {
+    await ensurePlayersTable();
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("begin");
+
+      for (const [userId, data] of entries) {
+        await client.query(
+          `
+          insert into players (user_id, username, data, updated_at)
+          values ($1, $2, $3::jsonb, now())
+          on conflict (user_id)
+          do update set
+            username = excluded.username,
+            data = excluded.data,
+            updated_at = now()
+          `,
+          [String(userId), data?.username || "Unknown", JSON.stringify(data || {})]
+        );
+      }
+
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error("[PLAYER DB FLUSH ERROR]", error);
+  } finally {
+    dbFlushInFlight = false;
+
+    if (dbFlushQueued) {
+      dbFlushQueued = false;
+      schedulePostgresFlush(playersCache || {});
+    }
+  }
+}
+
+function schedulePostgresFlush(data) {
+  if (!USE_POSTGRES || !dbReady) return;
+
+  const snapshot = cloneJson(data);
+
+  if (dbFlushTimer) clearTimeout(dbFlushTimer);
+
+  dbFlushTimer = setTimeout(() => {
+    dbFlushTimer = null;
+    flushPlayersToPostgresNow(snapshot).catch((error) => {
+      console.error("[PLAYER DB SCHEDULED FLUSH ERROR]", error);
+    });
+  }, Number(process.env.PLAYER_DB_FLUSH_DELAY_MS || 750));
+}
+
+async function initPlayerStore() {
+  ensureFile();
+
+  if (!USE_POSTGRES) {
+    readPlayers();
+    console.log("[PLAYER STORE] File mode active.");
+    return;
+  }
+
+  try {
+    const dbPlayers = await loadPlayersFromPostgres();
+
+    if (dbPlayers && Object.keys(dbPlayers).length > 0) {
+      setPlayersCache(dbPlayers);
+
+      try {
+        const serialized = JSON.stringify(dbPlayers, null, 2);
+        fs.writeFileSync(filePath, serialized, "utf8");
+        fs.writeFileSync(getLastGoodBackupPath(), serialized, "utf8");
+      } catch (backupError) {
+        console.error("[PLAYER STORE DB BACKUP FILE ERROR]", backupError);
+      }
+
+      dbReady = true;
+      console.log(`[PLAYER STORE] Postgres mode active. Loaded ${Object.keys(dbPlayers).length} players.`);
+      return;
+    }
+
+    const filePlayers = readPlayers();
+
+    if (filePlayers && Object.keys(filePlayers).length > 0) {
+      setPlayersCache(filePlayers);
+      dbReady = true;
+      await flushPlayersToPostgresNow(filePlayers);
+      console.log(`[PLAYER STORE] Postgres mode active. Seeded ${Object.keys(filePlayers).length} players from file.`);
+      return;
+    }
+
+    setPlayersCache({});
+    dbReady = true;
+    console.log("[PLAYER STORE] Postgres mode active. No players found yet.");
+  } catch (error) {
+    console.error("[PLAYER STORE] Failed to initialize Postgres mode. Falling back to file mode.", error);
+    dbReady = false;
+    readPlayers();
+  }
+}
+
 function resolveFilePath() {
   try {
     fs.mkdirSync(persistentDir, { recursive: true });
@@ -61,24 +256,19 @@ function readBackupPlayers() {
 }
 
 function readPlayers() {
+  if (playersCache) return playersCache;
+
   ensureFile();
 
   try {
     const raw = fs.readFileSync(filePath, "utf8");
-    return safeParseJson(raw);
+    return setPlayersCache(safeParseJson(raw));
   } catch (error) {
     console.error("players.json is invalid. Trying last-good backup.", error);
 
     try {
-      const brokenRaw = fs.existsSync(filePath)
-        ? fs.readFileSync(filePath, "utf8")
-        : "";
-
-      fs.writeFileSync(
-        `${filePath}.broken.${Date.now()}.bak`,
-        brokenRaw,
-        "utf8"
-      );
+      const brokenRaw = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
+      fs.writeFileSync(`${filePath}.broken.${Date.now()}.bak`, brokenRaw, "utf8");
     } catch (backupError) {
       console.error("Failed to back up broken players.json.", backupError);
     }
@@ -92,10 +282,10 @@ function readPlayers() {
         console.error("Failed to restore last-good players backup.", restoreError);
       }
 
-      return backupPlayers;
+      return setPlayersCache(backupPlayers);
     }
 
-    return {};
+    return setPlayersCache({});
   }
 }
 
@@ -103,8 +293,9 @@ function writePlayers(data) {
   ensureFile();
 
   const safeData = data && typeof data === "object" ? data : {};
-  const serialized = JSON.stringify(safeData, null, 2);
+  setPlayersCache(safeData);
 
+  const serialized = JSON.stringify(safeData, null, 2);
   const tempPath = `${filePath}.${process.pid}.${Date.now()}.${Math.random()
     .toString(16)
     .slice(2)}.tmp`;
@@ -117,6 +308,8 @@ function writePlayers(data) {
   } catch (error) {
     console.error("Failed to write last-good players backup.", error);
   }
+
+  schedulePostgresFlush(safeData);
 }
 
 function normalizeNamedList(value) {
@@ -997,7 +1190,7 @@ module.exports = {
   getPlayer,
   updatePlayer,
   updatePlayerAtomic,
-  updateTwoPlayersAtomic,
+  
   normalizePlayer,
   filePath,
 };
