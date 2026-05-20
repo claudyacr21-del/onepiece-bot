@@ -357,6 +357,19 @@ function findOwnedWeapon(player, query) {
   return scored.length ? scored[0].weapon : null;
 }
 
+function findOwnedWeaponByExactNameOnly(player, query) {
+  const q = normalize(query);
+  if (!q) return null;
+
+  const pool = buildOwnedWeaponPool(player);
+
+  return (
+    pool.find((weapon) => normalize(weapon.name) === q) ||
+    pool.find((weapon) => normalize(weapon.displayName) === q) ||
+    null
+  );
+}
+
 function buildOwnedFruitEmbed(ownerName, player, fruit) {
   const percent = fruit.statPercent || fruit.statBonus || {
     atk: 0,
@@ -499,11 +512,18 @@ module.exports = {
     const query = args.join(" ").trim();
 
     if (!query) {
-      return message.reply("Usage: `op mci <card/fruit/weapon>`");
+      return message.reply("Usage: `op mci <card/weapon/fruit name>`");
     }
 
     const player = getPlayer(message.author.id, message.author.username);
     const boosts = getPassiveBoostSummary(player);
+
+    const exactWeapon = findOwnedWeaponByExactNameOnly(player, query);
+    if (exactWeapon) {
+      return message.reply({
+        embeds: [buildOwnedWeaponEmbed(message.author.username, player, exactWeapon)],
+      });
+    }
 
     const ownedCard = findOwnedCardByNameOnly(player, query);
     const card = applyBoostedDisplayStats(ownedCard, boosts);
@@ -515,7 +535,6 @@ module.exports = {
     }
 
     const ownedFruit = findOwnedFruit(player, query);
-
     if (ownedFruit) {
       return message.reply({
         embeds: [buildOwnedFruitEmbed(message.author.username, player, ownedFruit)],
@@ -523,7 +542,6 @@ module.exports = {
     }
 
     const ownedWeapon = findOwnedWeapon(player, query);
-
     if (ownedWeapon) {
       return message.reply({
         embeds: [buildOwnedWeaponEmbed(message.author.username, player, ownedWeapon)],
