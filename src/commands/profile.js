@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer } = require("../playerStore");
+const { getPlayer, readPlayers } = require("../playerStore");
 const {
   isPremiumUser,
   isLitePremiumUser,
@@ -255,26 +255,83 @@ function getStoryProgress(player) {
   return `${cleared} bosses • ${currentIsland}`;
 }
 
+function getBotName(index) {
+  const base = BOT_NAMES[index % BOT_NAMES.length];
+  const cycle = Math.floor(index / BOT_NAMES.length);
+  return cycle === 0 ? base : `${base} ${cycle + 1}`;
+}
+
+function getBotPoints(index) {
+  return Math.max(0, ARENA_TOP_BOT_POINTS - index * ARENA_POINT_STEP);
+}
+
+function getBotWins(points) {
+  return Math.max(0, Math.floor(Number(points || 0) / 10));
+}
+
+function getBotLosses(index) {
+  return Math.floor(index / 25);
+}
+
+function buildProfileArenaBots(count = ARENA_TOTAL_RANKS) {
+  return Array.from({ length: count }, (_, index) => {
+    const points = getBotPoints(index);
+    return {
+      id: `arena_bot_${String(index + 1).padStart(3, "0")}`,
+      username: getBotName(index),
+      points,
+      wins: getBotWins(points),
+      losses: getBotLosses(index),
+      matches: getBotWins(points) + getBotLosses(index),
+      isBot: true,
+    };
+  });
+}
+
 function getArenaRankFromPoints(points) {
   const safePoints = Math.max(0, Number(points || 0));
-
-  return Math.max(
-    1,
-    ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK)
-  );
+  return Math.max(1, ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK));
 }
 
-function formatArenaRank(points) {
-  return `#${getArenaRankFromPoints(points)}`;
+function getArenaLeaderboardRankForUser(userId, playersMap) {
+  const realPlayers = Object.entries(playersMap || {})
+    .map(([id, player]) => ({
+      id,
+      username: player.username || "Unknown",
+      points: Number(player?.arena?.points || 0),
+      wins: Number(player?.arena?.wins || 0),
+      losses: Number(player?.arena?.losses || 0),
+      matches: Number(player?.arena?.matches || 0),
+      isBot: false,
+    }))
+    .filter((entry) => entry.matches > 0 || entry.points > 0 || entry.wins > 0 || entry.losses > 0);
+
+  const botCount = Math.max(0, ARENA_TOTAL_RANKS - realPlayers.length);
+
+  const rows = [...buildProfileArenaBots(botCount), ...realPlayers]
+    .sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (a.losses !== b.losses) return a.losses - b.losses;
+      if (a.isBot !== b.isBot) return a.isBot ? -1 : 1;
+      return String(a.username).localeCompare(String(b.username));
+    })
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+  return rows.find((row) => String(row.id) === String(userId))?.rank || null;
 }
 
-function getArenaSummary(player) {
+function formatArenaRank(points, userId = null) {
+  const rank = userId ? getArenaLeaderboardRankForUser(userId, readPlayers() || {}) : null;
+  return `#${rank || getArenaRankFromPoints(points)}`;
+}
+
+function getArenaSummary(player, userId = null) {
   const arena = player?.arena || {};
   const points = Number(arena.points || 0);
-
   return {
     points,
-    rank: formatArenaRank(points),
+    rank: formatArenaRank(points, userId),
     wins: Number(arena.wins || 0),
     losses: Number(arena.losses || 0),
     streak: Number(arena.streak || 0),
@@ -382,7 +439,7 @@ module.exports = {
     const totalPower = getTotalPower(player);
     const teamPower = getTeamPower(player);
     const storyProgress = getStoryProgress(player);
-    const arena = getArenaSummary(player);
+    const arena = getArenaSummary(player, message.author.id);
     const ship = getShipSummary(player);
     const cardStats = getCardStatistics(player);
     const avatar = getProfileImage(message);

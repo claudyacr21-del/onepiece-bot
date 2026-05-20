@@ -155,21 +155,14 @@ async function safeEditRaidMessage(message, payload) {
 function safeDeleteRaidRoom(hostId, reason = "unknown") {
   try {
     const room = getRoom(hostId);
-
     if (!room) return false;
 
-    const status = String(room.status || "");
+    deleteRoom(hostId);
 
-    if (status === "active") {
-      console.warn("[raid safe delete skipped active room]", {
-        hostId,
-        reason,
-        roomId: room.roomId,
-      });
-      return false;
+    if (room.roomId) {
+      activeRaidReadyNotices.delete(String(room.roomId));
     }
 
-    safeDeleteRaidRoom(hostId, "raid-flow");
     return true;
   } catch (error) {
     console.error("[raid safe delete room failed]", error?.message || error);
