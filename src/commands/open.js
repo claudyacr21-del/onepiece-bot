@@ -248,7 +248,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
   } else if (box.code === "legend_resource_box") {
     addBerries(15000);
     addGems(60);
-    addMaterial(ITEMS.ironPlating, 2);
+    addMaterial(ITEMS.ironPlating, 1);
     addMaterial(ITEMS.hardwood, 1);
     addMaterial(ITEMS.colaEnginePart, 2);
     addMaterial(ITEMS.enhancementStone, 15);
