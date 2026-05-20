@@ -15,27 +15,6 @@ const VALID_BUCKETS = [
   "fragments",
 ];
 
-const TICKET_ALIAS_TO_CODE = {
-  craid: "common_raid_ticket",
-  commonraid: "common_raid_ticket",
-  common_raid: "common_raid_ticket",
-  common_raid_ticket: "common_raid_ticket",
-  "common raid": "common_raid_ticket",
-  "common raid ticket": "common_raid_ticket",
-
-  raid: "raid_ticket",
-  raidticket: "raid_ticket",
-  raid_ticket: "raid_ticket",
-  "raid ticket": "raid_ticket",
-
-  graid: "gold_raid_ticket",
-  goldraid: "gold_raid_ticket",
-  gold_raid: "gold_raid_ticket",
-  gold_raid_ticket: "gold_raid_ticket",
-  "gold raid": "gold_raid_ticket",
-  "gold raid ticket": "gold_raid_ticket",
-};
-
 function getAdminIds() {
   return String(
     process.env.ADMIN_USER_IDS ||
@@ -156,95 +135,49 @@ function collectCatalogEntries(source, out = [], seen = new Set()) {
   return out;
 }
 
-function addKey(keys, value) {
+function addSearchKey(keys, value) {
   const raw = String(value || "").trim();
   if (!raw) return;
 
   keys.push(raw);
   keys.push(normalize(raw));
-  keys.push(normalizeCode(raw));
   keys.push(normalizeCompact(raw));
+}
+
+function getDisplayName(entry) {
+  return entry?.displayName || entry?.name || "";
 }
 
 function getCatalogKeys(entry) {
   const keys = [];
 
-  [
-    entry?.code,
-    entry?.name,
-    entry?.displayName,
-    entry?.id,
-    entry?.key,
-    entry?.title,
-    entry?.variant,
-    entry?.type,
-  ].forEach((value) => addKey(keys, value));
-
-  if (Array.isArray(entry?.owners)) {
-    entry.owners.forEach((owner) => addKey(keys, owner));
-  }
+  addSearchKey(keys, getDisplayName(entry));
 
   const name = String(entry?.name || "");
-  const code = String(entry?.code || "");
+  const displayName = String(entry?.displayName || "");
 
   if (name.includes(",")) {
     name
       .split(",")
       .map((x) => x.trim())
-      .forEach((part) => addKey(keys, part));
+      .forEach((part) => addSearchKey(keys, part));
   }
 
-  const modelMatch = name.match(/model:\s*(.+)$/i);
+  if (displayName.includes(",")) {
+    displayName
+      .split(",")
+      .map((x) => x.trim())
+      .forEach((part) => addSearchKey(keys, part));
+  }
+
+  const modelMatch = name.match(/model:\s*(.+)$/i) || displayName.match(/model:\s*(.+)$/i);
   if (modelMatch?.[1]) {
-    addKey(keys, modelMatch[1]);
+    addSearchKey(keys, modelMatch[1]);
   }
 
-  const noMiMatch = name.match(/^(.+?)\s+no\s+mi/i);
+  const noMiMatch = name.match(/^(.+?)\s+no\s+mi/i) || displayName.match(/^(.+?)\s+no\s+mi/i);
   if (noMiMatch?.[1]) {
-    addKey(keys, noMiMatch[1]);
-  }
-
-  const codeParts = code.split("_").filter(Boolean);
-  if (codeParts.length) {
-    addKey(keys, codeParts[codeParts.length - 1]);
-    addKey(keys, codeParts.slice(-2).join("_"));
-    addKey(keys, codeParts.slice(-2).join(" "));
-  }
-
-  const codeNorm = normalizeCode(code);
-  const nameNorm = normalize(name);
-
-  if (codeNorm === "common_raid_ticket" || nameNorm === "common raid ticket") {
-    ["craid", "commonraid", "common raid", "common raid ticket"].forEach((value) =>
-      addKey(keys, value)
-    );
-  }
-
-  if (codeNorm === "raid_ticket" || nameNorm === "raid ticket") {
-    ["raid", "raidticket", "raid ticket"].forEach((value) => addKey(keys, value));
-  }
-
-  if (codeNorm === "gold_raid_ticket" || nameNorm === "gold raid ticket") {
-    ["graid", "goldraid", "gold raid", "gold raid ticket"].forEach((value) =>
-      addKey(keys, value)
-    );
-  }
-
-  if (
-    normalize(name).includes("nika") ||
-    normalizeCode(code).includes("nika") ||
-    normalize(name).includes("hito hito no mi model nika")
-  ) {
-    [
-      "nika",
-      "hito hito nika",
-      "hito hito no mi nika",
-      "hito hito no mi model nika",
-      "hito_hito_no_mi_model_nika",
-      "sun god nika",
-      "luffy fruit",
-      "luffy df",
-    ].forEach((value) => addKey(keys, value));
+    addSearchKey(keys, noMiMatch[1]);
   }
 
   return [...new Set(keys.map(String).filter(Boolean))];
@@ -257,13 +190,8 @@ function buildIndex(entries) {
     const keys = getCatalogKeys(entry);
 
     for (const key of keys) {
-      const normalized = normalize(key);
-      const code = normalizeCode(key);
-      const compact = normalizeCompact(key);
-
-      if (!map.has(normalized)) map.set(normalized, entry);
-      if (!map.has(code)) map.set(code, entry);
-      if (!map.has(compact)) map.set(compact, entry);
+      map.set(normalize(key), entry);
+      map.set(normalizeCompact(key), entry);
     }
   }
 
@@ -294,66 +222,34 @@ function getIndexForBucket(bucket) {
   return itemIndex;
 }
 
-function resolveTicketAlias(query) {
-  const q = normalize(query);
-  const qc = normalizeCode(query);
-  const compact = normalizeCompact(query);
-
-  return (
-    TICKET_ALIAS_TO_CODE[q] ||
-    TICKET_ALIAS_TO_CODE[qc] ||
-    TICKET_ALIAS_TO_CODE[compact] ||
-    null
-  );
-}
-
-function findExactCodeEntry(entries, code) {
-  const target = normalizeCode(code);
-
-  return (
-    entries.find((entry) => normalizeCode(entry?.code) === target) ||
-    entries.find((entry) => normalizeCode(entry?.id) === target) ||
-    null
-  );
-}
-
 function scoreEntry(entry, query) {
   const q = normalize(query);
-  const qc = normalizeCode(query);
   const qCompact = normalizeCompact(query);
 
-  if (!q && !qc && !qCompact) return 0;
-
-  const entryCode = normalizeCode(entry?.code);
-  const entryName = normalize(entry?.name || entry?.displayName);
-
-  if (entryCode && entryCode === qc) return 5000;
-  if (entryName && entryName === q) return 4500;
+  if (!q && !qCompact) return 0;
 
   let best = 0;
 
   for (const key of getCatalogKeys(entry)) {
     const k = normalize(key);
-    const kc = normalizeCode(key);
     const kCompact = normalizeCompact(key);
 
-    if (k === q || kc === qc || kCompact === qCompact) {
+    if (k === q || kCompact === qCompact) {
       best = Math.max(best, 1000);
       continue;
     }
 
-    if (k.startsWith(q) || kc.startsWith(qc) || kCompact.startsWith(qCompact)) {
+    if (k.startsWith(q) || kCompact.startsWith(qCompact)) {
       best = Math.max(best, 700);
       continue;
     }
 
-    if (k.includes(q) || kc.includes(qc) || kCompact.includes(qCompact)) {
+    if (k.includes(q) || kCompact.includes(qCompact)) {
       best = Math.max(best, 400);
       continue;
     }
 
     const words = q.split(" ").filter(Boolean);
-
     if (words.length && words.every((word) => k.includes(word))) {
       best = Math.max(best, 250);
     }
@@ -363,32 +259,14 @@ function scoreEntry(entry, query) {
 }
 
 function findCatalogEntry(bucket, query) {
-  const entries = getEntriesForBucket(bucket);
-
-  if (bucket === "tickets") {
-    const aliasCode = resolveTicketAlias(query);
-
-    if (aliasCode) {
-      return findExactCodeEntry(entries, aliasCode);
-    }
-  }
-
   const q = normalize(query);
-  const qc = normalizeCode(query);
   const qCompact = normalizeCompact(query);
   const index = getIndexForBucket(bucket);
-
-  const exactCode = findExactCodeEntry(entries, qc);
-  if (exactCode) return exactCode;
-
-  const exact =
-    index.get(q) ||
-    index.get(qc) ||
-    index.get(qCompact) ||
-    null;
+  const exact = index.get(q) || index.get(qCompact) || null;
 
   if (exact) return exact;
 
+  const entries = getEntriesForBucket(bucket);
   const ranked = entries
     .map((entry) => ({
       entry,
@@ -475,20 +353,15 @@ function sameEntry(a, b) {
 
 function getUsageText() {
   return [
-    "Usage: `op giveitem <@user/userId> <bucket> <amount> <item_code/name>`",
-    "",
-    "Ticket aliases:",
-    "`craid` = Common Raid Ticket",
-    "`raid` = Raid Ticket",
-    "`graid` = Gold Raid Ticket",
+    "Usage: `op giveitem <@user/userId> <bucket> <amount> <display name/card name>`",
     "",
     "Examples:",
-    "`op giveitem @user tickets 1 craid`",
-    "`op giveitem @user tickets 1 raid`",
-    "`op giveitem @user tickets 1 graid`",
-    "`op giveitem @user devilfruits 1 nika`",
-    "`op giveitem 123456789012345678 devilfruits 1 hito_hito_no_mi_model_nika`",
+    "`op giveitem @user devilfruits 1 Hito Hito no Mi, Model: Nika`",
+    "`op giveitem @user fragments 5 Luffy`",
+    "`op giveitem @user fragments 5 Sniper Focus`",
+    "`op giveitem @user tickets 2 Common Raid Ticket`",
     "",
+    "Search only checks display name / card name, not code name.",
     `Buckets: ${VALID_BUCKETS.join(", ")}`,
   ].join("\n");
 }
@@ -510,7 +383,6 @@ module.exports = {
     const targetArg = args.shift();
     const mentionedUser = message.mentions.users.first();
     const userId = mentionedUser?.id || parseUserId(targetArg);
-
     const bucket = normalizeBucket(args.shift());
     const storageBucket = getStorageBucket(bucket);
     const amount = Number(args.shift() || 0);
@@ -538,7 +410,7 @@ module.exports = {
 
     if (!catalogEntry) {
       return message.reply({
-        content: `Invalid ${bucket} entry.\nMust match data by name or code.\nQuery: \`${query}\``,
+        content: `Invalid ${bucket} entry.\nMust match by display name / card name only.\nQuery: \`${query}\``,
         allowedMentions: {
           repliedUser: false,
         },
@@ -585,9 +457,7 @@ module.exports = {
           `**Amount:** ${amount}`,
         ].join("\n")
       )
-      .setFooter({
-        text: "One Piece Bot • Admin Give Item",
-      });
+      .setFooter({ text: "One Piece Bot • Admin Give Item" });
 
     return message.reply({
       embeds: [embed],
