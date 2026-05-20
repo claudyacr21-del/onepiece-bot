@@ -2,7 +2,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayerAtomic } = require("./playerStore");
+const { updatePlayerAtomic } = require("./playerStore");
 
 let serverStarted = false;
 
@@ -10,18 +10,20 @@ const VOTE_BERRY_REWARD = 5000;
 const VOTE_PULL_RESET_REWARD = 1;
 const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 
+function getDataDir() {
+  return process.env.PLAYER_DATA_DIR || "/data";
+}
+
 function addTicket(list, ticket) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const index = arr.findIndex(
-    (entry) => String(entry.code) === String(ticket.code)
-  );
+
+  const index = arr.findIndex((entry) => String(entry.code) === String(ticket.code));
 
   if (index !== -1) {
     arr[index] = {
       ...arr[index],
       amount: Number(arr[index].amount || 0) + Number(ticket.amount || 1),
     };
-
     return arr;
   }
 
@@ -41,6 +43,8 @@ function getVoteUserId(body) {
     body?.data?.user?.platform_id ||
     body?.data?.user?.id ||
     body?.user ||
+    body?.userId ||
+    body?.user_id ||
     null
   );
 }
@@ -49,7 +53,8 @@ function getVoteEventId(body, userId) {
   return (
     body?.data?.id ||
     body?.id ||
-    `${userId}:${body?.data?.created_at || body?.query || Date.now()}`
+    body?.voteId ||
+    `${userId}:${body?.data?.created_at || body?.created_at || body?.query || Date.now()}`
   );
 }
 
@@ -58,6 +63,7 @@ function isVotePayload(body) {
 
   if (body.type === "vote.create") return true;
   if (body.type === "upvote") return true;
+  if (body.event === "vote.create") return true;
 
   return false;
 }
@@ -67,6 +73,7 @@ function isTestPayload(body) {
 
   if (body.type === "webhook.test") return true;
   if (body.type === "test") return true;
+  if (body.event === "webhook.test") return true;
 
   return false;
 }
@@ -76,9 +83,14 @@ function checkAuthorization(req) {
 
   if (!expected) return true;
 
-  const received = req.get("Authorization") || req.get("authorization") || "";
+  const received =
+    req.get("Authorization") ||
+    req.get("authorization") ||
+    req.get("X-TopGG-Authorization") ||
+    req.get("x-topgg-authorization") ||
+    "";
 
-  return received === expected;
+  return String(received) === String(expected);
 }
 
 async function sendVoteDm(client, userId, reward) {
@@ -94,7 +106,7 @@ async function sendVoteDm(client, userId, reward) {
           `💰 Berries: +${reward.berries.toLocaleString("en-US")}`,
           `🎟️ Pull Reset Ticket: +${reward.pullResetTickets}`,
           `🔥 Vote Streak: ${reward.streak}`,
-          `📊 Total Votes: ${reward.totalVotes}`,
+          `🗳️ Total Votes: ${reward.totalVotes}`,
         ].join("\n")
       );
 
@@ -212,7 +224,7 @@ function startTopggWebhookServer(client) {
 
   const app = express();
 
-  app.use(express.json());
+  app.use(express.json({ limit: "2mb" }));
 
   app.get("/", (_, res) => {
     res.status(200).send("onepiece-bot ok");
@@ -222,6 +234,17 @@ function startTopggWebhookServer(client) {
     res.status(200).json({
       ok: true,
       bot: client?.user?.tag || null,
+      hosting: "render",
+      store: process.env.PLAYER_STORE_MODE || "file",
+    });
+  });
+
+  app.get("/healthz", (_, res) => {
+    res.status(200).json({
+      ok: true,
+      bot: client?.user?.tag || null,
+      hosting: "render",
+      store: process.env.PLAYER_STORE_MODE || "file",
     });
   });
 
@@ -233,7 +256,7 @@ function startTopggWebhookServer(client) {
         return res.status(403).send("Forbidden");
       }
 
-      const dataDir = process.env.PLAYER_DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data";
+      const dataDir = getDataDir();
       const filePath = path.join(dataDir, "players.json");
 
       if (!fs.existsSync(filePath)) {
@@ -255,7 +278,7 @@ function startTopggWebhookServer(client) {
         return res.status(403).send("Forbidden");
       }
 
-      const dataDir = process.env.PLAYER_DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data";
+      const dataDir = getDataDir();
       const filePath = path.join(dataDir, "players.json.lastgood.bak");
 
       if (!fs.existsSync(filePath)) {
@@ -272,11 +295,11 @@ function startTopggWebhookServer(client) {
   app.post("/topgg", async (req, res) => {
     try {
       if (!checkAuthorization(req)) {
+        console.warn("[TOPGG] Unauthorized webhook request.");
         return res.status(401).json({ ok: false, error: "unauthorized" });
       }
 
       const body = req.body || {};
-
       console.log("[TOPGG] Vote payload received:", body);
 
       if (isTestPayload(body)) {
@@ -296,11 +319,12 @@ function startTopggWebhookServer(client) {
     }
   });
 
-  const port = Number(process.env.PORT || process.env.WEBHOOK_PORT || 3000);
+  const port = Number(process.env.PORT || process.env.WEBHOOK_PORT || 10000);
   const host = "0.0.0.0";
 
   app.listen(port, host, () => {
     console.log(`[WEB] Listening on ${host}:${port}`);
+    console.log(`[TOPGG] Webhook endpoint ready at /topgg`);
   });
 }
 
