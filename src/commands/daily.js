@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayerAtomic } = require("../playerStore");
+const { getPlayer, updatePlayer } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
@@ -15,7 +15,6 @@ function addOrIncrease(list, item) {
       ...arr[index],
       amount: Number(arr[index].amount || 1) + Number(item.amount || 1),
     };
-
     return arr;
   }
 
@@ -42,6 +41,11 @@ function addReward(rewards, reward) {
   rewards.push(reward);
 }
 
+function makeReward(item, amount = 1) {
+  if (!item) return null;
+  return cloneItem(item, amount);
+}
+
 function formatRemaining(ms) {
   if (ms <= 0) return "Now";
 
@@ -64,108 +68,176 @@ function getGlobalDailyReadyAt(player) {
 }
 
 function getDailyTierRewards(dailyTier) {
-  const baseBerries = 5000;
-  const baseGems = 20;
+  const tier = Math.max(0, Math.floor(Number(dailyTier || 0)));
+  const milestone = Math.floor(tier / 5);
+  const highMilestone = Math.floor(tier / 10);
 
-  let berries = baseBerries;
-  let gems = baseGems;
+  const berries = 5000 + tier * 3000 + milestone * 5000;
+  const gems = 20 + tier * 10 + milestone * 10;
 
   const rewards = [];
 
-  if (dailyTier <= 0) {
-    return { berries, gems, rewards };
+  if (tier <= 0) {
+    return {
+      berries,
+      gems,
+      rewards,
+    };
   }
 
-  if (dailyTier === 1) {
-    berries = 6500;
-    gems = 30;
+  const boxAmount = 1 + Math.floor(tier / 10);
+  const materialAmount = 2 + tier;
+  const rumAmount = 2 + Math.floor(tier / 2);
+  const ticketAmount = 1 + Math.floor(tier / 15);
 
+  if (tier === 1) {
     if (Math.random() < 0.35) {
       addReward(
         rewards,
         randomPick([
-          cloneItem(ITEMS.rareResourceBox, 1),
-          cloneItem(ITEMS.eliteResourceBox, 1),
-          cloneItem(ITEMS.pullResetTicket, 1),
+          makeReward(ITEMS.basicResourceBox, 1),
+          makeReward(ITEMS.woodenMaterialBox, 1),
+          makeReward(ITEMS.rumBeer, 2),
         ])
       );
     }
 
-    return { berries, gems, rewards };
+    return {
+      berries,
+      gems,
+      rewards,
+    };
   }
 
-  if (dailyTier === 2) {
-    berries = 8500;
-    gems = 40;
-
-    rewards.push(
+  if (tier === 2) {
+    addReward(
+      rewards,
       randomPick([
-        cloneItem(ITEMS.basicResourceBox, 1),
-        cloneItem(ITEMS.woodenMaterialBox, 1),
-        cloneItem(ITEMS.pullResetTicket, 1),
+        makeReward(ITEMS.basicResourceBox, 1),
+        makeReward(ITEMS.woodenMaterialBox, 1),
+        makeReward(ITEMS.rareResourceBox, 1),
+        makeReward(ITEMS.rumBeer, rumAmount),
       ])
     );
 
-    return { berries, gems, rewards };
+    return {
+      berries,
+      gems,
+      rewards,
+    };
   }
 
-  if (dailyTier === 3) {
-    berries = 11000;
-    gems = 55;
-
-    rewards.push(
+  if (tier === 3) {
+    addReward(
+      rewards,
       randomPick([
-        cloneItem(ITEMS.eliteResourceBox, 1),
-        cloneItem(ITEMS.rareResourceBox, 1),
-        cloneItem(ITEMS.pullResetTicket, 1),
+        makeReward(ITEMS.rareResourceBox, 1),
+        makeReward(ITEMS.eliteResourceBox, 1),
+        makeReward(ITEMS.pullResetTicket, 1),
+        makeReward(ITEMS.enhancementStone, materialAmount),
       ])
     );
 
-    if (Math.random() < 0.4) {
-      addReward(rewards, cloneItem(ITEMS.basicResourceBox, 1));
+    if (Math.random() < 0.45) {
+      addReward(
+        rewards,
+        randomPick([
+          makeReward(ITEMS.basicResourceBox, 1),
+          makeReward(ITEMS.woodenMaterialBox, 1),
+          makeReward(ITEMS.rumBeer, rumAmount),
+        ])
+      );
     }
 
-    return { berries, gems, rewards };
+    return {
+      berries,
+      gems,
+      rewards,
+    };
   }
 
-  berries = 14000;
-  gems = 75;
-
   addReward(
     rewards,
     randomPick([
-      cloneItem(ITEMS.legendResourceBox, 1),
-      cloneItem(ITEMS.eliteResourceBox, 1),
-      cloneItem(ITEMS.pullResetTicket, 1),
+      makeReward(ITEMS.eliteResourceBox, boxAmount),
+      makeReward(ITEMS.rareResourceBox, boxAmount),
+      makeReward(ITEMS.pullResetTicket, ticketAmount),
+      makeReward(ITEMS.enhancementStone, materialAmount),
     ])
   );
 
   addReward(
     rewards,
     randomPick([
-      cloneItem(ITEMS.rareResourceBox, 1),
-      cloneItem(ITEMS.rumBeer, 4),
-      cloneItem(ITEMS.enhancementStone, 4),
+      makeReward(ITEMS.rareResourceBox, boxAmount),
+      makeReward(ITEMS.rumBeer, rumAmount),
+      makeReward(ITEMS.enhancementStone, materialAmount),
+      makeReward(ITEMS.basicResourceBox, boxAmount),
     ])
   );
 
-  return { berries, gems, rewards };
+  if (tier >= 5) {
+    addReward(
+      rewards,
+      randomPick([
+        makeReward(ITEMS.legendResourceBox, 1),
+        makeReward(ITEMS.eliteResourceBox, boxAmount),
+        makeReward(ITEMS.pullResetTicket, ticketAmount),
+      ])
+    );
+  }
+
+  if (tier >= 10) {
+    addReward(
+      rewards,
+      randomPick([
+        makeReward(ITEMS.legendResourceBox, 1 + highMilestone),
+        makeReward(ITEMS.pullResetTicket, ticketAmount + highMilestone),
+        makeReward(ITEMS.enhancementStone, materialAmount + tier),
+      ])
+    );
+  }
+
+  if (tier >= 15) {
+    addReward(
+      rewards,
+      randomPick([
+        makeReward(ITEMS.legendResourceBox, 1 + highMilestone),
+        makeReward(ITEMS.eliteResourceBox, boxAmount + highMilestone),
+        makeReward(ITEMS.rumBeer, rumAmount + tier),
+      ])
+    );
+  }
+
+  return {
+    berries,
+    gems,
+    rewards,
+  };
 }
 
 function applyRewardToInventory(player, reward) {
   if (reward.type === "Box") {
-    return { boxes: addOrIncrease(player.boxes, reward) };
+    return {
+      boxes: addOrIncrease(player.boxes, reward),
+    };
   }
 
   if (reward.type === "Ticket") {
-    return { tickets: addOrIncrease(player.tickets, reward) };
+    return {
+      tickets: addOrIncrease(player.tickets, reward),
+    };
   }
 
   if (reward.type === "Consumable" || reward.type === "Item") {
-    return { items: addOrIncrease(player.items, reward) };
+    return {
+      items: addOrIncrease(player.items, reward),
+    };
   }
 
-  return { materials: addOrIncrease(player.materials, reward) };
+  return {
+    materials: addOrIncrease(player.materials, reward),
+  };
 }
 
 module.exports = {
@@ -175,25 +247,19 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
     const boosts = getPassiveBoostSummary(player);
     const dailyTier = Number(boosts.daily || 0);
+    const cooldowns = player.cooldowns || {};
     const now = Date.now();
     const nextDailyAt = getGlobalDailyReadyAt(player);
 
     if (nextDailyAt > now) {
-      updatePlayerAtomic(
-        message.author.id,
-        (fresh) => {
-          const freshNextDailyAt = getGlobalDailyReadyAt(fresh);
-
-          return {
-            ...fresh,
-            cooldowns: {
-              ...(fresh.cooldowns || {}),
-              daily: freshNextDailyAt,
-            },
-          };
-        },
-        message.author.username
-      );
+      if (Number(cooldowns.daily || 0) !== nextDailyAt) {
+        updatePlayer(message.author.id, {
+          cooldowns: {
+            ...cooldowns,
+            daily: nextDailyAt,
+          },
+        });
+      }
 
       return message.reply(
         `You already claimed your daily reward.\nNext daily: ${formatRemaining(
@@ -203,78 +269,59 @@ module.exports = {
     }
 
     const rewardBundle = getDailyTierRewards(dailyTier);
-    const nextReadyAt = now + DAILY_COOLDOWN_MS;
 
-    try {
-      updatePlayerAtomic(
-        message.author.id,
-        (fresh) => {
-          const freshNextDailyAt = getGlobalDailyReadyAt(fresh);
+    let updatedBoxes = [...(player.boxes || [])];
+    let updatedTickets = [...(player.tickets || [])];
+    let updatedMaterials = [...(player.materials || [])];
+    let updatedItems = [...(player.items || [])];
 
-          if (freshNextDailyAt > now) {
-            throw new Error(
-              `You already claimed your daily reward.\nNext daily: ${formatRemaining(
-                freshNextDailyAt - now
-              )}`
-            );
-          }
-
-          let updatedBoxes = [...(fresh.boxes || [])];
-          let updatedTickets = [...(fresh.tickets || [])];
-          let updatedMaterials = [...(fresh.materials || [])];
-          let updatedItems = [...(fresh.items || [])];
-
-          for (const reward of rewardBundle.rewards) {
-            const result = applyRewardToInventory(
-              {
-                boxes: updatedBoxes,
-                tickets: updatedTickets,
-                materials: updatedMaterials,
-                items: updatedItems,
-              },
-              reward
-            );
-
-            if (result.boxes) updatedBoxes = result.boxes;
-            if (result.tickets) updatedTickets = result.tickets;
-            if (result.materials) updatedMaterials = result.materials;
-            if (result.items) updatedItems = result.items;
-          }
-
-          const updatedDailyState = incrementQuestCounter(fresh, "dailyClaims", 1);
-
-          return {
-            ...fresh,
-            berries: Number(fresh.berries || 0) + rewardBundle.berries,
-            gems: Number(fresh.gems || 0) + rewardBundle.gems,
-            boxes: updatedBoxes,
-            tickets: updatedTickets,
-            materials: updatedMaterials,
-            items: updatedItems,
-            dailyLastClaim: now,
-            quests: {
-              ...(fresh.quests || {}),
-              dailyState: updatedDailyState,
-            },
-            cooldowns: {
-              ...(fresh.cooldowns || {}),
-              daily: nextReadyAt,
-            },
-          };
+    for (const reward of rewardBundle.rewards) {
+      const result = applyRewardToInventory(
+        {
+          boxes: updatedBoxes,
+          tickets: updatedTickets,
+          materials: updatedMaterials,
+          items: updatedItems,
         },
-        message.author.username
+        reward
       );
-    } catch (error) {
-      return message.reply(error.message || "Failed to claim daily reward.");
+
+      if (result.boxes) updatedBoxes = result.boxes;
+      if (result.tickets) updatedTickets = result.tickets;
+      if (result.materials) updatedMaterials = result.materials;
+      if (result.items) updatedItems = result.items;
     }
 
+    const nextReadyAt = now + DAILY_COOLDOWN_MS;
+    const updatedDailyState = incrementQuestCounter(player, "dailyClaims", 1);
+
+    updatePlayer(message.author.id, {
+      berries: Number(player.berries || 0) + rewardBundle.berries,
+      gems: Number(player.gems || 0) + rewardBundle.gems,
+      boxes: updatedBoxes,
+      tickets: updatedTickets,
+      materials: updatedMaterials,
+      items: updatedItems,
+      dailyLastClaim: now,
+      quests: {
+        ...(player.quests || {}),
+        dailyState: updatedDailyState,
+      },
+      cooldowns: {
+        ...cooldowns,
+        daily: nextReadyAt,
+      },
+    });
+
     const extraLines = rewardBundle.rewards.length
-      ? rewardBundle.rewards.map((reward) => `↪ ${reward.name} x${reward.amount}`)
+      ? rewardBundle.rewards.map(
+          (reward) => `↪ ${reward.name} x${reward.amount}`
+        )
       : ["↪ No extra reward this time"];
 
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
-      .setTitle(" Daily Reward Claimed")
+      .setTitle("Daily Reward Claimed")
       .setDescription(
         [
           `↪ Daily Tier: ${dailyTier}`,

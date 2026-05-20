@@ -26,33 +26,8 @@ const { ITEMS, cloneItem } = require("../data/items");
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const ARENA_DAILY_LIMIT = 5;
 const ARENA_TOTAL_RANK_SLOTS = 500;
-const ARENA_TOP_BOT_POINTS = 300;
-const ARENA_POINT_STEP = 1;
 const ARENA_WIN_EXP_PER_CARD = 200;
 const ARENA_LOSE_EXP_PER_CARD = 100;
-
-const ARENA_BOT_NAMES = [
-  "NitroSlayer",
-  "IronPhantom",
-  "ApexPredator",
-  "Trafalgar Law",
-  "VoidWalker",
-  "GhostProtocol",
-  "Marine Hunter",
-  "Grandline Reaper",
-  "Red Flag",
-  "Blue Storm",
-  "East Blue Rookie",
-  "New World Guard",
-  "Cipher Duelist",
-  "Skypiea Knight",
-  "Wano Ronin",
-  "Baratie Brawler",
-  "Arlong Raider",
-  "Alabasta Guard",
-  "Water 7 Agent",
-  "Sabaody Hunter",
-];
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -140,15 +115,6 @@ function getArenaUsesLeft(arena) {
 
 function formatArenaEntryRank(entry) {
   return `#${Number(entry?.rank || ARENA_TOTAL_RANK_SLOTS)}`;
-}
-
-function getArenaBotPointsForSeed(seed) {
-  const safeSeed = Math.max(
-    1,
-    Math.min(ARENA_TOTAL_RANK_SLOTS, Number(seed || 1))
-  );
-
-  return Math.max(0, ARENA_TOP_BOT_POINTS - (safeSeed - 1) * ARENA_POINT_STEP);
 }
 
 function getPower(card) {
@@ -363,99 +329,6 @@ function compareArenaEntries(a, b) {
   return String(a?.username || "").localeCompare(String(b?.username || ""));
 }
 
-function makeBotCard({ code, name, rarity, atk, hp, speed, power, slot }) {
-  return buildBattleUnit(
-    {
-      code,
-      instanceId: `arena_bot_${code}_${Date.now()}_${slot}`,
-      name,
-      displayName: name,
-      rarity,
-      currentTier: rarity,
-      cardRole: "battle",
-      atk,
-      hp,
-      speed,
-      level: 1,
-      currentPower: power,
-      equippedWeapons: [],
-      equippedDevilFruit: null,
-    },
-    slot,
-    "bot"
-  );
-}
-
-function buildBotTeam(points, botIndex) {
-  const scale = Math.min(7.5, 1 + Math.max(0, Number(points || 0)) / 850);
-
-  const base = [
-    {
-      code: `bot_marine_${botIndex}`,
-      name: "Arena Marine",
-      rarity: "C",
-      atk: 95,
-      hp: 900,
-      speed: 55,
-      power: 450,
-    },
-    {
-      code: `bot_swordsman_${botIndex}`,
-      name: "Arena Swordsman",
-      rarity: "C",
-      atk: 120,
-      hp: 780,
-      speed: 68,
-      power: 500,
-    },
-    {
-      code: `bot_captain_${botIndex}`,
-      name: "Arena Captain",
-      rarity: points >= 350 ? "B" : "C",
-      atk: 145,
-      hp: 1100,
-      speed: 72,
-      power: points >= 350 ? 820 : 600,
-    },
-  ];
-
-  return base.map((entry, index) =>
-    makeBotCard({
-      ...entry,
-      atk: Math.floor(entry.atk * scale),
-      hp: Math.floor(entry.hp * scale),
-      speed: Math.floor(entry.speed * Math.min(1.35, scale)),
-      power: Math.floor(entry.power * scale),
-      slot: index,
-    })
-  );
-}
-
-function makeArenaBotName(index) {
-  const base = ARENA_BOT_NAMES[index % ARENA_BOT_NAMES.length];
-  const suffix = Math.floor(index / ARENA_BOT_NAMES.length) + 1;
-
-  return suffix > 1 ? `${base} ${suffix}` : base;
-}
-
-function makeArenaBotEntry(seed) {
-  const points = getArenaBotPointsForSeed(seed);
-  const teamUnits = buildBotTeam(points, seed);
-
-  return {
-    userId: `arena-bot-${seed}`,
-    username: makeArenaBotName(seed - 1),
-    points,
-    wins: Math.max(0, Math.floor(points / 120)),
-    losses: Math.max(0, Math.floor(seed / 35)),
-    matches: Math.max(0, Math.floor(points / 90)),
-    streak: 0,
-    isBot: true,
-    teamUnits,
-    teamPower: getArenaTeamPower(teamUnits),
-  };
-}
-
 function getRealArenaEntries(message) {
   const allPlayers = readPlayers();
 
@@ -491,22 +364,13 @@ function getRealArenaEntries(message) {
 }
 
 function buildArenaVirtualLeaderboard(message) {
-  const realEntries = getRealArenaEntries(message)
-    .sort(compareArenaEntries)
-    .slice(0, ARENA_TOTAL_RANK_SLOTS);
-
-  const botCount = Math.max(0, ARENA_TOTAL_RANK_SLOTS - realEntries.length);
-
-  const botEntries = Array.from({ length: botCount }, (_, index) =>
-    makeArenaBotEntry(index + 1)
-  );
-
-  return [...realEntries, ...botEntries]
+  return getRealArenaEntries(message)
     .sort(compareArenaEntries)
     .slice(0, ARENA_TOTAL_RANK_SLOTS)
     .map((entry, index) => ({
       ...entry,
       rank: index + 1,
+      isBot: false,
     }));
 }
 
@@ -514,7 +378,7 @@ function getArenaRankForUser(message, userId) {
   const leaderboard = buildArenaVirtualLeaderboard(message);
   const found = leaderboard.find((entry) => String(entry.userId) === String(userId));
 
-  return found?.rank || ARENA_TOTAL_RANK_SLOTS;
+  return found?.rank || Math.min(ARENA_TOTAL_RANK_SLOTS, leaderboard.length + 1);
 }
 
 function buildOpponentPool(message, player) {
@@ -599,7 +463,38 @@ function applyArenaStreakBoxReward(player, updatedArena) {
   };
 }
 
-function applyArenaResult(arena, result) {
+function calculateArenaWinPoints(playerRank, opponentRank) {
+  const myRank = Number(playerRank || ARENA_TOTAL_RANK_SLOTS);
+  const enemyRank = Number(opponentRank || ARENA_TOTAL_RANK_SLOTS);
+
+  if (!Number.isFinite(myRank) || !Number.isFinite(enemyRank)) return 12;
+
+  if (enemyRank > myRank) {
+    const gap = enemyRank - myRank;
+
+    if (gap >= 100) return 4;
+    if (gap >= 50) return 6;
+    if (gap >= 25) return 8;
+    if (gap >= 10) return 10;
+
+    return 11;
+  }
+
+  if (enemyRank < myRank) {
+    const gap = myRank - enemyRank;
+
+    if (gap >= 100) return 20;
+    if (gap >= 50) return 18;
+    if (gap >= 25) return 16;
+    if (gap >= 10) return 14;
+
+    return 13;
+  }
+
+  return 12;
+}
+
+function applyArenaResult(arena, result, context = {}) {
   const current = {
     points: Number(arena?.points || 0),
     wins: Number(arena?.wins || 0),
@@ -610,12 +505,19 @@ function applyArenaResult(arena, result) {
     matches: Number(arena?.matches || 0),
     dailyDateKey: getDateKey(),
     dailyUses: getArenaDailyUses(arena) + 1,
+    lastPointChange: 0,
   };
 
   current.matches += 1;
 
   if (result === "win") {
-    current.points += 12;
+    const gained = calculateArenaWinPoints(
+      context.playerRank,
+      context.opponentRank
+    );
+
+    current.points += gained;
+    current.lastPointChange = gained;
     current.wins += 1;
     current.streak += 1;
 
@@ -624,6 +526,7 @@ function applyArenaResult(arena, result) {
     }
   } else {
     current.points = Math.max(0, current.points - 5);
+    current.lastPointChange = -5;
     current.losses += 1;
     current.streak = 0;
   }
@@ -631,14 +534,21 @@ function applyArenaResult(arena, result) {
   return current;
 }
 
-function updateArenaPlayer(message, result) {
+function updateArenaPlayer(message, result, opponent = null) {
   let finalArena = null;
   let streakRewardLine = null;
+
+  const playerRankBefore = getArenaRankForUser(message, message.author.id);
+  const opponentRank = Number(opponent?.rank || ARENA_TOTAL_RANK_SLOTS);
 
   updatePlayerAtomic(
     message.author.id,
     (freshPlayer) => {
-      const updatedArena = applyArenaResult(freshPlayer.arena, result);
+      const updatedArena = applyArenaResult(freshPlayer.arena, result, {
+        playerRank: playerRankBefore,
+        opponentRank,
+      });
+
       const streakBoxReward =
         result === "win"
           ? applyArenaStreakBoxReward(freshPlayer, updatedArena)
@@ -804,8 +714,7 @@ function buildArenaLobbyEmbed(player, opponents) {
   const playerPoints = Number(arena.points || 0);
 
   const rows = opponents.slice(0, 10).map((entry) => {
-    const tag = entry.isBot ? "BOT" : "PLAYER";
-    return `${formatArenaEntryRank(entry)} • **${entry.username}** • ${entry.points} pts • ${tag}`;
+    return `${formatArenaEntryRank(entry)} • **${entry.username}** • ${entry.points} pts`;
   });
 
   return new EmbedBuilder()
@@ -820,7 +729,7 @@ function buildArenaLobbyEmbed(player, opponents) {
         `**Daily Battles Left:** ${usesLeft}/${ARENA_DAILY_LIMIT}`,
         "",
         "## Available Opponents",
-        ...(rows.length ? rows : ["No opponent available."]),
+        ...(rows.length ? rows : ["No real player opponent available."]),
       ].join("\n")
     )
     .setFooter({
@@ -836,10 +745,11 @@ function buildOpponentMenu(opponents) {
         .setPlaceholder("Select arena opponent")
         .addOptions(
           opponents.slice(0, 25).map((opponent, index) => ({
-            label: `${formatArenaEntryRank(opponent)} • ${opponent.username}`.slice(0, 100),
-            description: `${opponent.points} pts • ${
-              opponent.isBot ? "Bot opponent" : "Player opponent"
-            }`.slice(0, 100),
+            label: `${formatArenaEntryRank(opponent)} • ${opponent.username}`.slice(
+              0,
+              100
+            ),
+            description: `${opponent.points} pts • Player opponent`.slice(0, 100),
             value: String(index),
           }))
         )
@@ -924,6 +834,9 @@ function buildArenaResultEmbed({ result, player, opponent, arena, logs, expLines
         "",
         `**Your Rank:** #${arena?.arenaRank || ARENA_TOTAL_RANK_SLOTS}`,
         `**Arena Points:** ${Number(arena?.points || 0)}`,
+        `**Point Change:** ${Number(arena?.lastPointChange || 0) >= 0 ? "+" : ""}${Number(
+          arena?.lastPointChange || 0
+        )}`,
         `**Daily Battles Left:** ${getArenaUsesLeft(arena)}/${ARENA_DAILY_LIMIT}`,
         `**Record:** ${Number(arena?.wins || 0)}W / ${Number(arena?.losses || 0)}L`,
         `**Streak:** ${Number(arena?.streak || 0)}`,
@@ -1147,7 +1060,7 @@ async function startArenaBattle({
         logs.length = 0;
         logs.push("🏳️ You forfeited the arena battle.");
 
-        currentArena = updateArenaPlayer(message, result);
+        currentArena = updateArenaPlayer(message, result, opponent);
         const expLines = applyArenaExp(message, myTeam, false);
 
         await safeEditInteractionMessage(interaction, {
@@ -1233,7 +1146,7 @@ async function startArenaBattle({
         ended = true;
         result = "win";
 
-        currentArena = updateArenaPlayer(message, result);
+        currentArena = updateArenaPlayer(message, result, opponent);
         updateArenaOpponentAfterBattle(opponent, result);
         queueArenaRankRoleSync(message);
 
@@ -1261,7 +1174,7 @@ async function startArenaBattle({
         ended = true;
         result = "lose";
 
-        currentArena = updateArenaPlayer(message, result);
+        currentArena = updateArenaPlayer(message, result, opponent);
         const expLines = applyArenaExp(message, myTeam, false);
 
         await safeEditInteractionMessage(interaction, {
@@ -1318,7 +1231,7 @@ async function startArenaBattle({
       logs.push("⌛ Arena battle timed out.");
       logs.push("Result decided by remaining HP.");
 
-      currentArena = updateArenaPlayer(message, result);
+      currentArena = updateArenaPlayer(message, result, opponent);
 
       if (result === "win") {
         updateArenaOpponentAfterBattle(opponent, result);

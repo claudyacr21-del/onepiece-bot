@@ -83,13 +83,40 @@ function normalizeTradeAliasCode(value) {
 
     sniper: "sniper",
     sniper_king: "sniper",
+    reset: "pull_reset_ticket",
+    pullreset: "pull_reset_ticket",
+    pull_reset: "pull_reset_ticket",
+    pull_ticket: "pull_reset_ticket",
+    pullresetticket: "pull_reset_ticket",
+    prt: "pull_reset_ticket",
   };
 
   return aliases[code] || code;
 }
 
 function isBlockedTradeItemCode(code) {
-  return normalizeTradeAliasCode(code) === "empty_throne_raid_writ";
+  const normalizedCode = normalizeTradeAliasCode(code);
+
+  return (
+    normalizedCode === "empty_throne_raid_writ" ||
+    normalizedCode === "pull_reset_ticket" ||
+    normalizedCode === "universal_c" ||
+    normalizedCode === "universal_b" ||
+    normalizedCode === "universal_a" ||
+    normalizedCode === "universal_s" ||
+    normalizedCode.startsWith("universal_")
+  );
+}
+
+function isBlockedTradeEntry(entry, fallbackCode = "") {
+  const code = normalizeTradeAliasCode(entry?.code || fallbackCode);
+  const name = normalize(getDisplayName(entry, fallbackCode));
+
+  return (
+    isBlockedTradeItemCode(code) ||
+    (name.includes("universal") && name.includes("fragment")) ||
+    name === "pull reset ticket"
+  );
 }
 
 function fmtEntry(entry) {
@@ -328,7 +355,6 @@ function getTradableCardMatches(player, query) {
 
 function resolveTicketEntry(player, query) {
   const normalizedQuery = normalizeTradeAliasCode(query);
-
   const hit =
     findExactStackEntryByCode(player.tickets, normalizedQuery) ||
     getMatchingStackEntries(player.tickets, normalizedQuery)[0];
@@ -337,8 +363,10 @@ function resolveTicketEntry(player, query) {
 
   const code = normalizeTradeAliasCode(hit.entry?.code || normalizedQuery);
 
-  if (isBlockedTradeItemCode(code)) {
-    throw new Error(`Ticket item \`${getDisplayName(hit.entry, query)}\` is untradeable.`);
+  if (isBlockedTradeEntry(hit.entry, code)) {
+    throw new Error(
+      `Ticket item \`${getDisplayName(hit.entry, query)}\` is untradeable.`
+    );
   }
 
   return {
@@ -386,12 +414,17 @@ function resolveEntry(player, entry) {
 
   for (const store of stores) {
     const hits = getMatchingStackEntries(player[store], entry.raw || entry.code);
-
     if (!hits.length) continue;
 
     const totalHave = getStackTotal(player[store], entry.raw || entry.code);
     const displayEntry = hits[0].entry;
     const displayName = getDisplayName(displayEntry, entry.code);
+
+    if (isBlockedTradeEntry(displayEntry, displayEntry?.code || entry.code)) {
+      throw new Error(
+        `${STORE_LABELS[store] || store} item \`${displayName}\` is untradeable.`
+      );
+    }
 
     if (totalHave < entry.amount) {
       insufficient = {
