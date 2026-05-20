@@ -2,7 +2,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("./playerStore");
+const { getPlayer, updatePlayerAtomic } = require("./playerStore");
 
 let serverStarted = false;
 
@@ -113,63 +113,88 @@ async function handleVote(client, body) {
   }
 
   const eventId = getVoteEventId(body, userId);
-  const player = getPlayer(userId, body?.data?.user?.name || "Unknown");
+  const username =
+    body?.data?.user?.name ||
+    body?.data?.user?.username ||
+    body?.username ||
+    body?.userName ||
+    "Unknown";
 
-  const previousVote = player.vote || {};
-  const processedIds = Array.isArray(previousVote.processedIds)
-    ? previousVote.processedIds
-    : [];
+  let reward = null;
+  let duplicate = false;
 
-  if (eventId && processedIds.includes(eventId)) {
+  updatePlayerAtomic(
+    userId,
+    (fresh) => {
+      const previousVote = fresh.vote || {};
+      const processedIds = Array.isArray(previousVote.processedIds)
+        ? previousVote.processedIds
+        : [];
+
+      if (eventId && processedIds.includes(eventId)) {
+        duplicate = true;
+        return fresh;
+      }
+
+      const now = Date.now();
+      const lastVoteAt = Number(previousVote.lastVoteAt || 0);
+      const streakExpired = lastVoteAt > 0 && now - lastVoteAt > 36 * 60 * 60 * 1000;
+
+      const nextStreak = streakExpired ? 1 : Number(previousVote.streak || 0) + 1;
+      const nextTotalVotes = Number(previousVote.totalVotes || 0) + 1;
+
+      const updatedTickets = addTicket(fresh.tickets || [], {
+        code: "pull_reset_ticket",
+        name: "Pull Reset Ticket",
+        amount: VOTE_PULL_RESET_REWARD,
+        rarity: "A",
+        type: "Ticket",
+      });
+
+      const nextProcessedIds = eventId
+        ? [...processedIds, eventId].slice(-50)
+        : processedIds.slice(-50);
+
+      reward = {
+        berries: VOTE_BERRY_REWARD,
+        pullResetTickets: VOTE_PULL_RESET_REWARD,
+        streak: nextStreak,
+        totalVotes: nextTotalVotes,
+        cooldownUntil: now + VOTE_COOLDOWN_MS,
+      };
+
+      return {
+        ...fresh,
+        username: fresh.username || username,
+        berries: Number(fresh.berries || 0) + VOTE_BERRY_REWARD,
+        tickets: updatedTickets,
+        cooldowns: {
+          ...(fresh.cooldowns || {}),
+          vote: now + VOTE_COOLDOWN_MS,
+        },
+        vote: {
+          streak: nextStreak,
+          totalVotes: nextTotalVotes,
+          lastVoteAt: now,
+          processedIds: nextProcessedIds,
+          lastEventId: eventId,
+        },
+      };
+    },
+    username
+  );
+
+  if (duplicate) {
     console.log("[TOPGG] Duplicate vote ignored:", eventId);
     return;
   }
 
-  const now = Date.now();
-  const lastVoteAt = Number(previousVote.lastVoteAt || 0);
-  const streakExpired =
-    lastVoteAt > 0 && now - lastVoteAt > 36 * 60 * 60 * 1000;
+  if (!reward) {
+    console.warn("[TOPGG] Vote reward was not generated:", { userId, eventId });
+    return;
+  }
 
-  const nextStreak = streakExpired
-    ? 1
-    : Number(previousVote.streak || 0) + 1;
-
-  const nextTotalVotes = Number(previousVote.totalVotes || 0) + 1;
-
-  const updatedTickets = addTicket(player.tickets || [], {
-    code: "pull_reset_ticket",
-    name: "Pull Reset Ticket",
-    amount: VOTE_PULL_RESET_REWARD,
-    rarity: "A",
-    type: "Ticket",
-  });
-
-  const nextProcessedIds = eventId
-    ? [...processedIds, eventId].slice(-50)
-    : processedIds.slice(-50);
-
-  updatePlayer(userId, {
-    berries: Number(player.berries || 0) + VOTE_BERRY_REWARD,
-    tickets: updatedTickets,
-    cooldowns: {
-      ...(player.cooldowns || {}),
-      vote: now + VOTE_COOLDOWN_MS,
-    },
-    vote: {
-      streak: nextStreak,
-      totalVotes: nextTotalVotes,
-      lastVoteAt: now,
-      processedIds: nextProcessedIds,
-      lastEventId: eventId,
-    },
-  });
-
-  await sendVoteDm(client, userId, {
-    berries: VOTE_BERRY_REWARD,
-    pullResetTickets: VOTE_PULL_RESET_REWARD,
-    streak: nextStreak,
-    totalVotes: nextTotalVotes,
-  });
+  await sendVoteDm(client, userId, reward);
 
   console.log("[TOPGG] Vote reward granted:", {
     userId,
@@ -177,7 +202,7 @@ async function handleVote(client, body) {
     berries: VOTE_BERRY_REWARD,
     pullResetTickets: VOTE_PULL_RESET_REWARD,
     ignoredWeight: body?.data?.weight || body?.isWeekend || null,
-    cooldownUntil: now + VOTE_COOLDOWN_MS,
+    cooldownUntil: reward.cooldownUntil,
   });
 }
 

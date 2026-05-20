@@ -1384,11 +1384,15 @@ function giveRaidWinRewards(state) {
   const linkedWeapon = findLinkedRaidItem(weaponsDb, boss);
   const linkedFruit = findLinkedRaidItem(devilFruitsDb, boss);
   const hostId = String(state.hostId || "");
+
   const rewards = [];
+  const rewardedUsers = new Set();
 
   for (const member of ensureArray(state.members)) {
     const userId = String(member.userId || "");
-    if (!userId) continue;
+    if (!userId || rewardedUsers.has(userId)) continue;
+
+    rewardedUsers.add(userId);
 
     const isHost = hostId && userId === hostId;
     const berries = Number(config.berries || 0);
