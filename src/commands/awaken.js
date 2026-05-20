@@ -13,6 +13,7 @@ const {
   getBoostStageValue,
 } = require("../utils/evolution");
 const { getCardImage } = require("../config/assetLinks");
+const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 
 function cloneDeep(obj) {
   return JSON.parse(JSON.stringify(obj));
@@ -245,8 +246,25 @@ function buildConfirmEmbed(owned, currentStage, nextStage) {
   return embed;
 }
 
-function buildSuccessEmbed(result) {
-  const card = hydrateCard(result.target);
+function applyBoostedDisplayStats(card, boosts = {}) {
+  if (!card || String(card.cardRole || "").toLowerCase() === "boost") {
+    return card;
+  }
+
+  return {
+    ...card,
+    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(
+      Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)
+    ),
+  };
+}
+
+function buildSuccessEmbed(result, player) {
+  const rawCard = hydrateCard(result.target);
+  const boosts = getPassiveBoostSummary(player);
+  const card = applyBoostedDisplayStats(rawCard, boosts);
   const targetStage = Number(card.evolutionStage || 1);
   const targetImage = getStageImage(card, targetStage);
 
@@ -254,17 +272,17 @@ function buildSuccessEmbed(result) {
     `**${card.displayName || card.name}** reached **M${targetStage}**`,
     `**Form:** ${getFormName(card, targetStage)}`,
     `**Tier:** ${card.currentTier || card.rarity}`,
-    `**Power:** ${Number(card.currentPower || card.power || 0).toLocaleString("en-US")}`,
+    `**Power:** ${Number(card.currentPower || card.power || 0).toLocaleString(
+      "en-US"
+    )}`,
     "",
   ];
 
   const description =
     card.cardRole === "boost"
-      ? [
-          ...baseLines,
-          "**Boost Effect**",
-          getBoostEffectText(card, targetStage),
-        ].join("\n")
+      ? [...baseLines, "**Boost Effect**", getBoostEffectText(card, targetStage)].join(
+          "\n"
+        )
       : [
           ...baseLines,
           `ATK: ${Number(card.atk || 0).toLocaleString("en-US")}`,
@@ -397,7 +415,7 @@ module.exports = {
         );
 
         await interaction.update({
-          embeds: [buildSuccessEmbed(awakenResult)],
+          embeds: [buildSuccessEmbed(awakenResult, player)],
           components: [],
         });
 
