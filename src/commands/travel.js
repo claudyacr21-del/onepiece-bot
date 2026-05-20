@@ -177,7 +177,8 @@ function buildIslandList(player, currentIsland, unlockedIslands, page) {
             `↪ Sea: ${island.sea || "Unknown"}`,
             `↪ Boss: ${getBossStatus(player, island)}`,
           ].join("\n");
-        }).join("\n\n")
+        })
+        .join("\n")
     : "No islands unlocked yet.";
 
   return {
@@ -245,7 +246,9 @@ async function sendRouteMenu(message, player, currentIsland, unlockedIslands, pa
   const routeList = buildIslandList(player, currentIsland, unlockedIslands, page);
 
   const sent = await message.reply({
-    embeds: [buildRouteEmbed(player, currentIsland, unlockedIslands, routeList.page)],
+    embeds: [
+      buildRouteEmbed(player, currentIsland, unlockedIslands, routeList.page),
+    ],
     components: buildRouteButtons(routeList.page, routeList.maxPage),
     allowedMentions: {
       repliedUser: false,
