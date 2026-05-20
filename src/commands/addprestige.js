@@ -132,7 +132,7 @@ module.exports = {
     if (!targetId || !Number.isFinite(amount) || amount <= 0 || !query) {
       return message.reply({
         content:
-          "Usage: `op prestige @peace 10 imu`",
+          "Usage: `op prestige <@user/userId> <amount> <card>`",
         allowedMentions: { repliedUser: false },
       });
     }

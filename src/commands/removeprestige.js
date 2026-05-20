@@ -126,9 +126,7 @@ module.exports = {
     if (!targetId || !Number.isFinite(amount) || amount <= 0 || !query) {
       return message.reply({
         content:
-          "Usage: `op removeprestige <@user/userId> <amount> <card>`\n" +
-          "Example: `op removeprestige @peace 10 imu`\n" +
-          "Alias: `op rmprestige @peace 10 imu`",
+          "Usage: `op rmprestige <@user/userId> <amount> <card>`",
         allowedMentions: { repliedUser: false },
       });
     }
