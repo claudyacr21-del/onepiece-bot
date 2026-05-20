@@ -1190,7 +1190,8 @@ module.exports = {
   getPlayer,
   updatePlayer,
   updatePlayerAtomic,
-  
+  updateTwoPlayersAtomic,
   normalizePlayer,
+  initPlayerStore,
   filePath,
 };
