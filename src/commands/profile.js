@@ -518,7 +518,7 @@ module.exports = {
         })
         .setDescription(
           [
-            "** Captain**",
+            "🌊 **Captain**",
             line("Island", player.currentIsland || DEFAULT_START_ISLAND),
             line(
               "Premium",
@@ -528,11 +528,11 @@ module.exports = {
             line("Ship", `${ship.name} • Tier ${ship.tier}`),
             rawLine("Badges", captainBadges),
             "",
-            "** Wallet**",
+            "💰 **Wallet**",
             line("Berries", safeLocaleNumber(player.berries)),
             line("Gems", safeLocaleNumber(player.gems)),
             "",
-            "** Cards**",
+            "🃏 **Cards**",
             line("Cards Owned", cardStats.totalCards),
             line("Mastery 1 Cards", cardStats.mastery1Cards),
             line("Mastery 2 Cards", cardStats.mastery2Cards),
@@ -540,12 +540,12 @@ module.exports = {
             line("Boost Cards", cardStats.boostCards),
             line("Fragments", totalFragments),
             "",
-            "** Progress**",
+            "🧩 **Progress**",
             line("Total Power", safeLocaleNumber(totalPower)),
             line("Team Power", safeLocaleNumber(teamPower)),
             line("Story", storyProgress),
             "",
-            "**⚔️ Arena**",
+            "⚔️ **Arena**",
             line("Rank", arena.rank),
             line("Points", arena.points),
             line("Record", `${arena.wins}W / ${arena.losses}L`),
