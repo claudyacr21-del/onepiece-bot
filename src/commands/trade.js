@@ -61,19 +61,22 @@ function normalizeTradeAliasCode(value) {
 
   const aliases = {
     craid: "common_raid_ticket",
-
     raid: "raid_ticket",
-
     graid: "gold_raid_ticket",
-
     throne: "empty_throne_raid_writ",
 
     cola: "cola_engine",
-    
+
     cola_part: "cola_engine_part",
+    colapart: "cola_engine_part",
+    engine_part: "cola_engine_part",
+    enginepart: "cola_engine_part",
+    cola_engine_part: "cola_engine_part",
+    colaenginepart: "cola_engine_part",
 
     sniper: "sniper",
     sniper_king: "sniper",
+
     reset: "pull_reset_ticket",
     pullreset: "pull_reset_ticket",
     pull_reset: "pull_reset_ticket",
@@ -91,6 +94,7 @@ function isBlockedTradeItemCode(code) {
   return (
     normalizedCode === "empty_throne_raid_writ" ||
     normalizedCode === "pull_reset_ticket" ||
+    normalizedCode === "cola_engine_part" ||
     normalizedCode === "universal_c" ||
     normalizedCode === "universal_b" ||
     normalizedCode === "universal_a" ||
@@ -106,7 +110,8 @@ function isBlockedTradeEntry(entry, fallbackCode = "") {
   return (
     isBlockedTradeItemCode(code) ||
     (name.includes("universal") && name.includes("fragment")) ||
-    name === "pull reset ticket"
+    name === "pull reset ticket" ||
+    name === "cola engine part"
   );
 }
 
@@ -196,7 +201,9 @@ function isCardTradable(card, teamIds) {
   if (teamIds.has(card.instanceId)) return false;
   if (card.slot_locked) return false;
   if (card.equippedWeapon || card.equippedDevilFruit) return false;
-  if (Array.isArray(card.equippedWeapons) && card.equippedWeapons.length > 0) return false;
+  if (Array.isArray(card.equippedWeapons) && card.equippedWeapons.length > 0) {
+    return false;
+  }
 
   return true;
 }
@@ -263,7 +270,9 @@ function findStackMatches(list, query) {
     .filter((hit) => hit.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return String(getDisplayName(a.entry)).localeCompare(String(getDisplayName(b.entry)));
+      return String(getDisplayName(a.entry)).localeCompare(
+        String(getDisplayName(b.entry))
+      );
     });
 }
 
@@ -339,32 +348,11 @@ function getTradableCardMatches(player, query) {
     .filter((hit) => hit.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return String(getDisplayName(a.card)).localeCompare(String(getDisplayName(b.card)));
+      return String(getDisplayName(a.card)).localeCompare(
+        String(getDisplayName(b.card))
+      );
     })
     .map((hit) => hit.card);
-}
-
-function shouldResolveCardBeforeStacks(entry) {
-  const code = normalizeTradeAliasCode(entry?.code || entry?.raw || "");
-
-  return code === "cola_engine";
-}
-
-function resolveCardEntry(player, entry) {
-  const cardMatches = getTradableCardMatches(player, entry.raw || entry.code);
-
-  if (cardMatches.length < entry.amount) return null;
-
-  const firstCard = cardMatches[0];
-
-  return {
-    kind: "cards",
-    store: "cards",
-    amount: entry.amount,
-    code: firstCard?.code || entry.code,
-    displayName: getDisplayName(firstCard, entry.code),
-    cards: cardMatches.slice(0, entry.amount),
-  };
 }
 
 function resolveTicketEntry(player, query) {
@@ -408,10 +396,10 @@ function resolveEntry(player, entry) {
     };
   }
 
-  if (shouldResolveCardBeforeStacks(entry)) {
-    const cardEntry = resolveCardEntry(player, entry);
-
-    if (cardEntry) return cardEntry;
+  if (isBlockedTradeItemCode(entry.code || entry.raw)) {
+    throw new Error(
+      `Item \`${entry.raw || entry.code}\` is untradeable.`
+    );
   }
 
   const ticketEntry = resolveTicketEntry(player, entry.code || entry.raw);
@@ -420,7 +408,9 @@ function resolveEntry(player, entry) {
     const totalHave = getStackTotal(player.tickets, entry.code || entry.raw);
 
     if (totalHave < entry.amount) {
-      throw new Error(`${player.username} lacks ${ticketEntry.displayName} x${entry.amount}.`);
+      throw new Error(
+        `${player.username} lacks ${ticketEntry.displayName} x${entry.amount}.`
+      );
     }
 
     return {
@@ -466,15 +456,30 @@ function resolveEntry(player, entry) {
     };
   }
 
-  const cardEntry = resolveCardEntry(player, entry);
+  const cardMatches = getTradableCardMatches(player, entry.raw || entry.code);
 
-  if (cardEntry) return cardEntry;
+  if (cardMatches.length >= entry.amount) {
+    const firstCard = cardMatches[0];
 
-  if (insufficient) {
-    throw new Error(`${player.username} lacks ${insufficient.displayName} x${entry.amount}.`);
+    return {
+      kind: "cards",
+      store: "cards",
+      amount: entry.amount,
+      code: firstCard?.code || entry.code,
+      displayName: getDisplayName(firstCard, entry.code),
+      cards: cardMatches.slice(0, entry.amount),
+    };
   }
 
-  throw new Error(`${player.username} does not own tradable ${entry.raw || entry.code}_${entry.amount}.`);
+  if (insufficient) {
+    throw new Error(
+      `${player.username} lacks ${insufficient.displayName} x${entry.amount}.`
+    );
+  }
+
+  throw new Error(
+    `${player.username} does not own tradable ${entry.raw || entry.code}_${entry.amount}.`
+  );
 }
 
 function resolveOffer(player, offer) {
@@ -490,7 +495,10 @@ function removeStack(list, codeOrQuery, amount) {
     return a.index - b.index;
   });
 
-  const totalHave = hits.reduce((total, hit) => total + getStackAmount(hit.entry), 0);
+  const totalHave = hits.reduce(
+    (total, hit) => total + getStackAmount(hit.entry),
+    0
+  );
 
   if (totalHave < remaining) {
     throw new Error(`Not enough ${getDisplayName(hits[0]?.entry, codeOrQuery)}.`);
