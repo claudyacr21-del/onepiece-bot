@@ -1,4 +1,6 @@
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("./playerStore");
 
@@ -196,6 +198,50 @@ function startTopggWebhookServer(client) {
       ok: true,
       bot: client?.user?.tag || null,
     });
+  });
+
+  app.get("/backup-players", (req, res) => {
+    try {
+      const backupToken = process.env.BACKUP_TOKEN || "";
+
+      if (!backupToken || req.query.token !== backupToken) {
+        return res.status(403).send("Forbidden");
+      }
+
+      const dataDir = process.env.PLAYER_DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data";
+      const filePath = path.join(dataDir, "players.json");
+
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).send(`players.json not found at ${filePath}`);
+      }
+
+      return res.download(filePath, "players.json");
+    } catch (error) {
+      console.error("[BACKUP PLAYERS ERROR]", error);
+      return res.status(500).send(String(error?.stack || error));
+    }
+  });
+
+  app.get("/backup-lastgood", (req, res) => {
+    try {
+      const backupToken = process.env.BACKUP_TOKEN || "";
+
+      if (!backupToken || req.query.token !== backupToken) {
+        return res.status(403).send("Forbidden");
+      }
+
+      const dataDir = process.env.PLAYER_DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || "/data";
+      const filePath = path.join(dataDir, "players.json.lastgood.bak");
+
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).send(`players.json.lastgood.bak not found at ${filePath}`);
+      }
+
+      return res.download(filePath, "players.json.lastgood.bak");
+    } catch (error) {
+      console.error("[BACKUP LASTGOOD ERROR]", error);
+      return res.status(500).send(String(error?.stack || error));
+    }
   });
 
   app.post("/topgg", async (req, res) => {
