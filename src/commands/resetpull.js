@@ -11,11 +11,53 @@ const {
 } = require("../utils/pullSlots");
 const { getPremiumTier } = require("../utils/premiumAccess");
 
+function normalizeResetTicketText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function isPullResetTicket(item) {
+  const values = [
+    normalizeResetTicketText(item?.code),
+    normalizeResetTicketText(item?.name),
+    normalizeResetTicketText(item?.type),
+  ].filter(Boolean);
+
+  return values.some((value) => {
+    return (
+      value === "pull reset ticket" ||
+      value === "ticket reset" ||
+      value === "reset ticket" ||
+      value === "pull reset" ||
+      value === "reset token" ||
+      value.includes("pull reset ticket") ||
+      value.includes("ticket reset") ||
+      value.includes("reset ticket") ||
+      value.includes("reset token")
+    );
+  });
+}
+
 function findTicket(tickets, code) {
+  if (String(code || "").toLowerCase() === "pull_reset_ticket") {
+    return (Array.isArray(tickets) ? tickets : []).findIndex(isPullResetTicket);
+  }
+
   return (Array.isArray(tickets) ? tickets : []).findIndex(
-    (item) =>
-      String(item.code || "").toLowerCase() === String(code || "").toLowerCase()
+    (item) => String(item.code || "").toLowerCase() === String(code || "").toLowerCase()
   );
+}
+
+function countPullResetTickets(player) {
+  const tickets = Array.isArray(player?.tickets) ? player.tickets : [];
+  const items = Array.isArray(player?.items) ? player.items : [];
+
+  return [...tickets, ...items]
+    .filter(isPullResetTicket)
+    .reduce((sum, item) => sum + Number(item?.amount || 0), 0);
 }
 
 function consumeTicket(tickets, index) {
@@ -242,13 +284,30 @@ module.exports = {
           }
 
           const tickets = [...(Array.isArray(fresh.tickets) ? fresh.tickets : [])];
+          const items = [...(Array.isArray(fresh.items) ? fresh.items : [])];
+
+          let updatedTickets = null;
+          let updatedItems = items;
+
           const ticketIndex = findTicket(tickets, "pull_reset_ticket");
 
-          if (ticketIndex === -1 || Number(tickets[ticketIndex]?.amount || 0) <= 0) {
-            throw new Error("You do not have any Pull Reset Ticket.");
-          }
+          if (ticketIndex !== -1 && Number(tickets[ticketIndex]?.amount || 0) > 0) {
+            updatedTickets = consumeTicket(tickets, ticketIndex);
+          } else {
+            const itemIndex = items.findIndex(isPullResetTicket);
 
-          const updatedTickets = consumeTicket(tickets, ticketIndex);
+            if (itemIndex === -1 || Number(items[itemIndex]?.amount || 0) <= 0) {
+              throw new Error("You do not have any Pull Reset Ticket.");
+            }
+
+            updatedItems = consumeTicket(items, itemIndex);
+
+            if (!updatedItems) {
+              throw new Error("Failed to consume Pull Reset Ticket.");
+            }
+
+            updatedTickets = tickets;
+          }
 
           if (!updatedTickets) {
             throw new Error("Failed to consume Pull Reset Ticket.");
@@ -265,12 +324,12 @@ module.exports = {
             1
           );
 
-          const ticketLeft = updatedTickets.find(
-            (item) =>
-              String(item.code || "").toLowerCase() === "pull_reset_ticket"
-          );
-
-          remainingTickets = Number(ticketLeft?.amount || 0);
+          remainingTickets = countPullResetTickets({
+            ...fresh,
+            tickets: updatedTickets,
+            items: updatedItems,
+            pulls: resetResult.pulls,
+          });
 
           return {
             ...fresh,
