@@ -261,6 +261,26 @@ function applyBoostedDisplayStats(card, boosts = {}) {
   };
 }
 
+function formatAtkRange(atk) {
+  const value = Number(atk || 0);
+  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
+function applyBoostedDisplayStats(card, boosts = {}) {
+  if (!card || String(card.cardRole || "").toLowerCase() === "boost") {
+    return card;
+  }
+
+  return {
+    ...card,
+    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(
+      Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)
+    ),
+  };
+}
+
 function buildSuccessEmbed(result, player) {
   const rawCard = hydrateCard(result.target);
   const boosts = getPassiveBoostSummary(player);
@@ -280,12 +300,14 @@ function buildSuccessEmbed(result, player) {
 
   const description =
     card.cardRole === "boost"
-      ? [...baseLines, "**Boost Effect**", getBoostEffectText(card, targetStage)].join(
-          "\n"
-        )
+      ? [
+          ...baseLines,
+          "**Boost Effect**",
+          getBoostEffectText(card, targetStage),
+        ].join("\n")
       : [
           ...baseLines,
-          `ATK: ${Number(card.atk || 0).toLocaleString("en-US")}`,
+          `ATK: ${formatAtkRange(card.atk)}`,
           `HP: ${Number(card.hp || 0).toLocaleString("en-US")}`,
           `SPD: ${Number(card.speed || 0).toLocaleString("en-US")}`,
         ].join("\n");
@@ -397,6 +419,7 @@ module.exports = {
 
       try {
         let awakenResult = null;
+        let freshPlayerForDisplay = null;
 
         updatePlayerAtomic(
           message.author.id,
@@ -415,7 +438,7 @@ module.exports = {
         );
 
         await interaction.update({
-          embeds: [buildSuccessEmbed(awakenResult, player)],
+          embeds: [buildSuccessEmbed(awakenResult, freshPlayerForDisplay)],
           components: [],
         });
 

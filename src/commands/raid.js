@@ -3,6 +3,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
@@ -52,7 +53,10 @@ async function safeDeferReplyInteraction(interaction) {
   try {
     if (!interaction || interaction.deferred || interaction.replied) return true;
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({
+      flags: MessageFlags.Ephemeral,
+    });
+
     return true;
   } catch (error) {
     const code = error?.code;
@@ -70,10 +74,19 @@ async function safeReplyOrEdit(interaction, payload = {}) {
   try {
     if (!interaction) return null;
 
-    const safePayload = {
+    const wantsEphemeral = payload.ephemeral !== false;
+    const cleanPayload = {
       ...payload,
-      ephemeral: payload.ephemeral ?? true,
     };
+
+    delete cleanPayload.ephemeral;
+
+    const safePayload = wantsEphemeral
+      ? {
+          ...cleanPayload,
+          flags: cleanPayload.flags || MessageFlags.Ephemeral,
+        }
+      : cleanPayload;
 
     if (interaction.replied) {
       return await interaction.followUp(safePayload);
@@ -81,7 +94,7 @@ async function safeReplyOrEdit(interaction, payload = {}) {
 
     if (interaction.deferred) {
       try {
-        return await interaction.editReply(payload);
+        return await interaction.editReply(cleanPayload);
       } catch (_) {
         return await interaction.followUp(safePayload);
       }
@@ -2189,12 +2202,11 @@ module.exports = {
           }
 
           if (String(button.user.id) !== hostId) {
-            return button
-              .reply({
-                content: "Only the raid host can control this raid battle.",
-                ephemeral: true,
-              })
-              .catch(() => null);
+            await safeDeferReplyInteraction(button);
+
+            return safeReplyOrEdit(button, {
+              content: "Only the raid host can control this raid battle.",
+            });
           }
 
           const lockKey = String(battleState.roomId);

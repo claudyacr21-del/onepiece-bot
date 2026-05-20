@@ -58,6 +58,7 @@ module.exports = {
       "finv",
       "ci",
       "effect",
+      "sac",
       "balance",
       "inv",
       "fshop",
