@@ -11,6 +11,7 @@ const { readPatreonRoles } = require("../utils/patreonRoleStore");
 const PATREON_URL = process.env.PATREON_URL || "https://www.patreon.com/";
 const MOTHER_FLAME_URL = process.env.PATREON_MOTHER_FLAME_URL || PATREON_URL;
 const VIVRE_CARD_URL = process.env.PATREON_VIVRE_CARD_URL || PATREON_URL;
+const MARINE_CHANNEL_URL = process.env.PATREON_MARINE_CHANNEL_URL || PATREON_URL;
 const TICKET_RESET_URL = process.env.PATREON_TICKET_RESET_URL || PATREON_URL;
 const SUPPORT_SERVER_URL =
   process.env.SUPPORT_SERVER_URL ||
@@ -85,6 +86,32 @@ const PACKAGES = {
       "• If you want to avoid Patreon tax/fees, you can chat the owner directly before payment.",
       "",
       "Admin will verify your proof and manually activate your Vivre Card role.",
+    ].join("\n"),
+  },
+
+  marine_channel: {
+    label: "Marineford (Server) 10$",
+    emoji: "⚓",
+    url: MARINE_CHANNEL_URL,
+    buttonLabel: "Purchase Marineford (Server)",
+    title: "Marineford (Server) | 10$/Month",
+    description: [
+      "**Exclusive Server Access**",
+      "",
+      "⚓ **Marineford (Server) Role**",
+      "",
+      "• Access to the exclusive Marineford premium Server",
+      "• Private update previews and bot development notes",
+      "• Early information for events, raids, balance changes, and future features",
+      "• Made for users who want to support the bot and join the private server discussion",
+      "",
+      "**Claim Instruction**",
+      "After payment, open a ticket in the Discord server and send:",
+      "• Patreon order proof",
+      "• Payment proof",
+      "• If you want to avoid Patreon tax/fees, you can chat the owner directly before payment.",
+      "",
+      "Admin will verify your proof and manually activate your Marineford (Server).",
     ].join("\n"),
   },
 
@@ -220,6 +247,13 @@ function buildSelectRow(selected = null) {
           value: "vivre_card",
           emoji: PACKAGES.vivre_card.emoji,
           default: selected === "vivre_card",
+        },
+        {
+          label: PACKAGES.marine_channel.label,
+          description: "Exclusive Marineford premium channel access",
+          value: "marine_channel",
+          emoji: PACKAGES.marine_channel.emoji,
+          default: selected === "marine_channel",
         },
         {
           label: PACKAGES.ticket_reset.label,
