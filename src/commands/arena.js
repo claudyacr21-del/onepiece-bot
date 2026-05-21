@@ -26,8 +26,8 @@ const { ITEMS, cloneItem } = require("../data/items");
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const ARENA_DAILY_LIMIT = 5;
 const ARENA_TOTAL_RANK_SLOTS = 500;
-const ARENA_WIN_EXP_PER_CARD = 200;
-const ARENA_LOSE_EXP_PER_CARD = 100;
+const ARENA_WIN_EXP_PER_CARD = 350;
+const ARENA_LOSE_EXP_PER_CARD = 175;
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
@@ -467,31 +467,33 @@ function calculateArenaWinPoints(playerRank, opponentRank) {
   const myRank = Number(playerRank || ARENA_TOTAL_RANK_SLOTS);
   const enemyRank = Number(opponentRank || ARENA_TOTAL_RANK_SLOTS);
 
-  if (!Number.isFinite(myRank) || !Number.isFinite(enemyRank)) return 12;
+  if (!Number.isFinite(myRank) || !Number.isFinite(enemyRank)) return 18;
 
+  // Enemy rank number bigger = enemy is below us, still reward but smaller.
   if (enemyRank > myRank) {
     const gap = enemyRank - myRank;
 
-    if (gap >= 100) return 4;
-    if (gap >= 50) return 6;
-    if (gap >= 25) return 8;
-    if (gap >= 10) return 10;
+    if (gap >= 100) return 8;
+    if (gap >= 50) return 10;
+    if (gap >= 25) return 12;
+    if (gap >= 10) return 14;
 
-    return 11;
+    return 16;
   }
 
+  // Enemy rank number smaller = enemy is above us, reward should feel better.
   if (enemyRank < myRank) {
     const gap = myRank - enemyRank;
 
-    if (gap >= 100) return 20;
-    if (gap >= 50) return 18;
-    if (gap >= 25) return 16;
-    if (gap >= 10) return 14;
+    if (gap >= 100) return 35;
+    if (gap >= 50) return 30;
+    if (gap >= 25) return 26;
+    if (gap >= 10) return 22;
 
-    return 13;
+    return 20;
   }
 
-  return 12;
+  return 18;
 }
 
 function applyArenaResult(arena, result, context = {}) {
@@ -525,8 +527,8 @@ function applyArenaResult(arena, result, context = {}) {
       current.bestStreak = current.streak;
     }
   } else {
-    current.points = Math.max(0, current.points - 5);
-    current.lastPointChange = -5;
+    current.points = Math.max(0, current.points - 3);
+    current.lastPointChange = -3;
     current.losses += 1;
     current.streak = 0;
   }
@@ -632,20 +634,51 @@ function applyArenaOpponentLoss(arena) {
     matches: Number(arena?.matches || 0),
     dailyDateKey: arena?.dailyDateKey || getDateKey(),
     dailyUses: Number(arena?.dailyUses || 0),
+    lastPointChange: -3,
   };
 
-  current.points = Math.max(0, current.points - 5);
+  current.points = Math.max(0, current.points - 3);
   current.losses += 1;
   current.matches += 1;
-
-  current.streak = Number(arena?.streak || 0);
+  current.streak = 0;
 
   return current;
 }
 
-function updateArenaOpponentAfterBattle(opponent, result) {
+function applyArenaOpponentWin(arena, context = {}) {
+  const current = {
+    points: Number(arena?.points || 0),
+    wins: Number(arena?.wins || 0),
+    losses: Number(arena?.losses || 0),
+    draws: Number(arena?.draws || 0),
+    streak: Number(arena?.streak || 0),
+    bestStreak: Number(arena?.bestStreak || 0),
+    matches: Number(arena?.matches || 0),
+    dailyDateKey: arena?.dailyDateKey || getDateKey(),
+    dailyUses: Number(arena?.dailyUses || 0),
+    lastPointChange: 0,
+  };
+
+  const gained = calculateArenaWinPoints(
+    context.opponentRank,
+    context.playerRank
+  );
+
+  current.points += gained;
+  current.lastPointChange = gained;
+  current.wins += 1;
+  current.matches += 1;
+  current.streak += 1;
+
+  if (current.streak > current.bestStreak) {
+    current.bestStreak = current.streak;
+  }
+
+  return current;
+}
+
+function updateArenaOpponentAfterBattle(opponent, result, context = {}) {
   if (!opponent || opponent.isBot) return null;
-  if (result !== "win") return null;
 
   const opponentId = String(opponent.userId || opponent.id || "");
   if (!opponentId) return null;
@@ -655,7 +688,10 @@ function updateArenaOpponentAfterBattle(opponent, result) {
   updatePlayerAtomic(
     opponentId,
     (fresh) => {
-      updatedArena = applyArenaOpponentLoss(fresh.arena || {});
+      updatedArena =
+        result === "win"
+          ? applyArenaOpponentLoss(fresh.arena || {})
+          : applyArenaOpponentWin(fresh.arena || {}, context);
 
       return {
         ...fresh,
@@ -1147,7 +1183,10 @@ async function startArenaBattle({
         result = "win";
 
         currentArena = updateArenaPlayer(message, result, opponent);
-        updateArenaOpponentAfterBattle(opponent, result);
+        updateArenaOpponentAfterBattle(opponent, result, {
+          playerRank: player?.arenaRank || getArenaRankForUser(message, message.author.id),
+          opponentRank: opponent?.rank || ARENA_TOTAL_RANK_SLOTS,
+        });
         queueArenaRankRoleSync(message);
 
         const expLines = applyArenaExp(message, myTeam, true);
@@ -1234,7 +1273,10 @@ async function startArenaBattle({
       currentArena = updateArenaPlayer(message, result, opponent);
 
       if (result === "win") {
-        updateArenaOpponentAfterBattle(opponent, result);
+        updateArenaOpponentAfterBattle(opponent, result, {
+          playerRank: player?.arenaRank || getArenaRankForUser(message, message.author.id),
+          opponentRank: opponent?.rank || ARENA_TOTAL_RANK_SLOTS,
+        });
         queueArenaRankRoleSync(message);
       }
 
