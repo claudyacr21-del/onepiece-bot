@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { Pool } = require("pg");
 
 const persistentDir =
   process.env.PLAYER_DATA_DIR ||

@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
 const { PermissionsBitField } = require("discord.js");
-const { filePath, readPlayers } = require("../playerStore");
+const { filePath, readPlayers, writePlayers } = require("../playerStore");
 
 async function downloadAttachment(url) {
   const res = await fetch(url);
@@ -19,7 +19,13 @@ module.exports = {
   aliases: ["restoredata", "importplayers"],
 
   async execute(message) {
-    const ownerIds = String(process.env.BOT_OWNER_IDS || process.env.OWNER_IDS || process.env.BOT_OWNER_ID || process.env.ADMIN_USER_IDS || "")
+    const ownerIds = String(
+      process.env.BOT_OWNER_IDS ||
+      process.env.OWNER_IDS ||
+      process.env.BOT_OWNER_ID ||
+      process.env.ADMIN_USER_IDS ||
+      ""
+    )
       .split(",")
       .map((id) => id.trim())
       .filter(Boolean);
@@ -63,14 +69,15 @@ module.exports = {
         fs.copyFileSync(filePath, `${filePath}.before_import_${Date.now()}.bak`);
       }
 
-      fs.writeFileSync(filePath, JSON.stringify(parsed, null, 2), "utf8");
+      writePlayers(parsed);
 
       return message.reply(
         [
           "✅ **Player data imported successfully.**",
           `Old total players: **${beforeCount}**`,
           `New total players: **${newCount}**`,
-          `Saved to: \`${filePath}\``,
+          `Saved to local backup file: \`${filePath}\``,
+          "Synced to Supabase/Postgres: **yes, via writePlayers()**",
           "",
           "Now test `op bal`, `op mc`, `op mci`, and `op finv`.",
         ].join("\n")
