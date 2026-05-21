@@ -17,6 +17,8 @@ const { startResetReminderService } = require("./utils/resetReminderService");
 const { maybeSpawnMarineEvent } = require("./utils/marineEvent");
 const channelRules = require("./config/channelRules");
 const { readPlayers, writePlayers, initPlayerStore } = require("./playerStore");
+const { isMaintenanceActive } = require("./utils/maintenanceStore");
+const { createMaintenanceEmbed } = require("./commands/maintenance");
 const {
   isEligibleMilestoneChat,
   incrementMessageMilestone,
@@ -140,6 +142,29 @@ function parsePrefixedCommand(content) {
   const commandName = String(parts.shift() || "").toLowerCase();
 
   return { commandName, args: parts };
+}
+
+function getOwnerIds() {
+  return String(
+    process.env.BOT_OWNER_IDS ||
+      process.env.OWNER_IDS ||
+      process.env.BOT_OWNER_ID ||
+      process.env.ADMIN_USER_IDS ||
+      ""
+  )
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
+function isMaintenanceBypassUser(message) {
+  const ownerIds = getOwnerIds();
+
+  const isBotOwner = ownerIds.includes(String(message.author.id));
+  const isServerOwner =
+    message.guild && String(message.guild.ownerId) === String(message.author.id);
+
+  return Boolean(isBotOwner || isServerOwner);
 }
 
 function createDefaultPlayerForMilestone(message) {
@@ -273,11 +298,21 @@ client.on("messageCreate", async (message) => {
     }
 
     const command = client.commands.get(commandName);
-
     if (!command) {
       await message.reply(`Unknown command: \`${commandName}\``);
       return;
     }
+
+    if (
+    isMaintenanceActive() &&
+    !isMaintenanceBypassUser(message) &&
+    normalizeCommandName(command.name) !== "maintenance"
+  ) {
+    await message.reply({
+      embeds: [createMaintenanceEmbed()],
+    });
+    return;
+  }
 
     const cooldownKey = `${message.author.id}:${command.name || commandName}`;
     const now = Date.now();
