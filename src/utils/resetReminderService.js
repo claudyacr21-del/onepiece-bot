@@ -1,112 +1,242 @@
-const fs = require("fs");
-const path = require("path");
+const { Pool } = require("pg");
 const { EmbedBuilder } = require("discord.js");
 const { readPlayers } = require("../playerStore");
 const { getNextResetTime } = require("./pullReset");
 
-const persistentDir =
-  process.env.PLAYER_DATA_DIR ||
-  path.join(__dirname, "..", "data");
-
-const fallbackDir = path.join(__dirname, "..", "data");
-
-function resolveStateFilePath() {
-  try {
-    fs.mkdirSync(persistentDir, { recursive: true });
-    return path.join(persistentDir, "reset-reminders.json");
-  } catch (error) {
-    console.warn(
-      "[RESET REMINDER] Could not use persistent data dir, falling back to local data dir.",
-      error?.message || error
-    );
-
-    fs.mkdirSync(fallbackDir, { recursive: true });
-    return path.join(fallbackDir, "reset-reminders.json");
-  }
-}
-
-const DATA_DIR = process.env.PLAYER_DATA_DIR || path.join(__dirname, "..", "data");
-const STATE_FILE = path.join(DATA_DIR, "reset-reminders.json");
-
 const RESET_CHANNEL_ID = process.env.RESET_CHANNEL_ID || "";
 const RESET_PING_ROLE_ID = process.env.RESET_PING_ROLE_ID || "";
 
-const DAILY_CHECK_INTERVAL_MS = 60 * 1000;
+const USER_REMINDER_CHECK_INTERVAL_MS = Number(
+  process.env.RESET_USER_REMINDER_CHECK_INTERVAL_MS || 60 * 1000
+);
+
 const RESET_SEND_DELAY_MS = 3 * 1000;
 
-function ensureStateFile() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+let serviceStarted = false;
+let globalResetTimer = null;
+let userReminderInterval = null;
 
-  if (!fs.existsSync(STATE_FILE)) {
-    fs.writeFileSync(
-      STATE_FILE,
-      JSON.stringify(
-        {
-          lastGlobalResetNotifiedAt: 0,
-          userCooldowns: {},
-        },
-        null,
-        2
-      ),
-      "utf8"
-    );
+let reminderPool = null;
+let reminderDbReady = false;
+let reminderDbInitStarted = false;
+
+function getReminderPool() {
+  if (!process.env.DATABASE_URL) return null;
+
+  if (!reminderPool) {
+    reminderPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 2,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    });
+
+    reminderPool.on("error", (error) => {
+      console.error("[RESET REMINDER DB POOL ERROR]", error);
+    });
   }
+
+  return reminderPool;
 }
 
-function readState() {
-  ensureStateFile();
+async function ensureReminderTables() {
+  if (reminderDbReady) return true;
+  if (reminderDbInitStarted) return false;
+
+  const pool = getReminderPool();
+  if (!pool) return false;
+
+  reminderDbInitStarted = true;
 
   try {
-    const raw = fs.readFileSync(STATE_FILE, "utf8").trim();
-    return raw
-      ? JSON.parse(raw)
-      : {
-          lastGlobalResetNotifiedAt: 0,
-          userCooldowns: {},
-        };
-  } catch (error) {
-    console.error("[RESET REMINDER STATE READ ERROR]", error);
+    await pool.query(`
+      create table if not exists cooldown_reminder_events (
+        id bigserial primary key,
+        user_id text not null,
+        reminder_type text not null,
+        ready_at bigint not null,
+        sent_at timestamptz not null default now(),
+        unique (user_id, reminder_type, ready_at)
+      );
+    `);
 
-    return {
-      lastGlobalResetNotifiedAt: 0,
-      userCooldowns: {},
-    };
+    await pool.query(`
+      create index if not exists cooldown_reminder_events_user_idx
+      on cooldown_reminder_events (user_id);
+    `);
+
+    await pool.query(`
+      create index if not exists cooldown_reminder_events_sent_at_idx
+      on cooldown_reminder_events (sent_at);
+    `);
+
+    await pool.query(`
+      delete from cooldown_reminder_events
+      where sent_at < now() - interval '30 days';
+    `);
+
+    reminderDbReady = true;
+    console.log("[RESET REMINDER] Supabase reminder lock ready.");
+    return true;
+  } catch (error) {
+    console.error("[RESET REMINDER DB INIT ERROR]", error);
+    reminderDbReady = false;
+    return false;
+  } finally {
+    reminderDbInitStarted = false;
   }
 }
 
-function writeState(state) {
-  ensureStateFile();
+async function claimReminderOnce(userId, reminderType, readyAt) {
+  const ready = Number(readyAt || 0);
+  if (!userId || !reminderType || !ready) return false;
 
-  const tempPath = `${STATE_FILE}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(state, null, 2), "utf8");
-  fs.renameSync(tempPath, STATE_FILE);
+  const pool = getReminderPool();
+
+  if (!pool) {
+    return true;
+  }
+
+  try {
+    if (!reminderDbReady) {
+      await ensureReminderTables();
+    }
+
+    if (!reminderDbReady) {
+      return true;
+    }
+
+    const result = await pool.query(
+      `
+      insert into cooldown_reminder_events (user_id, reminder_type, ready_at)
+      values ($1, $2, $3)
+      on conflict (user_id, reminder_type, ready_at) do nothing
+      returning id
+      `,
+      [String(userId), String(reminderType), ready]
+    );
+
+    return result.rowCount > 0;
+  } catch (error) {
+    console.error("[RESET REMINDER CLAIM ERROR]", error);
+    return false;
+  }
 }
 
 function formatDiscordTimestamp(timestampMs, style = "R") {
   return `<t:${Math.floor(Number(timestampMs || Date.now()) / 1000)}:${style}>`;
 }
 
+function getCooldownTargets(player) {
+  const cooldowns = player?.cooldowns || {};
+
+  return [
+    {
+      type: "daily",
+      readyAt: Number(cooldowns.daily || 0),
+      title: "🎁 Daily Reward Is Ready!",
+      description:
+        "Your daily reward cooldown is finished.\nUse `op daily` in the server to claim it.",
+      color: 0x2ecc71,
+      footer: "One Piece Bot • Daily Reminder",
+    },
+    {
+      type: "treasure",
+      readyAt: Number(cooldowns.treasure || 0),
+      title: "🧰 Treasure Is Ready!",
+      description:
+        "Your Mother Flame treasure cooldown is finished.\nUse `op treasure` in the server to claim it.",
+      color: 0xe67e22,
+      footer: "One Piece Bot • Treasure Reminder",
+    },
+    {
+      type: "vote",
+      readyAt: Number(cooldowns.vote || 0),
+      title: "🗳️ Vote Is Ready!",
+      description:
+        "Your Top.gg vote cooldown is finished.\nUse `op vote` in the server, then vote again to claim the reward.",
+      color: 0x8e44ad,
+      footer: "One Piece Bot • Vote Reminder",
+    },
+  ];
+}
+
+function isReadyToRemind(target, now) {
+  const readyAt = Number(target?.readyAt || 0);
+  if (!readyAt) return false;
+  if (readyAt > now) return false;
+  return true;
+}
+
+async function sendUserDm(client, userId, target) {
+  const user = await client.users.fetch(userId).catch(() => null);
+  if (!user) return false;
+
+  const embed = new EmbedBuilder()
+    .setColor(target.color)
+    .setTitle(target.title)
+    .setDescription(target.description)
+    .setFooter({ text: target.footer })
+    .setTimestamp();
+
+  const sent = await user.send({ embeds: [embed] }).catch(() => null);
+  return Boolean(sent);
+}
+
+async function checkUserCooldownReminders(client) {
+  const players = readPlayers();
+  const now = Date.now();
+
+  for (const [userId, player] of Object.entries(players || {})) {
+    if (userId === "__system__") continue;
+
+    const targets = getCooldownTargets(player).filter((target) =>
+      isReadyToRemind(target, now)
+    );
+
+    if (!targets.length) continue;
+
+    for (const target of targets) {
+      const readyAt = Number(target.readyAt || 0);
+      const claimed = await claimReminderOnce(userId, target.type, readyAt);
+
+      if (!claimed) {
+        continue;
+      }
+
+      const sent = await sendUserDm(client, userId, target);
+
+      if (!sent) {
+        console.warn(
+          `[RESET REMINDER] Could not DM user ${userId} for ${target.type}. Marked as notified to prevent spam.`
+        );
+      }
+    }
+  }
+}
+
 async function sendGlobalPullResetNotification(client) {
   if (!RESET_CHANNEL_ID) {
     console.warn("[RESET REMINDER] Missing RESET_CHANNEL_ID.");
-    return;
+    return false;
   }
 
   const channel = await client.channels.fetch(RESET_CHANNEL_ID).catch(() => null);
 
   if (!channel || !channel.isTextBased()) {
     console.warn("[RESET REMINDER] Reset channel was not found.");
-    return;
+    return false;
   }
 
   const roleMention = RESET_PING_ROLE_ID ? `<@&${RESET_PING_ROLE_ID}>` : "@Reset Ping";
 
   const embed = new EmbedBuilder()
     .setColor(0x9b59b6)
-    .setTitle("🔄 Pull Reset Is Now Live!")
+    .setTitle("🔁 Pull Reset Is Now Live!")
     .setDescription(
       [
-        "🎯 You can pull again in commands channels!",
+        "You can pull again in command channels!",
         "",
         "• Pull slots have been refreshed globally.",
         "• Use `op pull` or `op pa` if you have access.",
@@ -114,17 +244,26 @@ async function sendGlobalPullResetNotification(client) {
         `⏳ Next reset: ${formatDiscordTimestamp(getNextResetTime(Date.now()), "R")}`,
       ].join("\n")
     )
-    .setFooter({ text: "One Piece Bot • Global Pull Reset" });
+    .setFooter({
+      text: "One Piece Bot • Global Pull Reset",
+    })
+    .setTimestamp();
 
   await channel.send({
-    content: `${roleMention} Reset is now live! You can pull in commands channels!`,
+    content: `${roleMention} Reset is now live! You can pull in command channels!`,
     embeds: [embed],
     allowedMentions: RESET_PING_ROLE_ID
       ? {
           roles: [RESET_PING_ROLE_ID],
+          repliedUser: false,
         }
-      : undefined,
+      : {
+          parse: [],
+          repliedUser: false,
+        },
   });
+
+  return true;
 }
 
 function scheduleNextGlobalReset(client) {
@@ -132,15 +271,21 @@ function scheduleNextGlobalReset(client) {
   const nextResetAt = getNextResetTime(now);
   const delay = Math.max(RESET_SEND_DELAY_MS, nextResetAt - now + RESET_SEND_DELAY_MS);
 
-  setTimeout(async () => {
+  if (globalResetTimer) {
+    clearTimeout(globalResetTimer);
+    globalResetTimer = null;
+  }
+
+  globalResetTimer = setTimeout(async () => {
     try {
-      const state = readState();
+      const claimed = await claimReminderOnce(
+        "__global__",
+        "pull_reset",
+        Number(nextResetAt)
+      );
 
-      if (Number(state.lastGlobalResetNotifiedAt || 0) < nextResetAt) {
+      if (claimed) {
         await sendGlobalPullResetNotification(client);
-
-        state.lastGlobalResetNotifiedAt = nextResetAt;
-        writeState(state);
       }
     } catch (error) {
       console.error("[GLOBAL RESET NOTIFICATION ERROR]", error);
@@ -150,115 +295,31 @@ function scheduleNextGlobalReset(client) {
   }, delay);
 }
 
-async function sendUserDm(client, userId, type) {
-  const user = await client.users.fetch(userId).catch(() => null);
-  if (!user) return false;
-
-  const isDaily = type === "daily";
-  const isTreasure = type === "treasure";
-  const isVote = type === "vote";
-
-  const emoji = isDaily ? "🎁" : isTreasure ? "🔥" : "🗳️";
-
-  const embed = new EmbedBuilder()
-    .setColor(isDaily ? 0x2ecc71 : isTreasure ? 0xe67e22 : 0x8e44ad)
-    .setTitle(
-      isDaily
-        ? `${emoji} Daily Reward Is Ready!`
-        : isTreasure
-        ? `${emoji} Treasure Is Ready!`
-        : `${emoji} Vote Is Ready!`
-    )
-    .setDescription(
-      isDaily
-        ? "Your daily reward cooldown is finished.\nUse `op daily` in the server to claim it."
-        : isTreasure
-        ? "Your Mother Flame treasure cooldown is finished.\nUse `op treasure` in the server to claim it."
-        : "Your Top.gg vote cooldown is finished.\nUse `op vote` in the server, then vote again to claim the reward."
-    )
-    .setFooter({
-      text: isDaily
-        ? "One Piece Bot • Daily Reminder"
-        : isTreasure
-        ? "One Piece Bot • Treasure Reminder"
-        : "One Piece Bot • Vote Reminder",
-    });
-
-  await user.send({ embeds: [embed] }).catch(() => null);
-  return true;
-}
-
-async function checkUserCooldownReminders(client) {
-  const players = readPlayers();
-  const state = readState();
-
-  if (!state.userCooldowns || typeof state.userCooldowns !== "object") {
-    state.userCooldowns = {};
-  }
-
-  const now = Date.now();
-  let changed = false;
-
-  for (const [userId, player] of Object.entries(players)) {
-    const cooldowns = player?.cooldowns || {};
-    const dailyReadyAt = Number(cooldowns.daily || 0);
-    const treasureReadyAt = Number(cooldowns.treasure || 0);
-    const voteReadyAt = Number(cooldowns.vote || 0);
-
-    if (!state.userCooldowns[userId]) {
-      state.userCooldowns[userId] = {};
-    }
-
-    const userState = state.userCooldowns[userId];
-
-    if (
-      dailyReadyAt > 0 &&
-      dailyReadyAt <= now &&
-      Number(userState.dailyNotifiedAt || 0) !== dailyReadyAt
-    ) {
-      await sendUserDm(client, userId, "daily");
-      userState.dailyNotifiedAt = dailyReadyAt;
-      changed = true;
-    }
-
-    if (
-      treasureReadyAt > 0 &&
-      treasureReadyAt <= now &&
-      Number(userState.treasureNotifiedAt || 0) !== treasureReadyAt
-    ) {
-      await sendUserDm(client, userId, "treasure");
-      userState.treasureNotifiedAt = treasureReadyAt;
-      changed = true;
-    }
-    if (
-      voteReadyAt > 0 &&
-      voteReadyAt <= now &&
-      Number(userState.voteNotifiedAt || 0) !== voteReadyAt
-    ) {
-      await sendUserDm(client, userId, "vote");
-      userState.voteNotifiedAt = voteReadyAt;
-      changed = true;
-    }
-  }
-
-  if (changed) {
-    writeState(state);
-  }
-}
-
 function startResetReminderService(client) {
+  if (serviceStarted) {
+    console.warn("[RESET REMINDER] Service already started. Skipping duplicate start.");
+    return;
+  }
+
+  serviceStarted = true;
+
+  ensureReminderTables().catch((error) => {
+    console.error("[RESET REMINDER TABLE INIT ERROR]", error);
+  });
+
   scheduleNextGlobalReset(client);
 
   checkUserCooldownReminders(client).catch((error) => {
     console.error("[COOLDOWN REMINDER READY CHECK ERROR]", error);
   });
 
-  setInterval(() => {
+  userReminderInterval = setInterval(() => {
     checkUserCooldownReminders(client).catch((error) => {
       console.error("[COOLDOWN REMINDER INTERVAL ERROR]", error);
     });
-  }, DAILY_CHECK_INTERVAL_MS);
+  }, USER_REMINDER_CHECK_INTERVAL_MS);
 
+  console.log("[RESET REMINDER] User cooldown reminders enabled for daily/vote/treasure only.");
   console.log("[RESET REMINDER] Service started.");
 }
 

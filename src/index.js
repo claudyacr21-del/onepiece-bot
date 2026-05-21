@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const fs = require("fs");
 const path = require("path");
+const { Pool } = require("pg");
 const {
   Client,
   GatewayIntentBits,
@@ -42,23 +43,122 @@ const client = new Client({
 
 const PREFIX = String(process.env.PREFIX || "op").toLowerCase();
 const COMMAND_COOLDOWN_MS = 3000;
+
 const commandCooldowns = new Map();
 const processedMessageIds = new Set();
 
 let readyStarted = false;
+let dedupePool = null;
+let dedupeReady = false;
+let dedupeInitStarted = false;
 
-function markMessageProcessing(messageId) {
-  const id = String(messageId || "");
-  if (!id) return false;
-  if (processedMessageIds.has(id)) return false;
+function getDedupePool() {
+  if (!process.env.DATABASE_URL) return null;
 
-  processedMessageIds.add(id);
+  if (!dedupePool) {
+    dedupePool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 2,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    });
+
+    dedupePool.on("error", (error) => {
+      console.error("[MESSAGE DEDUPE DB POOL ERROR]", error);
+    });
+  }
+
+  return dedupePool;
+}
+
+async function ensureMessageDedupeTable() {
+  if (dedupeReady) return true;
+  if (dedupeInitStarted) return false;
+
+  const pool = getDedupePool();
+  if (!pool) return false;
+
+  dedupeInitStarted = true;
+
+  try {
+    await pool.query(`
+      create table if not exists bot_processed_messages (
+        message_id text primary key,
+        user_id text,
+        command_name text,
+        created_at timestamptz not null default now()
+      );
+    `);
+
+    await pool.query(`
+      create index if not exists bot_processed_messages_created_at_idx
+      on bot_processed_messages (created_at);
+    `);
+
+    await pool.query(`
+      delete from bot_processed_messages
+      where created_at < now() - interval '2 days';
+    `);
+
+    dedupeReady = true;
+    console.log("[MESSAGE DEDUPE] Supabase message lock ready.");
+    return true;
+  } catch (error) {
+    console.error("[MESSAGE DEDUPE INIT ERROR]", error);
+    dedupeReady = false;
+    return false;
+  } finally {
+    dedupeInitStarted = false;
+  }
+}
+
+async function claimMessageOnce(message, commandName = "") {
+  const messageId = String(message?.id || "");
+  if (!messageId) return false;
+
+  if (processedMessageIds.has(messageId)) return false;
+
+  processedMessageIds.add(messageId);
 
   setTimeout(() => {
-    processedMessageIds.delete(id);
+    processedMessageIds.delete(messageId);
   }, 60_000);
 
-  return true;
+  const pool = getDedupePool();
+
+  if (!pool) {
+    return true;
+  }
+
+  try {
+    if (!dedupeReady) {
+      await ensureMessageDedupeTable();
+    }
+
+    if (!dedupeReady) {
+      return true;
+    }
+
+    const result = await pool.query(
+      `
+      insert into bot_processed_messages (message_id, user_id, command_name)
+      values ($1, $2, $3)
+      on conflict (message_id) do nothing
+      returning message_id
+      `,
+      [
+        messageId,
+        String(message?.author?.id || ""),
+        String(commandName || ""),
+      ]
+    );
+
+    return result.rowCount > 0;
+  } catch (error) {
+    console.error("[MESSAGE DEDUPE CLAIM ERROR]", error);
+    return true;
+  }
 }
 
 client.commands = new Collection();
@@ -258,6 +358,8 @@ client.once("clientReady", async () => {
 
   console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
 
+  await ensureMessageDedupeTable();
+
   client.user.setPresence({
     status: "online",
     activities: [
@@ -294,8 +396,6 @@ client.once("clientReady", async () => {
 
 client.on("messageCreate", async (message) => {
   try {
-    if (!markMessageProcessing(message.id)) return;
-
     if (message.partial) {
       try {
         await message.fetch();
@@ -311,6 +411,17 @@ client.on("messageCreate", async (message) => {
     if (!message.author || message.author.bot) return;
     if (typeof message.content !== "string") return;
 
+    const parsed = parsePrefixedCommand(message.content);
+
+    if (parsed) {
+      const shouldProcess = await claimMessageOnce(message, parsed.commandName || "");
+      if (!shouldProcess) return;
+    } else {
+      if (processedMessageIds.has(String(message.id))) return;
+      processedMessageIds.add(String(message.id));
+      setTimeout(() => processedMessageIds.delete(String(message.id)), 60_000);
+    }
+
     try {
       await trackMessageMilestone(message);
     } catch (error) {
@@ -318,8 +429,6 @@ client.on("messageCreate", async (message) => {
     }
 
     await maybeSpawnMarineEvent(client, message);
-
-    const parsed = parsePrefixedCommand(message.content);
 
     if (!parsed) return;
 
