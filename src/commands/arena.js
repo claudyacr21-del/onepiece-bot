@@ -467,33 +467,37 @@ function calculateArenaWinPoints(playerRank, opponentRank) {
   const myRank = Number(playerRank || ARENA_TOTAL_RANK_SLOTS);
   const enemyRank = Number(opponentRank || ARENA_TOTAL_RANK_SLOTS);
 
-  if (!Number.isFinite(myRank) || !Number.isFinite(enemyRank)) return 18;
+  if (!Number.isFinite(myRank) || !Number.isFinite(enemyRank)) return 10;
 
-  // Enemy rank number bigger = enemy is below us, still reward but smaller.
+  // enemyRank lebih besar = lawan rank-nya lebih rendah dari kita.
+  // Contoh: kita #50, lawan #120. Reward harus kecil.
   if (enemyRank > myRank) {
     const gap = enemyRank - myRank;
 
-    if (gap >= 100) return 8;
-    if (gap >= 50) return 10;
-    if (gap >= 25) return 12;
-    if (gap >= 10) return 14;
+    if (gap >= 200) return 1;
+    if (gap >= 100) return 2;
+    if (gap >= 50) return 3;
+    if (gap >= 25) return 4;
+    if (gap >= 10) return 5;
 
-    return 16;
+    return 6;
   }
 
-  // Enemy rank number smaller = enemy is above us, reward should feel better.
+  // enemyRank lebih kecil = lawan rank-nya lebih tinggi dari kita.
+  // Contoh: kita #120, lawan #50. Reward harus besar.
   if (enemyRank < myRank) {
     const gap = myRank - enemyRank;
 
-    if (gap >= 100) return 35;
-    if (gap >= 50) return 30;
-    if (gap >= 25) return 26;
-    if (gap >= 10) return 22;
+    if (gap >= 200) return 24;
+    if (gap >= 100) return 20;
+    if (gap >= 50) return 17;
+    if (gap >= 25) return 14;
+    if (gap >= 10) return 12;
 
-    return 20;
+    return 10;
   }
 
-  return 18;
+  return 8;
 }
 
 function applyArenaResult(arena, result, context = {}) {

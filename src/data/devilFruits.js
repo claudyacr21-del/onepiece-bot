@@ -130,8 +130,8 @@ module.exports = [
     description: "Turns the user into ice and freezes the battlefield."
   },
   {
-    code: "hito_hito_no_mi",
-    name: "Hito Hito no Mi",
+    code: "hito_hito_no_mi_model_tonakai",
+    name: "Hito Hito no Mi, Model: Tonakai",
     rarity: "A",
     owners: ["chopper_cotton_candy_lover"],
     type: "Zoan Fruit",
