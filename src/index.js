@@ -45,6 +45,8 @@ const COMMAND_COOLDOWN_MS = 3000;
 const commandCooldowns = new Map();
 const processedMessageIds = new Set();
 
+let readyStarted = false;
+
 function markMessageProcessing(messageId) {
   const id = String(messageId || "");
   if (!id) return false;
@@ -68,6 +70,11 @@ const commandFiles = fs
 
 for (const file of commandFiles) {
   const command = require(path.join(commandsPath, file));
+
+  if (!command?.name || typeof command.execute !== "function") {
+    console.warn(`[COMMAND LOAD SKIPPED] ${file} is missing name/execute.`);
+    continue;
+  }
 
   client.commands.set(command.name, command);
 
@@ -242,6 +249,13 @@ async function trackMessageMilestone(message) {
 }
 
 client.once("clientReady", async () => {
+  if (readyStarted) {
+    console.warn("[READY] Duplicate ready event ignored.");
+    return;
+  }
+
+  readyStarted = true;
+
   console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
 
   client.user.setPresence({
@@ -281,7 +295,7 @@ client.once("clientReady", async () => {
 client.on("messageCreate", async (message) => {
   try {
     if (!markMessageProcessing(message.id)) return;
-    
+
     if (message.partial) {
       try {
         await message.fetch();
@@ -302,7 +316,9 @@ client.on("messageCreate", async (message) => {
     } catch (error) {
       console.error("[MESSAGE MILESTONE ERROR]", error);
     }
+
     await maybeSpawnMarineEvent(client, message);
+
     const parsed = parsePrefixedCommand(message.content);
 
     if (!parsed) return;
@@ -315,21 +331,22 @@ client.on("messageCreate", async (message) => {
     }
 
     const command = client.commands.get(commandName);
+
     if (!command) {
       await message.reply(`Unknown command: \`${commandName}\``);
       return;
     }
 
     if (
-    isMaintenanceActive() &&
-    !isMaintenanceBypassUser(message) &&
-    normalizeCommandName(command.name) !== "maintenance"
-  ) {
-    await message.reply({
-      embeds: [createMaintenanceEmbed()],
-    });
-    return;
-  }
+      isMaintenanceActive() &&
+      !isMaintenanceBypassUser(message) &&
+      normalizeCommandName(command.name) !== "maintenance"
+    ) {
+      await message.reply({
+        embeds: [createMaintenanceEmbed()],
+      });
+      return;
+    }
 
     const cooldownKey = `${message.author.id}:${command.name || commandName}`;
     const now = Date.now();
@@ -383,48 +400,36 @@ client.on("warn", (info) => {
   console.warn("[CLIENT WARN]", info);
 });
 
-process.on("unhandledRejection", (error) => {
-  const code = Number(error?.code || error?.rawError?.code || 0);
-  const message = String(error?.message || "");
-
-  if (code === 10062 || code === 40060 || message.includes("Unknown interaction")) {
-    console.warn("[IGNORED INTERACTION ERROR]", message || error);
-    return;
-  }
-
-  console.error("[UNHANDLED REJECTION]", error);
-});
-
-process.on("uncaughtException", (error) => {
-  const code = Number(error?.code || error?.rawError?.code || 0);
-  const message = String(error?.message || "");
-
-  if (code === 10062 || code === 40060 || message.includes("Unknown interaction")) {
-    console.warn("[IGNORED INTERACTION EXCEPTION]", message || error);
-    return;
-  }
-
-  console.error("[UNCAUGHT EXCEPTION]", error);
-});
-
 function isIgnorableDiscordInteractionError(error) {
   const code = Number(error?.code || error?.rawError?.code || 0);
+  const status = Number(error?.status || error?.rawError?.status || 0);
   const message = String(error?.message || "");
+  const errno = String(error?.errno || error?.cause?.errno || "");
+  const requestCode = String(error?.requestBody?.code || "");
 
   return (
     code === 10062 ||
     code === 40060 ||
+    status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    errno === "ECONNRESET" ||
+    errno === "ETIMEDOUT" ||
+    errno === "EAI_AGAIN" ||
+    requestCode === "UND_ERR_SOCKET" ||
     message.includes("Unknown interaction") ||
-    message.includes("Interaction has already been acknowledged")
+    message.includes("Interaction has already been acknowledged") ||
+    message.includes("Service Unavailable") ||
+    message.includes("Bad Gateway") ||
+    message.includes("Gateway Timeout")
   );
 }
 
 process.on("unhandledRejection", (error) => {
   if (isIgnorableDiscordInteractionError(error)) {
-    console.warn(
-      "[IGNORED DISCORD INTERACTION ERROR]",
-      error?.message || error
-    );
+    console.warn("[IGNORED DISCORD INTERACTION ERROR]", error?.message || error);
     return;
   }
 
@@ -433,10 +438,7 @@ process.on("unhandledRejection", (error) => {
 
 process.on("uncaughtException", (error) => {
   if (isIgnorableDiscordInteractionError(error)) {
-    console.warn(
-      "[IGNORED DISCORD INTERACTION EXCEPTION]",
-      error?.message || error
-    );
+    console.warn("[IGNORED DISCORD INTERACTION EXCEPTION]", error?.message || error);
     return;
   }
 
