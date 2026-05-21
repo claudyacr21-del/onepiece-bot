@@ -1,3 +1,4 @@
+const cards = require("../data/cards");
 const devilFruits = require("../data/devilFruits");
 const { hydrateCard, findCardTemplate, getBoostStageValue } = require("./evolution");
 
@@ -100,31 +101,106 @@ function normalizeBoostType(value) {
   return type;
 }
 
+function findBoostTemplate(rawCard) {
+  const code = normalize(rawCard?.code);
+  const name = normalize(rawCard?.displayName || rawCard?.name);
+
+  const byExactBoostCode = cards.find(
+    (card) =>
+      normalize(card?.code) === code &&
+      String(card?.cardRole || "").toLowerCase() === "boost"
+  );
+
+  if (byExactBoostCode) return byExactBoostCode;
+
+  const byExactBoostName = cards.find(
+    (card) =>
+      name &&
+      normalize(card?.displayName || card?.name) === name &&
+      String(card?.cardRole || "").toLowerCase() === "boost"
+  );
+
+  if (byExactBoostName) return byExactBoostName;
+
+  const byBoostIncludes = cards.find((card) => {
+    if (String(card?.cardRole || "").toLowerCase() !== "boost") return false;
+
+    const fields = [card?.code, card?.displayName, card?.name]
+      .map(normalize)
+      .filter(Boolean);
+
+    return fields.some(
+      (field) =>
+        (code && (field === code || field.includes(code) || code.includes(field))) ||
+        (name && (field === name || field.includes(name) || name.includes(field)))
+    );
+  });
+
+  if (byBoostIncludes) return byBoostIncludes;
+
+  return findCardTemplate(rawCard?.code || rawCard?.displayName || rawCard?.name || "");
+}
+
+function getCardStage(card) {
+  const direct = Number(card?.evolutionStage || 0);
+  if (Number.isFinite(direct) && direct >= 1) {
+    return Math.max(1, Math.min(3, Math.floor(direct)));
+  }
+
+  const keyMatch = String(card?.evolutionKey || "").match(/M([123])/i);
+  if (keyMatch) {
+    return Math.max(1, Math.min(3, Number(keyMatch[1])));
+  }
+
+  return 1;
+}
+
 function mergeBoostWithTemplate(rawCard) {
-  const template = findCardTemplate(rawCard.code || rawCard.name || "");
+  const template = findBoostTemplate(rawCard);
+  const stage = getCardStage(rawCard);
+  const stageKey = `M${stage}`;
+
   const merged = template
     ? {
         ...template,
+
         instanceId: rawCard.instanceId,
         ownerId: rawCard.ownerId,
+
         level: rawCard.level,
         xp: rawCard.xp,
+        exp: rawCard.exp,
         kills: rawCard.kills,
         fragments: rawCard.fragments,
-        evolutionStage: rawCard.evolutionStage,
-        evolutionKey: rawCard.evolutionKey,
-        currentTier: rawCard.currentTier || template.currentTier,
-        rarity: rawCard.rarity || template.rarity,
+
+        evolutionStage: stage,
+        evolutionKey: stageKey,
+
+        currentTier: rawCard.currentTier || template.currentTier || template.rarity,
+        rarity: rawCard.rarity || rawCard.currentTier || template.currentTier || template.rarity,
+
         equippedDevilFruit: rawCard.equippedDevilFruit || null,
         equippedDevilFruitName: rawCard.equippedDevilFruitName || null,
         equippedDevilFruitCode: rawCard.equippedDevilFruitCode || null,
-        cardRole: rawCard.cardRole || template.cardRole,
-        boostType: rawCard.boostType || template.boostType,
-        boostValue: rawCard.boostValue ?? template.boostValue,
-        boostTarget: rawCard.boostTarget || template.boostTarget,
-        boostDescription: rawCard.boostDescription || template.boostDescription,
+
+        cardRole: "boost",
+
+        // Canonical boost data must come from the boost template, not old owned card cache.
+        boostType: template.boostType || rawCard.boostType,
+        boostValue: template.boostValue ?? rawCard.boostValue,
+        boostValues: template.boostValues || rawCard.boostValues,
+        stageBoostValues: template.stageBoostValues || rawCard.stageBoostValues,
+        boostMultipliers: template.boostMultipliers || rawCard.boostMultipliers,
+        stageBoostMultipliers: template.stageBoostMultipliers || rawCard.stageBoostMultipliers,
+        boostStageMultipliers: template.boostStageMultipliers || rawCard.boostStageMultipliers,
+        boostTarget: template.boostTarget || rawCard.boostTarget,
+        boostDescription: template.boostDescription || rawCard.boostDescription,
       }
-    : rawCard;
+    : {
+        ...rawCard,
+        evolutionStage: stage,
+        evolutionKey: stageKey,
+      };
 
   return hydrateCard(merged);
 }
@@ -273,8 +349,21 @@ function getFruitBonusForBoostCard(card) {
 }
 
 function getEffectiveBoostValue(card) {
-  const stage = Number(card?.evolutionStage || 1);
-  return Number(getBoostStageValue(card, stage) || 0) + getFruitBonusForBoostCard(card);
+  const stage = getCardStage(card);
+  const template = findBoostTemplate(card);
+
+  const canonicalCard = template
+    ? {
+        ...template,
+        evolutionStage: stage,
+        evolutionKey: `M${stage}`,
+        equippedDevilFruit: card?.equippedDevilFruit || null,
+        equippedDevilFruitName: card?.equippedDevilFruitName || null,
+        equippedDevilFruitCode: card?.equippedDevilFruitCode || null,
+      }
+    : card;
+
+  return Number(getBoostStageValue(canonicalCard, stage) || 0) + getFruitBonusForBoostCard(card);
 }
 
 function getUniqueBoostCards(player) {

@@ -1065,6 +1065,7 @@ function awakenOwnedCard(player, query) {
       evolutionKey: `M${nextStage}`,
       currentTier: awakened.currentTier,
       rarity: awakened.rarity,
+
       baseAtk: awakened.baseAtk,
       baseHp: awakened.baseHp,
       baseSpeed: awakened.baseSpeed,
@@ -1073,6 +1074,19 @@ function awakenOwnedCard(player, query) {
       speed: awakened.speed,
       currentPower: awakened.currentPower,
       powerCaps: awakened.powerCaps,
+
+      // Keep boost card stage/effect data synced after awaken.
+      cardRole: awakened.cardRole || card.cardRole,
+      boostType: awakened.boostType || card.boostType,
+      boostValue: awakened.boostValue ?? card.boostValue,
+      boostValues: awakened.boostValues || card.boostValues,
+      stageBoostValues: awakened.stageBoostValues || card.stageBoostValues,
+      boostMultipliers: awakened.boostMultipliers || card.boostMultipliers,
+      stageBoostMultipliers: awakened.stageBoostMultipliers || card.stageBoostMultipliers,
+      boostStageMultipliers: awakened.boostStageMultipliers || card.boostStageMultipliers,
+      boostTarget: awakened.boostTarget || card.boostTarget,
+      boostDescription: awakened.boostDescription || card.boostDescription,
+      effectText: awakened.effectText || card.effectText,
     };
   });
 
