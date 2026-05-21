@@ -51,6 +51,23 @@ async function ensureReminderTables() {
 
   try {
     await pool.query(`
+      create table if not exists cooldown_reminder_states (
+        user_id text not null,
+        reminder_type text not null,
+        last_cooldown_at bigint not null default 0,
+        last_notified_at bigint not null default 0,
+        was_pending boolean not null default false,
+        updated_at timestamptz not null default now(),
+        primary key (user_id, reminder_type)
+      );
+    `);
+
+    await pool.query(`
+      create index if not exists cooldown_reminder_states_updated_at_idx
+      on cooldown_reminder_states (updated_at);
+    `);
+
+    await pool.query(`
       create table if not exists cooldown_reminder_events (
         id bigserial primary key,
         user_id text not null,
@@ -88,40 +105,96 @@ async function ensureReminderTables() {
   }
 }
 
-async function claimReminderOnce(userId, reminderType, readyAt) {
-  const ready = Number(readyAt || 0);
-  if (!userId || !reminderType || !ready) return false;
-
+async function getReminderState(userId, reminderType) {
   const pool = getReminderPool();
+  if (!pool) return null;
 
-  if (!pool) {
-    return true;
+  if (!reminderDbReady) {
+    await ensureReminderTables();
   }
 
-  try {
-    if (!reminderDbReady) {
-      await ensureReminderTables();
-    }
+  if (!reminderDbReady) return null;
 
-    if (!reminderDbReady) {
-      return true;
-    }
+  const result = await pool.query(
+    `
+    select user_id, reminder_type, last_cooldown_at, last_notified_at, was_pending
+    from cooldown_reminder_states
+    where user_id = $1 and reminder_type = $2
+    limit 1
+    `,
+    [String(userId), String(reminderType)]
+  );
 
-    const result = await pool.query(
-      `
-      insert into cooldown_reminder_events (user_id, reminder_type, ready_at)
-      values ($1, $2, $3)
-      on conflict (user_id, reminder_type, ready_at) do nothing
-      returning id
-      `,
-      [String(userId), String(reminderType), ready]
-    );
+  return result.rows?.[0] || null;
+}
 
-    return result.rowCount > 0;
-  } catch (error) {
-    console.error("[RESET REMINDER CLAIM ERROR]", error);
-    return false;
+async function saveReminderState(userId, reminderType, patch = {}) {
+  const pool = getReminderPool();
+  if (!pool) return false;
+
+  if (!reminderDbReady) {
+    await ensureReminderTables();
   }
+
+  if (!reminderDbReady) return false;
+
+  const lastCooldownAt = Number(patch.lastCooldownAt || 0);
+  const lastNotifiedAt = Number(patch.lastNotifiedAt || 0);
+  const wasPending = Boolean(patch.wasPending);
+
+  await pool.query(
+    `
+    insert into cooldown_reminder_states (
+      user_id,
+      reminder_type,
+      last_cooldown_at,
+      last_notified_at,
+      was_pending,
+      updated_at
+    )
+    values ($1, $2, $3, $4, $5, now())
+    on conflict (user_id, reminder_type)
+    do update set
+      last_cooldown_at = excluded.last_cooldown_at,
+      last_notified_at = excluded.last_notified_at,
+      was_pending = excluded.was_pending,
+      updated_at = now()
+    `,
+    [
+      String(userId),
+      String(reminderType),
+      lastCooldownAt,
+      lastNotifiedAt,
+      wasPending,
+    ]
+  );
+
+  return true;
+}
+
+async function claimReminderEventOnce(userId, reminderType, readyAt) {
+  const pool = getReminderPool();
+  const ready = Number(readyAt || 0);
+
+  if (!pool || !userId || !reminderType || !ready) return false;
+
+  if (!reminderDbReady) {
+    await ensureReminderTables();
+  }
+
+  if (!reminderDbReady) return false;
+
+  const result = await pool.query(
+    `
+    insert into cooldown_reminder_events (user_id, reminder_type, ready_at)
+    values ($1, $2, $3)
+    on conflict (user_id, reminder_type, ready_at) do nothing
+    returning id
+    `,
+    [String(userId), String(reminderType), ready]
+  );
+
+  return result.rowCount > 0;
 }
 
 function formatDiscordTimestamp(timestampMs, style = "R") {
@@ -142,15 +215,6 @@ function getCooldownTargets(player) {
       footer: "One Piece Bot • Daily Reminder",
     },
     {
-      type: "treasure",
-      readyAt: Number(cooldowns.treasure || 0),
-      title: "🧰 Treasure Is Ready!",
-      description:
-        "Your Mother Flame treasure cooldown is finished.\nUse `op treasure` in the server to claim it.",
-      color: 0xe67e22,
-      footer: "One Piece Bot • Treasure Reminder",
-    },
-    {
       type: "vote",
       readyAt: Number(cooldowns.vote || 0),
       title: "🗳️ Vote Is Ready!",
@@ -159,14 +223,16 @@ function getCooldownTargets(player) {
       color: 0x8e44ad,
       footer: "One Piece Bot • Vote Reminder",
     },
+    {
+      type: "treasure",
+      readyAt: Number(cooldowns.treasure || 0),
+      title: "🧰 Treasure Is Ready!",
+      description:
+        "Your Mother Flame treasure cooldown is finished.\nUse `op treasure` in the server to claim it.",
+      color: 0xe67e22,
+      footer: "One Piece Bot • Treasure Reminder",
+    },
   ];
-}
-
-function isReadyToRemind(target, now) {
-  const readyAt = Number(target?.readyAt || 0);
-  if (!readyAt) return false;
-  if (readyAt > now) return false;
-  return true;
 }
 
 async function sendUserDm(client, userId, target) {
@@ -184,32 +250,118 @@ async function sendUserDm(client, userId, target) {
   return Boolean(sent);
 }
 
+async function handleReminderTarget(client, userId, target, now) {
+  const readyAt = Number(target.readyAt || 0);
+
+  if (!readyAt) {
+    return;
+  }
+
+  const state = await getReminderState(userId, target.type);
+
+  const lastCooldownAt = Number(state?.last_cooldown_at || 0);
+  const lastNotifiedAt = Number(state?.last_notified_at || 0);
+  const wasPending = Boolean(state?.was_pending);
+
+  /*
+    Kalau cooldown masih jalan:
+    - Simpan/arm reminder dengan timestamp cooldown itu.
+    - Nanti setelah timestamp ini selesai, baru boleh kirim 1x.
+  */
+  if (readyAt > now) {
+    if (!state || lastCooldownAt !== readyAt || !wasPending) {
+      await saveReminderState(userId, target.type, {
+        lastCooldownAt: readyAt,
+        lastNotifiedAt,
+        wasPending: true,
+      });
+    }
+
+    return;
+  }
+
+  /*
+    Kalau bot baru start dan cooldown sudah ready dari awal:
+    - Jangan kirim reminder.
+    - Tandai sudah tidak pending supaya tidak spam player yang op cd-nya sudah "Now".
+  */
+  if (!state) {
+    await saveReminderState(userId, target.type, {
+      lastCooldownAt: readyAt,
+      lastNotifiedAt: readyAt,
+      wasPending: false,
+    });
+
+    return;
+  }
+
+  /*
+    Reminder hanya dikirim kalau:
+    - Sebelumnya cooldown ini pernah terdeteksi sedang pending.
+    - Timestamp cooldown yang selesai sama dengan timestamp yang di-arm.
+    - Timestamp ini belum pernah dinotifikasi.
+  */
+  const shouldSend =
+    wasPending &&
+    lastCooldownAt === readyAt &&
+    lastNotifiedAt !== readyAt &&
+    readyAt <= now;
+
+  if (!shouldSend) {
+    if (lastNotifiedAt !== readyAt || wasPending) {
+      await saveReminderState(userId, target.type, {
+        lastCooldownAt: readyAt,
+        lastNotifiedAt: Math.max(lastNotifiedAt, readyAt),
+        wasPending: false,
+      });
+    }
+
+    return;
+  }
+
+  const claimed = await claimReminderEventOnce(userId, target.type, readyAt);
+
+  if (!claimed) {
+    await saveReminderState(userId, target.type, {
+      lastCooldownAt: readyAt,
+      lastNotifiedAt: readyAt,
+      wasPending: false,
+    });
+
+    return;
+  }
+
+  const sent = await sendUserDm(client, userId, target);
+
+  await saveReminderState(userId, target.type, {
+    lastCooldownAt: readyAt,
+    lastNotifiedAt: readyAt,
+    wasPending: false,
+  });
+
+  if (!sent && String(process.env.RESET_REMINDER_DEBUG || "false").toLowerCase() === "true") {
+    console.warn(
+      `[RESET REMINDER] Could not DM user ${userId} for ${target.type}. Marked as notified to prevent spam.`
+    );
+  }
+}
+
 async function checkUserCooldownReminders(client) {
   const players = readPlayers();
   const now = Date.now();
 
   for (const [userId, player] of Object.entries(players || {})) {
-    if (userId === "__system__") continue;
+    if (userId === "__system__" || userId === "__global__") continue;
 
-    const targets = getCooldownTargets(player).filter((target) =>
-      isReadyToRemind(target, now)
-    );
-
-    if (!targets.length) continue;
+    const targets = getCooldownTargets(player);
 
     for (const target of targets) {
-      const readyAt = Number(target.readyAt || 0);
-      const claimed = await claimReminderOnce(userId, target.type, readyAt);
-
-      if (!claimed) {
-        continue;
-      }
-
-      const sent = await sendUserDm(client, userId, target);
-
-      if (!sent) {
-        console.warn(
-          `[RESET REMINDER] Could not DM user ${userId} for ${target.type}. Marked as notified to prevent spam.`
+      try {
+        await handleReminderTarget(client, userId, target, now);
+      } catch (error) {
+        console.error(
+          `[RESET REMINDER USER CHECK ERROR] user=${userId} type=${target.type}`,
+          error
         );
       }
     }
@@ -278,7 +430,7 @@ function scheduleNextGlobalReset(client) {
 
   globalResetTimer = setTimeout(async () => {
     try {
-      const claimed = await claimReminderOnce(
+      const claimed = await claimReminderEventOnce(
         "__global__",
         "pull_reset",
         Number(nextResetAt)
@@ -320,6 +472,7 @@ function startResetReminderService(client) {
   }, USER_REMINDER_CHECK_INTERVAL_MS);
 
   console.log("[RESET REMINDER] User cooldown reminders enabled for daily/vote/treasure only.");
+  console.log("[RESET REMINDER] Reminder triggers only once after a tracked cooldown finishes.");
   console.log("[RESET REMINDER] Service started.");
 }
 
