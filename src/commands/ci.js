@@ -651,21 +651,27 @@ function buildEmbed(card, owned, stage) {
   const displayStats = getStageDisplayStats(card, stageCard, stage);
   const statSource = displayStats.source || card;
 
-  const extraLines =
-    stageCard.cardRole === "boost"
-      ? [
-          `Form: ${stageLabel}`,
-          `Tier: ${form?.tier || stageCard.currentTier || stageCard.rarity}`,
-          `Role: ${stageCard.cardRole}`,
-          `Power: ${displayStats.power}`,
-          `Effect: ${
-            form?.effectText || stageCard.effectText || "No effect text"
-          }`,
-          `Target: ${stageCard.boostTarget || "team"}`,
-          `Boost Type: ${stageCard.boostType || "unknown"}`,
-          `Fragments: ${Number(owned?.fragments || 0)}`,
-        ]
-      : [
+  const extraLines = stageCard.cardRole === "boost" ? [
+    `Form: ${stageLabel}`,
+    `Tier: ${form?.tier || stageCard.currentTier || stageCard.rarity}`,
+    `Role: ${stageCard.cardRole}`,
+    `Power: ${displayStats.power}`,
+    `Effect: ${
+      form?.effectText || stageCard.effectText || "No effect text"
+    }`,
+    `Target: ${stageCard.boostTarget || "team"}`,
+    `Boost Type: ${stageCard.boostType || "unknown"}`,
+    `Devil Fruit: ${
+      form?.displayFruitName ||
+      form?.devilFruit ||
+      stageCard.displayFruitName ||
+      stageCard.devilFruit ||
+      card.displayFruitName ||
+      card.devilFruit ||
+      "None"
+    }`,
+    `Fragments: ${Number(owned?.fragments || 0)}`,
+  ] : [
           `Form: ${stageLabel}`,
           `Tier: ${form?.tier || stageCard.currentTier || stageCard.rarity}`,
           `Role: ${statSource.cardRole || card.cardRole || stageCard.cardRole}`,
