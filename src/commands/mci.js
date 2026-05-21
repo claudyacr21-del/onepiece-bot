@@ -464,18 +464,16 @@ function buildOwnedCardEmbed(ownerName, player, card) {
   const atkRange = formatAtkRange(card.atk);
   const syncedFragments = getFragmentAmount(player, card);
 
-  const extraLines =
-    card.cardRole === "boost"
-      ? [
-          `Form: ${card.evolutionKey || `M${stage}`}`,
-          `Tier: ${card.currentTier || card.rarity}`,
-          `Power: ${Number(card.currentPower || 0)}`,
-          `Effect: ${card.effectText || "No effect text"}`,
-          `Target: ${card.boostTarget || "team"}`,
-          `Boost Type: ${card.boostType || "unknown"}`,
-          `Fragments: ${syncedFragments}`,
-        ]
-      : [
+  const extraLines = card.cardRole === "boost" ? [
+    `Form: ${card.evolutionKey || `M${stage}`}`,
+    `Tier: ${card.currentTier || card.rarity}`,
+    `Power: ${Number(card.currentPower || 0)}`,
+    `Effect: ${card.effectText || "No effect text"}`,
+    `Target: ${card.boostTarget || "team"}`,
+    `Boost Type: ${card.boostType || "unknown"}`,
+    `Devil Fruit: ${card.displayFruitName || "None"}`,
+    `Fragments: ${syncedFragments}`,
+  ] : [
           `Form: ${card.evolutionKey || `M${stage}`}`,
           `Tier: ${card.currentTier || card.rarity}`,
           formatCardLevelLine(card),

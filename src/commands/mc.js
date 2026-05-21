@@ -284,18 +284,16 @@ function buildViewerEmbed(ownerName, player, card, index, total, label = "Collec
   const atkRange = formatAtkRange(card.atk);
   const syncedFragments = getFragmentAmount(player, card);
 
-  const extraLines =
-    card.cardRole === "boost"
-      ? [
-          `Form: ${card.evolutionKey || `M${form.stage}`}`,
-          `Tier: ${card.currentTier || card.rarity || "C"}`,
-          `Power: ${getPower(card)}`,
-          `Effect: ${card.effectText || "No effect text"}`,
-          `Target: ${card.boostTarget || "team"}`,
-          `Boost Type: ${card.boostType || "unknown"}`,
-          `Fragments: ${syncedFragments}`,
-        ]
-      : [
+  const extraLines = card.cardRole === "boost" ? [
+    `Form: ${card.evolutionKey || `M${form.stage}`}`,
+    `Tier: ${card.currentTier || card.rarity || "C"}`,
+    `Power: ${getPower(card)}`,
+    `Effect: ${card.effectText || "No effect text"}`,
+    `Target: ${card.boostTarget || "team"}`,
+    `Boost Type: ${card.boostType || "unknown"}`,
+    `Devil Fruit: ${card.displayFruitName || "None"}`,
+    `Fragments: ${syncedFragments}`,
+  ] : [
           `Form: ${card.evolutionKey || `M${form.stage}`}`,
           `Tier: ${card.currentTier || card.rarity || "C"}`,
           formatLevelExpLine(card),
