@@ -3,6 +3,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 const { getPlayer, updatePlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
@@ -27,11 +28,27 @@ const VIVRE_CARD_FIGHT_COOLDOWN_MS = 6.5 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 
 async function safeDeferUpdate(interaction) {
-  if (!interaction || interaction.deferred || interaction.replied) return;
+  if (!interaction || interaction.deferred || interaction.replied) return true;
+
   try {
     await interaction.deferUpdate();
+    return true;
   } catch (error) {
+    const code = Number(error?.code || error?.rawError?.code || 0);
+    const message = String(error?.message || "");
+
+    if (
+      code === 10062 ||
+      code === 40060 ||
+      message.includes("Unknown interaction") ||
+      message.includes("Interaction has already been acknowledged")
+    ) {
+      console.warn("[FIGHT DEFER IGNORED]", message || "Unknown interaction");
+      return false;
+    }
+
     console.error("[FIGHT DEFER UPDATE ERROR]", error);
+    return false;
   }
 }
 
@@ -40,8 +57,26 @@ async function safeEditInteractionMessage(interaction, payload) {
     if (interaction?.message) {
       return await interaction.message.edit(payload);
     }
+
+    if (interaction?.deferred || interaction?.replied) {
+      return await interaction.editReply(payload);
+    }
+
     return null;
   } catch (error) {
+    const code = Number(error?.code || error?.rawError?.code || 0);
+    const message = String(error?.message || "");
+
+    if (
+      code === 10062 ||
+      code === 40060 ||
+      message.includes("Unknown interaction") ||
+      message.includes("Interaction has already been acknowledged")
+    ) {
+      console.warn("[FIGHT EDIT IGNORED]", message || "Unknown interaction");
+      return null;
+    }
+
     console.error("[FIGHT MESSAGE EDIT ERROR]", error);
     return null;
   }
@@ -49,18 +84,30 @@ async function safeEditInteractionMessage(interaction, payload) {
 
 async function safeEphemeralReply(interaction, content) {
   try {
+    const payload = {
+      content,
+      flags: MessageFlags.Ephemeral,
+    };
+
     if (interaction.deferred || interaction.replied) {
-      return await interaction.followUp({
-        content,
-        ephemeral: true,
-      });
+      return await interaction.followUp(payload);
     }
 
-    return await interaction.reply({
-      content,
-      ephemeral: true,
-    });
+    return await interaction.reply(payload);
   } catch (error) {
+    const code = Number(error?.code || error?.rawError?.code || 0);
+    const message = String(error?.message || "");
+
+    if (
+      code === 10062 ||
+      code === 40060 ||
+      message.includes("Unknown interaction") ||
+      message.includes("Interaction has already been acknowledged")
+    ) {
+      console.warn("[FIGHT REPLY IGNORED]", message || "Unknown interaction");
+      return null;
+    }
+
     console.error("[FIGHT REPLY ERROR]", error);
     return null;
   }
@@ -810,17 +857,15 @@ module.exports = {
 
     collector.on("collect", async (interaction) => {
       if (interaction.user.id !== message.author.id) {
-        return interaction.reply({
-          content: "Only the command user can control this fight.",
-          ephemeral: true,
-        });
+        return safeEphemeralReply(interaction, "Only the command user can control this fight.");
       }
 
       if (battleEnded) {
         return safeEphemeralReply(interaction, "This fight has already ended.");
       }
 
-      await safeDeferUpdate(interaction);
+      const deferred = await safeDeferUpdate(interaction);
+      if (!deferred) return;
 
 if (interaction.customId === "fight_run") {
   confirmingRunAway = true;
