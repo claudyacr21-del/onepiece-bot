@@ -690,12 +690,53 @@ function mergeCardRecord(existing, next) {
   };
 }
 
+function getCardProgressScore(card) {
+  const stage = Number(card?.evolutionStage || 1);
+  const level = Number(card?.level || 1);
+  const exp = Number(card?.exp ?? card?.xp ?? 0);
+  const power = Number(card?.currentPower || card?.power || 0);
+  const prestige = Number(
+    card?.prestige ??
+      card?.raidPrestige ??
+      card?.bossPrestige ??
+      card?.arenaPrestige ??
+      0
+  );
+
+  return (
+    stage * 1_000_000_000_000 +
+    level * 1_000_000_000 +
+    prestige * 1_000_000 +
+    exp * 100 +
+    power
+  );
+}
+
+function getCardPrestigeValue(card) {
+  return Math.max(
+    Number(card?.prestige || 0),
+    Number(card?.raidPrestige || 0),
+    Number(card?.bossPrestige || 0),
+    Number(card?.arenaPrestige || 0)
+  );
+}
+
+function pickBetterProgressCard(existing, incoming) {
+  if (!existing) return incoming;
+  if (!incoming) return existing;
+
+  const existingScore = getCardProgressScore(existing);
+  const incomingScore = getCardProgressScore(incoming);
+
+  return incomingScore > existingScore ? incoming : existing;
+}
+
 function mergeCardCollections(existingCards, nextCards) {
   const map = new Map();
 
   for (const card of Array.isArray(existingCards) ? existingCards : []) {
     if (!card) continue;
-    map.set(getCardMergeKey(card), card);
+    map.set(getCardMergeKey(card), { ...card });
   }
 
   for (const card of Array.isArray(nextCards) ? nextCards : []) {
@@ -704,7 +745,98 @@ function mergeCardCollections(existingCards, nextCards) {
     const key = getCardMergeKey(card);
     const existing = map.get(key);
 
-    map.set(key, mergeCardRecord(existing, card));
+    if (!existing) {
+      map.set(key, { ...card });
+      continue;
+    }
+
+    const better = pickBetterProgressCard(existing, card);
+    const maxPrestige = Math.max(
+      getCardPrestigeValue(existing),
+      getCardPrestigeValue(card)
+    );
+
+    map.set(key, {
+      ...existing,
+      ...card,
+
+      // Prevent stale pull/pa snapshots from rolling back card progression.
+      evolutionStage: Math.max(
+        Number(existing.evolutionStage || 1),
+        Number(card.evolutionStage || 1)
+      ),
+      level: Math.max(Number(existing.level || 1), Number(card.level || 1)),
+
+      exp: Math.max(Number(existing.exp || 0), Number(card.exp || 0)),
+      xp: Math.max(Number(existing.xp || 0), Number(card.xp || 0)),
+
+      currentTier:
+        better.currentTier ||
+        better.rarity ||
+        existing.currentTier ||
+        card.currentTier,
+      rarity:
+        better.rarity ||
+        better.currentTier ||
+        existing.rarity ||
+        card.rarity,
+      evolutionKey:
+        better.evolutionKey ||
+        existing.evolutionKey ||
+        card.evolutionKey,
+
+      currentPower: Math.max(
+        Number(existing.currentPower || existing.power || 0),
+        Number(card.currentPower || card.power || 0)
+      ),
+      power: Math.max(
+        Number(existing.power || existing.currentPower || 0),
+        Number(card.power || card.currentPower || 0)
+      ),
+
+      atk: Math.max(Number(existing.atk || 0), Number(card.atk || 0)),
+      hp: Math.max(Number(existing.hp || 0), Number(card.hp || 0)),
+      speed: Math.max(Number(existing.speed || 0), Number(card.speed || 0)),
+
+      kills: Math.max(Number(existing.kills || 0), Number(card.kills || 0)),
+
+      // Prestige-safe fields.
+      prestige: Math.max(Number(existing.prestige || 0), Number(card.prestige || 0), maxPrestige),
+      raidPrestige: Math.max(
+        Number(existing.raidPrestige || 0),
+        Number(card.raidPrestige || 0),
+        maxPrestige
+      ),
+      bossPrestige: Math.max(
+        Number(existing.bossPrestige || 0),
+        Number(card.bossPrestige || 0)
+      ),
+      arenaPrestige: Math.max(
+        Number(existing.arenaPrestige || 0),
+        Number(card.arenaPrestige || 0)
+      ),
+
+      equippedWeapons:
+        Array.isArray(card.equippedWeapons) && card.equippedWeapons.length
+          ? card.equippedWeapons
+          : existing.equippedWeapons || [],
+      equippedWeapon: card.equippedWeapon || existing.equippedWeapon || null,
+      equippedWeaponName:
+        card.equippedWeaponName || existing.equippedWeaponName || null,
+      equippedWeaponCode:
+        card.equippedWeaponCode || existing.equippedWeaponCode || null,
+      equippedWeaponLevel: Math.max(
+        Number(existing.equippedWeaponLevel || 0),
+        Number(card.equippedWeaponLevel || 0)
+      ),
+
+      equippedDevilFruit:
+        card.equippedDevilFruit || existing.equippedDevilFruit || null,
+      equippedDevilFruitName:
+        card.equippedDevilFruitName || existing.equippedDevilFruitName || null,
+      equippedDevilFruitCode:
+        card.equippedDevilFruitCode || existing.equippedDevilFruitCode || null,
+    });
   }
 
   return [...map.values()];
