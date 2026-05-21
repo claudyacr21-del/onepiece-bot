@@ -381,7 +381,7 @@ function isLuffyRaidBoss(bossInfo) {
 function getEffectiveRaidMode(usedCommand, bossInfo, raidMode) {
   const command = String(usedCommand || "").toLowerCase();
 
-  if ((command === "raid" || command === "graid") && isLuffyRaidBoss(bossInfo)) {
+  if (command === "graid" && isLuffyRaidBoss(bossInfo)) {
     return {
       ...raidMode,
       allowed: new Set(["A"]),
@@ -390,6 +390,7 @@ function getEffectiveRaidMode(usedCommand, bossInfo, raidMode) {
       label: "Gold Raid Ticket",
       modeName: "Special Luffy Gold Raid",
       specialGoldRaidBoss: "luffy",
+      rewardTier: "S",
     };
   }
 
@@ -912,6 +913,14 @@ function buildBattleState(room, bossTemplate, raidMode = {}) {
     roomId: room.roomId,
     hostId: room.hostId,
     hostName: room.hostName,
+    raidMode: {
+      ticketCode: raidMode.ticketCode,
+      ticketName: raidMode.ticketName,
+      label: raidMode.label,
+      modeName: raidMode.modeName,
+      rewardTier: raidMode.rewardTier || null,
+      specialGoldRaidBoss: raidMode.specialGoldRaidBoss || null,
+    },
     members,
     boss: {
       ...deriveRaidBossStats(bossTemplate, raidMode),
@@ -1237,9 +1246,10 @@ function randomChance(percent) {
   return Math.random() * 100 < Number(percent || 0);
 }
 
-function getRaidRewardConfig(tier, boss = null) {
+function getRaidRewardConfig(tier, boss = null, raidMode = null) {
   const bossCode = String(boss?.code || boss?.bossCode || "").toLowerCase();
   const bossName = String(boss?.name || boss?.bossName || "").toLowerCase();
+  const rewardTier = String(raidMode?.rewardTier || tier || "C").toUpperCase();
 
   if (bossCode === "imu" || bossName.includes("imu")) {
     return {
@@ -1251,8 +1261,6 @@ function getRaidRewardConfig(tier, boss = null) {
     };
   }
 
-  const key = String(tier || "C").toUpperCase();
-
   const configs = {
     C: {
       berries: 5000,
@@ -1261,7 +1269,6 @@ function getRaidRewardConfig(tier, boss = null) {
       weaponChance: 30,
       fruitChance: 1,
     },
-
     B: {
       berries: 5000,
       gems: 10,
@@ -1269,7 +1276,6 @@ function getRaidRewardConfig(tier, boss = null) {
       weaponChance: 30,
       fruitChance: 1,
     },
-
     A: {
       berries: 10000,
       gems: 15,
@@ -1277,7 +1283,6 @@ function getRaidRewardConfig(tier, boss = null) {
       weaponChance: 30,
       fruitChance: 1,
     },
-
     S: {
       berries: 15000,
       gems: 20,
@@ -1287,7 +1292,7 @@ function getRaidRewardConfig(tier, boss = null) {
     },
   };
 
-  return configs[key] || configs.C;
+  return configs[rewardTier] || configs.C;
 }
 
 function findLinkedRaidItem(db, boss) {
@@ -1434,7 +1439,7 @@ function giveRaidWinRewards(state) {
     boss.rarity || boss.currentTier || boss.tier || "C"
   ).toUpperCase();
 
-  const config = getRaidRewardConfig(bossTier, boss);
+  const config = getRaidRewardConfig(bossTier, boss, state.raidMode);
   const linkedWeapon = findLinkedRaidItem(weaponsDb, boss);
   const linkedFruit = findLinkedRaidItem(devilFruitsDb, boss);
   const hostId = String(state.hostId || "");
@@ -1745,6 +1750,12 @@ module.exports = {
       return message.reply("Raid boss not found.");
     }
 
+    if (isLuffyRaidBoss(bossInfo) && usedCommand !== "graid") {
+      return message.reply(
+        "Luffy raid is a **Gold Raid special boss**.\nUse: `op graid luffy`"
+      );
+    }
+
     raidMode = getEffectiveRaidMode(usedCommand, bossInfo, raidMode);
 
     const resolvedBossCode = String(
@@ -1774,7 +1785,7 @@ module.exports = {
 
       if (usedCommand === "graid") {
         return message.reply(
-          "graid only supports S battle card raid bosses, except Luffy special raid."
+          "graid only supports S battle card raid bosses. Special exception: `op graid luffy`."
         );
       }
 
@@ -1782,7 +1793,7 @@ module.exports = {
         return message.reply("throne only supports Imu raid with Empty Throne Raid Writ.");
       }
 
-      return message.reply("raid only supports A battle card raid bosses.");
+      return message.reply("raid only supports A battle card raid bosses. Luffy must use `op graid luffy`.");
     }
 
     const ticketEntry = findTicketEntry(host.tickets, raidMode);
