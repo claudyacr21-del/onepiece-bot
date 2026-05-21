@@ -32,17 +32,29 @@ function isOwnerOrAdmin(message) {
 
 function createMaintenanceEmbed() {
   return new EmbedBuilder()
-    .setColor(0x2f6fed)
-    .setTitle("2.8.3 Patch Maintenance")
+    .setColor(0xd4af37)
+    .setAuthor({
+      name: "One Piece Bot Maintenance",
+    })
+    .setTitle("⚓ Grand Line Maintenance")
     .setDescription(
       [
-        "**Estimated Maintenance Window:** 6:15 A.M EST to 7:00 A.M EST",
+        "**The Thousand Sunny is currently docking for maintenance.**",
         "",
-        "In today's patch:",
-        "**KoIHelp:** Get detailed information on various systems wherever you see 🎴!",
-        "• Various tweaks, bug fixes, and missing info. See support server for more information!",
+        "The bot is temporarily unavailable while the crew fixes bugs, syncs data, and prepares new updates.",
+        "",
+        "```diff",
+        "- Commands are disabled for regular players during maintenance.",
+        "+ Bot owner can still use commands to test and finish the update.",
+        "```",
+        "**Status:** `Maintenance Active`",
+        "**Please try again later.**",
       ].join("\n")
-    );
+    )
+    .setFooter({
+      text: "One Piece Bot • Maintenance Mode",
+    })
+    .setTimestamp();
 }
 
 module.exports = {
