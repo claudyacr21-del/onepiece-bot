@@ -575,7 +575,7 @@ function savePullAllResultFresh(userId, payload, username = "Unknown") {
         weapons: mergeNamedInventory(existing.weapons, payload.weapons),
         devilFruits: mergeNamedInventory(existing.devilFruits, payload.devilFruits),
         fragments: mergeStackList(existing.fragments, payload.fragments),
-        tickets: mergeStackList(existing.tickets, payload.tickets),
+        tickets: Array.isArray(payload.tickets) ? payload.tickets : existing.tickets || [],
         berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
         pulls: payload.pulls,
         pity: payload.pity,
