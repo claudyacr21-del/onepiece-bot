@@ -331,6 +331,66 @@ client.on("warn", (info) => {
   console.warn("[CLIENT WARN]", info);
 });
 
+process.on("unhandledRejection", (error) => {
+  const code = Number(error?.code || error?.rawError?.code || 0);
+  const message = String(error?.message || "");
+
+  if (code === 10062 || code === 40060 || message.includes("Unknown interaction")) {
+    console.warn("[IGNORED INTERACTION ERROR]", message || error);
+    return;
+  }
+
+  console.error("[UNHANDLED REJECTION]", error);
+});
+
+process.on("uncaughtException", (error) => {
+  const code = Number(error?.code || error?.rawError?.code || 0);
+  const message = String(error?.message || "");
+
+  if (code === 10062 || code === 40060 || message.includes("Unknown interaction")) {
+    console.warn("[IGNORED INTERACTION EXCEPTION]", message || error);
+    return;
+  }
+
+  console.error("[UNCAUGHT EXCEPTION]", error);
+});
+
+function isIgnorableDiscordInteractionError(error) {
+  const code = Number(error?.code || error?.rawError?.code || 0);
+  const message = String(error?.message || "");
+
+  return (
+    code === 10062 ||
+    code === 40060 ||
+    message.includes("Unknown interaction") ||
+    message.includes("Interaction has already been acknowledged")
+  );
+}
+
+process.on("unhandledRejection", (error) => {
+  if (isIgnorableDiscordInteractionError(error)) {
+    console.warn(
+      "[IGNORED DISCORD INTERACTION ERROR]",
+      error?.message || error
+    );
+    return;
+  }
+
+  console.error("[UNHANDLED REJECTION]", error);
+});
+
+process.on("uncaughtException", (error) => {
+  if (isIgnorableDiscordInteractionError(error)) {
+    console.warn(
+      "[IGNORED DISCORD INTERACTION EXCEPTION]",
+      error?.message || error
+    );
+    return;
+  }
+
+  console.error("[UNCAUGHT EXCEPTION]", error);
+});
+
 initPlayerStore()
   .then(() => client.login(process.env.DISCORD_TOKEN))
   .catch((error) => {

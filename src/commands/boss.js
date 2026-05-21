@@ -3,6 +3,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 
 const {
@@ -107,22 +108,26 @@ async function safeEphemeralReply(interaction, content) {
   try {
     if (!interaction) return null;
 
+    const payload = {
+      content,
+      flags: MessageFlags.Ephemeral,
+    };
+
     if (interaction.deferred || interaction.replied) {
-      return await interaction.followUp({
-        content,
-        ephemeral: true,
-      });
+      return await interaction.followUp(payload);
     }
 
-    return await interaction.reply({
-      content,
-      ephemeral: true,
-    });
+    return await interaction.reply(payload);
   } catch (error) {
-    const code = error?.code;
+    const code = Number(error?.code || error?.rawError?.code || 0);
     const message = String(error?.message || "");
 
-    if (code !== 10062 && code !== 40060 && !message.includes("Unknown interaction")) {
+    if (
+      code !== 10062 &&
+      code !== 40060 &&
+      !message.includes("Unknown interaction") &&
+      !message.includes("Interaction has already been acknowledged")
+    ) {
       console.error("[BOSS REPLY ERROR]", error);
     }
 
@@ -144,7 +149,17 @@ async function safeInteractionUpdate(interaction, payload) {
 
     return await interaction.editReply(payload);
   } catch (error) {
-    console.error("[BOSS INTERACTION UPDATE ERROR]", error?.message || error);
+    const code = Number(error?.code || error?.rawError?.code || 0);
+    const message = String(error?.message || "");
+
+    if (
+      code !== 10062 &&
+      code !== 40060 &&
+      !message.includes("Unknown interaction") &&
+      !message.includes("Interaction has already been acknowledged")
+    ) {
+      console.error("[BOSS INTERACTION UPDATE ERROR]", error?.message || error);
+    }
 
     try {
       if (interaction?.message) {
@@ -1217,7 +1232,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
         await interaction.reply({
           embeds: [confirmEmbed],
           components: [confirmRow],
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
 
         const confirmReply = await interaction.fetchReply();

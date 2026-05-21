@@ -3,6 +3,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
+  MessageFlags,
 } = require("discord.js");
 
 const { getPlayer } = require("../playerStore");
@@ -46,6 +47,47 @@ const RARITY_EMOJIS = {
   SS: cleanEmoji(process.env.RARITY_EMOJI_SS, "SS"),
   UR: cleanEmoji(process.env.RARITY_EMOJI_UR, "UR"),
 };
+
+async function safeComponentReply(interaction, content) {
+  try {
+    if (!interaction || interaction.replied || interaction.deferred) return null;
+
+    return await interaction.reply({
+      content,
+      flags: MessageFlags.Ephemeral,
+    });
+  } catch (error) {
+    const code = Number(error?.code || error?.rawError?.code || 0);
+    const message = String(error?.message || "");
+
+    if (code !== 10062 && code !== 40060 && !message.includes("Unknown interaction")) {
+      console.error("[MC COMPONENT REPLY ERROR]", error);
+    }
+
+    return null;
+  }
+}
+
+async function safeComponentUpdate(interaction, payload) {
+  try {
+    if (!interaction || interaction.replied) return null;
+
+    if (interaction.deferred) {
+      return await interaction.editReply(payload);
+    }
+
+    return await interaction.update(payload);
+  } catch (error) {
+    const code = Number(error?.code || error?.rawError?.code || 0);
+    const message = String(error?.message || "");
+
+    if (code !== 10062 && code !== 40060 && !message.includes("Unknown interaction")) {
+      console.error("[MC COMPONENT UPDATE ERROR]", error);
+    }
+
+    return null;
+  }
+}
 
 function getRarityEmoji(rarity) {
   const tier = String(rarity || "C").toUpperCase();
@@ -860,10 +902,7 @@ module.exports = {
 
       collector.on("collect", async (i) => {
         if (i.user.id !== message.author.id) {
-          return i.reply({
-            content: "Only you can control this weapon viewer.",
-            ephemeral: true,
-          });
+          return safeComponentReply(i, "Only you can control this weapon viewer.");
         }
 
         if (i.customId === "mc_weapon_prev") index = Math.max(0, index - 1);
@@ -871,7 +910,7 @@ module.exports = {
           index = Math.min(weapons.length - 1, index + 1);
         }
 
-        return i.update({
+        return safeComponentUpdate(i, {
           embeds: [
             buildWeaponEmbed(
               message.author.username,
@@ -955,10 +994,7 @@ module.exports = {
 
       collector.on("collect", async (i) => {
         if (i.user.id !== message.author.id) {
-          return i.reply({
-            content: "Only you can control this text viewer.",
-            ephemeral: true,
-          });
+          return safeComponentReply(i, "Only you can control this text viewer.");
         }
 
         if (i.customId === "mc_text_prev") pageIndex = Math.max(0, pageIndex - 1);
@@ -966,7 +1002,7 @@ module.exports = {
           pageIndex = Math.min(totalPages - 1, pageIndex + 1);
         }
 
-        return i.update({
+        return safeComponentUpdate(i, {
           embeds: [
             buildTextPageEmbed(message.author.username, lines, pageIndex, pageSize),
           ],
@@ -1005,16 +1041,13 @@ module.exports = {
 
     collector.on("collect", async (i) => {
       if (i.user.id !== message.author.id) {
-        return i.reply({
-          content: "Only you can control this card viewer.",
-          ephemeral: true,
-        });
+        return safeComponentReply(i, "Only you can control this card viewer.");
       }
 
       if (i.customId === "mc_prev") index = Math.max(0, index - 1);
       if (i.customId === "mc_next") index = Math.min(working.length - 1, index + 1);
 
-      return i.update({
+      return safeComponentUpdate(i, {
         embeds: [
           buildViewerEmbed(
             message.author.username,

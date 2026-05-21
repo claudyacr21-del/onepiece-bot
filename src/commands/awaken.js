@@ -3,6 +3,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
@@ -14,6 +15,83 @@ const {
 } = require("../utils/evolution");
 const { getCardImage } = require("../config/assetLinks");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+
+function isIgnorableInteractionError(error) {
+  const code = Number(error?.code || error?.rawError?.code || 0);
+  const message = String(error?.message || "");
+
+  return (
+    code === 10062 ||
+    code === 40060 ||
+    message.includes("Unknown interaction") ||
+    message.includes("Interaction has already been acknowledged")
+  );
+}
+
+async function safeInteractionReply(interaction, payload = {}) {
+  try {
+    if (!interaction) return null;
+
+    const cleanPayload = {
+      ...payload,
+      flags: payload.flags || MessageFlags.Ephemeral,
+    };
+
+    delete cleanPayload.ephemeral;
+
+    if (interaction.replied || interaction.deferred) {
+      return await interaction.followUp(cleanPayload).catch(() => null);
+    }
+
+    return await interaction.reply(cleanPayload);
+  } catch (error) {
+    if (!isIgnorableInteractionError(error)) {
+      console.error("[AWAKEN INTERACTION REPLY ERROR]", error);
+    }
+
+    return null;
+  }
+}
+
+async function safeInteractionUpdate(interaction, payload = {}) {
+  try {
+    if (!interaction) return null;
+
+    if (!interaction.replied && !interaction.deferred) {
+      return await interaction.update(payload);
+    }
+
+    if (interaction.message) {
+      return await interaction.message.edit(payload);
+    }
+
+    return await interaction.editReply(payload);
+  } catch (error) {
+    if (!isIgnorableInteractionError(error)) {
+      console.error("[AWAKEN INTERACTION UPDATE ERROR]", error);
+    }
+
+    try {
+      if (interaction?.message) {
+        return await interaction.message.edit(payload);
+      }
+    } catch (editError) {
+      if (!isIgnorableInteractionError(editError)) {
+        console.error("[AWAKEN MESSAGE EDIT FALLBACK ERROR]", editError);
+      }
+    }
+
+    return null;
+  }
+}
+
+async function safeStopCollector(collector, reason) {
+  try {
+    if (collector && !collector.ended) {
+      collector.stop(reason);
+    }
+  } catch (_) {}
+}
 
 function cloneDeep(obj) {
   return JSON.parse(JSON.stringify(obj));
@@ -396,14 +474,13 @@ module.exports = {
 
     collector.on("collect", async (interaction) => {
       if (interaction.user.id !== message.author.id) {
-        return interaction.reply({
+        return safeInteractionReply(interaction, {
           content: "Only you can control this awaken action.",
-          ephemeral: true,
         });
       }
 
       if (interaction.customId === "awaken_cancel") {
-        await interaction.update({
+        await safeInteractionUpdate(interaction, {
           embeds: [
             new EmbedBuilder()
               .setColor(0x95a5a6)
@@ -413,8 +490,14 @@ module.exports = {
           components: [],
         });
 
-        collector.stop("cancel");
+        await safeStopCollector(collector, "cancel");
         return;
+      }
+
+      if (interaction.customId !== "awaken_yes") {
+        return safeInteractionReply(interaction, {
+          content: "Invalid awaken action.",
+        });
       }
 
       try {
@@ -426,25 +509,27 @@ module.exports = {
           (fresh) => {
             awakenResult = awakenOwnedCard(fresh, query);
 
-            return {
+            freshPlayerForDisplay = {
               ...fresh,
               cards: awakenResult.updatedCards,
               fragments: awakenResult.updatedFragments,
               berries: awakenResult.berries,
               gems: awakenResult.gems,
             };
+
+            return freshPlayerForDisplay;
           },
           message.author.username
         );
 
-        await interaction.update({
+        await safeInteractionUpdate(interaction, {
           embeds: [buildSuccessEmbed(awakenResult, freshPlayerForDisplay)],
           components: [],
         });
 
-        collector.stop("done");
+        await safeStopCollector(collector, "done");
       } catch (error) {
-        await interaction.update({
+        await safeInteractionUpdate(interaction, {
           embeds: [
             new EmbedBuilder()
               .setColor(0xe74c3c)
@@ -458,12 +543,12 @@ module.exports = {
                   "",
                   `Use \`op ci ${owned.displayName || owned.name || query}\` to check the full requirements.`,
                 ].join("\n")
-              )
+              ),
           ],
           components: [],
         });
 
-        collector.stop("fail");
+        await safeStopCollector(collector, "fail");
       }
     });
   },
