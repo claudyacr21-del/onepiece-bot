@@ -14,25 +14,25 @@ function buildEmbed(message, player) {
   const settings = getAutoSacSettings(player);
 
   const rarityLines = RARITIES.map((rarity) => {
-    const enabled = settings.rarities[rarity];
+    const enabled = Boolean(settings.rarities?.[rarity]);
     return `${enabled ? "🟢" : "🔴"} **${rarity}**`;
   }).join(" ");
 
   const cardText = settings.cards.length
     ? settings.cards.map((card) => card.name || card.code || "Unknown Card").join(", ")
-    : "Belum ada card khusus di autosac.";
+    : "No specific cards are currently set for auto-sacrifice.";
 
   const safeText = settings.safeCards.length
     ? settings.safeCards.map((card) => card.name || card.code || "Unknown Card").join(", ")
-    : "Belum ada card yang disafelisted.";
+    : "No cards are currently safelisted.";
 
   return new EmbedBuilder()
     .setColor(0x8e44ad)
     .setTitle("Fragment Auto-Sacrifice Settings")
     .setDescription(
       [
-        "Set rarity fragment/card yang ingin otomatis di-sacrifice jadi berries saat pull / pa.",
-        "Card di safelist tidak akan otomatis di-sacrifice walaupun rarity auto-sac aktif.",
+        "Set which fragment/card rarities should be automatically sacrificed into berries when using pull / pa.",
+        "Safelisted cards will never be auto-sacrificed, even if their rarity is enabled.",
         "",
         "**Rarity Auto-Sac**",
         rarityLines,
@@ -47,7 +47,8 @@ function buildEmbed(message, player) {
         "`op sac <card name> <amount/all>`",
         "`op sacadd <card name>`",
         "`op sacsafe <card name>`",
-        "`op msac (luffy_5, zoro_2, nami_6)`",
+        "`op msac <card_code, card_code, card_code>`",
+        "`Example: op msac luffy_5, zoro_2, nami_6`",
       ].join("\n")
     )
     .setThumbnail(message.author.displayAvatarURL({ extension: "png", size: 512 }))
@@ -92,7 +93,7 @@ module.exports = {
     collector.on("collect", async (interaction) => {
       if (interaction.user.id !== message.author.id) {
         return interaction.reply({
-          content: "Menu autosac ini bukan punya kamu.",
+          content: "This auto-sacrifice menu does not belong to you.",
           ephemeral: true,
         });
       }
@@ -113,7 +114,6 @@ module.exports = {
           message.author.id,
           (fresh) => {
             const freshSettings = getAutoSacSettings(fresh);
-
             freshSettings.rarities[rarity] = !Boolean(freshSettings.rarities[rarity]);
 
             updatedPlayer = {
@@ -122,14 +122,13 @@ module.exports = {
             };
 
             updatedSettings = freshSettings;
-
             return updatedPlayer;
           },
           message.author.username
         );
       } catch (error) {
         return interaction.reply({
-          content: error.message || "Failed to update autosac setting.",
+          content: error.message || "Failed to update auto-sacrifice settings.",
           ephemeral: true,
         });
       }
