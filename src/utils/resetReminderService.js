@@ -4,8 +4,29 @@ const { EmbedBuilder } = require("discord.js");
 const { readPlayers } = require("../playerStore");
 const { getNextResetTime } = require("./pullReset");
 
-const DATA_DIR = process.env.PLAYER_DATA_DIR || "/data";
-const STATE_FILE = path.join(DATA_DIR, "reset-reminders.json");
+const persistentDir =
+  process.env.PLAYER_DATA_DIR ||
+  path.join(__dirname, "..", "data");
+
+const fallbackDir = path.join(__dirname, "..", "data");
+
+function resolveStateFilePath() {
+  try {
+    fs.mkdirSync(persistentDir, { recursive: true });
+    return path.join(persistentDir, "reset-reminders.json");
+  } catch (error) {
+    console.warn(
+      "[RESET REMINDER] Could not use persistent data dir, falling back to local data dir.",
+      error?.message || error
+    );
+
+    fs.mkdirSync(fallbackDir, { recursive: true });
+    return path.join(fallbackDir, "reset-reminders.json");
+  }
+}
+
+const STATE_FILE = resolveStateFilePath();
+const DATA_DIR = path.dirname(STATE_FILE);
 
 const RESET_CHANNEL_ID = process.env.RESET_CHANNEL_ID || "";
 const RESET_PING_ROLE_ID = process.env.RESET_PING_ROLE_ID || "";

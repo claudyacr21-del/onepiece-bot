@@ -4,8 +4,7 @@ const { Pool } = require("pg");
 
 const persistentDir =
   process.env.PLAYER_DATA_DIR ||
-  process.env.RAILWAY_VOLUME_MOUNT_PATH ||
-  "/data";
+  path.join(__dirname, "data");
 
 const fallbackDir = path.join(__dirname, "data");
 const PULL_SLOT_SCHEMA_VERSION = 4;
