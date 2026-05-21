@@ -42,7 +42,7 @@ function createMaintenanceEmbed() {
         "**The Thousand Sunny is currently docking for maintenance.**",
         "",
         "```diff",
-        "- The bot is temporarily unavailable while the crew fixes bugs, syncs data, and prepares new updates.",
+        "+ The bot is temporarily unavailable while the crew fixes bugs, syncs data, and prepares new updates.",
         "```",
         "**Status:** `Maintenance Active`",
         "**Please try again later.**",
