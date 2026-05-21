@@ -25,8 +25,8 @@ function resolveStateFilePath() {
   }
 }
 
-const STATE_FILE = resolveStateFilePath();
-const DATA_DIR = path.dirname(STATE_FILE);
+const DATA_DIR = process.env.PLAYER_DATA_DIR || path.join(__dirname, "..", "data");
+const STATE_FILE = path.join(DATA_DIR, "reset-reminders.json");
 
 const RESET_CHANNEL_ID = process.env.RESET_CHANNEL_ID || "";
 const RESET_PING_ROLE_ID = process.env.RESET_PING_ROLE_ID || "";

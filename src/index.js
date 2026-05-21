@@ -43,6 +43,21 @@ const client = new Client({
 const PREFIX = String(process.env.PREFIX || "op").toLowerCase();
 const COMMAND_COOLDOWN_MS = 3000;
 const commandCooldowns = new Map();
+const processedMessageIds = new Set();
+
+function markMessageProcessing(messageId) {
+  const id = String(messageId || "");
+  if (!id) return false;
+  if (processedMessageIds.has(id)) return false;
+
+  processedMessageIds.add(id);
+
+  setTimeout(() => {
+    processedMessageIds.delete(id);
+  }, 60_000);
+
+  return true;
+}
 
 client.commands = new Collection();
 
@@ -265,6 +280,8 @@ client.once("clientReady", async () => {
 
 client.on("messageCreate", async (message) => {
   try {
+    if (!markMessageProcessing(message.id)) return;
+    
     if (message.partial) {
       try {
         await message.fetch();
