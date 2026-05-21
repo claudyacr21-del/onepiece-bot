@@ -355,6 +355,47 @@ function getRaidModeConfig(commandName) {
   };
 }
 
+function isLuffyRaidBoss(bossInfo) {
+  const code = String(
+    bossInfo?.bossCode ||
+      bossInfo?.template?.code ||
+      bossInfo?.template?.id ||
+      ""
+  ).toLowerCase();
+
+  const name = String(
+    bossInfo?.bossName ||
+      bossInfo?.template?.displayName ||
+      bossInfo?.template?.name ||
+      ""
+  ).toLowerCase();
+
+  return (
+    code === "luffy" ||
+    code === "monkey_d_luffy" ||
+    code.includes("luffy") ||
+    name.includes("luffy")
+  );
+}
+
+function getEffectiveRaidMode(usedCommand, bossInfo, raidMode) {
+  const command = String(usedCommand || "").toLowerCase();
+
+  if ((command === "raid" || command === "graid") && isLuffyRaidBoss(bossInfo)) {
+    return {
+      ...raidMode,
+      allowed: new Set(["A"]),
+      ticketCode: "gold_raid_ticket",
+      ticketName: "Gold Raid Ticket",
+      label: "Gold Raid Ticket",
+      modeName: "Special Luffy Gold Raid",
+      specialGoldRaidBoss: "luffy",
+    };
+  }
+
+  return raidMode;
+}
+
 function findTicketEntry(tickets = [], raidMode) {
   return (
     ensureArray(tickets).find((entry) => {
@@ -1683,7 +1724,7 @@ module.exports = {
       ? usedCommandRaw
       : "raid";
 
-    const raidMode = getRaidModeConfig(usedCommand);
+    let raidMode = getRaidModeConfig(usedCommand);
     const query = raidMode.fixedBossCode || args.join(" ").trim();
 
     if (!query) {
@@ -1700,10 +1741,11 @@ module.exports = {
     }
 
     const bossInfo = resolveRaidBoss(query);
-
     if (!bossInfo) {
       return message.reply("Raid boss not found.");
     }
+
+    raidMode = getEffectiveRaidMode(usedCommand, bossInfo, raidMode);
 
     const resolvedBossCode = String(
       bossInfo?.bossCode ||
@@ -1731,7 +1773,9 @@ module.exports = {
       }
 
       if (usedCommand === "graid") {
-        return message.reply("graid only supports S battle card raid bosses.");
+        return message.reply(
+          "graid only supports S battle card raid bosses, except Luffy special raid."
+        );
       }
 
       if (usedCommand === "throne") {
