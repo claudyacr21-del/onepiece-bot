@@ -374,6 +374,34 @@ function buildArenaVirtualLeaderboard(message) {
     }));
 }
 
+function getArenaRankFromLeaderboard(leaderboard, userId) {
+  const found = ensureArray(leaderboard).find(
+    (entry) => String(entry.userId) === String(userId)
+  );
+
+  return found?.rank || Math.min(ARENA_TOTAL_RANK_SLOTS, ensureArray(leaderboard).length + 1);
+}
+
+function buildOpponentPoolFromLeaderboard(leaderboard, message, player) {
+  const playerPoints = Number(player?.arena?.points || 0);
+
+  return ensureArray(leaderboard)
+    .filter((entry) => String(entry.userId) !== String(message.author.id))
+    .sort((a, b) => {
+      const diffA = Math.abs(Number(a.points || 0) - playerPoints);
+      const diffB = Math.abs(Number(b.points || 0) - playerPoints);
+
+      if (diffA !== diffB) return diffA - diffB;
+
+      if (Number(a.rank || 999) !== Number(b.rank || 999)) {
+        return Number(a.rank || 999) - Number(b.rank || 999);
+      }
+
+      return compareArenaEntries(a, b);
+    })
+    .slice(0, 25);
+}
+
 function getArenaRankForUser(message, userId) {
   const leaderboard = buildArenaVirtualLeaderboard(message);
   const found = leaderboard.find((entry) => String(entry.userId) === String(userId));
@@ -633,8 +661,13 @@ function applyArenaOpponentLoss(arena) {
     wins: Number(arena?.wins || 0),
     losses: Number(arena?.losses || 0),
     draws: Number(arena?.draws || 0),
+
+    // Important:
+    // Defensive losses must NOT reset winstreak.
+    // Streak only resets when the user actively attacks another player and loses.
     streak: Number(arena?.streak || 0),
     bestStreak: Number(arena?.bestStreak || 0),
+
     matches: Number(arena?.matches || 0),
     dailyDateKey: arena?.dailyDateKey || getDateKey(),
     dailyUses: Number(arena?.dailyUses || 0),
@@ -644,7 +677,6 @@ function applyArenaOpponentLoss(arena) {
   current.points = Math.max(0, current.points - 3);
   current.losses += 1;
   current.matches += 1;
-  current.streak = 0;
 
   return current;
 }
@@ -1325,13 +1357,22 @@ module.exports = {
       return message.reply(`You already used all **${ARENA_DAILY_LIMIT}/5** arena battles today.`);
     }
 
-    const playerArenaRank = getArenaRankForUser(message, message.author.id);
+    const leaderboardSnapshot = buildArenaVirtualLeaderboard(message);
+    const playerArenaRank = getArenaRankFromLeaderboard(
+      leaderboardSnapshot,
+      message.author.id
+    );
+
     const rankedPlayer = {
       ...player,
       arenaRank: playerArenaRank,
     };
 
-    const opponents = buildOpponentPool(message, rankedPlayer);
+    const opponents = buildOpponentPoolFromLeaderboard(
+      leaderboardSnapshot,
+      message,
+      rankedPlayer
+    );
 
     if (!opponents.length) {
       return message.reply("No arena opponent was found.");
@@ -1384,7 +1425,7 @@ module.exports = {
         message,
         player: {
           ...freshPlayer,
-          arenaRank: getArenaRankForUser(message, message.author.id),
+          arenaRank: playerArenaRank,
         },
         opponent,
         myTeam: getTeamUnits(freshPlayer, "player"),
