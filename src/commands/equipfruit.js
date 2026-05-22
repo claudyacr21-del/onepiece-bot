@@ -605,6 +605,42 @@ async function safeUpdateInteraction(interaction, payload) {
   }
 }
 
+function getFinalDisplayStats(card) {
+  const hydrated = hydrateCard(card) || card || {};
+
+  const atk = Number(
+    hydrated.finalAtk ??
+      hydrated.displayAtk ??
+      hydrated.combatAtk ??
+      hydrated.atk ??
+      0
+  );
+
+  const hp = Number(
+    hydrated.finalHp ??
+      hydrated.displayHp ??
+      hydrated.combatHp ??
+      hydrated.hp ??
+      0
+  );
+
+  const speed = Number(
+    hydrated.finalSpeed ??
+      hydrated.displaySpeed ??
+      hydrated.combatSpeed ??
+      hydrated.speed ??
+      0
+  );
+
+  return {
+    atk,
+    hp,
+    speed,
+    atkMin: Math.floor(atk * 0.85),
+    atkMax: Math.floor(atk * 1.15),
+  };
+}
+
 async function equipFruitToCard(message, player, card, fruit) {
   let syncedCard = null;
   let resolvedFruitData = null;
@@ -711,6 +747,7 @@ async function equipFruitToCard(message, player, card, fruit) {
 
   const isBoost = syncedCard.cardRole === "boost";
   const effectiveValue = isBoost ? getEffectiveBoostValue(syncedCard) : null;
+  const finalStats = getFinalDisplayStats(syncedCard);
 
   const suffix =
     isBoost && ["atk", "hp", "spd", "exp", "dmg"].includes(syncedCard.boostType)
@@ -732,13 +769,9 @@ async function equipFruitToCard(message, player, card, fruit) {
       [
         `**Card:** ${syncedCard.displayName || syncedCard.name}`,
         `**Fruit:** ${resolvedFruitData?.name || fruit.name}`,
-        !isBoost
-          ? `**ATK:** ${Math.floor(Number(syncedCard.atk || 0) * 0.85)}-${Math.floor(
-              Number(syncedCard.atk || 0) * 1.15
-            )}`
-          : null,
-        !isBoost ? `**HP:** ${Number(syncedCard.hp || 0)}` : null,
-        !isBoost ? `**SPD:** ${Number(syncedCard.speed || 0)}` : null,
+        !isBoost ? `**ATK:** ${finalStats.atkMin}-${finalStats.atkMax}` : null,
+        !isBoost ? `**HP:** ${finalStats.hp}` : null,
+        !isBoost ? `**SPD:** ${finalStats.speed}` : null,
         !isBoost
           ? `**Fruit Bonus:** +${Number(percent.atk || 0)}% ATK / +${Number(
               percent.hp || 0
