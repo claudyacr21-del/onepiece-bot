@@ -690,28 +690,28 @@ function deriveRaidBossStats(template, raidMode = {}) {
   const profile =
     {
       C: {
-        hp: 9000,
-        speed: 180,
-        atkMin: 180,
-        atkMax: 360,
+        hp: 11000,
+        speed: 380,
+        atkMin: 380,
+        atkMax: 560,
       },
       B: {
-        hp: 12500,
+        hp: 15000,
         speed: 240,
-        atkMin: 260,
-        atkMax: 520,
+        atkMin: 400,
+        atkMax: 700,
       },
       A: {
-        hp: 19500,
-        speed: 340,
-        atkMin: 480,
-        atkMax: 860,
+        hp: 21000,
+        speed: 400,
+        atkMin: 500,
+        atkMax: 1000,
       },
       S: {
-        hp: 25500,
-        speed: 460,
-        atkMin: 570,
-        atkMax: 1020,
+        hp: 26000,
+        speed: 660,
+        atkMin: 700,
+        atkMax: 1200,
       },
     }[tier] || {
       hp: 12500,
