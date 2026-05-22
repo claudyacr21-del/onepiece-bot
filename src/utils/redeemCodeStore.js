@@ -1,24 +1,78 @@
 const fs = require("fs");
 const path = require("path");
+const { Pool } = require("pg");
 
-const persistentDir = process.env.PLAYER_DATA_DIR || "/data";
-const fallbackDir = path.join(__dirname, "../data");
+const localDir = process.env.REDEEM_CODE_DATA_DIR || path.join(__dirname, "../data");
+const filePath = path.join(localDir, "redeemCodes.json");
 
-function resolveFilePath() {
+const USE_POSTGRES = Boolean(process.env.DATABASE_URL);
+let pool = null;
+let dbReady = false;
+let dbInitStarted = false;
+
+function getPool() {
+  if (!USE_POSTGRES) return null;
+
+  if (!pool) {
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: Number(process.env.REDEEM_CODE_DB_POOL_MAX || 2),
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    });
+
+    pool.on("error", (error) => {
+      console.error("[REDEEM CODE DB POOL ERROR]", error);
+    });
+  }
+
+  return pool;
+}
+
+async function ensureRedeemCodeTable() {
+  if (dbReady) return true;
+  if (dbInitStarted) return false;
+
+  const db = getPool();
+  if (!db) return false;
+
+  dbInitStarted = true;
+
   try {
-    fs.mkdirSync(persistentDir, { recursive: true });
-    return path.join(persistentDir, "redeemCodes.json");
+    await db.query(`
+      create table if not exists redeem_codes (
+        code text primary key,
+        data jsonb not null default '{}'::jsonb,
+        active boolean not null default true,
+        expires_at bigint not null default 0,
+        updated_at timestamptz not null default now()
+      );
+    `);
+
+    await db.query(`
+      create index if not exists redeem_codes_active_idx
+      on redeem_codes (active);
+    `);
+
+    await db.query(`
+      create index if not exists redeem_codes_updated_at_idx
+      on redeem_codes (updated_at);
+    `);
+
+    dbReady = true;
+    return true;
   } catch (error) {
-    fs.mkdirSync(fallbackDir, { recursive: true });
-    return path.join(fallbackDir, "redeemCodes.json");
+    console.error("[REDEEM CODE DB INIT ERROR]", error);
+    dbReady = false;
+    return false;
+  } finally {
+    dbInitStarted = false;
   }
 }
 
-const filePath = resolveFilePath();
-
 function ensureFile() {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(localDir, { recursive: true });
 
   if (!fs.existsSync(filePath)) {
     fs.writeFileSync(
@@ -35,7 +89,7 @@ function ensureFile() {
   }
 }
 
-function readRedeemCodes() {
+function readRedeemCodesFromFile() {
   ensureFile();
 
   try {
@@ -43,6 +97,7 @@ function readRedeemCodes() {
     if (!raw) return { codes: {} };
 
     const parsed = JSON.parse(raw);
+
     return {
       codes: parsed.codes && typeof parsed.codes === "object" ? parsed.codes : {},
     };
@@ -57,24 +112,179 @@ function readRedeemCodes() {
     }
 
     const fresh = { codes: {} };
-    writeRedeemCodes(fresh);
+    writeRedeemCodesToFile(fresh);
     return fresh;
   }
 }
 
-function writeRedeemCodes(data) {
+function writeRedeemCodesToFile(data) {
   ensureFile();
 
   const payload = {
     codes: data.codes && typeof data.codes === "object" ? data.codes : {},
   };
 
-  const tempPath = `${filePath}.tmp`;
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+
   fs.writeFileSync(tempPath, JSON.stringify(payload, null, 2), "utf8");
   fs.renameSync(tempPath, filePath);
+}
+
+async function readRedeemCodesFromDb() {
+  const db = getPool();
+
+  if (!db) return null;
+
+  if (!dbReady) {
+    await ensureRedeemCodeTable();
+  }
+
+  if (!dbReady) return null;
+
+  const result = await db.query("select code, data from redeem_codes order by updated_at asc");
+  const codes = {};
+
+  for (const row of result.rows || []) {
+    const entry = row.data && typeof row.data === "object" ? row.data : {};
+    const code = String(row.code || entry.code || "").toUpperCase();
+
+    if (!code) continue;
+
+    codes[code] = {
+      ...entry,
+      code,
+      active: entry.active !== false,
+      expiresAt: Number(entry.expiresAt || 0),
+      usedBy: Array.isArray(entry.usedBy) ? entry.usedBy : [],
+    };
+  }
+
+  return { codes };
+}
+
+async function writeRedeemCodesToDb(data) {
+  const db = getPool();
+
+  if (!db) return false;
+
+  if (!dbReady) {
+    await ensureRedeemCodeTable();
+  }
+
+  if (!dbReady) return false;
+
+  const payload = data && typeof data === "object" ? data : { codes: {} };
+  const codes = payload.codes && typeof payload.codes === "object" ? payload.codes : {};
+
+  const client = await db.connect();
+
+  try {
+    await client.query("begin");
+
+    for (const [rawCode, rawEntry] of Object.entries(codes)) {
+      const code = String(rawCode || rawEntry?.code || "").toUpperCase();
+      if (!code) continue;
+
+      const entry = {
+        ...rawEntry,
+        code,
+        active: rawEntry?.active !== false,
+        expiresAt: Number(rawEntry?.expiresAt || 0),
+        usedBy: Array.isArray(rawEntry?.usedBy) ? rawEntry.usedBy.map(String) : [],
+        updatedAt: Number(rawEntry?.updatedAt || Date.now()),
+      };
+
+      await client.query(
+        `
+        insert into redeem_codes (code, data, active, expires_at, updated_at)
+        values ($1, $2::jsonb, $3, $4, now())
+        on conflict (code)
+        do update set
+          data = excluded.data,
+          active = excluded.active,
+          expires_at = excluded.expires_at,
+          updated_at = now()
+        `,
+        [
+          code,
+          JSON.stringify(entry),
+          entry.active !== false,
+          Number(entry.expiresAt || 0),
+        ]
+      );
+    }
+
+    await client.query("commit");
+    return true;
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    console.error("[REDEEM CODE DB WRITE ERROR]", error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+function readRedeemCodes() {
+  if (!USE_POSTGRES) {
+    return readRedeemCodesFromFile();
+  }
+
+  /*
+    This command file is synchronous, so we keep a safe fallback.
+    DB migration/read can be handled by the async helpers below.
+  */
+  return readRedeemCodesFromFile();
+}
+
+function writeRedeemCodes(data) {
+  writeRedeemCodesToFile(data);
+
+  if (USE_POSTGRES) {
+    writeRedeemCodesToDb(data).catch((error) => {
+      console.error("[REDEEM CODE DB ASYNC WRITE ERROR]", error);
+    });
+  }
+}
+
+async function initRedeemCodeStore() {
+  if (!USE_POSTGRES) {
+    readRedeemCodesFromFile();
+    console.log("[REDEEM CODE STORE] File mode active.");
+    return;
+  }
+
+  try {
+    await ensureRedeemCodeTable();
+
+    const dbData = await readRedeemCodesFromDb();
+    const dbCount = Object.keys(dbData?.codes || {}).length;
+
+    if (dbCount > 0) {
+      writeRedeemCodesToFile(dbData);
+      console.log(`[REDEEM CODE STORE] Postgres mode active. Loaded ${dbCount} codes.`);
+      return;
+    }
+
+    const fileData = readRedeemCodesFromFile();
+    const fileCount = Object.keys(fileData?.codes || {}).length;
+
+    if (fileCount > 0) {
+      await writeRedeemCodesToDb(fileData);
+      console.log(`[REDEEM CODE STORE] Postgres mode active. Seeded ${fileCount} codes from file.`);
+      return;
+    }
+
+    console.log("[REDEEM CODE STORE] Postgres mode active. No codes found yet.");
+  } catch (error) {
+    console.error("[REDEEM CODE STORE] Failed to initialize Postgres mode. Using file fallback.", error);
+    readRedeemCodesFromFile();
+  }
 }
 
 module.exports = {
   readRedeemCodes,
   writeRedeemCodes,
+  initRedeemCodeStore,
+  filePath,
 };

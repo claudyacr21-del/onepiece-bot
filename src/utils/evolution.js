@@ -909,13 +909,56 @@ function findOwnedCardIndexForAwaken(cardsOwned, query) {
   return scored.length ? scored[0].index : -1;
 }
 
-function findOwnedRequirementCard(player, code) {
-  const q = normalize(code);
+function requirementCandidates(requirement) {
+  if (!requirement) return [];
 
-  return safeArray(player?.cards)
-    .map((card) => hydrateCard(mergeOwnedCardWithTemplate(card)))
-    .filter(Boolean)
-    .find((card) => normalize(card.code) === q) || null;
+  if (typeof requirement === "string") {
+    return [requirement];
+  }
+
+  return [
+    requirement.code,
+    requirement.name,
+    requirement.displayName,
+    requirement.cardName,
+    requirement.title,
+  ].filter(Boolean);
+}
+
+function doesRequirementMatchOwnedCard(ownedCard, requirement) {
+  const reqNames = requirementCandidates(requirement).map(normalize).filter(Boolean);
+
+  const ownedNames = [
+    ownedCard?.code,
+    ownedCard?.name,
+    ownedCard?.displayName,
+    ownedCard?.cardName,
+    ownedCard?.title,
+  ]
+    .map(normalize)
+    .filter(Boolean);
+
+  if (!reqNames.length || !ownedNames.length) return false;
+
+  return reqNames.some((reqName) =>
+    ownedNames.some((ownedName) => {
+      if (ownedName === reqName) return true;
+      if (ownedName.includes(reqName)) return true;
+      if (reqName.includes(ownedName)) return true;
+      return false;
+    })
+  );
+}
+
+function findOwnedRequirementCard(player, requirement) {
+  const cardsOwned = safeArray(player?.cards);
+
+  return (
+    cardsOwned
+      .map((card) => hydrateCard(mergeOwnedCardWithTemplate(card)))
+      .filter(Boolean)
+      .find((card) => doesRequirementMatchOwnedCard(card, requirement)) || null
+  );
 }
 
 function getDefaultAwakenGemsCost(targetCard) {
@@ -975,7 +1018,7 @@ function validateAwakenRequirement(player, targetCard, req) {
   }
 
   for (const entry of safeArray(req?.cards)) {
-    const owned = findOwnedRequirementCard(player, entry.code);
+    const owned = findOwnedRequirementCard(player, entry);
     const stageNeed = Number(entry.stage || 1);
 
     if (!owned) {
@@ -991,7 +1034,7 @@ function validateAwakenRequirement(player, targetCard, req) {
   }
 
   for (const entry of safeArray(req?.boosts)) {
-    const owned = findOwnedRequirementCard(player, entry.code);
+    const owned = findOwnedRequirementCard(player, entry);
     const stageNeed = Number(entry.stage || 1);
 
     if (!owned) {
