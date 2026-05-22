@@ -839,7 +839,9 @@ module.exports = {
     let sub1 = String(args?.[0] || "").toLowerCase();
     let query = args.join(" ").trim();
 
-    if (query && sub1 !== "text" && sub1 !== "boost" && sub1 !== "weapon") {
+    const allowedSubCommands = ["text", "boost", "weapon", "m1", "m2", "m3"];
+
+    if (query && !allowedSubCommands.includes(sub1)) {
       sub1 = "";
       query = "";
     }
@@ -936,7 +938,7 @@ module.exports = {
       return;
     }
 
-    if (query && sub1 !== "text" && sub1 !== "boost" && sub1 !== "weapon") {
+    if (query && !allowedSubCommands.includes(sub1)) {
       args.length = 0;
     }
 
@@ -953,17 +955,30 @@ module.exports = {
     } else if (sub1 === "text") {
       working = [...cards];
       title = "Card Collection";
+    } else if (["m1", "m2", "m3"].includes(sub1)) {
+      const targetStage = Number(sub1.replace("m", ""));
+
+      working = working.filter((card) => {
+        const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
+        return stage === targetStage;
+      });
+
+      title = `Mastery ${targetStage} Collection`;
     } else {
       working = working.filter((card) => card.cardRole !== "boost");
       title = "Card Collection";
     }
 
     if (!working.length) {
-      return message.reply(
-        sub1 === "boost"
-          ? "You do not own any boost cards yet."
-          : "You do not own any cards yet."
-      );
+      if (sub1 === "boost") {
+        return message.reply("You do not own any boost cards yet.");
+      }
+
+      if (["m1", "m2", "m3"].includes(sub1)) {
+        return message.reply(`You do not own any ${sub1.toUpperCase()} cards yet.`);
+      }
+
+      return message.reply("You do not own any cards yet.");
     }
 
     working.sort((a, b) => {
