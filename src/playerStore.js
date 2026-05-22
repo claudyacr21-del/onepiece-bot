@@ -828,6 +828,44 @@ function normalizeStory(story) {
   };
 }
 
+function normalizeRaidPrestigeBank(value) {
+  const raw = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const result = {};
+
+  for (const [rawCode, rawEntry] of Object.entries(raw)) {
+    const code = String(rawEntry?.code || rawCode || "")
+      .toLowerCase()
+      .trim();
+
+    if (!code) continue;
+
+    const prestige = Math.max(
+      0,
+      Math.min(
+        200,
+        Number(
+          rawEntry?.raidPrestige ??
+            rawEntry?.prestige ??
+            rawEntry?.amount ??
+            rawEntry ??
+            0
+        )
+      )
+    );
+
+    result[code] = {
+      ...(rawEntry && typeof rawEntry === "object" ? rawEntry : {}),
+      code,
+      name: rawEntry?.name || rawEntry?.displayName || code,
+      displayName: rawEntry?.displayName || rawEntry?.name || code,
+      raidPrestige: prestige,
+      updatedAt: Number(rawEntry?.updatedAt || 0),
+    };
+  }
+
+  return result;
+}
+
 function normalizeStorage(storage, storageLimit) {
   return {
     max: Number(storage?.max || storageLimit || 250),
@@ -879,6 +917,7 @@ function normalizePlayer(player = {}, username = "Unknown") {
     arena: normalizeArena(player.arena),
     ship: normalizeShip(player.ship, currentIsland),
     story: normalizeStory(player.story),
+    raidPrestigeBank: normalizeRaidPrestigeBank(player.raidPrestigeBank),
     storage: normalizeStorage(player.storage, player.storageLimit),
 
     clan: {
