@@ -10,6 +10,7 @@ const { hydrateCard } = require("../utils/evolution");
 const {
   getEffectiveBoostValue,
   findBoostFruitByCode,
+  getPassiveBoostSummary,
 } = require("../utils/passiveBoosts");
 
 let assetLinks = {};
@@ -631,6 +632,37 @@ function getFinalDisplayStats(card) {
       hydrated.speed ??
       0
   );
+
+  return {
+    atk,
+    hp,
+    speed,
+    atkMin: Math.floor(atk * 0.85),
+    atkMax: Math.floor(atk * 1.15),
+  };
+}
+
+function getBoostedDisplayStats(card, boosts = {}) {
+  const hydrated = hydrateCard(card) || card || {};
+
+  if (String(hydrated.cardRole || "").toLowerCase() === "boost") {
+    return hydrated;
+  }
+
+  return {
+    ...hydrated,
+    atk: Math.floor(Number(hydrated.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(Number(hydrated.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(Number(hydrated.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+  };
+}
+
+function getFinalDisplayStats(card, boosts = {}) {
+  const boosted = getBoostedDisplayStats(card, boosts);
+
+  const atk = Number(boosted.atk || 0);
+  const hp = Number(boosted.hp || 0);
+  const speed = Number(boosted.speed || 0);
 
   return {
     atk,
