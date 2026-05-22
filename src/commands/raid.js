@@ -1535,12 +1535,39 @@ function formatRaidWinRewardLines(state) {
   });
 }
 
+function isImuThroneRaid(state, boss) {
+  const raidMode = state?.raidMode || {};
+  const bossCode = String(boss?.code || boss?.bossCode || "").toLowerCase();
+  const bossName = String(boss?.name || boss?.bossName || "").toLowerCase();
+  const ticketCode = String(raidMode?.ticketCode || "").toLowerCase();
+  const fixedBossCode = String(raidMode?.fixedBossCode || "").toLowerCase();
+  const modeName = String(raidMode?.modeName || "").toLowerCase();
+
+  return (
+    bossCode === "imu" ||
+    bossName.includes("imu") ||
+    fixedBossCode === "imu" ||
+    ticketCode === "empty_throne_raid_writ" ||
+    modeName.includes("throne")
+  );
+}
+
+function normalizePrestigeBankCode(boss) {
+  const code = String(boss?.code || boss?.bossCode || "").toLowerCase().trim();
+  const name = String(boss?.name || boss?.bossName || "").toLowerCase().trim();
+
+  if (code === "imu" || name.includes("imu")) return "imu";
+  return code || name.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
 function addRaidPrestigeToWinnerCards(state) {
   const rewards = [];
   const boss = state.boss || {};
   const bossCode = String(boss.code || boss.bossCode || "").toLowerCase();
   const bossName = String(boss.name || boss.bossName || "").toLowerCase();
   const hostId = String(state.hostId || "");
+  const allowBankedPrestige = isImuThroneRaid(state, boss);
+  const bankCode = normalizePrestigeBankCode(boss);
 
   if (!hostId) {
     return [
@@ -1566,7 +1593,6 @@ function addRaidPrestigeToWinnerCards(state) {
     hostId,
     (fresh) => {
       const cards = ensureArray(fresh.cards).map((card) => ({ ...card }));
-
       const index = cards.findIndex((card) => {
         const cardCode = String(card.code || "").toLowerCase();
         const cardName = String(card.displayName || card.name || "").toLowerCase();
@@ -1577,27 +1603,88 @@ function addRaidPrestigeToWinnerCards(state) {
         );
       });
 
+      const bank = {
+        ...(fresh.raidPrestigeBank && typeof fresh.raidPrestigeBank === "object"
+          ? fresh.raidPrestigeBank
+          : {}),
+      };
+
+      const existingBank = bankCode ? bank[bankCode] || {} : {};
+      const bankPrestige = Math.max(
+        0,
+        Math.min(200, Number(existingBank?.raidPrestige || 0))
+      );
+
       if (index === -1) {
+        if (!allowBankedPrestige || !bankCode) {
+          prestigeReward = {
+            userId: hostId,
+            username: hostMember?.username || fresh.username || "Host",
+            cardName: boss.name || boss.bossName || "Raid Boss",
+            before: 0,
+            after: 0,
+            missing: true,
+            reason: "Host does not own the raid boss card.",
+          };
+
+          return fresh;
+        }
+
+        const before = bankPrestige;
+        const after = Math.min(200, before + 1);
+
+        bank[bankCode] = {
+          ...existingBank,
+          code: bankCode,
+          name: boss.name || boss.bossName || "Imu",
+          displayName: boss.name || boss.bossName || "Imu",
+          raidPrestige: after,
+          source: "throne",
+          updatedAt: Date.now(),
+        };
+
         prestigeReward = {
           userId: hostId,
           username: hostMember?.username || fresh.username || "Host",
-          cardName: boss.name || boss.bossName || "Raid Boss",
-          before: 0,
-          after: 0,
-          missing: true,
-          reason: "Host does not own the raid boss card.",
+          cardName: boss.name || boss.bossName || "Imu",
+          before,
+          after,
+          missing: false,
+          banked: true,
+          reason: "Throne / Imu prestige was banked because host does not own the card yet.",
         };
 
-        return fresh;
+        return {
+          ...fresh,
+          raidPrestigeBank: bank,
+        };
       }
 
-      const before = Math.max(
+      const ownedBefore = Math.max(
         0,
         Math.min(200, Number(cards[index].raidPrestige || 0))
       );
+
+      const before = allowBankedPrestige
+        ? Math.max(ownedBefore, bankPrestige)
+        : ownedBefore;
+
       const after = Math.min(200, before + 1);
 
       cards[index].raidPrestige = after;
+
+      if (allowBankedPrestige && bankCode) {
+        bank[bankCode] = {
+          ...existingBank,
+          code: bankCode,
+          name: cards[index].displayName || cards[index].name || boss.name || "Imu",
+          displayName:
+            cards[index].displayName || cards[index].name || boss.name || "Imu",
+          raidPrestige: after,
+          source: "throne",
+          updatedAt: Date.now(),
+        };
+      }
 
       prestigeReward = {
         userId: hostId,
@@ -1606,11 +1693,13 @@ function addRaidPrestigeToWinnerCards(state) {
         before,
         after,
         missing: false,
+        banked: false,
       };
 
       return {
         ...fresh,
         cards,
+        raidPrestigeBank: allowBankedPrestige ? bank : fresh.raidPrestigeBank,
       };
     },
     hostMember?.username || "Host"

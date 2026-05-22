@@ -43,20 +43,44 @@ const BOSS_GLOBAL_ATK_MULT = 1.25;
 const BOSS_GLOBAL_HP_MULT = 1.2;
 const BOSS_GLOBAL_SPD_MULT = 1.5;
 
+function isIgnorableDiscordInteractionError(error) {
+  const code = Number(error?.code || error?.rawError?.code || 0);
+  const status = Number(error?.status || error?.rawError?.status || 0);
+  const message = String(error?.message || "");
+  const errno = String(error?.errno || error?.cause?.errno || "");
+  const requestCode = String(error?.requestBody?.code || "");
+
+  return (
+    code === 10062 ||
+    code === 40060 ||
+    status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    errno === "ECONNRESET" ||
+    errno === "ETIMEDOUT" ||
+    errno === "EAI_AGAIN" ||
+    requestCode === "UND_ERR_SOCKET" ||
+    message.includes("Unknown interaction") ||
+    message.includes("Interaction has already been acknowledged") ||
+    message.includes("Service Unavailable") ||
+    message.includes("Bad Gateway") ||
+    message.includes("Gateway Timeout")
+  );
+}
+
 async function safeDeferUpdate(interaction) {
-  if (!interaction || interaction.deferred || interaction.replied) return true;
+  if (!interaction) return false;
+  if (interaction.deferred || interaction.replied) return true;
 
   try {
     await interaction.deferUpdate();
     return true;
   } catch (error) {
-    const code = error?.code;
-    const message = String(error?.message || "");
-
-    if (code !== 10062 && code !== 40060 && !message.includes("Unknown interaction")) {
+    if (!isIgnorableDiscordInteractionError(error)) {
       console.error("[BOSS DEFER UPDATE ERROR]", error);
     }
-
     return false;
   }
 }
@@ -66,7 +90,9 @@ async function safeEditInteractionMessage(interaction, payload) {
     if (!interaction?.message) return null;
     return await interaction.message.edit(payload);
   } catch (error) {
-    console.error("[BOSS MESSAGE EDIT ERROR]", error);
+    if (!isIgnorableDiscordInteractionError(error)) {
+      console.error("[BOSS MESSAGE EDIT ERROR]", error);
+    }
     return null;
   }
 }
@@ -85,10 +111,7 @@ async function safeUpdateInteraction(interaction, payload) {
 
     return null;
   } catch (error) {
-    const code = error?.code;
-    const message = String(error?.message || "");
-
-    if (code !== 10062 && code !== 40060 && !message.includes("Unknown interaction")) {
+    if (!isIgnorableDiscordInteractionError(error)) {
       console.error("[BOSS UPDATE ERROR]", error);
     }
 
@@ -97,7 +120,9 @@ async function safeUpdateInteraction(interaction, payload) {
         return await interaction.message.edit(payload);
       }
     } catch (editError) {
-      console.error("[BOSS UPDATE FALLBACK EDIT ERROR]", editError);
+      if (!isIgnorableDiscordInteractionError(editError)) {
+        console.error("[BOSS UPDATE FALLBACK EDIT ERROR]", editError);
+      }
     }
 
     return null;
@@ -119,18 +144,9 @@ async function safeEphemeralReply(interaction, content) {
 
     return await interaction.reply(payload);
   } catch (error) {
-    const code = Number(error?.code || error?.rawError?.code || 0);
-    const message = String(error?.message || "");
-
-    if (
-      code !== 10062 &&
-      code !== 40060 &&
-      !message.includes("Unknown interaction") &&
-      !message.includes("Interaction has already been acknowledged")
-    ) {
+    if (!isIgnorableDiscordInteractionError(error)) {
       console.error("[BOSS REPLY ERROR]", error);
     }
-
     return null;
   }
 }
@@ -149,15 +165,7 @@ async function safeInteractionUpdate(interaction, payload) {
 
     return await interaction.editReply(payload);
   } catch (error) {
-    const code = Number(error?.code || error?.rawError?.code || 0);
-    const message = String(error?.message || "");
-
-    if (
-      code !== 10062 &&
-      code !== 40060 &&
-      !message.includes("Unknown interaction") &&
-      !message.includes("Interaction has already been acknowledged")
-    ) {
+    if (!isIgnorableDiscordInteractionError(error)) {
       console.error("[BOSS INTERACTION UPDATE ERROR]", error?.message || error);
     }
 
@@ -165,7 +173,11 @@ async function safeInteractionUpdate(interaction, payload) {
       if (interaction?.message) {
         return await interaction.message.edit(payload);
       }
-    } catch (_) {}
+    } catch (editError) {
+      if (!isIgnorableDiscordInteractionError(editError)) {
+        console.error("[BOSS INTERACTION FALLBACK EDIT ERROR]", editError);
+      }
+    }
 
     return null;
   }
@@ -2114,7 +2126,8 @@ module.exports = {
           return;
         }
 
-        await safeDeferUpdate(interaction);
+        const deferred = await safeDeferUpdate(interaction);
+        if (!deferred) return;
 
         if (interaction.customId === "boss_raid_run") {
           logs.length = 0;
@@ -2557,7 +2570,8 @@ module.exports = {
         return;
       }
 
-      await safeDeferUpdate(interaction);
+      const deferred = await safeDeferUpdate(interaction);
+      if (!deferred) return;
 
       if (interaction.customId === "boss_run") {
         logs.length = 0;
