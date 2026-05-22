@@ -1,7 +1,7 @@
 const { getFragmentStorageBonus } = require("./passiveBoosts");
 
 const BASE_FRAGMENT_STORAGE = 200;
-const MAX_FRAGMENT_STORAGE = 500;
+const MAX_FRAGMENT_STORAGE = 5000;
 
 const SAC_BERRY_VALUE = {
   C: 500,
