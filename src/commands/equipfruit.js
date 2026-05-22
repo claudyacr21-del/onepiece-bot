@@ -606,42 +606,6 @@ async function safeUpdateInteraction(interaction, payload) {
   }
 }
 
-function getFinalDisplayStats(card) {
-  const hydrated = hydrateCard(card) || card || {};
-
-  const atk = Number(
-    hydrated.finalAtk ??
-      hydrated.displayAtk ??
-      hydrated.combatAtk ??
-      hydrated.atk ??
-      0
-  );
-
-  const hp = Number(
-    hydrated.finalHp ??
-      hydrated.displayHp ??
-      hydrated.combatHp ??
-      hydrated.hp ??
-      0
-  );
-
-  const speed = Number(
-    hydrated.finalSpeed ??
-      hydrated.displaySpeed ??
-      hydrated.combatSpeed ??
-      hydrated.speed ??
-      0
-  );
-
-  return {
-    atk,
-    hp,
-    speed,
-    atkMin: Math.floor(atk * 0.85),
-    atkMax: Math.floor(atk * 1.15),
-  };
-}
-
 function getBoostedDisplayStats(card, boosts = {}) {
   const hydrated = hydrateCard(card) || card || {};
 
@@ -777,9 +741,12 @@ async function equipFruitToCard(message, player, card, fruit) {
     getFruitImage(fruit) ||
     "";
 
+  const latestPlayer = getPlayer(message.author.id, message.author.username);
+  const accountBoosts = getPassiveBoostSummary(latestPlayer);
+
   const isBoost = syncedCard.cardRole === "boost";
   const effectiveValue = isBoost ? getEffectiveBoostValue(syncedCard) : null;
-  const finalStats = getFinalDisplayStats(syncedCard);
+  const finalStats = getFinalDisplayStats(syncedCard, accountBoosts);
 
   const suffix =
     isBoost && ["atk", "hp", "spd", "exp", "dmg"].includes(syncedCard.boostType)
