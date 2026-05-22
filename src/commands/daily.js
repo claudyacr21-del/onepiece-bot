@@ -38,7 +38,21 @@ function randomPick(items) {
 
 function addReward(rewards, reward) {
   if (!reward || !reward.name || !reward.code) return;
-  rewards.push(reward);
+
+  const index = rewards.findIndex((entry) => entry.code === reward.code);
+
+  if (index !== -1) {
+    rewards[index] = {
+      ...rewards[index],
+      amount: Number(rewards[index].amount || 1) + Number(reward.amount || 1),
+    };
+    return;
+  }
+
+  rewards.push({
+    ...reward,
+    amount: Number(reward.amount || 1),
+  });
 }
 
 function makeReward(item, amount = 1) {
@@ -55,7 +69,6 @@ function formatRemaining(ms) {
 
   if (hours > 0) return `${hours}h ${minutes}m`;
   if (minutes > 0) return `${minutes}m`;
-
   return "Now";
 }
 
@@ -67,6 +80,13 @@ function getGlobalDailyReadyAt(player) {
   return Math.max(cooldownReadyAt, legacyReadyAt);
 }
 
+function getShipMaterialPool(amount) {
+  return [
+    makeReward(ITEMS.hardwood, amount),
+    makeReward(ITEMS.sailCloth, amount),
+  ];
+}
+
 function getDailyTierRewards(dailyTier) {
   const tier = Math.max(0, Math.floor(Number(dailyTier || 0)));
   const milestone = Math.floor(tier / 5);
@@ -74,7 +94,6 @@ function getDailyTierRewards(dailyTier) {
 
   const berries = 5000 + tier * 3000 + milestone * 5000;
   const gems = 20 + tier * 10 + milestone * 10;
-
   const rewards = [];
 
   if (tier <= 0) {
@@ -87,6 +106,7 @@ function getDailyTierRewards(dailyTier) {
 
   const boxAmount = 1 + Math.floor(tier / 10);
   const materialAmount = 2 + tier;
+  const shipMaterialAmount = Math.max(1, Math.floor(1 + tier / 3));
   const rumAmount = 2 + Math.floor(tier / 2);
   const ticketAmount = 1 + Math.floor(tier / 15);
 
@@ -98,6 +118,7 @@ function getDailyTierRewards(dailyTier) {
           makeReward(ITEMS.basicResourceBox, 1),
           makeReward(ITEMS.woodenMaterialBox, 1),
           makeReward(ITEMS.rumBeer, 2),
+          ...getShipMaterialPool(1),
         ])
       );
     }
@@ -117,6 +138,7 @@ function getDailyTierRewards(dailyTier) {
         makeReward(ITEMS.woodenMaterialBox, 1),
         makeReward(ITEMS.rareResourceBox, 1),
         makeReward(ITEMS.rumBeer, rumAmount),
+        ...getShipMaterialPool(shipMaterialAmount),
       ])
     );
 
@@ -135,6 +157,7 @@ function getDailyTierRewards(dailyTier) {
         makeReward(ITEMS.eliteResourceBox, 1),
         makeReward(ITEMS.pullResetTicket, 1),
         makeReward(ITEMS.enhancementStone, materialAmount),
+        ...getShipMaterialPool(shipMaterialAmount),
       ])
     );
 
@@ -145,6 +168,7 @@ function getDailyTierRewards(dailyTier) {
           makeReward(ITEMS.basicResourceBox, 1),
           makeReward(ITEMS.woodenMaterialBox, 1),
           makeReward(ITEMS.rumBeer, rumAmount),
+          ...getShipMaterialPool(shipMaterialAmount),
         ])
       );
     }
@@ -163,6 +187,7 @@ function getDailyTierRewards(dailyTier) {
       makeReward(ITEMS.rareResourceBox, boxAmount),
       makeReward(ITEMS.pullResetTicket, ticketAmount),
       makeReward(ITEMS.enhancementStone, materialAmount),
+      ...getShipMaterialPool(shipMaterialAmount),
     ])
   );
 
@@ -173,6 +198,7 @@ function getDailyTierRewards(dailyTier) {
       makeReward(ITEMS.rumBeer, rumAmount),
       makeReward(ITEMS.enhancementStone, materialAmount),
       makeReward(ITEMS.basicResourceBox, boxAmount),
+      ...getShipMaterialPool(shipMaterialAmount),
     ])
   );
 
@@ -183,6 +209,7 @@ function getDailyTierRewards(dailyTier) {
         makeReward(ITEMS.legendResourceBox, 1),
         makeReward(ITEMS.eliteResourceBox, boxAmount),
         makeReward(ITEMS.pullResetTicket, ticketAmount),
+        ...getShipMaterialPool(shipMaterialAmount + milestone),
       ])
     );
   }
@@ -194,6 +221,7 @@ function getDailyTierRewards(dailyTier) {
         makeReward(ITEMS.legendResourceBox, 1 + highMilestone),
         makeReward(ITEMS.pullResetTicket, ticketAmount + highMilestone),
         makeReward(ITEMS.enhancementStone, materialAmount + tier),
+        ...getShipMaterialPool(shipMaterialAmount + highMilestone),
       ])
     );
   }
@@ -205,6 +233,7 @@ function getDailyTierRewards(dailyTier) {
         makeReward(ITEMS.legendResourceBox, 1 + highMilestone),
         makeReward(ITEMS.eliteResourceBox, boxAmount + highMilestone),
         makeReward(ITEMS.rumBeer, rumAmount + tier),
+        ...getShipMaterialPool(shipMaterialAmount + highMilestone),
       ])
     );
   }
