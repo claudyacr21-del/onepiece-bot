@@ -1083,10 +1083,6 @@ function getUnitActionKey(unit) {
   ].join(":");
 }
 
-function getAliveActionKeys(units) {
-  return getAliveUnits(units).map((unit) => getUnitActionKey(unit));
-}
-
 function getLastUsedKeySet(lastUsedUnitKey = "") {
   const key = String(lastUsedUnitKey || "");
   return key ? new Set([key]) : new Set();
@@ -1108,35 +1104,6 @@ function shouldDisableLastUsed(units, lastUsedUnitKey, unit) {
 
   // Kalau tinggal 1 card hidup, jangan softlock.
   return aliveOtherUnits.length > 0;
-}
-
-function normalizeBossActionCycle(units, usedThisCycle = []) {
-  const aliveKeys = getAliveActionKeys(units);
-  if (!aliveKeys.length) return [];
-
-  const aliveSet = new Set(aliveKeys);
-  const nextUsed = [
-    ...new Set(
-      (Array.isArray(usedThisCycle) ? usedThisCycle : [])
-        .map((key) => String(key || ""))
-        .filter((key) => aliveSet.has(key))
-    ),
-  ];
-
-  if (nextUsed.length >= aliveKeys.length) {
-    return [];
-  }
-
-  return nextUsed;
-}
-
-function isUnitOnActionCooldown(units, usedThisCycle = [], unit) {
-  const usedSet = getUsedActionKeySet(normalizeBossActionCycle(units, usedThisCycle));
-  return usedSet.has(getUnitActionKey(unit));
-}
-
-function shouldDisableLastUsed(units, usedThisCycle, unit) {
-  return isUnitOnActionCooldown(units, usedThisCycle, unit);
 }
 
 async function waitForBossJoinLobby(message, island, phaseBoss) {
@@ -2243,7 +2210,7 @@ module.exports = {
       const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
       const logs = [];
       let ended = false;
-      let usedThisCycle = [];
+      let lastUsedUnitKey = "";
       const allUnits = participants.flatMap((participant) => participant.units);
 
       const reply = await message.reply({
