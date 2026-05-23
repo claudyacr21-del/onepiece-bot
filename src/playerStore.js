@@ -180,13 +180,13 @@ async function updateOnePlayerInPostgresAtomic(userId, username, mutator) {
 
     await client.query("commit");
 
-    const players = readPlayers();
-    players[id] = nextPlayer;
+    // DB save completed. Do not overwrite playersCache here.
+    // The command path already updated cache immediately; a delayed DB commit
+    // must not rollback newer in-memory command results.
     setPersistedCache({
       ...(persistedCache || {}),
       [id]: nextPlayer,
     });
-    writePlayersLocalBackupOnly(players);
 
     return nextPlayer;
   } catch (error) {
@@ -270,15 +270,14 @@ async function updateTwoPlayersInPostgresAtomic(
 
     await client.query("commit");
 
-    const players = readPlayers();
-    players[idA] = nextA;
-    players[idB] = nextB;
+    // DB save completed. Do not overwrite playersCache here.
+    // The command path already updated cache immediately; a delayed DB commit
+    // must not rollback newer in-memory command results.
     setPersistedCache({
       ...(persistedCache || {}),
       [idA]: nextA,
       [idB]: nextB,
     });
-    writePlayersLocalBackupOnly(players);
 
     return {
       playerA: nextA,
@@ -420,13 +419,16 @@ function writePlayersLocalBackupOnly(data) {
 function writePlayers(data) {
   const safeData = data && typeof data === "object" ? data : {};
 
-  writePlayersLocalBackupOnly(safeData);
+  setPlayersCache(safeData);
 
   if (USE_POSTGRES && dbReady) {
     flushChangedPlayersToPostgres(safeData).catch((error) => {
       console.error("[PLAYER DB CHANGED FLUSH ERROR]", error);
     });
+    return;
   }
+
+  writePlayersLocalBackupOnly(safeData);
 }
 
 async function initPlayerStore() {
@@ -1297,7 +1299,16 @@ function getPlayer(userId, username) {
 
   if (!players[id]) {
     players[id] = getDefaultPlayer(username);
-    writePlayers(players);
+    setPlayersCache(players);
+
+    if (USE_POSTGRES && dbReady) {
+      upsertOnePlayerToPostgres(id, players[id]).catch((error) => {
+        console.error("[PLAYER DB CREATE ASYNC ERROR]", error);
+      });
+    } else {
+      writePlayersLocalBackupOnly(players);
+    }
+
     return players[id];
   }
 
@@ -1317,17 +1328,6 @@ function updatePlayer(userId, newData) {
 
 function updatePlayerAtomic(userId, mutator, username = "Unknown") {
   if (USE_POSTGRES && dbReady) {
-    const updatedFromDb = null;
-
-    /*
-      This synchronous command structure cannot await everywhere.
-      To prevent rollback, we still update local cache immediately,
-      then trigger a DB-row atomic update using latest DB row.
-    */
-    updateOnePlayerInPostgresAtomic(userId, username, mutator).catch((error) => {
-      console.error("[PLAYER DB ATOMIC UPDATE ASYNC ERROR]", error);
-    });
-
     const players = readPlayers();
     const id = String(userId);
     const currentPlayer = players[id]
@@ -1339,7 +1339,18 @@ function updatePlayerAtomic(userId, mutator, username = "Unknown") {
 
     const nextPlayer = normalizePlayer(result || currentPlayer, currentPlayer.username || username);
     players[id] = nextPlayer;
-    writePlayersLocalBackupOnly(players);
+    setPlayersCache(players);
+
+    /*
+      Keep commands fast and synced in this bot process:
+      - update local cache immediately
+      - save to Postgres in the background
+      - never write the full players.json backup on every Render command
+      - never let a delayed DB save rollback the local cache
+    */
+    updateOnePlayerInPostgresAtomic(userId, nextPlayer.username || username, mutator).catch((error) => {
+      console.error("[PLAYER DB ATOMIC UPDATE ASYNC ERROR]", error);
+    });
 
     return nextPlayer;
   }
@@ -1361,16 +1372,6 @@ function updatePlayerAtomic(userId, mutator, username = "Unknown") {
 
 function updateTwoPlayersAtomic(userIdA, userIdB, mutator, usernameA = "Unknown", usernameB = "Unknown") {
   if (USE_POSTGRES && dbReady) {
-    updateTwoPlayersInPostgresAtomic(
-      userIdA,
-      userIdB,
-      usernameA,
-      usernameB,
-      mutator
-    ).catch((error) => {
-      console.error("[PLAYER DB ATOMIC TWO UPDATE ASYNC ERROR]", error);
-    });
-
     const players = readPlayers();
     const idA = String(userIdA);
     const idB = String(userIdB);
@@ -1393,7 +1394,17 @@ function updateTwoPlayersAtomic(userIdA, userIdB, mutator, usernameA = "Unknown"
 
     players[idA] = nextA;
     players[idB] = nextB;
-    writePlayersLocalBackupOnly(players);
+    setPlayersCache(players);
+
+    updateTwoPlayersInPostgresAtomic(
+      userIdA,
+      userIdB,
+      usernameA,
+      usernameB,
+      mutator
+    ).catch((error) => {
+      console.error("[PLAYER DB ATOMIC TWO UPDATE ASYNC ERROR]", error);
+    });
 
     return {
       playerA: nextA,

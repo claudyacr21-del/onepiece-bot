@@ -1045,28 +1045,28 @@ function buildBossJoinEmbed(
       })
     : [...joinedIds].map((id, index) => `**${index + 1}.** <@${id}>`);
 
-  return new EmbedBuilder()
-    .setColor(joinedCount >= BOSS_PHASE_JOIN_MIN ? 0x2ecc71 : 0xf1c40f)
-    .setTitle(`🏴‍☠️ ${island.name} ${phaseLabel} Raid Party Room`)
-    .setDescription(
-      [
-        `**Host:** <@${hostId}>`,
-        `**Players:** ${joinedCount}/${BOSS_PHASE_JOIN_MAX}`,
-        `**Required:** ${BOSS_PHASE_JOIN_MIN}-${BOSS_PHASE_JOIN_MAX} players`,
-        `**Party Cards:** ${totalCards}/${BOSS_PHASE_JOIN_MAX * 3}`,
-        "",
-        "**Joined Party:**",
-        participantLines.length ? participantLines.join("\n\n") : "No one has joined yet.",
-        "",
-        statusText ||
-          "Users who press **Join** will enter with their current full 3-card team.",
-      ].join("\n")
-    )
-    .setFooter({
+    const lobbyEmbed = new EmbedBuilder()
+      .setColor(joinedCount >= BOSS_PHASE_JOIN_MIN ? 0x2ecc71 : 0xf1c40f)
+      .setTitle(`🏴‍☠️ ${island.name} ${phaseLabel} Raid Party Room`)
+      .setDescription(
+        [
+          `**Host:** <@${hostId}>`,
+          `**Players:** ${joinedCount}/${BOSS_PHASE_JOIN_MAX}`,
+          `**Required:** ${BOSS_PHASE_JOIN_MIN}-${BOSS_PHASE_JOIN_MAX} players`,
+          `**Party Cards:** ${totalCards}/${BOSS_PHASE_JOIN_MAX * 3}`,
+          "",
+          "**Joined Party:**",
+          participantLines.length ? participantLines.join("\n\n") : "No one has joined yet.",
+          "",
+          statusText ||
+            "Users who press **Join** will enter with their current full 3-card team.",
+        ].join("\n")
+      )
+      .setFooter({
         text: "One Piece Bot • Boss Phase 2 Party Room",
       });
 
-  return applySafeEmbedImage(lobbyEmbed, getBossLobbyImage(island, phaseBoss));
+    return applySafeEmbedImage(lobbyEmbed, getBossLobbyImage(island, phaseBoss));
 }
 
 function buildBossJoinButtons(joinedCount = 0) {
@@ -1531,7 +1531,7 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
   const recentLogs = logs.slice(-BOSS_MAX_LOG_LINES);
   const phaseLabel = phaseBoss ? ` Phase ${phaseBoss.phase}` : "";
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(ended ? 0x2ecc71 : 0xe74c3c)
     .setTitle(`${playerName}'s ${island.name}${phaseLabel} Boss Battle`)
     .setDescription(
@@ -1554,6 +1554,8 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
     .setFooter({
       text: "One Piece Bot • Island Boss",
     });
+
+  return applySafeEmbedImage(embed, boss.image);
 }
 
 function buildBossResultEmbed({
