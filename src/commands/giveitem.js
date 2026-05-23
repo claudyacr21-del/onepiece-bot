@@ -51,6 +51,7 @@ function normalizeCode(value) {
     .toLowerCase()
     .replace(/[<@!>]/g, "")
     .replace(/^model:\s*/i, "")
+    .replace(/\s+fragment$/i, "")
     .replace(/[^a-z0-9\s_-]+/g, "")
     .replace(/[\s-]+/g, "_")
     .replace(/_+/g, "_")
@@ -142,10 +143,6 @@ function addSearchKey(keys, value) {
   keys.push(raw);
   keys.push(normalize(raw));
   keys.push(normalizeCompact(raw));
-}
-
-function getDisplayName(entry) {
-  return entry?.displayName || entry?.name || "";
 }
 
 /*
@@ -285,9 +282,18 @@ function findCatalogEntry(bucket, query) {
   return ranked[0]?.entry || null;
 }
 
+function cleanFragmentBaseName(name) {
+  return String(name || "Unknown")
+    .replace(/\s+fragment$/i, "")
+    .trim();
+}
+
 function buildCardFragmentEntry(catalogEntry, amount) {
+  const baseName = catalogEntry.displayName || catalogEntry.name || catalogEntry.code || "Unknown";
+
   return {
-    name: catalogEntry.displayName || catalogEntry.name || catalogEntry.code,
+    name: baseName,
+    displayName: baseName,
     amount,
     rarity: catalogEntry.baseTier || catalogEntry.rarity || "C",
     category: catalogEntry.cardRole === "boost" ? "boost" : "battle",
@@ -299,20 +305,25 @@ function buildCardFragmentEntry(catalogEntry, amount) {
 }
 
 function buildWeaponFragmentEntry(catalogEntry, amount) {
+  const rawName = catalogEntry.displayName || catalogEntry.name || catalogEntry.code || "Unknown Weapon";
+  const baseName = cleanFragmentBaseName(rawName);
+  const weaponCode = catalogEntry.code || normalizeCode(baseName);
+
   return {
-    name: catalogEntry.displayName || catalogEntry.name || catalogEntry.code,
+    name: `${baseName} Fragment`,
+    displayName: `${baseName} Fragment`,
     amount,
-    rarity: catalogEntry.rarity || "C",
+    rarity: catalogEntry.rarity || catalogEntry.baseTier || "C",
     category: "weapon",
-    code: catalogEntry.code,
-    weaponCode: catalogEntry.code,
-    sourceCode: catalogEntry.code,
+    code: `weapon_fragment_${weaponCode}`,
+    weaponCode,
+    sourceCode: weaponCode,
     image: catalogEntry.image || "",
   };
 }
 
 function buildFragmentEntry(catalogEntry, amount) {
-  if (catalogEntry.fragmentSource === "weapon") {
+  if (String(catalogEntry.fragmentSource || "").toLowerCase() === "weapon") {
     return buildWeaponFragmentEntry(catalogEntry, amount);
   }
 
@@ -326,6 +337,7 @@ function buildStoredEntry(bucket, catalogEntry, amount) {
 
   const base = {
     name: catalogEntry.name || catalogEntry.displayName || catalogEntry.code,
+    displayName: catalogEntry.displayName || catalogEntry.name || catalogEntry.code,
     amount,
   };
 
@@ -378,7 +390,32 @@ function buildStoredEntry(bucket, catalogEntry, amount) {
   return base;
 }
 
+function isSameWeaponFragment(a, b) {
+  const aWeaponCode = normalizeCode(a?.weaponCode || a?.sourceCode || a?.code || a?.name);
+  const bWeaponCode = normalizeCode(b?.weaponCode || b?.sourceCode || b?.code || b?.name);
+
+  if (aWeaponCode && bWeaponCode) {
+    const cleanA = aWeaponCode.replace(/^weapon_fragment_/, "");
+    const cleanB = bWeaponCode.replace(/^weapon_fragment_/, "");
+    return cleanA === cleanB;
+  }
+
+  return false;
+}
+
 function sameEntry(a, b) {
+  const aCategory = String(a?.category || "").toLowerCase();
+  const bCategory = String(b?.category || "").toLowerCase();
+
+  if (aCategory === "weapon" || bCategory === "weapon") {
+    if (isSameWeaponFragment(a, b)) return true;
+
+    const aName = cleanFragmentBaseName(a?.name || a?.displayName);
+    const bName = cleanFragmentBaseName(b?.name || b?.displayName);
+
+    if (normalize(aName) && normalize(aName) === normalize(bName)) return true;
+  }
+
   if (a?.code && b?.code) {
     return normalizeCode(a.code) === normalizeCode(b.code);
   }
@@ -436,6 +473,7 @@ function getUsageText() {
     "",
     "Search only checks name / displayName, not code, id, title, alias, or other fields.",
     "Fragments can be card fragments or weapon fragments.",
+    "Weapon fragments are saved as `<Weapon Name> Fragment` so `op finv` and awaken stay synced.",
     "If a player already owns a weapon, giving that weapon converts it into weapon fragments.",
     `Buckets: ${VALID_BUCKETS.join(", ")}`,
   ].join("\n");
@@ -496,7 +534,6 @@ module.exports = {
 
     let finalBucket = storageBucket;
     let finalStored = stored;
-    let finalAmount = amount;
     let convertedToFragments = false;
     let gaveWeapon = false;
     let convertedFragmentAmount = 0;
@@ -511,7 +548,6 @@ module.exports = {
           if (ownsWeapon) {
             finalBucket = "fragments";
             finalStored = weaponFragment;
-            finalAmount = amount;
             convertedToFragments = true;
             convertedFragmentAmount = amount;
 
@@ -530,6 +566,8 @@ module.exports = {
           gaveWeapon = true;
 
           if (amount <= 1) {
+            finalStored = stored;
+
             return {
               ...fresh,
               weapons: weaponList,
@@ -537,13 +575,16 @@ module.exports = {
           }
 
           const extraFragments = amount - 1;
+          const extraWeaponFragment = buildWeaponFragmentEntry(catalogEntry, extraFragments);
+
           convertedToFragments = true;
           convertedFragmentAmount = extraFragments;
+          finalStored = extraWeaponFragment;
 
           return {
             ...fresh,
             weapons: weaponList,
-            fragments: addOrIncreaseEntry(fresh.fragments, weaponFragment, extraFragments),
+            fragments: addOrIncreaseEntry(fresh.fragments, extraWeaponFragment, extraFragments),
           };
         }
 
@@ -562,7 +603,7 @@ module.exports = {
       `**Target:** <@${userId}>`,
       `**User ID:** \`${userId}\``,
       `**Bucket:** \`${bucket}\``,
-      `**Item:** ${stored.name}`,
+      `**Item:** ${finalStored.name || stored.name}`,
       `**Amount:** ${amount}`,
     ];
 
@@ -573,7 +614,7 @@ module.exports = {
 
       if (convertedToFragments) {
         description.push(
-          `**Converted To Fragments:** ${convertedFragmentAmount}x ${stored.name}`
+          `**Converted To Fragments:** ${convertedFragmentAmount}x ${finalStored.name}`
         );
       }
     } else {

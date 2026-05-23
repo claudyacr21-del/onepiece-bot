@@ -4,17 +4,15 @@ const { Pool } = require("pg");
 
 const persistentDir = process.env.PLAYER_DATA_DIR || path.join(__dirname, "data");
 const fallbackDir = path.join(__dirname, "data");
-const PULL_SLOT_SCHEMA_VERSION = 4;
 
+const PULL_SLOT_SCHEMA_VERSION = 4;
 const PLAYER_STORE_MODE = String(process.env.PLAYER_STORE_MODE || "").toLowerCase();
 const USE_POSTGRES = PLAYER_STORE_MODE === "postgres" && Boolean(process.env.DATABASE_URL);
 
 let playersCache = null;
+let persistedCache = {};
 let dbPool = null;
 let dbReady = false;
-let dbFlushTimer = null;
-let dbFlushInFlight = false;
-let dbFlushQueued = false;
 
 function cloneJson(value) {
   return value && typeof value === "object" ? JSON.parse(JSON.stringify(value)) : {};
@@ -23,6 +21,11 @@ function cloneJson(value) {
 function setPlayersCache(value) {
   playersCache = value && typeof value === "object" ? value : {};
   return playersCache;
+}
+
+function setPersistedCache(value) {
+  persistedCache = cloneJson(value || {});
+  return persistedCache;
 }
 
 function getDbPool() {
@@ -59,11 +62,13 @@ async function ensurePlayersTable() {
   `);
 
   await pool.query(`
-    create index if not exists players_username_idx on players (username);
+    create index if not exists players_username_idx
+    on players (username);
   `);
 
   await pool.query(`
-    create index if not exists players_updated_at_idx on players (updated_at);
+    create index if not exists players_updated_at_idx
+    on players (updated_at);
   `);
 }
 
@@ -83,121 +88,218 @@ async function loadPlayersFromPostgres() {
   return players;
 }
 
-async function flushPlayersToPostgresNow(snapshot) {
-  if (!USE_POSTGRES || !dbReady) return;
-
-  if (dbFlushInFlight) {
-    dbFlushQueued = true;
-    return;
-  }
-
-  dbFlushInFlight = true;
-
+async function getPlayerFromPostgres(userId) {
   const pool = getDbPool();
-  const entries = Object.entries(snapshot || {});
+  if (!pool || !dbReady) return null;
+
+  await ensurePlayersTable();
+
+  const result = await pool.query(
+    "select data from players where user_id = $1 limit 1",
+    [String(userId)]
+  );
+
+  return result.rows?.[0]?.data || null;
+}
+
+async function upsertOnePlayerToPostgres(userId, data) {
+  const pool = getDbPool();
+  if (!pool || !dbReady) return false;
+
+  await ensurePlayersTable();
+
+  await pool.query(
+    `
+    insert into players (user_id, username, data, updated_at)
+    values ($1, $2, $3::jsonb, now())
+    on conflict (user_id) do update
+    set username = excluded.username,
+        data = excluded.data,
+        updated_at = now()
+    `,
+    [String(userId), data?.username || "Unknown", JSON.stringify(data || {})]
+  );
+
+  return true;
+}
+
+async function updateOnePlayerInPostgresAtomic(userId, username, mutator) {
+  const pool = getDbPool();
+  if (!pool || !dbReady) return null;
+
+  await ensurePlayersTable();
+
+  const id = String(userId);
+  const client = await pool.connect();
 
   try {
-    await ensurePlayersTable();
+    await client.query("begin");
 
-    const client = await pool.connect();
+    const selected = await client.query(
+      "select data from players where user_id = $1 for update",
+      [id]
+    );
 
-    try {
-      await client.query("begin");
+    const dbPlayer = selected.rows?.[0]?.data || null;
+    const currentPlayer = dbPlayer
+      ? normalizePlayer(dbPlayer, username)
+      : getDefaultPlayer(username);
 
-      for (const [userId, data] of entries) {
-        await client.query(
-          `
-          insert into players (user_id, username, data, updated_at)
-          values ($1, $2, $3::jsonb, now())
-          on conflict (user_id)
-          do update set
-            username = excluded.username,
-            data = excluded.data,
-            updated_at = now()
-          `,
-          [String(userId), data?.username || "Unknown", JSON.stringify(data || {})]
-        );
-      }
+    const result =
+      typeof mutator === "function" ? mutator(cloneJson(currentPlayer)) : currentPlayer;
 
-      await client.query("commit");
-    } catch (error) {
-      await client.query("rollback").catch(() => {});
-      throw error;
-    } finally {
-      client.release();
-    }
+    const nextPlayer = normalizePlayer(
+      result || currentPlayer,
+      currentPlayer.username || username
+    );
+
+    await client.query(
+      `
+      insert into players (user_id, username, data, updated_at)
+      values ($1, $2, $3::jsonb, now())
+      on conflict (user_id) do update
+      set username = excluded.username,
+          data = excluded.data,
+          updated_at = now()
+      `,
+      [id, nextPlayer.username || username || "Unknown", JSON.stringify(nextPlayer)]
+    );
+
+    await client.query("commit");
+
+    const players = readPlayers();
+    players[id] = nextPlayer;
+    setPersistedCache({
+      ...(persistedCache || {}),
+      [id]: nextPlayer,
+    });
+    writePlayersLocalBackupOnly(players);
+
+    return nextPlayer;
   } catch (error) {
-    console.error("[PLAYER DB FLUSH ERROR]", error);
+    await client.query("rollback").catch(() => {});
+    console.error("[PLAYER DB ATOMIC UPDATE ERROR]", error);
+    return null;
   } finally {
-    dbFlushInFlight = false;
-
-    if (dbFlushQueued) {
-      dbFlushQueued = false;
-      schedulePostgresFlush(playersCache || {});
-    }
+    client.release();
   }
 }
 
-function schedulePostgresFlush(data) {
+async function updateTwoPlayersInPostgresAtomic(
+  userIdA,
+  userIdB,
+  usernameA,
+  usernameB,
+  mutator
+) {
+  const pool = getDbPool();
+  if (!pool || !dbReady) return null;
+
+  await ensurePlayersTable();
+
+  const idA = String(userIdA);
+  const idB = String(userIdB);
+  const ids = [idA, idB].sort();
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("begin");
+
+    const selected = await client.query(
+      "select user_id, data from players where user_id = any($1::text[]) for update",
+      [ids]
+    );
+
+    const map = new Map(
+      (selected.rows || []).map((row) => [String(row.user_id), row.data || {}])
+    );
+
+    const playerA = map.has(idA)
+      ? normalizePlayer(map.get(idA), usernameA)
+      : getDefaultPlayer(usernameA);
+
+    const playerB = map.has(idB)
+      ? normalizePlayer(map.get(idB), usernameB)
+      : getDefaultPlayer(usernameB);
+
+    const result =
+      typeof mutator === "function"
+        ? mutator(cloneJson(playerA), cloneJson(playerB))
+        : { playerA, playerB };
+
+    const nextA = normalizePlayer(result?.playerA || playerA, playerA.username || usernameA);
+    const nextB = normalizePlayer(result?.playerB || playerB, playerB.username || usernameB);
+
+    await client.query(
+      `
+      insert into players (user_id, username, data, updated_at)
+      values ($1, $2, $3::jsonb, now())
+      on conflict (user_id) do update
+      set username = excluded.username,
+          data = excluded.data,
+          updated_at = now()
+      `,
+      [idA, nextA.username || usernameA || "Unknown", JSON.stringify(nextA)]
+    );
+
+    await client.query(
+      `
+      insert into players (user_id, username, data, updated_at)
+      values ($1, $2, $3::jsonb, now())
+      on conflict (user_id) do update
+      set username = excluded.username,
+          data = excluded.data,
+          updated_at = now()
+      `,
+      [idB, nextB.username || usernameB || "Unknown", JSON.stringify(nextB)]
+    );
+
+    await client.query("commit");
+
+    const players = readPlayers();
+    players[idA] = nextA;
+    players[idB] = nextB;
+    setPersistedCache({
+      ...(persistedCache || {}),
+      [idA]: nextA,
+      [idB]: nextB,
+    });
+    writePlayersLocalBackupOnly(players);
+
+    return {
+      playerA: nextA,
+      playerB: nextB,
+    };
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    console.error("[PLAYER DB ATOMIC TWO UPDATE ERROR]", error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+async function flushChangedPlayersToPostgres(data) {
   if (!USE_POSTGRES || !dbReady) return;
 
-  const snapshot = cloneJson(data);
+  const safeData = data && typeof data === "object" ? data : {};
+  const changed = [];
 
-  if (dbFlushTimer) clearTimeout(dbFlushTimer);
+  for (const [userId, player] of Object.entries(safeData)) {
+    const before = JSON.stringify(persistedCache?.[userId] || null);
+    const after = JSON.stringify(player || null);
 
-  dbFlushTimer = setTimeout(() => {
-    dbFlushTimer = null;
-    flushPlayersToPostgresNow(snapshot).catch((error) => {
-      console.error("[PLAYER DB SCHEDULED FLUSH ERROR]", error);
-    });
-  }, Number(process.env.PLAYER_DB_FLUSH_DELAY_MS || 750));
-}
-
-async function initPlayerStore() {
-  ensureFile();
-
-  if (!USE_POSTGRES) {
-    readPlayers();
-    console.log("[PLAYER STORE] File mode active.");
-    return;
+    if (before !== after) {
+      changed.push([userId, player]);
+    }
   }
 
-  try {
-    const dbPlayers = await loadPlayersFromPostgres();
+  if (!changed.length) return;
 
-    if (dbPlayers && Object.keys(dbPlayers).length > 0) {
-      setPlayersCache(dbPlayers);
-
-      try {
-        const serialized = JSON.stringify(dbPlayers, null, 2);
-        fs.writeFileSync(filePath, serialized, "utf8");
-        fs.writeFileSync(getLastGoodBackupPath(), serialized, "utf8");
-      } catch (backupError) {
-        console.error("[PLAYER STORE DB BACKUP FILE ERROR]", backupError);
-      }
-
-      dbReady = true;
-      console.log(`[PLAYER STORE] Postgres mode active. Loaded ${Object.keys(dbPlayers).length} players.`);
-      return;
-    }
-
-    const filePlayers = readPlayers();
-
-    if (filePlayers && Object.keys(filePlayers).length > 0) {
-      setPlayersCache(filePlayers);
-      dbReady = true;
-      await flushPlayersToPostgresNow(filePlayers);
-      console.log(`[PLAYER STORE] Postgres mode active. Seeded ${Object.keys(filePlayers).length} players from file.`);
-      return;
-    }
-
-    setPlayersCache({});
-    dbReady = true;
-    console.log("[PLAYER STORE] Postgres mode active. No players found yet.");
-  } catch (error) {
-    console.error("[PLAYER STORE] Failed to initialize Postgres mode. Falling back to file mode.", error);
-    dbReady = false;
-    readPlayers();
+  for (const [userId, player] of changed) {
+    await upsertOnePlayerToPostgres(userId, normalizePlayer(player, player?.username || "Unknown"));
+    persistedCache[userId] = cloneJson(player);
   }
 }
 
@@ -206,11 +308,7 @@ function resolveFilePath() {
     fs.mkdirSync(persistentDir, { recursive: true });
     return path.join(persistentDir, "players.json");
   } catch (error) {
-    console.warn(
-      "Could not use persistent player data dir, falling back to local data dir.",
-      error
-    );
-
+    console.warn("Could not use persistent player data dir, falling back to local data dir.", error);
     fs.mkdirSync(fallbackDir, { recursive: true });
     return path.join(fallbackDir, "players.json");
   }
@@ -241,7 +339,6 @@ function safeParseJson(raw) {
 
 function readBackupPlayers() {
   const backupPath = getLastGoodBackupPath();
-
   if (!fs.existsSync(backupPath)) return {};
 
   try {
@@ -274,7 +371,7 @@ function readPlayers() {
 
     if (backupPlayers && Object.keys(backupPlayers).length > 0) {
       try {
-        writePlayers(backupPlayers);
+        writePlayersLocalBackupOnly(backupPlayers);
       } catch (restoreError) {
         console.error("Failed to restore last-good players backup.", restoreError);
       }
@@ -286,7 +383,7 @@ function readPlayers() {
   }
 }
 
-function writePlayers(data) {
+function writePlayersLocalBackupOnly(data) {
   ensureFile();
 
   const safeData = data && typeof data === "object" ? data : {};
@@ -305,8 +402,67 @@ function writePlayers(data) {
   } catch (error) {
     console.error("Failed to write last-good players backup.", error);
   }
+}
 
-  schedulePostgresFlush(safeData);
+function writePlayers(data) {
+  const safeData = data && typeof data === "object" ? data : {};
+
+  writePlayersLocalBackupOnly(safeData);
+
+  if (USE_POSTGRES && dbReady) {
+    flushChangedPlayersToPostgres(safeData).catch((error) => {
+      console.error("[PLAYER DB CHANGED FLUSH ERROR]", error);
+    });
+  }
+}
+
+async function initPlayerStore() {
+  ensureFile();
+
+  if (!USE_POSTGRES) {
+    readPlayers();
+    setPersistedCache(playersCache || {});
+    console.log("[PLAYER STORE] File mode active.");
+    return;
+  }
+
+  try {
+    const dbPlayers = await loadPlayersFromPostgres();
+
+    if (dbPlayers && Object.keys(dbPlayers).length > 0) {
+      setPlayersCache(dbPlayers);
+      setPersistedCache(dbPlayers);
+      writePlayersLocalBackupOnly(dbPlayers);
+      dbReady = true;
+
+      console.log(`[PLAYER STORE] Postgres mode active. Loaded ${Object.keys(dbPlayers).length} players.`);
+      return;
+    }
+
+    const filePlayers = readPlayers();
+
+    if (filePlayers && Object.keys(filePlayers).length > 0) {
+      setPlayersCache(filePlayers);
+      setPersistedCache({});
+      dbReady = true;
+      await flushChangedPlayersToPostgres(filePlayers);
+      setPersistedCache(filePlayers);
+
+      console.log(`[PLAYER STORE] Postgres mode active. Seeded ${Object.keys(filePlayers).length} players from file.`);
+      return;
+    }
+
+    setPlayersCache({});
+    setPersistedCache({});
+    dbReady = true;
+
+    console.log("[PLAYER STORE] Postgres mode active. No players found yet.");
+  } catch (error) {
+    console.error("[PLAYER STORE] Failed to initialize Postgres mode. Falling back to file mode.", error);
+    dbReady = false;
+    readPlayers();
+    setPersistedCache(playersCache || {});
+  }
 }
 
 function normalizeNamedList(value) {
@@ -331,7 +487,6 @@ function normalizeNamedList(value) {
         code: entry.code || undefined,
         image: entry.image || "",
         type: entry.type || undefined,
-
         upgradeLevel: Number(entry.upgradeLevel || 0),
         statPercent: entry.statPercent || entry.baseStatPercent || undefined,
         baseStatPercent: entry.baseStatPercent || entry.statPercent || undefined,
@@ -340,7 +495,6 @@ function normalizeNamedList(value) {
         owners: Array.isArray(entry.owners) ? entry.owners : undefined,
         description: entry.description || undefined,
         boostBonus: entry.boostBonus || undefined,
-
         category: entry.category || undefined,
         weaponCode: entry.weaponCode || undefined,
         cardCode: entry.cardCode || undefined,
@@ -512,9 +666,7 @@ function normalizeCards(value) {
           ]
         : [];
 
-    const finalEquippedWeapons = equippedWeapons.length
-      ? equippedWeapons
-      : legacySingleWeapon;
+    const finalEquippedWeapons = equippedWeapons.length ? equippedWeapons : legacySingleWeapon;
 
     const totalWeaponBonus = finalEquippedWeapons.reduce(
       (acc, w) => {
@@ -530,8 +682,7 @@ function normalizeCards(value) {
       }
     );
 
-    const stableInstanceId =
-      card.instanceId || card.id || makeStableInstanceId(card, index);
+    const stableInstanceId = card.instanceId || card.id || makeStableInstanceId(card, index);
 
     return {
       ...card,
@@ -543,7 +694,6 @@ function normalizeCards(value) {
       fragments: Number(card.fragments) >= 0 ? Number(card.fragments) : 0,
       raidPrestige: Math.max(0, Math.min(200, Number(card.raidPrestige || 0))),
       image: card.image || "",
-
       equippedWeapons: finalEquippedWeapons,
       equippedWeapon: finalEquippedWeapons.length
         ? finalEquippedWeapons.map((w) => w.name).join(", ")
@@ -555,7 +705,6 @@ function normalizeCards(value) {
           ? Number(finalEquippedWeapons[0].upgradeLevel || 0)
           : Number(card.equippedWeaponLevel || 0),
       weaponBonus: totalWeaponBonus,
-
       equippedDevilFruit: card.equippedDevilFruit || null,
       equippedDevilFruitCode: card.equippedDevilFruitCode || null,
       equippedDevilFruitName: card.equippedDevilFruitName || null,
@@ -572,7 +721,6 @@ function normalizePullSlot(slot, fallbackMax) {
 
 function normalizePulls(pulls) {
   const rawBucket = pulls?.lastResetBucket;
-
   const lastResetBucket =
     typeof rawBucket === "string" && rawBucket.trim()
       ? rawBucket.trim()
@@ -746,9 +894,7 @@ function normalizeMessageMilestones(messageMilestones) {
       raidTicket: Number(claims.raidTicket || 0),
       goldRaidTicket: Number(claims.goldRaidTicket || 0),
     },
-    completed: Array.isArray(messageMilestones?.completed)
-      ? messageMilestones.completed
-      : [],
+    completed: Array.isArray(messageMilestones?.completed) ? messageMilestones.completed : [],
     lastCompleted: Array.isArray(messageMilestones?.lastCompleted)
       ? messageMilestones.lastCompleted
       : [],
@@ -833,10 +979,7 @@ function normalizeRaidPrestigeBank(value) {
   const result = {};
 
   for (const [rawCode, rawEntry] of Object.entries(raw)) {
-    const code = String(rawEntry?.code || rawCode || "")
-      .toLowerCase()
-      .trim();
-
+    const code = String(rawEntry?.code || rawCode || "").toLowerCase().trim();
     if (!code) continue;
 
     const prestige = Math.max(
@@ -880,22 +1023,18 @@ function normalizePlayer(player = {}, username = "Unknown") {
     berries: typeof player.berries === "number" ? player.berries : 1000,
     gems: typeof player.gems === "number" ? player.gems : 100,
     currentIsland,
-
     messageMilestones: normalizeMessageMilestones(player.messageMilestones),
     dailyLastClaim: player.dailyLastClaim || null,
-
     cards: normalizeCards(player.cards),
     fragments: normalizeFragmentList(player.fragments),
     autoLevel: normalizeAutoLevel(player.autoLevel),
     autoSac: normalizeAutoSac(player.autoSac),
-
     items: normalizeNamedList(player.items),
     weapons: normalizeNamedList(player.weapons),
     devilFruits: normalizeNamedList(player.devilFruits),
     boxes: normalizeNamedList(player.boxes),
     tickets: normalizeNamedList(player.tickets),
     materials: normalizeNamedList(player.materials),
-
     pity: {
       pullPity: Number(player?.pity?.pullPity) >= 0 ? Number(player.pity.pullPity) : 0,
       normalAPity:
@@ -903,9 +1042,10 @@ function normalizePlayer(player = {}, username = "Unknown") {
       normalSPity:
         Number(player?.pity?.normalSPity) >= 0 ? Number(player.pity.normalSPity) : 0,
       premiumSPity:
-        Number(player?.pity?.premiumSPity) >= 0 ? Number(player.pity.premiumSPity) : 0,
+        Number(player?.pity?.premiumSPity) >= 0
+          ? Number(player.pity.premiumSPity)
+          : 0,
     },
-
     pulls: normalizePulls(player.pulls),
     boosts: normalizeBoosts(player.boosts),
     quests: normalizeQuests(player.quests),
@@ -919,7 +1059,6 @@ function normalizePlayer(player = {}, username = "Unknown") {
     story: normalizeStory(player.story),
     raidPrestigeBank: normalizeRaidPrestigeBank(player.raidPrestigeBank),
     storage: normalizeStorage(player.storage, player.storageLimit),
-
     clan: {
       name: player?.clan?.name || null,
       role: player?.clan?.role || "member",
@@ -934,21 +1073,16 @@ function getDefaultPlayer(username) {
       berries: 1000,
       gems: 100,
       currentIsland: "Foosha Village",
-
       messageMilestones: {
         messages: 0,
         updatedAt: 0,
       },
-
       dailyLastClaim: null,
-
       cards: [],
       fragments: [],
-
       autoLevel: {
         cards: [],
       },
-
       autoSac: {
         rarities: {
           C: false,
@@ -961,27 +1095,39 @@ function getDefaultPlayer(username) {
         cards: [],
         safeCards: [],
       },
-
       items: [],
       weapons: [],
       devilFruits: [],
       boxes: [],
       materials: [],
-
       tickets: [
-        { code: "common_raid_ticket", name: "Common Raid Ticket", amount: 0 },
-        { code: "raid_ticket", name: "Raid Ticket", amount: 0 },
-        { code: "gold_raid_ticket", name: "Gold Raid Ticket", amount: 0 },
-        { code: "empty_throne_raid_writ", name: "Empty Throne Raid Writ", amount: 0 },
+        {
+          code: "common_raid_ticket",
+          name: "Common Raid Ticket",
+          amount: 0,
+        },
+        {
+          code: "raid_ticket",
+          name: "Raid Ticket",
+          amount: 0,
+        },
+        {
+          code: "gold_raid_ticket",
+          name: "Gold Raid Ticket",
+          amount: 0,
+        },
+        {
+          code: "empty_throne_raid_writ",
+          name: "Empty Throne Raid Writ",
+          amount: 0,
+        },
       ],
-
       pity: {
         pullPity: 0,
         normalAPity: 0,
         normalSPity: 0,
         premiumSPity: 0,
       },
-
       pulls: {
         base: { used: 0, max: 6 },
         supportMember: { used: 0, max: 1 },
@@ -994,7 +1140,6 @@ function getDefaultPlayer(username) {
         lastResetBucket: null,
         slotSchemaVersion: PULL_SLOT_SCHEMA_VERSION,
       },
-
       boosts: {
         pullSlot: 0,
         daily: 0,
@@ -1005,7 +1150,6 @@ function getDefaultPlayer(username) {
         dmg: 0,
         motherFlameFight: 0,
       },
-
       quests: {
         daily: {
           total: 5,
@@ -1057,7 +1201,6 @@ function getDefaultPlayer(username) {
         },
         totalClears: 0,
       },
-
       cooldowns: {
         daily: null,
         fight: null,
@@ -1069,7 +1212,6 @@ function getDefaultPlayer(username) {
         vote: null,
         treasure: null,
       },
-
       vote: {
         streak: 0,
         totalVotes: 0,
@@ -1077,15 +1219,12 @@ function getDefaultPlayer(username) {
         lastEventId: null,
         processedIds: [],
       },
-
       team: {
         slots: [null, null, null],
       },
-
       raidTeam: {
         members: [],
       },
-
       stats: {
         wins: 0,
         losses: 0,
@@ -1093,7 +1232,6 @@ function getDefaultPlayer(username) {
         bestWinStreak: 0,
         cardsPulled: 0,
       },
-
       arena: {
         points: 0,
         wins: 0,
@@ -1105,7 +1243,6 @@ function getDefaultPlayer(username) {
         dailyDateKey: null,
         dailyUses: 0,
       },
-
       ship: {
         shipCode: "small_boat",
         tier: 1,
@@ -1114,7 +1251,6 @@ function getDefaultPlayer(username) {
         unlockedIslands: ["foosha_village"],
         currentPort: "Foosha Village",
       },
-
       story: {
         clearedIslandBosses: [],
         bossPhases: {
@@ -1130,11 +1266,9 @@ function getDefaultPlayer(username) {
           },
         },
       },
-
       storage: {
         max: 250,
       },
-
       clan: {
         name: null,
         role: "member",
@@ -1158,34 +1292,102 @@ function getPlayer(userId, username) {
 }
 
 function updatePlayer(userId, newData) {
-  const players = readPlayers();
-  const id = String(userId);
-  const currentPlayer = players[id] ? normalizePlayer(players[id]) : getDefaultPlayer("Unknown");
-  players[id] = normalizePlayer(
-    { ...currentPlayer, ...newData },
-    currentPlayer.username
+  return updatePlayerAtomic(
+    userId,
+    (currentPlayer) => ({
+      ...currentPlayer,
+      ...newData,
+    }),
+    newData?.username || "Unknown"
   );
-  writePlayers(players);
-  return players[id];
 }
 
 function updatePlayerAtomic(userId, mutator, username = "Unknown") {
+  if (USE_POSTGRES && dbReady) {
+    const updatedFromDb = null;
+
+    /*
+      This synchronous command structure cannot await everywhere.
+      To prevent rollback, we still update local cache immediately,
+      then trigger a DB-row atomic update using latest DB row.
+    */
+    updateOnePlayerInPostgresAtomic(userId, username, mutator).catch((error) => {
+      console.error("[PLAYER DB ATOMIC UPDATE ASYNC ERROR]", error);
+    });
+
+    const players = readPlayers();
+    const id = String(userId);
+    const currentPlayer = players[id]
+      ? normalizePlayer(players[id], username)
+      : getDefaultPlayer(username);
+
+    const result =
+      typeof mutator === "function" ? mutator(cloneJson(currentPlayer)) : currentPlayer;
+
+    const nextPlayer = normalizePlayer(result || currentPlayer, currentPlayer.username || username);
+    players[id] = nextPlayer;
+    writePlayersLocalBackupOnly(players);
+
+    return nextPlayer;
+  }
+
   const players = readPlayers();
   const id = String(userId);
   const currentPlayer = players[id]
     ? normalizePlayer(players[id], username)
     : getDefaultPlayer(username);
 
-  const result = typeof mutator === "function" ? mutator(currentPlayer) : currentPlayer;
-  const nextPlayer = normalizePlayer(result || currentPlayer, currentPlayer.username || username);
+  const result =
+    typeof mutator === "function" ? mutator(cloneJson(currentPlayer)) : currentPlayer;
 
+  const nextPlayer = normalizePlayer(result || currentPlayer, currentPlayer.username || username);
   players[id] = nextPlayer;
   writePlayers(players);
-
   return nextPlayer;
 }
 
 function updateTwoPlayersAtomic(userIdA, userIdB, mutator, usernameA = "Unknown", usernameB = "Unknown") {
+  if (USE_POSTGRES && dbReady) {
+    updateTwoPlayersInPostgresAtomic(
+      userIdA,
+      userIdB,
+      usernameA,
+      usernameB,
+      mutator
+    ).catch((error) => {
+      console.error("[PLAYER DB ATOMIC TWO UPDATE ASYNC ERROR]", error);
+    });
+
+    const players = readPlayers();
+    const idA = String(userIdA);
+    const idB = String(userIdB);
+
+    const playerA = players[idA]
+      ? normalizePlayer(players[idA], usernameA)
+      : getDefaultPlayer(usernameA);
+
+    const playerB = players[idB]
+      ? normalizePlayer(players[idB], usernameB)
+      : getDefaultPlayer(usernameB);
+
+    const result =
+      typeof mutator === "function"
+        ? mutator(cloneJson(playerA), cloneJson(playerB))
+        : { playerA, playerB };
+
+    const nextA = normalizePlayer(result?.playerA || playerA, playerA.username || usernameA);
+    const nextB = normalizePlayer(result?.playerB || playerB, playerB.username || usernameB);
+
+    players[idA] = nextA;
+    players[idB] = nextB;
+    writePlayersLocalBackupOnly(players);
+
+    return {
+      playerA: nextA,
+      playerB: nextB,
+    };
+  }
+
   const players = readPlayers();
   const idA = String(userIdA);
   const idB = String(userIdB);
@@ -1200,18 +1402,14 @@ function updateTwoPlayersAtomic(userIdA, userIdB, mutator, usernameA = "Unknown"
 
   const result =
     typeof mutator === "function"
-      ? mutator(playerA, playerB)
-      : {
-          playerA,
-          playerB,
-        };
+      ? mutator(cloneJson(playerA), cloneJson(playerB))
+      : { playerA, playerB };
 
   const nextA = normalizePlayer(result?.playerA || playerA, playerA.username || usernameA);
   const nextB = normalizePlayer(result?.playerB || playerB, playerB.username || usernameB);
 
   players[idA] = nextA;
   players[idB] = nextB;
-
   writePlayers(players);
 
   return {
