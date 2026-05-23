@@ -94,9 +94,11 @@ function formatRemaining(ms) {
 }
 
 function syncPremiumSnapshot(snapshot, premiumTier) {
+  const safe = snapshot && typeof snapshot === "object" ? snapshot : {};
+
   if (premiumTier === "motherFlame") {
     return {
-      ...snapshot,
+      ...safe,
       patreon: true,
       vivreCard: false,
       litePremium: false,
@@ -105,7 +107,7 @@ function syncPremiumSnapshot(snapshot, premiumTier) {
 
   if (premiumTier === "vivreCard") {
     return {
-      ...snapshot,
+      ...safe,
       patreon: false,
       vivreCard: true,
       litePremium: true,
@@ -113,10 +115,10 @@ function syncPremiumSnapshot(snapshot, premiumTier) {
   }
 
   return {
-    ...snapshot,
-    patreon: false,
-    vivreCard: false,
-    litePremium: false,
+    ...safe,
+    patreon: Boolean(safe.patreon),
+    vivreCard: Boolean(safe.vivreCard || safe.litePremium),
+    litePremium: Boolean(safe.vivreCard || safe.litePremium),
   };
 }
 
@@ -268,8 +270,7 @@ module.exports = {
     let payload = null;
 
     try {
-      updatePlayerAtomic(
-        message.author.id,
+      await updatePlayerAtomic(message.author.id,
         (fresh) => {
           const basePlayer = {
             ...fresh,

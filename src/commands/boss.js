@@ -1218,6 +1218,27 @@ if (lobbyProcessing) {
       try {
         
       if (interaction.customId === "boss_lobby_join") {
+        const bossJoinAckOk = await interaction
+          .deferReply({ flags: MessageFlags.Ephemeral })
+          .then(() => true)
+          .catch((error) => {
+            if (!isIgnorableDiscordInteractionError(error)) {
+              console.error("[BOSS JOIN DEFER ERROR]", error?.message || error);
+            }
+            return false;
+          });
+
+        if (!bossJoinAckOk) return;
+
+        const replyBossJoin = async (payload) => {
+          return interaction.editReply(payload).catch((error) => {
+            if (!isIgnorableDiscordInteractionError(error)) {
+              console.error("[BOSS JOIN EDIT REPLY ERROR]", error?.message || error);
+            }
+            return null;
+          });
+        };
+
         const joinDeferred = await interaction
           .deferReply({ flags: MessageFlags.Ephemeral })
           .catch((error) => {

@@ -93,9 +93,6 @@ function syncPremiumSnapshot(snapshot, premiumTier) {
     };
   }
 
-  // IMPORTANT:
-  // Jangan hapus snapshot premium lama cuma karena role fetch/cache Discord gagal.
-  // Kalau ini di-clear, total pull bisa turun dari 13/13 jadi 10/10 di tengah sesi.
   return {
     ...safe,
     patreon: Boolean(safe.patreon),
@@ -848,6 +845,48 @@ function mergeCardCollections(existingCards, nextCards) {
   return [...map.values()];
 }
 
+function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
+  const result = {
+    ...(existingPulls || {}),
+    ...(nextPulls || {}),
+  };
+
+  const keys = [
+    "base",
+    "supportMember",
+    "booster",
+    "owner",
+    "patreon",
+    "vivreCard",
+    "baccaratCard",
+    "baccaratFruit",
+  ];
+
+  for (const key of keys) {
+    const existing = existingPulls?.[key] || {};
+    const next = nextPulls?.[key] || {};
+
+    result[key] = {
+      ...existing,
+      ...next,
+      used: Math.max(Number(existing.used || 0), Number(next.used || 0)),
+      max: Math.max(Number(existing.max || 0), Number(next.max || 0)),
+    };
+  }
+
+  result.lastResetBucket =
+    nextPulls?.lastResetBucket ||
+    existingPulls?.lastResetBucket ||
+    result.lastResetBucket;
+
+  result.slotSchemaVersion =
+    nextPulls?.slotSchemaVersion ||
+    existingPulls?.slotSchemaVersion ||
+    result.slotSchemaVersion;
+
+  return result;
+}
+
 function savePullResultFresh(userId, payload, username = "Unknown") {
   return updatePlayerAtomic(
     userId,
@@ -866,7 +905,7 @@ function savePullResultFresh(userId, payload, username = "Unknown") {
 
         berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
 
-        pulls: payload.pulls,
+        pulls: mergePullUsageForSave(existing.pulls, payload.pulls),
         pity: payload.pity,
 
         stats: {
@@ -889,7 +928,19 @@ module.exports = {
   aliases: ["gacha"],
 
   async execute(message) {
-    const player = getPlayer(message.author.id, message.author.username);
+    const pullLockKey = String(message.author.id);
+
+    if (PULL_USER_LOCKS.has(pullLockKey)) {
+      return message.reply({
+        content: "Your previous pull is still being saved. Please wait 1-2 seconds and try again.",
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
+    PULL_USER_LOCKS.add(pullLockKey);
+
+    try {
+      const player = getPlayer(message.author.id, message.author.username);
 
     const resetState = applyGlobalPullReset(player);
     if (resetState?.wasReset) {
@@ -1064,8 +1115,7 @@ module.exports = {
       premiumSPity: pityCounter,
     };
 
-    savePullResultFresh(
-      message.author.id,
+    await savePullResultFresh(message.author.id,
       {
         cards: updatedCards,
         weapons: updatedWeapons,
@@ -1136,5 +1186,8 @@ module.exports = {
     return message.reply({
       embeds: [embed],
     });
+    } finally {
+      PULL_USER_LOCKS.delete(pullLockKey);
+    }
   },
 };
