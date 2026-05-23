@@ -966,20 +966,59 @@ function findOwnedRequirementCard(player, requirement) {
   );
 }
 
+const AWAKEN_GEMS_COST_BY_BASE_TIER = {
+  S: {
+    1: 750,  // M1 -> M2
+    2: 1500, // M2 -> M3
+  },
+  A: {
+    1: 500,
+    2: 1000,
+  },
+  B: {
+    1: 350,
+    2: 700,
+  },
+  C: {
+    1: 250,
+    2: 500,
+  },
+};
+
+function getAwakenCostBaseTier(targetCard) {
+  const template = findTemplateByCode(targetCard?.code);
+
+  const tier = String(
+    template?.baseTier ||
+      template?.rarity ||
+      targetCard?.baseTier ||
+      targetCard?.originalTier ||
+      targetCard?.baseRarity ||
+      targetCard?.rarity ||
+      targetCard?.currentTier ||
+      "C"
+  ).toUpperCase();
+
+  if (tier === "UR" || tier === "SS") {
+    return String(template?.baseTier || targetCard?.baseTier || "S").toUpperCase();
+  }
+
+  if (["S", "A", "B", "C"].includes(tier)) {
+    return tier;
+  }
+
+  return "C";
+}
+
 function getDefaultAwakenGemsCost(targetCard) {
-  const currentStage = Number(targetCard?.evolutionStage || 1);
+  const currentStage = Math.max(1, Math.min(3, Number(targetCard?.evolutionStage || 1)));
+  const baseTier = getAwakenCostBaseTier(targetCard);
+  const tierCosts = AWAKEN_GEMS_COST_BY_BASE_TIER[baseTier] || AWAKEN_GEMS_COST_BY_BASE_TIER.C;
 
-  if (currentStage === 1) return 750;   // M1 -> M2
-  if (currentStage === 2) return 1500;  // M2 -> M3
-
-  return 0;
+  return Number(tierCosts[currentStage] || 0);
 }
 
 function getAwakenGemsCost(req, targetCard) {
-  if (req && Object.prototype.hasOwnProperty.call(req, "gems")) {
-    return Number(req.gems || 0);
-  }
-
   return getDefaultAwakenGemsCost(targetCard);
 }
 
