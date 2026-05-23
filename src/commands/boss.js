@@ -1105,7 +1105,6 @@ function shouldDisableLastUsed(units, lastUsedUnitKey, unit) {
   // Kalau tinggal 1 card hidup, jangan softlock.
   return aliveOtherUnits.length > 0;
 }
-
 async function waitForBossJoinLobby(message, island, phaseBoss) {
   const joinedIds = new Set([String(message.author.id)]);
   let approved = false;
@@ -1939,20 +1938,20 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
 
 function buildRaidBossButtons(participants, ended, lastUsedUnitKey = "") {
   const usedSet = getLastUsedKeySet(lastUsedUnitKey);
-  const allUnits = participants.flatMap((p) => p.units);
+  const allUnits = participants.flatMap((p) => p.units || []);
   const rows = [];
   let row = new ActionRowBuilder();
 
-  for (const unit of allUnits) {
+  for (const unit of allUnits.slice(0, 20)) {
     const unitKey = getUnitActionKey(unit);
     const alreadyUsed = usedSet.has(unitKey) && shouldDisableLastUsed(allUnits, lastUsedUnitKey, unit);
     const dead = Number(unit.battleHp ?? unit.hp) <= 0;
-    const label = `${unit.globalSlot + 1} ${unit.name}`.slice(0, 80);
+    const label = `${Number(unit.globalSlot || 0) + 1} ${String(unit.name || "Unknown")}`.slice(0, 80);
 
     row.addComponents(
       new ButtonBuilder()
-        .setCustomId(`boss_raid_attack_${unit.globalSlot}`)
-        .setLabel(label)
+        .setCustomId(`boss_raid_attack_${Number(unit.globalSlot || 0)}`)
+        .setLabel(label || "Unknown")
         .setStyle(dead || alreadyUsed ? ButtonStyle.Secondary : ButtonStyle.Success)
         .setDisabled(Boolean(ended || dead || alreadyUsed))
     );
@@ -1965,15 +1964,17 @@ function buildRaidBossButtons(participants, ended, lastUsedUnitKey = "") {
 
   if (row.components.length) rows.push(row);
 
-  rows.push(
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("boss_raid_run")
-        .setLabel("Run Away")
-        .setStyle(ButtonStyle.Danger)
-        .setDisabled(ended)
-    )
-  );
+  if (rows.length < 5) {
+    rows.push(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("boss_raid_run")
+          .setLabel("Run Away")
+          .setStyle(ButtonStyle.Danger)
+          .setDisabled(Boolean(ended))
+      )
+    );
+  }
 
   return rows.slice(0, 5);
 }
@@ -2092,6 +2093,51 @@ function buildRaidBossProcessingEmbed(island, phaseBoss, participants, boss, log
     .setFooter({
       text: "One Piece Bot • Saving Boss Phase 2 Raid Result",
     });
+}
+
+function stripEmbedImage(embed) {
+  try {
+    return EmbedBuilder.from(embed).setImage(null);
+  } catch (_) {
+    return embed;
+  }
+}
+
+async function sendRaidBossBattleMessage(message, payload) {
+  try {
+    return await message.reply(payload);
+  } catch (error) {
+    console.error("[BOSS PHASE 2 RAID START REPLY ERROR]", {
+      message: error?.message,
+      code: error?.code,
+      status: error?.status,
+      rawError: error?.rawError,
+    });
+
+    try {
+      const fallbackPayload = {
+        ...payload,
+        embeds: Array.isArray(payload.embeds)
+          ? payload.embeds.map((embed) => stripEmbedImage(embed))
+          : payload.embeds,
+      };
+
+      return await message.reply(fallbackPayload);
+    } catch (fallbackError) {
+      console.error("[BOSS PHASE 2 RAID START FALLBACK ERROR]", {
+        message: fallbackError?.message,
+        code: fallbackError?.code,
+        status: fallbackError?.status,
+        rawError: fallbackError?.rawError,
+      });
+
+      await message.reply(
+        "Boss Phase 2 raid failed to start because Discord rejected the battle message payload. Check console log: `[BOSS PHASE 2 RAID START FALLBACK ERROR]`."
+      );
+
+      return null;
+    }
+  }
 }
 
 module.exports = {
@@ -2213,7 +2259,7 @@ module.exports = {
       let lastUsedUnitKey = "";
       const allUnits = participants.flatMap((participant) => participant.units);
 
-      const reply = await message.reply({
+      const reply = await sendRaidBossBattleMessage(message, {
         embeds: [
           buildRaidBossEmbed(
             currentIsland,
@@ -2222,15 +2268,17 @@ module.exports = {
             boss,
             logs,
             ended,
-            usedThisCycle
+            lastUsedUnitKey
           ),
         ],
         components: buildRaidBossButtons(
           participants,
           ended,
-          usedThisCycle
+          lastUsedUnitKey
         ),
       });
+
+      if (!reply) return;
 
       const collector = reply.createMessageComponentCollector({
         time: SESSION_TIMEOUT_MS,
@@ -2262,7 +2310,7 @@ if (interaction.customId === "boss_raid_run") {
                 boss,
                 logs,
                 false,
-                usedThisCycle
+                lastUsedUnitKey
               ),
             ],
             components: buildRaidBossRunConfirmButtons(),
@@ -2288,13 +2336,13 @@ if (interaction.customId === "boss_raid_run") {
                 boss,
                 logs,
                 false,
-                usedThisCycle
+                lastUsedUnitKey
               ),
             ],
             components: buildRaidBossButtons(
               participants,
               false,
-              usedThisCycle
+              lastUsedUnitKey
             ),
           });
           return;
@@ -2352,17 +2400,19 @@ if (interaction.customId === "boss_raid_run") {
           return safeEphemeralReply(interaction, "That raid unit cannot attack right now.");
         }
 
-        if (String(attacker.ownerId || attacker.userId || "") !== String(interaction.user.id)) {
-          return safeEphemeralReply(interaction, "You can only use your own raid cards.");
+        if (String(interaction.user.id) !== String(message.author.id)) {
+          return safeEphemeralReply(
+            interaction,
+            "Only the raid host can control raid attacks. Other users only join the raid."
+          );
         }
 
         const unitKey = getUnitActionKey(attacker);
-        usedThisCycle = normalizeBossActionCycle(allUnits, usedThisCycle);
 
-        if (shouldDisableLastUsed(allUnits, usedThisCycle, attacker)) {
+        if (shouldDisableLastUsed(allUnits, lastUsedUnitKey, attacker)) {
           return safeEphemeralReply(
             interaction,
-            "This unit is on 1-turn cooldown. Choose another available unit first."
+            "This card is on 1-turn cooldown. Use another card first."
           );
         }
 
@@ -2397,8 +2447,7 @@ if (interaction.customId === "boss_raid_run") {
         logs.length = 0;
         logs.push(...combatLogs.slice(-BOSS_MAX_LOG_LINES));
 
-        usedThisCycle.push(unitKey);
-        usedThisCycle = normalizeBossActionCycle(allUnits, usedThisCycle);
+        lastUsedUnitKey = unitKey;
 
         if (Number(boss.battleHp ?? boss.hp) <= 0) {
           ended = true;
@@ -2643,13 +2692,13 @@ if (interaction.customId === "boss_raid_run") {
               boss,
               logs,
               false,
-              usedThisCycle
+              lastUsedUnitKey
             ),
           ],
           components: buildRaidBossButtons(
             participants,
             false,
-            usedThisCycle
+            lastUsedUnitKey
           ),
         });
       });
