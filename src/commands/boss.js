@@ -453,10 +453,8 @@ function getAliveUnitIds(units) {
   return getAliveUnits(units).map((unit) => String(unit.instanceId || unit.globalSlot));
 }
 
-function isUnitUsedThisCycle(usedThisCycle, unit) {
-  const key = String(unit?.instanceId || unit?.globalSlot || "");
-
-  return Array.isArray(usedThisCycle) ? usedThisCycle.includes(key) : false;
+function isUnitUsedThisCycle(_usedThisCycle, _unit) {
+  return false;
 }
 
 function resetBossActionCycleIfReady(playerTeam, usedThisCycle) {
@@ -1124,13 +1122,8 @@ function getAliveActionKeys(units) {
   return getAliveUnits(units).map((unit) => getUnitActionKey(unit));
 }
 
-function shouldDisableLastUsed(units, lastUsedKey, unit) {
-  if (!lastUsedKey) return false;
-
-  const aliveKeys = getAliveActionKeys(units);
-  if (aliveKeys.length <= 1) return false;
-
-  return getUnitActionKey(unit) === String(lastUsedKey);
+function shouldDisableLastUsed(_units, _lastUsedKey, _unit) {
+  return false;
 }
 
 async function waitForBossJoinLobby(message, island, phaseBoss) {
@@ -1926,7 +1919,7 @@ function applyBoxes(currentBoxes, rewardBoxes) {
 
 function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, usedThisCycle = []) {
   const phaseLabel = phaseBoss ? `Phase ${phaseBoss.phase}` : "Boss";
-  const usedSet = new Set((Array.isArray(usedThisCycle) ? usedThisCycle : []).map(String));
+  const usedSet = new Set();
   const teamLines = [];
 
   for (const participant of participants) {
@@ -1967,7 +1960,7 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
 }
 
 function buildRaidBossButtons(participants, ended, usedThisCycle = []) {
-  const usedSet = new Set((Array.isArray(usedThisCycle) ? usedThisCycle : []).map(String));
+  const usedSet = new Set();
   const allUnits = participants.flatMap((p) => p.units);
   const rows = [];
   let row = new ActionRowBuilder();
@@ -2251,13 +2244,13 @@ module.exports = {
             boss,
             logs,
             ended,
-            lastUsedUnitKey ? [lastUsedUnitKey] : []
+            []
           ),
         ],
         components: buildRaidBossButtons(
           participants,
           ended,
-          lastUsedUnitKey ? [lastUsedUnitKey] : []
+          []
         ),
       });
 
@@ -2268,12 +2261,7 @@ module.exports = {
       collector.on("collect", async (interaction) => {
 
         let __actionLock = null;
-if (interaction.user.id !== message.author.id) {
-          await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
-          return;
-        }
-
-        if (ended) {
+if (ended) {
           await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
           return;
         }
@@ -2286,6 +2274,10 @@ if (interaction.user.id !== message.author.id) {
         if (!__action.ok) return;
         __actionLock = __action.key;
 if (interaction.customId === "boss_raid_run") {
+          if (interaction.user.id !== message.author.id) {
+            await safeEphemeralReply(interaction, "Only the raid host can run away.");
+            return;
+          }
           logs.length = 0;
           pushBossLog(logs, "⚠️ Run away confirmation requested.");
           pushBossLog(logs, "Confirm run away or cancel to continue.");
@@ -2299,7 +2291,7 @@ if (interaction.customId === "boss_raid_run") {
                 boss,
                 logs,
                 false,
-                lastUsedUnitKey ? [lastUsedUnitKey] : []
+                []
               ),
             ],
             components: buildRaidBossRunConfirmButtons(),
@@ -2308,6 +2300,10 @@ if (interaction.customId === "boss_raid_run") {
         }
 
         if (interaction.customId === "boss_raid_run_cancel") {
+          if (interaction.user.id !== message.author.id) {
+            await safeEphemeralReply(interaction, "Only the raid host can cancel run away.");
+            return;
+          }
           logs.length = 0;
           pushBossLog(logs, "✅ Run away cancelled.");
           pushBossLog(logs, "Choose a raid unit to continue.");
@@ -2321,19 +2317,23 @@ if (interaction.customId === "boss_raid_run") {
                 boss,
                 logs,
                 false,
-                lastUsedUnitKey ? [lastUsedUnitKey] : []
+                []
               ),
             ],
             components: buildRaidBossButtons(
               participants,
               false,
-              lastUsedUnitKey ? [lastUsedUnitKey] : []
+              []
             ),
           });
           return;
         }
 
         if (interaction.customId === "boss_raid_run_confirm") {
+          if (interaction.user.id !== message.author.id) {
+            await safeEphemeralReply(interaction, "Only the raid host can confirm run away.");
+            return;
+          }
           ended = true;
           logs.length = 0;
           pushBossLog(logs, "🏃 The raid host ran away.");
@@ -2381,6 +2381,10 @@ if (interaction.customId === "boss_raid_run") {
           return safeEphemeralReply(interaction, "That raid unit cannot attack right now.");
         }
 
+        if (String(attacker.ownerId || attacker.userId || "") !== String(interaction.user.id)) {
+          return safeEphemeralReply(interaction, "You can only use your own raid cards.");
+        }
+
         const unitKey = getUnitActionKey(attacker);
 
         if (shouldDisableLastUsed(allUnits, lastUsedUnitKey, attacker)) {
@@ -2420,7 +2424,7 @@ if (interaction.customId === "boss_raid_run") {
 
         logs.length = 0;
         logs.push(...combatLogs.slice(-BOSS_MAX_LOG_LINES));
-        lastUsedUnitKey = unitKey;
+        lastUsedUnitKey = "";
 
         if (Number(boss.battleHp ?? boss.hp) <= 0) {
           ended = true;
@@ -2665,13 +2669,13 @@ if (interaction.customId === "boss_raid_run") {
               boss,
               logs,
               false,
-              lastUsedUnitKey ? [lastUsedUnitKey] : []
+              []
             ),
           ],
           components: buildRaidBossButtons(
             participants,
             false,
-            lastUsedUnitKey ? [lastUsedUnitKey] : []
+            []
           ),
         });
       });
