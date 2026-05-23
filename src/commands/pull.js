@@ -925,8 +925,17 @@ module.exports = {
 
     let pityCounter = getSharedPity(player) + 1;
     const triggeredPity = pityCounter >= pityLimit;
+    const rolledContentType = pickContentType(premiumTier);
 
-    const rolledContentType = pickContentType(premiumTier); const contentType = triggeredPity ? "battleCard" : rolledContentType; const baseTier = pickBaseTier(premiumTier, contentType, triggeredPity);
+    const contentType = triggeredPity
+      ? Math.random() < 0.5
+        ? "battleCard"
+        : "boostCard"
+      : rolledContentType;
+
+    const baseTier = triggeredPity
+      ? pityGuarantee
+      : pickBaseTier(premiumTier, contentType, false);
 
     const pool = getRewardPool(contentType);
     const picked =
