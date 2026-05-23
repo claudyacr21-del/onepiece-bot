@@ -20,6 +20,8 @@ function getAdminIds() {
     process.env.ADMIN_USER_IDS ||
       process.env.DISCORD_OWNER_ID ||
       process.env.BOT_OWNER_ID ||
+      process.env.BOT_OWNER_IDS ||
+      process.env.OWNER_IDS ||
       ""
   )
     .split(",")
@@ -112,12 +114,10 @@ function collectCatalogEntries(source, out = [], seen = new Set()) {
 
   const hasIdentity =
     typeof source.name === "string" ||
-    typeof source.code === "string" ||
-    typeof source.id === "string" ||
     typeof source.displayName === "string";
 
   if (hasIdentity) {
-    const key = source.code || source.id || source.name || source.displayName;
+    const key = source.name || source.displayName;
     const seenKey = `${key}_${out.length}`;
 
     if (!seen.has(seenKey)) {
@@ -148,36 +148,16 @@ function getDisplayName(entry) {
   return entry?.displayName || entry?.name || "";
 }
 
+/*
+  IMPORTANT:
+  Search is intentionally name/displayName only.
+  Do not search by code/id/title/alias/item fields.
+*/
 function getCatalogKeys(entry) {
   const keys = [];
 
-  addSearchKey(keys, getDisplayName(entry));
-
-  const searchableFields = [
-    entry?.name,
-    entry?.displayName,
-    entry?.code,
-    entry?.id,
-    entry?.title,
-    entry?.subtitle,
-    entry?.epithet,
-    entry?.form,
-    entry?.style,
-    entry?.alias,
-    entry?.aliases,
-    entry?.arc,
-    entry?.stageName,
-    entry?.evolutionName,
-    entry?.bottomTitle,
-  ];
-
-  for (const value of searchableFields) {
-    if (Array.isArray(value)) {
-      value.forEach((item) => addSearchKey(keys, item));
-    } else {
-      addSearchKey(keys, value);
-    }
-  }
+  addSearchKey(keys, entry?.name);
+  addSearchKey(keys, entry?.displayName);
 
   const name = String(entry?.name || "");
   const displayName = String(entry?.displayName || "");
@@ -194,54 +174,6 @@ function getCatalogKeys(entry) {
       .split(",")
       .map((x) => x.trim())
       .forEach((part) => addSearchKey(keys, part));
-  }
-
-  const allText = [
-    entry?.name,
-    entry?.displayName,
-    entry?.title,
-    entry?.subtitle,
-    entry?.epithet,
-    entry?.form,
-  ]
-    .map((x) => String(x || ""))
-    .join(" ");
-
-  const modelMatch =
-    allText.match(/model:\s*([^,]+)/i) ||
-    name.match(/model:\s*(.+)$/i) ||
-    displayName.match(/model:\s*(.+)$/i);
-
-  if (modelMatch?.[1]) {
-    addSearchKey(keys, modelMatch[1]);
-  }
-
-  const noMiMatch =
-    allText.match(/^(.+?)\s+no\s+mi/i) ||
-    name.match(/^(.+?)\s+no\s+mi/i) ||
-    displayName.match(/^(.+?)\s+no\s+mi/i);
-
-  if (noMiMatch?.[1]) {
-    addSearchKey(keys, noMiMatch[1]);
-  }
-
-  /*
-    Manual searchable aliases for common One Piece epithets/forms
-    that are not always stored as card displayName.
-  */
-  const compactText = normalizeCompact(allText);
-  const codeText = normalizeCompact(entry?.code);
-
-  if (compactText.includes("blackleg") || codeText.includes("blackleg")) {
-    addSearchKey(keys, "Black Leg");
-  }
-
-  if (
-    compactText.includes("sanji") &&
-    (compactText.includes("blackleg") || codeText.includes("sanji"))
-  ) {
-    addSearchKey(keys, "Sanji Black Leg");
-    addSearchKey(keys, "Black Leg Sanji");
   }
 
   return [...new Set(keys.map(String).filter(Boolean))];
@@ -267,22 +199,33 @@ const fruitEntries = collectCatalogEntries(devilFruitsData);
 const itemEntries = collectCatalogEntries(itemsData);
 const cardEntries = collectCatalogEntries(cardsData);
 
+const fragmentEntries = [
+  ...cardEntries.map((entry) => ({
+    ...entry,
+    fragmentSource: "card",
+  })),
+  ...weaponEntries.map((entry) => ({
+    ...entry,
+    fragmentSource: "weapon",
+  })),
+];
+
 const weaponIndex = buildIndex(weaponEntries);
 const fruitIndex = buildIndex(fruitEntries);
 const itemIndex = buildIndex(itemEntries);
-const cardIndex = buildIndex(cardEntries);
+const fragmentIndex = buildIndex(fragmentEntries);
 
 function getEntriesForBucket(bucket) {
   if (bucket === "weapons") return weaponEntries;
   if (bucket === "devilFruits") return fruitEntries;
-  if (bucket === "fragments") return cardEntries;
+  if (bucket === "fragments") return fragmentEntries;
   return itemEntries;
 }
 
 function getIndexForBucket(bucket) {
   if (bucket === "weapons") return weaponIndex;
   if (bucket === "devilFruits") return fruitIndex;
-  if (bucket === "fragments") return cardIndex;
+  if (bucket === "fragments") return fragmentIndex;
   return itemIndex;
 }
 
@@ -342,16 +285,43 @@ function findCatalogEntry(bucket, query) {
   return ranked[0]?.entry || null;
 }
 
+function buildCardFragmentEntry(catalogEntry, amount) {
+  return {
+    name: catalogEntry.displayName || catalogEntry.name || catalogEntry.code,
+    amount,
+    rarity: catalogEntry.baseTier || catalogEntry.rarity || "C",
+    category: catalogEntry.cardRole === "boost" ? "boost" : "battle",
+    code: catalogEntry.code,
+    cardCode: catalogEntry.code,
+    sourceCode: catalogEntry.code,
+    image: catalogEntry.image || "",
+  };
+}
+
+function buildWeaponFragmentEntry(catalogEntry, amount) {
+  return {
+    name: catalogEntry.displayName || catalogEntry.name || catalogEntry.code,
+    amount,
+    rarity: catalogEntry.rarity || "C",
+    category: "weapon",
+    code: catalogEntry.code,
+    weaponCode: catalogEntry.code,
+    sourceCode: catalogEntry.code,
+    image: catalogEntry.image || "",
+  };
+}
+
+function buildFragmentEntry(catalogEntry, amount) {
+  if (catalogEntry.fragmentSource === "weapon") {
+    return buildWeaponFragmentEntry(catalogEntry, amount);
+  }
+
+  return buildCardFragmentEntry(catalogEntry, amount);
+}
+
 function buildStoredEntry(bucket, catalogEntry, amount) {
   if (bucket === "fragments") {
-    return {
-      name: catalogEntry.displayName || catalogEntry.name || catalogEntry.code,
-      amount,
-      rarity: catalogEntry.baseTier || catalogEntry.rarity || "C",
-      category: catalogEntry.cardRole === "boost" ? "boost" : "battle",
-      code: catalogEntry.code,
-      image: catalogEntry.image || "",
-    };
+    return buildFragmentEntry(catalogEntry, amount);
   }
 
   const base = {
@@ -402,6 +372,7 @@ function buildStoredEntry(bucket, catalogEntry, amount) {
 
   if (bucket === "weapons") {
     base.upgradeLevel = Number(catalogEntry.upgradeLevel || 0);
+    base.amount = 1;
   }
 
   return base;
@@ -415,6 +386,42 @@ function sameEntry(a, b) {
   return normalize(a?.name) === normalize(b?.name);
 }
 
+function addOrIncreaseEntry(list, stored, amount) {
+  const arr = ensureArray(list).map((entry) => ({ ...entry }));
+  const existing = arr.find((entry) => sameEntry(entry, stored));
+
+  if (existing) {
+    existing.amount = Number(existing.amount || 0) + amount;
+
+    for (const [key, value] of Object.entries(stored)) {
+      if (key === "amount") continue;
+      existing[key] = value;
+    }
+  } else {
+    arr.push({
+      ...stored,
+      amount,
+    });
+  }
+
+  return arr;
+}
+
+function playerOwnsWeapon(player, weaponEntry) {
+  const weaponCode = normalizeCode(weaponEntry?.code);
+  const weaponName = normalize(weaponEntry?.name || weaponEntry?.displayName);
+
+  return ensureArray(player?.weapons).some((weapon) => {
+    const ownedCode = normalizeCode(weapon?.code);
+    const ownedName = normalize(weapon?.name || weapon?.displayName);
+
+    if (weaponCode && ownedCode && weaponCode === ownedCode) return true;
+    if (weaponName && ownedName && weaponName === ownedName) return true;
+
+    return false;
+  });
+}
+
 function getUsageText() {
   return [
     "Usage: `op giveitem <@user/userId> <bucket> <amount> <display name/card name>`",
@@ -423,9 +430,13 @@ function getUsageText() {
     "`op giveitem @user devilfruits 1 Hito Hito no Mi, Model: Nika`",
     "`op giveitem @user fragments 5 Luffy`",
     "`op giveitem @user fragments 5 Sniper Focus`",
+    "`op giveitem @user fragments 5 Wado Ichimonji`",
+    "`op giveitem @user weapons 1 Wado Ichimonji`",
     "`op giveitem @user tickets 2 Common Raid Ticket`",
     "",
-    "Search only checks display name / card name, not code name.",
+    "Search only checks name / displayName, not code, id, title, alias, or other fields.",
+    "Fragments can be card fragments or weapon fragments.",
+    "If a player already owns a weapon, giving that weapon converts it into weapon fragments.",
     `Buckets: ${VALID_BUCKETS.join(", ")}`,
   ].join("\n");
 }
@@ -474,7 +485,7 @@ module.exports = {
 
     if (!catalogEntry) {
       return message.reply({
-        content: `Invalid ${bucket} entry.\nMust match by display name / card name only.\nQuery: \`${query}\``,
+        content: `Invalid ${bucket} entry.\nMust match by name / displayName only.\nQuery: \`${query}\``,
         allowedMentions: {
           repliedUser: false,
         },
@@ -483,44 +494,108 @@ module.exports = {
 
     const stored = buildStoredEntry(bucket, catalogEntry, amount);
 
+    let finalBucket = storageBucket;
+    let finalStored = stored;
+    let finalAmount = amount;
+    let convertedToFragments = false;
+    let gaveWeapon = false;
+    let convertedFragmentAmount = 0;
+
     updatePlayerAtomic(
       userId,
       (fresh) => {
-        const list = ensureArray(fresh[storageBucket]).map((entry) => ({ ...entry }));
-        const existing = list.find((entry) => sameEntry(entry, stored));
+        if (bucket === "weapons") {
+          const ownsWeapon = playerOwnsWeapon(fresh, catalogEntry);
+          const weaponFragment = buildWeaponFragmentEntry(catalogEntry, amount);
 
-        if (existing) {
-          existing.amount = Number(existing.amount || 0) + amount;
+          if (ownsWeapon) {
+            finalBucket = "fragments";
+            finalStored = weaponFragment;
+            finalAmount = amount;
+            convertedToFragments = true;
+            convertedFragmentAmount = amount;
 
-          for (const [key, value] of Object.entries(stored)) {
-            if (key === "amount") continue;
-            existing[key] = value;
+            return {
+              ...fresh,
+              fragments: addOrIncreaseEntry(fresh.fragments, weaponFragment, amount),
+            };
           }
-        } else {
-          list.push(stored);
+
+          const weaponList = ensureArray(fresh.weapons).map((entry) => ({ ...entry }));
+          weaponList.push({
+            ...stored,
+            amount: 1,
+          });
+
+          gaveWeapon = true;
+
+          if (amount <= 1) {
+            return {
+              ...fresh,
+              weapons: weaponList,
+            };
+          }
+
+          const extraFragments = amount - 1;
+          convertedToFragments = true;
+          convertedFragmentAmount = extraFragments;
+
+          return {
+            ...fresh,
+            weapons: weaponList,
+            fragments: addOrIncreaseEntry(fresh.fragments, weaponFragment, extraFragments),
+          };
         }
+
+        const list = ensureArray(fresh[storageBucket]).map((entry) => ({ ...entry }));
+        const nextList = addOrIncreaseEntry(list, stored, amount);
 
         return {
           ...fresh,
-          [storageBucket]: list,
+          [storageBucket]: nextList,
         };
       },
       mentionedUser?.username || `User ${userId}`
     );
 
+    const description = [
+      `**Target:** <@${userId}>`,
+      `**User ID:** \`${userId}\``,
+      `**Bucket:** \`${bucket}\``,
+      `**Item:** ${stored.name}`,
+      `**Amount:** ${amount}`,
+    ];
+
+    if (bucket === "weapons") {
+      if (gaveWeapon) {
+        description.push("**Weapon Added:** Yes");
+      }
+
+      if (convertedToFragments) {
+        description.push(
+          `**Converted To Fragments:** ${convertedFragmentAmount}x ${stored.name}`
+        );
+      }
+    } else {
+      description.push(`**Saved To:** \`${finalBucket}\``);
+    }
+
+    if (bucket === "fragments") {
+      description.push(
+        `**Fragment Type:** ${
+          stored.category === "weapon"
+            ? "Weapon"
+            : stored.category === "boost"
+            ? "Boost Card"
+            : "Battle Card"
+        }`
+      );
+    }
+
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
       .setTitle("✅ Item Added")
-      .setDescription(
-        [
-          `**Target:** <@${userId}>`,
-          `**User ID:** \`${userId}\``,
-          `**Bucket:** \`${bucket}\``,
-          `**Item:** ${stored.name}`,
-          `**Code:** \`${stored.code || "none"}\``,
-          `**Amount:** ${amount}`,
-        ].join("\n")
-      )
+      .setDescription(description.join("\n"))
       .setFooter({ text: "One Piece Bot • Admin Give Item" });
 
     return message.reply({
