@@ -43,6 +43,7 @@ const {
 const PREMIUM_PITY_TARGET = 100;
 const VIVRE_PITY_TARGET = 125;
 const NORMAL_PITY_TARGET = 150;
+const PULL_USER_LOCKS = new Set();
 
 function getSharedPity(player) {
   const pity = player?.pity || {};
