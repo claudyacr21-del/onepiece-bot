@@ -300,8 +300,8 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addGems(60);
     addReward(ITEMS.ironPlating, 1);
     addReward(ITEMS.hardwood, 1);
-    addReward(ITEMS.colaEnginePart, 2);
-    addReward(ITEMS.enhancementStone, 15);
+    addReward(ITEMS.colaEnginePart, 1);
+    addReward(ITEMS.enhancementStone, 10);
     addReward(ITEMS.rumBeer, 5 + Math.floor(Math.random() * 3));
 
     if (Math.random() < 0.60) {
@@ -311,7 +311,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       );
     }
 
-    if (Math.random() < 0.40) {
+    if (Math.random() < 0.20) {
       addReward(ITEMS.pullResetTicket, 2);
     }
   } else if (box.code === "mother_flame_treasure_box") {
