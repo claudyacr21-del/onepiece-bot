@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayer } = require("../playerStore");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
@@ -8,12 +8,17 @@ const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const index = arr.findIndex((entry) => entry.code === item.code);
+  const code = String(item?.code || "").trim();
+
+  if (!code) return arr;
+
+  const index = arr.findIndex((entry) => String(entry.code || "") === code);
 
   if (index !== -1) {
     arr[index] = {
       ...arr[index],
-      amount: Number(arr[index].amount || 1) + Number(item.amount || 1),
+      ...item,
+      amount: Number(arr[index].amount || 0) + Number(item.amount || 1),
     };
     return arr;
   }
@@ -44,7 +49,8 @@ function addReward(rewards, reward) {
   if (index !== -1) {
     rewards[index] = {
       ...rewards[index],
-      amount: Number(rewards[index].amount || 1) + Number(reward.amount || 1),
+      ...reward,
+      amount: Number(rewards[index].amount || 0) + Number(reward.amount || 1),
     };
     return;
   }
@@ -57,7 +63,17 @@ function addReward(rewards, reward) {
 
 function makeReward(item, amount = 1) {
   if (!item) return null;
-  return cloneItem(item, amount);
+
+  const reward = cloneItem(item, amount);
+
+  return {
+    ...item,
+    ...reward,
+    type: item.type || reward.type,
+    code: item.code || reward.code,
+    name: item.name || reward.name,
+    amount: Number(amount || reward.amount || 1),
+  };
 }
 
 function formatRemaining(ms) {
@@ -245,27 +261,46 @@ function getDailyTierRewards(dailyTier) {
   };
 }
 
+function getRewardType(reward) {
+  const code = String(reward?.code || "");
+
+  const catalogItem = Object.values(ITEMS).find((item) => item.code === code);
+
+  return String(reward?.type || catalogItem?.type || "").toLowerCase();
+}
+
 function applyRewardToInventory(player, reward) {
-  if (reward.type === "Box") {
+  const rewardType = getRewardType(reward);
+
+  if (rewardType === "box") {
     return {
-      boxes: addOrIncrease(player.boxes, reward),
+      boxes: addOrIncrease(player.boxes, {
+        ...reward,
+        type: "Box",
+      }),
     };
   }
 
-  if (reward.type === "Ticket") {
+  if (rewardType === "ticket") {
     return {
-      tickets: addOrIncrease(player.tickets, reward),
+      tickets: addOrIncrease(player.tickets, {
+        ...reward,
+        type: "Ticket",
+      }),
     };
   }
 
-  if (reward.type === "Consumable" || reward.type === "Item") {
+  if (rewardType === "consumable" || rewardType === "item") {
     return {
       items: addOrIncrease(player.items, reward),
     };
   }
 
   return {
-    materials: addOrIncrease(player.materials, reward),
+    materials: addOrIncrease(player.materials, {
+      ...reward,
+      type: reward.type || "Material",
+    }),
   };
 }
 
@@ -282,12 +317,17 @@ module.exports = {
 
     if (nextDailyAt > now) {
       if (Number(cooldowns.daily || 0) !== nextDailyAt) {
-        updatePlayer(message.author.id, {
-          cooldowns: {
-            ...cooldowns,
-            daily: nextDailyAt,
-          },
-        });
+        updatePlayerAtomic(
+          message.author.id,
+          (fresh) => ({
+            ...fresh,
+            cooldowns: {
+              ...(fresh.cooldowns || {}),
+              daily: nextDailyAt,
+            },
+          }),
+          message.author.username
+        );
       }
 
       return message.reply(
@@ -298,49 +338,60 @@ module.exports = {
     }
 
     const rewardBundle = getDailyTierRewards(dailyTier);
+    const nextReadyAt = now + DAILY_COOLDOWN_MS;
 
-    let updatedBoxes = [...(player.boxes || [])];
-    let updatedTickets = [...(player.tickets || [])];
-    let updatedMaterials = [...(player.materials || [])];
-    let updatedItems = [...(player.items || [])];
+    let updatedSnapshot = null;
 
-    for (const reward of rewardBundle.rewards) {
-      const result = applyRewardToInventory(
-        {
+    updatePlayerAtomic(
+      message.author.id,
+      (fresh) => {
+        let updatedBoxes = [...(fresh.boxes || [])];
+        let updatedTickets = [...(fresh.tickets || [])];
+        let updatedMaterials = [...(fresh.materials || [])];
+        let updatedItems = [...(fresh.items || [])];
+
+        for (const reward of rewardBundle.rewards) {
+          const result = applyRewardToInventory(
+            {
+              boxes: updatedBoxes,
+              tickets: updatedTickets,
+              materials: updatedMaterials,
+              items: updatedItems,
+            },
+            reward
+          );
+
+          if (result.boxes) updatedBoxes = result.boxes;
+          if (result.tickets) updatedTickets = result.tickets;
+          if (result.materials) updatedMaterials = result.materials;
+          if (result.items) updatedItems = result.items;
+        }
+
+        const updatedDailyState = incrementQuestCounter(fresh, "dailyClaims", 1);
+
+        updatedSnapshot = {
+          ...fresh,
+          berries: Number(fresh.berries || 0) + rewardBundle.berries,
+          gems: Number(fresh.gems || 0) + rewardBundle.gems,
           boxes: updatedBoxes,
           tickets: updatedTickets,
           materials: updatedMaterials,
           items: updatedItems,
-        },
-        reward
-      );
+          dailyLastClaim: now,
+          quests: {
+            ...(fresh.quests || {}),
+            dailyState: updatedDailyState,
+          },
+          cooldowns: {
+            ...(fresh.cooldowns || {}),
+            daily: nextReadyAt,
+          },
+        };
 
-      if (result.boxes) updatedBoxes = result.boxes;
-      if (result.tickets) updatedTickets = result.tickets;
-      if (result.materials) updatedMaterials = result.materials;
-      if (result.items) updatedItems = result.items;
-    }
-
-    const nextReadyAt = now + DAILY_COOLDOWN_MS;
-    const updatedDailyState = incrementQuestCounter(player, "dailyClaims", 1);
-
-    updatePlayer(message.author.id, {
-      berries: Number(player.berries || 0) + rewardBundle.berries,
-      gems: Number(player.gems || 0) + rewardBundle.gems,
-      boxes: updatedBoxes,
-      tickets: updatedTickets,
-      materials: updatedMaterials,
-      items: updatedItems,
-      dailyLastClaim: now,
-      quests: {
-        ...(player.quests || {}),
-        dailyState: updatedDailyState,
+        return updatedSnapshot;
       },
-      cooldowns: {
-        ...cooldowns,
-        daily: nextReadyAt,
-      },
-    });
+      message.author.username
+    );
 
     const extraLines = rewardBundle.rewards.length
       ? rewardBundle.rewards.map(
