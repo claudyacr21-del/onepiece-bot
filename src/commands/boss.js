@@ -1083,16 +1083,31 @@ function getUnitActionKey(unit) {
   ].join(":");
 }
 
-function getUsedActionKeySet(usedThisCycle = []) {
-  return new Set(
-    (Array.isArray(usedThisCycle) ? usedThisCycle : [])
-      .map((key) => String(key || ""))
-      .filter(Boolean)
-  );
-}
-
 function getAliveActionKeys(units) {
   return getAliveUnits(units).map((unit) => getUnitActionKey(unit));
+}
+
+function getLastUsedKeySet(lastUsedUnitKey = "") {
+  const key = String(lastUsedUnitKey || "");
+  return key ? new Set([key]) : new Set();
+}
+
+function shouldDisableLastUsed(units, lastUsedUnitKey, unit) {
+  if (!unit) return false;
+
+  const key = String(lastUsedUnitKey || "");
+  if (!key) return false;
+
+  const unitKey = getUnitActionKey(unit);
+  if (unitKey !== key) return false;
+
+  const aliveUnits = getAliveUnits(units || []);
+  const aliveOtherUnits = aliveUnits.filter(
+    (aliveUnit) => getUnitActionKey(aliveUnit) !== key
+  );
+
+  // Kalau tinggal 1 card hidup, jangan softlock.
+  return aliveOtherUnits.length > 0;
 }
 
 function normalizeBossActionCycle(units, usedThisCycle = []) {
@@ -1912,16 +1927,17 @@ function applyBoxes(currentBoxes, rewardBoxes) {
   return updatedBoxes;
 }
 
-function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, usedThisCycle = []) {
+function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, lastUsedUnitKey = "") {
   const phaseLabel = phaseBoss ? `Phase ${phaseBoss.phase}` : "Boss";
-  const usedSet = getUsedActionKeySet(usedThisCycle);
+  const allUnits = participants.flatMap((p) => p.units || []);
+  const usedSet = getLastUsedKeySet(lastUsedUnitKey);
   const teamLines = [];
 
   for (const participant of participants) {
     for (const unit of participant.units) {
       const unitKey = getUnitActionKey(unit);
       const isDead = Number(unit.battleHp ?? unit.hp) <= 0;
-      const alreadyUsed = usedSet.has(unitKey);
+      const alreadyUsed = usedSet.has(unitKey) && shouldDisableLastUsed(allUnits, lastUsedUnitKey, unit);
       const status = isDead ? "DEFEATED" : alreadyUsed ? "WAIT" : "READY";
 
       teamLines.push(
@@ -1954,15 +1970,15 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
     .setFooter({ text: "One Piece Bot • Boss Phase 2 Raid" });
 }
 
-function buildRaidBossButtons(participants, ended, usedThisCycle = []) {
-  const usedSet = getUsedActionKeySet(usedThisCycle);
+function buildRaidBossButtons(participants, ended, lastUsedUnitKey = "") {
+  const usedSet = getLastUsedKeySet(lastUsedUnitKey);
   const allUnits = participants.flatMap((p) => p.units);
   const rows = [];
   let row = new ActionRowBuilder();
 
   for (const unit of allUnits) {
     const unitKey = getUnitActionKey(unit);
-    const alreadyUsed = usedSet.has(unitKey);
+    const alreadyUsed = usedSet.has(unitKey) && shouldDisableLastUsed(allUnits, lastUsedUnitKey, unit);
     const dead = Number(unit.battleHp ?? unit.hp) <= 0;
     const label = `${unit.globalSlot + 1} ${unit.name}`.slice(0, 80);
 
