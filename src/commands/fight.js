@@ -5,6 +5,7 @@ const {
   ButtonStyle,
   MessageFlags,
 } = require("discord.js");
+
 const { getPlayer, updatePlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestCounter } = require("../utils/questProgress");
@@ -27,27 +28,69 @@ const MOTHER_FLAME_FIGHT_COOLDOWN_MS = 5 * 60 * 1000;
 const VIVRE_CARD_FIGHT_COOLDOWN_MS = 6.5 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 
+const __activeFightSystemInteractions = new Set();
+
+async function __guardFightSystemInteraction(interaction) {
+  const key = [
+    interaction?.message?.id || "no-message",
+    interaction?.user?.id || "no-user",
+    interaction?.customId || "no-custom-id",
+  ].join(":");
+
+  if (__activeFightSystemInteractions.has(key)) {
+    if (typeof safeDeferUpdate === "function") {
+      await safeDeferUpdate(interaction).catch(() => null);
+    }
+    return false;
+  }
+
+  __activeFightSystemInteractions.add(key);
+
+  setTimeout(() => {
+    __activeFightSystemInteractions.delete(key);
+  }, 2500);
+
+  return true;
+}
+
+function isIgnorableDiscordInteractionError(error) {
+  const code = Number(error?.code || error?.rawError?.code || 0);
+  const status = Number(error?.status || error?.rawError?.status || 0);
+  const message = String(error?.message || "");
+  const errno = String(error?.errno || error?.cause?.errno || "");
+  const requestCode = String(error?.requestBody?.code || "");
+
+  return (
+    code === 10062 ||
+    code === 40060 ||
+    status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    errno === "ECONNRESET" ||
+    errno === "ETIMEDOUT" ||
+    errno === "EAI_AGAIN" ||
+    requestCode === "UND_ERR_SOCKET" ||
+    message.includes("Unknown interaction") ||
+    message.includes("Interaction has already been acknowledged") ||
+    message.includes("Service Unavailable") ||
+    message.includes("Bad Gateway") ||
+    message.includes("Gateway Timeout")
+  );
+}
+
 async function safeDeferUpdate(interaction) {
-  if (!interaction || interaction.deferred || interaction.replied) return true;
+  if (!interaction) return false;
+  if (interaction.deferred || interaction.replied) return true;
 
   try {
     await interaction.deferUpdate();
     return true;
   } catch (error) {
-    const code = Number(error?.code || error?.rawError?.code || 0);
-    const message = String(error?.message || "");
-
-    if (
-      code === 10062 ||
-      code === 40060 ||
-      message.includes("Unknown interaction") ||
-      message.includes("Interaction has already been acknowledged")
-    ) {
-      console.warn("[FIGHT DEFER IGNORED]", message || "Unknown interaction");
-      return false;
+    if (!isIgnorableDiscordInteractionError(error)) {
+      console.error("[FIGHT DEFER UPDATE ERROR]", error);
     }
-
-    console.error("[FIGHT DEFER UPDATE ERROR]", error);
     return false;
   }
 }
@@ -64,26 +107,17 @@ async function safeEditInteractionMessage(interaction, payload) {
 
     return null;
   } catch (error) {
-    const code = Number(error?.code || error?.rawError?.code || 0);
-    const message = String(error?.message || "");
-
-    if (
-      code === 10062 ||
-      code === 40060 ||
-      message.includes("Unknown interaction") ||
-      message.includes("Interaction has already been acknowledged")
-    ) {
-      console.warn("[FIGHT EDIT IGNORED]", message || "Unknown interaction");
-      return null;
+    if (!isIgnorableDiscordInteractionError(error)) {
+      console.error("[FIGHT MESSAGE EDIT ERROR]", error);
     }
-
-    console.error("[FIGHT MESSAGE EDIT ERROR]", error);
     return null;
   }
 }
 
 async function safeEphemeralReply(interaction, content) {
   try {
+    if (!interaction) return null;
+
     const payload = {
       content,
       flags: MessageFlags.Ephemeral,
@@ -95,20 +129,9 @@ async function safeEphemeralReply(interaction, content) {
 
     return await interaction.reply(payload);
   } catch (error) {
-    const code = Number(error?.code || error?.rawError?.code || 0);
-    const message = String(error?.message || "");
-
-    if (
-      code === 10062 ||
-      code === 40060 ||
-      message.includes("Unknown interaction") ||
-      message.includes("Interaction has already been acknowledged")
-    ) {
-      console.warn("[FIGHT REPLY IGNORED]", message || "Unknown interaction");
-      return null;
+    if (!isIgnorableDiscordInteractionError(error)) {
+      console.error("[FIGHT REPLY ERROR]", error);
     }
-
-    console.error("[FIGHT REPLY ERROR]", error);
     return null;
   }
 }
@@ -122,8 +145,7 @@ function formatExpResults(playerTeam, expResults) {
             Number.isInteger(entry.sourceIndex) &&
             Number.isInteger(card.sourceIndex) &&
             card.sourceIndex === entry.sourceIndex
-        ) ||
-        playerTeam.find((card) => card.instanceId === entry.instanceId);
+        ) || playerTeam.find((card) => card.instanceId === entry.instanceId);
 
       if (!unit) return null;
 
@@ -157,6 +179,7 @@ function addOrIncrease(list, item) {
       ...arr[index],
       amount: Number(arr[index].amount || 1) + Number(item.amount || 1),
     };
+
     return arr;
   }
 
@@ -275,29 +298,11 @@ function scaleByIsland(value, island, roleMultiplier = 1) {
   return Math.floor(Number(value || 0) * shipTierMultiplier * roleMultiplier + order);
 }
 
-function getIslandBossName(island) {
-  if (
-    island?.boss &&
-    island.boss !== "Egghead Boss Route" &&
-    island.boss !== "Elbaf Boss Route"
-  ) {
-    return island.boss;
-  }
-
-  if (Array.isArray(island?.bossPhases) && island.bossPhases.length) {
-    return island.bossPhases[0]?.name || `${island.name} Boss`;
-  }
-
-  return `${island?.name || "Island"} Captain`;
-}
-
 function createIslandEnemyTemplates(island) {
   const order = Number(island?.order || 0);
   const rarities = getIslandEnemyRarities(order);
   const islandName = island?.name || "Unknown Island";
 
-  // Regular island fight mobs.
-  // Increased slightly, but still below true island boss difficulty.
   const scoutAtk = 78 + order * 14;
   const scoutHp = 620 + order * 110;
   const scoutSpeed = 64 + order * 3.4;
@@ -318,7 +323,6 @@ function createIslandEnemyTemplates(island) {
       scaleByIsland(scoutHp, island, 0.9),
       scaleByIsland(scoutSpeed, island, 0.95)
     ),
-
     createEnemy(
       `${islandName} Elite`,
       rarities[1],
@@ -326,7 +330,6 @@ function createIslandEnemyTemplates(island) {
       scaleByIsland(eliteHp, island, 0.95),
       scaleByIsland(eliteSpeed, island, 0.98)
     ),
-
     createEnemy(
       `${islandName} Captain`,
       rarities[2],
@@ -340,25 +343,29 @@ function createIslandEnemyTemplates(island) {
 function getAveragePlayerLevel(playerTeam) {
   if (!Array.isArray(playerTeam) || !playerTeam.length) return 1;
 
-  const total = playerTeam.reduce((sum, unit) => sum + Math.max(1, Number(unit.level || 1)), 0);
+  const total = playerTeam.reduce(
+    (sum, unit) => sum + Math.max(1, Number(unit.level || 1)),
+    0
+  );
+
   return Math.max(1, Math.round(total / playerTeam.length));
 }
 
 function getEnemyLevelForSlot(baseLevel, slotIndex) {
   const slotOffset = slotIndex === 0 ? -1 : slotIndex === 1 ? 0 : 2;
   const randomOffset = randomInt(-3, 3);
+
   return Math.max(1, Math.min(100, baseLevel + slotOffset + randomOffset));
 }
 
 function scaleEnemy(enemy, playerAverageLevel, slotIndex) {
   const level = getEnemyLevelForSlot(playerAverageLevel, slotIndex);
-
-  // Slightly stronger level scaling, still smooth for late islands.
   const levelMultiplier = 1 + (level - 1) * 0.009;
 
   const atkMult = (randomInt(94, 106) / 100) * levelMultiplier;
   const hpMult = (randomInt(96, 109) / 100) * levelMultiplier;
-  const speedMult = (randomInt(97, 107) / 100) * (1 + (level - 1) * 0.0035);
+  const speedMult =
+    (randomInt(97, 107) / 100) * (1 + (level - 1) * 0.0035);
 
   return createEnemy(
     enemy.name,
@@ -412,12 +419,12 @@ function performAttack(attacker, defender, boosts = {}) {
   const defSpeed = Number(defender.battleSpeed || defender.speed || 0);
   const rolledAtk = Math.floor(atk * (0.85 + Math.random() * 0.3));
   const rawDamage = Math.max(1, rolledAtk - Math.floor(defSpeed * 0.15));
+
   const isPlayerUnit = !String(attacker.instanceId || "").startsWith("enemy-");
   const finalDamage = isPlayerUnit ? applyDamageBoost(rawDamage, boosts) : rawDamage;
 
   const currentHp = Number(defender.battleHp ?? defender.hp ?? 0);
   defender.battleHp = clampHp(currentHp - finalDamage);
-
   syncDisplayHp(defender);
 
   return finalDamage;
@@ -429,14 +436,30 @@ function resolveTurnOrder(playerUnit, enemyUnit) {
 
   if (enemySpeed > playerSpeed) {
     return [
-      { actor: enemyUnit, target: playerUnit, isPlayer: false },
-      { actor: playerUnit, target: enemyUnit, isPlayer: true },
+      {
+        actor: enemyUnit,
+        target: playerUnit,
+        isPlayer: false,
+      },
+      {
+        actor: playerUnit,
+        target: enemyUnit,
+        isPlayer: true,
+      },
     ];
   }
 
   return [
-    { actor: playerUnit, target: enemyUnit, isPlayer: true },
-    { actor: enemyUnit, target: playerUnit, isPlayer: false },
+    {
+      actor: playerUnit,
+      target: enemyUnit,
+      isPlayer: true,
+    },
+    {
+      actor: enemyUnit,
+      target: playerUnit,
+      isPlayer: false,
+    },
   ];
 }
 
@@ -452,7 +475,8 @@ function renderHpBar(hp, maxHp, size = 10) {
 function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode, island) {
   const makeUnitLine = (unit, index, isEnemy = false) => {
     const slot = isEnemy ? index + 1 : unit.slot;
-    const levelText = isEnemy
+
+    const statText = isEnemy
       ? `ATK \`${formatAtkRange(unit.atk)}\` • SPD \`${unit.speed}\``
       : `ATK \`${formatAtkRange(unit.battleAtk)}\` • SPD \`${unit.battleSpeed}\``;
 
@@ -460,7 +484,7 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode,
       ? renderHpBar(unit.hp, unit.maxHp)
       : renderHpBar(unit.battleHp, unit.battleMaxHp);
 
-    return `**${slot}. ${unit.name}** — ${levelText}\n${hp}`;
+    return `**${slot}. ${unit.name}** — ${statText}\n${hp}`;
   };
 
   const enemyLines = enemyTeam.map((unit, index) => makeUnitLine(unit, index, true));
@@ -484,17 +508,19 @@ function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode,
   ].join("\n");
 }
 
-function buildActionRows(playerTeam, battleEnded, confirmingRunAway = false) {
+function buildActionRows(playerTeam, battleEnded, confirmingRunAway = false, locked = false) {
   if (confirmingRunAway && !battleEnded) {
     const confirmButtons = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("fight_run_confirm")
         .setLabel("Confirm Run Away")
-        .setStyle(ButtonStyle.Danger),
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(locked),
       new ButtonBuilder()
         .setCustomId("fight_run_cancel")
         .setLabel("Cancel")
         .setStyle(ButtonStyle.Secondary)
+        .setDisabled(locked)
     );
 
     return [confirmButtons];
@@ -510,7 +536,12 @@ function buildActionRows(playerTeam, battleEnded, confirmingRunAway = false) {
         .setCustomId(`fight_attack_${i}`)
         .setLabel(unit ? unit.name.slice(0, 20) : `Slot ${i + 1}`)
         .setStyle(ButtonStyle.Primary)
-        .setDisabled(battleEnded || !unit || Number(unit.battleHp ?? unit.hp) <= 0)
+        .setDisabled(
+          locked ||
+            battleEnded ||
+            !unit ||
+            Number(unit.battleHp ?? unit.hp) <= 0
+        )
     );
   }
 
@@ -519,7 +550,7 @@ function buildActionRows(playerTeam, battleEnded, confirmingRunAway = false) {
       .setCustomId("fight_run")
       .setLabel("Run Away")
       .setStyle(ButtonStyle.Danger)
-      .setDisabled(battleEnded)
+      .setDisabled(locked || battleEnded)
   );
 
   return [attackButtons, miscButtons];
@@ -539,16 +570,28 @@ function buildFightEmbed(
     .setColor(battleEnded ? 0x2ecc71 : 0xc0392b)
     .setTitle(`⚔️ ${playerName}'s Fight`)
     .setDescription(
-      buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode, island)
+      buildFightDescription(
+        playerTeam,
+        enemyTeam,
+        logs,
+        streak,
+        premiumMode,
+        island
+      )
     )
     .setFooter({
-      text: premiumMode
-        ? `One Piece Bot • ${premiumMode}`
-        : "One Piece Bot • Manual Fight",
+      text: premiumMode ? `One Piece Bot • ${premiumMode}` : "One Piece Bot • Manual Fight",
     });
 }
 
-function buildFightResultEmbed({ title, color, result, rewardLines = [], expLines = [], logs = [] }) {
+function buildFightResultEmbed({
+  title,
+  color,
+  result,
+  rewardLines = [],
+  expLines = [],
+  logs = [],
+}) {
   return new EmbedBuilder()
     .setColor(color)
     .setTitle(title)
@@ -573,13 +616,18 @@ function buildFightResultEmbed({ title, color, result, rewardLines = [], expLine
     });
 }
 
+function getFightRewardMultiplier(tier) {
+  if (tier === "motherFlame") return 1.45;
+  if (tier === "vivreCard") return 1.225;
+  return 1;
+}
+
 function calculateWinReward(streakAfterWin, premiumTier, island) {
   const order = Math.max(1, Number(island?.order || 1));
   const tier = Math.max(1, Number(island?.requiredShipTier || 1));
 
   const islandBerries = 900 + order * 180 + tier * 250;
   const islandGems = 3 + Math.floor(order / 4) + Math.floor(tier / 2);
-
   const rewardMultiplier = getFightRewardMultiplier(premiumTier);
 
   const reward = {
@@ -606,12 +654,12 @@ function calculateWinReward(streakAfterWin, premiumTier, island) {
 
 function formatFightRewardLines(reward) {
   const lines = [
-    `💰 +${Number(reward.berries || 0).toLocaleString("en-US")} berries`,
-    `💎 +${Number(reward.gems || 0)} gems`,
+    `↪ +${Number(reward.berries || 0).toLocaleString("en-US")} berries`,
+    `↪ +${Number(reward.gems || 0)} gems`,
   ];
 
   for (const box of reward.boxes || []) {
-    lines.push(`🎁 ${box.name || "Resource Box"} x${Number(box.amount || 1)}`);
+    lines.push(`↪ ${box.name || "Resource Box"} x${Number(box.amount || 1)}`);
   }
 
   return lines;
@@ -655,14 +703,12 @@ function applyFightExpToFreshCards(freshPlayer, playerTeam, expResults) {
   return [...(freshPlayer.cards || [])].map((card, index) => {
     const expEntry =
       expResults.find(
-        (entry) =>
-          Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
+        (entry) => Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
       ) || expResults.find((entry) => entry.instanceId === card.instanceId);
 
     const unit =
       playerTeam.find(
-        (entry) =>
-          Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
+        (entry) => Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
       ) || playerTeam.find((entry) => entry.instanceId === card.instanceId);
 
     if (!expEntry || !unit) return card;
@@ -694,7 +740,6 @@ function formatRemaining(ms) {
   const seconds = totalSeconds % 60;
 
   if (minutes <= 0) return `${seconds}s`;
-
   return `${minutes}m ${seconds}s`;
 }
 
@@ -711,25 +756,22 @@ async function getFightPremiumTier(message, player) {
 function getFightCooldownForTier(tier) {
   if (tier === "motherFlame") return MOTHER_FLAME_FIGHT_COOLDOWN_MS;
   if (tier === "vivreCard") return VIVRE_CARD_FIGHT_COOLDOWN_MS;
+
   return NORMAL_FIGHT_COOLDOWN_MS;
 }
 
 function getFightCooldownKey(tier) {
   if (tier === "motherFlame") return "fightMotherFlame";
   if (tier === "vivreCard") return "fightVivreCard";
+
   return "fight";
 }
 
 function getFightModeLabel(tier) {
   if (tier === "motherFlame") return "Mother Flame Premium";
   if (tier === "vivreCard") return "Vivre Card Lite Premium";
-  return "Normal Fight";
-}
 
-function getFightRewardMultiplier(tier) {
-  if (tier === "motherFlame") return 1.45;
-  if (tier === "vivreCard") return 1.225;
-  return 1;
+  return "Normal Fight";
 }
 
 function applyFightLoss(message, player, playerTeam) {
@@ -765,6 +807,7 @@ module.exports = {
     const premiumTier = await getFightPremiumTier(message, player);
     const premiumMode = getFightModeLabel(premiumTier);
     const currentIsland = getPlayerFightIsland(player);
+
     const cooldownKey = getFightCooldownKey(premiumTier);
     const cooldownMs = getFightCooldownForTier(premiumTier);
     const cooldownUntil = Number(player?.cooldowns?.[cooldownKey] || 0);
@@ -831,9 +874,11 @@ module.exports = {
     const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
     const enemyTeam = generateEnemyTeam(currentIsland, playerTeam);
     const logs = [];
+
     let battleEnded = false;
     let confirmingRunAway = false;
     let currentStreak = Number(player.fightStreak || 0);
+    let actionProcessing = false;
 
     const reply = await message.reply({
       embeds: [
@@ -856,247 +901,276 @@ module.exports = {
     });
 
     collector.on("collect", async (interaction) => {
+
+      if (!(await __guardFightSystemInteraction(interaction))) {
+        return;
+      }
       if (interaction.user.id !== message.author.id) {
-        return safeEphemeralReply(interaction, "Only the command user can control this fight.");
+        return safeEphemeralReply(
+          interaction,
+          "Only the command user can control this fight."
+        );
       }
 
       if (battleEnded) {
         return safeEphemeralReply(interaction, "This fight has already ended.");
       }
 
-      const deferred = await safeDeferUpdate(interaction);
-      if (!deferred) return;
-
-if (interaction.customId === "fight_run") {
-  confirmingRunAway = true;
-  logs.length = 0;
-  logs.push("⚠️ Run away confirmation requested.");
-  logs.push("Choose **Confirm Run Away** to leave the fight, or **Cancel** to continue.");
-
-  await safeEditInteractionMessage(interaction, {
-    embeds: [
-      buildFightEmbed(
-        player.username || message.author.username,
-        playerTeam,
-        enemyTeam,
-        logs,
-        currentStreak,
-        false,
-        premiumMode,
-        currentIsland
-      ),
-    ],
-    components: buildActionRows(playerTeam, false, true),
-  });
-
-  return;
-}
-
-if (interaction.customId === "fight_run_cancel") {
-  confirmingRunAway = false;
-  logs.length = 0;
-  logs.push("✅ Run away cancelled.");
-  logs.push("Choose one of your cards to continue the fight.");
-
-  await safeEditInteractionMessage(interaction, {
-    embeds: [
-      buildFightEmbed(
-        player.username || message.author.username,
-        playerTeam,
-        enemyTeam,
-        logs,
-        currentStreak,
-        false,
-        premiumMode,
-        currentIsland
-      ),
-    ],
-    components: buildActionRows(playerTeam, false, false),
-  });
-
-  return;
-}
-
-      if (interaction.customId === "fight_run_confirm") {
-        battleEnded = true;
-        confirmingRunAway = false;
-        logs.length = 0;
-        logs.push("🏃 You ran away from the fight.");
-        logs.push("No EXP gained from running away.");
-
-        await safeEditInteractionMessage(interaction, {
-          embeds: [
-            buildFightResultEmbed({
-              title: "🏃 Fight Escaped",
-              color: 0xf1c40f,
-              result: "RUN AWAY",
-              rewardLines: ["No rewards."],
-              expLines: ["No EXP gained."],
-              logs,
-            }),
-          ],
-          components: [],
-        });
-
-        collector.stop("run");
+      if (actionProcessing) {
+        const busyDeferred = await safeDeferUpdate(interaction);
+        if (!busyDeferred) return;
         return;
       }
 
-      confirmingRunAway = false;
+      actionProcessing = true;
 
-      const index = Number(interaction.customId.replace("fight_attack_", ""));
-      const playerAttacker = playerTeam[index];
-
-      if (!playerAttacker || Number(playerAttacker.battleHp ?? playerAttacker.hp) <= 0) {
-        return safeEphemeralReply(interaction, "That card cannot attack right now.");
+      const deferred = await safeDeferUpdate(interaction);
+      if (!deferred) {
+        actionProcessing = false;
+        return;
       }
 
-      const enemyTarget = getFirstAlive(enemyTeam);
+      try {
+        if (interaction.customId === "fight_run") {
+          confirmingRunAway = true;
+          logs.length = 0;
+          logs.push("⚠️ Run away confirmation requested.");
+          logs.push("Choose **Confirm Run Away** to leave the fight, or **Cancel** to continue.");
 
-      if (!enemyTarget) {
-        return safeEphemeralReply(interaction, "No enemy is available to attack.");
-      }
+          await safeEditInteractionMessage(interaction, {
+            embeds: [
+              buildFightEmbed(
+                player.username || message.author.username,
+                playerTeam,
+                enemyTeam,
+                logs,
+                currentStreak,
+                false,
+                premiumMode,
+                currentIsland
+              ),
+            ],
+            components: buildActionRows(playerTeam, false, true),
+          });
 
-      logs.length = 0;
-
-      const turns = resolveTurnOrder(playerAttacker, enemyTarget);
-
-      for (const turn of turns) {
-        const actor = turn.actor;
-        const target = turn.target;
-
-        if (Number(actor.battleHp ?? actor.hp) <= 0) continue;
-        if (Number(target.battleHp ?? target.hp) <= 0) continue;
-
-        const damage = performAttack(
-          actor,
-          target,
-          turn.isPlayer ? actor.passiveBoostsApplied || combatBoosts : {}
-        );
-
-        if (turn.isPlayer) {
-          logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
-          logs.push(`➡️ ${actor.name} dealt **${damage}** damage to ${target.name}.`);
-        } else {
-          logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
-          logs.push(`⬅️ ${actor.name} dealt **${damage}** damage to ${target.name}.`);
+          return;
         }
 
-        if (Number(target.battleHp ?? target.hp) <= 0) {
+        if (interaction.customId === "fight_run_cancel") {
+          confirmingRunAway = false;
+          logs.length = 0;
+          logs.push("✅ Run away cancelled.");
+          logs.push("Choose one of your cards to continue the fight.");
+
+          await safeEditInteractionMessage(interaction, {
+            embeds: [
+              buildFightEmbed(
+                player.username || message.author.username,
+                playerTeam,
+                enemyTeam,
+                logs,
+                currentStreak,
+                false,
+                premiumMode,
+                currentIsland
+              ),
+            ],
+            components: buildActionRows(playerTeam, false, false),
+          });
+
+          return;
+        }
+
+        if (interaction.customId === "fight_run_confirm") {
+          battleEnded = true;
+          confirmingRunAway = false;
+          logs.length = 0;
+          logs.push("🏃 You ran away from the fight.");
+          logs.push("No EXP gained from running away.");
+
+          await safeEditInteractionMessage(interaction, {
+            embeds: [
+              buildFightResultEmbed({
+                title: "🏃 Fight Escaped",
+                color: 0xf1c40f,
+                result: "RUN AWAY",
+                rewardLines: ["No rewards."],
+                expLines: ["No EXP gained."],
+                logs,
+              }),
+            ],
+            components: [],
+          });
+
+          collector.stop("run");
+          return;
+        }
+
+        confirmingRunAway = false;
+
+        const index = Number(String(interaction.customId || "").replace("fight_attack_", ""));
+        const playerAttacker = playerTeam[index];
+
+        if (!playerAttacker || Number(playerAttacker.battleHp ?? playerAttacker.hp) <= 0) {
+          return safeEphemeralReply(interaction, "That card cannot attack right now.");
+        }
+
+        const enemyTarget = getFirstAlive(enemyTeam);
+
+        if (!enemyTarget) {
+          return safeEphemeralReply(interaction, "No enemy is available to attack.");
+        }
+
+        logs.length = 0;
+
+        const turns = resolveTurnOrder(playerAttacker, enemyTarget);
+
+        for (const turn of turns) {
+          const actor = turn.actor;
+          const target = turn.target;
+
+          if (Number(actor.battleHp ?? actor.hp) <= 0) continue;
+          if (Number(target.battleHp ?? target.hp) <= 0) continue;
+
+          const damage = performAttack(
+            actor,
+            target,
+            turn.isPlayer ? actor.passiveBoostsApplied || combatBoosts : {}
+          );
+
           if (turn.isPlayer) {
-            playerAttacker.kills += 1;
+            logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
+            logs.push(`➡️ ${actor.name} dealt **${damage}** damage to ${target.name}.`);
+          } else {
+            logs.push(`⚔️ ${actor.name} attacked ${target.name}.`);
+            logs.push(`⬅️ ${actor.name} dealt **${damage}** damage to ${target.name}.`);
           }
-          logs.push(`☠️ ${target.name} was defeated.`);
+
+          if (Number(target.battleHp ?? target.hp) <= 0) {
+            if (turn.isPlayer) {
+              playerAttacker.kills += 1;
+            }
+
+            logs.push(`☠️ ${target.name} was defeated.`);
+          }
         }
-      }
 
-      if (!getAliveUnits(enemyTeam).length) {
-        battleEnded = true;
-        currentStreak += 1;
+        if (!getAliveUnits(enemyTeam).length) {
+          battleEnded = true;
+          currentStreak += 1;
 
-        const reward = calculateWinReward(currentStreak, premiumTier, currentIsland);
-        const expResults = calculateFightExp(playerTeam, true);
+          const reward = calculateWinReward(currentStreak, premiumTier, currentIsland);
+          const expResults = calculateFightExp(playerTeam, true);
 
-        updatePlayerAtomic(
-          message.author.id,
-          (fresh) => {
-            let updatedBoxes = [...(fresh.boxes || [])];
+          updatePlayerAtomic(
+            message.author.id,
+            (fresh) => {
+              let updatedBoxes = [...(fresh.boxes || [])];
 
-            reward.boxes.forEach((item) => {
-              updatedBoxes = addOrIncrease(updatedBoxes, item);
-            });
+              reward.boxes.forEach((item) => {
+                updatedBoxes = addOrIncrease(updatedBoxes, item);
+              });
 
-            let updatedDailyState = incrementQuestCounter(fresh, "fightsPlayed", 1);
-            updatedDailyState = incrementQuestCounter(
-              {
+              let updatedDailyState = incrementQuestCounter(fresh, "fightsPlayed", 1);
+              updatedDailyState = incrementQuestCounter(
+                {
+                  ...fresh,
+                  quests: {
+                    ...(fresh.quests || {}),
+                    dailyState: updatedDailyState,
+                  },
+                },
+                "fightsWon",
+                1
+              );
+
+              return {
                 ...fresh,
+                cards: applyFightExpToFreshCards(fresh, playerTeam, expResults),
+                boxes: updatedBoxes,
+                berries: Number(fresh.berries || 0) + reward.berries,
+                gems: Number(fresh.gems || 0) + reward.gems,
+                fightStreak: currentStreak,
                 quests: {
                   ...(fresh.quests || {}),
                   dailyState: updatedDailyState,
                 },
-              },
-              "fightsWon",
-              1
-            );
+              };
+            },
+            message.author.username
+          );
 
-            return {
-              ...fresh,
-              cards: applyFightExpToFreshCards(fresh, playerTeam, expResults),
-              boxes: updatedBoxes,
-              berries: Number(fresh.berries || 0) + reward.berries,
-              gems: Number(fresh.gems || 0) + reward.gems,
-              fightStreak: currentStreak,
-              quests: {
-                ...(fresh.quests || {}),
-                dailyState: updatedDailyState,
-              },
-            };
-          },
-          message.author.username
+          const expLines = formatExpResults(playerTeam, expResults);
+          logs.push("🏆 You won the fight!");
+
+          await safeEditInteractionMessage(interaction, {
+            embeds: [
+              buildFightResultEmbed({
+                title: "🏆 Fight Victory",
+                color: 0x2ecc71,
+                result: "WIN",
+                rewardLines: formatFightRewardLines(reward),
+                expLines,
+                logs,
+              }),
+            ],
+            components: [],
+          });
+
+          collector.stop("win");
+          return;
+        }
+
+        if (!getAliveUnits(playerTeam).length) {
+          battleEnded = true;
+
+          const expResults = applyFightLoss(message, player, playerTeam);
+          const expLines = formatExpResults(playerTeam, expResults);
+
+          logs.push("💀 You lost the fight.");
+
+          await safeEditInteractionMessage(interaction, {
+            embeds: [
+              buildFightResultEmbed({
+                title: "💀 Fight Defeat",
+                color: 0xe74c3c,
+                result: "LOSE",
+                expLines,
+                logs,
+              }),
+            ],
+            components: [],
+          });
+
+          collector.stop("lose");
+          return;
+        }
+
+        await safeEditInteractionMessage(interaction, {
+          embeds: [
+            buildFightEmbed(
+              player.username || message.author.username,
+              playerTeam,
+              enemyTeam,
+              logs,
+              currentStreak,
+              false,
+              premiumMode,
+              currentIsland
+            ),
+          ],
+          components: buildActionRows(playerTeam, false, confirmingRunAway),
+        });
+      } catch (error) {
+        console.error("[FIGHT COLLECTOR ERROR]", error);
+
+        await safeEphemeralReply(
+          interaction,
+          "Fight interaction error. Please try again."
         );
-
-        const expLines = formatExpResults(playerTeam, expResults);
-
-        logs.push("🏆 You won the fight!");
-
-        await safeEditInteractionMessage(interaction, {
-          embeds: [
-            buildFightResultEmbed({
-              title: "🏆 Fight Victory",
-              color: 0x2ecc71,
-              result: "WIN",
-              rewardLines: formatFightRewardLines(reward),
-              expLines,
-              logs,
-            }),
-          ],
-          components: [],
-        });
-
-        collector.stop("win");
-        return;
+      } finally {
+        actionProcessing = false;
       }
-
-      if (!getAliveUnits(playerTeam).length) {
-        battleEnded = true;
-
-        const expResults = applyFightLoss(message, player, playerTeam);
-        const expLines = formatExpResults(playerTeam, expResults);
-
-        logs.push("💀 You lost the fight.");
-
-        await safeEditInteractionMessage(interaction, {
-          embeds: [
-            buildFightResultEmbed({
-              title: "💀 Fight Defeat",
-              color: 0xe74c3c,
-              result: "LOSE",
-              expLines,
-              logs,
-            }),
-          ],
-          components: [],
-        });
-
-        collector.stop("lose");
-        return;
-      }
-
-      await safeEditInteractionMessage(interaction, {
-        embeds: [
-          buildFightEmbed(
-            player.username || message.author.username,
-            playerTeam,
-            enemyTeam,
-            logs,
-            currentStreak,
-            false,
-            premiumMode,
-            currentIsland
-          ),
-        ],
-        components: buildActionRows(playerTeam, false, confirmingRunAway),
-      });
     });
 
     collector.on("end", async (_collected, reason) => {

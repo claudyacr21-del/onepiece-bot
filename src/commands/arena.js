@@ -29,6 +29,31 @@ const ARENA_TOTAL_RANK_SLOTS = 500;
 const ARENA_WIN_EXP_PER_CARD = 350;
 const ARENA_LOSE_EXP_PER_CARD = 175;
 
+const __activeFightSystemInteractions = new Set();
+
+async function __guardFightSystemInteraction(interaction) {
+  const key = [
+    interaction?.message?.id || "no-message",
+    interaction?.user?.id || "no-user",
+    interaction?.customId || "no-custom-id",
+  ].join(":");
+
+  if (__activeFightSystemInteractions.has(key)) {
+    if (typeof safeDeferUpdate === "function") {
+      await safeDeferUpdate(interaction).catch(() => null);
+    }
+    return false;
+  }
+
+  __activeFightSystemInteractions.add(key);
+
+  setTimeout(() => {
+    __activeFightSystemInteractions.delete(key);
+  }, 2500);
+
+  return true;
+}
+
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -1103,6 +1128,10 @@ async function startArenaBattle({
   });
 
   collector.on("collect", async (interaction) => {
+
+      if (!(await __guardFightSystemInteraction(interaction))) {
+        return;
+      }
     if (interaction.user.id !== message.author.id) {
       await safeEphemeralReply(
         interaction,
@@ -1388,6 +1417,10 @@ module.exports = {
     });
 
     lobbyCollector.on("collect", async (interaction) => {
+
+      if (!(await __guardFightSystemInteraction(interaction))) {
+        return;
+      }
       if (interaction.user.id !== message.author.id) {
         await safeEphemeralReply(
           interaction,

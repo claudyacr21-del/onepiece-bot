@@ -165,6 +165,31 @@ async function safeEditRaidMessage(message, payload) {
   }
 }
 
+const __activeFightSystemInteractions = new Set();
+
+async function __guardFightSystemInteraction(interaction) {
+  const key = [
+    interaction?.message?.id || "no-message",
+    interaction?.user?.id || "no-user",
+    interaction?.customId || "no-custom-id",
+  ].join(":");
+
+  if (__activeFightSystemInteractions.has(key)) {
+    if (typeof safeDeferUpdate === "function") {
+      await safeDeferUpdate(interaction).catch(() => null);
+    }
+    return false;
+  }
+
+  __activeFightSystemInteractions.add(key);
+
+  setTimeout(() => {
+    __activeFightSystemInteractions.delete(key);
+  }, 2500);
+
+  return true;
+}
+
 function safeDeleteRaidRoom(hostId, reason = "unknown") {
   try {
     const room = getRoom(hostId);
@@ -2026,6 +2051,10 @@ module.exports = {
     let battleMessage = null;
 
     lobbyCollector.on("collect", async (interaction) => {
+
+      if (!(await __guardFightSystemInteraction(interaction))) {
+        return;
+      }
       const activeRoom = getRoom(hostId);
 
       if (!activeRoom || String(activeRoom.roomId) !== String(room.roomId)) {

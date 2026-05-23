@@ -43,6 +43,31 @@ const BOSS_GLOBAL_ATK_MULT = 1.25;
 const BOSS_GLOBAL_HP_MULT = 1.2;
 const BOSS_GLOBAL_SPD_MULT = 1.5;
 
+const __activeFightSystemInteractions = new Set();
+
+async function __guardFightSystemInteraction(interaction) {
+  const key = [
+    interaction?.message?.id || "no-message",
+    interaction?.user?.id || "no-user",
+    interaction?.customId || "no-custom-id",
+  ].join(":");
+
+  if (__activeFightSystemInteractions.has(key)) {
+    if (typeof safeDeferUpdate === "function") {
+      await safeDeferUpdate(interaction).catch(() => null);
+    }
+    return false;
+  }
+
+  __activeFightSystemInteractions.add(key);
+
+  setTimeout(() => {
+    __activeFightSystemInteractions.delete(key);
+  }, 2500);
+
+  return true;
+}
+
 function isIgnorableDiscordInteractionError(error) {
   const code = Number(error?.code || error?.rawError?.code || 0);
   const status = Number(error?.status || error?.rawError?.status || 0);
@@ -1168,6 +1193,10 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
   await new Promise((resolve) => {
     let lobbyProcessing = false;
     collector.on("collect", async (interaction) => {
+
+      if (!(await __guardFightSystemInteraction(interaction))) {
+        return;
+      }
       if (lobbyProcessing) {
         await safeDeferUpdate(interaction);
         return;
@@ -2129,6 +2158,10 @@ module.exports = {
       });
 
       collector.on("collect", async (interaction) => {
+
+      if (!(await __guardFightSystemInteraction(interaction))) {
+        return;
+      }
         if (interaction.user.id !== message.author.id) {
           await safeEphemeralReply(interaction, "....");
           return;
@@ -2566,6 +2599,10 @@ module.exports = {
     });
 
     collector.on("collect", async (interaction) => {
+
+      if (!(await __guardFightSystemInteraction(interaction))) {
+        return;
+      }
       if (interaction.user.id !== message.author.id) {
         await safeEphemeralReply(interaction, "....");
         return;

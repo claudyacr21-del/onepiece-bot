@@ -47,6 +47,31 @@ async function safeEphemeralReply(interaction, content) {
   }
 }
 
+const __activeFightSystemInteractions = new Set();
+
+async function __guardFightSystemInteraction(interaction) {
+  const key = [
+    interaction?.message?.id || "no-message",
+    interaction?.user?.id || "no-user",
+    interaction?.customId || "no-custom-id",
+  ].join(":");
+
+  if (__activeFightSystemInteractions.has(key)) {
+    if (typeof safeDeferUpdate === "function") {
+      await safeDeferUpdate(interaction).catch(() => null);
+    }
+    return false;
+  }
+
+  __activeFightSystemInteractions.add(key);
+
+  setTimeout(() => {
+    __activeFightSystemInteractions.delete(key);
+  }, 2500);
+
+  return true;
+}
+
 function getPower(card) {
   return Number(
     card.currentPower ||
@@ -352,6 +377,10 @@ module.exports = {
     });
 
     collector.on("collect", async (interaction) => {
+
+      if (!(await __guardFightSystemInteraction(interaction))) {
+        return;
+      }
       if (interaction.user.id !== message.author.id) {
         return safeEphemeralReply(
           interaction,

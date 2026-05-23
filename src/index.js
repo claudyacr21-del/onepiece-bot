@@ -54,6 +54,10 @@ let dedupeReady = false;
 let dedupeInitStarted = false;
 
 function getDedupePool() {
+  const enabled =
+    String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true";
+
+  if (!enabled) return null;
   if (!process.env.DATABASE_URL) return null;
 
   if (!dedupePool) {
@@ -359,7 +363,9 @@ client.once("clientReady", async () => {
 
   console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
 
-  await ensureMessageDedupeTable();
+  if (String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true") {
+    await ensureMessageDedupeTable();
+  }
 
   client.user.setPresence({
     status: "online",
