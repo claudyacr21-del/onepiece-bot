@@ -230,6 +230,67 @@ module.exports = {
       pullAccessSnapshot: previewSnapshot,
     });
 
+    if (previewGlobalReset.wasReset) {
+      let syncedPlayer = null;
+
+      try {
+        updatePlayerAtomic(
+          message.author.id,
+          (fresh) => {
+            const freshSnapshot = syncPremiumSnapshot(
+              buildPullAccessSnapshot(fresh, message),
+              premiumTier
+            );
+
+            const freshGlobalReset = applyGlobalPullReset({
+              ...fresh,
+              pullAccessSnapshot: freshSnapshot,
+            });
+
+            syncedPlayer = {
+              ...fresh,
+              pulls: freshGlobalReset.pulls || fresh.pulls || {},
+              pullAccessSnapshot: freshSnapshot,
+            };
+
+            return syncedPlayer;
+          },
+          message.author.username
+        );
+      } catch (error) {
+        console.error("[PULL RESET GLOBAL SYNC ERROR]", error);
+
+        return message.reply({
+          content:
+            "Database is busy right now, so pull reset sync failed. Please try again in a few seconds.",
+          allowedMentions: {
+            repliedUser: false,
+          },
+        });
+      }
+
+      const displayPlayer =
+        syncedPlayer ||
+        buildPlayerForSlotCheck(
+          previewPlayer,
+          previewGlobalReset.pulls || previewPlayer.pulls || {},
+          previewSnapshot
+        );
+
+      return message.reply({
+        embeds: [
+          buildGlobalResetSyncedEmbed(
+            displayPlayer,
+            message,
+            previewGlobalReset.nextResetAt
+          ),
+        ],
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
     const previewCheckPlayer = buildPlayerForSlotCheck(
       previewPlayer,
       previewGlobalReset.pulls || previewPlayer.pulls || {},
@@ -334,6 +395,7 @@ module.exports = {
           return {
             ...fresh,
             tickets: updatedTickets,
+            items: updatedItems,
             pulls: resetResult.pulls,
             pullAccessSnapshot: freshSnapshot,
             quests: {
