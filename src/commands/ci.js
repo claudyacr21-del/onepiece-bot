@@ -193,19 +193,42 @@ const AWAKEN_GEMS_COST_BY_BASE_TIER = {
 };
 
 function getAwakenCostBaseTier(card, stageCard) {
-  const tier = String(
-    card?.baseTier ||
-      stageCard?.baseTier ||
-      card?.originalTier ||
-      stageCard?.originalTier ||
-      card?.baseRarity ||
-      stageCard?.baseRarity ||
-      card?.rarity ||
-      stageCard?.rarity ||
-      card?.currentTier ||
-      stageCard?.currentTier ||
-      "C"
-  ).toUpperCase();
+  const role = String(
+    stageCard?.cardRole ||
+      card?.cardRole ||
+      stageCard?.role ||
+      card?.role ||
+      ""
+  ).toLowerCase();
+
+  const tierCandidates =
+    role === "boost"
+      ? [
+          card?.baseTier,
+          stageCard?.baseTier,
+          card?.rarity,
+          stageCard?.rarity,
+          card?.currentTier,
+          stageCard?.currentTier,
+          card?.originalTier,
+          stageCard?.originalTier,
+          card?.baseRarity,
+          stageCard?.baseRarity,
+        ]
+      : [
+          card?.baseTier,
+          stageCard?.baseTier,
+          card?.originalTier,
+          stageCard?.originalTier,
+          card?.baseRarity,
+          stageCard?.baseRarity,
+          card?.rarity,
+          stageCard?.rarity,
+          card?.currentTier,
+          stageCard?.currentTier,
+        ];
+
+  const tier = String(tierCandidates.find(Boolean) || "C").toUpperCase();
 
   if (tier === "UR" || tier === "SS") {
     return "S";
