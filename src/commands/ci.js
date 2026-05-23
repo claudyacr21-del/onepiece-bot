@@ -173,21 +173,57 @@ function getStageCard(card, stage) {
   });
 }
 
-function getDefaultAwakenGemsCostForStage(stage) {
-  const targetStage = Number(stage || 1);
+const AWAKEN_GEMS_COST_BY_BASE_TIER = {
+  S: {
+    2: 750,  // M1 -> M2
+    3: 1500, // M2 -> M3
+  },
+  A: {
+    2: 500,
+    3: 1000,
+  },
+  B: {
+    2: 350,
+    3: 700,
+  },
+  C: {
+    2: 250,
+    3: 500,
+  },
+};
 
-  if (targetStage === 2) return 750;
-  if (targetStage === 3) return 1500;
+function getAwakenCostBaseTier(card, stageCard) {
+  const tier = String(
+    card?.baseTier ||
+      stageCard?.baseTier ||
+      card?.originalTier ||
+      stageCard?.originalTier ||
+      card?.baseRarity ||
+      stageCard?.baseRarity ||
+      card?.rarity ||
+      stageCard?.rarity ||
+      card?.currentTier ||
+      stageCard?.currentTier ||
+      "C"
+  ).toUpperCase();
 
-  return 0;
-}
-
-function getDisplayAwakenGemsCost(req, stage) {
-  if (req && Object.prototype.hasOwnProperty.call(req, "gems")) {
-    return Number(req.gems || 0);
+  if (tier === "UR" || tier === "SS") {
+    return "S";
   }
 
-  return getDefaultAwakenGemsCostForStage(stage);
+  if (["S", "A", "B", "C"].includes(tier)) {
+    return tier;
+  }
+
+  return "C";
+}
+
+function getDisplayAwakenGemsCost(_req, stage, card, stageCard) {
+  const targetStage = Number(stage || 1);
+  const baseTier = getAwakenCostBaseTier(card, stageCard);
+  const costs = AWAKEN_GEMS_COST_BY_BASE_TIER[baseTier] || AWAKEN_GEMS_COST_BY_BASE_TIER.C;
+
+  return Number(costs[targetStage] || 0);
 }
 
 function getStageImage(card, stageCard, stage) {
@@ -566,7 +602,7 @@ function buildReqEmbed(card, stage, player) {
   );
 
   const requiredBerries = Number(req.berries || 0);
-  const requiredGems = getDisplayAwakenGemsCost(req, stage);
+  const requiredGems = getDisplayAwakenGemsCost(req, stage, card, stageCard);
   const requiredFragments = Number(req.selfFragments || 0);
   const requiredLevel =
     stageCard.cardRole === "battle" ? Number(req.minLevel || 0) : 0;
