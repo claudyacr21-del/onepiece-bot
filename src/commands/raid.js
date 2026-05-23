@@ -1366,6 +1366,82 @@ function findLinkedRaidItem(db, boss) {
   );
 }
 
+function findLinkedRaidItems(db, boss) {
+  const list = flattenDb(db);
+  const bossCode = normalizeText(
+    boss?.code || boss?.bossCode || boss?.cardCode || boss?.id || ""
+  );
+  const bossName = normalizeText(
+    boss?.name || boss?.bossName || boss?.displayName || boss?.cardName || ""
+  );
+
+  if (!bossCode && !bossName) return [];
+
+  function getItemOwnerCodes(item) {
+    return [
+      item.ownerCode,
+      item.cardCode,
+      item.characterCode,
+      item.knownUserCode,
+      item.userCode,
+      item.equippedByCode,
+      ...(Array.isArray(item.owners) ? item.owners : []),
+      ...(Array.isArray(item.ownerCodes) ? item.ownerCodes : []),
+    ]
+      .map(normalizeText)
+      .filter(Boolean);
+  }
+
+  function getItemOwnerNames(item) {
+    return [
+      item.ownerName,
+      item.cardName,
+      item.characterName,
+      item.knownUser,
+      item.knownUserName,
+      item.user,
+      item.userName,
+      item.owner,
+      item.ownerDisplayName,
+      item.equippedBy,
+      ...(Array.isArray(item.ownerNames) ? item.ownerNames : []),
+      ...(Array.isArray(item.knownUsers) ? item.knownUsers : []),
+    ]
+      .map(normalizeText)
+      .filter(Boolean);
+  }
+
+  const matches = list.filter((item) => {
+    const ownerCodes = getItemOwnerCodes(item);
+    const ownerNames = getItemOwnerNames(item);
+    const code = normalizeText(item.code || "");
+    const name = normalizeText(item.name || "");
+
+    return (
+      (bossCode && ownerCodes.includes(bossCode)) ||
+      (bossName && ownerNames.includes(bossName)) ||
+      (bossCode && code.includes(bossCode)) ||
+      (bossName && name.includes(bossName))
+    );
+  });
+
+  const seen = new Set();
+
+  return matches.filter((item) => {
+    const key = String(item.code || item.name || "").toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function pickRandomLinkedRaidItem(db, boss) {
+  const items = findLinkedRaidItems(db, boss);
+  if (!items.length) return null;
+
+  return items[Math.floor(Math.random() * items.length)];
+}
+
 function addAmountEntry(list, payload, amount = 1) {
   const arr = Array.isArray(list) ? [...list] : [];
   const code = String(payload.code || payload.name || "").toLowerCase();
@@ -1440,7 +1516,7 @@ function giveRaidWinRewards(state) {
   ).toUpperCase();
 
   const config = getRaidRewardConfig(bossTier, boss, state.raidMode);
-  const linkedWeapon = findLinkedRaidItem(weaponsDb, boss);
+  const linkedWeapon = pickRandomLinkedRaidItem(weaponsDb, boss);
   const linkedFruit = findLinkedRaidItem(devilFruitsDb, boss);
   const hostId = String(state.hostId || "");
 
