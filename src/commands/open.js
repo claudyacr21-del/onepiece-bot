@@ -13,13 +13,21 @@ function normalize(text) {
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const index = arr.findIndex((entry) => entry.code === item.code);
+  const code = String(item?.code || "").trim();
+  const name = String(item?.name || "").trim();
+
+  const index = arr.findIndex((entry) => {
+    if (code && entry.code) return String(entry.code) === code;
+    return normalize(entry.name) === normalize(name);
+  });
 
   if (index !== -1) {
     arr[index] = {
       ...arr[index],
-      amount: Number(arr[index].amount || 1) + Number(item.amount || 1),
+      ...item,
+      amount: Number(arr[index].amount || 0) + Number(item.amount || 1),
     };
+
     return arr;
   }
 
@@ -121,111 +129,153 @@ function removeBoxes(list, code, amount) {
   return arr;
 }
 
+function normalizeRewardItem(item, amount) {
+  return {
+    ...item,
+    amount: Number(amount || 1),
+  };
+}
+
+function getRewardType(item) {
+  return String(item?.type || "").toLowerCase();
+}
+
+function isUniversalFragment(item) {
+  const code = String(item?.code || "").toLowerCase();
+  const name = String(item?.name || "").toLowerCase();
+
+  return (
+    code.startsWith("universal_") ||
+    code.includes("universal") ||
+    name.includes("universal")
+  );
+}
+
+function grantRewardItem(state, rewardMap, item, qty, boxAmount) {
+  if (!item) return state;
+
+  const totalAmount = Number(qty || 0) * Number(boxAmount || 1);
+  if (!Number.isFinite(totalAmount) || totalAmount <= 0) return state;
+
+  const reward = normalizeRewardItem(item, totalAmount);
+  const type = getRewardType(reward);
+
+  const nextState = {
+    ...state,
+    materials: [...(state.materials || [])],
+    items: [...(state.items || [])],
+    tickets: [...(state.tickets || [])],
+    fragments: [...(state.fragments || [])],
+    boxes: [...(state.boxes || [])],
+  };
+
+  if (type === "material") {
+    nextState.materials = addOrIncrease(nextState.materials, reward);
+  } else if (type === "ticket") {
+    nextState.tickets = addOrIncrease(nextState.tickets, reward);
+  } else if (type === "fragment") {
+    if (isUniversalFragment(reward)) {
+      nextState.items = addOrIncrease(nextState.items, {
+        ...reward,
+        type: "Consumable",
+        category: "universal",
+      });
+    } else {
+      nextState.fragments = addOrIncrease(nextState.fragments, {
+        ...reward,
+        category: reward.category || "fragment",
+      });
+    }
+  } else if (type === "box") {
+    nextState.boxes = addOrIncrease(nextState.boxes, reward);
+  } else {
+    nextState.items = addOrIncrease(nextState.items, reward);
+  }
+
+  addRewardLine(rewardMap, reward.name || "Unknown Reward", totalAmount);
+
+  return nextState;
+}
+
+function addRandomUniversalFragment(state, rewardMap, pool, qty, boxAmount) {
+  const list = (Array.isArray(pool) ? pool : []).filter(Boolean);
+  if (!list.length) return state;
+
+  const picked = list[Math.floor(Math.random() * list.length)];
+
+  return grantRewardItem(state, rewardMap, picked, qty, boxAmount);
+}
+
 function grantBoxRewards(box, amount, state, rewardMap) {
-  let nextMaterials = state.materials;
-  let nextItems = state.items;
-  let nextBerries = state.berries;
-  let nextGems = state.gems;
-  let nextTickets = state.tickets;
+  let nextState = {
+    materials: [...(state.materials || [])],
+    items: [...(state.items || [])],
+    tickets: [...(state.tickets || [])],
+    fragments: [...(state.fragments || [])],
+    boxes: [...(state.boxes || [])],
+    berries: Number(state.berries || 0),
+    gems: Number(state.gems || 0),
+  };
 
-  function addMaterial(item, qty) {
-    if (!item) return;
-
-    const totalAmount = Number(qty || 0) * amount;
-
-    nextMaterials = addOrIncrease(nextMaterials, {
-      ...item,
-      amount: totalAmount,
-    });
-
-    addRewardLine(rewardMap, item.name, totalAmount);
+  function addReward(item, qty) {
+    nextState = grantRewardItem(nextState, rewardMap, item, qty, amount);
   }
 
-  function addItem(item, qty) {
-    if (!item) return;
-
-    const totalAmount = Number(qty || 0) * amount;
-
-    nextItems = addOrIncrease(nextItems, {
-      ...item,
-      amount: totalAmount,
-    });
-
-    addRewardLine(rewardMap, item.name, totalAmount);
-  }
-
-  function addRandomUniversalFragment(pool, qty) {
-    const list = pool.filter(Boolean);
-    if (!list.length) return;
-
-    const picked = list[Math.floor(Math.random() * list.length)];
-    addItem(picked, qty);
-  }
-
-  function addTicket(item, qty) {
-    if (!item) return;
-
-    const totalAmount = Number(qty || 0) * amount;
-
-    nextTickets = addOrIncrease(nextTickets, {
-      ...item,
-      amount: totalAmount,
-    });
-
-    addRewardLine(rewardMap, item.name, totalAmount);
+  function addRandomFragment(pool, qty) {
+    nextState = addRandomUniversalFragment(nextState, rewardMap, pool, qty, amount);
   }
 
   function addBerries(qty) {
-    const totalAmount = Number(qty || 0) * amount;
-    nextBerries += totalAmount;
+    const totalAmount = Number(qty || 0) * Number(amount || 1);
+    nextState.berries += totalAmount;
     addRewardLine(rewardMap, "Berries", totalAmount);
   }
 
   function addGems(qty) {
-    const totalAmount = Number(qty || 0) * amount;
-    nextGems += totalAmount;
+    const totalAmount = Number(qty || 0) * Number(amount || 1);
+    nextState.gems += totalAmount;
     addRewardLine(rewardMap, "Gems", totalAmount);
   }
 
   if (box.code === "wooden_material_box") {
-    addMaterial(ITEMS.hardwood, 3);
-    addMaterial(ITEMS.sailCloth, 2);
-    addMaterial(ITEMS.enhancementStone, 3);
+    addReward(ITEMS.hardwood, 3);
+    addReward(ITEMS.sailCloth, 2);
+    addReward(ITEMS.enhancementStone, 3);
   } else if (box.code === "iron_material_box") {
-    addMaterial(ITEMS.hardwood, 4);
-    addMaterial(ITEMS.ironPlating, 1);
-    addMaterial(ITEMS.sailCloth, 2);
-    addMaterial(ITEMS.enhancementStone, 6);
+    addReward(ITEMS.hardwood, 4);
+    addReward(ITEMS.ironPlating, 1);
+    addReward(ITEMS.sailCloth, 2);
+    addReward(ITEMS.enhancementStone, 6);
   } else if (box.code === "royal_material_box") {
-    addMaterial(ITEMS.hardwood, 5);
-    addMaterial(ITEMS.ironPlating, 2);
-    addMaterial(ITEMS.sailCloth, 3);
-    addMaterial(ITEMS.colaEnginePart, 1);
-    addMaterial(ITEMS.enhancementStone, 10);
+    addReward(ITEMS.hardwood, 5);
+    addReward(ITEMS.ironPlating, 2);
+    addReward(ITEMS.sailCloth, 3);
+    addReward(ITEMS.colaEnginePart, 1);
+    addReward(ITEMS.enhancementStone, 10);
   } else if (box.code === "basic_resource_box") {
     addBerries(2000);
     addGems(10);
-    addMaterial(ITEMS.enhancementStone, 1);
+    addReward(ITEMS.enhancementStone, 1);
 
     if (Math.random() < 0.25) {
-      addItem(ITEMS.rumBeer, 1);
+      addReward(ITEMS.rumBeer, 1);
     }
 
     if (Math.random() < 0.30) {
-      addRandomUniversalFragment([ITEMS.universalCFragment], 1);
+      addRandomFragment([ITEMS.universalCFragment], 1);
     }
   } else if (box.code === "rare_resource_box") {
     addBerries(5000);
     addGems(20);
-    addMaterial(ITEMS.ironPlating, 1);
-    addMaterial(ITEMS.enhancementStone, 4);
+    addReward(ITEMS.ironPlating, 1);
+    addReward(ITEMS.enhancementStone, 4);
 
     if (Math.random() < 0.45) {
-      addItem(ITEMS.rumBeer, Math.random() < 0.5 ? 2 : 1);
+      addReward(ITEMS.rumBeer, Math.random() < 0.5 ? 2 : 1);
     }
 
     if (Math.random() < 0.35) {
-      addRandomUniversalFragment(
+      addRandomFragment(
         [ITEMS.universalCFragment, ITEMS.universalBFragment],
         Math.random() < 0.5 ? 2 : 1
       );
@@ -233,14 +283,14 @@ function grantBoxRewards(box, amount, state, rewardMap) {
   } else if (box.code === "elite_resource_box") {
     addBerries(9000);
     addGems(35);
-    addMaterial(ITEMS.ironPlating, 1);
-    addMaterial(ITEMS.hardwood, 1);
-    addMaterial(ITEMS.colaEnginePart, 1);
-    addMaterial(ITEMS.enhancementStone, 8);
-    addItem(ITEMS.rumBeer, 3 + Math.floor(Math.random() * 2));
+    addReward(ITEMS.ironPlating, 1);
+    addReward(ITEMS.hardwood, 1);
+    addReward(ITEMS.colaEnginePart, 1);
+    addReward(ITEMS.enhancementStone, 8);
+    addReward(ITEMS.rumBeer, 3 + Math.floor(Math.random() * 2));
 
     if (Math.random() < 0.45) {
-      addRandomUniversalFragment(
+      addRandomFragment(
         [ITEMS.universalBFragment, ITEMS.universalAFragment],
         Math.random() < 0.5 ? 2 : 1
       );
@@ -248,32 +298,32 @@ function grantBoxRewards(box, amount, state, rewardMap) {
   } else if (box.code === "legend_resource_box") {
     addBerries(15000);
     addGems(60);
-    addMaterial(ITEMS.ironPlating, 1);
-    addMaterial(ITEMS.hardwood, 1);
-    addMaterial(ITEMS.colaEnginePart, 2);
-    addMaterial(ITEMS.enhancementStone, 15);
-    addItem(ITEMS.rumBeer, 5 + Math.floor(Math.random() * 3));
+    addReward(ITEMS.ironPlating, 1);
+    addReward(ITEMS.hardwood, 1);
+    addReward(ITEMS.colaEnginePart, 2);
+    addReward(ITEMS.enhancementStone, 15);
+    addReward(ITEMS.rumBeer, 5 + Math.floor(Math.random() * 3));
 
     if (Math.random() < 0.60) {
-      addRandomUniversalFragment(
+      addRandomFragment(
         [ITEMS.universalAFragment, ITEMS.universalSFragment],
         Math.random() < 0.35 ? 2 : 1
       );
     }
 
     if (Math.random() < 0.40) {
-      addTicket(ITEMS.pullResetTicket, 2);
+      addReward(ITEMS.pullResetTicket, 2);
     }
   } else if (box.code === "mother_flame_treasure_box") {
     addBerries(50000);
     addGems(150);
-    addMaterial(ITEMS.colaEnginePart, 5);
-    addMaterial(ITEMS.hardwood, 3);
-    addMaterial(ITEMS.enhancementStone, 20);
-    addItem(ITEMS.rumBeer, 10);
+    addReward(ITEMS.colaEnginePart, 5);
+    addReward(ITEMS.hardwood, 3);
+    addReward(ITEMS.enhancementStone, 20);
+    addReward(ITEMS.rumBeer, 10);
 
     if (Math.random() < 0.75) {
-      addRandomUniversalFragment(
+      addRandomFragment(
         [ITEMS.universalAFragment, ITEMS.universalSFragment],
         Math.random() < 0.4 ? 3 : 2
       );
@@ -282,13 +332,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     return null;
   }
 
-  return {
-    materials: nextMaterials,
-    items: nextItems,
-    berries: nextBerries,
-    gems: nextGems,
-    tickets: nextTickets,
-  };
+  return nextState;
 }
 
 function formatRewardLines(rewardMap) {
@@ -343,9 +387,7 @@ module.exports = {
       return message.reply(`You do not own **${box.name}**.`);
     }
 
-    const openAmount = parsed.all
-      ? ownedAmount
-      : Number(parsed.requestedAmount || 1);
+    const openAmount = parsed.all ? ownedAmount : Number(parsed.requestedAmount || 1);
 
     if (!Number.isInteger(openAmount) || openAmount <= 0) {
       return message.reply("Open amount must be a positive number.");
@@ -387,9 +429,11 @@ module.exports = {
             {
               materials: [...(fresh.materials || [])],
               items: [...(fresh.items || [])],
+              tickets: [...(fresh.tickets || [])],
+              fragments: [...(fresh.fragments || [])],
+              boxes: updatedBoxes,
               berries: Number(fresh.berries || 0),
               gems: Number(fresh.gems || 0),
-              tickets: [...(fresh.tickets || [])],
             },
             rewardMap
           );
@@ -402,10 +446,11 @@ module.exports = {
 
           return {
             ...fresh,
-            boxes: updatedBoxes,
+            boxes: rewardState.boxes,
             materials: rewardState.materials,
             items: rewardState.items,
             tickets: rewardState.tickets,
+            fragments: rewardState.fragments,
             berries: rewardState.berries,
             gems: rewardState.gems,
             quests: updatedQuests,
@@ -425,9 +470,7 @@ module.exports = {
           .setColor(0x3498db)
           .setTitle(`📦 Opened ${box.name} x${openAmount}`)
           .setDescription(
-            rewardLines.length
-              ? rewardLines.join("\n")
-              : "No rewards were generated."
+            rewardLines.length ? rewardLines.join("\n") : "No rewards were generated."
           )
           .setFooter({
             text: "One Piece Bot • Open Box",
