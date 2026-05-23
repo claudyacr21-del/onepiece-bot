@@ -2058,6 +2058,61 @@ function buildBossProcessingEmbed(playerName, island, phaseBoss, playerTeam, bos
     });
 }
 
+function buildRaidBossProcessingEmbed(island, phaseBoss, participants, boss, logs) {
+  const phaseLabel = phaseBoss ? `Phase ${phaseBoss.phase}` : "Boss";
+
+  const teamLines = [];
+
+  for (const participant of participants || []) {
+    for (const unit of participant.units || []) {
+      const isDead = Number(unit.battleHp ?? unit.hp) <= 0;
+      const status = isDead ? "DEFEATED" : "SAVING";
+
+      teamLines.push(
+        `**${unit.globalSlot + 1}. ${unit.name}** ❤️ ${Math.max(
+          0,
+          Number(unit.battleHp ?? unit.hp)
+        )}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(
+          unit.battlePower || unit.currentPower || 0
+        ).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(
+          unit.battleAtk || unit.atk
+        )} | ${status}`
+      );
+    }
+  }
+
+  return new EmbedBuilder()
+    .setColor(0xf1c40f)
+    .setTitle(`${island.name} ${phaseLabel} Boss Raid`)
+    .setDescription(
+      [
+        "⏳ **Processing boss raid result...**",
+        "Please wait while rewards, EXP, quests, and story progress are being saved.",
+        "",
+        "## Final Action",
+        ...(logs.length ? logs.slice(-BOSS_MAX_LOG_LINES) : ["Final hit is being processed."]),
+        "",
+        "## ☠️ Boss",
+        `**${boss.name}** [${boss.rarity}]`,
+        renderBossHpBar(boss.battleHp ?? boss.hp, boss.battleMaxHp ?? boss.maxHp),
+        `❤️ ${Math.max(0, Number(boss.battleHp ?? boss.hp))}/${Number(
+          boss.battleMaxHp ?? boss.maxHp
+        )} | SPD \`${boss.battleSpeed || boss.speed}\` | ⚔️ ${formatAtkRange(
+          boss.battleAtk || boss.atk
+        )}`,
+        "",
+        "## Raid Team",
+        ...(teamLines.length ? teamLines : ["No raid team data found."]),
+      ]
+        .join("\n")
+        .slice(0, 4096)
+    )
+    .setImage(boss.image || null)
+    .setFooter({
+      text: "One Piece Bot • Saving Boss Phase 2 Raid Result",
+    });
+}
+
 module.exports = {
   name: "boss",
 
@@ -2522,6 +2577,19 @@ module.exports = {
         if (!getAliveUnits(allUnits).length) {
           ended = true;
 
+          await safeEditInteractionMessage(interaction, {
+            embeds: [
+              buildRaidBossProcessingEmbed(
+                currentIsland,
+                phaseBoss,
+                participants,
+                boss,
+                logs
+              ),
+            ],
+            components: [],
+          });
+
           const allExpLines = [];
 
           for (const participant of participants) {
@@ -2945,16 +3013,15 @@ module.exports = {
 
         await safeEditInteractionMessage(interaction, {
           embeds: [
-            buildBossProcessingEmbed(
-              player.username || message.author.username,
+            buildRaidBossProcessingEmbed(
               currentIsland,
               phaseBoss,
-              playerTeam,
+              participants,
               boss,
               logs
             ),
           ],
-          components: disableActionRows(buildButtons(playerTeam, true, [])),
+          components: [],
         });
 
         const expResults = calculateBossExp(playerTeam, false, combatBoosts);
