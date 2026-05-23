@@ -1223,6 +1223,40 @@ function buildBattleRows(state) {
   return rows;
 }
 
+function buildRaidProcessingEmbed(state) {
+  const boss = state.boss || {};
+  const alive = getAliveMembers(state);
+
+  return new EmbedBuilder()
+    .setColor(0xf1c40f)
+    .setTitle("⏳ Processing Raid Result...")
+    .setDescription(
+      clampEmbedText(
+        [
+          "Saving raid rewards, prestige, fragments, EXP, and room cleanup.",
+          "Please wait a moment.",
+          "",
+          "Do not click the buttons again.",
+          "",
+          `**Boss:** ${boss.name || "Raid Boss"}`,
+          `**Final Boss HP:** ${Math.max(0, Number(boss.hp || 0))}/${Number(
+            boss.maxHp || 0
+          )}`,
+          `**Survivors:** ${alive.length}/${ensureArray(state.members).length}`,
+          "",
+          "## Final Action",
+          ...(state.log.length
+            ? state.log.slice(-MAX_BATTLE_LOG_LINES).map((line) => `• ${line}`)
+            : ["• Final raid action is being processed."]),
+        ].join("\n")
+      )
+    )
+    .setImage(boss.image || null)
+    .setFooter({
+      text: "One Piece Bot • Saving Raid Result",
+    });
+}
+
 function chooseBossTarget(state) {
   const alive = getAliveMembers(state);
   if (!alive.length) return null;
@@ -2537,6 +2571,11 @@ module.exports = {
             handleRaidAttack(battleState, actor);
 
             if (battleState.finished) {
+              await safeEditRaidMessage(battleMessage, {
+                embeds: [buildRaidProcessingEmbed(battleState)],
+                components: [],
+              });
+
               finalizeRaidBattle(battleState);
 
               try {

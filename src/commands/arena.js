@@ -4,6 +4,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
   StringSelectMenuBuilder,
+  MessageFlags,
 } = require("discord.js");
 
 const {
@@ -58,12 +59,38 @@ function ensureArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function isIgnorableInteractionError(error) {
+  const code = Number(error?.code || error?.rawError?.code || 0);
+  const status = Number(error?.status || error?.rawError?.status || 0);
+  const message = String(error?.message || "");
+
+  return (
+    code === 10062 ||
+    code === 40060 ||
+    status === 404 ||
+    status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    message.includes("Unknown interaction") ||
+    message.includes("Interaction has already been acknowledged") ||
+    message.includes("Service Unavailable")
+  );
+}
+
 async function safeDeferUpdate(interaction) {
-  if (!interaction || interaction.deferred || interaction.replied) return;
+  if (!interaction) return false;
+  if (interaction.deferred || interaction.replied) return true;
+
   try {
     await interaction.deferUpdate();
+    return true;
   } catch (error) {
-    // Unknown interaction usually means it was already acknowledged or expired.
+    if (!isIgnorableInteractionError(error)) {
+      console.error("[ARENA DEFER UPDATE ERROR]", error);
+    }
+    return false;
   }
 }
 
@@ -71,19 +98,20 @@ async function safeEphemeralReply(interaction, content) {
   try {
     if (!interaction) return null;
 
+    const payload = {
+      content,
+      flags: MessageFlags.Ephemeral,
+    };
+
     if (interaction.deferred || interaction.replied) {
-      return await interaction.followUp({
-        content,
-        ephemeral: true,
-      });
+      return await interaction.followUp(payload);
     }
 
-    return await interaction.reply({
-      content,
-      ephemeral: true,
-    });
+    return await interaction.reply(payload);
   } catch (error) {
-    console.error("[ARENA EPHEMERAL REPLY ERROR]", error);
+    if (!isIgnorableInteractionError(error)) {
+      console.error("[ARENA EPHEMERAL REPLY ERROR]", error);
+    }
     return null;
   }
 }
@@ -1082,6 +1110,52 @@ function buildActionRows(myTeam, ended) {
   return [attackRow, controlRow];
 }
 
+function disableArenaRows(rows = []) {
+  return rows.map((row) => {
+    const nextRow = ActionRowBuilder.from(row);
+
+    nextRow.setComponents(
+      row.components.map((component) =>
+        ButtonBuilder.from(component).setDisabled(true)
+      )
+    );
+
+    return nextRow;
+  });
+}
+
+function buildArenaProcessingEmbed({
+  player,
+  opponent,
+  myTeam,
+  enemyTeam,
+  logs,
+  arena,
+  result,
+}) {
+  return new EmbedBuilder()
+    .setColor(0xf1c40f)
+    .setTitle("⏳ Processing Arena Result...")
+    .setDescription(
+      [
+        "Saving arena points, EXP, quest progress, streak, and rank roles.",
+        "Please wait a moment.",
+        "",
+        "## Final Action",
+        ...(logs.length ? logs.slice(-4) : ["Final attack is being processed."]),
+        "",
+        "## Your Team",
+        teamSummary(myTeam),
+        "",
+        "## Opponent Team",
+        teamSummary(enemyTeam),
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Saving Arena Result",
+    });
+}
+
 async function startArenaBattle({
   message,
   player,
@@ -1247,6 +1321,21 @@ async function startArenaBattle({
         ended = true;
         result = "win";
 
+        await safeEditInteractionMessage(interaction, {
+          embeds: [
+            buildArenaProcessingEmbed({
+              player,
+              opponent,
+              myTeam,
+              enemyTeam,
+              logs,
+              arena: currentArena,
+              result,
+            }),
+          ],
+          components: disableArenaRows(buildActionRows(myTeam, true)),
+        });
+
         currentArena = updateArenaPlayer(message, result, opponent);
         updateArenaOpponentAfterBattle(opponent, result, {
           playerRank: player?.arenaRank || getArenaRankForUser(message, message.author.id),
@@ -1277,6 +1366,21 @@ async function startArenaBattle({
       if (aliveCount(myTeam) <= 0) {
         ended = true;
         result = "lose";
+
+        await safeEditInteractionMessage(interaction, {
+          embeds: [
+            buildArenaProcessingEmbed({
+              player,
+              opponent,
+              myTeam,
+              enemyTeam,
+              logs,
+              arena: currentArena,
+              result,
+            }),
+          ],
+          components: disableArenaRows(buildActionRows(myTeam, true)),
+        });
 
         currentArena = updateArenaPlayer(message, result, opponent);
         const expLines = applyArenaExp(message, myTeam, false);

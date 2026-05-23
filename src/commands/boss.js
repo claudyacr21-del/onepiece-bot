@@ -2015,6 +2015,49 @@ function startBossCooldownNow(userId, username = "Unknown") {
   return nextBossAt;
 }
 
+function disableActionRows(rows = []) {
+  return rows.map((row) => {
+    const nextRow = ActionRowBuilder.from(row);
+
+    nextRow.setComponents(
+      row.components.map((component) =>
+        ButtonBuilder.from(component).setDisabled(true)
+      )
+    );
+
+    return nextRow;
+  });
+}
+
+function buildBossProcessingEmbed(playerName, island, phaseBoss, playerTeam, boss, logs) {
+  return new EmbedBuilder()
+    .setColor(0xf1c40f)
+    .setTitle(`${playerName}'s ${island.name}${phaseBoss ? ` Phase ${phaseBoss.phase}` : ""} Boss Battle`)
+    .setDescription(
+      [
+        "⏳ **Processing boss result...**",
+        "Please wait while rewards, EXP, quests, and story progress are being saved.",
+        "",
+        "## Final Action",
+        ...(logs.length ? logs.slice(-BOSS_MAX_LOG_LINES) : ["Final hit is being processed."]),
+        "",
+        "## ☠️ Boss",
+        `**${boss.name}** [${boss.rarity}]`,
+        renderBossHpBar(boss.battleHp ?? boss.hp, boss.battleMaxHp ?? boss.maxHp),
+        `❤️ ${Math.max(0, Number(boss.battleHp ?? boss.hp))}/${Number(boss.battleMaxHp ?? boss.maxHp)} | SPD \`${boss.battleSpeed || boss.speed}\` | ⚔️ ${formatAtkRange(boss.battleAtk || boss.atk)}`,
+        "",
+        "## Your Team",
+        ...playerTeam.map((unit) => {
+          return `**${unit.slot}. ${unit.name}** ❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)}`;
+        }),
+      ].join("\n")
+    )
+    .setImage(boss.image || null)
+    .setFooter({
+      text: "One Piece Bot • Saving Boss Result",
+    });
+}
+
 module.exports = {
   name: "boss",
 
@@ -2314,6 +2357,20 @@ module.exports = {
 
         if (Number(boss.battleHp ?? boss.hp) <= 0) {
           ended = true;
+
+          await safeEditInteractionMessage(interaction, {
+            embeds: [
+              buildBossProcessingEmbed(
+                player.username || message.author.username,
+                currentIsland,
+                phaseBoss,
+                playerTeam,
+                boss,
+                logs
+              ),
+            ],
+            components: disableActionRows(buildButtons(playerTeam, true, [])),
+          });
 
           const reward = getBossReward(currentIsland, phaseBoss);
           const storyLines = [];
@@ -2885,6 +2942,20 @@ module.exports = {
 
       if (!getAliveUnits(playerTeam).length) {
         ended = true;
+
+        await safeEditInteractionMessage(interaction, {
+          embeds: [
+            buildBossProcessingEmbed(
+              player.username || message.author.username,
+              currentIsland,
+              phaseBoss,
+              playerTeam,
+              boss,
+              logs
+            ),
+          ],
+          components: disableActionRows(buildButtons(playerTeam, true, [])),
+        });
 
         const expResults = calculateBossExp(playerTeam, false, combatBoosts);
         const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
