@@ -1881,7 +1881,7 @@ function applyBoxes(currentBoxes, rewardBoxes) {
 
 function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, usedThisCycle = []) {
   const phaseLabel = phaseBoss ? `Phase ${phaseBoss.phase}` : "Boss";
-  const usedSet = new Set();
+  const usedSet = new Set((Array.isArray(usedThisCycle) ? usedThisCycle : []).map(String));
   const teamLines = [];
 
   for (const participant of participants) {
@@ -1922,7 +1922,7 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
 }
 
 function buildRaidBossButtons(participants, ended, usedThisCycle = []) {
-  const usedSet = new Set();
+  const usedSet = new Set((Array.isArray(usedThisCycle) ? usedThisCycle : []).map(String));
   const allUnits = participants.flatMap((p) => p.units);
   const rows = [];
   let row = new ActionRowBuilder();
@@ -1960,6 +1960,21 @@ function buildRaidBossButtons(participants, ended, usedThisCycle = []) {
   );
 
   return rows.slice(0, 5);
+}
+
+function resetRaidBossActionCycleIfReady(units, usedThisCycle = []) {
+  const aliveKeys = getAliveUnits(units).map((unit) => String(getUnitActionKey(unit)));
+  if (!aliveKeys.length) return [];
+
+  const usedAliveKeys = (Array.isArray(usedThisCycle) ? usedThisCycle : [])
+    .map(String)
+    .filter((key) => aliveKeys.includes(key));
+
+  if (usedAliveKeys.length >= aliveKeys.length) {
+    return [];
+  }
+
+  return usedAliveKeys;
 }
 
 function startBossCooldownNow(userId, username = "Unknown") {
@@ -2194,7 +2209,7 @@ module.exports = {
       const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
       const logs = [];
       let ended = false;
-      let lastUsedUnitKey = "";
+      let usedRaidUnitKeys = [];
       const allUnits = participants.flatMap((participant) => participant.units);
 
       const reply = await message.reply({
@@ -2206,14 +2221,14 @@ module.exports = {
             boss,
             logs,
             ended,
-            []
+            usedRaidUnitKeys
           ),
         ],
         components: buildRaidBossButtons(
-          participants,
-          ended,
-          []
-        ),
+            participants,
+            ended,
+            usedRaidUnitKeys
+          ),
       });
 
       const collector = reply.createMessageComponentCollector({
@@ -2240,14 +2255,14 @@ if (interaction.customId === "boss_raid_run") {
           await safeEditInteractionMessage(interaction, {
             embeds: [
               buildRaidBossEmbed(
-                currentIsland,
-                phaseBoss,
-                participants,
-                boss,
-                logs,
-                false,
-                []
-              ),
+            currentIsland,
+            phaseBoss,
+            participants,
+            boss,
+            logs,
+            false,
+            usedRaidUnitKeys
+          ),
             ],
             components: buildRaidBossRunConfirmButtons(),
           });
@@ -2266,20 +2281,20 @@ if (interaction.customId === "boss_raid_run") {
           await safeEditInteractionMessage(interaction, {
             embeds: [
               buildRaidBossEmbed(
-                currentIsland,
-                phaseBoss,
-                participants,
-                boss,
-                logs,
-                false,
-                []
-              ),
+            currentIsland,
+            phaseBoss,
+            participants,
+            boss,
+            logs,
+            false,
+            usedRaidUnitKeys
+          ),
             ],
             components: buildRaidBossButtons(
-              participants,
-              false,
-              []
-            ),
+            participants,
+            false,
+            usedRaidUnitKeys
+          ),
           });
           return;
         }
@@ -2342,10 +2357,10 @@ if (interaction.customId === "boss_raid_run") {
 
         const unitKey = getUnitActionKey(attacker);
 
-        if (shouldDisableLastUsed(allUnits, lastUsedUnitKey, attacker)) {
+        if (usedRaidUnitKeys.map(String).includes(String(unitKey))) {
           return safeEphemeralReply(
             interaction,
-            "This unit acted last turn. Choose another available unit first."
+            "This raid unit already acted this cycle.\nChoose another READY unit first."
           );
         }
 
@@ -2379,7 +2394,10 @@ if (interaction.customId === "boss_raid_run") {
 
         logs.length = 0;
         logs.push(...combatLogs.slice(-BOSS_MAX_LOG_LINES));
-        lastUsedUnitKey = "";
+        usedRaidUnitKeys = resetRaidBossActionCycleIfReady(allUnits, [
+          ...usedRaidUnitKeys,
+          unitKey,
+        ]);
 
         if (Number(boss.battleHp ?? boss.hp) <= 0) {
           ended = true;
@@ -2618,19 +2636,19 @@ if (interaction.customId === "boss_raid_run") {
         await safeEditInteractionMessage(interaction, {
           embeds: [
             buildRaidBossEmbed(
-              currentIsland,
-              phaseBoss,
-              participants,
-              boss,
-              logs,
-              false,
-              []
-            ),
+            currentIsland,
+            phaseBoss,
+            participants,
+            boss,
+            logs,
+            false,
+            usedRaidUnitKeys
+          ),
           ],
           components: buildRaidBossButtons(
             participants,
             false,
-            []
+            usedRaidUnitKeys
           ),
         });
       });
@@ -2819,9 +2837,13 @@ if (interaction.customId === "boss_run") {
       }
 
       logs.length = 0;
-      logs.push(...combatLogs.slice(-BOSS_MAX_LOG_LINES));
+        logs.push(...combatLogs.slice(-BOSS_MAX_LOG_LINES));
+        usedRaidUnitKeys = resetRaidBossActionCycleIfReady(allUnits, [
+          ...usedRaidUnitKeys,
+          unitKey,
+        ]);
 
-      if (Number(boss.battleHp ?? boss.hp) <= 0) {
+        if (Number(boss.battleHp ?? boss.hp) <= 0) {
         ended = true;
 
         const reward = getBossReward(currentIsland, phaseBoss);
