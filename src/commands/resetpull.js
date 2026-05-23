@@ -47,7 +47,9 @@ function findTicket(tickets, code) {
   }
 
   return (Array.isArray(tickets) ? tickets : []).findIndex(
-    (item) => String(item.code || "").toLowerCase() === String(code || "").toLowerCase()
+    (item) =>
+      String(item.code || "").toLowerCase() ===
+      String(code || "").toLowerCase()
   );
 }
 
@@ -60,8 +62,8 @@ function countPullResetTickets(player) {
     .reduce((sum, item) => sum + Number(item?.amount || 0), 0);
 }
 
-function consumeTicket(tickets, index) {
-  const updated = [...(Array.isArray(tickets) ? tickets : [])];
+function consumeTicket(list, index) {
+  const updated = [...(Array.isArray(list) ? list : [])];
   const current = Number(updated[index]?.amount || 0);
 
   if (index < 0 || current <= 0) return null;
@@ -141,11 +143,12 @@ function getActivePullSlots(player, message) {
     .map(([key, slot]) => {
       const max = Math.max(0, Number(slot.max || 0));
       const used = Math.max(0, Number(slot.used || 0));
-      const left = Math.max(0, max - Math.min(used, max));
+      const safeUsed = Math.min(used, max);
+      const left = Math.max(0, max - safeUsed);
 
       return {
         key,
-        used: Math.min(used, max),
+        used: safeUsed,
         max,
         left,
       };
@@ -162,9 +165,7 @@ function buildActiveSlotText(player, message) {
   if (!active.length) return "No active pull slots found.";
 
   return active
-    .map((slot) => {
-      return `↪ ${formatSlotName(slot.key)}: ${slot.used}/${slot.max}`;
-    })
+    .map((slot) => `↪ ${formatSlotName(slot.key)}: ${slot.used}/${slot.max}`)
     .join("\n");
 }
 
@@ -174,34 +175,8 @@ function buildAvailableSlotText(player, message) {
   if (!available.length) return "No available active pull slots.";
 
   return available
-    .map((slot) => {
-      return `↪ ${formatSlotName(slot.key)}: ${slot.left}/${slot.max} left`;
-    })
+    .map((slot) => `↪ ${formatSlotName(slot.key)}: ${slot.left}/${slot.max} left`)
     .join("\n");
-}
-
-function buildBlockedEmbed(player, message, nextResetAt) {
-  return new EmbedBuilder()
-    .setColor(0xe74c3c)
-    .setTitle("Pull Reset Blocked")
-    .setDescription(
-      [
-        "You still have available pulls from your active pull slots.",
-        "Use your remaining pulls first before using a Pull Reset Ticket.",
-        "",
-        "**Available Active Slots**",
-        buildAvailableSlotText(player, message),
-        "",
-        "**Your Active Pull Slots**",
-        buildActiveSlotText(player, message),
-        "",
-        `↪ Next Global Reset: ${formatRemaining(Number(nextResetAt || 0) - Date.now())}`,
-        "↪ Pull Reset Ticket was not consumed.",
-      ].join("\n")
-    )
-    .setFooter({
-      text: "One Piece Bot • Pull Reset",
-    });
 }
 
 function buildPlayerForSlotCheck(player, pulls, snapshot) {
@@ -212,6 +187,76 @@ function buildPlayerForSlotCheck(player, pulls, snapshot) {
   };
 }
 
+function buildBlockedEmbed({ availableText, activeText, nextResetAt }) {
+  return new EmbedBuilder()
+    .setColor(0xe74c3c)
+    .setTitle("Pull Reset Blocked")
+    .setDescription(
+      [
+        "You still have available pulls from your active pull slots.",
+        "Use your remaining pulls first before using a Pull Reset Ticket.",
+        "",
+        "**Available Active Slots**",
+        availableText || "Some active pull slots are still available.",
+        "",
+        "**Your Active Pull Slots**",
+        activeText || "Active pull slot data was not found.",
+        "",
+        `↪ Next Global Reset: ${formatRemaining(Number(nextResetAt || 0) - Date.now())}`,
+        "↪ Pull Reset Ticket was not consumed.",
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Pull Reset",
+    });
+}
+
+function buildGlobalResetSyncedEmbed({ activeText, nextResetAt }) {
+  return new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle("Pull Slots Refreshed")
+    .setDescription(
+      [
+        "Your global pull reset was already available.",
+        "Pull slots have been synced first, so no Pull Reset Ticket was consumed.",
+        "",
+        "**Your Active Pull Slots**",
+        activeText || "Active pull slot data was not found.",
+        "",
+        `↪ Next Global Reset: ${formatRemaining(Number(nextResetAt || 0) - Date.now())}`,
+        "↪ Pull Reset Ticket was not consumed.",
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Pull Reset",
+    });
+}
+
+function buildResetUsedEmbed({ resetResult, remainingTickets }) {
+  const now = Date.now();
+
+  return new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle("↩️ Pull Reset Used")
+    .setDescription(
+      [
+        "Your pull usage has been reset manually.",
+        "",
+        "↪ Reset checked only your active pull slots.",
+        "↪ Inactive premium/event slots do not block reset.",
+        "↪ Global 8-hour reset timer is unchanged.",
+        `↪ Next Global Reset: ${formatRemaining(
+          Number(resetResult?.nextResetAt || now) - now
+        )}`,
+        "↪ 1 Pull Reset Ticket consumed.",
+        `↪ Remaining Pull Reset Ticket: ${remainingTickets}`,
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Pull Reset",
+    });
+}
+
 module.exports = {
   name: "resetpull",
   aliases: ["reset", "rpull", "pr", "pullreset"],
@@ -219,141 +264,79 @@ module.exports = {
   async execute(message) {
     const premiumTier = await getPremiumTier(message);
 
-    const previewPlayer = getPlayer(message.author.id, message.author.username);
-    const previewSnapshot = syncPremiumSnapshot(
-      buildPullAccessSnapshot(previewPlayer, message),
-      premiumTier
-    );
-
-    const previewGlobalReset = applyGlobalPullReset({
-      ...previewPlayer,
-      pullAccessSnapshot: previewSnapshot,
-    });
-
-    if (previewGlobalReset.wasReset) {
-      let syncedPlayer = null;
-
-      try {
-        updatePlayerAtomic(
-          message.author.id,
-          (fresh) => {
-            const freshSnapshot = syncPremiumSnapshot(
-              buildPullAccessSnapshot(fresh, message),
-              premiumTier
-            );
-
-            const freshGlobalReset = applyGlobalPullReset({
-              ...fresh,
-              pullAccessSnapshot: freshSnapshot,
-            });
-
-            syncedPlayer = {
-              ...fresh,
-              pulls: freshGlobalReset.pulls || fresh.pulls || {},
-              pullAccessSnapshot: freshSnapshot,
-            };
-
-            return syncedPlayer;
-          },
-          message.author.username
-        );
-      } catch (error) {
-        console.error("[PULL RESET GLOBAL SYNC ERROR]", error);
-
-        return message.reply({
-          content:
-            "Database is busy right now, so pull reset sync failed. Please try again in a few seconds.",
-          allowedMentions: {
-            repliedUser: false,
-          },
-        });
-      }
-
-      const displayPlayer =
-        syncedPlayer ||
-        buildPlayerForSlotCheck(
-          previewPlayer,
-          previewGlobalReset.pulls || previewPlayer.pulls || {},
-          previewSnapshot
-        );
-
-      return message.reply({
-        embeds: [
-          buildGlobalResetSyncedEmbed(
-            displayPlayer,
-            message,
-            previewGlobalReset.nextResetAt
-          ),
-        ],
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
-
-    const previewCheckPlayer = buildPlayerForSlotCheck(
-      previewPlayer,
-      previewGlobalReset.pulls || previewPlayer.pulls || {},
-      previewSnapshot
-    );
-
-    const previewAvailable = getAvailableActivePullSlots(previewCheckPlayer, message);
-
-    if (previewAvailable.length > 0) {
-      return message.reply({
-        embeds: [buildBlockedEmbed(previewCheckPlayer, message, previewGlobalReset.nextResetAt)],
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
-
-    let resetResult = null;
-    let remainingTickets = 0;
+    let action = null;
+    let payload = null;
 
     try {
       updatePlayerAtomic(
         message.author.id,
         (fresh) => {
+          const basePlayer = {
+            ...fresh,
+            username: fresh.username || message.author.username,
+          };
+
           const freshSnapshot = syncPremiumSnapshot(
-            buildPullAccessSnapshot(fresh, message),
+            buildPullAccessSnapshot(basePlayer, message),
             premiumTier
           );
 
-          const freshGlobalReset = applyGlobalPullReset({
-            ...fresh,
+          const freshWithSnapshot = {
+            ...basePlayer,
             pullAccessSnapshot: freshSnapshot,
-          });
+          };
 
-          const freshCheckPlayer = buildPlayerForSlotCheck(
-            fresh,
-            freshGlobalReset.pulls || fresh.pulls || {},
+          const freshGlobalReset = applyGlobalPullReset(freshWithSnapshot);
+          const pullsAfterGlobal =
+            freshGlobalReset.pulls || freshWithSnapshot.pulls || {};
+
+          const checkPlayer = buildPlayerForSlotCheck(
+            freshWithSnapshot,
+            pullsAfterGlobal,
             freshSnapshot
           );
 
-          const freshAvailable = getAvailableActivePullSlots(freshCheckPlayer, message);
+          const activeText = buildActiveSlotText(checkPlayer, message);
+          const availableText = buildAvailableSlotText(checkPlayer, message);
+          const availableSlots = getAvailableActivePullSlots(checkPlayer, message);
 
-          if (freshAvailable.length > 0) {
-            throw new Error(
-              [
-                "RESET_BLOCKED_AVAILABLE_SLOTS",
-                buildAvailableSlotText(freshCheckPlayer, message),
-                buildActiveSlotText(freshCheckPlayer, message),
-                String(freshGlobalReset.nextResetAt || 0),
-              ].join("|||")
-            );
+          if (freshGlobalReset.wasReset) {
+            action = "GLOBAL_SYNCED";
+            payload = {
+              activeText,
+              nextResetAt: freshGlobalReset.nextResetAt,
+            };
+
+            return {
+              ...freshWithSnapshot,
+              pulls: pullsAfterGlobal,
+              pullAccessSnapshot: freshSnapshot,
+            };
           }
 
-          const tickets = [...(Array.isArray(fresh.tickets) ? fresh.tickets : [])];
-          const items = [...(Array.isArray(fresh.items) ? fresh.items : [])];
+          if (availableSlots.length > 0) {
+            action = "BLOCKED";
+            payload = {
+              availableText,
+              activeText,
+              nextResetAt: freshGlobalReset.nextResetAt,
+            };
 
-          let updatedTickets = null;
+            return freshWithSnapshot;
+          }
+
+          const tickets = [...(Array.isArray(freshWithSnapshot.tickets) ? freshWithSnapshot.tickets : [])];
+          const items = [...(Array.isArray(freshWithSnapshot.items) ? freshWithSnapshot.items : [])];
+
+          let updatedTickets = tickets;
           let updatedItems = items;
 
           const ticketIndex = findTicket(tickets, "pull_reset_ticket");
 
           if (ticketIndex !== -1 && Number(tickets[ticketIndex]?.amount || 0) > 0) {
-            updatedTickets = consumeTicket(tickets, ticketIndex);
+            const consumed = consumeTicket(tickets, ticketIndex);
+            if (!consumed) throw new Error("Failed to consume Pull Reset Ticket.");
+            updatedTickets = consumed;
           } else {
             const itemIndex = items.findIndex(isPullResetTicket);
 
@@ -361,45 +344,48 @@ module.exports = {
               throw new Error("You do not have any Pull Reset Ticket.");
             }
 
-            updatedItems = consumeTicket(items, itemIndex);
-
-            if (!updatedItems) {
-              throw new Error("Failed to consume Pull Reset Ticket.");
-            }
-
-            updatedTickets = tickets;
+            const consumed = consumeTicket(items, itemIndex);
+            if (!consumed) throw new Error("Failed to consume Pull Reset Ticket.");
+            updatedItems = consumed;
           }
 
-          if (!updatedTickets) {
-            throw new Error("Failed to consume Pull Reset Ticket.");
-          }
-
-          resetResult = applyManualPullReset(freshGlobalReset.pulls || fresh.pulls || {});
+          const resetResult = applyManualPullReset(pullsAfterGlobal);
 
           const updatedDailyState = incrementQuestCounter(
             {
-              ...fresh,
-              username: fresh.username || previewPlayer.username || message.author.username,
+              ...freshWithSnapshot,
+              tickets: updatedTickets,
+              items: updatedItems,
+              pulls: resetResult.pulls,
+              username:
+                freshWithSnapshot.username ||
+                message.author.username,
             },
             "resetTicketsUsed",
             1
           );
 
-          remainingTickets = countPullResetTickets({
-            ...fresh,
+          const remainingTickets = countPullResetTickets({
+            ...freshWithSnapshot,
             tickets: updatedTickets,
             items: updatedItems,
             pulls: resetResult.pulls,
           });
 
+          action = "RESET_USED";
+          payload = {
+            resetResult,
+            remainingTickets,
+          };
+
           return {
-            ...fresh,
+            ...freshWithSnapshot,
             tickets: updatedTickets,
             items: updatedItems,
             pulls: resetResult.pulls,
             pullAccessSnapshot: freshSnapshot,
             quests: {
-              ...(fresh.quests || {}),
+              ...(freshWithSnapshot.quests || {}),
               dailyState: updatedDailyState,
             },
           };
@@ -407,41 +393,7 @@ module.exports = {
         message.author.username
       );
     } catch (error) {
-      const text = String(error.message || "");
-
-      if (text.startsWith("RESET_BLOCKED_AVAILABLE_SLOTS|||")) {
-        const [, availableText, activeText, nextResetAtRaw] = text.split("|||");
-        const nextResetAt = Number(nextResetAtRaw || 0);
-
-        return message.reply({
-          embeds: [
-            new EmbedBuilder()
-              .setColor(0xe74c3c)
-              .setTitle("Pull Reset Blocked")
-              .setDescription(
-                [
-                  "You still have available pulls from your active pull slots.",
-                  "Use your remaining pulls first before using a Pull Reset Ticket.",
-                  "",
-                  "**Available Active Slots**",
-                  availableText || "Some active pull slots are still available.",
-                  "",
-                  "**Your Active Pull Slots**",
-                  activeText || "Active pull slot data was not found.",
-                  "",
-                  `↪ Next Global Reset: ${formatRemaining(nextResetAt - Date.now())}`,
-                  "↪ Pull Reset Ticket was not consumed.",
-                ].join("\n")
-              )
-              .setFooter({
-                text: "One Piece Bot • Pull Reset",
-              }),
-          ],
-          allowedMentions: {
-            repliedUser: false,
-          },
-        });
-      }
+      console.error("[PULL RESET ERROR]", error);
 
       return message.reply({
         content: error.message || "Failed to use Pull Reset Ticket.",
@@ -451,31 +403,35 @@ module.exports = {
       });
     }
 
-    const now = Date.now();
+    if (action === "GLOBAL_SYNCED") {
+      return message.reply({
+        embeds: [buildGlobalResetSyncedEmbed(payload)],
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
+    if (action === "BLOCKED") {
+      return message.reply({
+        embeds: [buildBlockedEmbed(payload)],
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
+    if (action === "RESET_USED") {
+      return message.reply({
+        embeds: [buildResetUsedEmbed(payload)],
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
 
     return message.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(0x3498db)
-          .setTitle("↩️ Pull Reset Used")
-          .setDescription(
-            [
-              "Your pull usage has been reset manually.",
-              "",
-              "↪ Reset checked only your active pull slots.",
-              "↪ Inactive premium/event slots do not block reset.",
-              "↪ Global 8-hour reset timer is unchanged.",
-              `↪ Next Global Reset: ${formatRemaining(
-                Number(resetResult?.nextResetAt || now) - now
-              )}`,
-              "↪ 1 Pull Reset Ticket consumed.",
-              `↪ Remaining Pull Reset Ticket: ${remainingTickets}`,
-            ].join("\n")
-          )
-          .setFooter({
-            text: "One Piece Bot • Pull Reset",
-          }),
-      ],
+      content: "Pull Reset failed: no reset action was completed.",
       allowedMentions: {
         repliedUser: false,
       },
