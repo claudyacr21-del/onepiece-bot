@@ -685,7 +685,7 @@ async function equipFruitToCard(message, player, card, fruit) {
               "",
               `Card: ${hydratedCard.displayName || hydratedCard.name || hydratedCard.code}`,
               `Fruit: ${fruitForValidation.name}`,
-              `Owner Signature: ${fruitForValidation.owners.name(", ")}`,
+              `Owner Signature: ${fruitForValidation.owners.join(", ")}`,
             ].join("\n")
           );
         }
