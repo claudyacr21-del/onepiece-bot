@@ -1218,15 +1218,33 @@ if (lobbyProcessing) {
       try {
         
       if (interaction.customId === "boss_lobby_join") {
+        const joinDeferred = await interaction
+          .deferReply({ flags: MessageFlags.Ephemeral })
+          .catch((error) => {
+            console.error("[BOSS JOIN DEFER ERROR]", error?.message || error);
+            return null;
+          });
+
+        if (!joinDeferred) return;
+
+        const failJoin = async (content) => {
+          return interaction
+            .editReply({
+              content,
+              embeds: [],
+              components: [],
+            })
+            .catch(() => null);
+        };
         const userId = String(interaction.user.id);
 
         if (joinedIds.size >= BOSS_PHASE_JOIN_MAX) {
-          await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
+          await failJoin("This boss interaction is no longer available or already processed.");
           return;
         }
 
         if (joinedIds.has(userId)) {
-          await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
+          await failJoin("This boss interaction is no longer available or already processed.");
           return;
         }
 
@@ -1281,10 +1299,9 @@ if (lobbyProcessing) {
             .setStyle(ButtonStyle.Danger)
         );
 
-        await interaction.reply({
+        await interaction.editReply({
           embeds: [confirmEmbed],
           components: [confirmRow],
-          flags: MessageFlags.Ephemeral,
         });
 
         const confirmReply = await interaction.fetchReply();

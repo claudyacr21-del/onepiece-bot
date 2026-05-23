@@ -72,9 +72,11 @@ function getEffectivePullTierForSlot(roleTier, pullKey) {
 }
 
 function syncPremiumSnapshot(snapshot, premiumTier) {
+  const safe = snapshot && typeof snapshot === "object" ? snapshot : {};
+
   if (premiumTier === "motherFlame") {
     return {
-      ...snapshot,
+      ...safe,
       patreon: true,
       vivreCard: false,
       litePremium: false,
@@ -83,18 +85,21 @@ function syncPremiumSnapshot(snapshot, premiumTier) {
 
   if (premiumTier === "vivreCard") {
     return {
-      ...snapshot,
+      ...safe,
       patreon: false,
       vivreCard: true,
       litePremium: true,
     };
   }
 
+  // IMPORTANT:
+  // Jangan hapus snapshot premium lama cuma karena role fetch/cache Discord gagal.
+  // Kalau ini di-clear, total pull bisa turun dari 13/13 jadi 10/10 di tengah sesi.
   return {
-    ...snapshot,
-    patreon: false,
-    vivreCard: false,
-    litePremium: false,
+    ...safe,
+    patreon: Boolean(safe.patreon),
+    vivreCard: Boolean(safe.vivreCard || safe.litePremium),
+    litePremium: Boolean(safe.vivreCard || safe.litePremium),
   };
 }
 

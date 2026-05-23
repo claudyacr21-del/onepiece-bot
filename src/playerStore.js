@@ -35,9 +35,11 @@ function getDbPool() {
     dbPool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      max: Number(process.env.PLAYER_DB_POOL_MAX || 5),
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
+      max: Number(process.env.PLAYER_DB_POOL_MAX || 20),
+      idleTimeoutMillis: Number(process.env.PLAYER_DB_IDLE_TIMEOUT_MS || 30000),
+      connectionTimeoutMillis: Number(process.env.PLAYER_DB_CONNECT_TIMEOUT_MS || 3000),
+      query_timeout: Number(process.env.PLAYER_DB_QUERY_TIMEOUT_MS || 12000),
+      statement_timeout: Number(process.env.PLAYER_DB_STATEMENT_TIMEOUT_MS || 12000),
     });
 
     dbPool.on("error", (error) => {
@@ -48,28 +50,39 @@ function getDbPool() {
   return dbPool;
 }
 
+let ensurePlayersTablePromise = null;
+
 async function ensurePlayersTable() {
   const pool = getDbPool();
   if (!pool) return;
 
-  await pool.query(`
-    create table if not exists players (
-      user_id text primary key,
-      username text,
-      data jsonb not null default '{}'::jsonb,
-      updated_at timestamptz not null default now()
-    );
-  `);
+  if (ensurePlayersTablePromise) {
+    return ensurePlayersTablePromise;
+  }
 
-  await pool.query(`
-    create index if not exists players_username_idx
-    on players (username);
-  `);
+  ensurePlayersTablePromise = (async () => {
+    await pool.query(`
+      create table if not exists players (
+        user_id text primary key,
+        username text,
+        data jsonb not null default '{}'::jsonb,
+        updated_at timestamptz not null default now()
+      );
+    `);
 
-  await pool.query(`
-    create index if not exists players_updated_at_idx
-    on players (updated_at);
-  `);
+    await pool.query(`
+      create index if not exists players_username_idx on players (username);
+    `);
+
+    await pool.query(`
+      create index if not exists players_updated_at_idx on players (updated_at);
+    `);
+  })().catch((error) => {
+    ensurePlayersTablePromise = null;
+    throw error;
+  });
+
+  return ensurePlayersTablePromise;
 }
 
 async function loadPlayersFromPostgres() {
