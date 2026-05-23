@@ -2092,7 +2092,7 @@ function disableActionRows(rows = []) {
 }
 
 function buildBossProcessingEmbed(playerName, island, phaseBoss, playerTeam, boss, logs) {
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(0xf1c40f)
     .setTitle(`${playerName}'s ${island.name}${phaseBoss ? ` Phase ${phaseBoss.phase}` : ""} Boss Battle`)
     .setDescription(
@@ -2117,6 +2117,8 @@ function buildBossProcessingEmbed(playerName, island, phaseBoss, playerTeam, bos
     .setFooter({
       text: "One Piece Bot • Saving Boss Result",
     });
+
+  return applySafeEmbedImage(embed, boss.image);
 }
 
 function buildRaidBossProcessingEmbed(island, phaseBoss, participants, boss, logs) {
