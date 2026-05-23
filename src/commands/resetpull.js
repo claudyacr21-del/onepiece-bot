@@ -261,7 +261,7 @@ function buildResetUsedEmbed({ resetResult, remainingTickets }) {
 
 module.exports = {
   name: "resetpull",
-  aliases: ["reset", "rpull", "pr", "pullreset"],
+  aliases: ["reset"],
 
   async execute(message) {
     const premiumTier = await getPremiumTier(message);
@@ -270,7 +270,7 @@ module.exports = {
     let payload = null;
 
     try {
-      await updatePlayerAtomic(message.author.id,
+      await await updatePlayerAtomic(message.author.id,
         (fresh) => {
           const basePlayer = {
             ...fresh,

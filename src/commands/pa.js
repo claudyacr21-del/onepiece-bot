@@ -692,6 +692,48 @@ function mergeCardCollections(existingCards, nextCards) {
   return [...map.values()];
 }
 
+function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
+  const result = {
+    ...(existingPulls || {}),
+    ...(nextPulls || {}),
+  };
+
+  const keys = [
+    "base",
+    "supportMember",
+    "booster",
+    "owner",
+    "patreon",
+    "vivreCard",
+    "baccaratCard",
+    "baccaratFruit",
+  ];
+
+  for (const key of keys) {
+    const existing = existingPulls?.[key] || {};
+    const next = nextPulls?.[key] || {};
+
+    result[key] = {
+      ...existing,
+      ...next,
+      used: Math.max(Number(existing.used || 0), Number(next.used || 0)),
+      max: Math.max(Number(existing.max || 0), Number(next.max || 0)),
+    };
+  }
+
+  result.lastResetBucket =
+    nextPulls?.lastResetBucket ||
+    existingPulls?.lastResetBucket ||
+    result.lastResetBucket;
+
+  result.slotSchemaVersion =
+    nextPulls?.slotSchemaVersion ||
+    existingPulls?.slotSchemaVersion ||
+    result.slotSchemaVersion;
+
+  return result;
+}
+
 function savePullAllResultFresh(userId, payload, username = "Unknown") {
   return updatePlayerAtomic(
     userId,
@@ -706,7 +748,7 @@ function savePullAllResultFresh(userId, payload, username = "Unknown") {
         fragments: mergeStackList(existing.fragments, payload.fragments),
         tickets: Array.isArray(payload.tickets) ? payload.tickets : existing.tickets || [],
         berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
-        pulls: payload.pulls,
+        pulls: mergePullUsageForSave(existing.pulls, payload.pulls),
         pity: payload.pity,
         stats: {
           ...(existing.stats || {}),
@@ -1128,7 +1170,7 @@ module.exports = {
       convertedCount += fragmentStorageAudit.convertedCount;
     }
 
-    savePullAllResultFresh(message.author.id, {
+    await savePullAllResultFresh(message.author.id, {
       cards: updatedCards,
       weapons: updatedWeapons,
       devilFruits: updatedDevilFruits,
