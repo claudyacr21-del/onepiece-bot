@@ -997,6 +997,16 @@ async function chooseBossPhase(message, player, island) {
   }
 }
 
+function getBossLobbyImage(island, phaseBoss) {
+  return (
+    phaseBoss?.bossImage ||
+    phaseBoss?.image ||
+    island?.bossImage ||
+    island?.image ||
+    ""
+  );
+}
+
 function buildBossJoinEmbed(
   hostId,
   island,
@@ -1047,8 +1057,10 @@ function buildBossJoinEmbed(
       ].join("\n")
     )
     .setFooter({
-      text: "One Piece Bot • Boss Phase 2 Party Room",
-    });
+        text: "One Piece Bot • Boss Phase 2 Party Room",
+      });
+
+  return applySafeEmbedImage(lobbyEmbed, getBossLobbyImage(island, phaseBoss));
 }
 
 function buildBossJoinButtons(joinedCount = 0) {
@@ -1239,24 +1251,14 @@ if (lobbyProcessing) {
           });
         };
 
-        const joinDeferred = await interaction
-          .deferReply({ flags: MessageFlags.Ephemeral })
-          .catch((error) => {
-            console.error("[BOSS JOIN DEFER ERROR]", error?.message || error);
-            return null;
-          });
-
-        if (!joinDeferred) return;
-
         const failJoin = async (content) => {
-          return interaction
-            .editReply({
-              content,
-              embeds: [],
-              components: [],
-            })
-            .catch(() => null);
+          return replyBossJoin({
+            content,
+            embeds: [],
+            components: [],
+          });
         };
+
         const userId = String(interaction.user.id);
 
         if (joinedIds.size >= BOSS_PHASE_JOIN_MAX) {
