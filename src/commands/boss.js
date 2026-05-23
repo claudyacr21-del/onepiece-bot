@@ -43,29 +43,40 @@ const BOSS_GLOBAL_ATK_MULT = 1.25;
 const BOSS_GLOBAL_HP_MULT = 1.2;
 const BOSS_GLOBAL_SPD_MULT = 1.5;
 
-const __activeFightSystemInteractions = new Set();
 
-async function __guardFightSystemInteraction(interaction) {
-  const key = [
+const __fightSystem2ActionLocks = new Set();
+
+function __getActionLockKey(interaction) {
+  return [
     interaction?.message?.id || "no-message",
     interaction?.user?.id || "no-user",
-    interaction?.customId || "no-custom-id",
   ].join(":");
+}
 
-  if (__activeFightSystemInteractions.has(key)) {
-    if (typeof safeDeferUpdate === "function") {
-      await safeDeferUpdate(interaction).catch(() => null);
+async function __tryStartAction(interaction, safeDeferFn = null) {
+  const key = __getActionLockKey(interaction);
+
+  if (__fightSystem2ActionLocks.has(key)) {
+    if (typeof safeDeferFn === "function") {
+      await safeDeferFn(interaction).catch(() => null);
     }
-    return false;
+    return {
+      ok: false,
+      key,
+    };
   }
 
-  __activeFightSystemInteractions.add(key);
+  __fightSystem2ActionLocks.add(key);
 
-  setTimeout(() => {
-    __activeFightSystemInteractions.delete(key);
-  }, 2500);
+  return {
+    ok: true,
+    key,
+  };
+}
 
-  return true;
+function __endAction(key) {
+  if (!key) return;
+  __fightSystem2ActionLocks.delete(key);
 }
 
 function isIgnorableDiscordInteractionError(error) {
@@ -1194,10 +1205,8 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
     let lobbyProcessing = false;
     collector.on("collect", async (interaction) => {
 
-      if (!(await __guardFightSystemInteraction(interaction))) {
-        return;
-      }
-      if (lobbyProcessing) {
+        let __actionLock = null;
+if (lobbyProcessing) {
         await safeDeferUpdate(interaction);
         return;
       }
@@ -1425,6 +1434,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
         console.error("[BOSS JOIN LOBBY COLLECTOR ERROR]", error?.message || error);
         await safeEphemeralReply(interaction, "Boss lobby interaction error. Please try again.");
       } finally {
+        __endAction(__actionLock);
         lobbyProcessing = false;
       }
     });
@@ -2257,10 +2267,8 @@ module.exports = {
 
       collector.on("collect", async (interaction) => {
 
-      if (!(await __guardFightSystemInteraction(interaction))) {
-        return;
-      }
-        if (interaction.user.id !== message.author.id) {
+        let __actionLock = null;
+if (interaction.user.id !== message.author.id) {
           await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
           return;
         }
@@ -2273,7 +2281,11 @@ module.exports = {
         const deferred = await safeDeferUpdate(interaction);
         if (!deferred) return;
 
-        if (interaction.customId === "boss_raid_run") {
+        
+        const __action = await __tryStartAction(interaction, safeDeferUpdate);
+        if (!__action.ok) return;
+        __actionLock = __action.key;
+if (interaction.customId === "boss_raid_run") {
           logs.length = 0;
           pushBossLog(logs, "⚠️ Run away confirmation requested.");
           pushBossLog(logs, "Confirm run away or cancel to continue.");
@@ -2724,10 +2736,8 @@ module.exports = {
 
     collector.on("collect", async (interaction) => {
 
-      if (!(await __guardFightSystemInteraction(interaction))) {
-        return;
-      }
-      if (interaction.user.id !== message.author.id) {
+        let __actionLock = null;
+if (interaction.user.id !== message.author.id) {
         await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
         return;
       }
@@ -2740,7 +2750,11 @@ module.exports = {
       const deferred = await safeDeferUpdate(interaction);
       if (!deferred) return;
 
-      if (interaction.customId === "boss_run") {
+      
+        const __action = await __tryStartAction(interaction, safeDeferUpdate);
+        if (!__action.ok) return;
+        __actionLock = __action.key;
+if (interaction.customId === "boss_run") {
         logs.length = 0;
         pushBossLog(logs, "⚠️ Run away confirmation requested.");
         pushBossLog(logs, "Confirm run away or cancel to continue.");

@@ -30,6 +30,41 @@ const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 
 const activeFightSessions = new Map();
 
+const __fightSystem1ActionLocks = new Set();
+
+function __getActionLockKey(interaction) {
+  return [
+    interaction?.message?.id || "no-message",
+    interaction?.user?.id || "no-user",
+  ].join(":");
+}
+
+async function __tryStartAction(interaction, safeDeferFn = null) {
+  const key = __getActionLockKey(interaction);
+
+  if (__fightSystem1ActionLocks.has(key)) {
+    if (typeof safeDeferFn === "function") {
+      await safeDeferFn(interaction).catch(() => null);
+    }
+    return {
+      ok: false,
+      key,
+    };
+  }
+
+  __fightSystem1ActionLocks.add(key);
+
+  return {
+    ok: true,
+    key,
+  };
+}
+
+function __endAction(key) {
+  if (!key) return;
+  __fightSystem1ActionLocks.delete(key);
+}
+
 function getFightSessionKey(message) {
   return `${message.guild?.id || "dm"}:${message.channel?.id || "unknown"}:${message.author.id}`;
 }
@@ -939,7 +974,9 @@ module.exports = {
       });
 
       collector.on("collect", async (interaction) => {
-        if (interaction.user.id !== message.author.id) {
+        
+        let __actionLock = null;
+if (interaction.user.id !== message.author.id) {
           return safeEphemeralReply(
             interaction,
             "Only the command user can control this fight."
@@ -1238,6 +1275,7 @@ module.exports = {
             "Fight interaction error. Please try again."
           );
         } finally {
+        __endAction(__actionLock);
           actionProcessing = false;
         }
       });
