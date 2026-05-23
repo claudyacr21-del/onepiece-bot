@@ -2374,11 +2374,12 @@ if (interaction.customId === "boss_raid_run") {
         }
 
         const unitKey = getUnitActionKey(attacker);
+        usedThisCycle = normalizeBossActionCycle(allUnits, usedThisCycle);
 
-        if (shouldDisableLastUsed(allUnits, lastUsedUnitKey, attacker)) {
+        if (shouldDisableLastUsed(allUnits, usedThisCycle, attacker)) {
           return safeEphemeralReply(
             interaction,
-            "This unit acted last turn. Choose another available unit first."
+            "This unit is on 1-turn cooldown. Choose another available unit first."
           );
         }
 
@@ -2412,7 +2413,9 @@ if (interaction.customId === "boss_raid_run") {
 
         logs.length = 0;
         logs.push(...combatLogs.slice(-BOSS_MAX_LOG_LINES));
-        lastUsedUnitKey = "";
+
+        usedThisCycle.push(unitKey);
+        usedThisCycle = normalizeBossActionCycle(allUnits, usedThisCycle);
 
         if (Number(boss.battleHp ?? boss.hp) <= 0) {
           ended = true;
@@ -2657,13 +2660,13 @@ if (interaction.customId === "boss_raid_run") {
               boss,
               logs,
               false,
-              []
+              usedThisCycle
             ),
           ],
           components: buildRaidBossButtons(
             participants,
             false,
-            []
+            usedThisCycle
           ),
         });
       });
