@@ -1210,12 +1210,12 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
         const userId = String(interaction.user.id);
 
         if (joinedIds.size >= BOSS_PHASE_JOIN_MAX) {
-          await safeEphemeralReply(interaction, "....");
+          await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
           return;
         }
 
         if (joinedIds.has(userId)) {
-          await safeEphemeralReply(interaction, "....");
+          await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
           return;
         }
 
@@ -1223,7 +1223,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
         const joiningPlayer = players[userId];
 
         if (!joiningPlayer) {
-          await safeEphemeralReply(interaction, "....");
+          await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
           return;
         }
 
@@ -1231,7 +1231,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
         const { teamCards } = getFullTeamFromPlayer(joiningPlayer);
 
         if (teamCards.length < 3) {
-          await safeEphemeralReply(interaction, "....");
+          await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
           return;
         }
 
@@ -1349,7 +1349,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
       }
 
       if (interaction.user.id !== message.author.id) {
-        await safeEphemeralReply(interaction, "....");
+        await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
         return;
       }
 
@@ -1381,7 +1381,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
 
       if (interaction.customId === "boss_lobby_start") {
         if (joinedIds.size < BOSS_PHASE_JOIN_MIN) {
-          await safeEphemeralReply(interaction, "....");
+          await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
           return;
         }
 
@@ -2261,12 +2261,12 @@ module.exports = {
         return;
       }
         if (interaction.user.id !== message.author.id) {
-          await safeEphemeralReply(interaction, "....");
+          await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
           return;
         }
 
         if (ended) {
-          await safeEphemeralReply(interaction, "....");
+          await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
           return;
         }
 
@@ -2415,16 +2415,15 @@ module.exports = {
 
           await safeEditInteractionMessage(interaction, {
             embeds: [
-              buildBossProcessingEmbed(
-                player.username || message.author.username,
+              buildRaidBossProcessingEmbed(
                 currentIsland,
                 phaseBoss,
-                playerTeam,
+                participants,
                 boss,
                 logs
               ),
             ],
-            components: disableActionRows(buildButtons(playerTeam, true, [])),
+            components: [],
           });
 
           const reward = getBossReward(currentIsland, phaseBoss);
@@ -2729,12 +2728,12 @@ module.exports = {
         return;
       }
       if (interaction.user.id !== message.author.id) {
-        await safeEphemeralReply(interaction, "....");
+        await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
         return;
       }
 
       if (ended) {
-        await safeEphemeralReply(interaction, "....");
+        await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
         return;
       }
 
@@ -3009,20 +3008,21 @@ module.exports = {
       }
 
       if (!getAliveUnits(playerTeam).length) {
-        ended = true;
+          ended = true;
 
-        await safeEditInteractionMessage(interaction, {
-          embeds: [
-            buildRaidBossProcessingEmbed(
-              currentIsland,
-              phaseBoss,
-              participants,
-              boss,
-              logs
-            ),
-          ],
-          components: [],
-        });
+          await safeEditInteractionMessage(interaction, {
+            embeds: [
+              buildBossProcessingEmbed(
+                player.username || message.author.username,
+                currentIsland,
+                phaseBoss,
+                playerTeam,
+                boss,
+                logs
+              ),
+            ],
+            components: disableActionRows(buildButtons(playerTeam, true, [])),
+          });
 
         const expResults = calculateBossExp(playerTeam, false, combatBoosts);
         const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
