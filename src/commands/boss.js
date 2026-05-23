@@ -463,6 +463,38 @@ function renderBossHpBar(hp, maxHp, size = 18) {
   return `${"🟩".repeat(safeFilled)}${"⬛".repeat(size - safeFilled)}`;
 }
 
+function getSafeEmbedImageUrl(url) {
+  const value = String(url || "").trim();
+
+  if (!value) return null;
+
+  if (!/^https?:\/\//i.test(value)) return null;
+
+  try {
+    const parsed = new URL(value);
+    if (!["http:", "https:"].includes(parsed.protocol)) return null;
+    return value;
+  } catch (_) {
+    return null;
+  }
+}
+
+function applySafeEmbedImage(embed, url) {
+  const safeUrl = getSafeEmbedImageUrl(url);
+  if (!safeUrl) return embed;
+
+  try {
+    return embed.setImage(safeUrl);
+  } catch (error) {
+    console.error("[BOSS SAFE IMAGE ERROR]", {
+      image: String(url || ""),
+      message: error?.message,
+    });
+
+    return embed;
+  }
+}
+
 function isPhasedIsland(island) {
   return Array.isArray(island?.bossPhases) && island.bossPhases.length > 0;
 }
@@ -1473,7 +1505,6 @@ function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, e
         ...teamLines,
       ].join("\n")
     )
-    .setImage(boss.image || null)
     .setFooter({
       text: "One Piece Bot • Island Boss",
     });
@@ -1912,7 +1943,7 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
     }
   }
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(ended ? 0x2ecc71 : 0xe74c3c)
     .setTitle(`${island.name} ${phaseLabel} Boss Raid`)
     .setDescription(
@@ -1932,8 +1963,9 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
         ...teamLines,
       ].join("\n").slice(0, 4096)
     )
-    .setImage(boss.image || null)
     .setFooter({ text: "One Piece Bot • Boss Phase 2 Raid" });
+
+  return applySafeEmbedImage(embed, boss.image);
 }
 
 function buildRaidBossButtons(participants, ended, lastUsedUnitKey = "") {
@@ -2034,7 +2066,6 @@ function buildBossProcessingEmbed(playerName, island, phaseBoss, playerTeam, bos
         }),
       ].join("\n")
     )
-    .setImage(boss.image || null)
     .setFooter({
       text: "One Piece Bot • Saving Boss Result",
     });
@@ -2063,7 +2094,7 @@ function buildRaidBossProcessingEmbed(island, phaseBoss, participants, boss, log
     }
   }
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(0xf1c40f)
     .setTitle(`${island.name} ${phaseLabel} Boss Raid`)
     .setDescription(
@@ -2089,10 +2120,11 @@ function buildRaidBossProcessingEmbed(island, phaseBoss, participants, boss, log
         .join("\n")
         .slice(0, 4096)
     )
-    .setImage(boss.image || null)
     .setFooter({
       text: "One Piece Bot • Saving Boss Phase 2 Raid Result",
     });
+
+  return applySafeEmbedImage(embed, boss.image);
 }
 
 function stripEmbedImage(embed) {
@@ -2259,24 +2291,45 @@ module.exports = {
       let lastUsedUnitKey = "";
       const allUnits = participants.flatMap((participant) => participant.units);
 
-      const reply = await sendRaidBossBattleMessage(message, {
-        embeds: [
-          buildRaidBossEmbed(
-            currentIsland,
-            phaseBoss,
+      let raidStartPayload;
+
+      try {
+        raidStartPayload = {
+          embeds: [
+            buildRaidBossEmbed(
+              currentIsland,
+              phaseBoss,
+              participants,
+              boss,
+              logs,
+              ended,
+              lastUsedUnitKey
+            ),
+          ],
+          components: buildRaidBossButtons(
             participants,
-            boss,
-            logs,
             ended,
             lastUsedUnitKey
           ),
-        ],
-        components: buildRaidBossButtons(
-          participants,
-          ended,
-          lastUsedUnitKey
-        ),
-      });
+        };
+      } catch (error) {
+        console.error("[BOSS PHASE 2 BUILD PAYLOAD ERROR]", {
+          message: error?.message,
+          stack: error?.stack,
+          bossImage: boss?.image,
+          bossName: boss?.name,
+          island: currentIsland?.code,
+          phase: phaseBoss?.phase,
+        });
+
+        await message.reply(
+          "Boss Phase 2 failed while building the battle UI. Check Render logs: `[BOSS PHASE 2 BUILD PAYLOAD ERROR]`."
+        );
+
+        return;
+      }
+
+      const reply = await sendRaidBossBattleMessage(message, raidStartPayload);
 
       if (!reply) return;
 
