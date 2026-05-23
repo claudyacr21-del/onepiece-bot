@@ -605,6 +605,7 @@ function getIslandBossImage(currentIsland, phaseBoss = null, fromDb = null) {
     phaseBoss?.bossImage ||
     phaseBoss?.image ||
     currentIsland?.bossImage ||
+    fromDb?.bossImage ||
     fromDb?.image ||
     currentIsland?.image ||
     ""
@@ -889,7 +890,7 @@ function buildPhaseSelectEmbed(island, player) {
       ? "Phase 2 Status: **Unlocked / Ready for party raid**"
       : "Phase 2 Status: **Locked until Phase 1 is cleared**";
 
-  return new EmbedBuilder()
+  const phaseEmbed = new EmbedBuilder()
     .setColor(0x5865f2)
     .setTitle(`${island.name} Boss Phase Select`)
     .setDescription(
@@ -909,6 +910,11 @@ function buildPhaseSelectEmbed(island, player) {
     .setFooter({
       text: "One Piece Bot • Boss Phase Select",
     });
+
+  return applySafeEmbedImage(
+    phaseEmbed,
+    getIslandBossImage(island, getBossPhaseForBattle(player, island), null)
+  );
 }
 
 function buildPhaseSelectRows(player, island) {
