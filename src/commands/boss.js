@@ -1968,6 +1968,24 @@ function buildRaidBossButtons(participants, ended, usedThisCycle = []) {
   return rows.slice(0, 5);
 }
 
+function startBossCooldownNow(userId, username = "Unknown") {
+  const nextBossAt = Date.now() + BOSS_COOLDOWN_MS;
+
+  updatePlayerAtomic(
+    userId,
+    (fresh) => ({
+      ...fresh,
+      cooldowns: {
+        ...(fresh.cooldowns || {}),
+        boss: nextBossAt,
+      },
+    }),
+    username
+  );
+
+  return nextBossAt;
+}
+
 module.exports = {
   name: "boss",
 
@@ -2046,6 +2064,8 @@ module.exports = {
 
     const phaseBoss = phaseBossResult;
 
+    startBossCooldownNow(message.author.id, message.author.username);
+
     if (isBossPhaseTwoParty(currentIsland, phaseBoss)) {
       const lobby = await waitForBossJoinLobby(message, currentIsland, phaseBoss);
 
@@ -2084,13 +2104,6 @@ module.exports = {
       let ended = false;
       let lastUsedUnitKey = "";
       const allUnits = participants.flatMap((participant) => participant.units);
-
-      updatePlayer(message.author.id, {
-        cooldowns: {
-          ...(player.cooldowns || {}),
-          boss: Date.now() + BOSS_COOLDOWN_MS,
-        },
-      });
 
       const reply = await message.reply({
         embeds: [
@@ -2527,13 +2540,6 @@ module.exports = {
     if (teamCards.length < 3) {
       return message.reply("You need a full battle team of 3 cards to challenge the island boss.");
     }
-
-    updatePlayer(message.author.id, {
-      cooldowns: {
-        ...(player.cooldowns || {}),
-        boss: Date.now() + BOSS_COOLDOWN_MS,
-      },
-    });
 
     const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
     const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));

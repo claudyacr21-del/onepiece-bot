@@ -153,6 +153,32 @@ function getCatalogKeys(entry) {
 
   addSearchKey(keys, getDisplayName(entry));
 
+  const searchableFields = [
+    entry?.name,
+    entry?.displayName,
+    entry?.code,
+    entry?.id,
+    entry?.title,
+    entry?.subtitle,
+    entry?.epithet,
+    entry?.form,
+    entry?.style,
+    entry?.alias,
+    entry?.aliases,
+    entry?.arc,
+    entry?.stageName,
+    entry?.evolutionName,
+    entry?.bottomTitle,
+  ];
+
+  for (const value of searchableFields) {
+    if (Array.isArray(value)) {
+      value.forEach((item) => addSearchKey(keys, item));
+    } else {
+      addSearchKey(keys, value);
+    }
+  }
+
   const name = String(entry?.name || "");
   const displayName = String(entry?.displayName || "");
 
@@ -170,14 +196,52 @@ function getCatalogKeys(entry) {
       .forEach((part) => addSearchKey(keys, part));
   }
 
-  const modelMatch = name.match(/model:\s*(.+)$/i) || displayName.match(/model:\s*(.+)$/i);
+  const allText = [
+    entry?.name,
+    entry?.displayName,
+    entry?.title,
+    entry?.subtitle,
+    entry?.epithet,
+    entry?.form,
+  ]
+    .map((x) => String(x || ""))
+    .join(" ");
+
+  const modelMatch =
+    allText.match(/model:\s*([^,]+)/i) ||
+    name.match(/model:\s*(.+)$/i) ||
+    displayName.match(/model:\s*(.+)$/i);
+
   if (modelMatch?.[1]) {
     addSearchKey(keys, modelMatch[1]);
   }
 
-  const noMiMatch = name.match(/^(.+?)\s+no\s+mi/i) || displayName.match(/^(.+?)\s+no\s+mi/i);
+  const noMiMatch =
+    allText.match(/^(.+?)\s+no\s+mi/i) ||
+    name.match(/^(.+?)\s+no\s+mi/i) ||
+    displayName.match(/^(.+?)\s+no\s+mi/i);
+
   if (noMiMatch?.[1]) {
     addSearchKey(keys, noMiMatch[1]);
+  }
+
+  /*
+    Manual searchable aliases for common One Piece epithets/forms
+    that are not always stored as card displayName.
+  */
+  const compactText = normalizeCompact(allText);
+  const codeText = normalizeCompact(entry?.code);
+
+  if (compactText.includes("blackleg") || codeText.includes("blackleg")) {
+    addSearchKey(keys, "Black Leg");
+  }
+
+  if (
+    compactText.includes("sanji") &&
+    (compactText.includes("blackleg") || codeText.includes("sanji"))
+  ) {
+    addSearchKey(keys, "Sanji Black Leg");
+    addSearchKey(keys, "Black Leg Sanji");
   }
 
   return [...new Set(keys.map(String).filter(Boolean))];

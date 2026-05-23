@@ -922,6 +922,11 @@ function requirementCandidates(requirement) {
     requirement.displayName,
     requirement.cardName,
     requirement.title,
+    requirement.subtitle,
+    requirement.epithet,
+    requirement.form,
+    requirement.arc,
+    requirement.variant,
   ].filter(Boolean);
 }
 
@@ -1022,7 +1027,18 @@ function validateAwakenRequirement(player, targetCard, req) {
     const stageNeed = Number(entry.stage || 1);
 
     if (!owned) {
-      missing.push(`${entry.name || entry.code} M${stageNeed}`);
+      const requiredName =
+        entry.displayName ||
+        entry.name ||
+        entry.cardName ||
+        entry.title ||
+        entry.subtitle ||
+        entry.epithet ||
+        entry.form ||
+        entry.code ||
+        "Unknown Requirement";
+
+      missing.push(`${requiredName} M${stageNeed}`);
       continue;
     }
 
@@ -1035,16 +1051,29 @@ function validateAwakenRequirement(player, targetCard, req) {
 
   for (const entry of safeArray(req?.boosts)) {
     const owned = findOwnedRequirementCard(player, entry);
-    const stageNeed = Number(entry.stage || 1);
+    const stageNeed = Number(entry.stage || entry.evolutionStage || 1);
+
+    const requiredName =
+      entry.displayName ||
+      entry.name ||
+      entry.cardName ||
+      entry.title ||
+      entry.subtitle ||
+      entry.epithet ||
+      entry.form ||
+      entry.code ||
+      "Unknown Requirement";
 
     if (!owned) {
-      missing.push(`${entry.name || entry.code} M${stageNeed}`);
+      missing.push(`${requiredName} M${stageNeed}`);
       continue;
     }
 
     if (Number(owned.evolutionStage || 1) < stageNeed) {
       missing.push(
-        `${owned.displayName || owned.name} M${Number(owned.evolutionStage || 1)}/M${stageNeed}`
+        `${owned.displayName || owned.name || requiredName} M${Number(
+          owned.evolutionStage || 1
+        )}/M${stageNeed}`
       );
     }
   }
