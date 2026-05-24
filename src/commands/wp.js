@@ -55,16 +55,14 @@ function findBestWeaponMatch(query) {
     .map((weapon) => ({
       weapon,
       score: scoreNameOnly(query, [
+        weapon.displayName,
         weapon.name,
-        weapon.code,
-        weapon.type,
-        ...(Array.isArray(weapon.aliases) ? weapon.aliases : []),
       ]),
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return normalize(a.weapon.name).length - normalize(b.weapon.name).length;
+      return normalize(a.weapon.name || a.weapon.displayName).length - normalize(b.weapon.name || b.weapon.displayName).length;
     });
 
   return scored.length ? scored[0].weapon : null;
@@ -152,14 +150,16 @@ function findOwnedWeaponEntry(ownedWeapons, weaponCode) {
 
   return (
     (Array.isArray(ownedWeapons) ? ownedWeapons : [])
-      .filter(
-        (x) =>
-          normalize(x.code || x.name) === q &&
-          Number(x.amount || 0) > 0
-      )
+      .filter((x) => {
+        if (Number(x.amount || 0) <= 0) return false;
+
+        const code = normalize(x.code);
+        const name = normalize(x.name);
+
+        return code === q || name === q;
+      })
       .sort(
-        (a, b) =>
-          Number(b.upgradeLevel || 0) - Number(a.upgradeLevel || 0)
+        (a, b) => Number(b.upgradeLevel || 0) - Number(a.upgradeLevel || 0)
       )[0] || null
   );
 }
