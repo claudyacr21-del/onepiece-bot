@@ -981,7 +981,7 @@ const ISLAND_IMAGES = {
   whole_cake_island: "https://cdn.discordapp.com/attachments/1493204525975076944/1494258777904382042/Whole_Cake_Island.png?ex=69e1f46e&is=69e0a2ee&hm=2edf5b64620f12380826db9b75010b0b2bc8308f6b7e428a83faf64f71486a50&",
   wano: "https://cdn.discordapp.com/attachments/1493204525975076944/1494258778609156256/Wano.png?ex=69e1f46e&is=69e0a2ee&hm=ae59434568890f63a75caf13519f4672eaaacaf7649d601f40f8e7b0fbe5f13a&",
   egghead: "https://cdn.discordapp.com/attachments/1493204525975076944/1494258779024396439/Egghead.png?ex=69e1f46e&is=69e0a2ee&hm=b3e5cb92a6762cc0642e3a884cd7ed6edc129ccb1cbd277bd815df79b7b7cd44&",
-  elbaf: "https://cdn.discordapp.com/attachments/1493204525975076944/1494258779473055904/Elbaf.png?ex=69e1f46f&is=69e0a2ef&hm=9db91589de83402921f4cf786362b69a346aa82a6f7eaf1074bb79d8573131cc&",
+  elbaf: "https://cdn.discordapp.com/attachments/1493204525975076944/1508084233762115675/elbaf.png?ex=6a144064&is=6a12eee4&hm=9491f17ba38dc4837d77645bf19ee5cbce487464b1a1cf7b018406840d796656",
 };
 
 function getRarityBadge(rarity) {
