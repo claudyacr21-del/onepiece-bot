@@ -453,13 +453,15 @@ function doesFragmentMatchCard(fragment, card) {
 }
 
 function getOwnedSelfFragmentAmount(player, card, ownedBaseCard = null) {
-  const inventoryAmount = (Array.isArray(player?.fragments) ? player.fragments : [])
+  const fragments = Array.isArray(player?.fragments) ? player.fragments : [];
+
+  const inventoryAmount = fragments
     .filter((fragment) => doesFragmentMatchCard(fragment, card))
     .reduce((total, fragment) => total + getFragmentAmount(fragment), 0);
 
-  const oldCardAmount = Number(ownedBaseCard?.fragments || 0);
+  if (fragments.length) return inventoryAmount;
 
-  return Math.max(inventoryAmount, oldCardAmount);
+  return Number(ownedBaseCard?.fragments || 0);
 }
 
 function formatCheckedLine(text, ok) {
@@ -820,9 +822,11 @@ module.exports = {
       if (i.customId === "ci_next") stage = Math.min(3, stage + 1);
 
       if (i.customId === "ci_info") {
+        const freshPlayer = getPlayer(message.author.id, message.author.username);
+
         return i.reply({
           ephemeral: true,
-          embeds: [buildReqEmbed(globalCard, stage, player)],
+          embeds: [buildReqEmbed(globalCard, stage, freshPlayer)],
         });
       }
 
@@ -833,8 +837,11 @@ module.exports = {
         });
       }
 
+      const freshPlayer = getPlayer(message.author.id, message.author.username);
+      const freshOwned = findOwnedCard(freshPlayer.cards || [], query);
+
       return i.update({
-        embeds: [buildEmbed(globalCard, owned, stage)],
+        embeds: [buildEmbed(globalCard, freshOwned, stage)],
         components: buildRows(stage),
       });
     });
