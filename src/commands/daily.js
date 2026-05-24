@@ -124,7 +124,7 @@ function getDailyTierRewards(dailyTier) {
   const materialAmount = 2 + tier;
   const shipMaterialAmount = Math.max(1, Math.floor(1 + tier / 3));
   const rumAmount = 2 + Math.floor(tier / 2);
-  const ticketAmount = 1 + Math.floor(tier / 15);
+  const ticketAmount = tier >= 26 ? 2 : 1;
 
   if (tier === 1) {
     if (Math.random() < 0.35) {
