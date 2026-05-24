@@ -41,7 +41,7 @@ const BOSS_MAX_LOG_LINES = 2;
 
 const BOSS_GLOBAL_ATK_MULT = 1.25;
 const BOSS_GLOBAL_HP_MULT = 1.2;
-const BOSS_GLOBAL_SPD_MULT = 1.5;
+const BOSS_GLOBAL_SPD_MULT = 2.0;
 
 
 function isIgnorableDiscordInteractionError(error) {
