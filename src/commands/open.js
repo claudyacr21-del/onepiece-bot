@@ -289,7 +289,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addReward(ITEMS.enhancementStone, 8);
     addReward(ITEMS.rumBeer, 3 + Math.floor(Math.random() * 2));
 
-    if (Math.random() < 0.45) {
+    if (Math.random() < 0.55) {
       addRandomFragment(
         [ITEMS.universalBFragment, ITEMS.universalAFragment],
         Math.random() < 0.5 ? 2 : 1
