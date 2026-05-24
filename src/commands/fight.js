@@ -988,25 +988,7 @@ if (interaction.user.id !== message.author.id) {
         }
 
         if (actionProcessing) {
-          const busyDeferred = await safeDeferUpdate(interaction);
-          if (!busyDeferred) return;
-
-          await safeEditInteractionMessage(interaction, {
-            embeds: [
-              buildFightEmbed(
-                player.username || message.author.username,
-                playerTeam,
-                enemyTeam,
-                logs,
-                currentStreak,
-                false,
-                premiumMode,
-                currentIsland
-              ),
-            ],
-            components: buildActionRows(playerTeam, false, confirmingRunAway, true),
-          });
-
+          await safeEphemeralReply(interaction, "Please wait, your previous action is still processing.");
           return;
         }
 
@@ -1019,22 +1001,6 @@ if (interaction.user.id !== message.author.id) {
         }
 
         try {
-          await safeEditInteractionMessage(interaction, {
-            embeds: [
-              buildFightEmbed(
-                player.username || message.author.username,
-                playerTeam,
-                enemyTeam,
-                logs,
-                currentStreak,
-                false,
-                premiumMode,
-                currentIsland
-              ),
-            ],
-            components: buildActionRows(playerTeam, false, confirmingRunAway, true),
-          });
-
           if (interaction.customId === "fight_run") {
             confirmingRunAway = true;
             logs.length = 0;
