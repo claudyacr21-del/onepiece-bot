@@ -2292,8 +2292,6 @@ module.exports = {
 
     const phaseBoss = phaseBossResult;
 
-    startBossCooldownNow(message.author.id, message.author.username);
-
     if (isBossPhaseTwoParty(currentIsland, phaseBoss)) {
       const lobby = await waitForBossJoinLobby(message, currentIsland, phaseBoss);
 
@@ -2326,6 +2324,8 @@ module.exports = {
           ].join("\n")
         );
       }
+
+      startBossCooldownNow(message.author.id, message.author.username);
 
       const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
       const logs = [];
@@ -2831,6 +2831,8 @@ if (interaction.customId === "boss_raid_run") {
     if (teamCards.length < 3) {
       return message.reply("You need a full battle team of 3 cards to challenge the island boss.");
     }
+
+    startBossCooldownNow(message.author.id, message.author.username);
 
     const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
     const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
