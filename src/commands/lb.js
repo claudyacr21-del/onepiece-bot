@@ -40,6 +40,33 @@ const BOT_NAMES = [
   "Egghead Bot",
 ];
 
+const LB_CACHE_TTL_MS = 60 * 1000;
+
+let lbPlayersCache = {
+  updatedAt: 0,
+  players: null,
+};
+
+function getCachedLeaderboardPlayers() {
+  const now = Date.now();
+
+  if (
+    lbPlayersCache.players &&
+    now - Number(lbPlayersCache.updatedAt || 0) < LB_CACHE_TTL_MS
+  ) {
+    return lbPlayersCache.players;
+  }
+
+  const players = readPlayers() || {};
+
+  lbPlayersCache = {
+    updatedAt: now,
+    players,
+  };
+
+  return players;
+}
+
 function normalize(value) {
   return String(value || "").toLowerCase().trim();
 }
@@ -364,7 +391,7 @@ function buildArenaDescription(rows, userId) {
 }
 
 function buildLeaderboardEmbed(message, mode = null) {
-  const playersMap = readPlayers() || {};
+  const playersMap = getCachedLeaderboardPlayers();
   const userId = message.author.id;
 
   if (mode === "arena") {
