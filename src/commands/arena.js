@@ -24,6 +24,33 @@ const {
 const { syncArenaRankRoles } = require("../utils/arenaRankRoles");
 const { ITEMS, cloneItem } = require("../data/items");
 
+const ARENA_PLAYERS_CACHE_TTL_MS = 60 * 1000;
+
+let arenaPlayersCache = {
+  updatedAt: 0,
+  players: null,
+};
+
+function getCachedArenaPlayers() {
+  const now = Date.now();
+
+  if (
+    arenaPlayersCache.players &&
+    now - Number(arenaPlayersCache.updatedAt || 0) < ARENA_PLAYERS_CACHE_TTL_MS
+  ) {
+    return arenaPlayersCache.players;
+  }
+
+  const players = getCachedArenaPlayers();
+
+  arenaPlayersCache = {
+    updatedAt: now,
+    players,
+  };
+
+  return players;
+}
+
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const ARENA_DAILY_LIMIT = 5;
 const ARENA_TOTAL_RANK_SLOTS = 500;
@@ -394,7 +421,7 @@ function compareArenaEntries(a, b) {
 }
 
 function getRealArenaEntries(message) {
-  const allPlayers = readPlayers();
+  const allPlayers = getCachedArenaPlayers();
 
   return Object.entries(allPlayers)
     .filter(([userId]) => String(userId) !== String(message?.client?.user?.id || ""))
