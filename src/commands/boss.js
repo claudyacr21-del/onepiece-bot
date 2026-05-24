@@ -1167,23 +1167,20 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
       ids.push(String(extraUserId));
     }
 
-    const players = readPlayers();
     const participants = [];
 
     for (const userId of ids) {
-      const player =
-        extraUserId && String(extraUserId) === String(userId) && extraPlayer
-          ? extraPlayer
-          : userId === String(message.author.id)
-          ? getPlayer(userId, message.author.username)
-          : players[userId];
-
       const username =
         extraUserId && String(extraUserId) === String(userId) && extraUsername
           ? extraUsername
           : userId === String(message.author.id)
           ? message.author.username
           : await resolveUsernameSafe(message, userId);
+
+      const player =
+        extraUserId && String(extraUserId) === String(userId) && extraPlayer
+          ? extraPlayer
+          : getPlayer(userId, username);
 
       if (!player) continue;
 
@@ -1277,15 +1274,14 @@ if (lobbyProcessing) {
           return;
         }
 
-        const players = readPlayers();
-        const joiningPlayer = players[userId];
+        const username = await resolveUsernameSafe(message, userId);
+        const joiningPlayer = getPlayer(userId, username);
 
         if (!joiningPlayer) {
           await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
           return;
         }
 
-        const username = await resolveUsernameSafe(message, userId);
         const { teamCards } = getFullTeamFromPlayer(joiningPlayer);
 
         if (teamCards.length < 3) {
@@ -1813,20 +1809,16 @@ async function resolveUsernameSafe(message, userId) {
 }
 
 async function buildRaidBossParticipantsFromJoinedIds(message, joinedIds) {
-  const players = readPlayers();
   const participants = [];
   const rejected = [];
 
   for (const userId of joinedIds.map(String)) {
-    const player =
-      userId === String(message.author.id)
-        ? getPlayer(userId, message.author.username)
-        : players[userId];
-
     const username =
       userId === String(message.author.id)
         ? message.author.username
         : await resolveUsernameSafe(message, userId);
+
+    const player = getPlayer(userId, username);
 
     if (!player) {
       rejected.push(`${username} has no player data.`);
