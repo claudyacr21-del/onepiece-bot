@@ -14,6 +14,44 @@ let persistedCache = {};
 let dbPool = null;
 let dbReady = false;
 
+const playerSaveQueues = new Map();
+
+function enqueuePlayerSnapshotSave(userId, player) {
+  const id = String(userId);
+  const snapshot = normalizePlayer(player, player?.username || "Unknown");
+
+  const previous = playerSaveQueues.get(id) || Promise.resolve();
+
+  const next = previous
+    .catch(() => {})
+    .then(async () => {
+      if (!USE_POSTGRES || !dbReady) return null;
+
+      const saved = await upsertOnePlayerToPostgres(id, snapshot);
+
+      if (saved) {
+        persistedCache[id] = cloneJson(snapshot);
+      }
+
+      return snapshot;
+    })
+    .catch((error) => {
+      console.error("[PLAYER DB SNAPSHOT SAVE ERROR]", {
+        userId: id,
+        message: error?.message || error,
+      });
+      return null;
+    })
+    .finally(() => {
+      if (playerSaveQueues.get(id) === next) {
+        playerSaveQueues.delete(id);
+      }
+    });
+
+  playerSaveQueues.set(id, next);
+  return next;
+}
+
 function cloneJson(value) {
   return value && typeof value === "object" ? JSON.parse(JSON.stringify(value)) : {};
 }
@@ -1338,19 +1376,13 @@ function updatePlayerAtomic(userId, mutator, username = "Unknown") {
       typeof mutator === "function" ? mutator(cloneJson(currentPlayer)) : currentPlayer;
 
     const nextPlayer = normalizePlayer(result || currentPlayer, currentPlayer.username || username);
+
     players[id] = nextPlayer;
     setPlayersCache(players);
 
-    /*
-      Keep commands fast and synced in this bot process:
-      - update local cache immediately
-      - save to Postgres in the background
-      - never write the full players.json backup on every Render command
-      - never let a delayed DB save rollback the local cache
-    */
-    updateOnePlayerInPostgresAtomic(userId, nextPlayer.username || username, mutator).catch((error) => {
-      console.error("[PLAYER DB ATOMIC UPDATE ASYNC ERROR]", error);
-    });
+    // Save the computed final snapshot in order.
+    // Do not rerun mutator against an older DB row, because that can rollback cards/items.
+    enqueuePlayerSnapshotSave(id, nextPlayer);
 
     return nextPlayer;
   }
@@ -1396,15 +1428,9 @@ function updateTwoPlayersAtomic(userIdA, userIdB, mutator, usernameA = "Unknown"
     players[idB] = nextB;
     setPlayersCache(players);
 
-    updateTwoPlayersInPostgresAtomic(
-      userIdA,
-      userIdB,
-      usernameA,
-      usernameB,
-      mutator
-    ).catch((error) => {
-      console.error("[PLAYER DB ATOMIC TWO UPDATE ASYNC ERROR]", error);
-    });
+    // Save final snapshots. Do not rerun two-player mutator on stale DB data.
+    enqueuePlayerSnapshotSave(idA, nextA);
+    enqueuePlayerSnapshotSave(idB, nextB);
 
     return {
       playerA: nextA,

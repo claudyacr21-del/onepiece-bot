@@ -269,6 +269,34 @@ function hasNamedItemByCode(list, code) {
   );
 }
 
+function hasWeaponOwnedOrEquipped(player, weaponsList, code) {
+  const targetCode = String(code || "").toLowerCase().trim();
+  if (!targetCode) return false;
+
+  if (hasNamedItemByCode(weaponsList, targetCode)) {
+    return true;
+  }
+
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+
+  return cards.some((card) => {
+    const equippedWeapons = Array.isArray(card?.equippedWeapons)
+      ? card.equippedWeapons
+      : [];
+
+    const hasMultiEquipped = equippedWeapons.some(
+      (weapon) =>
+        String(weapon?.code || "").toLowerCase().trim() === targetCode ||
+        String(weapon?.weaponCode || "").toLowerCase().trim() === targetCode
+    );
+
+    const hasLegacyEquipped =
+      String(card?.equippedWeaponCode || "").toLowerCase().trim() === targetCode;
+
+    return hasMultiEquipped || hasLegacyEquipped;
+  });
+}
+
 function buildWeaponFragmentPayload(weapon) {
   return {
     name: `${weapon.name} Fragment`,
@@ -1087,7 +1115,7 @@ module.exports = {
         updatedCards.push(ownedCard);
       }
     } else if (contentType === "weapon") {
-      const alreadyOwnedWeapon = hasNamedItemByCode(updatedWeapons, picked.code);
+      const alreadyOwnedWeapon = hasWeaponOwnedOrEquipped(player, updatedWeapons, picked.code);
 
     if (alreadyOwnedWeapon) {
       const weaponFragment = buildWeaponFragmentPayload(picked);
