@@ -159,16 +159,11 @@ function cleanList(items) {
 }
 
 function isConsumable(item) {
-  const code = String(item?.code || "").toLowerCase();
-  const type = String(item?.type || "").toLowerCase();
-  const category = String(item?.category || "").toLowerCase();
+  const code = String(item?.code || "").toLowerCase().trim();
 
-  return (
-    code === "rum_beer" ||
-    type === "consumable" ||
-    category === "consumable" ||
-    category === "consumables"
-  );
+  // Only real consumable items go here.
+  // Universal fragments must stay in Items, not Consumables.
+  return code === "rum_beer";
 }
 
 function getInventoryLists(player) {
