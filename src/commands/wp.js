@@ -3,6 +3,7 @@ const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const weaponsDb = require("../data/weapons");
 const { hydrateCard } = require("../utils/evolution");
 const { getRarityBadge, getWeaponImage } = require("../config/assetLinks");
+const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 
 function flattenDb(db) {
   if (Array.isArray(db)) return db;
@@ -110,6 +111,36 @@ function findOwnedCardByName(cardsOwned, query) {
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
+}
+
+function getBoostedDisplayStats(card, boosts = {}) {
+  const hydrated = hydrateCard(card) || card || {};
+
+  if (String(hydrated.cardRole || "").toLowerCase() === "boost") {
+    return hydrated;
+  }
+
+  return {
+    ...hydrated,
+    atk: Math.floor(Number(hydrated.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(Number(hydrated.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(Number(hydrated.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+  };
+}
+
+function getFinalDisplayStats(card, boosts = {}) {
+  const boosted = getBoostedDisplayStats(card, boosts);
+  const atk = Number(boosted.atk || 0);
+  const hp = Number(boosted.hp || 0);
+  const speed = Number(boosted.speed || 0);
+
+  return {
+    atk,
+    hp,
+    speed,
+    atkMin: Math.floor(atk * 0.85),
+    atkMax: Math.floor(atk * 1.15),
+  };
 }
 
 function getWeaponSlotLimit(card) {
@@ -501,6 +532,9 @@ module.exports = {
       });
     }
 
+    const latestPlayer = getPlayer(message.author.id, message.author.username);
+    const accountBoosts = getPassiveBoostSummary(latestPlayer);
+    const finalStats = getFinalDisplayStats(synced, accountBoosts);
     const weaponBadge = getRarityBadge(weaponTemplate.rarity || "B");
     const weaponImage = getWeaponImage(
       weaponTemplate.code,
@@ -525,9 +559,9 @@ module.exports = {
               `**Equipped Weapons:** ${equippedWeaponName || weaponTemplate.name}`,
               `**Owner Bonus Active:** ${ownerActive ? "Yes" : "No"}`,
               "",
-              `**ATK:** ${formatAtkRange(synced.atk)}`,
-              `**HP:** ${Number(synced.hp || 0).toLocaleString("en-US")}`,
-              `**SPD:** ${Number(synced.speed || 0).toLocaleString("en-US")}`,
+              `**ATK:** ${finalStats.atkMin}-${finalStats.atkMax}`,
+              `**HP:** ${Number(finalStats.hp || 0).toLocaleString("en-US")}`,
+              `**SPD:** ${Number(finalStats.speed || 0).toLocaleString("en-US")}`,
               "",
               `Weapon Bonus Applied: +${shownPercent.atk}% ATK / +${shownPercent.hp}% HP / +${shownPercent.speed}% SPD`,
               `Total Weapon Bonus: +${totalWeaponPercent.atk}% ATK / +${totalWeaponPercent.hp}% HP / +${totalWeaponPercent.speed}% SPD`,

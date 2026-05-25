@@ -879,6 +879,8 @@ const WEAPON_IMAGES = {
   trident: "https://cdn.discordapp.com/attachments/1493204525975076944/1501434944248086569/content.png?ex=69fc0fc2&is=69fabe42&hm=025e5356b4f39bb4b70d953bde540df37af8379ef057a27b73bcab2bcf5f2bff&",
   metal_arm: "https://cdn.discordapp.com/attachments/1493204525975076944/1504790663214923796/content.png?ex=6a084503&is=6a06f383&hm=c7752126ffd114d7ffc3941cf2c28978212b403475c08cb455a93c150e27e20b&",
   kikoku: "https://cdn.discordapp.com/attachments/1493204525975076944/1504790662707544124/content.png?ex=6a084503&is=6a06f383&hm=f5b9878fcc41743c685878c8db0a676a4652d2481595e3838b33f4d30dad9b2e&",
+  nemesis: "https://cdn.discordapp.com/attachments/1493204525975076944/1508419830292807761/content.png?ex=6a1578f0&is=6a142770&hm=441eb98a9ee1ae91dd0692cf3c70d8e63b2092b85a66c50f694732290e4ad5ad&",
+  sandals: "https://cdn.discordapp.com/attachments/1493204525975076944/1508419830871490704/content.png?ex=6a1578f0&is=6a142770&hm=6bc392ebc1cdbce81be29b41467a3a1467618b54a27178bf0272b8cc37226d31&",
 };
 
 const DEVIL_FRUIT_IMAGES = {

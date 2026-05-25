@@ -126,6 +126,8 @@ function getDailyTierRewards(dailyTier) {
   const rumAmount = 2 + Math.floor(tier / 2);
   const ticketAmount = tier >= 26 ? 2 : 1;
 
+  addReward(rewards, makeReward(ITEMS.pullResetTicket, ticketAmount));
+
   if (tier === 1) {
     if (Math.random() < 0.35) {
       addReward(
@@ -171,7 +173,6 @@ function getDailyTierRewards(dailyTier) {
       randomPick([
         makeReward(ITEMS.rareResourceBox, 1),
         makeReward(ITEMS.eliteResourceBox, 1),
-        makeReward(ITEMS.pullResetTicket, 1),
         makeReward(ITEMS.enhancementStone, materialAmount),
         ...getShipMaterialPool(shipMaterialAmount),
       ])
@@ -201,7 +202,6 @@ function getDailyTierRewards(dailyTier) {
     randomPick([
       makeReward(ITEMS.eliteResourceBox, boxAmount),
       makeReward(ITEMS.rareResourceBox, boxAmount),
-      makeReward(ITEMS.pullResetTicket, ticketAmount),
       makeReward(ITEMS.enhancementStone, materialAmount),
       ...getShipMaterialPool(shipMaterialAmount),
     ])
@@ -235,7 +235,6 @@ function getDailyTierRewards(dailyTier) {
       rewards,
       randomPick([
         makeReward(ITEMS.legendResourceBox, 1 + highMilestone),
-        makeReward(ITEMS.pullResetTicket, ticketAmount + highMilestone),
         makeReward(ITEMS.enhancementStone, materialAmount + tier),
         ...getShipMaterialPool(shipMaterialAmount + highMilestone),
       ])

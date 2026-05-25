@@ -143,7 +143,14 @@ function getRewardPool(contentType) {
     return rawCards.filter((card) => card.cardRole === "boost");
   }
 
-  if (contentType === "weapon") return rawWeapons;
+  if (contentType === "weapon") {
+    return rawWeapons.filter(
+      (weapon) =>
+        !weapon.raidOnly &&
+        weapon.source !== "empty_throne_raid_writ" &&
+        weapon.source !== "gold_raid_ticket"
+    );
+  }
 
   return rawDevilFruits;
 }
