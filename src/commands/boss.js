@@ -643,11 +643,19 @@ function getBossPhaseStatMultiplier(phaseBoss = null, currentIsland = null) {
   const phase = Number(phaseBoss?.phase || 0);
   const islandCode = String(currentIsland?.code || "").toLowerCase();
 
-  if (phase >= 2 && ["egghead", "elbaf"].includes(islandCode)) {
+  if (["egghead", "elbaf"].includes(islandCode) && phase === 1) {
     return {
-      atk: 1.12,
-      hp: 1.45,
-      speed: 1.28,
+      atk: 1.5,
+      hp: 2.2,
+      speed: 2.5,
+    };
+  }
+
+  if (["egghead", "elbaf"].includes(islandCode) && phase >= 2) {
+    return {
+      atk: 2.1,
+      hp: 3.5,
+      speed: 2.8,
     };
   }
 
