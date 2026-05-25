@@ -224,7 +224,6 @@ function getDailyTierRewards(dailyTier) {
       randomPick([
         makeReward(ITEMS.legendResourceBox, 1),
         makeReward(ITEMS.eliteResourceBox, boxAmount),
-        makeReward(ITEMS.pullResetTicket, ticketAmount),
         ...getShipMaterialPool(shipMaterialAmount + milestone),
       ])
     );
