@@ -647,8 +647,8 @@ function getBossPhaseStatMultiplier(phaseBoss = null, currentIsland = null) {
   if (islandCode === "elbaf" && bossCode === "imu") {
     return {
       atk: 1.8,
-      hp: 3.5,
-      speed: 2.25,
+      hp: 4.2,
+      speed: 2.0,
     };
   }
 
