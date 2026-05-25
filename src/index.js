@@ -429,13 +429,15 @@ client.on("messageCreate", async (message) => {
       setTimeout(() => processedMessageIds.delete(String(message.id)), 60_000);
     }
 
-    try {
-      await trackMessageMilestone(message);
-    } catch (error) {
-      console.error("[MESSAGE MILESTONE ERROR]", error);
-    }
+    if (message.guild) {
+      try {
+        await trackMessageMilestone(message);
+      } catch (error) {
+        console.error("[MESSAGE MILESTONE ERROR]", error);
+      }
 
-    await maybeSpawnMarineEvent(client, message);
+      await maybeSpawnMarineEvent(client, message);
+    }
 
     if (!parsed) return;
 
@@ -487,15 +489,17 @@ client.on("messageCreate", async (message) => {
       }
     }, COMMAND_COOLDOWN_MS + 250);
 
-    const channelCheck = isCommandAllowedInChannel({
-      message,
-      commandName,
-      command,
-    });
+    if (message.guild) {
+      const channelCheck = isCommandAllowedInChannel({
+        message,
+        commandName,
+        command,
+      });
 
-    if (!channelCheck.allowed) {
-      await message.reply("This command is not allowed on this channel.");
-      return;
+      if (!channelCheck.allowed) {
+        await message.reply("This command is not allowed on this channel.");
+        return;
+      }
     }
 
     await command.execute(message, args);
