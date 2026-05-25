@@ -617,7 +617,7 @@ function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
   const order = Number(currentIsland?.order || 0);
 
   if (code === "five_elders_combined") {
-    const hp = 8000 + order * 250;
+    const hp = 10000 + order * 250;
 
     return applyGlobalBossStats(
       applyPhaseStatMultiplier(
@@ -627,7 +627,7 @@ function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
           atk: 720 + order * 21,
           hp,
           maxHp: hp,
-          speed: 120 + Math.floor(order * 1),
+          speed: 135 + Math.floor(order * 1),
           image: getIslandBossImage(currentIsland, phaseBoss, null),
         },
         phaseBoss,
@@ -647,7 +647,7 @@ function getBossPhaseStatMultiplier(phaseBoss = null, currentIsland = null) {
   if (islandCode === "elbaf" && bossCode === "imu") {
     return {
       atk: 1.8,
-      hp: 3.2,
+      hp: 3.5,
       speed: 2.25,
     };
   }
