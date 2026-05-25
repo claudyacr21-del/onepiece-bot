@@ -2,12 +2,26 @@ const {
   EmbedBuilder,
   ActionRowBuilder,
   StringSelectMenuBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   MessageFlags,
 } = require("discord.js");
+
 const { getPlayer } = require("../playerStore");
 
 const COLOR = 0x3498db;
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 12;
+
+const RARITY_ORDER = {
+  UR: 8,
+  SS: 7,
+  S: 6,
+  A: 5,
+  B: 4,
+  C: 3,
+  D: 2,
+  E: 1,
+};
 
 const CATEGORY_CONFIG = {
   main: {
@@ -18,37 +32,37 @@ const CATEGORY_CONFIG = {
   },
   fruit: {
     label: "Devil Fruits",
-    description: "View your Devil Fruits",
+    description: "View all Devil Fruits",
     emoji: "🍈",
     title: "🍈 Devil Fruits",
   },
   ticket: {
     label: "Tickets",
-    description: "View your tickets",
+    description: "View all Tickets",
     emoji: "🎟️",
     title: "🎟️ Tickets",
   },
   box: {
     label: "Boxes",
-    description: "View your boxes",
+    description: "View all Boxes",
     emoji: "🎁",
     title: "🎁 Boxes",
   },
   consum: {
     label: "Consumables",
-    description: "View consumable items",
+    description: "View all Consumables",
     emoji: "🍺",
     title: "🍺 Consumables",
   },
   material: {
     label: "Materials",
-    description: "View materials",
+    description: "View all Materials",
     emoji: "🧱",
     title: "🧱 Materials",
   },
   item: {
     label: "Items",
-    description: "View other items",
+    description: "View all other Items",
     emoji: "📦",
     title: "📦 Items",
   },
@@ -80,7 +94,20 @@ const CATEGORY_ALIASES = {
   i: "item",
 };
 
-function getMemberAvatar(message) {
+function normalizeCategory(raw) {
+  const value = String(raw || "main").toLowerCase().trim();
+
+  if (CATEGORY_CONFIG[value]) return value;
+  if (CATEGORY_ALIASES[value]) return CATEGORY_ALIASES[value];
+
+  return "main";
+}
+
+function getDisplayName(message, player) {
+  return player?.username || message.member?.displayName || message.author.username;
+}
+
+function getAvatar(message) {
   return (
     message.member?.displayAvatarURL({
       extension: "png",
@@ -93,16 +120,21 @@ function getMemberAvatar(message) {
   );
 }
 
-function getDisplayName(message, player) {
-  return player?.username || message.member?.displayName || message.author.username;
-}
-
 function getItemName(item) {
   return String(item?.name || item?.displayName || item?.code || "Unknown Item").trim();
 }
 
+function getItemRarity(item) {
+  return String(item?.rarity || item?.tier || "C").toUpperCase().trim();
+}
+
+function getRarityRank(item) {
+  return RARITY_ORDER[getItemRarity(item)] || 0;
+}
+
 function rarityText(item) {
-  return item?.rarity ? ` [${String(item.rarity).toUpperCase()}]` : "";
+  const rarity = getItemRarity(item);
+  return rarity ? ` [${rarity}]` : "";
 }
 
 function amountText(item) {
@@ -114,7 +146,15 @@ function cleanList(items) {
     ? items
         .filter((item) => item && Number(item?.amount || 0) > 0)
         .slice()
-        .sort((a, b) => getItemName(a).localeCompare(getItemName(b)))
+        .sort((a, b) => {
+          const rarityDiff = getRarityRank(b) - getRarityRank(a);
+          if (rarityDiff !== 0) return rarityDiff;
+
+          const amountDiff = Number(b.amount || 0) - Number(a.amount || 0);
+          if (amountDiff !== 0) return amountDiff;
+
+          return getItemName(a).localeCompare(getItemName(b));
+        })
     : [];
 }
 
@@ -138,23 +178,22 @@ function getInventoryLists(player) {
     fruit: cleanList(player.devilFruits),
     ticket: cleanList(player.tickets),
     box: cleanList(player.boxes),
-    consum: items.filter(isConsumable),
+    consum: cleanList(items.filter(isConsumable)),
     material: cleanList(player.materials),
-    item: items.filter((item) => !isConsumable(item)),
+    item: cleanList(items.filter((item) => !isConsumable(item))),
   };
 }
 
-function normalizeCategory(raw) {
-  const value = String(raw || "main").toLowerCase().trim();
-
-  if (CATEGORY_CONFIG[value]) return value;
-  if (CATEGORY_ALIASES[value]) return CATEGORY_ALIASES[value];
-
-  return "main";
+function formatItemLine(item, index) {
+  return `**${index + 1}.** ${getItemName(item)} ${amountText(item)}${rarityText(item)}`;
 }
 
-function formatItemLine(item, index) {
-  return `${index + 1}. ${getItemName(item)} ${amountText(item)}${rarityText(item)}`;
+function getTotalPages(list) {
+  return Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+}
+
+function clampPage(page, totalPages) {
+  return Math.max(0, Math.min(Number(page || 0), totalPages - 1));
 }
 
 function buildMenu(selected = "main") {
@@ -166,19 +205,36 @@ function buildMenu(selected = "main") {
     default: value === selected,
   }));
 
-  return [
-    new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId("inv_menu")
-        .setPlaceholder("Select inventory category")
-        .addOptions(options)
-    ),
-  ];
+  return new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId("inv_menu")
+      .setPlaceholder("Select inventory category")
+      .addOptions(options)
+  );
 }
 
-function buildInventoryEmbed(message, player, category = "main") {
+function buildPageButtons(category, page, totalPages) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("inv_prev")
+      .setLabel("Previous")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(category === "main" || page <= 0),
+    new ButtonBuilder()
+      .setCustomId("inv_next")
+      .setLabel("Next")
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(category === "main" || page >= totalPages - 1)
+  );
+}
+
+function buildComponents(category, page, totalPages) {
+  return [buildMenu(category), buildPageButtons(category, page, totalPages)];
+}
+
+function buildInventoryEmbed(message, player, category = "main", page = 0) {
   const selected = normalizeCategory(category);
-  const avatar = getMemberAvatar(message);
+  const avatar = getAvatar(message);
   const displayName = getDisplayName(message, player);
   const lists = getInventoryLists(player);
 
@@ -198,7 +254,7 @@ function buildInventoryEmbed(message, player, category = "main") {
         [
           "Select an inventory category from the menu below.",
           "",
-          "**Available Categories**",
+          "**Categories**",
           `🍈 Devil Fruits: **${lists.fruit.length}**`,
           `🎟️ Tickets: **${lists.ticket.length}**`,
           `🎁 Boxes: **${lists.box.length}**`,
@@ -225,14 +281,11 @@ function buildInventoryEmbed(message, player, category = "main") {
 
   const config = CATEGORY_CONFIG[selected] || CATEGORY_CONFIG.main;
   const list = lists[selected] || [];
-  const shown = list.slice(0, PAGE_SIZE);
-  const hidden = Math.max(0, list.length - shown.length);
-
-  const lines = shown.map(formatItemLine);
-
-  if (hidden > 0) {
-    lines.push(`...and ${hidden} more item(s).`);
-  }
+  const totalPages = getTotalPages(list);
+  const safePage = clampPage(page, totalPages);
+  const start = safePage * PAGE_SIZE;
+  const shown = list.slice(start, start + PAGE_SIZE);
+  const lines = shown.map((item, index) => formatItemLine(item, start + index));
 
   return new EmbedBuilder()
     .setColor(COLOR)
@@ -241,13 +294,16 @@ function buildInventoryEmbed(message, player, category = "main") {
       [
         `Owner: **${displayName}**`,
         `Total: **${list.length}**`,
+        `Page: **${safePage + 1}/${totalPages}**`,
         "",
-        list.length ? lines.join("\n") : `No ${config.label.toLowerCase()} owned.`,
+        list.length
+          ? lines.join("\n")
+          : `No ${config.label.toLowerCase()} owned.`,
       ].join("\n")
     )
     .setThumbnail(avatar)
     .setFooter({
-      text: `${displayName} • Inventory`,
+      text: `${displayName} • Sorted by rarity`,
       iconURL: avatar,
     });
 }
@@ -257,12 +313,16 @@ module.exports = {
   aliases: ["inventory", "bag"],
 
   async execute(message, args = []) {
-    const player = getPlayer(message.author.id, message.author.username);
     let currentCategory = normalizeCategory(args[0]);
+    let currentPage = 0;
+
+    const player = getPlayer(message.author.id, message.author.username);
+    const lists = getInventoryLists(player);
+    const totalPages = getTotalPages(lists[currentCategory] || []);
 
     const sent = await message.reply({
-      embeds: [buildInventoryEmbed(message, player, currentCategory)],
-      components: buildMenu(currentCategory),
+      embeds: [buildInventoryEmbed(message, player, currentCategory, currentPage)],
+      components: buildComponents(currentCategory, currentPage, totalPages),
     });
 
     const collector = sent.createMessageComponentCollector({
@@ -277,13 +337,34 @@ module.exports = {
         });
       }
 
-      currentCategory = normalizeCategory(interaction.values?.[0]);
-
       const freshPlayer = getPlayer(message.author.id, message.author.username);
+      const freshLists = getInventoryLists(freshPlayer);
+
+      if (interaction.isStringSelectMenu() && interaction.customId === "inv_menu") {
+        currentCategory = normalizeCategory(interaction.values?.[0]);
+        currentPage = 0;
+      }
+
+      if (interaction.isButton()) {
+        const list = freshLists[currentCategory] || [];
+        const pages = getTotalPages(list);
+
+        if (interaction.customId === "inv_prev") {
+          currentPage = clampPage(currentPage - 1, pages);
+        }
+
+        if (interaction.customId === "inv_next") {
+          currentPage = clampPage(currentPage + 1, pages);
+        }
+      }
+
+      const list = freshLists[currentCategory] || [];
+      const pages = getTotalPages(list);
+      currentPage = clampPage(currentPage, pages);
 
       return interaction.update({
-        embeds: [buildInventoryEmbed(message, freshPlayer, currentCategory)],
-        components: buildMenu(currentCategory),
+        embeds: [buildInventoryEmbed(message, freshPlayer, currentCategory, currentPage)],
+        components: buildComponents(currentCategory, currentPage, pages),
       });
     });
 
