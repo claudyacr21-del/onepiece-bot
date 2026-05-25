@@ -655,7 +655,7 @@ function getBossPhaseStatMultiplier(phaseBoss = null, currentIsland = null) {
   if (["egghead", "elbaf"].includes(islandCode) && phase === 1) {
     return {
       atk: 1.5,
-      hp: 2.7,
+      hp: 2.4,
       speed: 2.0,
     };
   }
