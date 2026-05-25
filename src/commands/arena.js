@@ -41,7 +41,7 @@ function getCachedArenaPlayers() {
     return arenaPlayersCache.players;
   }
 
-  const players = getCachedArenaPlayers();
+  const players = readPlayers() || {};
 
   arenaPlayersCache = {
     updatedAt: now,
