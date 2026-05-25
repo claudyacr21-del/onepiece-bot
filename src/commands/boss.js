@@ -617,17 +617,17 @@ function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
   const order = Number(currentIsland?.order || 0);
 
   if (code === "five_elders_combined") {
-    const hp = 24000 + order * 500;
+    const hp = 14000 + order * 250;
 
     return applyGlobalBossStats(
       applyPhaseStatMultiplier(
         {
           name: "Five Elders",
           rarity: "UR",
-          atk: 1020 + order * 21,
+          atk: 720 + order * 21,
           hp,
           maxHp: hp,
-          speed: 165 + Math.floor(order * 1.15),
+          speed: 155 + Math.floor(order * 1),
           image: getIslandBossImage(currentIsland, phaseBoss, null),
         },
         phaseBoss,
