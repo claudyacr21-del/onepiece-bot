@@ -9,6 +9,7 @@ let serverStarted = false;
 const VOTE_BERRY_REWARD = 5000;
 const VOTE_PULL_RESET_REWARD = 1;
 const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
+const RAID_TICKET_STREAK_TARGET = 25;
 
 function getDataDir() {
   return process.env.PLAYER_DATA_DIR || "/data";
@@ -105,6 +106,14 @@ async function sendVoteDm(client, userId, reward) {
           "",
           `💰 Berries: +${reward.berries.toLocaleString("en-US")}`,
           `🎟️ Pull Reset Ticket: +${reward.pullResetTickets}`,
+          ...(Number(reward.raidTickets || 0) > 0
+            ? [
+                "",
+                "🎉 **Vote Streak Bonus Unlocked!**",
+                `🎫 Raid Ticket: +${reward.raidTickets}`,
+              ]
+            : []),
+          "",
           `🔥 Vote Streak: ${reward.streak}`,
           `🗳️ Total Votes: ${reward.totalVotes}`,
         ].join("\n")
@@ -155,13 +164,26 @@ async function handleVote(client, body) {
       const nextStreak = streakExpired ? 1 : Number(previousVote.streak || 0) + 1;
       const nextTotalVotes = Number(previousVote.totalVotes || 0) + 1;
 
-      const updatedTickets = addTicket(fresh.tickets || [], {
+      let updatedTickets = addTicket(fresh.tickets || [], {
         code: "pull_reset_ticket",
         name: "Pull Reset Ticket",
         amount: VOTE_PULL_RESET_REWARD,
         rarity: "A",
         type: "Ticket",
       });
+
+      const raidTicketReward =
+        nextStreak > 0 && nextStreak % RAID_TICKET_STREAK_TARGET === 0 ? 1 : 0;
+
+      if (raidTicketReward > 0) {
+        updatedTickets = addTicket(updatedTickets, {
+          code: "raid_ticket",
+          name: "Raid Ticket",
+          amount: raidTicketReward,
+          rarity: "A",
+          type: "Ticket",
+        });
+      }
 
       const nextProcessedIds = eventId
         ? [...processedIds, eventId].slice(-50)
@@ -170,6 +192,7 @@ async function handleVote(client, body) {
       reward = {
         berries: VOTE_BERRY_REWARD,
         pullResetTickets: VOTE_PULL_RESET_REWARD,
+        raidTickets: raidTicketReward,
         streak: nextStreak,
         totalVotes: nextTotalVotes,
         cooldownUntil: now + VOTE_COOLDOWN_MS,
@@ -213,6 +236,7 @@ async function handleVote(client, body) {
     eventId,
     berries: VOTE_BERRY_REWARD,
     pullResetTickets: VOTE_PULL_RESET_REWARD,
+    raidTickets: reward.raidTickets,
     ignoredWeight: body?.data?.weight || body?.isWeekend || null,
     cooldownUntil: reward.cooldownUntil,
   });
