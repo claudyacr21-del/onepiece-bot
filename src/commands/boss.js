@@ -617,17 +617,17 @@ function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
   const order = Number(currentIsland?.order || 0);
 
   if (code === "five_elders_combined") {
-    const hp = 24000 + order * 580;
+    const hp = 62000 + order * 1700;
 
     return applyGlobalBossStats(
       applyPhaseStatMultiplier(
         {
           name: "Five Elders",
           rarity: "UR",
-          atk: 1020 + order * 21,
+          atk: 2400 + order * 55,
           hp,
           maxHp: hp,
-          speed: 165 + Math.floor(order * 1.15),
+          speed: 255 + Math.floor(order * 2.4),
           image: getIslandBossImage(currentIsland, phaseBoss, null),
         },
         phaseBoss,
@@ -642,20 +642,37 @@ function getSpecialPhaseBossTemplate(phaseBoss, currentIsland) {
 function getBossPhaseStatMultiplier(phaseBoss = null, currentIsland = null) {
   const phase = Number(phaseBoss?.phase || 0);
   const islandCode = String(currentIsland?.code || "").toLowerCase();
+  const bossCode = String(phaseBoss?.bossCode || "").toLowerCase();
+
+  if (islandCode === "egghead" && bossCode === "five_elders_combined") {
+    return {
+      atk: 1.45,
+      hp: 2.25,
+      speed: 1.85,
+    };
+  }
+
+  if (islandCode === "elbaf" && bossCode === "imu") {
+    return {
+      atk: 1.8,
+      hp: 3.0,
+      speed: 2.25,
+    };
+  }
 
   if (["egghead", "elbaf"].includes(islandCode) && phase === 1) {
     return {
       atk: 1.5,
       hp: 2.7,
-      speed: 2.2,
+      speed: 2.0,
     };
   }
 
   if (["egghead", "elbaf"].includes(islandCode) && phase >= 2) {
     return {
-      atk: 1.5,
-      hp: 3.0,
-      speed: 2.2,
+      atk: 1.7,
+      hp: 3.2,
+      speed: 2.0,
     };
   }
 
