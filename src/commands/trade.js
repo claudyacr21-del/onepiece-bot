@@ -383,6 +383,55 @@ function getTradableCardMatches(player, query) {
     .map((hit) => hit.card);
 }
 
+function getCardStackAmount(card) {
+  return Math.max(1, Number(card?.amount || card?.count || card?.qty || 1));
+}
+
+function getCardMatchTotal(cards = []) {
+  return (Array.isArray(cards) ? cards : []).reduce(
+    (total, card) => total + getCardStackAmount(card),
+    0
+  );
+}
+
+function takeCardsFromMatches(matches = [], amount = 1) {
+  const selected = [];
+  let remaining = Number(amount || 0);
+
+  for (const card of matches) {
+    if (remaining <= 0) break;
+
+    const available = getCardStackAmount(card);
+    const takeAmount = Math.min(available, remaining);
+
+    selected.push({
+      card,
+      instanceId: String(card.instanceId || ""),
+      code: card.code,
+      takeAmount,
+    });
+
+    remaining -= takeAmount;
+  }
+
+  if (remaining > 0) {
+    return null;
+  }
+
+  return selected;
+}
+
+function getResolvedCardAmount(entry) {
+  if (Array.isArray(entry.cardMoves)) {
+    return entry.cardMoves.reduce(
+      (total, move) => total + Number(move.takeAmount || 0),
+      0
+    );
+  }
+
+  return Number(entry.amount || 0);
+}
+
 function getCardFirstDisplayName(query) {
   const code = normalizeTradeAliasCode(query);
   return CARD_DISPLAY_NAMES[code] || getDisplayName(null, query);
@@ -422,9 +471,17 @@ function resolveCardEntry(player, entry) {
   const isCardFirst = CARD_FIRST_QUERIES.has(normalizedCode);
 
   const matches = getTradableCardMatches(player, rawQuery);
+  const totalCardAmount = getCardMatchTotal(matches);
 
-  if (matches.length >= entry.amount) {
+  if (totalCardAmount >= entry.amount) {
     const firstCard = matches[0];
+    const cardMoves = takeCardsFromMatches(matches, entry.amount);
+
+    if (!cardMoves) {
+      throw new Error(
+        `${player.username} lacks ${getDisplayName(firstCard, entry.code)} x${entry.amount}.`
+      );
+    }
 
     return {
       kind: "cards",
@@ -432,7 +489,8 @@ function resolveCardEntry(player, entry) {
       amount: entry.amount,
       code: firstCard?.code || entry.code,
       displayName: getDisplayName(firstCard, entry.code),
-      cards: matches.slice(0, entry.amount),
+      cards: cardMoves.map((move) => move.card),
+      cardMoves,
     };
   }
 
@@ -557,15 +615,32 @@ function consumeResolvedForValidation(player, resolved) {
   }
 
   if (resolved.kind === "cards") {
-    const movingIds = new Set(
-      resolved.cards
-        .map((card) => String(card.instanceId || ""))
-        .filter(Boolean)
-    );
+    const moves = Array.isArray(resolved.cardMoves) ? resolved.cardMoves : [];
 
-    next.cards = next.cards.filter(
-      (card) => !movingIds.has(String(card.instanceId || ""))
-    );
+    for (const move of moves) {
+      const takeAmount = Math.max(1, Number(move.takeAmount || 1));
+      const instanceId = String(move.instanceId || move.card?.instanceId || "");
+
+      const index = next.cards.findIndex(
+        (card) => String(card.instanceId || "") === instanceId
+      );
+
+      if (index < 0) {
+        throw new Error(`Missing ${resolved.displayName || resolved.code} during trade validation.`);
+      }
+
+      const current = next.cards[index];
+      const currentAmount = getCardStackAmount(current);
+
+      if (currentAmount <= takeAmount) {
+        next.cards.splice(index, 1);
+      } else {
+        next.cards[index] = {
+          ...current,
+          amount: currentAmount - takeAmount,
+        };
+      }
+    }
 
     return next;
   }
@@ -656,6 +731,44 @@ function addStack(list, incoming, amount) {
   return arr;
 }
 
+function addCardToPlayerCards(cards, incomingCard, amount = 1) {
+  const arr = Array.isArray(cards) ? [...cards] : [];
+  const incomingCode = String(incomingCard?.code || "").toLowerCase();
+  const incomingRole = String(incomingCard?.cardRole || incomingCard?.role || "").toLowerCase();
+  const incomingName = getDisplayName(incomingCard, incomingCode);
+
+  const stackable =
+    incomingRole === "boost" ||
+    String(incomingCard?.cardRole || "").toLowerCase() === "boost";
+
+  if (stackable && incomingCode) {
+    const existingIndex = arr.findIndex((card) => {
+      const cardCode = String(card?.code || "").toLowerCase();
+      const cardRole = String(card?.cardRole || card?.role || "").toLowerCase();
+      return cardCode === incomingCode && cardRole === "boost";
+    });
+
+    if (existingIndex >= 0) {
+      const currentAmount = getCardStackAmount(arr[existingIndex]);
+
+      arr[existingIndex] = {
+        ...arr[existingIndex],
+        amount: currentAmount + Number(amount || 1),
+      };
+
+      return arr;
+    }
+  }
+
+  arr.push({
+    ...incomingCard,
+    amount: Number(amount || 1),
+    name: incomingCard?.name || incomingName,
+  });
+
+  return arr;
+}
+
 function applyResolvedTrade(from, to, resolved) {
   const fromNext = clonePlayerForTrade(from);
   const toNext = clonePlayerForTrade(to);
@@ -693,25 +806,48 @@ function applyResolvedTrade(from, to, resolved) {
     }
 
     if (entry.kind === "cards") {
-      const movingIds = new Set(
-        entry.cards
-          .map((card) => String(card.instanceId || ""))
-          .filter(Boolean)
-      );
+      const moves = Array.isArray(entry.cardMoves) ? entry.cardMoves : [];
+      const totalMoveAmount = getResolvedCardAmount(entry);
 
-      const movingCards = fromNext.cards.filter((card) =>
-        movingIds.has(String(card.instanceId || ""))
-      );
-
-      if (movingCards.length !== entry.amount) {
-        throw new Error(`Card move mismatch for ${entry.displayName || entry.code}.`);
+      if (totalMoveAmount !== Number(entry.amount || 0)) {
+        throw new Error(`Card move amount mismatch for ${entry.displayName || entry.code}.`);
       }
 
-      fromNext.cards = fromNext.cards.filter(
-        (card) => !movingIds.has(String(card.instanceId || ""))
-      );
+      for (const move of moves) {
+        const takeAmount = Math.max(1, Number(move.takeAmount || 1));
+        const instanceId = String(move.instanceId || move.card?.instanceId || "");
 
-      toNext.cards = [...toNext.cards, ...movingCards];
+        const sourceIndex = fromNext.cards.findIndex(
+          (card) => String(card.instanceId || "") === instanceId
+        );
+
+        if (sourceIndex < 0) {
+          throw new Error(`Missing ${entry.displayName || entry.code} during trade apply.`);
+        }
+
+        const sourceCard = fromNext.cards[sourceIndex];
+        const sourceAmount = getCardStackAmount(sourceCard);
+
+        if (sourceAmount < takeAmount) {
+          throw new Error(`${fromNext.username} lacks ${entry.displayName || entry.code} x${entry.amount}.`);
+        }
+
+        const transferCard = {
+          ...sourceCard,
+          amount: takeAmount,
+        };
+
+        if (sourceAmount <= takeAmount) {
+          fromNext.cards.splice(sourceIndex, 1);
+        } else {
+          fromNext.cards[sourceIndex] = {
+            ...sourceCard,
+            amount: sourceAmount - takeAmount,
+          };
+        }
+
+        toNext.cards = addCardToPlayerCards(toNext.cards, transferCard, takeAmount);
+      }
     }
   }
 
