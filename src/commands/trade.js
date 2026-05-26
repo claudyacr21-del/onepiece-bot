@@ -65,8 +65,6 @@ function normalizeTradeAliasCode(value) {
     graid: "gold_raid_ticket",
     throne: "empty_throne_raid_writ",
 
-    cola: "cola_engine",
-
     cola_part: "cola_engine_part",
     colapart: "cola_engine_part",
     engine_part: "cola_engine_part",
@@ -419,6 +417,21 @@ function resolveEntry(player, entry) {
     };
   }
 
+  const cardMatchesFirst = getTradableCardMatches(player, entry.raw || entry.code);
+
+  if (cardMatchesFirst.length >= entry.amount) {
+    const firstCard = cardMatchesFirst[0];
+
+    return {
+      kind: "cards",
+      store: "cards",
+      amount: entry.amount,
+      code: firstCard?.code || entry.code,
+      displayName: getDisplayName(firstCard, entry.code),
+      cards: cardMatchesFirst.slice(0, entry.amount),
+    };
+  }
+
   const stores = ["weapons", "devilFruits", "materials", "items", "boxes", "fragments"];
   let insufficient = null;
 
@@ -453,21 +466,6 @@ function resolveEntry(player, entry) {
       displayName,
       sourceEntry: displayEntry,
       storeLabel: STORE_LABELS[store] || store,
-    };
-  }
-
-  const cardMatches = getTradableCardMatches(player, entry.raw || entry.code);
-
-  if (cardMatches.length >= entry.amount) {
-    const firstCard = cardMatches[0];
-
-    return {
-      kind: "cards",
-      store: "cards",
-      amount: entry.amount,
-      code: firstCard?.code || entry.code,
-      displayName: getDisplayName(firstCard, entry.code),
-      cards: cardMatches.slice(0, entry.amount),
     };
   }
 

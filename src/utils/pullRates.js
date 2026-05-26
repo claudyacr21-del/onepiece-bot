@@ -53,37 +53,34 @@ function rollPremiumGuaranteedTier() {
 
 function rollStandardContentType() {
   const roll = Math.random() * 100;
-
   // Normal:
-  // Battle 44% / Boost 44% / Weapon 8% / Devil Fruit 2% / Ticket 2%
-  if (roll < 44) return "battleCard";
-  if (roll < 88) return "boostCard";
-  if (roll < 96) return "weapon";
-  if (roll < 98) return "devilFruit";
+  // Battle 43.5% / Boost 43.5% / Weapon 8% / Devil Fruit 2% / Ticket 3%
+  if (roll < 43.5) return "battleCard";
+  if (roll < 87) return "boostCard";
+  if (roll < 95) return "weapon";
+  if (roll < 97) return "devilFruit";
   return "ticket";
 }
 
 function rollVivreContentType() {
   const roll = Math.random() * 100;
-
   // Vivre Card:
-  // Battle 42% / Boost 42% / Weapon 10% / Devil Fruit 3% / Ticket 3%
-  if (roll < 42) return "battleCard";
-  if (roll < 84) return "boostCard";
-  if (roll < 94) return "weapon";
-  if (roll < 97) return "devilFruit";
+  // Battle 41.5% / Boost 41.5% / Weapon 10% / Devil Fruit 3% / Ticket 4%
+  if (roll < 41.5) return "battleCard";
+  if (roll < 83) return "boostCard";
+  if (roll < 93) return "weapon";
+  if (roll < 96) return "devilFruit";
   return "ticket";
 }
 
 function rollPremiumContentType() {
   const roll = Math.random() * 100;
-
   // Mother Flame:
-  // Battle 40% / Boost 40% / Weapon 12% / Devil Fruit 4% / Ticket 4%
-  if (roll < 40) return "battleCard";
-  if (roll < 80) return "boostCard";
-  if (roll < 92) return "weapon";
-  if (roll < 96) return "devilFruit";
+  // Battle 39.5% / Boost 39.5% / Weapon 12% / Devil Fruit 4% / Ticket 5%
+  if (roll < 39.5) return "battleCard";
+  if (roll < 79) return "boostCard";
+  if (roll < 91) return "weapon";
+  if (roll < 95) return "devilFruit";
   return "ticket";
 }
 
