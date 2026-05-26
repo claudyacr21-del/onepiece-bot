@@ -60,6 +60,20 @@ function num(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function clonePlayerForTrade(player) {
+  return {
+    ...player,
+    cards: [...(player.cards || [])],
+    weapons: [...(player.weapons || [])],
+    devilFruits: [...(player.devilFruits || [])],
+    materials: [...(player.materials || [])],
+    items: [...(player.items || [])],
+    boxes: [...(player.boxes || [])],
+    fragments: [...(player.fragments || [])],
+    tickets: [...(player.tickets || [])],
+  };
+}
+
 function getDisplayName(entry, fallbackCode = "") {
   return (
     entry?.displayName ||
@@ -422,13 +436,13 @@ function resolveCardEntry(player, entry) {
     };
   }
 
-  if (isCardFirst && matches.length < entry.amount) {
+  if (isCardFirst) {
     throw new Error(
       `${player.username} lacks ${getCardFirstDisplayName(rawQuery)} x${entry.amount}.`
     );
   }
 
-  if (matches.length > 0 && matches.length < entry.amount) {
+  if (matches.length > 0) {
     throw new Error(
       `${player.username} lacks ${getDisplayName(matches[0], entry.code)} x${entry.amount}.`
     );
@@ -525,8 +539,51 @@ function resolveEntry(player, entry) {
   );
 }
 
+function consumeResolvedForValidation(player, resolved) {
+  const next = clonePlayerForTrade(player);
+
+  if (resolved.kind === "berries") {
+    next.berries = num(next.berries) - resolved.amount;
+    return next;
+  }
+
+  if (resolved.kind === "stack") {
+    next[resolved.store] = removeStack(
+      next[resolved.store],
+      resolved.query || resolved.code,
+      resolved.amount
+    );
+    return next;
+  }
+
+  if (resolved.kind === "cards") {
+    const movingIds = new Set(
+      resolved.cards
+        .map((card) => String(card.instanceId || ""))
+        .filter(Boolean)
+    );
+
+    next.cards = next.cards.filter(
+      (card) => !movingIds.has(String(card.instanceId || ""))
+    );
+
+    return next;
+  }
+
+  return next;
+}
+
 function resolveOffer(player, offer) {
-  return offer.map((entry) => resolveEntry(player, entry));
+  const resolvedList = [];
+  let tempPlayer = clonePlayerForTrade(player);
+
+  for (const entry of offer) {
+    const resolved = resolveEntry(tempPlayer, entry);
+    resolvedList.push(resolved);
+    tempPlayer = consumeResolvedForValidation(tempPlayer, resolved);
+  }
+
+  return resolvedList;
 }
 
 function removeStack(list, codeOrQuery, amount) {
@@ -600,32 +657,15 @@ function addStack(list, incoming, amount) {
 }
 
 function applyResolvedTrade(from, to, resolved) {
-  const fromNext = {
-    ...from,
-    cards: [...(from.cards || [])],
-    weapons: [...(from.weapons || [])],
-    devilFruits: [...(from.devilFruits || [])],
-    materials: [...(from.materials || [])],
-    items: [...(from.items || [])],
-    boxes: [...(from.boxes || [])],
-    fragments: [...(from.fragments || [])],
-    tickets: [...(from.tickets || [])],
-  };
-
-  const toNext = {
-    ...to,
-    cards: [...(to.cards || [])],
-    weapons: [...(to.weapons || [])],
-    devilFruits: [...(to.devilFruits || [])],
-    materials: [...(to.materials || [])],
-    items: [...(to.items || [])],
-    boxes: [...(to.boxes || [])],
-    fragments: [...(to.fragments || [])],
-    tickets: [...(to.tickets || [])],
-  };
+  const fromNext = clonePlayerForTrade(from);
+  const toNext = clonePlayerForTrade(to);
 
   for (const entry of resolved) {
     if (entry.kind === "berries") {
+      if (num(fromNext.berries) < entry.amount) {
+        throw new Error(`${fromNext.username} does not have enough berries.`);
+      }
+
       fromNext.berries = num(fromNext.berries) - entry.amount;
       toNext.berries = num(toNext.berries) + entry.amount;
       continue;
@@ -653,14 +693,24 @@ function applyResolvedTrade(from, to, resolved) {
     }
 
     if (entry.kind === "cards") {
-      const movingIds = new Set(entry.cards.map((card) => card.instanceId));
-      const movingCards = fromNext.cards.filter((card) => movingIds.has(card.instanceId));
+      const movingIds = new Set(
+        entry.cards
+          .map((card) => String(card.instanceId || ""))
+          .filter(Boolean)
+      );
+
+      const movingCards = fromNext.cards.filter((card) =>
+        movingIds.has(String(card.instanceId || ""))
+      );
 
       if (movingCards.length !== entry.amount) {
         throw new Error(`Card move mismatch for ${entry.displayName || entry.code}.`);
       }
 
-      fromNext.cards = fromNext.cards.filter((card) => !movingIds.has(card.instanceId));
+      fromNext.cards = fromNext.cards.filter(
+        (card) => !movingIds.has(String(card.instanceId || ""))
+      );
+
       toNext.cards = [...toNext.cards, ...movingCards];
     }
   }
