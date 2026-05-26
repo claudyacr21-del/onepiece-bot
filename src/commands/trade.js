@@ -461,9 +461,6 @@ function resolveEntry(player, entry) {
 
   const normalizedCode = normalizeTradeAliasCode(entry.code || entry.raw);
 
-  const cardResolved = resolveCardEntry(player, entry);
-  if (cardResolved) return cardResolved;
-
   if (isBlockedTradeItemCode(normalizedCode)) {
     throw new Error(`Item \`${entry.raw || entry.code}\` is untradeable.`);
   }
@@ -485,7 +482,10 @@ function resolveEntry(player, entry) {
     };
   }
 
-  const stores = ["weapons", "devilFruits", "materials", "items", "boxes", "fragments"];
+  // IMPORTANT:
+  // Battle card / boost card trade uses fragments from finv.js.
+  // So fragments must be checked BEFORE player.cards.
+  const stores = ["fragments", "weapons", "devilFruits", "materials", "items", "boxes"];
   let insufficient = null;
 
   for (const store of stores) {
@@ -527,6 +527,11 @@ function resolveEntry(player, entry) {
       `${player.username} lacks ${insufficient.displayName} x${entry.amount}.`
     );
   }
+
+  // Actual card trading is fallback only.
+  // Normal card/boost quantity trade should already be handled by fragments above.
+  const cardResolved = resolveCardEntry(player, entry);
+  if (cardResolved) return cardResolved;
 
   throw new Error(
     `${player.username} does not own tradable ${entry.raw || entry.code}_${entry.amount}.`
