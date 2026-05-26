@@ -311,7 +311,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       );
     }
 
-    if (Math.random() < 0.05) {
+    if (Math.random() < 0.10) {
       addReward(ITEMS.pullResetTicket, 2);
     }
   } else if (box.code === "mother_flame_treasure_box") {
