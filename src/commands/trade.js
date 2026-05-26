@@ -21,6 +21,25 @@ const STORE_LABELS = {
   tickets: "Ticket",
 };
 
+const RESERVED_CARD_QUERIES = {
+  cola: {
+    displayName: "Cola Engine",
+    terms: ["cola", "cola_engine", "cola engine"],
+  },
+  cola_engine: {
+    displayName: "Cola Engine",
+    terms: ["cola", "cola_engine", "cola engine"],
+  },
+  sniper: {
+    displayName: "Sniper",
+    terms: ["sniper"],
+  },
+  sniper_king: {
+    displayName: "Sniper",
+    terms: ["sniper"],
+  },
+};
+
 function slug(value = "") {
   return String(value)
     .toLowerCase()
@@ -353,6 +372,64 @@ function getTradableCardMatches(player, query) {
     .map((hit) => hit.card);
 }
 
+function getReservedCardQuery(rawQuery = "") {
+  const code = slug(rawQuery);
+  return RESERVED_CARD_QUERIES[code] || null;
+}
+
+function getExactTradableCardMatches(player, query) {
+  const teamIds = getTeamIds(player);
+  const reserved = getReservedCardQuery(query);
+
+  const queryTerms = reserved
+    ? reserved.terms
+    : [String(query || "")];
+
+  const normalizedTerms = queryTerms
+    .map((term) => ({
+      text: normalize(term),
+      slug: slug(term),
+    }))
+    .filter((term) => term.text || term.slug);
+
+  if (!normalizedTerms.length) return [];
+
+  return (Array.isArray(player.cards) ? player.cards : [])
+    .filter((card) => isCardTradable(card, teamIds))
+    .map((card) => {
+      const fields = [
+        card?.code,
+        card?.characterCode,
+        card?.displayName,
+        card?.name,
+        card?.instanceId,
+      ];
+
+      const matched = fields.some((field) => {
+        const fieldText = normalize(field);
+        const fieldSlug = slug(field);
+
+        return normalizedTerms.some(
+          (term) =>
+            (term.text && fieldText === term.text) ||
+            (term.slug && fieldSlug === term.slug)
+        );
+      });
+
+      return {
+        card,
+        matched,
+      };
+    })
+    .filter((hit) => hit.matched)
+    .map((hit) => hit.card);
+}
+
+function getTradeCardDisplayName(query, fallback = "") {
+  const reserved = getReservedCardQuery(query);
+  return reserved?.displayName || fallback || getDisplayName(null, query);
+}
+
 function resolveTicketEntry(player, query) {
   const normalizedQuery = normalizeTradeAliasCode(query);
   const hit =
@@ -417,7 +494,37 @@ function resolveEntry(player, entry) {
     };
   }
 
-  const cardMatchesFirst = getTradableCardMatches(player, entry.raw || entry.code);
+  const rawCardQuery = entry.raw || entry.code;
+  const reservedCardQuery = getReservedCardQuery(rawCardQuery);
+  const exactCardMatches = getExactTradableCardMatches(player, rawCardQuery);
+
+  if (exactCardMatches.length > 0) {
+    const firstCard = exactCardMatches[0];
+    const displayName = getDisplayName(firstCard, entry.code);
+
+    if (exactCardMatches.length < entry.amount) {
+      throw new Error(
+        `${player.username} lacks ${displayName} x${entry.amount}.`
+      );
+    }
+
+    return {
+      kind: "cards",
+      store: "cards",
+      amount: entry.amount,
+      code: firstCard?.code || entry.code,
+      displayName,
+      cards: exactCardMatches.slice(0, entry.amount),
+    };
+  }
+
+  if (reservedCardQuery) {
+    throw new Error(
+      `${player.username} lacks ${getTradeCardDisplayName(rawCardQuery, entry.code)} x${entry.amount}.`
+    );
+  }
+
+  const cardMatchesFirst = getTradableCardMatches(player, rawCardQuery);
 
   if (cardMatchesFirst.length > 0) {
     const firstCard = cardMatchesFirst[0];
