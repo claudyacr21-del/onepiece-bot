@@ -419,15 +419,22 @@ function resolveEntry(player, entry) {
 
   const cardMatchesFirst = getTradableCardMatches(player, entry.raw || entry.code);
 
-  if (cardMatchesFirst.length >= entry.amount) {
+  if (cardMatchesFirst.length > 0) {
     const firstCard = cardMatchesFirst[0];
+    const displayName = getDisplayName(firstCard, entry.code);
+
+    if (cardMatchesFirst.length < entry.amount) {
+      throw new Error(
+        `${player.username} lacks ${displayName} x${entry.amount}.`
+      );
+    }
 
     return {
       kind: "cards",
       store: "cards",
       amount: entry.amount,
       code: firstCard?.code || entry.code,
-      displayName: getDisplayName(firstCard, entry.code),
+      displayName,
       cards: cardMatchesFirst.slice(0, entry.amount),
     };
   }
