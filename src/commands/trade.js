@@ -3,6 +3,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 
 const { getPlayer, updateTwoPlayersAtomic } = require("../playerStore");
@@ -24,19 +25,19 @@ const STORE_LABELS = {
 const RESERVED_CARD_QUERIES = {
   cola: {
     displayName: "Cola Engine",
-    terms: ["cola", "cola_engine", "cola engine"],
+    terms: ["cola", "cola_engine", "cola engine", "cola engine boost", "boost cola"],
   },
   cola_engine: {
     displayName: "Cola Engine",
-    terms: ["cola", "cola_engine", "cola engine"],
+    terms: ["cola", "cola_engine", "cola engine", "cola engine boost", "boost cola"],
   },
   sniper: {
     displayName: "Sniper",
-    terms: ["sniper"],
+    terms: ["sniper", "sniper boost", "sniper king", "sniper king boost"],
   },
   sniper_king: {
     displayName: "Sniper",
-    terms: ["sniper"],
+    terms: ["sniper", "sniper boost", "sniper king", "sniper king boost"],
   },
 };
 
@@ -377,25 +378,27 @@ function getReservedCardQuery(rawQuery = "") {
   return RESERVED_CARD_QUERIES[code] || null;
 }
 
-function getExactTradableCardMatches(player, query) {
-  const teamIds = getTeamIds(player);
+function isBoostCard(card) {
+  const role = String(card?.cardRole || card?.role || card?.type || "").toLowerCase();
+  const category = String(card?.category || "").toLowerCase();
+
+  return (
+    role === "boost" ||
+    category === "boost" ||
+    String(card?.code || "").toLowerCase().includes("boost")
+  );
+}
+
+function getReservedTradableBoostCardMatches(player, query) {
   const reserved = getReservedCardQuery(query);
+  if (!reserved) return [];
 
-  const queryTerms = reserved
-    ? reserved.terms
-    : [String(query || "")];
-
-  const normalizedTerms = queryTerms
-    .map((term) => ({
-      text: normalize(term),
-      slug: slug(term),
-    }))
-    .filter((term) => term.text || term.slug);
-
-  if (!normalizedTerms.length) return [];
+  const teamIds = getTeamIds(player);
+  const terms = Array.isArray(reserved.terms) ? reserved.terms : [query];
 
   return (Array.isArray(player.cards) ? player.cards : [])
     .filter((card) => isCardTradable(card, teamIds))
+    .filter((card) => isBoostCard(card))
     .map((card) => {
       const fields = [
         card?.code,
@@ -405,23 +408,23 @@ function getExactTradableCardMatches(player, query) {
         card?.instanceId,
       ];
 
-      const matched = fields.some((field) => {
-        const fieldText = normalize(field);
-        const fieldSlug = slug(field);
-
-        return normalizedTerms.some(
-          (term) =>
-            (term.text && fieldText === term.text) ||
-            (term.slug && fieldSlug === term.slug)
-        );
-      });
+      const bestScore = Math.max(
+        scoreQuery(query, fields),
+        ...terms.map((term) => scoreQuery(term, fields))
+      );
 
       return {
         card,
-        matched,
+        score: bestScore,
       };
     })
-    .filter((hit) => hit.matched)
+    .filter((hit) => hit.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return String(getDisplayName(a.card)).localeCompare(
+        String(getDisplayName(b.card))
+      );
+    })
     .map((hit) => hit.card);
 }
 
@@ -496,13 +499,15 @@ function resolveEntry(player, entry) {
 
   const rawCardQuery = entry.raw || entry.code;
   const reservedCardQuery = getReservedCardQuery(rawCardQuery);
-  const exactCardMatches = getExactTradableCardMatches(player, rawCardQuery);
 
-  if (exactCardMatches.length > 0) {
-    const firstCard = exactCardMatches[0];
-    const displayName = getDisplayName(firstCard, entry.code);
+  if (reservedCardQuery) {
+    const reservedMatches = getReservedTradableBoostCardMatches(player, rawCardQuery);
+    const displayName =
+      reservedMatches.length > 0
+        ? getDisplayName(reservedMatches[0], reservedCardQuery.displayName)
+        : getTradeCardDisplayName(rawCardQuery, entry.code);
 
-    if (exactCardMatches.length < entry.amount) {
+    if (reservedMatches.length < entry.amount) {
       throw new Error(
         `${player.username} lacks ${displayName} x${entry.amount}.`
       );
@@ -512,16 +517,10 @@ function resolveEntry(player, entry) {
       kind: "cards",
       store: "cards",
       amount: entry.amount,
-      code: firstCard?.code || entry.code,
+      code: reservedMatches[0]?.code || entry.code,
       displayName,
-      cards: exactCardMatches.slice(0, entry.amount),
+      cards: reservedMatches.slice(0, entry.amount),
     };
-  }
-
-  if (reservedCardQuery) {
-    throw new Error(
-      `${player.username} lacks ${getTradeCardDisplayName(rawCardQuery, entry.code)} x${entry.amount}.`
-    );
   }
 
   const cardMatchesFirst = getTradableCardMatches(player, rawCardQuery);
@@ -882,14 +881,14 @@ module.exports = {
       if (![message.author.id, targetUser.id].includes(interaction.user.id)) {
         return interaction.reply({
           content: "Only the two trade players can use these buttons.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
       if (state.done) {
         return interaction.reply({
           content: "This trade session is already closed.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
@@ -918,7 +917,7 @@ module.exports = {
         if (interaction.user.id !== message.author.id) {
           return interaction.reply({
             content: "Only the trade owner can press this button.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
         }
 
@@ -929,7 +928,7 @@ module.exports = {
         if (interaction.user.id !== targetUser.id) {
           return interaction.reply({
             content: "Only the mentioned player can press this button.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
         }
 
