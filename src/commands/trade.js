@@ -22,23 +22,18 @@ const STORE_LABELS = {
   tickets: "Ticket",
 };
 
-const RESERVED_CARD_QUERIES = {
-  cola: {
-    displayName: "Cola Engine",
-    terms: ["cola", "cola_engine", "cola engine", "cola engine boost", "boost cola"],
-  },
-  cola_engine: {
-    displayName: "Cola Engine",
-    terms: ["cola", "cola_engine", "cola engine", "cola engine boost", "boost cola"],
-  },
-  sniper: {
-    displayName: "Sniper",
-    terms: ["sniper", "sniper boost", "sniper king", "sniper king boost"],
-  },
-  sniper_king: {
-    displayName: "Sniper",
-    terms: ["sniper", "sniper boost", "sniper king", "sniper king boost"],
-  },
+const CARD_FIRST_QUERIES = new Set([
+  "cola",
+  "cola_engine",
+  "sniper",
+  "sniper_king",
+]);
+
+const CARD_DISPLAY_NAMES = {
+  cola: "Cola Engine",
+  cola_engine: "Cola Engine",
+  sniper: "Sniper",
+  sniper_king: "Sniper",
 };
 
 function slug(value = "") {
@@ -92,7 +87,6 @@ function normalizeTradeAliasCode(value) {
     cola_engine_part: "cola_engine_part",
     colaenginepart: "cola_engine_part",
 
-    sniper: "sniper",
     sniper_king: "sniper",
 
     reset: "pull_reset_ticket",
@@ -264,7 +258,17 @@ function scoreQuery(query, fields) {
   return best;
 }
 
-function getEntryFields(entry) {
+function getCardFields(card) {
+  return [
+    card?.code,
+    card?.characterCode,
+    card?.displayName,
+    card?.name,
+    card?.instanceId,
+  ];
+}
+
+function getStackFields(entry) {
   return [
     entry?.code,
     entry?.name,
@@ -283,7 +287,7 @@ function findStackMatches(list, query) {
     .map((entry, index) => ({
       index,
       entry,
-      score: scoreQuery(query, getEntryFields(entry)),
+      score: scoreQuery(query, getStackFields(entry)),
     }))
     .filter((hit) => hit.score > 0)
     .sort((a, b) => {
@@ -353,15 +357,7 @@ function getTradableCardMatches(player, query) {
     .filter((card) => isCardTradable(card, teamIds))
     .map((card) => ({
       card,
-      score: scoreQuery(q, [
-        card?.code,
-        card?.characterCode,
-        card?.displayName,
-        card?.name,
-        card?.variant,
-        card?.title,
-        card?.instanceId,
-      ]),
+      score: scoreQuery(q, getCardFields(card)),
     }))
     .filter((hit) => hit.score > 0)
     .sort((a, b) => {
@@ -373,64 +369,9 @@ function getTradableCardMatches(player, query) {
     .map((hit) => hit.card);
 }
 
-function getReservedCardQuery(rawQuery = "") {
-  const code = slug(rawQuery);
-  return RESERVED_CARD_QUERIES[code] || null;
-}
-
-function isBoostCard(card) {
-  const role = String(card?.cardRole || card?.role || card?.type || "").toLowerCase();
-  const category = String(card?.category || "").toLowerCase();
-
-  return (
-    role === "boost" ||
-    category === "boost" ||
-    String(card?.code || "").toLowerCase().includes("boost")
-  );
-}
-
-function getReservedTradableBoostCardMatches(player, query) {
-  const reserved = getReservedCardQuery(query);
-  if (!reserved) return [];
-
-  const teamIds = getTeamIds(player);
-  const terms = Array.isArray(reserved.terms) ? reserved.terms : [query];
-
-  return (Array.isArray(player.cards) ? player.cards : [])
-    .filter((card) => isCardTradable(card, teamIds))
-    .filter((card) => isBoostCard(card))
-    .map((card) => {
-      const fields = [
-        card?.code,
-        card?.characterCode,
-        card?.displayName,
-        card?.name,
-        card?.instanceId,
-      ];
-
-      const bestScore = Math.max(
-        scoreQuery(query, fields),
-        ...terms.map((term) => scoreQuery(term, fields))
-      );
-
-      return {
-        card,
-        score: bestScore,
-      };
-    })
-    .filter((hit) => hit.score > 0)
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return String(getDisplayName(a.card)).localeCompare(
-        String(getDisplayName(b.card))
-      );
-    })
-    .map((hit) => hit.card);
-}
-
-function getTradeCardDisplayName(query, fallback = "") {
-  const reserved = getReservedCardQuery(query);
-  return reserved?.displayName || fallback || getDisplayName(null, query);
+function getCardFirstDisplayName(query) {
+  const code = normalizeTradeAliasCode(query);
+  return CARD_DISPLAY_NAMES[code] || getDisplayName(null, query);
 }
 
 function resolveTicketEntry(player, query) {
@@ -454,10 +395,46 @@ function resolveTicketEntry(player, query) {
     store: "tickets",
     amount: null,
     code,
+    query,
     displayName: getDisplayName(hit.entry, query),
     sourceEntry: hit.entry,
     storeLabel: "Ticket",
   };
+}
+
+function resolveCardEntry(player, entry) {
+  const rawQuery = entry.raw || entry.code;
+  const normalizedCode = normalizeTradeAliasCode(rawQuery);
+  const isCardFirst = CARD_FIRST_QUERIES.has(normalizedCode);
+
+  const matches = getTradableCardMatches(player, rawQuery);
+
+  if (matches.length >= entry.amount) {
+    const firstCard = matches[0];
+
+    return {
+      kind: "cards",
+      store: "cards",
+      amount: entry.amount,
+      code: firstCard?.code || entry.code,
+      displayName: getDisplayName(firstCard, entry.code),
+      cards: matches.slice(0, entry.amount),
+    };
+  }
+
+  if (isCardFirst && matches.length < entry.amount) {
+    throw new Error(
+      `${player.username} lacks ${getCardFirstDisplayName(rawQuery)} x${entry.amount}.`
+    );
+  }
+
+  if (matches.length > 0 && matches.length < entry.amount) {
+    throw new Error(
+      `${player.username} lacks ${getDisplayName(matches[0], entry.code)} x${entry.amount}.`
+    );
+  }
+
+  return null;
 }
 
 function resolveEntry(player, entry) {
@@ -474,10 +451,13 @@ function resolveEntry(player, entry) {
     };
   }
 
-  if (isBlockedTradeItemCode(entry.code || entry.raw)) {
-    throw new Error(
-      `Item \`${entry.raw || entry.code}\` is untradeable.`
-    );
+  const normalizedCode = normalizeTradeAliasCode(entry.code || entry.raw);
+
+  const cardResolved = resolveCardEntry(player, entry);
+  if (cardResolved) return cardResolved;
+
+  if (isBlockedTradeItemCode(normalizedCode)) {
+    throw new Error(`Item \`${entry.raw || entry.code}\` is untradeable.`);
   }
 
   const ticketEntry = resolveTicketEntry(player, entry.code || entry.raw);
@@ -494,54 +474,6 @@ function resolveEntry(player, entry) {
     return {
       ...ticketEntry,
       amount: entry.amount,
-    };
-  }
-
-  const rawCardQuery = entry.raw || entry.code;
-  const reservedCardQuery = getReservedCardQuery(rawCardQuery);
-
-  if (reservedCardQuery) {
-    const reservedMatches = getReservedTradableBoostCardMatches(player, rawCardQuery);
-    const displayName =
-      reservedMatches.length > 0
-        ? getDisplayName(reservedMatches[0], reservedCardQuery.displayName)
-        : getTradeCardDisplayName(rawCardQuery, entry.code);
-
-    if (reservedMatches.length < entry.amount) {
-      throw new Error(
-        `${player.username} lacks ${displayName} x${entry.amount}.`
-      );
-    }
-
-    return {
-      kind: "cards",
-      store: "cards",
-      amount: entry.amount,
-      code: reservedMatches[0]?.code || entry.code,
-      displayName,
-      cards: reservedMatches.slice(0, entry.amount),
-    };
-  }
-
-  const cardMatchesFirst = getTradableCardMatches(player, rawCardQuery);
-
-  if (cardMatchesFirst.length > 0) {
-    const firstCard = cardMatchesFirst[0];
-    const displayName = getDisplayName(firstCard, entry.code);
-
-    if (cardMatchesFirst.length < entry.amount) {
-      throw new Error(
-        `${player.username} lacks ${displayName} x${entry.amount}.`
-      );
-    }
-
-    return {
-      kind: "cards",
-      store: "cards",
-      amount: entry.amount,
-      code: firstCard?.code || entry.code,
-      displayName,
-      cards: cardMatchesFirst.slice(0, entry.amount),
     };
   }
 
