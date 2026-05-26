@@ -304,14 +304,14 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addReward(ITEMS.enhancementStone, 10);
     addReward(ITEMS.rumBeer, 5 + Math.floor(Math.random() * 3));
 
-    if (Math.random() < 0.35) {
+    if (Math.random() < 0.60) {
       addRandomFragment(
         [ITEMS.universalAFragment, ITEMS.universalSFragment],
         Math.random() < 0.35 ? 2 : 1
       );
     }
 
-    if (Math.random() < 0.10) {
+    if (Math.random() < 0.40) {
       addReward(ITEMS.pullResetTicket, 2);
     }
   } else if (box.code === "mother_flame_treasure_box") {
