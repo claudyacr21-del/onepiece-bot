@@ -148,7 +148,7 @@ function getTicketPool() {
       name: "Common Raid Ticket",
       rarity: "B",
       type: "Ticket",
-      weight: 60,
+      weight: 55,
       image:
         "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862086254712/content.png?ex=6a01d3d3&is=6a008253&hm=3adddcd707caa59db48cd9489b6eed6f5012b7a1725d7458a1c51ff1406b6621&",
     },
@@ -157,7 +157,7 @@ function getTicketPool() {
       name: "Raid Ticket",
       rarity: "A",
       type: "Ticket",
-      weight: 29,
+      weight: 34,
       image:
         "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862694301907/content.png?ex=6a01d3d4&is=6a008254&hm=c46ef6d8f72ef586dc9817d629edbe23f8895613eeef5216ab80d026820e9ce2&",
     },
