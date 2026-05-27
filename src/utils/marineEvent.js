@@ -140,7 +140,9 @@ function isAllowedGuild(guildId) {
   const id = normalizeId(guildId);
   if (!id) return false;
 
-  if (!MARINE_EVENT_GUILD_IDS.length) return false;
+  // If MARINE_EVENT_GUILD_IDS is empty, allow any guild that has an allowed marine channel.
+  // If MARINE_EVENT_GUILD_IDS is filled, only those guilds can spawn marine events.
+  if (!MARINE_EVENT_GUILD_IDS.length) return true;
 
   return MARINE_EVENT_GUILD_IDS.includes(id);
 }
@@ -249,10 +251,6 @@ function addChannelChatCount(guildId, channelId, userId) {
 
 function resetChannelChatCounter(guildId, channelId) {
   channelChatCounters.set(getChannelUserKey(guildId, channelId), new Map());
-}
-
-function resetChannelChatUsers(guildId, channelId) {
-  channelChatUsers.set(getChannelUserKey(guildId, channelId), new Set());
 }
 
 function randomInt(min, max) {
