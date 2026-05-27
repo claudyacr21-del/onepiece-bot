@@ -166,8 +166,23 @@ function isConsumable(item) {
   return code === "rum_beer";
 }
 
+function isFragmentLikeItem(item) {
+  const code = String(item?.code || "").toLowerCase().trim();
+  const name = getItemName(item).toLowerCase();
+  const type = String(item?.type || "").toLowerCase();
+  const category = String(item?.category || "").toLowerCase();
+
+  return (
+    type === "fragment" ||
+    category === "fragment" ||
+    code.startsWith("universal_") ||
+    code.includes("fragment") ||
+    name.includes("fragment")
+  );
+}
+
 function getInventoryLists(player) {
-  const items = cleanList(player.items);
+  const items = cleanList(player.items).filter((item) => !isFragmentLikeItem(item));
 
   return {
     fruit: cleanList(player.devilFruits),
