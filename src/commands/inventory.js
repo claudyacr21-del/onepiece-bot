@@ -166,23 +166,8 @@ function isConsumable(item) {
   return code === "rum_beer";
 }
 
-function isFragmentLikeItem(item) {
-  const code = String(item?.code || "").toLowerCase().trim();
-  const name = getItemName(item).toLowerCase();
-  const type = String(item?.type || "").toLowerCase();
-  const category = String(item?.category || "").toLowerCase();
-
-  return (
-    type === "fragment" ||
-    category === "fragment" ||
-    code.startsWith("universal_") ||
-    code.includes("fragment") ||
-    name.includes("fragment")
-  );
-}
-
 function getInventoryLists(player) {
-  const items = cleanList(player.items).filter((item) => !isFragmentLikeItem(item));
+  const items = cleanList(player.items);
 
   return {
     fruit: cleanList(player.devilFruits),
@@ -280,6 +265,7 @@ function buildInventoryEmbed(message, player, category = "main", page = 0) {
           "`op inv box`",
           "`op inv consum`",
           "`op inv material`",
+          "`op inv item`",
         ].join("\n")
       )
       .setThumbnail(avatar)
