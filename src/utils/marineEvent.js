@@ -29,11 +29,6 @@ const MARINE_EVENT_CHANCE = Math.max(
   Math.min(1, Number(process.env.MARINE_EVENT_CHANCE || 0.2))
 );
 
-const MARINE_EVENT_GLOBAL_COOLDOWN_MS = Math.max(
-  60_000,
-  Number(process.env.MARINE_EVENT_GLOBAL_COOLDOWN_MS || 12 * 60 * 1000)
-);
-
 const MARINE_EVENT_GUILD_COOLDOWN_MS = Math.max(
   60_000,
   Number(process.env.MARINE_EVENT_GUILD_COOLDOWN_MS || 18 * 60 * 1000)
@@ -58,8 +53,6 @@ const MARINE_EVENT_MAX_COUNT_PER_USER = Math.max(
 );
 const guildCooldowns = new Map();
 const channelCooldowns = new Map();
-
-let globalCooldownUntil = 0;
 
 const MARINE_CHANNEL_STORE_KEY = "__marine_event_channels__";
 
@@ -711,7 +704,6 @@ async function maybeSpawnMarineEvent(client, message) {
   const channelId = String(message.channel.id);
   const channelKey = getChannelUserKey(guildId, channelId);
 
-  if (now < globalCooldownUntil) return false;
   if (now < Number(guildCooldowns.get(guildId) || 0)) return false;
   if (now < Number(channelCooldowns.get(channelKey) || 0)) return false;
 
@@ -737,7 +729,6 @@ if (Math.random() > MARINE_EVENT_CHANCE) {
 }
 
 resetChannelChatCounter(guildId, channelId);
-globalCooldownUntil = now + MARINE_EVENT_GLOBAL_COOLDOWN_MS;
 guildCooldowns.set(guildId, now + MARINE_EVENT_GUILD_COOLDOWN_MS);
 channelCooldowns.set(channelKey, now + MARINE_EVENT_CHANNEL_COOLDOWN_MS);
   try {
