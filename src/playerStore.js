@@ -485,25 +485,33 @@ async function initPlayerStore() {
     if (dbPlayers && Object.keys(dbPlayers).length > 0) {
       setPlayersCache(dbPlayers);
       setPersistedCache(dbPlayers);
-      writePlayersLocalBackupOnly(dbPlayers);
       dbReady = true;
-
       console.log(`[PLAYER STORE] Postgres mode active. Loaded ${Object.keys(dbPlayers).length} players.`);
       return;
     }
 
-    const filePlayers = readPlayers();
+    const allowFileSeed =
+      String(process.env.PLAYER_STORE_ALLOW_FILE_SEED || "false").toLowerCase() === "true";
 
-    if (filePlayers && Object.keys(filePlayers).length > 0) {
-      setPlayersCache(filePlayers);
-      setPersistedCache({});
-      dbReady = true;
-      await flushChangedPlayersToPostgres(filePlayers);
-      setPersistedCache(filePlayers);
+    if (allowFileSeed) {
+      const filePlayers = readPlayers();
 
-      console.log(`[PLAYER STORE] Postgres mode active. Seeded ${Object.keys(filePlayers).length} players from file.`);
-      return;
+      if (filePlayers && Object.keys(filePlayers).length > 0) {
+        setPlayersCache(filePlayers);
+        setPersistedCache({});
+        dbReady = true;
+        await flushChangedPlayersToPostgres(filePlayers);
+        setPersistedCache(filePlayers);
+        console.log(`[PLAYER STORE] Postgres mode active. Seeded ${Object.keys(filePlayers).length} players from file.`);
+        return;
+      }
     }
+
+    setPlayersCache({});
+    setPersistedCache({});
+    dbReady = true;
+    console.log("[PLAYER STORE] Postgres mode active. No players found yet.");
+    return;
 
     setPlayersCache({});
     setPersistedCache({});
