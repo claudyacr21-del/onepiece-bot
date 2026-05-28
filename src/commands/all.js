@@ -427,11 +427,6 @@ function buildMergeEmbed(item, index, total) {
         `SPD: ${stats.speed.toLocaleString("en-US")}`,
         `ATK: ${formatAtkRange(stats.atk)}`,
         "",
-        "**Members:**",
-        ...(item.members || []).map(
-          (member) => `• ${member.label} (${member.statPercent || item.statPercent || 50}% stat)`
-        ),
-        "",
         item.description || "No description.",
       ].join("\n")
     )
