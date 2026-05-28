@@ -15,6 +15,7 @@ const {
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const weapons = require("../data/weapons");
 const devilFruits = require("../data/devilFruits");
+const { getMergeCards } = require("../data/mergeCards");
 const {
   getRarityBadge,
   getCardImage,
@@ -350,6 +351,96 @@ function buildFruitEmbed(item, index, total) {
     .setFooter({ text: `Fruit ${index + 1}/${total} • Code: ${item.code}` });
 }
 
+function findCardTemplateForMergeMember(member) {
+  const cards = getAllCards();
+
+  return (
+    cards.find((card) =>
+      (member.matchCodes || []).some(
+        (code) => normalize(card.code) === normalize(code)
+      )
+    ) ||
+    cards.find((card) =>
+      (member.matchCodes || []).some((code) =>
+        normalize(card.displayName || card.name).includes(normalize(code))
+      )
+    ) ||
+    null
+  );
+}
+
+function getMergeCardPower(mergeCard) {
+  return (mergeCard.members || []).reduce((total, member) => {
+    const template = findCardTemplateForMergeMember(member);
+    const percent = Number(member.statPercent || mergeCard.statPercent || 50) / 100;
+
+    if (!template) return total;
+
+    return total + Math.floor(getCardPower(template, "M1") * percent);
+  }, 0);
+}
+
+function getMergeCardStats(mergeCard) {
+  return (mergeCard.members || []).reduce(
+    (total, member) => {
+      const template = findCardTemplateForMergeMember(member);
+      const percent = Number(member.statPercent || mergeCard.statPercent || 50) / 100;
+
+      if (!template) return total;
+
+      const stats = getBaseCardStats(template, template.evolutionForms?.[0] || null);
+
+      total.atk += Math.floor(Number(stats.atk || 0) * percent);
+      total.hp += Math.floor(Number(stats.hp || 0) * percent);
+      total.speed += Math.floor(Number(stats.speed || 0) * percent);
+
+      return total;
+    },
+    {
+      atk: 0,
+      hp: 0,
+      speed: 0,
+    }
+  );
+}
+
+function buildMergeEmbed(item, index, total) {
+  const stats = getMergeCardStats(item);
+  const power = getMergeCardPower(item);
+  const stageKey = "M1";
+
+  return new EmbedBuilder()
+    .setColor(0x8e44ad)
+    .setTitle("All Merge Cards")
+    .setDescription(
+      [
+        `**${item.name || item.code}**`,
+        item.type || "Merge Card",
+        "",
+        `Rarity: M`,
+        `Merge: ${item.mergeGroup || "Unknown"}`,
+        `Source: ${item.source || "Summoning"}`,
+        `Key Card: ${item.keyCardName || item.keyCardCode || "Unknown"}`,
+        "",
+        `Power: ${power.toLocaleString("en-US")}`,
+        `HP: ${stats.hp.toLocaleString("en-US")}`,
+        `SPD: ${stats.speed.toLocaleString("en-US")}`,
+        `ATK: ${formatAtkRange(stats.atk)}`,
+        "",
+        "**Members:**",
+        ...(item.members || []).map(
+          (member) => `• ${member.label} (${member.statPercent || item.statPercent || 50}% stat)`
+        ),
+        "",
+        item.description || "No description.",
+      ].join("\n")
+    )
+    .setImage(item.stageImages?.[stageKey] || item.image || null)
+    .setFooter({
+      text: `Merge ${index + 1}/${total} • Code: ${item.code}`,
+    });
+}
+
 function rows(index, total) {
   return [
     new ActionRowBuilder().addComponents(
@@ -392,7 +483,9 @@ module.exports = {
     const rawMode = String(args.join(" ").trim()).toLowerCase();
 
     const mode =
-      rawMode === "boost"
+      rawMode === "merge"
+        ? "merge"
+        : rawMode === "boost"
         ? "boost"
         : rawMode === "weapon"
         ? "weapon"
@@ -449,13 +542,44 @@ module.exports = {
         buildMissingCardEmbed(item, index, total, progress);
     }
 
+    if (mode === "merge") {
+      list = [...getMergeCards()].sort((a, b) => {
+        const powerDiff = getMergeCardPower(b) - getMergeCardPower(a);
+        if (powerDiff !== 0) return powerDiff;
+
+        return String(a.name || a.code).localeCompare(String(b.name || b.code));
+      });
+
+      renderer = buildMergeEmbed;
+    }
+
     if (mode === "battle" || mode === "boost") {
-      list = sortCardsForAll(
+      const normalCards = sortCardsForAll(
         getAllCards().filter((c) => c.cardRole === mode),
         mode
       );
 
-      renderer = (item, index, total) => buildCardEmbed(item, index, total, mode);
+      if (mode === "battle") {
+        const mergeCards = [...getMergeCards()].sort((a, b) => {
+          const powerDiff = getMergeCardPower(b) - getMergeCardPower(a);
+          if (powerDiff !== 0) return powerDiff;
+
+          return String(a.name || a.code).localeCompare(String(b.name || b.code));
+        });
+
+        list = [...mergeCards, ...normalCards];
+
+        renderer = (item, index, total) => {
+          if (item.cardRole === "merge") {
+            return buildMergeEmbed(item, index, total);
+          }
+
+          return buildCardEmbed(item, index, total, mode);
+        };
+      } else {
+        list = normalCards;
+        renderer = (item, index, total) => buildCardEmbed(item, index, total, mode);
+      }
     }
 
     if (mode === "weapon") {

@@ -3,6 +3,7 @@ const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { createOwnedCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
 const weaponsDb = require("../data/weapons");
+const { findMergeCard } = require("../data/mergeCards");
 const { getWeaponImage, getRarityBadge } = require("../config/assetLinks");
 
 const SUMMON_FRAGMENT_COST = 15;
@@ -370,6 +371,131 @@ function getSummonImage(ownedCard, card) {
   );
 }
 
+function getOwnedStage(card) {
+  const stage = Number(card?.evolutionStage || 1);
+  const key = String(card?.evolutionKey || "").toUpperCase();
+  const keyMatch = key.match(/M([123])/);
+
+  if (keyMatch) return Number(keyMatch[1]);
+  return Math.max(1, Math.min(3, stage));
+}
+
+function doesOwnedCardMatchCodes(card, codes = []) {
+  const ownedValues = [
+    card?.code,
+    card?.characterCode,
+    card?.name,
+    card?.displayName,
+    card?.title,
+  ].map(normalize);
+
+  return codes.some((code) => {
+    const wanted = normalize(code);
+    return ownedValues.some(
+      (owned) => owned === wanted || owned.includes(wanted) || wanted.includes(owned)
+    );
+  });
+}
+
+function hasMergeKeyStage(player, mergeCard, requiredStage = 1) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+  const keyCode = normalize(mergeCard.keyCardCode);
+
+  return cards.some((card) => {
+    const code = normalize(card?.code);
+    const name = normalize(card?.name || card?.displayName);
+    const isKey =
+      code === keyCode ||
+      name === normalize(mergeCard.keyCardName) ||
+      name.includes(normalize(mergeCard.keyCardName));
+
+    return isKey && getOwnedStage(card) >= Number(requiredStage || 1);
+  });
+}
+
+function alreadyOwnsMergeCard(player, mergeCard) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+  const code = normalize(mergeCard.code);
+
+  return cards.some((card) => normalize(card?.code) === code);
+}
+
+function makePseudoFragmentCard(fragmentName) {
+  return {
+    code: fragmentName,
+    name: fragmentName,
+    displayName: fragmentName,
+  };
+}
+
+function getMergeRequirementStatus(fragments, mergeCard) {
+  return mergeCard.summonRequirements.fragments.map((req) => {
+    const pseudoCard = makePseudoFragmentCard(req.fragmentName);
+    const owned = getTotalCardFragments(fragments, pseudoCard);
+
+    return {
+      ...req,
+      owned,
+      ok: owned >= Number(req.amount || 0),
+    };
+  });
+}
+
+function consumeMergeRequirementFragments(fragments, mergeCard) {
+  let nextFragments = Array.isArray(fragments)
+    ? fragments.map((fragment) => ({ ...fragment }))
+    : [];
+
+  const consumedLines = [];
+
+  for (const req of mergeCard.summonRequirements.fragments) {
+    const pseudoCard = makePseudoFragmentCard(req.fragmentName);
+    const consumed = consumeCardFragments(nextFragments, pseudoCard, Number(req.amount || 0));
+
+    if (!consumed) return null;
+
+    nextFragments = consumed.fragments;
+    consumedLines.push(`${req.fragmentName} Fragment x${req.amount}`);
+  }
+
+  return {
+    fragments: nextFragments,
+    consumedLines,
+  };
+}
+
+function createOwnedMergeCard(mergeCard) {
+  const now = Date.now();
+  const stageKey = "M1";
+
+  return {
+    instanceId: `${mergeCard.code}_${now}_${Math.random().toString(36).slice(2, 8)}`,
+    code: mergeCard.code,
+    name: mergeCard.name,
+    displayName: mergeCard.name,
+    title: mergeCard.title || mergeCard.name,
+    cardRole: "merge",
+    rarity: "M",
+    currentTier: "M",
+    type: mergeCard.type || "Merge Card",
+    mergeGroup: mergeCard.mergeGroup || "Unknown",
+    source: mergeCard.source || "Summoning",
+    evolutionStage: 1,
+    evolutionKey: stageKey,
+    level: 1,
+    mergeData: {
+      keyCardCode: mergeCard.keyCardCode,
+      keyCardName: mergeCard.keyCardName,
+      members: mergeCard.members,
+      statPercent: mergeCard.statPercent || 50,
+    },
+    masteryNames: mergeCard.masteryNames || [],
+    stageImages: mergeCard.stageImages || {},
+    image: mergeCard.stageImages?.[stageKey] || mergeCard.image || "",
+    createdAt: now,
+  };
+}
+
 module.exports = {
   name: "summon",
 
@@ -393,12 +519,13 @@ module.exports = {
       });
     }
 
-    const card = findSummonableCard(query);
-    const weapon = card ? null : findWeaponByNameOnly(query);
+    const mergeCard = findMergeCard(query);
+    const card = mergeCard ? null : findSummonableCard(query);
+    const weapon = mergeCard || card ? null : findWeaponByNameOnly(query);
 
-    if (!card && !weapon) {
+    if (!mergeCard && !card && !weapon) {
       return message.reply({
-        content: `Battle card, boost card, or weapon matching \`${query}\` was not found.`,
+        content: `Battle card, boost card, merge card, or weapon matching \`${query}\` was not found.`,
         allowedMentions: { repliedUser: false },
       });
     }
@@ -412,6 +539,7 @@ module.exports = {
     let weaponBadge = null;
     let weaponType = null;
     let cardRoleLabel = null;
+    let mergeConsumedLines = [];
 
     try {
       updatePlayerAtomic(
@@ -420,6 +548,58 @@ module.exports = {
           const fragments = Array.isArray(fresh.fragments)
             ? fresh.fragments.map((fragment) => ({ ...fragment }))
             : [];
+
+          if (mergeCard) {
+            if (alreadyOwnsMergeCard(fresh, mergeCard)) {
+              throw new Error(`You already own **${mergeCard.name}**.`);
+            }
+
+            if (!hasMergeKeyStage(fresh, mergeCard, mergeCard.summonRequirements.keyStage || 1)) {
+              throw new Error(
+                [
+                  `You cannot summon **${mergeCard.name}** yet.`,
+                  "",
+                  "**Special Requirement:**",
+                  `You must own **${mergeCard.keyCardName} M${mergeCard.summonRequirements.keyStage || 1}** first.`,
+                ].join("\n")
+              );
+            }
+
+            const requirementStatus = getMergeRequirementStatus(fragments, mergeCard);
+            const missing = requirementStatus.filter((entry) => !entry.ok);
+
+            if (missing.length) {
+              throw new Error(
+                [
+                  `You need these fragments to summon **${mergeCard.name}**:`,
+                  "",
+                  ...requirementStatus.map(
+                    (entry) =>
+                      `• ${entry.fragmentName} Fragment: ${entry.owned}/${entry.amount}`
+                  ),
+                ].join("\n")
+              );
+            }
+
+            const consumed = consumeMergeRequirementFragments(fragments, mergeCard);
+
+            if (!consumed) {
+              throw new Error("Failed to consume merge fragments.");
+            }
+
+            ownedCard = createOwnedMergeCard(mergeCard);
+            summonedType = "merge";
+            summonedName = mergeCard.name;
+            summonedRarity = "M";
+            remainingFragments = 0;
+            mergeConsumedLines = consumed.consumedLines;
+
+            return {
+              ...fresh,
+              cards: [...(fresh.cards || []), ownedCard],
+              fragments: consumed.fragments,
+            };
+          }
 
           if (card) {
             if (alreadyOwnsCard(fresh, card)) {
@@ -509,6 +689,33 @@ module.exports = {
     } catch (error) {
       return message.reply({
         content: error.message || "Failed to summon.",
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
+    if (summonedType === "merge") {
+      return message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x8e44ad)
+            .setTitle("🔗 Merge Card Summoned")
+            .setDescription(
+              [
+                `**Merge Card:** ${summonedName}`,
+                `**Rarity:** ${summonedRarity}`,
+                `**Source:** Road Poneglyph`,
+                "",
+                "**Consumed Fragments:**",
+                ...mergeConsumedLines.map((line) => `• ${line}`),
+                "",
+                "This merge card has been added to your collection.",
+              ].join("\n")
+            )
+            .setImage(ownedCard?.image || null)
+            .setFooter({
+              text: "One Piece Bot • Merge Summon",
+            }),
+        ],
         allowedMentions: { repliedUser: false },
       });
     }
