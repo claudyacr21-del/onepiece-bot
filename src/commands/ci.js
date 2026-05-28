@@ -14,7 +14,7 @@ const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
 
 const cardsData = require("../data/cards");
-
+const { findMergeCard } = require("../data/mergeCards");
 const SPECIAL_FORMS = cardsData.SPECIAL_FORMS || cardsData.specialForms || {
   luffy_straw_hat: ["The Beginning", "Revival", "Gear 5"],
 };
@@ -785,6 +785,160 @@ function buildRows(stage) {
   ];
 }
 
+function findOwnedMergeCard(player, mergeCard) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+  const code = normalizeCompare(mergeCard.code);
+
+  return (
+    cards.find(
+      (card) =>
+        normalizeCompare(card?.code) === code ||
+        normalizeCompare(card?.name) === normalizeCompare(mergeCard.name) ||
+        normalizeCompare(card?.displayName) === normalizeCompare(mergeCard.name)
+    ) || null
+  );
+}
+
+function findMergeMemberCard(player, member) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+
+  return (
+    cards.find((card) => {
+      const names = [
+        card?.code,
+        card?.characterCode,
+        card?.name,
+        card?.displayName,
+        card?.title,
+      ].map(normalizeCompare);
+
+      return (member.matchCodes || []).some((code) => {
+        const wanted = normalizeCompare(code);
+        return names.some(
+          (name) => name === wanted || name.includes(wanted) || wanted.includes(name)
+        );
+      });
+    }) || null
+  );
+}
+
+function getMergeStage(ownedMerge) {
+  const key = String(ownedMerge?.evolutionKey || "").toUpperCase();
+  const match = key.match(/M([123])/);
+
+  if (match) return Number(match[1]);
+
+  return Math.max(1, Math.min(3, Number(ownedMerge?.evolutionStage || 1)));
+}
+
+function getMergeMemberStats(card) {
+  return {
+    atk: Number(card?.atk || card?.baseAtk || 0),
+    hp: Number(card?.hp || card?.baseHp || 0),
+    speed: Number(card?.speed || card?.spd || card?.baseSpeed || 0),
+    power: Number(card?.currentPower || card?.power || card?.basePower || 0),
+  };
+}
+
+function getMergeMemberWeapons(card) {
+  const weapons = [];
+
+  if (Array.isArray(card?.equippedWeapons)) {
+    for (const weapon of card.equippedWeapons) {
+      const name = weapon?.name || weapon?.displayName || weapon?.code;
+      if (name) weapons.push(name);
+    }
+  }
+
+  if (card?.equippedWeapon?.name || card?.equippedWeapon?.code) {
+    weapons.push(card.equippedWeapon.name || card.equippedWeapon.code);
+  }
+
+  if (card?.equippedWeaponName) weapons.push(card.equippedWeaponName);
+  if (card?.weapon && card.weapon !== "None") weapons.push(card.weapon);
+
+  return [...new Set(weapons.map((item) => String(item).trim()).filter(Boolean))];
+}
+
+function buildMergeCiEmbed(message, mergeCard, player) {
+  const ownedMerge = findOwnedMergeCard(player, mergeCard);
+  const stage = getMergeStage(ownedMerge);
+  const stageKey = `M${stage}`;
+  const masteryName = mergeCard.masteryNames?.[stage - 1] || mergeCard.name;
+
+  let atk = 0;
+  let hp = 0;
+  let speed = 0;
+  let power = 0;
+  const weaponLines = [];
+  const memberLines = [];
+
+  for (const member of mergeCard.members || []) {
+    const ownedMember = findMergeMemberCard(player, member);
+    const percent = Number(member.statPercent || mergeCard.statPercent || 50) / 100;
+
+    if (!ownedMember) {
+      memberLines.push(`❌ ${member.label}: Missing`);
+      continue;
+    }
+
+    const stats = getMergeMemberStats(ownedMember);
+    const memberAtk = Math.floor(stats.atk * percent);
+    const memberHp = Math.floor(stats.hp * percent);
+    const memberSpeed = Math.floor(stats.speed * percent);
+    const memberPower = Math.floor(stats.power * percent);
+
+    atk += memberAtk;
+    hp += memberHp;
+    speed += memberSpeed;
+    power += memberPower;
+
+    memberLines.push(
+      `✅ ${member.label}: ${Math.round(percent * 100)}% stat synced`
+    );
+
+    const weapons = getMergeMemberWeapons(ownedMember);
+    for (const weapon of weapons) {
+      weaponLines.push(`${member.label}: ${weapon}`);
+    }
+  }
+
+  return new EmbedBuilder()
+    .setColor(0x8e44ad)
+    .setTitle(mergeCard.name)
+    .setDescription(
+      [
+        `**${masteryName}**`,
+        "",
+        `**Merge:** ${mergeCard.mergeGroup || "Unknown"}`,
+        "",
+        `**Power:** ${power.toLocaleString("en-US")}`,
+        `**Health:** ${hp.toLocaleString("en-US")}`,
+        `**Speed:** ${speed.toLocaleString("en-US")}`,
+        `**Attack:** ${formatAtkRange(atk)}`,
+        `**Type:** Merge`,
+        `**Badge:** M`,
+        "",
+        "**Members:**",
+        ...memberLines,
+        "",
+        "**Signature Weapons:**",
+        weaponLines.length ? weaponLines.join("\n") : "None",
+        "",
+        `**Source:** ${mergeCard.source || "Summoning"}`,
+      ].join("\n")
+    )
+    .setImage(
+      mergeCard.stageImages?.[stageKey] ||
+        mergeCard.image ||
+        ownedMerge?.image ||
+        null
+    )
+    .setFooter({
+      text: `${mergeCard.name} Card Mastery ${stage}/3 • Query: lzs`,
+    });
+}
+
 module.exports = {
   name: "ci",
   aliases: ["cardinfo"],
@@ -794,8 +948,15 @@ module.exports = {
     if (!query) return message.reply("Usage: `op ci <card>`");
 
     const player = getPlayer(message.author.id, message.author.username);
-    const globalCard = findCardTemplateByNameOnly(query);
 
+    const mergeCard = findMergeCard(query);
+    if (mergeCard) {
+      return message.reply({
+        embeds: [buildMergeCiEmbed(message, mergeCard, player)],
+      });
+    }
+
+    const globalCard = findCardTemplateByNameOnly(query);
     if (!globalCard) return message.reply("Card not found in global database.");
 
     const owned = findOwnedCard(player.cards || [], query);

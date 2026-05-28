@@ -107,6 +107,14 @@ function pickContentType(tier) {
   return rollStandardContentType();
 }
 
+function rollThroneEquivalentCardTier(baseTier) {
+  // Same rarity feel as Empty Throne Raid Writ: 3% special chance.
+  // If it fails, keep the original rolled tier.
+  const roll = Math.random() * 100;
+  if (roll < 3) return "THRONE";
+  return baseTier;
+}
+
 function pickBaseTier(tier, contentType, triggeredPity) {
   if (contentType === "devilFruit") {
     if (tier === "motherFlame") return rollPremiumDevilFruitTier();
@@ -122,9 +130,18 @@ function pickBaseTier(tier, contentType, triggeredPity) {
 
   if (triggeredPity) return getPityGuarantee(tier);
 
-  if (tier === "motherFlame") return rollPremiumBaseTier();
-  if (tier === "vivreCard") return rollVivreBaseTier();
-  return rollStandardBaseTier();
+  const baseTier =
+    tier === "motherFlame"
+      ? rollPremiumBaseTier()
+      : tier === "vivreCard"
+      ? rollVivreBaseTier()
+      : rollStandardBaseTier();
+
+  if (contentType === "boostCard") {
+    return rollThroneEquivalentCardTier(baseTier);
+  }
+
+  return baseTier;
 }
 
 function prettySlotName(key) {
@@ -223,18 +240,32 @@ function getRewardPool(contentType) {
   return rawDevilFruits;
 }
 
+function getPullRarity(entry) {
+  return String(entry?.pullTier || entry?.baseTier || entry?.rarity || "").toUpperCase();
+}
+
 function pickRandomByRarity(pool, rarity) {
   const list = Array.isArray(pool) ? pool : [];
   if (!list.length) return null;
 
-  const filtered = list.filter(
-    (entry) =>
-      String(entry.baseTier || entry.rarity || "").toUpperCase() ===
-      String(rarity || "").toUpperCase()
-  );
+  const targetRarity = String(rarity || "").toUpperCase();
 
-  const source = filtered.length ? filtered : list;
-  return source[Math.floor(Math.random() * source.length)] || null;
+  // Special pullTier: THRONE means this card only appears from the tiny throne-equivalent pool.
+  if (targetRarity !== "THRONE") {
+    const throneBlocked = list.filter((entry) => getPullRarity(entry) !== "THRONE");
+
+    const filtered = throneBlocked.filter(
+      (entry) => getPullRarity(entry) === targetRarity
+    );
+
+    const source = filtered.length ? filtered : throneBlocked.length ? throneBlocked : list;
+    return source[Math.floor(Math.random() * source.length)] || null;
+  }
+
+  const thronePool = list.filter((entry) => getPullRarity(entry) === "THRONE");
+  if (!thronePool.length) return null;
+
+  return thronePool[Math.floor(Math.random() * thronePool.length)] || null;
 }
 
 function addFragment(list, card) {

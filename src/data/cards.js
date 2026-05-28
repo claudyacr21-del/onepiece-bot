@@ -189,7 +189,8 @@ const EXTRA_REQ_SUPPORT = [
   boostCard({ id: 149, code: "elbaf_might", name: "Elbaf Might", title: "Elbaf Might", rarity: "S", arc: "Support", faction: "Passive", variant: "Giant Valor", boostType: "hp", boostValue: 7, boostTarget: "team", basePower: 1800, boostDescription: "Increase team HP by 7% passively.", devilFruit: "None", equipType: "Passive", image: "" }),
   boostCard({ id: 150, code: "void_century_fragment", name: "Void Century Fragment", title: "Void Century Fragment", rarity: "S", arc: "Support", faction: "Passive", variant: "Forbidden Record", boostType: "exp", boostValue: 12, boostTarget: "account", basePower: 1795, boostDescription: "Increase EXP gain by 12% passively.", devilFruit: "None", equipType: "Passive", image: "" }),
   boostCard({ id: 151, code: "relic_of_joy", name: "Relic of Joy", title: "Relic of Joy", rarity: "S", arc: "Support", faction: "Passive", variant: "Liberation Relic", boostType: "atk", boostValue: 10, boostTarget: "account", basePower: 1950, boostDescription: "Increase team HP by 10% passively.", devilFruit: "None", equipType: "Passive", image: "" }),
-  boostCard({ id: 152, code: "pirate_king_log", name: "Pirate King Log", title: "Pirate King Log", rarity: "S", arc: "Support", faction: "Passive", variant: "Great Voyage Record", boostType: "hp", boostValue: 7, boostTarget: "account", basePower: 1940, boostDescription: "Increase team HP by 7% passively.", devilFruit: "None", equipType: "Passive", image: "" })
+  boostCard({ id: 152, code: "pirate_king_log", name: "Pirate King Log", title: "Pirate King Log", rarity: "S", arc: "Support", faction: "Passive", variant: "Great Voyage Record", boostType: "hp", boostValue: 7, boostTarget: "account", basePower: 1940, boostDescription: "Increase team HP by 7% passively.", devilFruit: "None", equipType: "Passive", image: "" }),
+  boostCard({ id: 165, code: "road_poneglyph", name: "Road Poneglyph", title: "Road Poneglyph", rarity: "S", pullTier: "THRONE", arc: "Support", faction: "Passive", variant: "Final Island Key", boostType: "merge", boostValue: 0, boostTarget: "account", basePower: 2010, boostDescription: "Unlock Merge Card summon and awakening access based on mastery stage.", devilFruit: "None", equipType: "Passive", image: "" })
 ];
 
 const EXTRA_CHARACTER_CARDS = [
@@ -368,6 +369,7 @@ const SPECIAL_FORMS = {
   hody_jones: ["Steroid Tyrant", "Fish-Man Supremacy", "Ocean Rebel"],
   law_surgeon_of_death: ["Surgeon of Death", "Kroom", "Silent Room"],
   kid_captain: ["Captain", "Awakened Magnet", "Damned Punk"],
+  road_poneglyph: ["Road Poneglyph", "Road Poneglyph Deciphered", "Laugh Tale Route"],
 };
 
 function reqCard(code, m2Stage = 1, m3Stage = 2) {

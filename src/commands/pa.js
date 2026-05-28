@@ -73,13 +73,26 @@ function getContentType() {
   return rollPremiumContentType();
 }
 
+function rollThroneEquivalentCardTier(baseTier) {
+  // Same special feel as Empty Throne Raid Writ.
+  // Road Poneglyph will only appear from pullTier: "THRONE".
+  const roll = Math.random() * 100;
+  if (roll < 5) return "THRONE";
+  return baseTier;
+}
+
 function getPremiumRewardTier(contentType, triggeredPity) {
   if (contentType === "devilFruit") return rollPremiumDevilFruitTier();
   if (contentType === "weapon") return rollPremiumWeaponTier();
-
   if (triggeredPity) return "S";
 
-  return rollPremiumBaseTier();
+  const baseTier = rollPremiumBaseTier();
+
+  if (contentType === "boostCard") {
+    return rollThroneEquivalentCardTier(baseTier);
+  }
+
+  return baseTier;
 }
 
 function getTicketPool() {
@@ -155,17 +168,36 @@ function getRewardPool(contentType) {
   return rawDevilFruits;
 }
 
+function getPullRarity(entry) {
+  return String(
+    entry?.pullTier ||
+      entry?.baseTier ||
+      entry?.rarity ||
+      ""
+  ).toUpperCase();
+}
+
 function pickRandomByRarity(pool, rarity) {
   const list = Array.isArray(pool) ? pool : [];
   if (!list.length) return null;
 
-  const filtered = list.filter(
-    (entry) =>
-      String(entry.baseTier || entry.rarity || "").toUpperCase() ===
-      String(rarity || "").toUpperCase()
+  const targetRarity = String(rarity || "").toUpperCase();
+
+  if (targetRarity === "THRONE") {
+    const thronePool = list.filter((entry) => getPullRarity(entry) === "THRONE");
+    if (!thronePool.length) return null;
+
+    return thronePool[Math.floor(Math.random() * thronePool.length)] || null;
+  }
+
+  // Prevent THRONE-only cards from leaking into normal S pool.
+  const normalPool = list.filter((entry) => getPullRarity(entry) !== "THRONE");
+
+  const filtered = normalPool.filter(
+    (entry) => getPullRarity(entry) === targetRarity
   );
 
-  const source = filtered.length ? filtered : list;
+  const source = filtered.length ? filtered : normalPool.length ? normalPool : list;
 
   return source[Math.floor(Math.random() * source.length)] || null;
 }
