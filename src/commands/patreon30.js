@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { setPatreonRole } = require("../utils/patreonRoleStore");
+const { readPatreonRoles, setPatreonRole } = require("../utils/patreonRoleStore");
 
 const DEFAULT_DAYS = 30;
 const INDONESIA_TIMEZONE = process.env.PATREON_TIMEZONE || "Asia/Jakarta";
@@ -18,7 +18,7 @@ const TIER_CONFIG = {
     aliases: ["mother", "mf", "motherflame", "mother_flame", "premium"],
     color: 0x8e44ad,
     title: "🔥 Mother Flame Activated",
-    reason: "Mother Flame Patreon 30 days manual claim",
+    reason: "Mother Flame Patreon manual claim",
   },
 
   vivre_card: {
@@ -33,7 +33,7 @@ const TIER_CONFIG = {
     aliases: ["vivre", "vc", "vivrecard", "vivre_card", "lite"],
     color: 0x2ecc71,
     title: "🧭 Vivre Card Activated",
-    reason: "Vivre Card Patreon 30 days manual claim",
+    reason: "Vivre Card Patreon manual claim",
   },
 };
 
@@ -73,6 +73,15 @@ function normalizeTier(value) {
   return "mother_flame";
 }
 
+function parseDays(value) {
+  const days = Number(value || DEFAULT_DAYS);
+
+  if (!Number.isFinite(days) || days <= 0) return DEFAULT_DAYS;
+  if (days > 365) return 365;
+
+  return Math.floor(days);
+}
+
 function formatIndonesiaDate(timestamp) {
   return new Date(Number(timestamp || Date.now())).toLocaleString("en-US", {
     timeZone: INDONESIA_TIMEZONE,
@@ -83,6 +92,18 @@ function formatIndonesiaDate(timestamp) {
     minute: "2-digit",
     hour12: false,
   });
+}
+
+function formatRemaining(ms) {
+  const safeMs = Math.max(0, Number(ms || 0));
+  const totalMinutes = Math.floor(safeMs / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
 function getConfiguredRoleNames(config) {
@@ -137,7 +158,9 @@ async function removeOtherPatreonTierRoles(member, activeTier) {
     });
 
     for (const role of rolesToRemove.values()) {
-      await member.roles.remove(role.id, `Replacing Patreon tier with ${TIER_CONFIG[activeTier].label}`).catch(() => null);
+      await member.roles
+        .remove(role.id, `Replacing Patreon tier with ${TIER_CONFIG[activeTier].label}`)
+        .catch(() => null);
     }
   }
 }
@@ -156,14 +179,19 @@ module.exports = {
     }
 
     const targetId = parseUserId(args[0]);
+
     if (!targetId) {
       return message.reply(
         [
           "Usage:",
           "`op patreon30 <@user/userId> mother`",
           "`op patreon30 <@user/userId> vivre`",
+          "`op patreon30 <@user/userId> mother 5`",
+          "`op patreon30 <@user/userId> vivre 5`",
           "",
           "Default tier: `mother`",
+          "Default duration: `30 days`",
+          "Custom days can be used for recovery.",
         ].join("\n")
       );
     }
@@ -181,12 +209,14 @@ module.exports = {
     }
 
     const tier = getTierFromCommandOrArgs(usedCommandRaw, args[1]);
+    const days = parseDays(args[2]);
     const config = TIER_CONFIG[tier] || TIER_CONFIG.mother_flame;
 
     const role = await resolveTierRole(message, tier);
+
     if (!role) {
       return message.reply(
-        `${config.label} role was not found. Set the role ID in Railway or create a role named \`${config.fallbackRoleName}\`.`
+        `${config.label} role was not found. Set the role ID in Render/Railway or create a role named \`${config.fallbackRoleName}\`.`
       );
     }
 
@@ -205,6 +235,7 @@ module.exports = {
     }
 
     const member = await message.guild.members.fetch(targetId).catch(() => null);
+
     if (!member) {
       return message.reply("Target user was not found in this server.");
     }
@@ -212,8 +243,15 @@ module.exports = {
     await removeOtherPatreonTierRoles(member, tier);
     await member.roles.add(role.id, config.reason);
 
-    const grantedAt = Date.now();
-    const expiresAt = grantedAt + DEFAULT_DAYS * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const currentRoles = readPatreonRoles();
+    const existing = currentRoles[String(member.id)] || null;
+    const existingExpiresAt = Number(existing?.expiresAt || 0);
+
+    const baseExpiresAt = existingExpiresAt > now ? existingExpiresAt : now;
+    const grantedAt = now;
+    const expiresAt = baseExpiresAt + days * 24 * 60 * 60 * 1000;
+    const wasExtended = existingExpiresAt > now;
 
     setPatreonRole(member.id, {
       tier,
@@ -232,12 +270,17 @@ module.exports = {
           `**User:** ${member.user.tag}`,
           `**Tier:** ${config.label}`,
           `**Role:** ${role.name}`,
-          `**Duration:** ${DEFAULT_DAYS} days`,
+          `**Added Duration:** ${days} days`,
+          `**Mode:** ${wasExtended ? "Extended from existing active expiry" : "Started from now"}`,
+          wasExtended ? `**Previous Expires At:** ${formatIndonesiaDate(existingExpiresAt)} WIB` : null,
           `**Granted At:** ${formatIndonesiaDate(grantedAt)} WIB`,
           `**Expires At:** ${formatIndonesiaDate(expiresAt)} WIB`,
+          `**Remaining:** ${formatRemaining(expiresAt - now)}`,
           "",
           "This Patreon role was activated manually after ticket proof verification.",
-        ].join("\n")
+        ]
+          .filter(Boolean)
+          .join("\n")
       )
       .setFooter({
         text: "One Piece Bot • Patreon Admin",

@@ -2,6 +2,34 @@ const { readPlayers, writePlayers } = require("../playerStore");
 
 const STORE_KEY = "__patreon_roles__";
 
+function normalizeTier(value) {
+  const tier = String(value || "mother_flame").toLowerCase().trim();
+
+  if (
+    tier === "vivre_card" ||
+    tier === "vivrecard" ||
+    tier === "vivre" ||
+    tier === "vc" ||
+    tier === "lite"
+  ) {
+    return "vivre_card";
+  }
+
+  return "mother_flame";
+}
+
+function normalizeEntry(userId, entry = {}) {
+  return {
+    userId: String(userId),
+    tier: normalizeTier(entry.tier),
+    roleId: String(entry.roleId || ""),
+    guildId: String(entry.guildId || ""),
+    grantedBy: String(entry.grantedBy || ""),
+    grantedAt: Number(entry.grantedAt || Date.now()),
+    expiresAt: Number(entry.expiresAt || Date.now()),
+  };
+}
+
 function getStoreRoot() {
   const players = readPlayers();
 
@@ -24,28 +52,6 @@ function getStoreRoot() {
   };
 }
 
-function normalizeTier(value) {
-  const tier = String(value || "mother_flame").toLowerCase().trim();
-
-  if (tier === "vivre_card" || tier === "vivrecard" || tier === "vivre" || tier === "vc") {
-    return "vivre_card";
-  }
-
-  return "mother_flame";
-}
-
-function normalizeEntry(userId, entry = {}) {
-  return {
-    userId: String(userId),
-    tier: normalizeTier(entry.tier),
-    roleId: String(entry.roleId || ""),
-    guildId: String(entry.guildId || ""),
-    grantedBy: String(entry.grantedBy || ""),
-    grantedAt: Number(entry.grantedAt || Date.now()),
-    expiresAt: Number(entry.expiresAt || Date.now()),
-  };
-}
-
 function readPatreonRoles() {
   const { store } = getStoreRoot();
   const output = {};
@@ -60,7 +66,6 @@ function readPatreonRoles() {
 
 function writePatreonRoles(data) {
   const { players, store } = getStoreRoot();
-
   const clean = {};
 
   for (const [userId, entry] of Object.entries(data || {})) {
@@ -78,17 +83,17 @@ function writePatreonRoles(data) {
   writePlayers(players);
 }
 
-function setPatreonRole(userId, payload) {
+function setPatreonRole(userId, payload = {}) {
   const data = readPatreonRoles();
 
   data[String(userId)] = normalizeEntry(userId, {
     userId: String(userId),
-    tier: payload?.tier || "mother_flame",
-    roleId: payload?.roleId || "",
-    guildId: payload?.guildId || "",
-    grantedBy: payload?.grantedBy || "",
-    grantedAt: Number(payload?.grantedAt || Date.now()),
-    expiresAt: Number(payload?.expiresAt || Date.now()),
+    tier: payload.tier || "mother_flame",
+    roleId: payload.roleId || "",
+    guildId: payload.guildId || "",
+    grantedBy: payload.grantedBy || "",
+    grantedAt: Number(payload.grantedAt || Date.now()),
+    expiresAt: Number(payload.expiresAt || Date.now()),
   });
 
   writePatreonRoles(data);
