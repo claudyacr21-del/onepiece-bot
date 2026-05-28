@@ -845,19 +845,46 @@ function getMergeMemberWeapons(card) {
 
   if (Array.isArray(card?.equippedWeapons)) {
     for (const weapon of card.equippedWeapons) {
-      const name = weapon?.name || weapon?.displayName || weapon?.code;
+      const name =
+        weapon?.name ||
+        weapon?.displayName ||
+        weapon?.title ||
+        weapon?.code;
+
       if (name) weapons.push(name);
     }
   }
 
-  if (card?.equippedWeapon?.name || card?.equippedWeapon?.code) {
-    weapons.push(card.equippedWeapon.name || card.equippedWeapon.code);
+  if (card?.equippedWeapon && typeof card.equippedWeapon === "object") {
+    const name =
+      card.equippedWeapon.name ||
+      card.equippedWeapon.displayName ||
+      card.equippedWeapon.title ||
+      card.equippedWeapon.code;
+
+    if (name) weapons.push(name);
   }
 
-  if (card?.equippedWeaponName) weapons.push(card.equippedWeaponName);
-  if (card?.weapon && card.weapon !== "None") weapons.push(card.weapon);
+  if (card?.equippedWeaponName) {
+    weapons.push(card.equippedWeaponName);
+  }
 
-  return [...new Set(weapons.map((item) => String(item).trim()).filter(Boolean))];
+  return [
+    ...new Set(
+      weapons
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .filter((item) => {
+          const text = item.toLowerCase();
+          return (
+            text !== "none" &&
+            text !== "basic iron club" &&
+            text !== "basic iron sword" &&
+            text !== "basic weapon"
+          );
+        })
+    ),
+  ];
 }
 
 function buildMergeCiEmbed(message, mergeCard, player) {
@@ -899,7 +926,7 @@ function buildMergeCiEmbed(message, mergeCard, player) {
 
     const weapons = getMergeMemberWeapons(ownedMember);
     for (const weapon of weapons) {
-      weaponLines.push(`${member.label}: ${weapon}`);
+      weaponLines.push(weapon);
     }
   }
 
@@ -920,7 +947,7 @@ function buildMergeCiEmbed(message, mergeCard, player) {
         `**Badge:** M`,
         "",
         "**Signature Weapons:**",
-        weaponLines.length ? weaponLines.join("\n") : "None",
+        weaponLines.length ? [...new Set(weaponLines)].join("\n") : "None",
         "",
         `**Source:** ${mergeCard.source || "Summoning"}`,
       ].join("\n")
