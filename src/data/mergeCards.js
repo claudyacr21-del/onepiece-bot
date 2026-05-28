@@ -87,9 +87,9 @@ const MERGE_CARDS = [
     image: "",
 
     stageImages: {
-      M1: "ISI_URL_IMAGE_MONSTER_TRIO_M1",
-      M2: "ISI_URL_IMAGE_MONSTER_TRIO_M2",
-      M3: "ISI_URL_IMAGE_MONSTER_TRIO_M3",
+      M1: "",
+      M2: "",
+      M3: "",
     },
   },
 ];
