@@ -985,6 +985,25 @@ const AWAKEN_GEMS_COST_BY_BASE_TIER = {
   },
 };
 
+const AWAKEN_BERRIES_COST_BY_BASE_TIER = {
+  S: {
+    1: 1500000,
+    2: 750000,
+  },
+  A: {
+    1: 1000000,
+    2: 500000,
+  },
+  B: {
+    1: 450000,
+    2: 350000,
+  },
+  C: {
+    1: 250000,
+    2: 150000,
+  },
+};
+
 function getAwakenCostBaseTier(targetCard) {
   const template = findTemplateByCode(targetCard?.code);
 
@@ -1018,6 +1037,20 @@ function getDefaultAwakenGemsCost(targetCard) {
   return Number(tierCosts[currentStage] || 0);
 }
 
+function getDefaultAwakenBerriesCost(targetCard) {
+  const currentStage = Math.max(1, Math.min(3, Number(targetCard?.evolutionStage || 1)));
+  const baseTier = getAwakenCostBaseTier(targetCard);
+  const tierCosts =
+    AWAKEN_BERRIES_COST_BY_BASE_TIER[baseTier] ||
+    AWAKEN_BERRIES_COST_BY_BASE_TIER.C;
+
+  return Number(tierCosts[currentStage] || 0);
+}
+
+function getAwakenBerriesCost(req, targetCard) {
+  return getDefaultAwakenBerriesCost(targetCard);
+}
+
 function getAwakenGemsCost(req, targetCard) {
   return getDefaultAwakenGemsCost(targetCard);
 }
@@ -1025,9 +1058,8 @@ function getAwakenGemsCost(req, targetCard) {
 function validateAwakenRequirement(player, targetCard, req) {
   const missing = [];
 
-  const berriesNeed = Number(req?.berries || 0);
+  const berriesNeed = getAwakenBerriesCost(req, targetCard);
   const berriesOwned = Number(player?.berries || 0);
-
   if (berriesOwned < berriesNeed) {
     missing.push(
       `Berries ${berriesOwned.toLocaleString("en-US")}/${berriesNeed.toLocaleString("en-US")}`
@@ -1192,7 +1224,7 @@ function awakenOwnedCard(player, query) {
   return {
     updatedCards: nextCards,
     updatedFragments: afterFragmentConsume.updatedFragments,
-    berries: Number(player.berries || 0) - Number(req.berries || 0),
+    berries: Number(player.berries || 0) - getAwakenBerriesCost(req, target),
     gems: Number(player.gems || 0) - gemsNeed,
     target: updatedTarget,
   };
