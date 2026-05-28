@@ -632,7 +632,7 @@ module.exports = [
   },
   {
     code: "wado_ichimonji",
-    name: "Wado Ichimonji",
+    name: "Wado Ichimonjii",
     rarity: "UR",
     owners: ["zoro_pirate_hunter"],
     type: "Great Grade Sword",
