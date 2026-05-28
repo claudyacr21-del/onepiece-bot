@@ -79,68 +79,183 @@ function findWeaponByNameOnly(query) {
   return scored.length ? scored[0].weapon : null;
 }
 
-function findCardFragmentIndex(fragments, card) {
-  const cardCode = normalize(card.code);
+function isMatchingCardFragment(frag, card) {
+  const cardCode = normalize(card?.code);
   const cardName = normalize(getCardName(card));
 
-  return fragments.findIndex((frag) => {
-    const fragCode = normalize(frag.code);
-    const fragName = normalize(frag.name || frag.displayName);
+  const fragCode = normalize(frag?.code);
+  const fragName = normalize(frag?.name || frag?.displayName);
+  const fragCardCode = normalize(
+    frag?.cardCode ||
+      frag?.sourceCode ||
+      frag?.characterCode ||
+      frag?.sourceCardCode ||
+      frag?.targetCode
+  );
 
-    return (
-      fragCode === cardCode ||
-      fragName === cardName ||
-      fragName === `${cardName} fragment` ||
-      fragName.includes(cardName) ||
-      cardName.includes(fragName)
-    );
+  return (
+    fragCode === cardCode ||
+    fragCardCode === cardCode ||
+    fragName === cardName ||
+    fragName === `${cardName} fragment` ||
+    fragName.includes(cardName) ||
+    cardName.includes(fragName)
+  );
+}
+
+function getCardFragmentMatches(fragments, card) {
+  return (Array.isArray(fragments) ? fragments : [])
+    .map((frag, index) => ({
+      frag,
+      index,
+      amount: Number(frag?.amount || 0),
+    }))
+    .filter((entry) => entry.amount > 0 && isMatchingCardFragment(entry.frag, card));
+}
+
+function getTotalCardFragments(fragments, card) {
+  return getCardFragmentMatches(fragments, card).reduce(
+    (total, entry) => total + Number(entry.amount || 0),
+    0
+  );
+}
+
+function consumeCardFragments(fragments, card, amount) {
+  const arr = Array.isArray(fragments) ? [...fragments] : [];
+  let remainingToConsume = Number(amount || 0);
+
+  const matches = getCardFragmentMatches(arr, card).sort((a, b) => {
+    const aExactCode = normalize(a.frag?.code) === normalize(card?.code) ? 1 : 0;
+    const bExactCode = normalize(b.frag?.code) === normalize(card?.code) ? 1 : 0;
+
+    if (bExactCode !== aExactCode) return bExactCode - aExactCode;
+    return b.amount - a.amount;
   });
+
+  const totalOwned = matches.reduce((total, entry) => total + entry.amount, 0);
+
+  if (totalOwned < amount) {
+    return null;
+  }
+
+  for (const match of matches) {
+    if (remainingToConsume <= 0) break;
+
+    const currentIndex = arr.findIndex((entry) => entry === match.frag);
+    if (currentIndex < 0) continue;
+
+    const currentAmount = Number(arr[currentIndex]?.amount || 0);
+    const take = Math.min(currentAmount, remainingToConsume);
+    const left = currentAmount - take;
+
+    remainingToConsume -= take;
+
+    if (left <= 0) {
+      arr.splice(currentIndex, 1);
+    } else {
+      arr[currentIndex] = {
+        ...arr[currentIndex],
+        amount: left,
+      };
+    }
+  }
+
+  return {
+    fragments: arr,
+    remaining: totalOwned - amount,
+  };
 }
 
 function getWeaponFragmentCode(weapon) {
   return `weapon_fragment_${String(weapon.code || "").toLowerCase()}`;
 }
 
-function findWeaponFragmentIndex(fragments, weapon) {
+function isMatchingWeaponFragment(frag, weapon) {
   const fragmentCode = normalize(getWeaponFragmentCode(weapon));
-  const weaponCode = normalize(weapon.code);
-  const weaponName = normalize(weapon.name);
-  const fragmentName = normalize(`${weapon.name} Fragment`);
+  const weaponCode = normalize(weapon?.code);
+  const weaponName = normalize(weapon?.name);
+  const fragmentName = normalize(`${weapon?.name || ""} Fragment`);
 
-  return fragments.findIndex((frag) => {
-    const fragCode = normalize(frag.code);
-    const fragName = normalize(frag.name || frag.displayName);
-    const fragWeaponCode = normalize(frag.weaponCode);
+  const fragCode = normalize(frag?.code);
+  const fragName = normalize(frag?.name || frag?.displayName);
+  const fragWeaponCode = normalize(
+    frag?.weaponCode ||
+      frag?.sourceCode ||
+      frag?.sourceWeaponCode ||
+      frag?.targetCode
+  );
 
-    return (
-      fragCode === fragmentCode ||
-      fragWeaponCode === weaponCode ||
-      fragName === fragmentName ||
-      fragName === weaponName
-    );
-  });
+  return (
+    fragCode === fragmentCode ||
+    fragCode === weaponCode ||
+    fragWeaponCode === weaponCode ||
+    fragName === fragmentName ||
+    fragName === weaponName ||
+    fragName.includes(weaponName) ||
+    weaponName.includes(fragName)
+  );
 }
 
-function consumeFragments(fragments, index, amount) {
+function getWeaponFragmentMatches(fragments, weapon) {
+  return (Array.isArray(fragments) ? fragments : [])
+    .map((frag, index) => ({
+      frag,
+      index,
+      amount: Number(frag?.amount || 0),
+    }))
+    .filter((entry) => entry.amount > 0 && isMatchingWeaponFragment(entry.frag, weapon));
+}
+
+function getTotalWeaponFragments(fragments, weapon) {
+  return getWeaponFragmentMatches(fragments, weapon).reduce(
+    (total, entry) => total + Number(entry.amount || 0),
+    0
+  );
+}
+
+function consumeWeaponFragments(fragments, weapon, amount) {
   const arr = Array.isArray(fragments) ? [...fragments] : [];
-  const owned = Number(arr[index]?.amount || 0);
+  let remainingToConsume = Number(amount || 0);
 
-  if (index < 0 || owned < amount) return null;
+  const matches = getWeaponFragmentMatches(arr, weapon).sort((a, b) => {
+    const aExactCode = normalize(a.frag?.code) === normalize(getWeaponFragmentCode(weapon)) ? 1 : 0;
+    const bExactCode = normalize(b.frag?.code) === normalize(getWeaponFragmentCode(weapon)) ? 1 : 0;
 
-  const remaining = owned - amount;
+    if (bExactCode !== aExactCode) return bExactCode - aExactCode;
+    return b.amount - a.amount;
+  });
 
-  if (remaining <= 0) {
-    arr.splice(index, 1);
-  } else {
-    arr[index] = {
-      ...arr[index],
-      amount: remaining,
-    };
+  const totalOwned = matches.reduce((total, entry) => total + entry.amount, 0);
+
+  if (totalOwned < amount) {
+    return null;
+  }
+
+  for (const match of matches) {
+    if (remainingToConsume <= 0) break;
+
+    const currentIndex = arr.findIndex((entry) => entry === match.frag);
+    if (currentIndex < 0) continue;
+
+    const currentAmount = Number(arr[currentIndex]?.amount || 0);
+    const take = Math.min(currentAmount, remainingToConsume);
+    const left = currentAmount - take;
+
+    remainingToConsume -= take;
+
+    if (left <= 0) {
+      arr.splice(currentIndex, 1);
+    } else {
+      arr[currentIndex] = {
+        ...arr[currentIndex],
+        amount: left,
+      };
+    }
   }
 
   return {
     fragments: arr,
-    remaining,
+    remaining: totalOwned - amount,
   };
 }
 
@@ -278,7 +393,6 @@ module.exports = {
       });
     }
 
-    const previewPlayer = getPlayer(message.author.id, message.author.username);
     const card = findSummonableCard(query);
     const weapon = card ? null : findWeaponByNameOnly(query);
 
@@ -318,15 +432,13 @@ module.exports = {
               throw new Error(requirementError);
             }
 
-            const fragmentIndex = findCardFragmentIndex(fragments, card);
+            const ownedFragments = getTotalCardFragments(fragments, card);
 
-            if (fragmentIndex === -1) {
+            if (ownedFragments <= 0) {
               throw new Error(
                 `You need **${SUMMON_FRAGMENT_COST}x ${getCardName(card)} Fragment** to summon this card.`
               );
             }
-
-            const ownedFragments = Number(fragments[fragmentIndex].amount || 0);
 
             if (ownedFragments < SUMMON_FRAGMENT_COST) {
               throw new Error(
@@ -334,7 +446,7 @@ module.exports = {
               );
             }
 
-            const consumed = consumeFragments(fragments, fragmentIndex, SUMMON_FRAGMENT_COST);
+            const consumed = consumeCardFragments(fragments, card, SUMMON_FRAGMENT_COST);
 
             if (!consumed) {
               throw new Error("Failed to consume fragments.");
@@ -358,15 +470,13 @@ module.exports = {
             throw new Error(`You already own **${weapon.name}**.`);
           }
 
-          const fragmentIndex = findWeaponFragmentIndex(fragments, weapon);
+          const ownedFragments = getTotalWeaponFragments(fragments, weapon);
 
-          if (fragmentIndex === -1) {
+          if (ownedFragments <= 0) {
             throw new Error(
               `You need **${SUMMON_FRAGMENT_COST}x ${weapon.name} Fragment** to summon this weapon.`
             );
           }
-
-          const ownedFragments = Number(fragments[fragmentIndex].amount || 0);
 
           if (ownedFragments < SUMMON_FRAGMENT_COST) {
             throw new Error(
@@ -374,7 +484,7 @@ module.exports = {
             );
           }
 
-          const consumed = consumeFragments(fragments, fragmentIndex, SUMMON_FRAGMENT_COST);
+          const consumed = consumeWeaponFragments(fragments, weapon, SUMMON_FRAGMENT_COST);
 
           if (!consumed) {
             throw new Error("Failed to consume fragments.");
