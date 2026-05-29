@@ -431,12 +431,6 @@ const BOOST_CANON_CARD_REQUIREMENTS = {
   holy_knight_sigil: [reqCard("garling", 1, 2)],
   giant_curse: [reqCard("loki", 1, 2)],
   samurai_spirit: [reqCard("oden", 1, 2)],
-  road_poneglyph: {
-    cards: [
-      reqCard("luffy_straw_hat", 2, 3),
-      reqCard("shanks_red_hair", 2, 3),
-    ],
-  },
 };
 
 const CANON_LINKS = {
@@ -518,12 +512,10 @@ const CANON_LINKS = {
 
   franky_cyborg: {
     cards: [
+      reqCard("iceburg", 1, 2),
       reqCard("brook_soul_king", 1, 2),
     ],
-    boosts: [
-      reqBoost("cola_engine", 1, 2),
-      reqBoost("iceburg", 1, 2),
-    ],
+    boosts: [reqBoost("cola_engine", 1, 2)],
   },
 
   lucci_cp9: {
