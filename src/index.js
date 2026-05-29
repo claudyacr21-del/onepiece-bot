@@ -45,6 +45,13 @@ const client = new Client({
 const PREFIX = String(process.env.PREFIX || "op").toLowerCase();
 const COMMAND_COOLDOWN_MS = 3000;
 
+const MAIN_GUILD_ID =
+  process.env.MAIN_GUILD_ID ||
+  process.env.SUPPORT_GUILD_ID ||
+  process.env.GUILD_ID ||
+  process.env.SERVER_ID ||
+  "";
+
 const commandCooldowns = new Map();
 const processedMessageIds = new Set();
 
@@ -165,6 +172,51 @@ async function claimMessageOnce(message, commandName = "") {
     return true;
   }
 }
+
+async function attachMainServerContext(message) {
+  message.commandGuild = message.guild || null;
+  message.commandMember = message.member || null;
+  message.mainGuild = null;
+  message.mainMember = null;
+  message.resolvedGuild = message.guild || null;
+  message.resolvedMember = message.member || null;
+  message.isDMCommand = !message.guild;
+
+  if (!MAIN_GUILD_ID || !message.client?.guilds?.cache) {
+    return message;
+  }
+
+  const mainGuild =
+    message.client.guilds.cache.get(MAIN_GUILD_ID) ||
+    (await message.client.guilds.fetch(MAIN_GUILD_ID).catch(() => null));
+
+  if (!mainGuild) {
+    return message;
+  }
+
+  message.mainGuild = mainGuild;
+  message.resolvedGuild = mainGuild;
+
+  const mainMember =
+    mainGuild.members.cache.get(message.author.id) ||
+    (await mainGuild.members.fetch(message.author.id).catch(() => null));
+
+  message.mainMember = mainMember || null;
+  message.resolvedMember = message.mainMember || message.member || null;
+
+  return message;
+}
+
+function getCommandGuild(message) {
+  return message?.mainGuild || message?.guild || null;
+}
+
+function getCommandMember(message) {
+  return message?.mainMember || message?.member || null;
+}
+
+global.getCommandGuild = getCommandGuild;
+global.getCommandMember = getCommandMember;
 
 client.commands = new Collection();
 
@@ -288,8 +340,9 @@ function isMaintenanceBypassUser(message) {
   const ownerIds = getOwnerIds();
 
   const isBotOwner = ownerIds.includes(String(message.author.id));
+  const guild = getCommandGuild(message);
   const isServerOwner =
-    message.guild && String(message.guild.ownerId) === String(message.author.id);
+    guild && String(guild.ownerId) === String(message.author.id);
 
   return Boolean(isBotOwner || isServerOwner);
 }
@@ -454,6 +507,8 @@ client.on("messageCreate", async (message) => {
       await message.reply(`Unknown command: \`${commandName}\``);
       return;
     }
+
+    await attachMainServerContext(message);
 
     if (
       isMaintenanceActive() &&
