@@ -983,6 +983,123 @@ function mergeRows(stage) {
   ];
 }
 
+
+function getMergeMemberFruits(card) {
+ const fruits = [];
+ const fields = [
+  card?.devilFruit,
+  card?.displayFruitName,
+  card?.fruit,
+  card?.equippedFruit,
+  card?.equippedFruitName,
+ ];
+
+ for (const item of fields) {
+  if (!item) continue;
+  if (typeof item === "object") {
+   const name = item.name || item.displayName || item.title || item.code;
+   if (name) fruits.push(name);
+  } else {
+   fruits.push(item);
+  }
+ }
+
+ return [
+  ...new Set(
+   fruits
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .filter((item) => !["none", "null", "undefined"].includes(item.toLowerCase()))
+  ),
+ ];
+}
+
+function buildMergeNormalViewerCard(mergeCard, player) {
+ const members = Array.isArray(mergeCard?.members) ? mergeCard.members : [];
+ const stageImages = mergeCard.stageImages || {};
+ const badgeImage = getRarityBadge("Merge") || getRarityBadge("M") || getRarityBadge("B");
+
+ const base = {
+  atk: 0,
+  hp: 0,
+  speed: 0,
+  power: 0,
+ };
+
+ const weaponLines = [];
+ const fruitLines = [];
+
+ for (const member of members) {
+  const ownedMember = findMergeMemberCard(player, member);
+  if (!ownedMember) continue;
+
+  const percent = Number(member.statPercent || mergeCard.statPercent || 50) / 100;
+  const stats = getMergeMemberStats(ownedMember);
+
+  base.atk += Math.floor(Number(stats.atk || 0) * percent);
+  base.hp += Math.floor(Number(stats.hp || 0) * percent);
+  base.speed += Math.floor(Number(stats.speed || 0) * percent);
+  base.power += Math.floor(Number(stats.power || 0) * percent);
+
+  for (const weapon of getMergeMemberWeapons(ownedMember)) weaponLines.push(weapon);
+  for (const fruit of getMergeMemberFruits(ownedMember)) fruitLines.push(fruit);
+ }
+
+ const makeStage = (stage, mult, speedMult) => {
+  const stageKey = `M${stage}`;
+  return {
+   name: mergeCard.masteryNames?.[stage - 1] || mergeCard.title || mergeCard.name,
+   formTitle: mergeCard.masteryNames?.[stage - 1] || mergeCard.title || mergeCard.name,
+   specialName: mergeCard.masteryNames?.[stage - 1] || mergeCard.title || mergeCard.name,
+   tier: "Merge",
+   badgeImage,
+   atk: Math.floor(base.atk * mult),
+   hp: Math.floor(base.hp * mult),
+   speed: Math.floor(base.speed * speedMult),
+   spd: Math.floor(base.speed * speedMult),
+   power: Math.floor(base.power * mult),
+   currentPower: Math.floor(base.power * mult),
+   image: stageImages?.[stageKey] || mergeCard.image || "",
+  };
+ };
+
+ const m1 = makeStage(1, 1, 1);
+ const m2 = makeStage(2, 1.25, 1.12);
+ const m3 = makeStage(3, 1.55, 1.25);
+
+ return {
+  ...mergeCard,
+  id: mergeCard.id || mergeCard.code,
+  code: mergeCard.code,
+  name: mergeCard.name,
+  displayName: mergeCard.displayName || mergeCard.name,
+  title: mergeCard.title || mergeCard.name,
+  cardRole: "merge",
+  role: "merge",
+  category: "merge",
+  type: "Merge",
+  rarity: "Merge",
+  currentTier: "Merge",
+  baseTier: "Merge",
+  atk: m3.atk,
+  hp: m3.hp,
+  speed: m3.speed,
+  spd: m3.speed,
+  power: m3.power,
+  currentPower: m3.power,
+  powerCaps: {
+   M1: m1.power,
+   M2: m2.power,
+   M3: m3.power,
+  },
+  weapon: weaponLines.length ? [...new Set(weaponLines)].join(", ") : "None",
+  devilFruit: fruitLines.length ? [...new Set(fruitLines)].join(", ") : "None",
+  stageImages,
+  image: stageImages.M1 || mergeCard.image || "",
+  evolutionForms: [m1, m2, m3],
+ };
+}
+
 module.exports = {
   name: "ci",
   aliases: ["cardinfo"],
@@ -1045,7 +1162,7 @@ module.exports = {
     const globalCard = findCardTemplateByNameOnly(query);
     if (!globalCard) return message.reply("Card not found in global database.");
 
-    const owned = findOwnedCard(player.cards || [], query);
+    const owned = mergeCard ? findOwnedMergeCard(player, mergeCard) : findOwnedCard(player.cards || [], query);
     let stage = 1;
 
     const sent = await message.reply({
@@ -1085,7 +1202,7 @@ module.exports = {
       }
 
       const freshPlayer = getPlayer(message.author.id, message.author.username);
-      const freshOwned = findOwnedCard(freshPlayer.cards || [], query);
+      const freshOwned = mergeCard ? findOwnedMergeCard(freshPlayer, mergeCard) : findOwnedCard(freshPlayer.cards || [], query);
 
       return i.update({
         embeds: [buildEmbed(globalCard, freshOwned, stage)],
