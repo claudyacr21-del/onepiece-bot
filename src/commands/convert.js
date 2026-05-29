@@ -147,7 +147,7 @@ module.exports = {
 
     if (isRoadPoneglyph(query)) {
       return message.reply({
-        content: "❌ Road Poneglyph tidak bisa di-convert lewat universal fragment.",
+        content: "❌ Road Poneglyph cannot be converted via universal fragment.",
         allowedMentions: { repliedUser: false },
       });
     }
@@ -163,7 +163,7 @@ module.exports = {
 
     if (isRoadPoneglyph(card)) {
       return message.reply({
-        content: "❌ Road Poneglyph tidak bisa di-convert lewat universal fragment.",
+        content: "❌ Road Poneglyph cannot be converted via universal fragment.",
         allowedMentions: { repliedUser: false },
       });
     }
