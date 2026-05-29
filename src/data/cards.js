@@ -1091,6 +1091,104 @@ const ALL_CARDS = [
 // ============================================================
 
 
+
+// ============================================================
+// ROAD PONEGLYPH RULES PATCH
+// ============================================================
+function applyRoadPoneglyphRules() {
+  const road = ALL_CARDS.find((card) => {
+    const code = String(card?.code || "").toLowerCase().trim();
+    const name = String(card?.displayName || card?.name || "").toLowerCase().trim();
+    return code === "road_poneglyph" || name === "road poneglyph";
+  });
+
+  if (!road) return;
+
+  const effects = {
+    M1: "Allows you to summon Merged cards!",
+    M2: "Allows you to evolve Merged cards to Mastery 2!",
+    M3: "Allows you to evolve Merged cards to Mastery 3!",
+  };
+
+  const oldForms = Array.isArray(road.evolutionForms) ? road.evolutionForms : [];
+
+  const forms = [
+    {
+      ...(oldForms[0] || {}),
+      stage: 1,
+      key: "M1",
+      tier: road.baseTier || road.rarity || "S",
+      name: road.name || "Road Poneglyph",
+      formTitle: "Road Poneglyph",
+      specialName: "Road Poneglyph",
+      effectText: effects.M1,
+      boostDescription: effects.M1,
+      description: effects.M1,
+      require: null,
+    },
+    {
+      ...(oldForms[1] || {}),
+      stage: 2,
+      key: "M2",
+      tier: road.baseTier || road.rarity || "S",
+      name: road.name || "Road Poneglyph",
+      formTitle: "Road Poneglyph",
+      specialName: "Road Poneglyph",
+      effectText: effects.M2,
+      boostDescription: effects.M2,
+      description: effects.M2,
+      require: {
+        ...(oldForms[1]?.require || {}),
+        berries: 650000,
+      },
+    },
+    {
+      ...(oldForms[2] || {}),
+      stage: 3,
+      key: "M3",
+      tier: road.baseTier || road.rarity || "S",
+      name: road.name || "Road Poneglyph",
+      formTitle: "Road Poneglyph",
+      specialName: "Road Poneglyph",
+      effectText: effects.M3,
+      boostDescription: effects.M3,
+      description: effects.M3,
+      require: {
+        ...(oldForms[2]?.require || {}),
+        berries: 950000,
+      },
+    },
+  ];
+
+  Object.assign(road, {
+    code: "road_poneglyph",
+    name: road.name || "Road Poneglyph",
+    displayName: road.displayName || road.name || "Road Poneglyph",
+    cardRole: road.cardRole || "boost",
+    type: road.type || "Road Poneglyph",
+    boostType: "road_poneglyph",
+    boostTarget: "merged_cards",
+    boostDescription: effects.M1,
+    effectText: effects.M1,
+    description: effects.M1,
+    evolutionForms: forms,
+    awakenRequirements: {
+      ...(road.awakenRequirements || {}),
+      M2: {
+        ...(road.awakenRequirements?.M2 || forms[1].require || {}),
+        berries: 650000,
+      },
+      M3: {
+        ...(road.awakenRequirements?.M3 || forms[2].require || {}),
+        berries: 950000,
+      },
+    },
+  });
+}
+
+applyRoadPoneglyphRules();
+// END ROAD PONEGLYPH RULES PATCH
+
 module.exports = ALL_CARDS;
 
 module.exports.BASE_CARDS = BASE_CARDS;
