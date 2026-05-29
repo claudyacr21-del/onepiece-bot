@@ -369,44 +369,13 @@ function findCardTemplateForMergeMember(member) {
   );
 }
 
-function getMergeCardPower(mergeCard) {
-  return (mergeCard.members || []).reduce((total, member) => {
-    const template = findCardTemplateForMergeMember(member);
-    const percent = Number(member.statPercent || mergeCard.statPercent || 50) / 100;
 
-    if (!template) return total;
 
-    return total + Math.floor(getCardPower(template, "M1") * percent);
-  }, 0);
-}
 
-function getMergeCardStats(mergeCard) {
-  return (mergeCard.members || []).reduce(
-    (total, member) => {
-      const template = findCardTemplateForMergeMember(member);
-      const percent = Number(member.statPercent || mergeCard.statPercent || 50) / 100;
-
-      if (!template) return total;
-
-      const stats = getBaseCardStats(template, template.evolutionForms?.[0] || null);
-
-      total.atk += Math.floor(Number(stats.atk || 0) * percent);
-      total.hp += Math.floor(Number(stats.hp || 0) * percent);
-      total.speed += Math.floor(Number(stats.speed || 0) * percent);
-
-      return total;
-    },
-    {
-      atk: 0,
-      hp: 0,
-      speed: 0,
-    }
-  );
-}
 
 function buildMergeEmbed(item, index, total) {
-  const stats = getMergeCardStats(item);
-  const power = getMergeCardPower(item);
+  const stats = {};
+  const power = 0;
   const stageKey = "M1";
 
   return new EmbedBuilder()
@@ -538,8 +507,7 @@ module.exports = {
     }
 
     if (mode === "merge") {
-      list = [...getMergeCards()].sort((a, b) => {
-        const powerDiff = getMergeCardPower(b) - getMergeCardPower(a);
+      list = [];
         if (powerDiff !== 0) return powerDiff;
 
         return String(a.name || a.code).localeCompare(String(b.name || b.code));
@@ -555,14 +523,13 @@ module.exports = {
       );
 
       if (mode === "battle") {
-        const mergeCards = [...getMergeCards()].sort((a, b) => {
-          const powerDiff = getMergeCardPower(b) - getMergeCardPower(a);
+        const mergeCards = [];
           if (powerDiff !== 0) return powerDiff;
 
           return String(a.name || a.code).localeCompare(String(b.name || b.code));
         });
 
-        list = [...mergeCards, ...normalCards];
+        list = normalCards;
 
         renderer = (item, index, total) => {
           if (item.cardRole === "merge") {

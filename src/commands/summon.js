@@ -413,12 +413,7 @@ function hasMergeKeyStage(player, mergeCard, requiredStage = 1) {
   });
 }
 
-function alreadyOwnsMergeCard(player, mergeCard) {
-  const cards = Array.isArray(player?.cards) ? player.cards : [];
-  const code = normalize(mergeCard.code);
 
-  return cards.some((card) => normalize(card?.code) === code);
-}
 
 function makePseudoFragmentCard(fragmentName) {
   return {
@@ -464,37 +459,7 @@ function consumeMergeRequirementFragments(fragments, mergeCard) {
   };
 }
 
-function createOwnedMergeCard(mergeCard) {
-  const now = Date.now();
-  const stageKey = "M1";
 
-  return {
-    instanceId: `${mergeCard.code}_${now}_${Math.random().toString(36).slice(2, 8)}`,
-    code: mergeCard.code,
-    name: mergeCard.name,
-    displayName: mergeCard.name,
-    title: mergeCard.title || mergeCard.name,
-    cardRole: "merge",
-    rarity: "M",
-    currentTier: "M",
-    type: mergeCard.type || "Merge Card",
-    mergeGroup: mergeCard.mergeGroup || "Unknown",
-    source: mergeCard.source || "Summoning",
-    evolutionStage: 1,
-    evolutionKey: stageKey,
-    level: 1,
-    mergeData: {
-      keyCardCode: mergeCard.keyCardCode,
-      keyCardName: mergeCard.keyCardName,
-      members: mergeCard.members,
-      statPercent: mergeCard.statPercent || 50,
-    },
-    masteryNames: mergeCard.masteryNames || [],
-    stageImages: mergeCard.stageImages || {},
-    image: mergeCard.stageImages?.[stageKey] || mergeCard.image || "",
-    createdAt: now,
-  };
-}
 
 module.exports = {
   name: "summon",
@@ -519,7 +484,7 @@ module.exports = {
       });
     }
 
-    const mergeCard = findMergeCard(query);
+
     const card = mergeCard ? null : findSummonableCard(query);
     const weapon = mergeCard || card ? null : findWeaponByNameOnly(query);
 

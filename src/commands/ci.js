@@ -785,42 +785,9 @@ function buildRows(stage) {
   ];
 }
 
-function findOwnedMergeCard(player, mergeCard) {
-  const cards = Array.isArray(player?.cards) ? player.cards : [];
-  const code = normalizeCompare(mergeCard.code);
 
-  return (
-    cards.find(
-      (card) =>
-        normalizeCompare(card?.code) === code ||
-        normalizeCompare(card?.name) === normalizeCompare(mergeCard.name) ||
-        normalizeCompare(card?.displayName) === normalizeCompare(mergeCard.name)
-    ) || null
-  );
-}
 
-function findMergeMemberCard(player, member) {
-  const cards = Array.isArray(player?.cards) ? player.cards : [];
 
-  return (
-    cards.find((card) => {
-      const names = [
-        card?.code,
-        card?.characterCode,
-        card?.name,
-        card?.displayName,
-        card?.title,
-      ].map(normalizeCompare);
-
-      return (member.matchCodes || []).some((code) => {
-        const wanted = normalizeCompare(code);
-        return names.some(
-          (name) => name === wanted || name.includes(wanted) || wanted.includes(name)
-        );
-      });
-    }) || null
-  );
-}
 
 function getMergeStage(ownedMerge) {
   const key = String(ownedMerge?.evolutionKey || "").toUpperCase();
@@ -831,274 +798,15 @@ function getMergeStage(ownedMerge) {
   return Math.max(1, Math.min(3, Number(ownedMerge?.evolutionStage || 1)));
 }
 
-function getMergeMemberStats(card) {
-  return {
-    atk: Number(card?.atk || card?.baseAtk || 0),
-    hp: Number(card?.hp || card?.baseHp || 0),
-    speed: Number(card?.speed || card?.spd || card?.baseSpeed || 0),
-    power: Number(card?.currentPower || card?.power || card?.basePower || 0),
-  };
-}
-
-function getMergeMemberWeapons(card) {
-  const weapons = [];
-
-  if (Array.isArray(card?.equippedWeapons)) {
-    for (const weapon of card.equippedWeapons) {
-      const name =
-        weapon?.name ||
-        weapon?.displayName ||
-        weapon?.title ||
-        weapon?.code;
-
-      if (name) weapons.push(name);
-    }
-  }
-
-  if (card?.equippedWeapon && typeof card.equippedWeapon === "object") {
-    const name =
-      card.equippedWeapon.name ||
-      card.equippedWeapon.displayName ||
-      card.equippedWeapon.title ||
-      card.equippedWeapon.code;
-
-    if (name) weapons.push(name);
-  }
-
-  if (card?.equippedWeaponName) {
-    weapons.push(card.equippedWeaponName);
-  }
-
-  return [
-    ...new Set(
-      weapons
-        .map((item) => String(item || "").trim())
-        .filter(Boolean)
-        .filter((item) => {
-          const text = item.toLowerCase();
-          return (
-            text !== "none" &&
-            text !== "basic iron club" &&
-            text !== "basic iron sword" &&
-            text !== "basic weapon"
-          );
-        })
-    ),
-  ];
-}
-
-function buildMergeCiEmbed(message, mergeCard, player, stageOverride = null) {
-  const ownedMerge = findOwnedMergeCard(player, mergeCard);
-  const ownedStage = getMergeStage(ownedMerge);
-  const stage = Math.max(1, Math.min(3, Number(stageOverride || ownedStage || 1)));
-  const stageKey = `M${stage}`;
-  const masteryName = mergeCard.masteryNames?.[stage - 1] || mergeCard.name;
-
-  let atk = 0;
-  let hp = 0;
-  let speed = 0;
-  let power = 0;
-  const weaponLines = [];
-  const memberLines = [];
-
-  for (const member of mergeCard.members || []) {
-    const ownedMember = findMergeMemberCard(player, member);
-    const percent = Number(member.statPercent || mergeCard.statPercent || 50) / 100;
-
-    if (!ownedMember) {
-      memberLines.push(`❌ ${member.label}: Missing`);
-      continue;
-    }
-
-    const stats = getMergeMemberStats(ownedMember);
-    const memberAtk = Math.floor(stats.atk * percent);
-    const memberHp = Math.floor(stats.hp * percent);
-    const memberSpeed = Math.floor(stats.speed * percent);
-    const memberPower = Math.floor(stats.power * percent);
-
-    atk += memberAtk;
-    hp += memberHp;
-    speed += memberSpeed;
-    power += memberPower;
-
-    memberLines.push(
-      `✅ ${member.label}: ${Math.round(percent * 100)}% stat synced`
-    );
-
-    const weapons = getMergeMemberWeapons(ownedMember);
-    for (const weapon of weapons) {
-      weaponLines.push(weapon);
-    }
-  }
-
-  return new EmbedBuilder()
-    .setColor(0x8e44ad)
-    .setTitle(mergeCard.name)
-    .setDescription(
-      [
-        `**${masteryName}**`,
-        "",
-        `**Merge:** ${mergeCard.mergeGroup || "Unknown"}`,
-        "",
-        `**Power:** ${power.toLocaleString("en-US")}`,
-        `**Health:** ${hp.toLocaleString("en-US")}`,
-        `**Speed:** ${speed.toLocaleString("en-US")}`,
-        `**Attack:** ${formatAtkRange(atk)}`,
-        `**Type:** Merge`,
-        `**Badge:** M`,
-        "",
-        "**Signature Weapons:**",
-        weaponLines.length ? [...new Set(weaponLines)].join("\n") : "None",
-        "",
-        `**Source:** ${mergeCard.source || "Summoning"}`,
-      ].join("\n")
-    )
-    .setImage(
-      mergeCard.stageImages?.[stageKey] ||
-        mergeCard.image ||
-        ownedMerge?.image ||
-        null
-    )
-    .setFooter({
-      text: `${mergeCard.name} Card Mastery ${stage}/3`,
-    });
-}
-
-function mergeRows(stage) {
-  const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
-
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("merge_prev_mastery")
-        .setLabel("Previous Mastery")
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(safeStage <= 1),
-      new ButtonBuilder()
-        .setCustomId("merge_next_mastery")
-        .setLabel("Next Mastery")
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(safeStage >= 3)
-    ),
-  ];
-}
 
 
-function getMergeMemberFruits(card) {
- const fruits = [];
- const fields = [
-  card?.devilFruit,
-  card?.displayFruitName,
-  card?.fruit,
-  card?.equippedFruit,
-  card?.equippedFruitName,
- ];
 
- for (const item of fields) {
-  if (!item) continue;
-  if (typeof item === "object") {
-   const name = item.name || item.displayName || item.title || item.code;
-   if (name) fruits.push(name);
-  } else {
-   fruits.push(item);
-  }
- }
 
- return [
-  ...new Set(
-   fruits
-    .map((item) => String(item || "").trim())
-    .filter(Boolean)
-    .filter((item) => !["none", "null", "undefined"].includes(item.toLowerCase()))
-  ),
- ];
-}
 
-function buildMergeNormalViewerCard(mergeCard, player) {
- const members = Array.isArray(mergeCard?.members) ? mergeCard.members : [];
- const stageImages = mergeCard.stageImages || {};
- const badgeImage = getRarityBadge("Merge") || getRarityBadge("M") || getRarityBadge("B");
 
- const base = {
-  atk: 0,
-  hp: 0,
-  speed: 0,
-  power: 0,
- };
 
- const weaponLines = [];
- const fruitLines = [];
 
- for (const member of members) {
-  const ownedMember = findMergeMemberCard(player, member);
-  if (!ownedMember) continue;
 
-  const percent = Number(member.statPercent || mergeCard.statPercent || 50) / 100;
-  const stats = getMergeMemberStats(ownedMember);
-
-  base.atk += Math.floor(Number(stats.atk || 0) * percent);
-  base.hp += Math.floor(Number(stats.hp || 0) * percent);
-  base.speed += Math.floor(Number(stats.speed || 0) * percent);
-  base.power += Math.floor(Number(stats.power || 0) * percent);
-
-  for (const weapon of getMergeMemberWeapons(ownedMember)) weaponLines.push(weapon);
-  for (const fruit of getMergeMemberFruits(ownedMember)) fruitLines.push(fruit);
- }
-
- const makeStage = (stage, mult, speedMult) => {
-  const stageKey = `M${stage}`;
-  return {
-   name: mergeCard.masteryNames?.[stage - 1] || mergeCard.title || mergeCard.name,
-   formTitle: mergeCard.masteryNames?.[stage - 1] || mergeCard.title || mergeCard.name,
-   specialName: mergeCard.masteryNames?.[stage - 1] || mergeCard.title || mergeCard.name,
-   tier: "Merge",
-   badgeImage,
-   atk: Math.floor(base.atk * mult),
-   hp: Math.floor(base.hp * mult),
-   speed: Math.floor(base.speed * speedMult),
-   spd: Math.floor(base.speed * speedMult),
-   power: Math.floor(base.power * mult),
-   currentPower: Math.floor(base.power * mult),
-   image: stageImages?.[stageKey] || mergeCard.image || "",
-  };
- };
-
- const m1 = makeStage(1, 1, 1);
- const m2 = makeStage(2, 1.25, 1.12);
- const m3 = makeStage(3, 1.55, 1.25);
-
- return {
-  ...mergeCard,
-  id: mergeCard.id || mergeCard.code,
-  code: mergeCard.code,
-  name: mergeCard.name,
-  displayName: mergeCard.displayName || mergeCard.name,
-  title: mergeCard.title || mergeCard.name,
-  cardRole: "merge",
-  role: "merge",
-  category: "merge",
-  type: "Merge",
-  rarity: "Merge",
-  currentTier: "Merge",
-  baseTier: "Merge",
-  atk: m3.atk,
-  hp: m3.hp,
-  speed: m3.speed,
-  spd: m3.speed,
-  power: m3.power,
-  currentPower: m3.power,
-  powerCaps: {
-   M1: m1.power,
-   M2: m2.power,
-   M3: m3.power,
-  },
-  weapon: weaponLines.length ? [...new Set(weaponLines)].join(", ") : "None",
-  devilFruit: fruitLines.length ? [...new Set(fruitLines)].join(", ") : "None",
-  stageImages,
-  image: stageImages.M1 || mergeCard.image || "",
-  evolutionForms: [m1, m2, m3],
- };
-}
 
 module.exports = {
   name: "ci",
@@ -1162,7 +870,7 @@ module.exports = {
     const globalCard = findCardTemplateByNameOnly(query);
     if (!globalCard) return message.reply("Card not found in global database.");
 
-    const owned = mergeCard ? findOwnedMergeCard(player, mergeCard) : findOwnedCard(player.cards || [], query);
+    const owned = findOwnedCard(player.cards || [], query);
     let stage = 1;
 
     const sent = await message.reply({
@@ -1202,7 +910,7 @@ module.exports = {
       }
 
       const freshPlayer = getPlayer(message.author.id, message.author.username);
-      const freshOwned = mergeCard ? findOwnedMergeCard(freshPlayer, mergeCard) : findOwnedCard(freshPlayer.cards || [], query);
+      const freshOwned = findOwnedCard(freshPlayer.cards || [], query);
 
       return i.update({
         embeds: [buildEmbed(globalCard, freshOwned, stage)],

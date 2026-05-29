@@ -401,21 +401,7 @@ function buildSuccessEmbed(result, player) {
   return embed;
 }
 
-function findOwnedMergeCard(player, mergeCard) {
-  const cards = Array.isArray(player?.cards) ? player.cards : [];
-  const wantedCode = normalizeCode(mergeCard?.code);
-  const wantedName = normalizeCode(mergeCard?.name);
 
-  return (
-    cards.find((card) => {
-      const role = String(card?.cardRole || "").toLowerCase();
-      const code = normalizeCode(card?.code);
-      const name = normalizeCode(card?.name || card?.displayName);
-
-      return role === "merge" && (code === wantedCode || name === wantedName);
-    }) || null
-  );
-}
 
 function getOwnedMergeStage(card) {
   const key = String(card?.evolutionKey || "").toUpperCase();
@@ -725,7 +711,6 @@ module.exports = {
 
     const player = getPlayer(message.author.id, message.author.username);
 
-    const mergeCardByQuery = findMergeCard(query);
     const owned = mergeCardByQuery
       ? findOwnedMergeCard(player, mergeCardByQuery)
       : findOwnedCardByNameOrCode(player.cards || [], query);
