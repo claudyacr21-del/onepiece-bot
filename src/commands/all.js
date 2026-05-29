@@ -15,7 +15,7 @@ const {
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const weapons = require("../data/weapons");
 const devilFruits = require("../data/devilFruits");
-const { getMergeCards } = require("../data/cards")
+const {  } = require("../data/cards")
 const {
   getRarityBadge,
   getCardImage,
@@ -351,59 +351,13 @@ function buildFruitEmbed(item, index, total) {
     .setFooter({ text: `Fruit ${index + 1}/${total} • Code: ${item.code}` });
 }
 
-function findCardTemplateForMergeMember(member) {
-  const cards = getAllCards();
-
-  return (
-    cards.find((card) =>
-      (member.matchCodes || []).some(
-        (code) => normalize(card.code) === normalize(code)
-      )
-    ) ||
-    cards.find((card) =>
-      (member.matchCodes || []).some((code) =>
-        normalize(card.displayName || card.name).includes(normalize(code))
-      )
-    ) ||
-    null
-  );
-}
 
 
 
 
 
-function buildMergeEmbed(item, index, total) {
-  const stats = {};
-  const power = 0;
-  const stageKey = "M1";
 
-  return new EmbedBuilder()
-    .setColor(0x8e44ad)
-    .setTitle("All Merge Cards")
-    .setDescription(
-      [
-        `**${item.name || item.code}**`,
-        item.type || "Merge Card",
-        "",
-        `Rarity: M`,
-        `Merge: ${item.mergeGroup || "Unknown"}`,
-        `Source: ${item.source || "Summoning"}`,
-        `Key Card: ${item.keyCardName || item.keyCardCode || "Unknown"}`,
-        "",
-        `Power: ${power.toLocaleString("en-US")}`,
-        `HP: ${stats.hp.toLocaleString("en-US")}`,
-        `SPD: ${stats.speed.toLocaleString("en-US")}`,
-        `ATK: ${formatAtkRange(stats.atk)}`,
-        "",
-        item.description || "No description.",
-      ].join("\n")
-    )
-    .setImage(item.stageImages?.[stageKey] || item.image || null)
-    .setFooter({
-      text: `Merge ${index + 1}/${total} • Code: ${item.code}`,
-    });
-}
+
 
 function rows(index, total) {
   return [
@@ -446,10 +400,7 @@ module.exports = {
   async execute(message, args) {
     const rawMode = String(args.join(" ").trim()).toLowerCase();
 
-    const mode =
-      rawMode === "merge"
-        ? "merge"
-        : rawMode === "boost"
+    const mode = rawMode === "boost"
         ? "boost"
         : rawMode === "weapon"
         ? "weapon"
@@ -506,42 +457,14 @@ module.exports = {
         buildMissingCardEmbed(item, index, total, progress);
     }
 
-    if (mode === "merge") {
-      list = [];
-        if (powerDiff !== 0) return powerDiff;
-
-        return String(a.name || a.code).localeCompare(String(b.name || b.code));
-      });
-
-      renderer = buildMergeEmbed;
-    }
-
     if (mode === "battle" || mode === "boost") {
       const normalCards = sortCardsForAll(
         getAllCards().filter((c) => c.cardRole === mode),
         mode
       );
 
-      if (mode === "battle") {
-        const mergeCards = [];
-          if (powerDiff !== 0) return powerDiff;
-
-          return String(a.name || a.code).localeCompare(String(b.name || b.code));
-        });
-
-        list = normalCards;
-
-        renderer = (item, index, total) => {
-          if (item.cardRole === "merge") {
-            return buildMergeEmbed(item, index, total);
-          }
-
-          return buildCardEmbed(item, index, total, mode);
-        };
-      } else {
-        list = normalCards;
-        renderer = (item, index, total) => buildCardEmbed(item, index, total, mode);
-      }
+      list = normalCards;
+ renderer = (item, index, total) => buildCardEmbed(item, index, total, mode);
     }
 
     if (mode === "weapon") {
