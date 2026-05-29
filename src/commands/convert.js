@@ -3,22 +3,10 @@ const { getPlayer, updatePlayer } = require("../playerStore");
 const rawCards = require("../data/cards");
 
 const UNIVERSAL_FRAGMENT_BY_RARITY = {
-  C: {
-    code: "universal_c",
-    name: "Universal C Fragment",
-  },
-  B: {
-    code: "universal_b",
-    name: "Universal B Fragment",
-  },
-  A: {
-    code: "universal_a",
-    name: "Universal A Fragment",
-  },
-  S: {
-    code: "universal_s",
-    name: "Universal S Fragment",
-  },
+  C: { code: "universal_c", name: "Universal C Fragment" },
+  B: { code: "universal_b", name: "Universal B Fragment" },
+  A: { code: "universal_a", name: "Universal A Fragment" },
+  S: { code: "universal_s", name: "Universal S Fragment" },
 };
 
 function normalize(value) {
@@ -147,7 +135,7 @@ module.exports = {
 
     if (isRoadPoneglyph(query)) {
       return message.reply({
-        content: "❌ Road Poneglyph cannot be converted via universal fragment.",
+        content: "❌ Road Poneglyph tidak bisa di-convert lewat universal fragment.",
         allowedMentions: { repliedUser: false },
       });
     }
@@ -163,7 +151,7 @@ module.exports = {
 
     if (isRoadPoneglyph(card)) {
       return message.reply({
-        content: "❌ Road Poneglyph cannot be converted via universal fragment.",
+        content: "❌ Road Poneglyph tidak bisa di-convert lewat universal fragment.",
         allowedMentions: { repliedUser: false },
       });
     }
@@ -183,9 +171,7 @@ module.exports = {
 
     if (ownedUniversal < amount) {
       return message.reply(
-        `You need **${amount}x ${universal.name}** to convert into **${getCardName(
-          card
-        )} Fragment**.\nYou currently have **${ownedUniversal}x**.`
+        `You need **${amount}x ${universal.name}** to convert into **${getCardName(card)} Fragment**.\nYou currently have **${ownedUniversal}x**.`
       );
     }
 

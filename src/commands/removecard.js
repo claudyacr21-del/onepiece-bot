@@ -194,7 +194,6 @@ module.exports = {
      "Examples:",
      "`op removecard @user luffy`",
      "`op removecard 697763966650417193 zoro`",
-     "`op removecard 697763966650417193 lzs_1780007222530_64ujt7`",
     ].join("\n"),
     allowedMentions: { repliedUser: false },
    });

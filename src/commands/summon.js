@@ -3,15 +3,10 @@ const { updatePlayerAtomic } = require("../playerStore");
 const { createOwnedCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
 const weaponsDb = require("../data/weapons");
-const {
-  MONSTER_TRIO_CARD,
-  hydrateMonsterTrioBattleCard,
-  findMonsterTrioMemberCards,
-} = require("../data/cards");
+
 const { getWeaponImage, getRarityBadge } = require("../config/assetLinks");
 
 const SUMMON_FRAGMENT_COST = 15;
-const MONSTER_TRIO_FRAGMENT_COST = 50;
 const SUMMONABLE_CARD_ROLES = new Set(["battle", "boost"]);
 
 function normalize(value) {
@@ -35,10 +30,7 @@ function isSummonableCard(card) {
   if (!card) return false;
 
   const code = normalize(card.code);
-  if (code === "lzs") return false;
-
-  if (card.canPull === false && card.canPA === false && card.summonOnly === true) {
-    return code !== "lzs";
+  if (card.canPull === false && card.canPA === false && card.summonOnly === true) {return true;
   }
 
   return SUMMONABLE_CARD_ROLES.has(getCardRole(card));
@@ -403,185 +395,25 @@ function getSummonImage(ownedCard, card) {
   );
 }
 
-function isMonsterTrioQuery(query) {
-  const q = normalize(query);
 
-  return (
-    q === "lzs" ||
-    q === "monster trio" ||
-    q === "luffy zoro sanji" ||
-    q === "luffy zoro and sanji" ||
-    q === "luffy zoro sanji monster trio"
-  );
-}
 
-function makePseudoCard(code, name) {
-  return {
-    code,
-    name,
-    displayName: name,
-  };
-}
 
-const MONSTER_TRIO_FRAGMENT_REQUIREMENTS = [
-  {
-    label: "Luffy",
-    code: "luffy_straw_hat",
-    name: "Monkey D. Luffy",
-    amount: MONSTER_TRIO_FRAGMENT_COST,
-    pseudoCards: [
-      makePseudoCard("luffy_straw_hat", "Monkey D. Luffy"),
-      makePseudoCard("luffy", "Luffy"),
-      makePseudoCard("monkey_d_luffy", "Monkey D. Luffy"),
-    ],
-  },
-  {
-    label: "Zoro",
-    code: "zoro_pirate_hunter",
-    name: "Roronoa Zoro",
-    amount: MONSTER_TRIO_FRAGMENT_COST,
-    pseudoCards: [
-      makePseudoCard("zoro_pirate_hunter", "Roronoa Zoro"),
-      makePseudoCard("zoro", "Zoro"),
-      makePseudoCard("roronoa_zoro", "Roronoa Zoro"),
-    ],
-  },
-  {
-    label: "Sanji",
-    code: "sanji_black_leg",
-    name: "Sanji",
-    amount: MONSTER_TRIO_FRAGMENT_COST,
-    pseudoCards: [
-      makePseudoCard("sanji_black_leg", "Sanji"),
-      makePseudoCard("sanji", "Sanji"),
-      makePseudoCard("vinsmoke_sanji", "Vinsmoke Sanji"),
-    ],
-  },
-];
 
-function getMonsterTrioOwnedFragments(fragments, requirement) {
-  return requirement.pseudoCards.reduce((best, card) => {
-    return Math.max(best, getTotalCardFragments(fragments, card));
-  }, 0);
-}
 
-function consumeMonsterTrioFragments(fragments, requirement) {
-  let current = Array.isArray(fragments) ? fragments : [];
 
-  const sortedPseudoCards = [...requirement.pseudoCards].sort((a, b) => {
-    const aOwned = getTotalCardFragments(current, a);
-    const bOwned = getTotalCardFragments(current, b);
-    return bOwned - aOwned;
-  });
 
-  for (const pseudoCard of sortedPseudoCards) {
-    const consumed = consumeCardFragments(current, pseudoCard, requirement.amount);
-    if (consumed) return consumed;
-  }
 
-  return null;
-}
 
-function ownsRoadPoneglyph(player) {
-  const cards = Array.isArray(player?.cards) ? player.cards : [];
 
-  return cards.some((card) => {
-    const code = normalize(card?.code);
-    const name = normalize(card?.displayName || card?.name || card?.title);
 
-    return (
-      code === "road poneglyph" ||
-      code === "road_poneglyph" ||
-      name === "road poneglyph" ||
-      name.includes("road poneglyph")
-    );
-  });
-}
 
-function alreadyOwnsMonsterTrio(player) {
-  const cards = Array.isArray(player?.cards) ? player.cards : [];
 
-  return cards.some((card) => {
-    const code = normalize(card?.code);
-    const name = normalize(card?.displayName || card?.name || card?.title);
 
-    return (
-      code === "lzs" ||
-      name === "monster trio" ||
-      name.includes("luffy zoro sanji")
-    );
-  });
-}
 
-function getMonsterTrioMissingMembers(player) {
-  const members = findMonsterTrioMemberCards(player);
 
-  return members
-    .filter((entry) => !entry.card)
-    .map((entry) => {
-      if (normalize(entry.code).includes("luffy")) return "Luffy";
-      if (normalize(entry.code).includes("zoro")) return "Zoro";
-      if (normalize(entry.code).includes("sanji")) return "Sanji";
-      return entry.code;
-    });
-}
 
-function createOwnedMonsterTrio(player) {
-  const base = hydrateMonsterTrioBattleCard(player, MONSTER_TRIO_CARD);
-  const owned = createOwnedCard(base);
-  const now = Date.now();
-  const instanceId = `lzs_${now}_${Math.random().toString(36).slice(2, 8)}`;
 
-  return {
-    ...owned,
-    ...base,
-    id: instanceId,
-    instanceId,
-    code: "lzs",
-    name: "Monster Trio",
-    displayName: "Monster Trio",
-    title: "Monster Trio",
-    rarity: "M",
-    currentTier: "M",
-    baseTier: "M",
-    originalTier: "M",
-    baseRarity: "M",
-    cardRole: "battle",
-    type: "Merge Battle",
-    isMonsterTrio: true,
-    isMergeBattleCard: true,
-    mergeBattleCode: "lzs",
-    mergeMembers: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
-    mergeStatPercent: 50,
-    canPull: false,
-    canPA: false,
-    summonOnly: true,
-    requireRoadPoneglyph: true,
-    evolutionStage: 1,
-    evolutionKey: "M1",
-    level: Number(owned?.level || 1),
-    exp: Number(owned?.exp || 0),
-    fragments: Number(owned?.fragments || 0),
-    obtainedAt: now,
-    source: "Summon",
-  };
-}
 
-function getMonsterTrioSummonStatus(player, fragments) {
-  const missingMembers = getMonsterTrioMissingMembers(player);
-
-  const fragmentStatus = MONSTER_TRIO_FRAGMENT_REQUIREMENTS.map((req) => ({
-    ...req,
-    owned: getMonsterTrioOwnedFragments(fragments, req),
-  }));
-
-  return {
-    hasRoadPoneglyph: ownsRoadPoneglyph(player),
-    missingMembers,
-    fragmentStatus,
-    missingFragments: fragmentStatus.filter((entry) => entry.owned < entry.amount),
-  };
-}
 
 module.exports = {
   name: "summon",
@@ -596,10 +428,9 @@ module.exports = {
           "Example: `op summon luffy`",
           "Example: `op summon baccarat`",
           "Example: `op summon kikoku`",
-          "Example: `op summon lzs`",
           "",
           `Cost: **${SUMMON_FRAGMENT_COST}x self fragments**`,
-          "Monster Trio/LZS Cost: **50x Luffy Fragment + 50x Zoro Fragment + 50x Sanji Fragment + Road Poneglyph card**",
+          
           "Summonable: **Battle Cards**, **Boost Cards**, and **Weapons**",
         ].join("\n"),
         allowedMentions: {
@@ -608,11 +439,9 @@ module.exports = {
       });
     }
 
-    const isMonsterTrioSummon = isMonsterTrioQuery(query);
-    const card = isMonsterTrioSummon ? null : findSummonableCard(query);
-    const weapon = isMonsterTrioSummon || card ? null : findWeaponByNameOnly(query);
+    const card = findSummonableCard(query); const weapon = card ? null : findWeaponByNameOnly(query);
 
-    if (!isMonsterTrioSummon && !card && !weapon) {
+    if (!card && !weapon) {
       return message.reply({
         content: `Battle card, boost card, or weapon matching \`${query}\` was not found.`,
         allowedMentions: { repliedUser: false },
@@ -628,7 +457,7 @@ module.exports = {
     let weaponBadge = null;
     let weaponType = null;
     let cardRoleLabel = null;
-    let monsterTrioConsumedLines = [];
+    
 
     try {
       updatePlayerAtomic(
@@ -638,74 +467,7 @@ module.exports = {
             ? fresh.fragments.map((fragment) => ({ ...fragment }))
             : [];
 
-          if (isMonsterTrioSummon) {
-            if (alreadyOwnsMonsterTrio(fresh)) {
-              throw new Error("You already own **Monster Trio**.");
-            }
-
-            const status = getMonsterTrioSummonStatus(fresh, fragments);
-
-            if (!status.hasRoadPoneglyph) {
-              throw new Error(
-                [
-                  "You cannot summon **Monster Trio** yet.",
-                  "",
-                  "**Special Requirement:**",
-                  "You must own **Road Poneglyph** first.",
-                ].join("\n")
-              );
-            }
-
-            if (status.missingMembers.length) {
-              throw new Error(
-                [
-                  "You cannot summon **Monster Trio** yet.",
-                  "",
-                  "**Required Original Cards:**",
-                  "You must own **Luffy**, **Zoro**, and **Sanji** first.",
-                  "",
-                  `Missing: ${status.missingMembers.join(", ")}`,
-                ].join("\n")
-              );
-            }
-
-            if (status.missingFragments.length) {
-              throw new Error(
-                [
-                  "You need these fragments to summon **Monster Trio**:",
-                  "",
-                  ...status.fragmentStatus.map(
-                    (entry) => `• ${entry.label} Fragment: ${entry.owned}/${entry.amount}`
-                  ),
-                ].join("\n")
-              );
-            }
-
-            let nextFragments = fragments;
-
-            for (const req of MONSTER_TRIO_FRAGMENT_REQUIREMENTS) {
-              const consumed = consumeMonsterTrioFragments(nextFragments, req);
-
-              if (!consumed) {
-                throw new Error(`Failed to consume ${req.label} fragments.`);
-              }
-
-              nextFragments = consumed.fragments;
-              monsterTrioConsumedLines.push(`${req.label} Fragment x${req.amount}`);
-            }
-
-            ownedCard = createOwnedMonsterTrio(fresh);
-            summonedType = "monster_trio";
-            summonedName = "Monster Trio";
-            summonedRarity = "M";
-            remainingFragments = 0;
-
-            return {
-              ...fresh,
-              cards: [...(fresh.cards || []), ownedCard],
-              fragments: nextFragments,
-            };
-          }
+          
 
           if (card) {
             if (alreadyOwnsCard(fresh, card)) {
@@ -799,37 +561,7 @@ module.exports = {
       });
     }
 
-    if (summonedType === "monster_trio") {
-      return message.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(0x8e44ad)
-            .setTitle("🔥 Monster Trio Summoned")
-            .setDescription(
-              [
-                `**Card:** ${summonedName}`,
-                `**Type:** Battle Card`,
-                `**Rarity:** ${summonedRarity}`,
-                `**Source:** Road Poneglyph`,
-                "",
-                "**Consumed Fragments:**",
-                ...monsterTrioConsumedLines.map((line) => `• ${line}`),
-                "",
-                "**Special Logic:**",
-                "Stats are calculated from **50% Luffy + 50% Zoro + 50% Sanji**.",
-                "Weapon and Devil Fruit display are inherited from the original three cards.",
-                "",
-                "The card has been added to your collection.",
-              ].join("\n")
-            )
-            .setImage(getSummonImage(ownedCard, MONSTER_TRIO_CARD))
-            .setFooter({
-              text: "One Piece Bot • Monster Trio Summon",
-            }),
-        ],
-        allowedMentions: { repliedUser: false },
-      });
-    }
+    
 
     if (summonedType === "card") {
       return message.reply({

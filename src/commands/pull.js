@@ -220,7 +220,7 @@ function getRewardPool(contentType) {
     return rawCards.filter(
       (card) =>
         card.cardRole === "battle" &&
-        String(card.code || "").toLowerCase() !== "imu" && String(card.code || "").toLowerCase() !== "lzs"
+        String(card.code || "").toLowerCase() !== "imu" 
     );
   }
 
