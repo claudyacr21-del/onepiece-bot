@@ -567,7 +567,8 @@ function getRequiredForTargets(currentCard, currentStage) {
     const requirements = targetCard?.awakenRequirements || {};
 
     for (const stageKey of ["M2", "M3"]) {
-      const req = requirements?.[stageKey];
+      let req = requirements?.[stageKey];
+  req = mergeCanonRequirementsIntoReq(req, card, stage);
 
       if (!req) continue;
 
@@ -627,6 +628,92 @@ function buildRequiredForEmbed(card, stage) {
 
 
 
+
+
+function normalizeRequirementCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+}
+
+function getCanonLinksForCard(card) {
+  const links = cardsData.CANON_LINKS || cardsData.canon_links || cardsData.canonLinks || {};
+  const keys = [
+    card?.code,
+    card?.id,
+    card?.name,
+    card?.displayName,
+  ]
+    .map(normalizeRequirementCode)
+    .filter(Boolean);
+
+  for (const key of keys) {
+    if (links[key]) return links[key];
+  }
+
+  return null;
+}
+
+function normalizeCanonRequirementList(list, targetStage) {
+  if (!Array.isArray(list)) return [];
+
+  return list
+    .filter((entry) => Array.isArray(entry) || entry)
+    .map((entry) => {
+      if (Array.isArray(entry)) {
+        return {
+          code: entry[0],
+          name: entry[0],
+          stage: Number(entry[2] || entry[1] || targetStage || 1),
+          amount: Number(entry[1] || 1),
+        };
+      }
+
+      return {
+        ...entry,
+        code: entry.code || entry.card || entry.id || entry.name,
+        name: entry.name || entry.displayName || entry.code || entry.card || entry.id,
+        stage: Number(entry.stage || entry.toStage || targetStage || 1),
+        amount: Number(entry.amount || entry.count || 1),
+      };
+    })
+    .filter((entry) => entry.code || entry.name);
+}
+
+function mergeCanonRequirementsIntoReq(req, card, targetStage) {
+  const canon = getCanonLinksForCard(card);
+  if (!canon) return req;
+
+  const canonCards = normalizeCanonRequirementList(canon.cards, targetStage);
+  const canonBoosts = normalizeCanonRequirementList(canon.boosts, targetStage);
+
+  return {
+    ...req,
+    cards: [
+      ...(Array.isArray(req?.cards) ? req.cards : []),
+      ...canonCards,
+    ],
+    boosts: [
+      ...(Array.isArray(req?.boosts) ? req.boosts : []),
+      ...canonBoosts,
+    ],
+    cardsText: [
+      ...(Array.isArray(req?.cardsText) ? req.cardsText : []),
+      ...canonCards.map((entry) => {
+        const label = entry.name || entry.code;
+        return entry.stage ? `${label} M${entry.stage}` : String(label);
+      }),
+    ],
+    boostsText: [
+      ...(Array.isArray(req?.boostsText) ? req.boostsText : []),
+      ...canonBoosts.map((entry) => {
+        const label = entry.name || entry.code;
+        return entry.stage ? `${label} M${entry.stage}` : String(label);
+      }),
+    ],
+  };
+}
 
 function buildReqEmbed(card, stage, player) {
   const stageCard = getStageCard(card, stage);
