@@ -42,6 +42,32 @@ function getCardPower(card, stageKey = "M1") {
   );
 }
 
+
+function isRoadPoneglyphCard(card) {
+  const code = String(card?.code || "").toLowerCase().trim();
+  const name = String(card?.displayName || card?.name || card?.title || "")
+    .toLowerCase()
+    .trim();
+
+  return code === "road_poneglyph" || name === "road poneglyph";
+}
+
+function getRoadPoneglyphEffect(stage) {
+  const n = Math.max(1, Math.min(3, Number(stage || 1)));
+
+  if (n === 1) return "Allows you to summon Merged cards!";
+  if (n === 2) return "Allows you to evolve Merged cards to Mastery 2!";
+  return "Allows you to evolve Merged cards to Mastery 3!";
+}
+
+function getRoadPoneglyphDisplayEffect(card, stage, fallback = "No effect text") {
+  if (isRoadPoneglyphCard(card)) {
+    return getRoadPoneglyphEffect(stage);
+  }
+
+  return fallback;
+}
+
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
@@ -204,7 +230,7 @@ function buildCardEmbed(card, index, total, mode) {
           `Role: ${card.cardRole}`,
           `Faction: ${card.faction || "Unknown"}`,
           `Form: ${form?.name || "M1"}`,
-          `Effect: ${form?.effectText || card.effectText || "No effect text"}`,
+          `Effect: ${getRoadPoneglyphDisplayEffect(card || stageCard || form, stage || card?.evolutionStage || 1, form?.effectText || card.effectText || "No effect text")}`,
           "",
           `Power: ${getCardPower(card, stageKey)}`,
         ]
@@ -261,7 +287,7 @@ function buildMissingCardEmbed(card, index, total, progress) {
           `Role: ${card.cardRole}`,
           `Faction: ${card.faction || "Unknown"}`,
           `Form: ${form?.name || "M1"}`,
-          `Effect: ${form?.effectText || card.effectText || "No effect text"}`,
+          `Effect: ${getRoadPoneglyphDisplayEffect(card || stageCard || form, stage || card?.evolutionStage || 1, form?.effectText || card.effectText || "No effect text")}`,
           "",
           `Collection: ${progress.owned}/${progress.total} owned`,
           `Missing: ${progress.missing}`,
@@ -322,7 +348,7 @@ function buildWeaponEmbed(item, index, total) {
         item.type || "Weapon",
         "",
         `Rarity: ${String(item.rarity || "B").toUpperCase()}`,
-        `Effect: ${effectText}`,
+        `Effect: ${getRoadPoneglyphDisplayEffect(card || stageCard || form, stage || card?.evolutionStage || 1, effectText)}`,
         `Description: ${item.description || "No description."}`,
         `Power: ${getWeaponPower(item, 5)}`,
         "",
@@ -346,7 +372,7 @@ function buildFruitEmbed(item, index, total) {
         item.type || "Devil Fruit",
         "",
         `Rarity: ${String(item.rarity || "B").toUpperCase()}`,
-        `Effect: ${effectText}`,
+        `Effect: ${getRoadPoneglyphDisplayEffect(card || stageCard || form, stage || card?.evolutionStage || 1, effectText)}`,
         `Description: ${item.description || "No description."}`,
         `Power: ${getFruitPower(item)}`,
         "",

@@ -28,6 +28,32 @@ function normalize(text) {
     .replace(/\s+/g, " ");
 }
 
+
+function isRoadPoneglyphCard(card) {
+  const code = String(card?.code || "").toLowerCase().trim();
+  const name = String(card?.displayName || card?.name || card?.title || "")
+    .toLowerCase()
+    .trim();
+
+  return code === "road_poneglyph" || name === "road poneglyph";
+}
+
+function getRoadPoneglyphEffect(stage) {
+  const n = Math.max(1, Math.min(3, Number(stage || 1)));
+
+  if (n === 1) return "Allows you to summon Merged cards!";
+  if (n === 2) return "Allows you to evolve Merged cards to Mastery 2!";
+  return "Allows you to evolve Merged cards to Mastery 3!";
+}
+
+function getRoadPoneglyphDisplayEffect(card, stage, fallback = "No effect text") {
+  if (isRoadPoneglyphCard(card)) {
+    return getRoadPoneglyphEffect(stage);
+  }
+
+  return fallback;
+}
+
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
@@ -46,7 +72,19 @@ function applyBoostedDisplayStats(card, boosts = {}) {
 
 function getCurrentForm(card) {
   const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
-  return card.evolutionForms?.[stage - 1] || null;
+  
+  if (isRoadPoneglyphCard(card)) {
+    const roadEffect = getRoadPoneglyphEffect(stage);
+    card.effectText = roadEffect;
+    card.boostDescription = roadEffect;
+    card.description = roadEffect;
+    if (Array.isArray(card.evolutionForms) && card.evolutionForms[stage - 1]) {
+      card.evolutionForms[stage - 1].effectText = roadEffect;
+      card.evolutionForms[stage - 1].boostDescription = roadEffect;
+      card.evolutionForms[stage - 1].description = roadEffect;
+    }
+  }
+return card.evolutionForms?.[stage - 1] || null;
 }
 
 function getCurrentStageImage(card) {
@@ -473,7 +511,7 @@ function buildOwnedCardEmbed(ownerName, player, card) {
     `Form: ${card.evolutionKey || `M${stage}`}`,
     `Tier: ${card.currentTier || card.rarity}`,
     `Power: ${Number(card.currentPower || 0)}`,
-    `Effect: ${card.effectText || "No effect text"}`,
+    `Effect: ${getRoadPoneglyphDisplayEffect(card || stageCard || form, stage || card?.evolutionStage || 1, card.effectText || "No effect text")}`,
     `Target: ${card.boostTarget || "team"}`,
     `Boost Type: ${card.boostType || "unknown"}`,
     `Devil Fruit: ${card.displayFruitName || "None"}`,

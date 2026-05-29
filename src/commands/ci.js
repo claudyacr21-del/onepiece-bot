@@ -18,6 +18,32 @@ const SPECIAL_FORMS = cardsData.SPECIAL_FORMS || cardsData.specialForms || {
   luffy_straw_hat: ["The Beginning", "Revival", "Gear 5"],
 };
 
+
+function isRoadPoneglyphCard(card) {
+  const code = String(card?.code || "").toLowerCase().trim();
+  const name = String(card?.displayName || card?.name || card?.title || "")
+    .toLowerCase()
+    .trim();
+
+  return code === "road_poneglyph" || name === "road poneglyph";
+}
+
+function getRoadPoneglyphEffect(stage) {
+  const n = Math.max(1, Math.min(3, Number(stage || 1)));
+
+  if (n === 1) return "Allows you to summon Merged cards!";
+  if (n === 2) return "Allows you to evolve Merged cards to Mastery 2!";
+  return "Allows you to evolve Merged cards to Mastery 3!";
+}
+
+function getRoadPoneglyphDisplayEffect(card, stage, fallback = "No effect text") {
+  if (isRoadPoneglyphCard(card)) {
+    return getRoadPoneglyphEffect(stage);
+  }
+
+  return fallback;
+}
+
 function formatAtkRange(atk) {
   const value = Number(atk || 0);
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
@@ -716,14 +742,21 @@ function buildEmbed(card, owned, stage, player = null) {
   const displayStats = getStageDisplayStats(card, stageCard, stage);
   const statSource = displayStats.source || card;
 
+  if (isRoadPoneglyphCard(stageCard)) {
+    stageCard.effectText = getRoadPoneglyphEffect(stage);
+    stageCard.boostDescription = getRoadPoneglyphEffect(stage);
+    if (form) {
+      form.effectText = getRoadPoneglyphEffect(stage);
+      form.boostDescription = getRoadPoneglyphEffect(stage);
+    }
+  }
+
   const extraLines = stageCard.cardRole === "boost" ? [
     `Form: ${stageLabel}`,
     `Tier: ${form?.tier || stageCard.currentTier || stageCard.rarity}`,
     `Role: ${stageCard.cardRole}`,
     `Power: ${displayStats.power}`,
-    `Effect: ${
-      form?.effectText || stageCard.effectText || "No effect text"
-    }`,
+    `Effect: ${getRoadPoneglyphDisplayEffect(stageCard, stage, form?.effectText || stageCard.effectText || "No effect text")}`,
     `Target: ${stageCard.boostTarget || "team"}`,
     `Boost Type: ${stageCard.boostType || "unknown"}`,
     `Devil Fruit: ${
