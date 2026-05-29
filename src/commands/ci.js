@@ -993,7 +993,7 @@ module.exports = {
 
     const player = getPlayer(message.author.id, message.author.username);
 
-    const mergeCard = findMergeCard(query);
+    const mergeCard = null; // disabled: merge card now uses normal card CI view
     if (mergeCard) {
       let mergeStage = 1;
 

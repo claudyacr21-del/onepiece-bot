@@ -1089,7 +1089,6 @@ const ALL_CARDS = [
 const MERGE_CARDS = [
   {
     code: "lzs",
-    aliases: ["lzs"],
     name: "Luffy, Zoro & Sanji",
     title: "Monster Trio",
     cardRole: "merge",
@@ -1216,6 +1215,98 @@ function findMergeCard(query) {
   );
 }
 
+
+function buildMergeCardsAsNormalCards() {
+ return (typeof MERGE_CARDS !== "undefined" ? MERGE_CARDS : []).map((merge) => {
+  const stageImages = merge.stageImages || {};
+  const basePower = Number(merge.power || merge.basePower || 0);
+  const hp = Number(merge.hp || 0);
+  const atk = Number(merge.atk || 0);
+  const speed = Number(merge.speed || merge.spd || 0);
+
+  return applyEvolution(
+   battleCard({
+    id: merge.id || merge.code,
+    code: merge.code,
+    name: merge.name,
+    displayName: merge.displayName || merge.name,
+    title: merge.title || merge.name,
+    rarity: merge.rarity || "Merge",
+    currentTier: merge.currentTier || merge.rarity || "Merge",
+    baseTier: merge.baseTier || merge.rarity || "S",
+    cardRole: "merge",
+    role: "merge",
+    category: "merge",
+    type: "Merge",
+    mergeGroup: merge.mergeGroup || merge.group || "Straw Hat Pirates",
+    source: merge.source || "Summoning",
+    hp,
+    atk,
+    speed,
+    spd: speed,
+    basePower,
+    currentPower: basePower,
+    power: basePower,
+    image: merge.image || stageImages.M1 || "",
+    stageImages,
+    evolutionForms: merge.evolutionForms || [
+     {
+      name: merge.masteryNames?.[0] || merge.title || "Mastery 1",
+      formTitle: merge.masteryNames?.[0] || merge.title || "Mastery 1",
+      tier: merge.rarity || "Merge",
+      hp,
+      atk,
+      speed,
+      spd: speed,
+      power: basePower,
+      currentPower: basePower,
+      image: stageImages.M1 || merge.image || "",
+     },
+     {
+      name: merge.masteryNames?.[1] || merge.title || "Mastery 2",
+      formTitle: merge.masteryNames?.[1] || merge.title || "Mastery 2",
+      tier: merge.rarity || "Merge",
+      hp: Math.floor(hp * 1.25),
+      atk: Math.floor(atk * 1.25),
+      speed: Math.floor(speed * 1.12),
+      spd: Math.floor(speed * 1.12),
+      power: Math.floor(basePower * 1.25),
+      currentPower: Math.floor(basePower * 1.25),
+      image: stageImages.M2 || stageImages.M1 || merge.image || "",
+     },
+     {
+      name: merge.masteryNames?.[2] || merge.title || "Mastery 3",
+      formTitle: merge.masteryNames?.[2] || merge.title || "Mastery 3",
+      tier: merge.rarity || "Merge",
+      hp: Math.floor(hp * 1.55),
+      atk: Math.floor(atk * 1.55),
+      speed: Math.floor(speed * 1.25),
+      spd: Math.floor(speed * 1.25),
+      power: Math.floor(basePower * 1.55),
+      currentPower: Math.floor(basePower * 1.55),
+      image: stageImages.M3 || stageImages.M2 || stageImages.M1 || merge.image || "",
+     },
+    ],
+    canEquipWeapon: false,
+    canEquipFruit: false,
+    canLevelDirectly: false,
+    canAwakenDirectly: false,
+    canPrestige: true,
+    description: merge.description || "",
+   })
+  );
+ });
+}
+
+if (typeof MERGE_CARDS !== "undefined") {
+ for (const mergeCard of buildMergeCardsAsNormalCards()) {
+  const code = String(mergeCard.code || "").toLowerCase();
+  if (code && !ALL_CARDS.some((card) => String(card.code || "").toLowerCase() === code)) {
+   ALL_CARDS.push(mergeCard);
+  }
+ }
+}
+
 module.exports = ALL_CARDS;
 
 module.exports.BASE_CARDS = BASE_CARDS;
@@ -1228,3 +1319,4 @@ module.exports.MERGE_CARDS = MERGE_CARDS;
 module.exports.getMergeCards = getMergeCards;
 module.exports.findMergeCard = findMergeCard;
 module.exports.normalizeMergeQuery = normalizeMergeQuery;
+module.exports.buildMergeCardsAsNormalCards = buildMergeCardsAsNormalCards;
