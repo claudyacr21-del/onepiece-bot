@@ -1,12 +1,17 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayerAtomic } = require("../playerStore");
+const { updatePlayerAtomic } = require("../playerStore");
 const { createOwnedCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
 const weaponsDb = require("../data/weapons");
-const { findMergeCard } = require("../data/cards");
+const {
+  MONSTER_TRIO_CARD,
+  hydrateMonsterTrioBattleCard,
+  findMonsterTrioMemberCards,
+} = require("../data/cards");
 const { getWeaponImage, getRarityBadge } = require("../config/assetLinks");
 
 const SUMMON_FRAGMENT_COST = 15;
+const MONSTER_TRIO_FRAGMENT_COST = 50;
 const SUMMONABLE_CARD_ROLES = new Set(["battle", "boost"]);
 
 function normalize(value) {
@@ -14,7 +19,7 @@ function normalize(value) {
     .toLowerCase()
     .trim()
     .replace(/[_-]+/g, " ")
-    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/[^a-z0-9\s,&]+/g, "")
     .replace(/\s+/g, " ");
 }
 
@@ -27,6 +32,15 @@ function getCardRole(card) {
 }
 
 function isSummonableCard(card) {
+  if (!card) return false;
+
+  const code = normalize(card.code);
+  if (code === "lzs") return false;
+
+  if (card.canPull === false && card.canPA === false && card.summonOnly === true) {
+    return code !== "lzs";
+  }
+
   return SUMMONABLE_CARD_ROLES.has(getCardRole(card));
 }
 
@@ -109,7 +123,7 @@ function getCardFragmentMatches(fragments, card) {
     .map((frag, index) => ({
       frag,
       index,
-      amount: Number(frag?.amount || 0),
+      amount: Number(frag?.amount || frag?.count || frag?.quantity || 0),
     }))
     .filter((entry) => entry.amount > 0 && isMatchingCardFragment(entry.frag, card));
 }
@@ -145,7 +159,13 @@ function consumeCardFragments(fragments, card, amount) {
     const currentIndex = arr.findIndex((entry) => entry === match.frag);
     if (currentIndex < 0) continue;
 
-    const currentAmount = Number(arr[currentIndex]?.amount || 0);
+    const currentAmount = Number(
+      arr[currentIndex]?.amount ||
+        arr[currentIndex]?.count ||
+        arr[currentIndex]?.quantity ||
+        0
+    );
+
     const take = Math.min(currentAmount, remainingToConsume);
     const left = currentAmount - take;
 
@@ -158,6 +178,9 @@ function consumeCardFragments(fragments, card, amount) {
         ...arr[currentIndex],
         amount: left,
       };
+
+      if ("count" in arr[currentIndex]) arr[currentIndex].count = left;
+      if ("quantity" in arr[currentIndex]) arr[currentIndex].quantity = left;
     }
   }
 
@@ -202,7 +225,7 @@ function getWeaponFragmentMatches(fragments, weapon) {
     .map((frag, index) => ({
       frag,
       index,
-      amount: Number(frag?.amount || 0),
+      amount: Number(frag?.amount || frag?.count || frag?.quantity || 0),
     }))
     .filter((entry) => entry.amount > 0 && isMatchingWeaponFragment(entry.frag, weapon));
 }
@@ -238,7 +261,13 @@ function consumeWeaponFragments(fragments, weapon, amount) {
     const currentIndex = arr.findIndex((entry) => entry === match.frag);
     if (currentIndex < 0) continue;
 
-    const currentAmount = Number(arr[currentIndex]?.amount || 0);
+    const currentAmount = Number(
+      arr[currentIndex]?.amount ||
+        arr[currentIndex]?.count ||
+        arr[currentIndex]?.quantity ||
+        0
+    );
+
     const take = Math.min(currentAmount, remainingToConsume);
     const left = currentAmount - take;
 
@@ -251,6 +280,9 @@ function consumeWeaponFragments(fragments, weapon, amount) {
         ...arr[currentIndex],
         amount: left,
       };
+
+      if ("count" in arr[currentIndex]) arr[currentIndex].count = left;
+      if ("quantity" in arr[currentIndex]) arr[currentIndex].quantity = left;
     }
   }
 
@@ -371,95 +403,185 @@ function getSummonImage(ownedCard, card) {
   );
 }
 
-function getOwnedStage(card) {
-  const stage = Number(card?.evolutionStage || 1);
-  const key = String(card?.evolutionKey || "").toUpperCase();
-  const keyMatch = key.match(/M([123])/);
+function isMonsterTrioQuery(query) {
+  const q = normalize(query);
 
-  if (keyMatch) return Number(keyMatch[1]);
-  return Math.max(1, Math.min(3, stage));
+  return (
+    q === "lzs" ||
+    q === "monster trio" ||
+    q === "luffy zoro sanji" ||
+    q === "luffy zoro and sanji" ||
+    q === "luffy zoro sanji monster trio"
+  );
 }
 
-function doesOwnedCardMatchCodes(card, codes = []) {
-  const ownedValues = [
-    card?.code,
-    card?.characterCode,
-    card?.name,
-    card?.displayName,
-    card?.title,
-  ].map(normalize);
+function makePseudoCard(code, name) {
+  return {
+    code,
+    name,
+    displayName: name,
+  };
+}
 
-  return codes.some((code) => {
-    const wanted = normalize(code);
-    return ownedValues.some(
-      (owned) => owned === wanted || owned.includes(wanted) || wanted.includes(owned)
+const MONSTER_TRIO_FRAGMENT_REQUIREMENTS = [
+  {
+    label: "Luffy",
+    code: "luffy_straw_hat",
+    name: "Monkey D. Luffy",
+    amount: MONSTER_TRIO_FRAGMENT_COST,
+    pseudoCards: [
+      makePseudoCard("luffy_straw_hat", "Monkey D. Luffy"),
+      makePseudoCard("luffy", "Luffy"),
+      makePseudoCard("monkey_d_luffy", "Monkey D. Luffy"),
+    ],
+  },
+  {
+    label: "Zoro",
+    code: "zoro_pirate_hunter",
+    name: "Roronoa Zoro",
+    amount: MONSTER_TRIO_FRAGMENT_COST,
+    pseudoCards: [
+      makePseudoCard("zoro_pirate_hunter", "Roronoa Zoro"),
+      makePseudoCard("zoro", "Zoro"),
+      makePseudoCard("roronoa_zoro", "Roronoa Zoro"),
+    ],
+  },
+  {
+    label: "Sanji",
+    code: "sanji_black_leg",
+    name: "Sanji",
+    amount: MONSTER_TRIO_FRAGMENT_COST,
+    pseudoCards: [
+      makePseudoCard("sanji_black_leg", "Sanji"),
+      makePseudoCard("sanji", "Sanji"),
+      makePseudoCard("vinsmoke_sanji", "Vinsmoke Sanji"),
+    ],
+  },
+];
+
+function getMonsterTrioOwnedFragments(fragments, requirement) {
+  return requirement.pseudoCards.reduce((best, card) => {
+    return Math.max(best, getTotalCardFragments(fragments, card));
+  }, 0);
+}
+
+function consumeMonsterTrioFragments(fragments, requirement) {
+  let current = Array.isArray(fragments) ? fragments : [];
+
+  const sortedPseudoCards = [...requirement.pseudoCards].sort((a, b) => {
+    const aOwned = getTotalCardFragments(current, a);
+    const bOwned = getTotalCardFragments(current, b);
+    return bOwned - aOwned;
+  });
+
+  for (const pseudoCard of sortedPseudoCards) {
+    const consumed = consumeCardFragments(current, pseudoCard, requirement.amount);
+    if (consumed) return consumed;
+  }
+
+  return null;
+}
+
+function ownsRoadPoneglyph(player) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+
+  return cards.some((card) => {
+    const code = normalize(card?.code);
+    const name = normalize(card?.displayName || card?.name || card?.title);
+
+    return (
+      code === "road poneglyph" ||
+      code === "road_poneglyph" ||
+      name === "road poneglyph" ||
+      name.includes("road poneglyph")
     );
   });
 }
 
-function hasMergeKeyStage(player, mergeCard, requiredStage = 1) {
+function alreadyOwnsMonsterTrio(player) {
   const cards = Array.isArray(player?.cards) ? player.cards : [];
-  const keyCode = normalize(mergeCard.keyCardCode);
 
   return cards.some((card) => {
     const code = normalize(card?.code);
-    const name = normalize(card?.name || card?.displayName);
-    const isKey =
-      code === keyCode ||
-      name === normalize(mergeCard.keyCardName) ||
-      name.includes(normalize(mergeCard.keyCardName));
+    const name = normalize(card?.displayName || card?.name || card?.title);
 
-    return isKey && getOwnedStage(card) >= Number(requiredStage || 1);
+    return (
+      code === "lzs" ||
+      name === "monster trio" ||
+      name.includes("luffy zoro sanji")
+    );
   });
 }
 
+function getMonsterTrioMissingMembers(player) {
+  const members = findMonsterTrioMemberCards(player);
 
+  return members
+    .filter((entry) => !entry.card)
+    .map((entry) => {
+      if (normalize(entry.code).includes("luffy")) return "Luffy";
+      if (normalize(entry.code).includes("zoro")) return "Zoro";
+      if (normalize(entry.code).includes("sanji")) return "Sanji";
+      return entry.code;
+    });
+}
 
-function makePseudoFragmentCard(fragmentName) {
+function createOwnedMonsterTrio(player) {
+  const base = hydrateMonsterTrioBattleCard(player, MONSTER_TRIO_CARD);
+  const owned = createOwnedCard(base);
+  const now = Date.now();
+  const instanceId = `lzs_${now}_${Math.random().toString(36).slice(2, 8)}`;
+
   return {
-    code: fragmentName,
-    name: fragmentName,
-    displayName: fragmentName,
+    ...owned,
+    ...base,
+    id: instanceId,
+    instanceId,
+    code: "lzs",
+    name: "Monster Trio",
+    displayName: "Monster Trio",
+    title: "Monster Trio",
+    rarity: "M",
+    currentTier: "M",
+    baseTier: "M",
+    originalTier: "M",
+    baseRarity: "M",
+    cardRole: "battle",
+    type: "Merge Battle",
+    isMonsterTrio: true,
+    isMergeBattleCard: true,
+    mergeBattleCode: "lzs",
+    mergeMembers: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
+    mergeStatPercent: 50,
+    canPull: false,
+    canPA: false,
+    summonOnly: true,
+    requireRoadPoneglyph: true,
+    evolutionStage: 1,
+    evolutionKey: "M1",
+    level: Number(owned?.level || 1),
+    exp: Number(owned?.exp || 0),
+    fragments: Number(owned?.fragments || 0),
+    obtainedAt: now,
+    source: "Summon",
   };
 }
 
-function getMergeRequirementStatus(fragments, mergeCard) {
-  return mergeCard.summonRequirements.fragments.map((req) => {
-    const pseudoCard = makePseudoFragmentCard(req.fragmentName);
-    const owned = getTotalCardFragments(fragments, pseudoCard);
+function getMonsterTrioSummonStatus(player, fragments) {
+  const missingMembers = getMonsterTrioMissingMembers(player);
 
-    return {
-      ...req,
-      owned,
-      ok: owned >= Number(req.amount || 0),
-    };
-  });
-}
-
-function consumeMergeRequirementFragments(fragments, mergeCard) {
-  let nextFragments = Array.isArray(fragments)
-    ? fragments.map((fragment) => ({ ...fragment }))
-    : [];
-
-  const consumedLines = [];
-
-  for (const req of mergeCard.summonRequirements.fragments) {
-    const pseudoCard = makePseudoFragmentCard(req.fragmentName);
-    const consumed = consumeCardFragments(nextFragments, pseudoCard, Number(req.amount || 0));
-
-    if (!consumed) return null;
-
-    nextFragments = consumed.fragments;
-    consumedLines.push(`${req.fragmentName} Fragment x${req.amount}`);
-  }
+  const fragmentStatus = MONSTER_TRIO_FRAGMENT_REQUIREMENTS.map((req) => ({
+    ...req,
+    owned: getMonsterTrioOwnedFragments(fragments, req),
+  }));
 
   return {
-    fragments: nextFragments,
-    consumedLines,
+    hasRoadPoneglyph: ownsRoadPoneglyph(player),
+    missingMembers,
+    fragmentStatus,
+    missingFragments: fragmentStatus.filter((entry) => entry.owned < entry.amount),
   };
 }
-
-
 
 module.exports = {
   name: "summon",
@@ -474,8 +596,10 @@ module.exports = {
           "Example: `op summon luffy`",
           "Example: `op summon baccarat`",
           "Example: `op summon kikoku`",
+          "Example: `op summon lzs`",
           "",
           `Cost: **${SUMMON_FRAGMENT_COST}x self fragments**`,
+          "Monster Trio/LZS Cost: **50x Luffy Fragment + 50x Zoro Fragment + 50x Sanji Fragment + Road Poneglyph card**",
           "Summonable: **Battle Cards**, **Boost Cards**, and **Weapons**",
         ].join("\n"),
         allowedMentions: {
@@ -484,13 +608,13 @@ module.exports = {
       });
     }
 
+    const isMonsterTrioSummon = isMonsterTrioQuery(query);
+    const card = isMonsterTrioSummon ? null : findSummonableCard(query);
+    const weapon = isMonsterTrioSummon || card ? null : findWeaponByNameOnly(query);
 
-    const card = mergeCard ? null : findSummonableCard(query);
-    const weapon = mergeCard || card ? null : findWeaponByNameOnly(query);
-
-    if (!mergeCard && !card && !weapon) {
+    if (!isMonsterTrioSummon && !card && !weapon) {
       return message.reply({
-        content: `Battle card, boost card, merge card, or weapon matching \`${query}\` was not found.`,
+        content: `Battle card, boost card, or weapon matching \`${query}\` was not found.`,
         allowedMentions: { repliedUser: false },
       });
     }
@@ -504,7 +628,7 @@ module.exports = {
     let weaponBadge = null;
     let weaponType = null;
     let cardRoleLabel = null;
-    let mergeConsumedLines = [];
+    let monsterTrioConsumedLines = [];
 
     try {
       updatePlayerAtomic(
@@ -514,55 +638,72 @@ module.exports = {
             ? fresh.fragments.map((fragment) => ({ ...fragment }))
             : [];
 
-          if (mergeCard) {
-            if (alreadyOwnsMergeCard(fresh, mergeCard)) {
-              throw new Error(`You already own **${mergeCard.name}**.`);
+          if (isMonsterTrioSummon) {
+            if (alreadyOwnsMonsterTrio(fresh)) {
+              throw new Error("You already own **Monster Trio**.");
             }
 
-            if (!hasMergeKeyStage(fresh, mergeCard, mergeCard.summonRequirements.keyStage || 1)) {
+            const status = getMonsterTrioSummonStatus(fresh, fragments);
+
+            if (!status.hasRoadPoneglyph) {
               throw new Error(
                 [
-                  `You cannot summon **${mergeCard.name}** yet.`,
+                  "You cannot summon **Monster Trio** yet.",
                   "",
                   "**Special Requirement:**",
-                  `You must own **${mergeCard.keyCardName} M${mergeCard.summonRequirements.keyStage || 1}** first.`,
+                  "You must own **Road Poneglyph** first.",
                 ].join("\n")
               );
             }
 
-            const requirementStatus = getMergeRequirementStatus(fragments, mergeCard);
-            const missing = requirementStatus.filter((entry) => !entry.ok);
-
-            if (missing.length) {
+            if (status.missingMembers.length) {
               throw new Error(
                 [
-                  `You need these fragments to summon **${mergeCard.name}**:`,
+                  "You cannot summon **Monster Trio** yet.",
                   "",
-                  ...requirementStatus.map(
-                    (entry) =>
-                      `• ${entry.fragmentName} Fragment: ${entry.owned}/${entry.amount}`
+                  "**Required Original Cards:**",
+                  "You must own **Luffy**, **Zoro**, and **Sanji** first.",
+                  "",
+                  `Missing: ${status.missingMembers.join(", ")}`,
+                ].join("\n")
+              );
+            }
+
+            if (status.missingFragments.length) {
+              throw new Error(
+                [
+                  "You need these fragments to summon **Monster Trio**:",
+                  "",
+                  ...status.fragmentStatus.map(
+                    (entry) => `• ${entry.label} Fragment: ${entry.owned}/${entry.amount}`
                   ),
                 ].join("\n")
               );
             }
 
-            const consumed = consumeMergeRequirementFragments(fragments, mergeCard);
+            let nextFragments = fragments;
 
-            if (!consumed) {
-              throw new Error("Failed to consume merge fragments.");
+            for (const req of MONSTER_TRIO_FRAGMENT_REQUIREMENTS) {
+              const consumed = consumeMonsterTrioFragments(nextFragments, req);
+
+              if (!consumed) {
+                throw new Error(`Failed to consume ${req.label} fragments.`);
+              }
+
+              nextFragments = consumed.fragments;
+              monsterTrioConsumedLines.push(`${req.label} Fragment x${req.amount}`);
             }
 
-            ownedCard = createOwnedMergeCard(mergeCard);
-            summonedType = "merge";
-            summonedName = mergeCard.name;
+            ownedCard = createOwnedMonsterTrio(fresh);
+            summonedType = "monster_trio";
+            summonedName = "Monster Trio";
             summonedRarity = "M";
             remainingFragments = 0;
-            mergeConsumedLines = consumed.consumedLines;
 
             return {
               ...fresh,
               cards: [...(fresh.cards || []), ownedCard],
-              fragments: consumed.fragments,
+              fragments: nextFragments,
             };
           }
 
@@ -658,27 +799,32 @@ module.exports = {
       });
     }
 
-    if (summonedType === "merge") {
+    if (summonedType === "monster_trio") {
       return message.reply({
         embeds: [
           new EmbedBuilder()
             .setColor(0x8e44ad)
-            .setTitle("🔗 Merge Card Summoned")
+            .setTitle("🔥 Monster Trio Summoned")
             .setDescription(
               [
-                `**Merge Card:** ${summonedName}`,
+                `**Card:** ${summonedName}`,
+                `**Type:** Battle Card`,
                 `**Rarity:** ${summonedRarity}`,
                 `**Source:** Road Poneglyph`,
                 "",
                 "**Consumed Fragments:**",
-                ...mergeConsumedLines.map((line) => `• ${line}`),
+                ...monsterTrioConsumedLines.map((line) => `• ${line}`),
                 "",
-                "This merge card has been added to your collection.",
+                "**Special Logic:**",
+                "Stats are calculated from **50% Luffy + 50% Zoro + 50% Sanji**.",
+                "Weapon and Devil Fruit display are inherited from the original three cards.",
+                "",
+                "The card has been added to your collection.",
               ].join("\n")
             )
-            .setImage(ownedCard?.image || null)
+            .setImage(getSummonImage(ownedCard, MONSTER_TRIO_CARD))
             .setFooter({
-              text: "One Piece Bot • Merge Summon",
+              text: "One Piece Bot • Monster Trio Summon",
             }),
         ],
         allowedMentions: { repliedUser: false },

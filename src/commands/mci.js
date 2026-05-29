@@ -457,6 +457,72 @@ function buildOwnedWeaponEmbed(ownerName, player, weapon) {
     });
 }
 
+
+function isMonsterTrioOwnedCard(card) {
+  if (cardsData.isMonsterTrioCard?.(card)) return true;
+
+  const code = normalize(card?.code);
+  const name = normalize(card?.displayName || card?.name || card?.title);
+
+  return code === "lzs" || name === "monster trio";
+}
+
+function hydrateOwnedMonsterTrioForDisplay(player, card) {
+  if (!isMonsterTrioOwnedCard(card)) return card;
+  if (!cardsData.hydrateMonsterTrioBattleCard) return card;
+
+  const hydrated = cardsData.hydrateMonsterTrioBattleCard(player, {
+    ...(cardsData.MONSTER_TRIO_CARD || {}),
+    ...card,
+    code: "lzs",
+    name: "Monster Trio",
+    displayName: "Monster Trio",
+    title: "Monster Trio",
+    rarity: "M",
+    currentTier: "M",
+    baseTier: "M",
+    originalTier: "M",
+    baseRarity: "M",
+    cardRole: "battle",
+    type: "Merge Battle",
+    isMonsterTrio: true,
+    isMergeBattleCard: true,
+    mergeBattleCode: "lzs",
+    mergeMembers: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
+    mergeStatPercent: 50,
+  });
+
+  const stage = Math.max(1, Math.min(3, Number(card?.evolutionStage || 1)));
+  const stageKey = `M${stage}`;
+  const form = hydrated.evolutionForms?.[stage - 1] || null;
+
+  return {
+    ...card,
+    ...hydrated,
+    id: card.id,
+    instanceId: card.instanceId,
+    evolutionStage: stage,
+    evolutionKey: card.evolutionKey || stageKey,
+    level: Number(card.level || 1),
+    exp: Number(card.exp || 0),
+    raidPrestige: Number(card.raidPrestige || 0),
+    fragments: Number(card.fragments || 0),
+    atk: Number(form?.atk ?? hydrated.atk ?? 0),
+    hp: Number(form?.hp ?? hydrated.hp ?? 0),
+    speed: Number(form?.speed ?? hydrated.speed ?? 0),
+    spd: Number(form?.speed ?? hydrated.speed ?? 0),
+    currentPower: Number(form?.currentPower ?? form?.power ?? hydrated.currentPower ?? 0),
+    power: Number(form?.power ?? hydrated.power ?? 0),
+    displayWeaponName: hydrated.weapon || "None",
+    displayFruitName: hydrated.devilFruit || "None",
+    weapon: hydrated.weapon || "None",
+    devilFruit: hydrated.devilFruit || "None",
+    rarity: "M",
+    currentTier: "M",
+    baseTier: "M",
+  };
+}
+
 function buildOwnedCardEmbed(ownerName, player, card) {
   const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
   const form = getCurrentForm(card);

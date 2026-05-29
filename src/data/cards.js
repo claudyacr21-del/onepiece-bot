@@ -1085,6 +1085,548 @@ const ALL_CARDS = [
 ]
   .filter((card) => card.code !== "joy_boy")
   .map(applyEvolution);
+
+// ============================================================
+// MONSTER TRIO / LZS - SUMMON ONLY BATTLE CARD
+// ============================================================
+
+const MONSTER_TRIO_CARD = applyEvolution(
+  battleCard({
+    id: "monster_trio_lzs",
+    code: "lzs",
+    name: "Monster Trio",
+    displayName: "Monster Trio",
+    title: "Monster Trio",
+
+    rarity: "M",
+    currentTier: "M",
+    baseTier: "M",
+    originalTier: "M",
+    baseRarity: "M",
+
+    cardRole: "battle",
+    type: "Merge Battle",
+    faction: "Straw Hat Pirates",
+    arc: "Egghead",
+    variant: "Monster Trio",
+
+    isMonsterTrio: true,
+    isMergeBattleCard: true,
+    mergeBattleCode: "lzs",
+    mergeMembers: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
+    mergeStatPercent: 50,
+
+    canPull: false,
+    canPA: false,
+    summonOnly: true,
+    requireRoadPoneglyph: true,
+
+    summonRequirements: {
+      requiredCards: [
+        {
+          code: "road_poneglyph",
+          name: "Road Poneglyph",
+          amount: 1,
+        },
+      ],
+      fragments: [
+        {
+          code: "luffy_straw_hat",
+          name: "Monkey D. Luffy",
+          amount: 50,
+        },
+        {
+          code: "zoro_pirate_hunter",
+          name: "Roronoa Zoro",
+          amount: 50,
+        },
+        {
+          code: "sanji_black_leg",
+          name: "Sanji",
+          amount: 50,
+        },
+      ],
+    },
+
+    atk: 0,
+    hp: 0,
+    speed: 0,
+    spd: 0,
+    power: 0,
+    currentPower: 0,
+
+    weapon: "Inherited from Luffy, Zoro & Sanji",
+    devilFruit: "Inherited from Luffy, Zoro & Sanji",
+    equipType: "Inherited",
+
+    image: "",
+  })
+);
+
+function normalizeMonsterTrioText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s,&]+/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function isMonsterTrioCard(card) {
+  const values = [
+    card?.code,
+    card?.id,
+    card?.instanceId,
+    card?.name,
+    card?.displayName,
+    card?.title,
+    card?.mergeBattleCode,
+  ].map(normalizeMonsterTrioText);
+
+  return values.some((value) => {
+    return (
+      value === "lzs" ||
+      value === "monster trio" ||
+      value.includes("luffy zoro sanji") ||
+      value.includes("luffy, zoro & sanji") ||
+      value.includes("monster trio")
+    );
+  });
+}
+
+function getMonsterTrioTemplate() {
+  return MONSTER_TRIO_CARD;
+}
+
+function matchMonsterTrioMember(card, memberCode) {
+  const wanted = normalizeMonsterTrioText(memberCode);
+
+  const values = [
+    card?.code,
+    card?.id,
+    card?.instanceId,
+    card?.name,
+    card?.displayName,
+    card?.title,
+    card?.baseCode,
+    card?.characterCode,
+  ].map(normalizeMonsterTrioText);
+
+  if (wanted.includes("luffy")) {
+    return values.some((value) => value.includes("luffy"));
+  }
+
+  if (wanted.includes("zoro")) {
+    return values.some((value) => value.includes("zoro"));
+  }
+
+  if (wanted.includes("sanji")) {
+    return values.some((value) => value.includes("sanji"));
+  }
+
+  return values.some((value) => {
+    return value === wanted || value.includes(wanted) || wanted.includes(value);
+  });
+}
+
+function findMonsterTrioMemberCards(player) {
+  const ownedCards = Array.isArray(player?.cards) ? player.cards : [];
+  const members = MONSTER_TRIO_CARD.mergeMembers || [];
+
+  return members.map((code) => {
+    const owned = ownedCards.find((card) => matchMonsterTrioMember(card, code)) || null;
+
+    return {
+      code,
+      card: owned,
+    };
+  });
+}
+
+function getMonsterTrioStat(card, key) {
+  const pascal = key.charAt(0).toUpperCase() + key.slice(1);
+
+  return (
+    Number(
+      card?.[key] ??
+        card?.[`base${pascal}`] ??
+        card?.[`current${pascal}`] ??
+        0
+    ) || 0
+  );
+}
+
+function getMonsterTrioPower(card) {
+  return (
+    Number(
+      card?.currentPower ??
+        card?.power ??
+        card?.basePower ??
+        card?.powerCaps?.M3 ??
+        0
+    ) || 0
+  );
+}
+
+function getMonsterTrioCalculatedStats(player) {
+  const members = findMonsterTrioMemberCards(player);
+  const rate = Number(MONSTER_TRIO_CARD.mergeStatPercent || 50) / 100;
+
+  const result = members.reduce(
+    (total, member) => {
+      const card = member.card;
+      if (!card) return total;
+
+      total.atk += Math.floor(getMonsterTrioStat(card, "atk") * rate);
+      total.hp += Math.floor(getMonsterTrioStat(card, "hp") * rate);
+      total.speed += Math.floor(getMonsterTrioStat(card, "speed") * rate);
+      total.power += Math.floor(getMonsterTrioPower(card) * rate);
+
+      return total;
+    },
+    {
+      atk: 0,
+      hp: 0,
+      speed: 0,
+      power: 0,
+    }
+  );
+
+  return {
+    ...result,
+    spd: result.speed,
+    currentPower: result.power,
+  };
+}
+
+function getMonsterTrioEquipmentName(item) {
+  if (!item) return null;
+
+  if (typeof item === "object") {
+    return item.displayName || item.name || item.title || item.code || null;
+  }
+
+  return String(item || "").trim() || null;
+}
+
+function collectMonsterTrioEquipment(player) {
+  const members = findMonsterTrioMemberCards(player);
+  const weapons = [];
+  const devilFruits = [];
+
+  for (const member of members) {
+    const card = member.card;
+    if (!card) continue;
+
+    const weaponSources = [
+      card.weapon,
+      card.weaponName,
+      card.signatureWeapon,
+      card.signatureWeaponName,
+      card.equippedWeapon,
+      card.equippedWeaponName,
+      ...(Array.isArray(card.weapons) ? card.weapons : []),
+      ...(Array.isArray(card.equippedWeapons) ? card.equippedWeapons : []),
+    ];
+
+    const fruitSources = [
+      card.devilFruit,
+      card.displayFruitName,
+      card.fruit,
+      card.equippedFruit,
+      card.equippedFruitName,
+      ...(Array.isArray(card.devilFruits) ? card.devilFruits : []),
+    ];
+
+    for (const item of weaponSources) {
+      const name = getMonsterTrioEquipmentName(item);
+      if (!name) continue;
+      if (["none", "null", "undefined"].includes(name.toLowerCase())) continue;
+      weapons.push(name);
+    }
+
+    for (const item of fruitSources) {
+      const name = getMonsterTrioEquipmentName(item);
+      if (!name) continue;
+      if (["none", "null", "undefined"].includes(name.toLowerCase())) continue;
+      devilFruits.push(name);
+    }
+  }
+
+  return {
+    weapons: [...new Set(weapons)],
+    devilFruits: [...new Set(devilFruits)],
+  };
+}
+
+function hydrateMonsterTrioBattleCard(player, baseCard = MONSTER_TRIO_CARD) {
+  const stats = getMonsterTrioCalculatedStats(player);
+  const equipment = collectMonsterTrioEquipment(player);
+
+  return {
+    ...baseCard,
+    atk: stats.atk,
+    hp: stats.hp,
+    speed: stats.speed,
+    spd: stats.speed,
+    power: stats.power,
+    currentPower: stats.currentPower,
+
+    weapon: equipment.weapons.length ? equipment.weapons.join(", ") : "None",
+    devilFruit: equipment.devilFruits.length
+      ? equipment.devilFruits.join(", ")
+      : "None",
+
+    inheritedWeapons: equipment.weapons,
+    inheritedDevilFruits: equipment.devilFruits,
+  };
+}
+
+
+Object.assign(MONSTER_TRIO_CARD, {
+  rarity: "M",
+  currentTier: "M",
+  baseTier: "M",
+  originalTier: "M",
+  baseRarity: "M",
+  name: "Monster Trio",
+  displayName: "Monster Trio",
+  title: "Monster Trio",
+  cardRole: "battle",
+  type: "Merge Battle",
+  isMonsterTrio: true,
+  isMergeBattleCard: true,
+  mergeBattleCode: "lzs",
+  mergeMembers: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
+  mergeStatPercent: 50,
+  canPull: false,
+  canPA: false,
+  summonOnly: true,
+  requireRoadPoneglyph: true,
+
+  evolutionForms: [
+    {
+      stage: 1,
+      key: "M1",
+      tier: "M",
+      name: "Monster Trio",
+      formTitle: "Monster Trio",
+      specialName: "Monster Trio",
+      require: null,
+    },
+    {
+      stage: 2,
+      key: "M2",
+      tier: "M",
+      name: "Monster Trio",
+      formTitle: "Monster Trio",
+      specialName: "Monster Trio",
+      require: {
+        berries: 2500000,
+        gems: 2000,
+        selfFragments: 0,
+        minLevel: 35,
+        cards: [
+          { code: "road_poneglyph", name: "Road Poneglyph", stage: 2 },
+        ],
+        boosts: [],
+        cardsText: [
+          "Road Poneglyph M2",
+          "75x Monkey D. Luffy Fragment",
+          "75x Roronoa Zoro Fragment",
+          "75x Sanji Fragment",
+        ],
+        boostsText: [],
+        mergeFragments: [
+          { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 75 },
+          { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 75 },
+          { code: "sanji_black_leg", name: "Sanji", amount: 75 },
+        ],
+        text:
+          "Requires Monster Trio level 35, Road Poneglyph M2, 2,500,000 berries, 2,000 gems, and 75 fragments from each member.",
+      },
+    },
+    {
+      stage: 3,
+      key: "M3",
+      tier: "M",
+      name: "Monster Trio",
+      formTitle: "Monster Trio",
+      specialName: "Monster Trio",
+      require: {
+        berries: 2500000,
+        gems: 2000,
+        selfFragments: 0,
+        minLevel: 75,
+        cards: [
+          { code: "road_poneglyph", name: "Road Poneglyph", stage: 3 },
+        ],
+        boosts: [],
+        cardsText: [
+          "Road Poneglyph M3",
+          "100x Monkey D. Luffy Fragment",
+          "100x Roronoa Zoro Fragment",
+          "100x Sanji Fragment",
+        ],
+        boostsText: [],
+        mergeFragments: [
+          { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 100 },
+          { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 100 },
+          { code: "sanji_black_leg", name: "Sanji", amount: 100 },
+        ],
+        text:
+          "Requires Monster Trio level 75, Road Poneglyph M3, 2,500,000 berries, 2,000 gems, and 100 fragments from each member.",
+      },
+    },
+  ],
+
+  awakenRequirements: {
+    M2: {
+      berries: 2500000,
+      gems: 2000,
+      selfFragments: 0,
+      minLevel: 35,
+      cards: [
+        { code: "road_poneglyph", name: "Road Poneglyph", stage: 2 },
+      ],
+      boosts: [],
+      cardsText: [
+        "Road Poneglyph M2",
+        "75x Monkey D. Luffy Fragment",
+        "75x Roronoa Zoro Fragment",
+        "75x Sanji Fragment",
+      ],
+      boostsText: [],
+      mergeFragments: [
+        { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 75 },
+        { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 75 },
+        { code: "sanji_black_leg", name: "Sanji", amount: 75 },
+      ],
+      text:
+        "Requires Monster Trio level 35, Road Poneglyph M2, 2,500,000 berries, 2,000 gems, and 75 fragments from each member.",
+    },
+
+    M3: {
+      berries: 2500000,
+      gems: 2000,
+      selfFragments: 0,
+      minLevel: 75,
+      cards: [
+        { code: "road_poneglyph", name: "Road Poneglyph", stage: 3 },
+      ],
+      boosts: [],
+      cardsText: [
+        "Road Poneglyph M3",
+        "100x Monkey D. Luffy Fragment",
+        "100x Roronoa Zoro Fragment",
+        "100x Sanji Fragment",
+      ],
+      boostsText: [],
+      mergeFragments: [
+        { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 100 },
+        { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 100 },
+        { code: "sanji_black_leg", name: "Sanji", amount: 100 },
+      ],
+      text:
+        "Requires Monster Trio level 75, Road Poneglyph M3, 2,500,000 berries, 2,000 gems, and 100 fragments from each member.",
+    },
+  },
+});
+
+
+function applyMonsterTrioSpecialAwakenRequirements() {
+  const m2Req = {
+    berries: 2500000,
+    gems: 2000,
+    selfFragments: 0,
+    minLevel: 35,
+    cards: [
+      { code: "road_poneglyph", name: "Road Poneglyph", stage: 2 },
+    ],
+    boosts: [],
+    cardsText: [
+      "Road Poneglyph M2",
+      "75x Monkey D. Luffy Fragment",
+      "75x Roronoa Zoro Fragment",
+      "75x Sanji Fragment",
+    ],
+    boostsText: [],
+    mergeFragments: [
+      { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 75 },
+      { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 75 },
+      { code: "sanji_black_leg", name: "Sanji", amount: 75 },
+    ],
+    text:
+      "Requires Monster Trio level 35, Road Poneglyph M2, 2,500,000 berries, 2,000 gems, and 75 fragments from each member.",
+  };
+
+  const m3Req = {
+    berries: 2500000,
+    gems: 2000,
+    selfFragments: 0,
+    minLevel: 75,
+    cards: [
+      { code: "road_poneglyph", name: "Road Poneglyph", stage: 3 },
+    ],
+    boosts: [],
+    cardsText: [
+      "Road Poneglyph M3",
+      "100x Monkey D. Luffy Fragment",
+      "100x Roronoa Zoro Fragment",
+      "100x Sanji Fragment",
+    ],
+    boostsText: [],
+    mergeFragments: [
+      { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 100 },
+      { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 100 },
+      { code: "sanji_black_leg", name: "Sanji", amount: 100 },
+    ],
+    text:
+      "Requires Monster Trio level 75, Road Poneglyph M3, 2,500,000 berries, 2,000 gems, and 100 fragments from each member.",
+  };
+
+  MONSTER_TRIO_CARD.awakenRequirements = {
+    M2: m2Req,
+    M3: m3Req,
+  };
+
+  MONSTER_TRIO_CARD.evolutionForms = [
+    {
+      stage: 1,
+      key: "M1",
+      tier: "M",
+      name: "Monster Trio",
+      formTitle: "Monster Trio",
+      specialName: "Monster Trio",
+      require: null,
+    },
+    {
+      stage: 2,
+      key: "M2",
+      tier: "M",
+      name: "Monster Trio",
+      formTitle: "Monster Trio",
+      specialName: "Monster Trio",
+      require: m2Req,
+    },
+    {
+      stage: 3,
+      key: "M3",
+      tier: "M",
+      name: "Monster Trio",
+      formTitle: "Monster Trio",
+      specialName: "Monster Trio",
+      require: m3Req,
+    },
+  ];
+}
+
+applyMonsterTrioSpecialAwakenRequirements();
+
+if (!ALL_CARDS.some((card) => String(card.code || "").toLowerCase() === "lzs")) {
+  ALL_CARDS.push(MONSTER_TRIO_CARD);
+}
+
 module.exports = ALL_CARDS;
 
 module.exports.BASE_CARDS = BASE_CARDS;
@@ -1092,3 +1634,12 @@ module.exports.EXTRA_CANON_CARDS = EXTRA_CANON_CARDS;
 module.exports.EXTRA_REQ_SUPPORT = EXTRA_REQ_SUPPORT;
 module.exports.EXTRA_CHARACTER_CARDS = EXTRA_CHARACTER_CARDS;
 module.exports.SPECIAL_FORMS = SPECIAL_FORMS;
+
+
+module.exports.MONSTER_TRIO_CARD = MONSTER_TRIO_CARD;
+module.exports.getMonsterTrioTemplate = getMonsterTrioTemplate;
+module.exports.isMonsterTrioCard = isMonsterTrioCard;
+module.exports.findMonsterTrioMemberCards = findMonsterTrioMemberCards;
+module.exports.getMonsterTrioCalculatedStats = getMonsterTrioCalculatedStats;
+module.exports.collectMonsterTrioEquipment = collectMonsterTrioEquipment;
+module.exports.hydrateMonsterTrioBattleCard = hydrateMonsterTrioBattleCard;

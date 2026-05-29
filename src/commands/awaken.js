@@ -15,7 +15,7 @@ const {
 } = require("../utils/evolution");
 const { getCardImage } = require("../config/assetLinks");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-const { findMergeCard } = require("../data/cards");
+const cardsData = require("../data/cards");
 
 function isIgnorableInteractionError(error) {
   const code = Number(error?.code || error?.rawError?.code || 0);
@@ -103,6 +103,7 @@ function normalizeCode(value) {
     .toLowerCase()
     .trim()
     .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s,&]+/g, "")
     .replace(/\s+/g, " ");
 }
 
@@ -111,8 +112,12 @@ function scoreOwnedCardQuery(card, query) {
   if (!q) return 0;
 
   const fields = [
+    card?.instanceId,
+    card?.id,
+    card?.code,
     card?.name,
     card?.displayName,
+    card?.title,
     String(card?.code || "").replace(/_/g, " "),
   ]
     .map(normalizeCode)
@@ -159,10 +164,7 @@ function findCardTemplateSafe(card) {
     if (byCode) return byCode;
   }
 
-  const keys = [
-    card?.displayName,
-    card?.name,
-  ]
+  const keys = [card?.displayName, card?.name]
     .map((value) => String(value || "").trim())
     .filter(Boolean);
 
@@ -189,10 +191,7 @@ function getStageCard(card, stage) {
 
   return hydrateCard({
     ...card,
-
-    // canonical template must win over old/corrupted owned data
     ...template,
-
     code: template?.code || card?.code,
     displayName:
       template?.displayName ||
@@ -200,11 +199,8 @@ function getStageCard(card, stage) {
       template?.name ||
       card?.name,
     name: template?.name || card?.name,
-
     evolutionStage: stage,
     evolutionKey: stageKey,
-
-    // force canonical image containers from template, not owned card
     image: template?.image || card?.image || "",
     stageImages: template?.stageImages || {},
     evolutionForms: template?.evolutionForms || [],
@@ -216,7 +212,6 @@ function getStageImage(card, stage) {
   const template = findCardTemplateSafe(card);
   const form = getStageForm(template, stage);
 
-  // 1. canonical form/stage image from card template
   const templateStageImage =
     form?.image ||
     template?.stageImages?.[stageKey] ||
@@ -225,13 +220,11 @@ function getStageImage(card, stage) {
 
   if (templateStageImage) return templateStageImage;
 
-  // 2. exact asset link by owned card code first
   const cardCode = String(card?.code || template?.code || "").trim();
   const assetImage = cardCode ? getCardImage(cardCode, stageKey, "") : "";
 
   if (assetImage) return assetImage;
 
-  // 3. fallback only to canonical template image
   return template?.image || "";
 }
 
@@ -242,6 +235,8 @@ function getFormName(card, stage) {
 
   return (
     form?.name ||
+    form?.formTitle ||
+    form?.specialName ||
     stageCard?.variant ||
     template?.variant ||
     card?.variant ||
@@ -256,7 +251,9 @@ function getBoostEffectText(card, stage = 1) {
 
   const template = findCardTemplate(card?.code || card?.displayName || card?.name) || card;
   const stageCard = getStageCard(template, stage);
-  const form = stageCard?.evolutionForms?.[stage - 1] || template?.evolutionForms?.[stage - 1];
+  const form =
+    stageCard?.evolutionForms?.[stage - 1] ||
+    template?.evolutionForms?.[stage - 1];
 
   const existingText =
     form?.effectText ||
@@ -345,21 +342,6 @@ function formatAtkRange(atk) {
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
-function applyBoostedDisplayStats(card, boosts = {}) {
-  if (!card || String(card.cardRole || "").toLowerCase() === "boost") {
-    return card;
-  }
-
-  return {
-    ...card,
-    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
-    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
-    speed: Math.floor(
-      Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)
-    ),
-  };
-}
-
 function buildSuccessEmbed(result, player) {
   const rawCard = hydrateCard(result.target);
   const boosts = getPassiveBoostSummary(player);
@@ -401,9 +383,16 @@ function buildSuccessEmbed(result, player) {
   return embed;
 }
 
+function isMonsterTrioOwnedCard(card) {
+  if (cardsData.isMonsterTrioCard?.(card)) return true;
 
+  const code = normalizeCode(card?.code);
+  const name = normalizeCode(card?.displayName || card?.name || card?.title);
 
-function getOwnedMergeStage(card) {
+  return code === "lzs" || name === "monster trio";
+}
+
+function getOwnedStage(card) {
   const key = String(card?.evolutionKey || "").toUpperCase();
   const match = key.match(/M([123])/);
 
@@ -412,149 +401,151 @@ function getOwnedMergeStage(card) {
   return Math.max(1, Math.min(3, Number(card?.evolutionStage || 1)));
 }
 
-function hasMergeKeyStage(player, mergeCard, requiredStage = 1) {
-  const cards = Array.isArray(player?.cards) ? player.cards : [];
-  const keyCode = normalizeCode(mergeCard?.keyCardCode);
-  const keyName = normalizeCode(mergeCard?.keyCardName);
+function getMonsterTrioTemplate() {
+  return (
+    cardsData.MONSTER_TRIO_CARD ||
+    (Array.isArray(cardsData)
+      ? cardsData.find((card) => String(card?.code || "").toLowerCase() === "lzs")
+      : null)
+  );
+}
 
-  return cards.some((card) => {
-    const code = normalizeCode(card?.code);
-    const name = normalizeCode(card?.name || card?.displayName);
-    const isKey =
-      code === keyCode ||
-      name === keyName ||
-      name.includes(keyName) ||
-      keyName.includes(name);
+function getMonsterTrioRequirement(nextStage) {
+  const template = getMonsterTrioTemplate();
+  return template?.awakenRequirements?.[`M${nextStage}`] || null;
+}
 
-    return isKey && getOwnedMergeStage(card) >= Number(requiredStage || 1);
+function entryMatchesRequirement(entry, requirement) {
+  const reqValues = [
+    requirement?.code,
+    requirement?.name,
+    requirement?.displayName,
+    requirement?.cardName,
+    requirement?.title,
+  ]
+    .map(normalizeCode)
+    .filter(Boolean);
+
+  const entryValues = [
+    entry?.code,
+    entry?.name,
+    entry?.displayName,
+    entry?.cardName,
+    entry?.title,
+  ]
+    .map(normalizeCode)
+    .filter(Boolean);
+
+  if (!reqValues.length || !entryValues.length) return false;
+
+  return reqValues.some((req) =>
+    entryValues.some(
+      (owned) => owned === req || owned.includes(req) || req.includes(owned)
+    )
+  );
+}
+
+function hasRequiredCardStage(player, requirement) {
+  const list = Array.isArray(player?.cards) ? player.cards : [];
+  const requiredStage = Number(requirement?.stage || 1);
+
+  return list.some((card) => {
+    if (!entryMatchesRequirement(card, requirement)) return false;
+    return getOwnedStage(card) >= requiredStage;
   });
 }
 
-function makePseudoFragmentCard(fragmentName) {
-  return {
-    code: fragmentName,
-    name: fragmentName,
-    displayName: fragmentName,
-  };
+function getFragmentAmount(fragment) {
+  return Number(fragment?.amount ?? fragment?.count ?? fragment?.quantity ?? 0) || 0;
 }
 
-function isMatchingMergeFragment(frag, fragmentName) {
-  const card = makePseudoFragmentCard(fragmentName);
-  const cardCode = normalizeCode(card.code);
-  const cardName = normalizeCode(card.displayName);
+function getMergeFragmentMatches(fragments, requirement) {
+  const list = Array.isArray(fragments) ? fragments : [];
 
-  const fragCode = normalizeCode(frag?.code);
-  const fragName = normalizeCode(frag?.name || frag?.displayName);
-  const fragCardCode = normalizeCode(
-    frag?.cardCode ||
-      frag?.sourceCode ||
-      frag?.characterCode ||
-      frag?.sourceCardCode ||
-      frag?.targetCode
-  );
-
-  return (
-    fragCode === cardCode ||
-    fragCardCode === cardCode ||
-    fragName === cardName ||
-    fragName === `${cardName} fragment` ||
-    fragName.includes(cardName) ||
-    cardName.includes(fragName)
-  );
-}
-
-function getMergeFragmentMatches(fragments, fragmentName) {
-  return (Array.isArray(fragments) ? fragments : [])
-    .map((frag, index) => ({
-      frag,
+  return list
+    .map((fragment, index) => ({
+      fragment,
       index,
-      amount: Number(frag?.amount || 0),
+      amount: getFragmentAmount(fragment),
     }))
     .filter(
       (entry) =>
-        entry.amount > 0 && isMatchingMergeFragment(entry.frag, fragmentName)
+        entry.amount > 0 && entryMatchesRequirement(entry.fragment, requirement)
     );
 }
 
-function getTotalMergeFragments(fragments, fragmentName) {
-  return getMergeFragmentMatches(fragments, fragmentName).reduce(
-    (total, entry) => total + Number(entry.amount || 0),
+function getTotalMergeFragments(fragments, requirement) {
+  return getMergeFragmentMatches(fragments, requirement).reduce(
+    (total, entry) => total + entry.amount,
     0
   );
 }
 
-function consumeMergeFragmentsByName(fragments, fragmentName, amount) {
-  const arr = Array.isArray(fragments) ? [...fragments] : [];
-  let remainingToConsume = Number(amount || 0);
+function consumeMergeFragments(fragments, requirement, amount) {
+  const arr = Array.isArray(fragments)
+    ? fragments.map((fragment) => ({ ...fragment }))
+    : [];
 
-  const matches = getMergeFragmentMatches(arr, fragmentName).sort(
-    (a, b) => b.amount - a.amount
-  );
+  const matches = getMergeFragmentMatches(arr, requirement).sort((a, b) => {
+    const aExact = normalizeCode(a.fragment?.code) === normalizeCode(requirement?.code) ? 1 : 0;
+    const bExact = normalizeCode(b.fragment?.code) === normalizeCode(requirement?.code) ? 1 : 0;
+
+    if (bExact !== aExact) return bExact - aExact;
+    return b.amount - a.amount;
+  });
 
   const totalOwned = matches.reduce((total, entry) => total + entry.amount, 0);
-
   if (totalOwned < amount) return null;
 
+  let leftToConsume = Number(amount || 0);
+
   for (const match of matches) {
-    if (remainingToConsume <= 0) break;
+    if (leftToConsume <= 0) break;
 
-    const currentIndex = arr.findIndex((entry) => entry === match.frag);
-    if (currentIndex < 0) continue;
+    const idx = arr.findIndex((entry) => entry === match.fragment);
+    if (idx < 0) continue;
 
-    const currentAmount = Number(arr[currentIndex]?.amount || 0);
-    const take = Math.min(currentAmount, remainingToConsume);
-    const left = currentAmount - take;
+    const current = getFragmentAmount(arr[idx]);
+    const take = Math.min(current, leftToConsume);
+    const left = current - take;
 
-    remainingToConsume -= take;
+    leftToConsume -= take;
 
     if (left <= 0) {
-      arr.splice(currentIndex, 1);
+      arr.splice(idx, 1);
     } else {
-      arr[currentIndex] = {
-        ...arr[currentIndex],
+      arr[idx] = {
+        ...arr[idx],
         amount: left,
       };
+
+      if ("count" in arr[idx]) arr[idx].count = left;
+      if ("quantity" in arr[idx]) arr[idx].quantity = left;
     }
   }
 
   return arr;
 }
 
-function getMergeStageImage(mergeCard, stage) {
-  const stageKey = getStageKey(stage);
-  return mergeCard?.stageImages?.[stageKey] || mergeCard?.image || "";
-}
-
-function getMergeMasteryName(mergeCard, stage) {
-  return (
-    mergeCard?.masteryNames?.[Number(stage || 1) - 1] ||
-    mergeCard?.name ||
-    "Merge Card"
-  );
-}
-
-function getMergeAwakenRequirement(mergeCard, nextStage) {
-  return mergeCard?.awakenRequirements?.[Number(nextStage)] || null;
-}
-
-function validateMergeAwakenRequirement(player, mergeCard, ownedMerge, nextStage) {
-  const req = getMergeAwakenRequirement(mergeCard, nextStage);
+function validateMonsterTrioAwaken(player, owned, nextStage) {
+  const req = getMonsterTrioRequirement(nextStage);
 
   if (!req) {
-    throw new Error(`Merge awaken requirement for M${nextStage} was not found.`);
+    throw new Error(`Monster Trio requirement for M${nextStage} was not found.`);
   }
 
   const missing = [];
   const fragments = Array.isArray(player?.fragments) ? player.fragments : [];
 
-  const keyStage = Number(req.keyStage || nextStage);
+  const levelOwned = Number(owned?.level || owned?.currentLevel || owned?.lvl || 1);
+  const levelNeed = Number(req.minLevel || 0);
 
-  if (!hasMergeKeyStage(player, mergeCard, keyStage)) {
-    missing.push(`${mergeCard.keyCardName || mergeCard.keyCardCode} M${keyStage}`);
+  if (levelOwned < levelNeed) {
+    missing.push(`Level ${levelOwned}/${levelNeed}`);
   }
 
-  const berriesNeed = Number(req.berries || 0);
   const berriesOwned = Number(player?.berries || 0);
+  const berriesNeed = Number(req.berries || 0);
 
   if (berriesOwned < berriesNeed) {
     missing.push(
@@ -562,8 +553,8 @@ function validateMergeAwakenRequirement(player, mergeCard, ownedMerge, nextStage
     );
   }
 
-  const gemsNeed = Number(req.gems || 0);
   const gemsOwned = Number(player?.gems || 0);
+  const gemsNeed = Number(req.gems || 0);
 
   if (gemsOwned < gemsNeed) {
     missing.push(
@@ -571,12 +562,18 @@ function validateMergeAwakenRequirement(player, mergeCard, ownedMerge, nextStage
     );
   }
 
-  for (const fragReq of req.fragments || []) {
-    const owned = getTotalMergeFragments(fragments, fragReq.fragmentName);
-    const need = Number(fragReq.amount || 0);
+  for (const cardReq of req.cards || []) {
+    if (!hasRequiredCardStage(player, cardReq)) {
+      missing.push(`${cardReq.name || cardReq.code} M${cardReq.stage || 1}`);
+    }
+  }
 
-    if (owned < need) {
-      missing.push(`${fragReq.fragmentName} Fragment ${owned}/${need}`);
+  for (const fragReq of req.mergeFragments || []) {
+    const ownedAmount = getTotalMergeFragments(fragments, fragReq);
+    const needAmount = Number(fragReq.amount || 0);
+
+    if (ownedAmount < needAmount) {
+      missing.push(`${fragReq.name || fragReq.code} Fragment ${ownedAmount}/${needAmount}`);
     }
   }
 
@@ -587,52 +584,84 @@ function validateMergeAwakenRequirement(player, mergeCard, ownedMerge, nextStage
   return req;
 }
 
-function applyMergeAwaken(player, mergeCard, ownedMerge, nextStage) {
-  const req = validateMergeAwakenRequirement(player, mergeCard, ownedMerge, nextStage);
+function applyMonsterTrioAwaken(player, owned, nextStage) {
+  const req = validateMonsterTrioAwaken(player, owned, nextStage);
   const stageKey = getStageKey(nextStage);
+  const template = getMonsterTrioTemplate() || owned;
 
   let updatedFragments = Array.isArray(player.fragments)
     ? player.fragments.map((fragment) => ({ ...fragment }))
     : [];
 
-  for (const fragReq of req.fragments || []) {
-    const consumed = consumeMergeFragmentsByName(
+  for (const fragReq of req.mergeFragments || []) {
+    const consumed = consumeMergeFragments(
       updatedFragments,
-      fragReq.fragmentName,
+      fragReq,
       Number(fragReq.amount || 0)
     );
 
     if (!consumed) {
-      throw new Error(`Failed to consume ${fragReq.fragmentName} Fragment.`);
+      throw new Error(`Failed to consume ${fragReq.name || fragReq.code} Fragment.`);
     }
 
     updatedFragments = consumed;
   }
 
   const updatedCards = (Array.isArray(player.cards) ? player.cards : []).map((card) => {
-    if (String(card?.instanceId || "") !== String(ownedMerge?.instanceId || "")) {
-      return card;
-    }
+    const sameInstance =
+      String(card?.instanceId || card?.id || "") ===
+      String(owned?.instanceId || owned?.id || "");
+
+    const sameCodeFallback =
+      !owned?.instanceId &&
+      !owned?.id &&
+      String(card?.code || "").toLowerCase() === "lzs";
+
+    if (!sameInstance && !sameCodeFallback) return card;
 
     return {
       ...card,
+      code: "lzs",
+      name: "Monster Trio",
+      displayName: "Monster Trio",
+      title: "Monster Trio",
+      rarity: "M",
+      currentTier: "M",
+      baseTier: "M",
+      originalTier: "M",
+      baseRarity: "M",
+      cardRole: "battle",
+      type: "Merge Battle",
+      isMonsterTrio: true,
+      isMergeBattleCard: true,
+      mergeBattleCode: "lzs",
+      mergeMembers: template.mergeMembers || [
+        "luffy_straw_hat",
+        "zoro_pirate_hunter",
+        "sanji_black_leg",
+      ],
+      mergeStatPercent: 50,
+      canPull: false,
+      canPA: false,
+      summonOnly: true,
+      requireRoadPoneglyph: true,
       evolutionStage: Number(nextStage),
       evolutionKey: stageKey,
-      currentTier: "M",
-      rarity: "M",
-      image: getMergeStageImage(mergeCard, nextStage),
-      stageImages: mergeCard.stageImages || card.stageImages || {},
-      masteryNames: mergeCard.masteryNames || card.masteryNames || [],
-      name: mergeCard.name,
-      displayName: mergeCard.name,
-      title: mergeCard.title || mergeCard.name,
+      image: template?.stageImages?.[stageKey] || template?.image || card?.image || "",
+      stageImages: template?.stageImages || card?.stageImages || {},
+      evolutionForms: template?.evolutionForms || card?.evolutionForms || [],
+      awakenRequirements: template?.awakenRequirements || card?.awakenRequirements || {},
     };
   });
 
   const target =
-    updatedCards.find(
-      (card) => String(card?.instanceId || "") === String(ownedMerge?.instanceId || "")
-    ) || ownedMerge;
+    updatedCards.find((card) => {
+      const sameInstance =
+        String(card?.instanceId || card?.id || "") ===
+        String(owned?.instanceId || owned?.id || "");
+
+      return sameInstance || String(card?.code || "").toLowerCase() === "lzs";
+    }) || owned;
 
   return {
     target,
@@ -644,28 +673,30 @@ function applyMergeAwaken(player, mergeCard, ownedMerge, nextStage) {
   };
 }
 
-function buildMergeConfirmEmbed(mergeCard, ownedMerge, currentStage, nextStage) {
-  const image = getMergeStageImage(mergeCard, nextStage);
-  const req = getMergeAwakenRequirement(mergeCard, nextStage) || {};
+function buildMonsterTrioConfirmEmbed(owned, currentStage, nextStage) {
+  const req = getMonsterTrioRequirement(nextStage) || {};
+  const image = getStageImage(owned, nextStage);
 
   const embed = new EmbedBuilder()
     .setColor(0x8e44ad)
-    .setTitle(`🔗 Awaken Merge ${mergeCard.name}`)
+    .setTitle("🔥 Awaken Monster Trio")
     .setDescription(
       [
         `Current: **M${currentStage}**`,
-        `Next: **M${nextStage}** • ${getMergeMasteryName(mergeCard, nextStage)}`,
+        `Next: **M${nextStage}** • Monster Trio`,
         "",
         "**Required Cost**",
         `Berries: ${Number(req.berries || 0).toLocaleString("en-US")}`,
         `Gems: ${Number(req.gems || 0).toLocaleString("en-US")}`,
+        `Level: ${Number(req.minLevel || 0)}`,
+        "",
+        "**Required Card**",
+        ...(req.cards || []).map((entry) => `• ${entry.name || entry.code} M${entry.stage || 1}`),
         "",
         "**Required Fragments**",
-        ...(req.fragments || []).map(
-          (entry) => `• ${entry.fragmentName} Fragment x${entry.amount}`
+        ...(req.mergeFragments || []).map(
+          (entry) => `• ${entry.name || entry.code} Fragment x${entry.amount}`
         ),
-        "",
-        `Key Card: **${mergeCard.keyCardName} M${req.keyStage || nextStage}**`,
         "",
         "Press **Yes** to awaken or **Cancel** to stop.",
       ].join("\n")
@@ -675,18 +706,18 @@ function buildMergeConfirmEmbed(mergeCard, ownedMerge, currentStage, nextStage) 
   return embed;
 }
 
-function buildMergeSuccessEmbed(result, mergeCard) {
+function buildMonsterTrioSuccessEmbed(result) {
   const card = result.target;
   const targetStage = Number(card.evolutionStage || 1);
-  const image = getMergeStageImage(mergeCard, targetStage);
+  const image = getStageImage(card, targetStage);
 
   const embed = new EmbedBuilder()
     .setColor(0x2ecc71)
-    .setTitle("🔗 Merge Awaken Success")
+    .setTitle("🔥 Monster Trio Awaken Success")
     .setDescription(
       [
-        `**${mergeCard.name}** reached **M${targetStage}**`,
-        `**Form:** ${getMergeMasteryName(mergeCard, targetStage)}`,
+        `**Monster Trio** reached **M${targetStage}**`,
+        `**Form:** Monster Trio`,
         `**Tier:** M`,
         "",
         `**Berries Left:** ${Number(result.berries || 0).toLocaleString("en-US")}`,
@@ -710,16 +741,11 @@ module.exports = {
     }
 
     const player = getPlayer(message.author.id, message.author.username);
-
-    const owned = mergeCardByQuery
-      ? findOwnedMergeCard(player, mergeCardByQuery)
-      : findOwnedCardByNameOrCode(player.cards || [], query);
+    const owned = findOwnedCardByNameOrCode(player.cards || [], query);
 
     if (!owned) {
       return message.reply({
-        content: mergeCardByQuery
-          ? `You do not own **${mergeCardByQuery.name}**.`
-          : "You do not own that card.",
+        content: "You do not own that card.",
         allowedMentions: {
           repliedUser: false,
         },
@@ -732,30 +758,25 @@ module.exports = {
 
     const currentStage = Number(owned.evolutionStage || 1);
     const nextStage = currentStage + 1;
+    const isMonsterTrio = isMonsterTrioOwnedCard(owned);
 
-    const mergeCard =
-      mergeCardByQuery ||
-      (String(owned?.cardRole || "").toLowerCase() === "merge"
-        ? findMergeCard(owned.code || owned.name || owned.displayName)
-        : null);
-
-    if (mergeCard) {
+    if (isMonsterTrio) {
       try {
-        validateMergeAwakenRequirement(player, mergeCard, owned, nextStage);
+        validateMonsterTrioAwaken(player, owned, nextStage);
       } catch (error) {
         return message.reply({
           embeds: [
             new EmbedBuilder()
               .setColor(0xe74c3c)
-              .setTitle("Merge Awaken Failed")
+              .setTitle("Monster Trio Awaken Failed")
               .setDescription(
                 [
-                  `**${mergeCard.name}** cannot awaken to **M${nextStage}** yet.`,
+                  `**Monster Trio** cannot awaken to **M${nextStage}** yet.`,
                   "",
                   "**Missing / Error Detail**",
-                  String(error?.message || "Unknown merge awaken requirement error."),
+                  String(error?.message || "Unknown Monster Trio awaken requirement error."),
                   "",
-                  `Use \`op ci ${mergeCard.aliases?.[0] || mergeCard.code}\` to check the full requirements.`,
+                  "`op ci lzs` untuk cek requirement lengkap.",
                 ].join("\n")
               ),
           ],
@@ -763,7 +784,7 @@ module.exports = {
       }
 
       const sent = await message.reply({
-        embeds: [buildMergeConfirmEmbed(mergeCard, owned, currentStage, nextStage)],
+        embeds: [buildMonsterTrioConfirmEmbed(owned, currentStage, nextStage)],
         components: [
           new ActionRowBuilder().addComponents(
             new ButtonBuilder()
@@ -815,13 +836,13 @@ module.exports = {
           updatePlayerAtomic(
             message.author.id,
             (fresh) => {
-              const freshOwned = findOwnedMergeCard(fresh, mergeCard);
+              const freshOwned = findOwnedCardByNameOrCode(fresh.cards || [], query);
 
-              if (!freshOwned) {
-                throw new Error(`You do not own **${mergeCard.name}**.`);
+              if (!freshOwned || !isMonsterTrioOwnedCard(freshOwned)) {
+                throw new Error("You do not own **Monster Trio**.");
               }
 
-              awakenResult = applyMergeAwaken(fresh, mergeCard, freshOwned, nextStage);
+              awakenResult = applyMonsterTrioAwaken(fresh, freshOwned, nextStage);
 
               return {
                 ...fresh,
@@ -835,7 +856,7 @@ module.exports = {
           );
 
           await safeInteractionUpdate(interaction, {
-            embeds: [buildMergeSuccessEmbed(awakenResult, mergeCard)],
+            embeds: [buildMonsterTrioSuccessEmbed(awakenResult)],
             components: [],
           });
           await safeStopCollector(collector, "done");
@@ -844,15 +865,15 @@ module.exports = {
             embeds: [
               new EmbedBuilder()
                 .setColor(0xe74c3c)
-                .setTitle("Merge Awaken Failed")
+                .setTitle("Monster Trio Awaken Failed")
                 .setDescription(
                   [
-                    `**${mergeCard.name}** cannot awaken right now.`,
+                    "**Monster Trio** cannot awaken right now.",
                     "",
                     "**Missing / Error Detail**",
-                    String(error?.message || "Unknown merge awaken requirement error."),
+                    String(error?.message || "Unknown Monster Trio awaken requirement error."),
                     "",
-                    `Use \`op ci ${mergeCard.aliases?.[0] || mergeCard.code}\` to check the full requirements.`,
+                    "`op ci lzs` untuk cek requirement lengkap.",
                   ].join("\n")
                 ),
             ],

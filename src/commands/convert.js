@@ -39,6 +39,14 @@ function getCardSearchName(card) {
   return normalize(getCardName(card));
 }
 
+function isRoadPoneglyph(cardOrQuery) {
+  const text = JSON.stringify(cardOrQuery || "")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+
+  return text.includes("road poneglyph");
+}
+
 function findBattleOrBoostCard(query) {
   const q = normalize(query);
   if (!q) return null;
@@ -50,8 +58,10 @@ function findBattleOrBoostCard(query) {
 
   return (
     cards.find((card) => getCardSearchName(card) === q) ||
+    cards.find((card) => normalize(card.code) === q) ||
     cards.find((card) => getCardSearchName(card).startsWith(q)) ||
     cards.find((card) => getCardSearchName(card).includes(q)) ||
+    cards.find((card) => normalize(card.code).includes(q)) ||
     null
   );
 }
@@ -129,10 +139,17 @@ module.exports = {
           "Example: `op convert 5 sniper focus`",
           "",
           "Only battle and boost cards can be converted.",
-          "Search only checks display name / card name, not code name.",
+          "Road Poneglyph cannot use universal fragments.",
           "Imu cannot use universal fragments.",
         ].join("\n")
       );
+    }
+
+    if (isRoadPoneglyph(query)) {
+      return message.reply({
+        content: "❌ Road Poneglyph tidak bisa di-convert lewat universal fragment.",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     const player = getPlayer(message.author.id, message.author.username);
@@ -142,6 +159,13 @@ module.exports = {
       return message.reply(
         `Battle or boost card matching display name/card name \`${query}\` was not found.`
       );
+    }
+
+    if (isRoadPoneglyph(card)) {
+      return message.reply({
+        content: "❌ Road Poneglyph tidak bisa di-convert lewat universal fragment.",
+        allowedMentions: { repliedUser: false },
+      });
     }
 
     if (String(card.code || "").toLowerCase() === "imu") {

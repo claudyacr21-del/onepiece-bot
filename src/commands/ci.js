@@ -597,6 +597,35 @@ function buildRequiredForEmbed(card, stage) {
     });
 }
 
+
+function isMonsterTrioTemplate(card) {
+  if (cardsData.isMonsterTrioCard?.(card)) return true;
+
+  const code = normalizeCompare(card?.code);
+  const name = normalizeCompare(card?.displayName || card?.name || card?.title);
+
+  return code === "lzs" || name === "monster trio";
+}
+
+function getMonsterTrioFragmentStatusLines(req, player) {
+  const fragments = Array.isArray(player?.fragments) ? player.fragments : [];
+
+  if (!Array.isArray(req?.mergeFragments) || !req.mergeFragments.length) {
+    return ["↪ None"];
+  }
+
+  return req.mergeFragments.map((entry) => {
+    const owned = fragments
+      .filter((fragment) => doesFragmentMatchCard(fragment, entry))
+      .reduce((total, fragment) => total + getFragmentAmount(fragment), 0);
+
+    const need = Number(entry.amount || 0);
+    const label = entry.name || entry.displayName || prettifyCode(entry.code);
+
+    return formatCheckedLine(`↪ ${owned}/${need}x ${label} Fragment`, owned >= need);
+  });
+}
+
 function buildReqEmbed(card, stage, player) {
   const stageCard = getStageCard(card, stage);
   const req =
@@ -626,14 +655,20 @@ function buildReqEmbed(card, stage, player) {
   );
 
   const requiredBerries = Number(req.berries || 0);
-  const requiredGems = getDisplayAwakenGemsCost(req, stage, card, stageCard);
-  const requiredFragments = Number(req.selfFragments || 0);
+  const requiredGems = isMonsterTrioTemplate(card)
+    ? Number(req.gems || 0)
+    : getDisplayAwakenGemsCost(req, stage, card, stageCard);
+  const requiredFragments = isMonsterTrioTemplate(card)
+    ? 0
+    : Number(req.selfFragments || 0);
   const requiredLevel =
     stageCard.cardRole === "battle" ? Number(req.minLevel || 0) : 0;
 
   const berriesOk = playerBerries >= requiredBerries;
   const gemsOk = playerGems >= requiredGems;
-  const fragmentsOk = ownedFragments >= requiredFragments;
+  const fragmentsOk = isMonsterTrioTemplate(card)
+    ? true
+    : ownedFragments >= requiredFragments;
   const levelOk =
     stageCard.cardRole === "battle" ? ownedLevel >= requiredLevel : true;
 
@@ -699,7 +734,10 @@ function buildReqEmbed(card, stage, player) {
     );
 }
 
-function buildEmbed(card, owned, stage) {
+function buildEmbed(card, owned, stage, player = null) {
+  if (isMonsterTrioTemplate(card) && player && cardsData.hydrateMonsterTrioBattleCard) {
+    card = cardsData.hydrateMonsterTrioBattleCard(player, card);
+  }
   const stageCard = getStageCard(card, stage);
   const form =
     stageCard.evolutionForms?.[stage - 1] || card.evolutionForms?.[stage - 1];
@@ -817,7 +855,7 @@ module.exports = {
     let stage = 1;
 
     const sent = await message.reply({
-      embeds: [buildEmbed(globalCard, owned, stage)],
+      embeds: [buildEmbed(globalCard, owned, stage, player)],
       components: buildRows(stage),
     });
 
@@ -856,7 +894,7 @@ module.exports = {
       const freshOwned = findOwnedCard(freshPlayer.cards || [], query);
 
       return i.update({
-        embeds: [buildEmbed(globalCard, freshOwned, stage)],
+        embeds: [buildEmbed(globalCard, freshOwned, stage, freshPlayer)],
         components: buildRows(stage),
       });
     });

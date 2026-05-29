@@ -108,10 +108,10 @@ function pickContentType(tier) {
 }
 
 function rollThroneEquivalentCardTier(baseTier) {
-  // Same rarity feel as Empty Throne Raid Writ: 3% special chance.
+  // Road Poneglyph special chance: 0.4%.
   // If it fails, keep the original rolled tier.
   const roll = Math.random() * 100;
-  if (roll < 3) return "THRONE";
+  if (roll < 0.4) return "THRONE";
   return baseTier;
 }
 
@@ -220,7 +220,7 @@ function getRewardPool(contentType) {
     return rawCards.filter(
       (card) =>
         card.cardRole === "battle" &&
-        String(card.code || "").toLowerCase() !== "imu"
+        String(card.code || "").toLowerCase() !== "imu" && String(card.code || "").toLowerCase() !== "lzs"
     );
   }
 
