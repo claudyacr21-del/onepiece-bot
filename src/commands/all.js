@@ -82,6 +82,7 @@ function tierScore(tier) {
       S: 4,
       SS: 5,
       UR: 6,
+    M: 7,
     }[String(tier || "").toUpperCase()] || 0
   );
 }
@@ -134,6 +135,73 @@ function formatOwnersByDisplayName(item, fallback = "Unknown") {
   const uniqueNames = [...new Set(ownerNames)];
 
   return uniqueNames.length ? uniqueNames.join(", ") : fallback;
+}
+
+
+function isMonsterTrioAllCard(card) {
+  if (cardsData.isMonsterTrioCard?.(card)) return true;
+
+  const code = normalize(card?.code);
+  const name = normalize(card?.displayName || card?.name || card?.title);
+
+  return code === "lzs" || name === "monster trio";
+}
+
+function hydrateMonsterTrioForAll(player, card) {
+  if (!isMonsterTrioAllCard(card)) return card;
+  if (!cardsData.hydrateMonsterTrioBattleCard) return card;
+
+  const hydrated = cardsData.hydrateMonsterTrioBattleCard(player, {
+    ...(cardsData.MONSTER_TRIO_CARD || {}),
+    ...card,
+    code: "lzs",
+    name: "Monster Trio",
+    displayName: "Monster Trio",
+    title: "Monster Trio",
+    rarity: "M",
+    currentTier: "M",
+    baseTier: "M",
+    originalTier: "M",
+    baseRarity: "M",
+    cardRole: "battle",
+    type: "Merge Battle",
+    isMonsterTrio: true,
+    isMergeBattleCard: true,
+    mergeBattleCode: "lzs",
+    mergeMembers: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
+    mergeStatPercent: 50,
+  });
+
+  const form = hydrated.evolutionForms?.[0] || null;
+
+  return {
+    ...card,
+    ...hydrated,
+    code: "lzs",
+    name: "Monster Trio",
+    displayName: "Monster Trio",
+    title: "Monster Trio",
+    rarity: "M",
+    currentTier: "M",
+    baseTier: "M",
+    cardRole: "battle",
+    type: "Merge Battle",
+    atk: Number(form?.atk ?? hydrated.atk ?? 0),
+    hp: Number(form?.hp ?? hydrated.hp ?? 0),
+    speed: Number(form?.speed ?? hydrated.speed ?? 0),
+    currentPower: Number(form?.currentPower ?? form?.power ?? hydrated.currentPower ?? 0),
+    power: Number(form?.power ?? hydrated.power ?? 0),
+    weapon: hydrated.weapon || "None",
+    devilFruit: hydrated.devilFruit || "None",
+    displayWeaponName: hydrated.weapon || "None",
+    displayFruitName: hydrated.devilFruit || "None",
+  };
+}
+
+function hydrateAllCardsForPlayer(player, list) {
+  return (Array.isArray(list) ? list : []).map((card) =>
+    hydrateMonsterTrioForAll(player, card)
+  );
 }
 
 function getOwnedCardCodes(player) {
