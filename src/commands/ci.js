@@ -59,7 +59,10 @@ function findCardTemplateByNameOnly(query) {
   const scored = getAllCards()
     .map((card) => ({
       card,
-      score: scoreNameOnly(query, [card.displayName, card.name]),
+      score: Math.max(
+        scoreNameOnly(query, [card.code, card.displayName, card.name, card.title]),
+        normalizeNameSearch(query) === normalizeNameSearch(card.code) ? 5000 : 0
+      ),
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -848,7 +851,10 @@ module.exports = {
 
     const player = getPlayer(message.author.id, message.author.username);
 
-    const globalCard = findCardTemplateByNameOnly(query);
+    const globalCard =
+      normalizeNameSearch(query) === "lzs"
+        ? getAllCards().find((card) => String(card.code || "").toLowerCase() === "lzs")
+        : findCardTemplateByNameOnly(query);
     if (!globalCard) return message.reply("Card not found in global database.");
 
     const owned = findOwnedCard(player.cards || [], query);
