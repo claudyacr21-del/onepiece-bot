@@ -5,6 +5,7 @@ const RARITY_BADGES = {
   S: "https://cdn.discordapp.com/attachments/1493204525975076944/1494237260273418410/badge_S.png?ex=69e1e064&is=69e08ee4&hm=99c0019d884c4bcb6eee4defdac9b851f130ca487c95680f8c70afb85db36f58&",
   SS: "https://cdn.discordapp.com/attachments/1493204525975076944/1494237260596383755/badge_SS.png?ex=69e1e064&is=69e08ee4&hm=4b1d718f4cc3bd3cca43ae5f5a1a41b18320d5a814662313778b859b5a71b7dd&",
   UR: "https://cdn.discordapp.com/attachments/1493204525975076944/1494237258910531736/badge_UR.png?ex=69e1e064&is=69e08ee4&hm=ff41f72431bcb6c2ea3acc190a98f536a491a11adbc11d9f6764ff79a0640a83&",
+  M: "https://cdn.discordapp.com/attachments/1493204525975076944/1509562253819646253/merge.png?ex=6a19a0e7&is=6a184f67&hm=0685852d2291f0e9805fcea5038af93b6f6a39ec97e2a52d193ccd39caabbe51",
 };
 
 const CARD_IMAGES = {
