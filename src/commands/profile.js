@@ -524,7 +524,7 @@ module.exports = {
               "Premium",
               isMotherFlame ? "Mother Flame" : isVivreCard ? "Vivre Card" : "Normal"
             ),
-            line("Clan", player?.clan?.name || "Coming Soon"),
+            line("Pirates", player?.pirates?.name || "Coming Soon"),
             line("Ship", `${ship.name} • Tier ${ship.tier}`),
             rawLine("Badges", captainBadges),
             "",
