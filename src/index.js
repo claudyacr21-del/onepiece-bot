@@ -45,8 +45,8 @@ const client = new Client({
 const PREFIX = String(process.env.PREFIX || "op").toLowerCase();
 const COMMAND_COOLDOWN_MS = 3000;
 
-const MAIN_GUILD_ID =
-  process.env.MAIN_GUILD_ID ||
+const ONEPIECE_MAIN_GUILD_ID =
+  process.env.ONEPIECE_MAIN_GUILD_ID ||
   process.env.SUPPORT_GUILD_ID ||
   process.env.GUILD_ID ||
   process.env.SERVER_ID ||
@@ -182,13 +182,13 @@ async function attachMainServerContext(message) {
   message.resolvedMember = message.member || null;
   message.isDMCommand = !message.guild;
 
-  if (!MAIN_GUILD_ID || !message.client?.guilds?.cache) {
+  if (!ONEPIECE_MAIN_GUILD_ID || !message.client?.guilds?.cache) {
     return message;
   }
 
   const mainGuild =
-    message.client.guilds.cache.get(MAIN_GUILD_ID) ||
-    (await message.client.guilds.fetch(MAIN_GUILD_ID).catch(() => null));
+    message.client.guilds.cache.get(ONEPIECE_MAIN_GUILD_ID) ||
+    (await message.client.guilds.fetch(ONEPIECE_MAIN_GUILD_ID).catch(() => null));
 
   if (!mainGuild) {
     return message;
