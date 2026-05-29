@@ -15,7 +15,7 @@ const {
 } = require("../utils/evolution");
 const { getCardImage } = require("../config/assetLinks");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-const { findMergeCard } = require("../data/mergeCardData");
+const { findMergeCard } = require("../data/cards");
 
 function isIgnorableInteractionError(error) {
   const code = Number(error?.code || error?.rawError?.code || 0);
