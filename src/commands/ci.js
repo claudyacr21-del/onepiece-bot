@@ -14,7 +14,7 @@ const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
 
 const cardsData = require("../data/cards");
-const { findMergeCard } = require("../data/mergeCards");
+const { findMergeCard } = require("../data/mergeCardData");
 const SPECIAL_FORMS = cardsData.SPECIAL_FORMS || cardsData.specialForms || {
   luffy_straw_hat: ["The Beginning", "Revival", "Gear 5"],
 };

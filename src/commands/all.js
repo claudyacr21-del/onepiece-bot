@@ -15,7 +15,7 @@ const {
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const weapons = require("../data/weapons");
 const devilFruits = require("../data/devilFruits");
-const { getMergeCards } = require("../data/mergeCards");
+const { getMergeCards } = require("../data/mergeCardData")
 const {
   getRarityBadge,
   getCardImage,

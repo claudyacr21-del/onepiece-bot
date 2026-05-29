@@ -987,11 +987,11 @@ const AWAKEN_GEMS_COST_BY_BASE_TIER = {
 
 const AWAKEN_BERRIES_COST_BY_BASE_TIER = {
   S: {
-    1: 1500000,
-    2: 750000,
+    1: 950000,
+    2: 650000,
   },
   A: {
-    1: 1000000,
+    1: 750000,
     2: 500000,
   },
   B: {

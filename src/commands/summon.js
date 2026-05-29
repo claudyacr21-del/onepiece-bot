@@ -3,7 +3,7 @@ const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { createOwnedCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
 const weaponsDb = require("../data/weapons");
-const { findMergeCard } = require("../data/mergeCards");
+const { findMergeCard } = require("../data/mergeCardData");
 const { getWeaponImage, getRarityBadge } = require("../config/assetLinks");
 
 const SUMMON_FRAGMENT_COST = 15;
