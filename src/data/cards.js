@@ -1189,6 +1189,155 @@ function applyRoadPoneglyphRules() {
 applyRoadPoneglyphRules();
 // END ROAD PONEGLYPH RULES PATCH
 
+
+// ============================================================
+// ROAD PONEGLYPH FINAL RULES
+// ============================================================
+function applyRoadPoneglyphFinalRules() {
+  const road = ALL_CARDS.find((card) => {
+    const code = String(card?.code || "").toLowerCase().trim();
+    const name = String(card?.displayName || card?.name || "").toLowerCase().trim();
+
+    return code === "road_poneglyph" || name === "road poneglyph";
+  });
+
+  if (!road) return;
+
+  const effects = {
+    M1: "Allows you to summon Merged cards!",
+    M2: "Allows you to evolve Merged cards to Mastery 2!",
+    M3: "Allows you to evolve Merged cards to Mastery 3!",
+  };
+
+  const roadM2Cards = [
+    {
+      code: "luffy_straw_hat",
+      name: "Monkey D. Luffy",
+      stage: 2,
+      minStage: 2,
+      evolutionStage: 2,
+    },
+    {
+      code: "shanks_red_hair",
+      name: "Shanks",
+      stage: 2,
+      minStage: 2,
+      evolutionStage: 2,
+    },
+  ];
+
+  const roadM3Cards = [
+    {
+      code: "luffy_straw_hat",
+      name: "Monkey D. Luffy",
+      stage: 3,
+      minStage: 3,
+      evolutionStage: 3,
+    },
+    {
+      code: "shanks_red_hair",
+      name: "Shanks",
+      stage: 3,
+      minStage: 3,
+      evolutionStage: 3,
+    },
+  ];
+
+  const oldForms = Array.isArray(road.evolutionForms) ? road.evolutionForms : [];
+
+  road.cardRole = "boost";
+  road.role = "boost";
+  road.category = "boost";
+  road.boostType = "road_poneglyph";
+  road.boostTarget = "merged_cards";
+  road.effectText = effects.M1;
+  road.boostDescription = effects.M1;
+  road.description = effects.M1;
+
+  road.evolutionForms = [
+    {
+      ...(oldForms[0] || {}),
+      stage: 1,
+      key: "M1",
+      name: "Road Poneglyph",
+      formTitle: "Road Poneglyph",
+      specialName: "Road Poneglyph",
+      effectText: effects.M1,
+      boostDescription: effects.M1,
+      description: effects.M1,
+      require: null,
+    },
+    {
+      ...(oldForms[1] || {}),
+      stage: 2,
+      key: "M2",
+      name: "Road Poneglyph",
+      formTitle: "Road Poneglyph",
+      specialName: "Road Poneglyph",
+      effectText: effects.M2,
+      boostDescription: effects.M2,
+      description: effects.M2,
+      require: {
+        ...(oldForms[1]?.require || {}),
+        berries: 650000,
+        selfFragments: 0,
+        cards: roadM2Cards,
+        cardsText: [
+          "Monkey D. Luffy M2",
+          "Shanks M2",
+        ],
+      },
+    },
+    {
+      ...(oldForms[2] || {}),
+      stage: 3,
+      key: "M3",
+      name: "Road Poneglyph",
+      formTitle: "Road Poneglyph",
+      specialName: "Road Poneglyph",
+      effectText: effects.M3,
+      boostDescription: effects.M3,
+      description: effects.M3,
+      require: {
+        ...(oldForms[2]?.require || {}),
+        berries: 950000,
+        selfFragments: 0,
+        cards: roadM3Cards,
+        cardsText: [
+          "Monkey D. Luffy M3",
+          "Shanks M3",
+        ],
+      },
+    },
+  ];
+
+  road.awakenRequirements = {
+    ...(road.awakenRequirements || {}),
+    M2: {
+      ...(road.awakenRequirements?.M2 || {}),
+      berries: 650000,
+      selfFragments: 0,
+      cards: roadM2Cards,
+      cardsText: [
+        "Monkey D. Luffy M2",
+        "Shanks M2",
+      ],
+    },
+    M3: {
+      ...(road.awakenRequirements?.M3 || {}),
+      berries: 950000,
+      selfFragments: 0,
+      cards: roadM3Cards,
+      cardsText: [
+        "Monkey D. Luffy M3",
+        "Shanks M3",
+      ],
+    },
+  };
+}
+
+applyRoadPoneglyphFinalRules();
+
 module.exports = ALL_CARDS;
 
 module.exports.BASE_CARDS = BASE_CARDS;
