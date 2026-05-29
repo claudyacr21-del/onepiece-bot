@@ -887,9 +887,10 @@ function getMergeMemberWeapons(card) {
   ];
 }
 
-function buildMergeCiEmbed(message, mergeCard, player) {
+function buildMergeCiEmbed(message, mergeCard, player, stageOverride = null) {
   const ownedMerge = findOwnedMergeCard(player, mergeCard);
-  const stage = getMergeStage(ownedMerge);
+  const ownedStage = getMergeStage(ownedMerge);
+  const stage = Math.max(1, Math.min(3, Number(stageOverride || ownedStage || 1)));
   const stageKey = `M${stage}`;
   const masteryName = mergeCard.masteryNames?.[stage - 1] || mergeCard.name;
 
@@ -959,8 +960,27 @@ function buildMergeCiEmbed(message, mergeCard, player) {
         null
     )
     .setFooter({
-      text: `${mergeCard.name} Card Mastery ${stage}/3 • Query: lzs`,
+      text: `${mergeCard.name} Card Mastery ${stage}/3`,
     });
+}
+
+function mergeRows(stage) {
+  const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
+
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("merge_prev_mastery")
+        .setLabel("Previous Mastery")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(safeStage <= 1),
+      new ButtonBuilder()
+        .setCustomId("merge_next_mastery")
+        .setLabel("Next Mastery")
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(safeStage >= 3)
+    ),
+  ];
 }
 
 module.exports = {
@@ -975,9 +995,51 @@ module.exports = {
 
     const mergeCard = findMergeCard(query);
     if (mergeCard) {
-      return message.reply({
-        embeds: [buildMergeCiEmbed(message, mergeCard, player)],
+      let mergeStage = 1;
+
+      const sent = await message.reply({
+        embeds: [buildMergeCiEmbed(message, mergeCard, player, mergeStage)],
+        components: mergeRows(mergeStage),
+        allowedMentions: { repliedUser: false },
       });
+
+      const collector = sent.createMessageComponentCollector({
+        time: 10 * 60 * 1000,
+      });
+
+      collector.on("collect", async (interaction) => {
+        if (interaction.user.id !== message.author.id) {
+          return interaction.reply({
+            content: "Only you can control this viewer.",
+            ephemeral: true,
+          });
+        }
+
+        if (interaction.customId === "merge_prev_mastery") {
+          mergeStage = Math.max(1, mergeStage - 1);
+        }
+
+        if (interaction.customId === "merge_next_mastery") {
+          mergeStage = Math.min(3, mergeStage + 1);
+        }
+
+        const freshPlayer = getPlayer(message.author.id, message.author.username);
+
+        return interaction.update({
+          embeds: [buildMergeCiEmbed(message, mergeCard, freshPlayer, mergeStage)],
+          components: mergeRows(mergeStage),
+        });
+      });
+
+      collector.on("end", async () => {
+        try {
+          await sent.edit({
+            components: [],
+          });
+        } catch (_) {}
+      });
+
+      return;
     }
 
     const globalCard = findCardTemplateByNameOnly(query);
