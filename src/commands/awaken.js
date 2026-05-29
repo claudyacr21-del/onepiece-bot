@@ -15,7 +15,6 @@ const {
 } = require("../utils/evolution");
 const { getCardImage } = require("../config/assetLinks");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-const cardsData = require("../data/cards");
 
 function isIgnorableInteractionError(error) {
   const code = Number(error?.code || error?.rawError?.code || 0);
@@ -126,10 +125,13 @@ function scoreOwnedCardQuery(card, query) {
   let best = 0;
 
   for (const field of fields) {
-    if (field === q) best = Math.max(best, 1000 + field.length);
-    else if (field.startsWith(q)) best = Math.max(best, 800 + q.length);
-    else if (field.includes(q)) best = Math.max(best, 500 + q.length);
-    else {
+    if (field === q) {
+      best = Math.max(best, 1000 + field.length);
+    } else if (field.startsWith(q)) {
+      best = Math.max(best, 800 + q.length);
+    } else if (field.includes(q)) {
+      best = Math.max(best, 500 + q.length);
+    } else {
       const qWords = q.split(" ").filter(Boolean);
       const fieldWords = field.split(" ").filter(Boolean);
 
@@ -225,7 +227,7 @@ function getStageImage(card, stage) {
 
   if (assetImage) return assetImage;
 
-  return template?.image || "";
+  return template?.image || card?.image || "";
 }
 
 function getFormName(card, stage) {
@@ -353,9 +355,7 @@ function buildSuccessEmbed(result, player) {
     `**${card.displayName || card.name}** reached **M${targetStage}**`,
     `**Form:** ${getFormName(card, targetStage)}`,
     `**Tier:** ${card.currentTier || card.rarity}`,
-    `**Power:** ${Number(card.currentPower || card.power || 0).toLocaleString(
-      "en-US"
-    )}`,
+    `**Power:** ${Number(card.currentPower || card.power || 0).toLocaleString("en-US")}`,
     "",
   ];
 
@@ -383,124 +383,157 @@ function buildSuccessEmbed(result, player) {
   return embed;
 }
 
+module.exports = {
+  name: "awaken",
+  aliases: ["evolve"],
 
+  async execute(message, args) {
+    const query = args.join(" ").trim();
 
-function getOwnedStage(card) {
-  const key = String(card?.evolutionKey || "").toUpperCase();
-  const match = key.match(/M([123])/);
+    if (!query) {
+      return message.reply("Usage: `op awaken <card name>`");
+    }
 
-  if (match) return Number(match[1]);
+    const player = getPlayer(message.author.id, message.author.username);
+    const owned = findOwnedCardByNameOrCode(player.cards || [], query);
 
-  return Math.max(1, Math.min(3, Number(card?.evolutionStage || 1)));
-}
+    if (!owned) {
+      return message.reply({
+        content: "You do not own that card.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
 
+    if (Number(owned.evolutionStage || 1) >= 3) {
+      return message.reply("This card is already at M3.");
+    }
 
+    const currentStage = Number(owned.evolutionStage || 1);
+    const nextStage = currentStage + 1;
 
+    try {
+      const validationPlayer = cloneDeep(player);
+      awakenOwnedCard(validationPlayer, query);
+    } catch (error) {
+      return message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle("Awaken Failed")
+            .setDescription(
+              [
+                `**${owned.displayName || owned.name || owned.code}** cannot awaken to **M${nextStage}** yet.`,
+                "",
+                "**Missing / Error Detail**",
+                String(error?.message || "Unknown awaken requirement error."),
+                "",
+                `Use \`op ci ${owned.name}\` to check the full requirements.`,
+              ].join("\n")
+            ),
+        ],
+      });
+    }
 
+    const sent = await message.reply({
+      embeds: [buildConfirmEmbed(owned, currentStage, nextStage)],
+      components: [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("awaken_yes")
+            .setLabel("Yes")
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId("awaken_cancel")
+            .setLabel("Cancel")
+            .setStyle(ButtonStyle.Danger)
+        ),
+      ],
+    });
 
-function entryMatchesRequirement(entry, requirement) {
-  const reqValues = [
-    requirement?.code,
-    requirement?.name,
-    requirement?.displayName,
-    requirement?.cardName,
-    requirement?.title,
-  ]
-    .map(normalizeCode)
-    .filter(Boolean);
+    const collector = sent.createMessageComponentCollector({
+      time: 10 * 60 * 1000,
+    });
 
-  const entryValues = [
-    entry?.code,
-    entry?.name,
-    entry?.displayName,
-    entry?.cardName,
-    entry?.title,
-  ]
-    .map(normalizeCode)
-    .filter(Boolean);
+    collector.on("collect", async (interaction) => {
+      if (interaction.user.id !== message.author.id) {
+        return safeInteractionReply(interaction, {
+          content: "Only you can control this awaken action.",
+        });
+      }
 
-  if (!reqValues.length || !entryValues.length) return false;
+      if (interaction.customId === "awaken_cancel") {
+        await safeInteractionUpdate(interaction, {
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0x95a5a6)
+              .setTitle("Awaken Cancelled")
+              .setDescription("No changes were made."),
+          ],
+          components: [],
+        });
 
-  return reqValues.some((req) =>
-    entryValues.some(
-      (owned) => owned === req || owned.includes(req) || req.includes(owned)
-    )
-  );
-}
+        await safeStopCollector(collector, "cancel");
+        return;
+      }
 
-function hasRequiredCardStage(player, requirement) {
-  const list = Array.isArray(player?.cards) ? player.cards : [];
-  const requiredStage = Number(requirement?.stage || 1);
+      if (interaction.customId !== "awaken_yes") {
+        return safeInteractionReply(interaction, {
+          content: "Invalid awaken action.",
+        });
+      }
 
-  return list.some((card) => {
-    if (!entryMatchesRequirement(card, requirement)) return false;
-    return getOwnedStage(card) >= requiredStage;
-  });
-}
+      try {
+        let awakenResult = null;
+        let freshPlayerForDisplay = null;
 
-function getFragmentAmount(fragment) {
-  return Number(fragment?.amount ?? fragment?.count ?? fragment?.quantity ?? 0) || 0;
-}
+        updatePlayerAtomic(
+          message.author.id,
+          (fresh) => {
+            awakenResult = awakenOwnedCard(fresh, query);
 
-function getMergeFragmentMatches(fragments, requirement) {
-  const list = Array.isArray(fragments) ? fragments : [];
+            freshPlayerForDisplay = {
+              ...fresh,
+              cards: awakenResult.updatedCards,
+              fragments: awakenResult.updatedFragments,
+              berries: awakenResult.berries,
+              gems: awakenResult.gems,
+            };
 
-  return list
-    .map((fragment, index) => ({
-      fragment,
-      index,
-      amount: getFragmentAmount(fragment),
-    }))
-    .filter(
-      (entry) =>
-        entry.amount > 0 && entryMatchesRequirement(entry.fragment, requirement)
-    );
-}
+            return freshPlayerForDisplay;
+          },
+          message.author.username
+        );
 
-function getTotalMergeFragments(fragments, requirement) {
-  return getMergeFragmentMatches(fragments, requirement).reduce(
-    (total, entry) => total + entry.amount,
-    0
-  );
-}
+        await safeInteractionUpdate(interaction, {
+          embeds: [buildSuccessEmbed(awakenResult, freshPlayerForDisplay)],
+          components: [],
+        });
 
-function consumeMergeFragments(fragments, requirement, amount) {
-  const arr = Array.isArray(fragments)
-    ? fragments.map((fragment) => ({ ...fragment }))
-    : [];
+        await safeStopCollector(collector, "done");
+      } catch (error) {
+        await safeInteractionUpdate(interaction, {
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("Awaken Failed")
+              .setDescription(
+                [
+                  `**${owned.displayName || owned.name || owned.code}** cannot awaken right now.`,
+                  "",
+                  "**Missing / Error Detail**",
+                  String(error?.message || "Unknown awaken requirement error."),
+                  "",
+                  `Use \`op ci ${owned.displayName || owned.name || query}\` to check the full requirements.`,
+                ].join("\n")
+              ),
+          ],
+          components: [],
+        });
 
-  const matches = getMergeFragmentMatches(arr, requirement).sort((a, b) => {
-    const aExact = normalizeCode(a.fragment?.code) === normalizeCode(requirement?.code) ? 1 : 0;
-    const bExact = normalizeCode(b.fragment?.code) === normalizeCode(requirement?.code) ? 1 : 0;
-
-    if (bExact !== aExact) return bExact - aExact;
-    return b.amount - a.amount;
-  });
-
-  const totalOwned = matches.reduce((total, entry) => total + entry.amount, 0);
-  if (totalOwned < amount) return null;
-
-  let leftToConsume = Number(amount || 0);
-
-  for (const match of matches) {
-    if (leftToConsume <= 0) break;
-
-    const idx = arr.findIndex((entry) => entry === match.fragment);
-    if (idx < 0) continue;
-
-    const current = getFragmentAmount(arr[idx]);
-    const take = Math.min(current, leftToConsume);
-    const left = current - take;
-
-    leftToConsume -= take;
-
-    if (left <= 0) {
-      arr.splice(idx, 1);
-    } else {
-      arr[idx] = {
-        ...arr[idx],
-        amount: left,
-      };
-
-      if ("count" in arr[idx]) arr[idx].count = left;
-      ;
+        await safeStopCollector(collector, "fail");
+      }
+    });
+  },
+};
