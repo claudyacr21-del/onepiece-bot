@@ -326,7 +326,7 @@ function buildViewerEmbed(ownerName, player, card, index, total, label = "Collec
     `Form: ${card.evolutionKey || `M${form.stage}`}`,
     `Tier: ${card.currentTier || card.rarity || "C"}`,
     `Power: ${getPower(card)}`,
-    `Effect: ${getRoadPoneglyphDisplayEffect(card || stageCard || form, stage || card?.evolutionStage || 1, card.effectText || "No effect text")}`,
+    `Effect: ${getRoadPoneglyphDisplayEffect(card, form.stage || card?.evolutionStage || 1, card.effectText || "No effect text")}`,
     `Target: ${card.boostTarget || "team"}`,
     `Boost Type: ${card.boostType || "unknown"}`,
     `Devil Fruit: ${card.displayFruitName || "None"}`,
