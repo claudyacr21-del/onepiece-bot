@@ -14,7 +14,6 @@ const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
 
 const cardsData = require("../data/cards");
-const { findMergeCard } = require("../data/cards");
 const SPECIAL_FORMS = cardsData.SPECIAL_FORMS || cardsData.specialForms || {
   luffy_straw_hat: ["The Beginning", "Revival", "Gear 5"],
 };
@@ -789,14 +788,7 @@ function buildRows(stage) {
 
 
 
-function getMergeStage(ownedMerge) {
-  const key = String(ownedMerge?.evolutionKey || "").toUpperCase();
-  const match = key.match(/M([123])/);
 
-  if (match) return Number(match[1]);
-
-  return Math.max(1, Math.min(3, Number(ownedMerge?.evolutionStage || 1)));
-}
 
 
 
@@ -817,55 +809,6 @@ module.exports = {
     if (!query) return message.reply("Usage: `op ci <card>`");
 
     const player = getPlayer(message.author.id, message.author.username);
-
-    const mergeCard = findMergeCard(query)
-    if (mergeCard) {
-      let mergeStage = 1;
-
-      const sent = await message.reply({
-        embeds: [buildMergeCiEmbed(message, mergeCard, player, mergeStage)],
-        components: mergeRows(mergeStage),
-        allowedMentions: { repliedUser: false },
-      });
-
-      const collector = sent.createMessageComponentCollector({
-        time: 10 * 60 * 1000,
-      });
-
-      collector.on("collect", async (interaction) => {
-        if (interaction.user.id !== message.author.id) {
-          return interaction.reply({
-            content: "Only you can control this viewer.",
-            ephemeral: true,
-          });
-        }
-
-        if (interaction.customId === "merge_prev_mastery") {
-          mergeStage = Math.max(1, mergeStage - 1);
-        }
-
-        if (interaction.customId === "merge_next_mastery") {
-          mergeStage = Math.min(3, mergeStage + 1);
-        }
-
-        const freshPlayer = getPlayer(message.author.id, message.author.username);
-
-        return interaction.update({
-          embeds: [buildMergeCiEmbed(message, mergeCard, freshPlayer, mergeStage)],
-          components: mergeRows(mergeStage),
-        });
-      });
-
-      collector.on("end", async () => {
-        try {
-          await sent.edit({
-            components: [],
-          });
-        } catch (_) {}
-      });
-
-      return;
-    }
 
     const globalCard = findCardTemplateByNameOnly(query);
     if (!globalCard) return message.reply("Card not found in global database.");
