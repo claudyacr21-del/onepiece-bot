@@ -512,10 +512,19 @@ const CANON_LINKS = {
 
   franky_cyborg: {
     cards: [
-      reqCard("iceburg", 1, 2),
       reqCard("brook_soul_king", 1, 2),
     ],
-    boosts: [reqBoost("cola_engine", 1, 2)],
+    boosts: [
+      reqBoost("cola_engine", 1, 2),
+      reqBoost("iceburg", 1, 2),
+    ],
+  },
+
+  road_poneglyph: {
+    cards: [
+      reqCard("luffy_straw_hat", 2, 3),
+      reqCard("shanks_red_hair", 2, 3),
+    ],
   },
 
   lucci_cp9: {
@@ -1195,4 +1204,4 @@ module.exports.BASE_CARDS = BASE_CARDS;
 module.exports.EXTRA_CANON_CARDS = EXTRA_CANON_CARDS;
 module.exports.EXTRA_REQ_SUPPORT = EXTRA_REQ_SUPPORT;
 module.exports.EXTRA_CHARACTER_CARDS = EXTRA_CHARACTER_CARDS;
-module.exports.SPECIAL_FORMS = SPECIAL_FORMS;
+module.exports.SPECIAL_FORMS = SPECIAL_FORMS;
