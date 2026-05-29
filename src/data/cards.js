@@ -1280,7 +1280,7 @@ function applyRoadPoneglyphFinalRules() {
       require: {
         ...(oldForms[1]?.require || {}),
         berries: 650000,
-        selfFragments: 0,
+        selfFragments: 25,
         cards: roadM2Cards,
         cardsText: [
           "Monkey D. Luffy M2",
@@ -1301,7 +1301,7 @@ function applyRoadPoneglyphFinalRules() {
       require: {
         ...(oldForms[2]?.require || {}),
         berries: 950000,
-        selfFragments: 0,
+        selfFragments: 35,
         cards: roadM3Cards,
         cardsText: [
           "Monkey D. Luffy M3",
@@ -1316,7 +1316,7 @@ function applyRoadPoneglyphFinalRules() {
     M2: {
       ...(road.awakenRequirements?.M2 || {}),
       berries: 650000,
-      selfFragments: 0,
+      selfFragments: 25,
       cards: roadM2Cards,
       cardsText: [
         "Monkey D. Luffy M2",
@@ -1326,7 +1326,7 @@ function applyRoadPoneglyphFinalRules() {
     M3: {
       ...(road.awakenRequirements?.M3 || {}),
       berries: 950000,
-      selfFragments: 0,
+      selfFragments: 35,
       cards: roadM3Cards,
       cardsText: [
         "Monkey D. Luffy M3",
