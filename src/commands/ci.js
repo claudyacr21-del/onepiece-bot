@@ -962,18 +962,40 @@ module.exports = {
       if (i.customId === "ci_next") stage = Math.min(3, stage + 1);
 
       if (i.customId === "ci_info") {
-      await i.deferReply({ ephemeral: true });
-      const freshPlayer = getPlayer(message.author.id, message.author.username);
-      return i.editReply({
-        embeds: [buildReqEmbed(globalCard, stage, freshPlayer)],
-      });
+      await i.deferReply({ ephemeral: true }).catch(() => null);
+
+      try {
+        const freshPlayer = getPlayer(message.author.id, message.author.username);
+        return await i.editReply({
+          embeds: [buildReqEmbed(globalCard, stage, freshPlayer)],
+        });
+      } catch (error) {
+        console.error("[CI INFO INTERACTION ERROR]", error);
+
+        return i.editReply({
+          content: "❌ Failed to load requirement panel. Please try again.",
+          embeds: [],
+          components: [],
+        }).catch(() => null);
+      }
     }
 
       if (i.customId === "ci_required_for") {
-      await i.deferReply({ ephemeral: true });
-      return i.editReply({
-        embeds: [buildRequiredForEmbed(globalCard, stage)],
-      });
+      await i.deferReply({ ephemeral: true }).catch(() => null);
+
+      try {
+        return await i.editReply({
+          embeds: [buildRequiredForEmbed(globalCard, stage)],
+        });
+      } catch (error) {
+        console.error("[CI REQUIRED FOR INTERACTION ERROR]", error);
+
+        return i.editReply({
+          content: "❌ Failed to load required-for panel. Please try again.",
+          embeds: [],
+          components: [],
+        }).catch(() => null);
+      }
     }
 
       const freshPlayer = getPlayer(message.author.id, message.author.username);
