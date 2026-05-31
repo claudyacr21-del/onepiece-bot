@@ -962,20 +962,19 @@ module.exports = {
       if (i.customId === "ci_next") stage = Math.min(3, stage + 1);
 
       if (i.customId === "ci_info") {
-        const freshPlayer = getPlayer(message.author.id, message.author.username);
-
-        return i.reply({
-          ephemeral: true,
-          embeds: [buildReqEmbed(globalCard, stage, freshPlayer)],
-        });
-      }
+      await i.deferReply({ ephemeral: true });
+      const freshPlayer = getPlayer(message.author.id, message.author.username);
+      return i.editReply({
+        embeds: [buildReqEmbed(globalCard, stage, freshPlayer)],
+      });
+    }
 
       if (i.customId === "ci_required_for") {
-        return i.reply({
-          ephemeral: true,
-          embeds: [buildRequiredForEmbed(globalCard, stage)],
-        });
-      }
+      await i.deferReply({ ephemeral: true });
+      return i.editReply({
+        embeds: [buildRequiredForEmbed(globalCard, stage)],
+      });
+    }
 
       const freshPlayer = getPlayer(message.author.id, message.author.username);
       const freshOwned = findOwnedCard(freshPlayer.cards || [], query);
