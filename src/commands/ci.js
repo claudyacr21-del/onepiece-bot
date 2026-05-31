@@ -567,8 +567,9 @@ function getRequiredForTargets(currentCard, currentStage) {
     const requirements = targetCard?.awakenRequirements || {};
 
     for (const stageKey of ["M2", "M3"]) {
+      const targetStage = Number(String(stageKey).replace("M", ""));
       let req = requirements?.[stageKey];
-  req = mergeCanonRequirementsIntoReq(req, card, stage);
+  req = mergeCanonRequirementsIntoReq(req, targetCard, targetStage);
 
       if (!req) continue;
 
