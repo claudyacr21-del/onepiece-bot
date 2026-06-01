@@ -3,7 +3,14 @@ const path = require("path");
 
 const MAX_MEMBERS = 6;
 const STORE_VERSION = 1;
-
+const PIRATE_STATE_KEY = "pirates";
+let dbReady = false;
+let saveQueue = Promise.resolve();
+const {
+  USE_POSTGRES,
+  loadJsonStateFromDb,
+  saveJsonStateToDb,
+} = require("./jsonStateDb");
 const dataDir =
   process.env.PIRATE_DATA_DIR ||
   process.env.PLAYER_DATA_DIR ||
@@ -149,9 +156,11 @@ function readPirateState() {
   } catch (error) {
     console.error("[PIRATE STORE READ ERROR]", error);
     const brokenPath = `${filePath}.broken.${Date.now()}.bak`;
+
     try {
       fs.copyFileSync(filePath, brokenPath);
     } catch (_) {}
+
     cache = normalizeState({});
     writePirateState(cache);
     return cache;
@@ -160,11 +169,71 @@ function readPirateState() {
 
 function writePirateState(state) {
   ensureFile();
+
   cache = normalizeState(state || {});
+
+  if (USE_POSTGRES && dbReady) {
+    saveQueue = saveQueue
+      .catch(() => {})
+      .then(() => saveJsonStateToDb(PIRATE_STATE_KEY, cache))
+      .catch((error) => {
+        console.error("[PIRATE STORE DB SAVE ERROR]", error);
+      });
+
+    return cache;
+  }
+
   const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   fs.writeFileSync(tempPath, JSON.stringify(cache, null, 2), "utf8");
   fs.renameSync(tempPath, filePath);
+
   return cache;
+}
+
+async function initPirateStore() {
+  ensureFile();
+
+  if (!USE_POSTGRES) {
+    readPirateState();
+    console.log("[PIRATE STORE] File mode active.");
+    return;
+  }
+
+  try {
+    const dbState = await loadJsonStateFromDb(PIRATE_STATE_KEY);
+
+    if (dbState && Object.keys(dbState || {}).length > 0) {
+      cache = normalizeState(dbState);
+      dbReady = true;
+      console.log("[PIRATE STORE] Postgres mode active.");
+      return;
+    }
+
+    const allowFileSeed =
+      String(process.env.PIRATE_STORE_ALLOW_FILE_SEED || "false").toLowerCase() ===
+      "true";
+
+    if (allowFileSeed) {
+      const fileState = readPirateState();
+
+      if (fileState && Object.keys(fileState.pirates || {}).length > 0) {
+        cache = normalizeState(fileState);
+        dbReady = true;
+        await saveJsonStateToDb(PIRATE_STATE_KEY, cache);
+        console.log("[PIRATE STORE] Seeded pirates from file to Postgres.");
+        return;
+      }
+    }
+
+    cache = normalizeState({});
+    dbReady = true;
+    await saveJsonStateToDb(PIRATE_STATE_KEY, cache);
+    console.log("[PIRATE STORE] Postgres mode active. No pirates found yet.");
+  } catch (error) {
+    console.error("[PIRATE STORE] Failed to initialize Postgres mode.", error);
+    dbReady = false;
+    readPirateState();
+  }
 }
 
 function findPirateByUser(userId) {
@@ -335,4 +404,5 @@ module.exports = {
   isViceLeader,
   isOfficer,
   getRole,
+  initPirateStore,
 };

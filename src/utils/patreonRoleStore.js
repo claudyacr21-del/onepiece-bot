@@ -1,99 +1,162 @@
-const { readPlayers, writePlayers } = require("../playerStore");
+const fs = require("fs");
+const path = require("path");
 
-const STORE_KEY = "__patreon_roles__";
+const {
+  USE_POSTGRES,
+  loadJsonStateFromDb,
+  saveJsonStateToDb,
+} = require("./jsonStateDb");
 
-function normalizeTier(value) {
-  const tier = String(value || "mother_flame").toLowerCase().trim();
+const PATREON_STATE_KEY = "patreon_roles";
 
-  if (
-    tier === "vivre_card" ||
-    tier === "vivrecard" ||
-    tier === "vivre" ||
-    tier === "vc" ||
-    tier === "lite"
-  ) {
-    return "vivre_card";
+const persistentDir = process.env.PLAYER_DATA_DIR || "/data";
+const fallbackDir = path.join(__dirname, "..", "data");
+
+let cache = null;
+let dbReady = false;
+let saveQueue = Promise.resolve();
+
+function resolveDir() {
+  try {
+    fs.mkdirSync(persistentDir, { recursive: true });
+    return persistentDir;
+  } catch {
+    fs.mkdirSync(fallbackDir, { recursive: true });
+    return fallbackDir;
   }
-
-  return "mother_flame";
 }
 
-function normalizeEntry(userId, entry = {}) {
+const dataDir = resolveDir();
+const filePath = path.join(dataDir, "patreonRoles.json");
+
+function ensureFile() {
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, "{}", "utf8");
+  }
+}
+
+function safeParseJson(raw) {
+  if (!raw || !String(raw).trim()) return {};
+  return JSON.parse(raw);
+}
+
+function normalizeEntry(userId, payload = {}) {
   return {
-    userId: String(userId),
-    tier: normalizeTier(entry.tier),
-    roleId: String(entry.roleId || ""),
-    guildId: String(entry.guildId || ""),
-    grantedBy: String(entry.grantedBy || ""),
-    grantedAt: Number(entry.grantedAt || Date.now()),
-    expiresAt: Number(entry.expiresAt || Date.now()),
+    userId: String(payload.userId || userId),
+    roleId: String(payload.roleId || ""),
+    guildId: String(payload.guildId || ""),
+    grantedBy: String(payload.grantedBy || ""),
+    grantedAt: Number(payload.grantedAt || Date.now()),
+    expiresAt: Number(payload.expiresAt || Date.now()),
   };
 }
 
-function getStoreRoot() {
-  const players = readPlayers();
+function normalizePatreonRoles(raw = {}) {
+  const data = {};
 
-  if (!players[STORE_KEY] || typeof players[STORE_KEY] !== "object") {
-    players[STORE_KEY] = {
-      username: "Patreon Role Store",
-      roles: {},
-      updatedAt: Date.now(),
-    };
-    writePlayers(players);
+  for (const [userId, entry] of Object.entries(raw || {})) {
+    if (!entry) continue;
+    data[String(userId)] = normalizeEntry(userId, entry);
   }
 
-  if (!players[STORE_KEY].roles || typeof players[STORE_KEY].roles !== "object") {
-    players[STORE_KEY].roles = {};
-  }
+  return data;
+}
 
-  return {
-    players,
-    store: players[STORE_KEY],
-  };
+function readFileStore() {
+  ensureFile();
+
+  try {
+    const raw = fs.readFileSync(filePath, "utf8").trim();
+    return normalizePatreonRoles(raw ? safeParseJson(raw) : {});
+  } catch (error) {
+    console.error("[PATREON ROLE STORE] Invalid JSON, resetting.", error);
+    fs.writeFileSync(filePath, "{}", "utf8");
+    return {};
+  }
+}
+
+function writeFileStore(data) {
+  ensureFile();
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tempPath, JSON.stringify(data || {}, null, 2), "utf8");
+  fs.renameSync(tempPath, filePath);
 }
 
 function readPatreonRoles() {
-  const { store } = getStoreRoot();
-  const output = {};
-
-  for (const [userId, entry] of Object.entries(store.roles || {})) {
-    if (!entry || typeof entry !== "object") continue;
-    output[String(userId)] = normalizeEntry(userId, entry);
-  }
-
-  return output;
+  if (cache) return cache;
+  cache = readFileStore();
+  return cache;
 }
 
 function writePatreonRoles(data) {
-  const { players, store } = getStoreRoot();
-  const clean = {};
+  cache = normalizePatreonRoles(data || {});
 
-  for (const [userId, entry] of Object.entries(data || {})) {
-    if (!entry || typeof entry !== "object") continue;
-    clean[String(userId)] = normalizeEntry(userId, entry);
+  if (USE_POSTGRES && dbReady) {
+    saveQueue = saveQueue
+      .catch(() => {})
+      .then(() => saveJsonStateToDb(PATREON_STATE_KEY, cache))
+      .catch((error) => {
+        console.error("[PATREON ROLE STORE DB SAVE ERROR]", error);
+      });
+
+    return;
   }
 
-  players[STORE_KEY] = {
-    ...store,
-    username: "Patreon Role Store",
-    roles: clean,
-    updatedAt: Date.now(),
-  };
-
-  writePlayers(players);
+  writeFileStore(cache);
 }
 
-function setPatreonRole(userId, payload = {}) {
+async function initPatreonRoleStore() {
+  ensureFile();
+
+  if (!USE_POSTGRES) {
+    cache = readFileStore();
+    console.log("[PATREON ROLE STORE] File mode active.");
+    return;
+  }
+
+  try {
+    const dbState = await loadJsonStateFromDb(PATREON_STATE_KEY);
+
+    if (dbState && Object.keys(dbState || {}).length > 0) {
+      cache = normalizePatreonRoles(dbState);
+      dbReady = true;
+      console.log("[PATREON ROLE STORE] Postgres mode active.");
+      return;
+    }
+
+    const allowFileSeed =
+      String(process.env.PATREON_STORE_ALLOW_FILE_SEED || "false").toLowerCase() ===
+      "true";
+
+    if (allowFileSeed) {
+      const fileState = readFileStore();
+
+      if (fileState && Object.keys(fileState).length > 0) {
+        cache = normalizePatreonRoles(fileState);
+        dbReady = true;
+        await saveJsonStateToDb(PATREON_STATE_KEY, cache);
+        console.log("[PATREON ROLE STORE] Seeded file data to Postgres.");
+        return;
+      }
+    }
+
+    cache = {};
+    dbReady = true;
+    await saveJsonStateToDb(PATREON_STATE_KEY, cache);
+    console.log("[PATREON ROLE STORE] Postgres mode active. No roles found yet.");
+  } catch (error) {
+    console.error("[PATREON ROLE STORE] Failed to initialize Postgres mode.", error);
+    dbReady = false;
+    cache = readFileStore();
+  }
+}
+
+function setPatreonRole(userId, payload) {
   const data = readPatreonRoles();
 
   data[String(userId)] = normalizeEntry(userId, {
+    ...payload,
     userId: String(userId),
-    tier: payload.tier || "mother_flame",
-    roleId: payload.roleId || "",
-    guildId: payload.guildId || "",
-    grantedBy: payload.grantedBy || "",
-    grantedAt: Number(payload.grantedAt || Date.now()),
-    expiresAt: Number(payload.expiresAt || Date.now()),
   });
 
   writePatreonRoles(data);
@@ -104,6 +167,20 @@ function removePatreonRole(userId) {
   const data = readPatreonRoles();
   delete data[String(userId)];
   writePatreonRoles(data);
+}
+
+function getActivePatreonRole(userId) {
+  const data = readPatreonRoles();
+  const entry = data[String(userId)];
+
+  if (!entry) return null;
+  if (Number(entry.expiresAt || 0) <= Date.now()) return null;
+
+  return entry;
+}
+
+function hasActivePatreonRole(userId) {
+  return Boolean(getActivePatreonRole(userId));
 }
 
 async function syncExpiredPatreonRoles(client) {
@@ -123,7 +200,7 @@ async function syncExpiredPatreonRoles(client) {
 
       if (member && entry.roleId && member.roles.cache.has(String(entry.roleId))) {
         await member.roles
-          .remove(String(entry.roleId), "Patreon premium expired")
+          .remove(String(entry.roleId), "Mother Flame Patreon expired")
           .catch((error) => {
             console.warn(
               "[PATREON ROLE STORE] Failed removing expired role:",
@@ -143,9 +220,12 @@ async function syncExpiredPatreonRoles(client) {
 }
 
 module.exports = {
+  initPatreonRoleStore,
   readPatreonRoles,
   writePatreonRoles,
   setPatreonRole,
   removePatreonRole,
+  getActivePatreonRole,
+  hasActivePatreonRole,
   syncExpiredPatreonRoles,
 };

@@ -13,7 +13,11 @@ const {
 
 const { startTopggWebhookServer } = require("./topggWebhook");
 const { syncArenaRankRoles } = require("./utils/arenaRankRoles");
-const { syncExpiredPatreonRoles } = require("./utils/patreonRoleStore");
+const {
+  initPatreonRoleStore,
+  syncExpiredPatreonRoles,
+} = require("./utils/patreonRoleStore");
+const { initPirateStore } = require("./utils/pirateStore");
 const { startResetReminderService } = require("./utils/resetReminderService");
 const { initRedeemCodeStore } = require("./utils/redeemCodeStore");
 const { maybeSpawnMarineEvent } = require("./utils/marineEvent");
@@ -621,9 +625,11 @@ process.on("uncaughtException", (error) => {
 });
 
 initPlayerStore()
+  .then(() => initPatreonRoleStore())
+  .then(() => initPirateStore())
   .then(() => initRedeemCodeStore())
   .then(() => client.login(process.env.DISCORD_TOKEN))
   .catch((error) => {
-    console.error("[PLAYER STORE INIT FATAL]", error);
+    console.error("[STORE INIT FATAL]", error);
     process.exit(1);
   });

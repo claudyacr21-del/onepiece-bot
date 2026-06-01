@@ -1,3 +1,5 @@
+const { hasActivePatreonRole } = require("./patreonRoleStore");
+
 const PREMIUM_ROLE_NAME =
   process.env.PATREON_PREMIUM_ROLE_NAME ||
   process.env.PREMIUM_ROLE_NAME ||
@@ -145,6 +147,8 @@ function hasVivreCardRole(member) {
 }
 
 async function isPremiumUser(message) {
+  const userId = message?.author?.id;
+  if (userId && hasActivePatreonRole(userId)) return true;
   const mainMember = await fetchMainGuildMember(message);
   if (hasMotherFlameRole(mainMember)) return true;
   return hasMotherFlameRole(message?.member);
