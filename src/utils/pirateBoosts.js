@@ -27,7 +27,33 @@ function getPirateGemsBoostPercent(userId) {
 }
 
 function applyPiratePercentBoost(value, percent) {
-  return Math.max(0, Math.floor(Number(value || 0) * (1 + Number(percent || 0) / 100)));
+  return Math.max(
+    0,
+    Math.floor(Number(value || 0) * (1 + Number(percent || 0) / 100))
+  );
+}
+
+function applyPirateCurrencyBoosts(reward, userId) {
+  const berryBoost = getPirateBerryBoostPercent(userId);
+  const gemsBoost = getPirateGemsBoostPercent(userId);
+
+  const baseBerries = Math.max(0, Math.floor(Number(reward?.berries || 0)));
+  const baseGems = Math.max(0, Math.floor(Number(reward?.gems || 0)));
+
+  const boostedBerries = applyPiratePercentBoost(baseBerries, berryBoost);
+  const boostedGems = applyPiratePercentBoost(baseGems, gemsBoost);
+
+  return {
+    ...(reward || {}),
+    berries: boostedBerries,
+    gems: boostedGems,
+    pirateBoosts: {
+      berryBoost,
+      gemsBoost,
+      bonusBerries: Math.max(0, boostedBerries - baseBerries),
+      bonusGems: Math.max(0, boostedGems - baseGems),
+    },
+  };
 }
 
 module.exports = {
@@ -37,4 +63,5 @@ module.exports = {
   getPirateBerryBoostPercent,
   getPirateGemsBoostPercent,
   applyPiratePercentBoost,
+  applyPirateCurrencyBoosts,
 };

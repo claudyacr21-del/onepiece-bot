@@ -18,7 +18,10 @@ const { getCurrentIsland } = require("../data/islands");
 const cardsDb = require("../data/cards");
 const { hydrateCard } = require("../utils/evolution");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-const { getPirateExpBoostPercent } = require("../utils/pirateBoosts");
+const {
+  getPirateExpBoostPercent,
+  applyPirateCurrencyBoosts,
+} = require("../utils/pirateBoosts");
 const {
   applyDamageBoost,
   applyExpBoost,
@@ -1973,6 +1976,24 @@ function formatRewardLines(reward) {
     `💎 +${Number(reward.gems || 0)} gems`,
   ];
 
+  const boosts = reward?.pirateBoosts || {};
+
+  if (Number(boosts.bonusBerries || 0) > 0) {
+    lines.push(
+      `🏴‍☠️ Berry Boost Lv.${Number(boosts.berryBoost || 0)}: +${Number(
+        boosts.bonusBerries || 0
+      ).toLocaleString("en-US")} bonus berries`
+    );
+  }
+
+  if (Number(boosts.bonusGems || 0) > 0) {
+    lines.push(
+      `🏴‍☠️ Gems Boost Lv.${Number(boosts.gemsBoost || 0)}: +${Number(
+        boosts.bonusGems || 0
+      ).toLocaleString("en-US")} bonus gems`
+    );
+  }
+
   for (const box of reward.boxes || []) {
     lines.push(`🎁 ${box.name || "Reward Box"} x${Number(box.amount || 1)}`);
   }
@@ -2584,12 +2605,12 @@ if (interaction.customId === "boss_raid_run") {
             components: [],
           });
 
-          const reward = getBossReward(currentIsland, phaseBoss);
-          const storyLines = [];
-          const rewardLines = formatRewardLines(reward);
-          const allExpLines = [];
+            const baseReward = getBossReward(currentIsland, phaseBoss);
+            const storyLines = [];
+            const allExpLines = [];
 
-          for (const participant of participants) {
+            for (const participant of participants) {
+              const reward = applyPirateCurrencyBoosts(baseReward, participant.userId);
             const expResults = calculateBossExp(
               participant.units,
               true,
@@ -2707,6 +2728,9 @@ if (interaction.customId === "boss_raid_run") {
               participant.username || "Unknown"
             );
           }
+
+          const hostReward = applyPirateCurrencyBoosts(baseReward, message.author.id);
+          const rewardLines = formatRewardLines(hostReward);
 
           storyLines.push(`✅ ${currentIsland.name} Phase ${phaseBoss.phase} cleared.`);
           storyLines.push("Rewards were given to every valid raid participant.");
@@ -3015,7 +3039,10 @@ if (interaction.customId === "boss_run") {
       if (Number(boss.battleHp ?? boss.hp) <= 0) {
         ended = true;
 
-        const reward = getBossReward(currentIsland, phaseBoss);
+        const reward = applyPirateCurrencyBoosts(
+          getBossReward(currentIsland, phaseBoss),
+          message.author.id
+        );
 
         let updatedBoxes = [...(player.boxes || [])];
 
@@ -3023,7 +3050,12 @@ if (interaction.customId === "boss_run") {
           updatedBoxes = addOrIncrease(updatedBoxes, item);
         });
 
-        const expResults = calculateBossExp(playerTeam, true, combatBoosts, getPirateExpBoostPercent(message.author.id));
+        const expResults = calculateBossExp(
+          playerTeam,
+          true,
+          combatBoosts,
+          getPirateExpBoostPercent(message.author.id)
+        );
         const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
         const expLines = formatExpResults(playerTeam, expResults);
 

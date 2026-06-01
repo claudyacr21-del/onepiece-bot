@@ -12,7 +12,10 @@ const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
 const { getCurrentIsland, getIslandByCode } = require("../data/islands");
 const { getPremiumTier } = require("../utils/premiumAccess");
-const { getPirateExpBoostPercent } = require("../utils/pirateBoosts");
+const {
+  getPirateExpBoostPercent,
+  applyPirateCurrencyBoosts,
+} = require("../utils/pirateBoosts");
 const {
   getPlayerCombatBoosts,
   applyDamageBoost,
@@ -704,6 +707,24 @@ function formatFightRewardLines(reward) {
     `↪ +${Number(reward.gems || 0)} gems`,
   ];
 
+  const boosts = reward?.pirateBoosts || {};
+
+  if (Number(boosts.bonusBerries || 0) > 0) {
+    lines.push(
+      `↪ Pirate Berry Boost Lv.${Number(boosts.berryBoost || 0)}: +${Number(
+        boosts.bonusBerries || 0
+      ).toLocaleString("en-US")} bonus berries`
+    );
+  }
+
+  if (Number(boosts.bonusGems || 0) > 0) {
+    lines.push(
+      `↪ Pirate Gems Boost Lv.${Number(boosts.gemsBoost || 0)}: +${Number(
+        boosts.bonusGems || 0
+      ).toLocaleString("en-US")} bonus gems`
+    );
+  }
+
   for (const box of reward.boxes || []) {
     lines.push(`↪ ${box.name || "Resource Box"} x${Number(box.amount || 1)}`);
   }
@@ -1142,7 +1163,10 @@ if (interaction.user.id !== message.author.id) {
             battleEnded = true;
             currentStreak += 1;
 
-            const reward = calculateWinReward(currentStreak, premiumTier, currentIsland);
+            const reward = applyPirateCurrencyBoosts(
+              calculateWinReward(currentStreak, premiumTier, currentIsland),
+              message.author.id
+            );
             const pirateExpBoost = getPirateExpBoostPercent(message.author.id);
             const boostedTeam = playerTeam.map((unit) => ({
               ...unit,
