@@ -738,7 +738,6 @@ async function handleDeposit(message, args) {
 
 module.exports = {
   name: "pirate",
-  aliases: ["guild", "crew"],
 
   async execute(message, args) {
     const sub = String(args[0] || "help").toLowerCase();
