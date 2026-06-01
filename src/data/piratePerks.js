@@ -8,6 +8,15 @@ const PIRATE_PERKS = {
     effect: "Increase berries earned by all crew members.",
   },
 
+  gemsBoost: {
+    key: "gemsBoost",
+    name: "Gems Boost",
+    unlockGuildLevel: 8,
+    maxLevel: 20,
+    bonusPerLevel: 1,
+    effect: "Increase gems earned by all crew members.",
+  },
+
   luckBoost: {
     key: "luckBoost",
     name: "Luck Boost",
@@ -67,6 +76,11 @@ function normalizePerkKey(query) {
     berries: "berryBoost",
     berryboost: "berryBoost",
 
+    gem: "gemsBoost",
+    gems: "gemsBoost",
+    gemboost: "gemsBoost",
+    gemsboost: "gemsBoost",
+
     luck: "luckBoost",
     pull: "luckBoost",
     pullrate: "luckBoost",
@@ -122,6 +136,11 @@ function getPerkRequirement(perkKey, currentPerkLevel) {
   if (perkKey === "berryBoost") {
     materials.wood = 3 + nextLevel;
     materials.iron = 2 + Math.floor(nextLevel / 2);
+  }
+
+  if (perkKey === "gemsBoost") {
+    materials.cola = 2 + Math.floor(nextLevel / 2);
+    materials.enhancement_stone = 2 + nextLevel;
   }
 
   if (perkKey === "luckBoost") {

@@ -43,7 +43,7 @@ const RED = 0xe74c3c;
 const GREEN = 0x2ecc71;
 const BLUE = 0x3498db;
 const PIRATE_RAID_ATTACK_COOLDOWN_MS = 12 * 60 * 60 * 1000;
-const PIRATE_CREATE_COST_BERRIES = 5_000_000;
+const PIRATE_CREATE_COST_BERRIES = 2_000_000;
 const PIRATE_CREATE_COST_GEMS = 250;
 
 function fmt(num) {
@@ -1103,6 +1103,7 @@ async function handleUpgradePerk(message, args) {
           "",
           "Available perks:",
           "• berry",
+          "• gems",
           "• luck",
           "• raid",
           "• exp",
@@ -1254,15 +1255,53 @@ function addPirateShopItem(player, item) {
   return next;
 }
 
+function getPirateShopDiscountInfo(pirate) {
+  const level = Math.max(
+    0,
+    Math.floor(Number(pirate?.perks?.shopDiscount || 0))
+  );
+
+  const percent = Math.min(10, level);
+
+  return {
+    level,
+    percent,
+    multiplier: Math.max(0, 1 - percent / 100),
+  };
+}
+
+function getDiscountedPirateShopPrice(item, pirate) {
+  const basePrice = Math.max(1, Math.floor(Number(item?.price || 1)));
+  const discount = getPirateShopDiscountInfo(pirate);
+
+  const finalPrice = Math.max(1, Math.ceil(basePrice * discount.multiplier));
+
+  return {
+    basePrice,
+    finalPrice,
+    discountLevel: discount.level,
+    discountPercent: discount.percent,
+    saved: Math.max(0, basePrice - finalPrice),
+  };
+}
+
 async function handlePirateShop(message) {
   try {
     const pirate = requirePirate(message.author.id);
     const players = readPlayers();
     const player = getPlayer(players, message.author.id, message.author.username);
 
+    const discount = getPirateShopDiscountInfo(pirate);
+
     const lines = Object.values(PIRATE_SHOP_ITEMS).map((item) => {
+      const price = getDiscountedPirateShopPrice(item, pirate);
+      const priceText =
+        price.saved > 0
+          ? `~~${fmt(price.basePrice)}~~ ${fmt(price.finalPrice)} pirate tokens`
+          : `${fmt(price.finalPrice)} pirate tokens`;
+
       return [
-        `**${item.name}** — ${fmt(item.price)} pirate tokens`,
+        `**${item.name}** — ${priceText}`,
         `Code: \`${item.key}\``,
         `_${item.description}_`,
       ].join("\n");
@@ -1274,6 +1313,7 @@ async function handlePirateShop(message) {
       .setDescription(
         [
           `Your Pirate Tokens: **${fmt(player.pirateTokens || 0)}**`,
+          `Shop Discount: **Lv.${discount.level}** (**-${discount.percent}%**)`,
           "",
           ...lines,
           "",
@@ -1328,20 +1368,28 @@ async function handlePirateBuy(message, args) {
     let player = getPlayer(players, message.author.id, message.author.username);
     const tokens = Math.max(0, Math.floor(Number(player.pirateTokens || 0)));
 
-    if (tokens < item.price) {
+    const pirate = requirePirate(message.author.id);
+    const price = getDiscountedPirateShopPrice(item, pirate);
+
+    if (tokens < price.finalPrice) {
       return message.reply(
         makeError(
           [
             `Not enough pirate tokens to buy **${item.name}**.`,
             "",
-            `Price: **${fmt(item.price)} pirate tokens**`,
+            `Price: **${fmt(price.finalPrice)} pirate tokens**`,
+            price.saved > 0
+              ? `Base Price: ${fmt(price.basePrice)} • Discount: -${price.discountPercent}%`
+              : null,
             `You have: **${fmt(tokens)} pirate tokens**`,
-          ].join("\n")
+          ]
+            .filter(Boolean)
+            .join("\n")
         )
       );
     }
 
-    player.pirateTokens = tokens - item.price;
+    player.pirateTokens = tokens - price.finalPrice;
     player = addPirateShopItem(player, item);
 
     players[String(message.author.id)] = player;
@@ -1351,9 +1399,14 @@ async function handlePirateBuy(message, args) {
       makeSuccess(
         "Pirate Shop Purchase",
         [
-          `You bought **${item.name}** for **${fmt(item.price)} pirate tokens**.`,
+          `You bought **${item.name}** for **${fmt(price.finalPrice)} pirate tokens**.`,
+          price.saved > 0
+            ? `Shop Discount Lv.${price.discountLevel}: saved **${fmt(price.saved)} token(s)**.`
+            : null,
           `Remaining Pirate Tokens: **${fmt(player.pirateTokens)}**`,
-        ].join("\n")
+        ]
+          .filter(Boolean)
+          .join("\n")
       )
     );
   } catch (error) {
