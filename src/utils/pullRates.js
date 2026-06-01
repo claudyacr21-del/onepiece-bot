@@ -1,17 +1,25 @@
-function rollStandardBaseTier() {
+function rollStandardBaseTier(pullChanceBonus = 0) {
+  const bonus = Math.max(0, Number(pullChanceBonus || 0));
+  const sBonus = Math.min(5, bonus);
   const roll = Math.random() * 100;
 
   // Normal Card / Boost Card:
-  // C 55% / B 34% / A 10% / S 1%
-  if (roll < 55) return "C";
-  if (roll < 89) return "B";
-  if (roll < 99) return "A";
+  // Base: C 55% / B 34% / A 10% / S 1%
+  // Pirate Luck Boost adds directly to S rate.
+  const sRate = 1 + sBonus;
+  const aRate = 10;
+  const bRate = 34;
+  const cRate = Math.max(40, 100 - sRate - aRate - bRate);
+
+  if (roll < cRate) return "C";
+  if (roll < cRate + bRate) return "B";
+  if (roll < cRate + bRate + aRate) return "A";
   return "S";
 }
 
 function rollVivreBaseTier(pullChanceBonus = 0) {
   const bonus = Math.max(0, Number(pullChanceBonus || 0));
-  const sBonus = Math.min(0.4, bonus * 0.03);
+  const sBonus = Math.min(5, bonus);
   const roll = Math.random() * 100;
 
   // Vivre Card Card / Boost Card:
@@ -30,7 +38,7 @@ function rollVivreBaseTier(pullChanceBonus = 0) {
 
 function rollPremiumBaseTier(pullChanceBonus = 0) {
   const bonus = Math.max(0, Number(pullChanceBonus || 0));
-  const sBonus = Math.min(0.8, bonus * 0.05);
+  const sBonus = Math.min(5, bonus);
   const roll = Math.random() * 100;
 
   // Mother Flame Card / Boost Card:

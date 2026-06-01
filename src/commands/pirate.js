@@ -42,7 +42,7 @@ const GOLD = 0xf1c40f;
 const RED = 0xe74c3c;
 const GREEN = 0x2ecc71;
 const BLUE = 0x3498db;
-
+const PIRATE_RAID_ATTACK_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const PIRATE_CREATE_COST_BERRIES = 5_000_000;
 const PIRATE_CREATE_COST_GEMS = 250;
 
@@ -1448,14 +1448,23 @@ function getPirateRaidPoints({ boss, damage, defeated, pirate }) {
   };
 }
 
-function formatPirateRaidBossLine(pirate, boss) {
+function formatPirateRaidBossLine(pirate, boss, userId = null) {
   const state = getPirateRaidState(pirate, boss.key);
   const hpText = state.defeated ? "Defeated" : `${fmt(state.hpLeft)} / ${fmt(boss.hp)}`;
+
+  let cooldownText = "Cooldown: Ready";
+  if (userId) {
+    const cooldown = getPirateRaidCooldownInfo(pirate, boss.key, userId);
+    cooldownText = cooldown.ready
+      ? "Cooldown: Ready"
+      : `Cooldown: ${formatDuration(cooldown.remaining)}`;
+  }
 
   return [
     `**${boss.tierName} — ${boss.name}**`,
     `Min Pirate Lv.${boss.minPirateLevel} • Base Points: ${fmt(boss.basePoints)}`,
     `HP: ${hpText}`,
+    cooldownText,
     `Attack: \`op pirate attack ${boss.key}\``,
     `_${boss.description}_`,
   ].join("\n");
@@ -1466,7 +1475,7 @@ async function handlePirateRaid(message) {
     const pirate = requirePirate(message.author.id);
 
     const lines = Object.values(PIRATE_RAID_BOSSES).map((boss) =>
-      formatPirateRaidBossLine(pirate, boss)
+      formatPirateRaidBossLine(pirate, boss, message.author.id)
     );
 
     const embed = new EmbedBuilder()
@@ -1542,6 +1551,22 @@ async function handlePirateAttack(message, args) {
             `**${boss.name}** is already defeated for this pirate/guild.`,
             "",
             "Wait for the weekly reset, or attack another tier.",
+          ].join("\n")
+        )
+      );
+    }
+
+    const cooldown = getPirateRaidCooldownInfo(pirate, tierKey, message.author.id);
+
+    if (!cooldown.ready) {
+      return message.reply(
+        makeError(
+          [
+            `You already attacked **${boss.name}** recently.`,
+            "",
+            `Cooldown left: **${formatDuration(cooldown.remaining)}**`,
+            "",
+            "You can still attack another Pirate Raid tier if it is ready.",
           ].join("\n")
         )
       );
@@ -1736,6 +1761,32 @@ async function handlePirateRewardInfo(message) {
     embeds: [embed],
     allowedMentions: { repliedUser: false },
   });
+}
+
+function formatDuration(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(Number(ms || 0) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+function getPirateRaidCooldownInfo(pirate, tierKey, userId) {
+  const raidState = getPirateRaidState(pirate, tierKey);
+  const lastAttackAt = Number(raidState.lastAttackAt?.[String(userId)] || 0);
+  const now = Date.now();
+  const nextAttackAt = lastAttackAt + PIRATE_RAID_ATTACK_COOLDOWN_MS;
+  const remaining = Math.max(0, nextAttackAt - now);
+
+  return {
+    lastAttackAt,
+    nextAttackAt,
+    remaining,
+    ready: remaining <= 0,
+  };
 }
 
 module.exports = {
