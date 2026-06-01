@@ -1,6 +1,6 @@
 const { hydrateCard } = require("./evolution");
 const { getPassiveBoostSummary } = require("./passiveBoosts");
-
+const { getPirateExpBoostPercent } = require("./pirateBoosts");
 const RAID_PRESTIGE_CAP = 200;
 const RAID_PRESTIGE_ATK_PER_LEVEL = 0.25;
 const RAID_PRESTIGE_HP_PER_LEVEL = 0.25;
@@ -72,7 +72,15 @@ function hydrateCombatCard(card, boosts = {}) {
 }
 
 function getPlayerCombatBoosts(player) {
-  return getPassiveBoostSummary(player);
+  const boosts = getPassiveBoostSummary(player);
+  const userId = player?.id || player?.userId || player?.discordId || player?.playerId || null;
+  const pirateExpBoost = userId ? getPirateExpBoostPercent(userId) : 0;
+
+  return {
+    ...boosts,
+    exp: Number(boosts.exp || 0) + Number(pirateExpBoost || 0),
+    pirateExpBoost,
+  };
 }
 
 function getPlayerCombatCards(player) {

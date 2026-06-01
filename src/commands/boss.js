@@ -18,6 +18,7 @@ const { getCurrentIsland } = require("../data/islands");
 const cardsDb = require("../data/cards");
 const { hydrateCard } = require("../utils/evolution");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const { getPirateExpBoostPercent } = require("../utils/pirateBoosts");
 const {
   applyDamageBoost,
   applyExpBoost,
@@ -1674,7 +1675,7 @@ function buildRaidBossRunConfirmButtons() {
   ];
 }
 
-function calculateBossExp(playerTeam, won, combatBoosts) {
+function calculateBossExp(playerTeam, won, combatBoosts, pirateExpBoost = 0) {
   const baseExp = won ? BOSS_WIN_EXP_PER_CARD : BOSS_LOSE_EXP_PER_CARD;
 
   return playerTeam.map((unit) => {
@@ -1696,7 +1697,13 @@ function calculateBossExp(playerTeam, won, combatBoosts) {
     return {
       sourceIndex: Number.isInteger(unit.sourceIndex) ? unit.sourceIndex : null,
       instanceId: unit.instanceId,
-      expGain: applyExpBoost(baseExp, unit.passiveBoostsApplied || combatBoosts),
+      expGain: applyExpBoost(baseExp, {
+        ...(unit.passiveBoostsApplied || combatBoosts || {}),
+        exp:
+          Number((unit.passiveBoostsApplied || combatBoosts || {}).exp || 0) +
+          Number(pirateExpBoost || 0),
+        pirateExpBoost,
+      }),
       locked: false,
       level,
       cap,
@@ -2586,7 +2593,8 @@ if (interaction.customId === "boss_raid_run") {
             const expResults = calculateBossExp(
               participant.units,
               true,
-              participant.combatBoosts
+              participant.combatBoosts,
+              getPirateExpBoostPercent(participant.userId)
             );
 
             const updatedCards = applyBossExpToCards(
@@ -2746,7 +2754,8 @@ if (interaction.customId === "boss_raid_run") {
             const expResults = calculateBossExp(
               participant.units,
               false,
-              participant.combatBoosts
+              participant.combatBoosts,
+              getPirateExpBoostPercent(participant.userId)
             );
 
             const updatedCards = applyBossExpToCards(
@@ -3014,7 +3023,7 @@ if (interaction.customId === "boss_run") {
           updatedBoxes = addOrIncrease(updatedBoxes, item);
         });
 
-        const expResults = calculateBossExp(playerTeam, true, combatBoosts);
+        const expResults = calculateBossExp(playerTeam, true, combatBoosts, getPirateExpBoostPercent(message.author.id));
         const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
         const expLines = formatExpResults(playerTeam, expResults);
 
@@ -3172,7 +3181,7 @@ if (interaction.customId === "boss_run") {
             components: disableActionRows(buildButtons(playerTeam, true, [])),
           });
 
-        const expResults = calculateBossExp(playerTeam, false, combatBoosts);
+        const expResults = calculateBossExp(playerTeam, false, combatBoosts, getPirateExpBoostPercent(message.author.id));
         const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
         const expLines = formatExpResults(playerTeam, expResults);
         const updatedQuests = applyBossQuestProgress(player, ["bossFights"]);
@@ -3230,7 +3239,12 @@ if (interaction.customId === "boss_run") {
       if (reason === "time") {
         ended = true;
 
-        const expResults = calculateBossExp(playerTeam, false, combatBoosts);
+        const expResults = calculateBossExp(
+          playerTeam,
+          false,
+          combatBoosts,
+          getPirateExpBoostPercent(message.author.id)
+        );
         const updatedCards = applyBossExpToCards(player, playerTeam, expResults);
         const expLines = formatExpResults(playerTeam, expResults);
         const updatedQuests = applyBossQuestProgress(player, ["bossFights"]);

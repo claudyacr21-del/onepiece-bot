@@ -12,6 +12,7 @@ const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
 const { getCurrentIsland, getIslandByCode } = require("../data/islands");
 const { getPremiumTier } = require("../utils/premiumAccess");
+const { getPirateExpBoostPercent } = require("../utils/pirateBoosts");
 const {
   getPlayerCombatBoosts,
   applyDamageBoost,
@@ -820,7 +821,17 @@ function getFightModeLabel(tier) {
 }
 
 function applyFightLoss(message, playerTeam) {
-  const expResults = calculateFightExp(playerTeam, false);
+  const pirateExpBoost = getPirateExpBoostPercent(message.author.id);
+  const boostedTeam = playerTeam.map((unit) => ({
+    ...unit,
+    passiveBoostsApplied: {
+      ...(unit.passiveBoostsApplied || {}),
+      exp: Number(unit.passiveBoostsApplied?.exp || 0) + pirateExpBoost,
+      pirateExpBoost,
+    },
+  }));
+
+  const expResults = calculateFightExp(boostedTeam, false);
 
   updatePlayerAtomic(
     message.author.id,
@@ -829,7 +840,7 @@ function applyFightLoss(message, playerTeam) {
 
       return {
         ...fresh,
-        cards: applyFightExpToFreshCards(fresh, playerTeam, expResults),
+        cards: applyFightExpToFreshCards(fresh, boostedTeam, expResults),
         fightStreak: 0,
         quests: {
           ...(fresh.quests || {}),
@@ -1132,7 +1143,16 @@ if (interaction.user.id !== message.author.id) {
             currentStreak += 1;
 
             const reward = calculateWinReward(currentStreak, premiumTier, currentIsland);
-            const expResults = calculateFightExp(playerTeam, true);
+            const pirateExpBoost = getPirateExpBoostPercent(message.author.id);
+            const boostedTeam = playerTeam.map((unit) => ({
+              ...unit,
+              passiveBoostsApplied: {
+                ...(unit.passiveBoostsApplied || {}),
+                exp: Number(unit.passiveBoostsApplied?.exp || 0) + pirateExpBoost,
+                pirateExpBoost,
+              },
+            }));
+            const expResults = calculateFightExp(boostedTeam, true);
 
             updatePlayerAtomic(
               message.author.id,
@@ -1158,7 +1178,7 @@ if (interaction.user.id !== message.author.id) {
 
                 return {
                   ...fresh,
-                  cards: applyFightExpToFreshCards(fresh, playerTeam, expResults),
+                  cards: applyFightExpToFreshCards(fresh, boostedTeam, expResults),
                   boxes: updatedBoxes,
                   berries: Number(fresh.berries || 0) + reward.berries,
                   gems: Number(fresh.gems || 0) + reward.gems,
