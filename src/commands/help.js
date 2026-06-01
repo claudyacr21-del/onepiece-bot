@@ -150,8 +150,8 @@ const HELP_PAGES = {
   raid: {
     label: "Raid & Team",
     description: "Raid rooms and saved raid team",
-    emoji: "🏴‍☠️",
-    title: "🏴‍☠️ Raid & Team Commands",
+    emoji: "☠️",
+    title: "☠️ Raid & Team Commands",
     body: [
       "**Raid Rooms**",
       `\`${PREFIX} craid <boss>\` — C / B common raid using Common Raid Ticket`,

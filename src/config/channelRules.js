@@ -12,6 +12,7 @@ module.exports = {
       "ci",
       "help",
       "balance",
+      "pirate",
       "inv",
       "vote",
       "patreon",
