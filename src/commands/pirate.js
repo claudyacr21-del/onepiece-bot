@@ -82,10 +82,12 @@ function usageEmbed() {
       [
         "**Core Commands**",
         "`op pirate create <name>`",
+        `Create cost: ${fmt(PIRATE_CREATE_COST_BERRIES)} berries + ${fmt(PIRATE_CREATE_COST_GEMS)} gems`,
         "`op pirate info`",
         "`op pirate invite <@user>`",
         "`op pirate join <pirate name/id>`",
         "`op pirate leave`",
+        "`op pirate disband`",
         "`op pirate kick <@user>`",
         "`op pirate promote <@user>`",
         "`op pirate demote <@user>`",
@@ -127,6 +129,7 @@ function getPlayer(players, userId, username) {
 
   players[id].username = username || players[id].username || "Unknown";
   players[id].berries = Math.max(0, Math.floor(Number(players[id].berries || 0)));
+  players[id].gems = Math.max(0, Math.floor(Number(players[id].gems || 0)));
   players[id].materials = Array.isArray(players[id].materials)
     ? players[id].materials
     : [];
@@ -290,15 +293,75 @@ async function sendStorage(message, pirate) {
 
 async function handleCreate(message, args) {
   const name = cleanText(args.join(" "));
+
   if (!name) {
-    return message.reply(makeError("Usage: `op pirate create <name>`"));
+    return message.reply(
+      makeError(
+        [
+          "Usage: `op pirate create <name>`",
+          "",
+          "**Create Cost:**",
+          `• ${fmt(PIRATE_CREATE_COST_BERRIES)} berries`,
+          `• ${fmt(PIRATE_CREATE_COST_GEMS)} gems`,
+        ].join("\n")
+      )
+    );
   }
 
   try {
+    if (findPirateByUser(message.author.id)) {
+      return message.reply(makeError("You are already in a pirate/guild."));
+    }
+
+    const players = readPlayers();
+    const player = getPlayer(players, message.author.id, message.author.username);
+
+    const currentBerries = Math.floor(Number(player.berries || 0));
+    const currentGems = Math.floor(Number(player.gems || 0));
+
+    if (
+      currentBerries < PIRATE_CREATE_COST_BERRIES ||
+      currentGems < PIRATE_CREATE_COST_GEMS
+    ) {
+      const missing = [];
+
+      if (currentBerries < PIRATE_CREATE_COST_BERRIES) {
+        missing.push(
+          `Berries: need ${fmt(PIRATE_CREATE_COST_BERRIES)}, have ${fmt(currentBerries)}`
+        );
+      }
+
+      if (currentGems < PIRATE_CREATE_COST_GEMS) {
+        missing.push(
+          `Gems: need ${fmt(PIRATE_CREATE_COST_GEMS)}, have ${fmt(currentGems)}`
+        );
+      }
+
+      return message.reply(
+        makeError(
+          [
+            "Not enough resources to create a pirate.",
+            "",
+            "**Create Cost:**",
+            `• ${fmt(PIRATE_CREATE_COST_BERRIES)} berries`,
+            `• ${fmt(PIRATE_CREATE_COST_GEMS)} gems`,
+            "",
+            "**Missing:**",
+            ...missing.map((line) => `• ${line}`),
+          ].join("\n")
+        )
+      );
+    }
+
     const pirate = createPirate({
       name,
       leaderId: message.author.id,
     });
+
+    player.berries = currentBerries - PIRATE_CREATE_COST_BERRIES;
+    player.gems = currentGems - PIRATE_CREATE_COST_GEMS;
+    players[String(message.author.id)] = player;
+    writePlayers(players);
 
     return message.reply(
       makeSuccess(
@@ -307,6 +370,10 @@ async function handleCreate(message, args) {
           `**${pirate.name}** has been created.`,
           `Leader: <@${message.author.id}>`,
           `Members: **1/${MAX_MEMBERS}**`,
+          "",
+          "**Paid:**",
+          `• ${fmt(PIRATE_CREATE_COST_BERRIES)} berries`,
+          `• ${fmt(PIRATE_CREATE_COST_GEMS)} gems`,
           "",
           "Next: invite crew with `op pirate invite <@user>`",
         ].join("\n")
@@ -458,6 +525,47 @@ async function handleLeave(message) {
     );
   } catch (error) {
     return message.reply(makeError(error.message || "Failed to leave pirate/guild."));
+  }
+}
+
+async function handleDisband(message, args) {
+  const confirm = String(args[0] || "").toLowerCase();
+
+  try {
+    const pirate = requirePirate(message.author.id);
+    requireLeader(pirate, message.author.id);
+
+    if (confirm !== "confirm") {
+      return message.reply(
+        makeError(
+          [
+            `You are about to permanently disband **${pirate.name}**.`,
+            "",
+            "This will remove:",
+            "• Pirate data",
+            "• Member list",
+            "• Storage berries",
+            "• Storage materials",
+            "• Weekly points",
+            "",
+            "To confirm, type:",
+            "`op pirate disband confirm`",
+          ].join("\n")
+        )
+      );
+    }
+
+    const pirateName = pirate.name;
+    deletePirate(pirate.id);
+
+    return message.reply(
+      makeSuccess(
+        "Pirate Disbanded",
+        `**${pirateName}** has been permanently disbanded.`
+      )
+    );
+  } catch (error) {
+    return message.reply(makeError(error.message || "Failed to disband pirate."));
   }
 }
 
@@ -1088,6 +1196,7 @@ module.exports = {
     if (sub === "invite") return handleInvite(message, rest);
     if (sub === "join") return handleJoin(message, rest);
     if (sub === "leave") return handleLeave(message);
+    if (sub === "disband") return handleDisband(message, rest);
     if (sub === "kick") return handleKick(message, rest);
     if (sub === "promote") return handlePromote(message, rest);
     if (sub === "demote") return handleDemote(message, rest);
