@@ -30,6 +30,10 @@ const {
   PIRATE_SHOP_ITEMS,
   normalizePirateShopKey,
 } = require("../data/pirateShop");
+const {
+  PIRATE_RAID_BOSSES,
+  normalizePirateRaidTier,
+} = require("../data/pirateRaidBosses");
 const GOLD = 0xf1c40f;
 const RED = 0xe74c3c;
 const GREEN = 0x2ecc71;
@@ -107,6 +111,11 @@ function usageEmbed() {
         "**Pirate Shop Commands**",
         "`op pirate shop`",
         "`op pirate buy <item>`",
+        "",
+        "**Pirate Raid Commands**",
+        "`op pirate raid`",
+        "`op pirate attack <tier>`",
+        "`op pirate lb`",
         "",
         `Max members: **${MAX_MEMBERS}** — 1 Leader, 1 Vice Leader, 4 Crew`,
       ].join("\n")
@@ -1347,6 +1356,312 @@ async function handlePirateBuy(message, args) {
   }
 }
 
+function getCardRaidPower(card) {
+  const atk = Number(card?.atk || card?.attack || 0);
+  const hp = Number(card?.hp || 0);
+  const spd = Number(card?.speed || card?.spd || 0);
+  const level = Number(card?.level || 1);
+  const power = Number(card?.currentPower || card?.power || 0);
+  const prestige = Math.max(
+    Number(card?.prestige || 0),
+    Number(card?.raidPrestige || 0),
+    Number(card?.bossPrestige || 0),
+    Number(card?.arenaPrestige || 0)
+  );
+
+  const rawPower =
+    power ||
+    atk * 1.5 +
+      hp * 0.25 +
+      spd * 12 +
+      level * 35 +
+      prestige * 250;
+
+  return Math.max(1, Math.floor(rawPower));
+}
+
+function getBestRaidCards(player, limit = 3) {
+  return (Array.isArray(player?.cards) ? player.cards : [])
+    .filter(Boolean)
+    .map((card) => ({
+      card,
+      power: getCardRaidPower(card),
+    }))
+    .sort((a, b) => b.power - a.power)
+    .slice(0, limit);
+}
+
+function getPirateRaidState(pirate, tierKey) {
+  const raids = pirate.raids && typeof pirate.raids === "object" ? pirate.raids : {};
+  const current = raids[tierKey] || {};
+  const boss = PIRATE_RAID_BOSSES[tierKey];
+
+  return {
+    hpLeft: Math.max(0, Math.floor(Number(current.hpLeft ?? boss.hp))),
+    defeated: Boolean(current.defeated),
+    defeatedAt: Number(current.defeatedAt || 0),
+    totalDamage: Math.max(0, Math.floor(Number(current.totalDamage || 0))),
+    lastAttackAt: current.lastAttackAt && typeof current.lastAttackAt === "object" ? current.lastAttackAt : {},
+  };
+}
+
+function getPirateRaidDamage(player, pirate) {
+  const bestCards = getBestRaidCards(player, 3);
+  const baseDamage = bestCards.reduce((sum, entry) => sum + entry.power, 0);
+
+  const bossDamageLevel = Math.max(
+    0,
+    Math.floor(Number(pirate?.perks?.bossDamageBoost || 0))
+  );
+
+  const bonusMultiplier = 1 + bossDamageLevel * 0.01;
+  const finalDamage = Math.max(1, Math.floor(baseDamage * bonusMultiplier));
+
+  return {
+    damage: finalDamage,
+    cards: bestCards,
+    bossDamageLevel,
+    bonusMultiplier,
+  };
+}
+
+function getPirateRaidPoints({ boss, damage, defeated, pirate }) {
+  const damageRatio = Math.min(1, Number(damage || 0) / Number(boss.hp || 1));
+  const base = Math.max(1, Math.floor(Number(boss.basePoints || 1) * damageRatio));
+  const clearBonus = defeated ? Math.floor(Number(boss.basePoints || 0) * 0.35) : 0;
+
+  const raidPointLevel = Math.max(
+    0,
+    Math.floor(Number(pirate?.perks?.raidPointBoost || 0))
+  );
+
+  const boosted = Math.floor((base + clearBonus) * (1 + raidPointLevel * 0.01));
+
+  return {
+    points: Math.max(1, boosted),
+    raidPointLevel,
+  };
+}
+
+function formatPirateRaidBossLine(pirate, boss) {
+  const state = getPirateRaidState(pirate, boss.key);
+  const hpText = state.defeated ? "Defeated" : `${fmt(state.hpLeft)} / ${fmt(boss.hp)}`;
+
+  return [
+    `**${boss.tierName} — ${boss.name}**`,
+    `Min Pirate Lv.${boss.minPirateLevel} • Base Points: ${fmt(boss.basePoints)}`,
+    `HP: ${hpText}`,
+    `Attack: \`op pirate attack ${boss.key}\``,
+    `_${boss.description}_`,
+  ].join("\n");
+}
+
+async function handlePirateRaid(message) {
+  try {
+    const pirate = requirePirate(message.author.id);
+
+    const lines = Object.values(PIRATE_RAID_BOSSES).map((boss) =>
+      formatPirateRaidBossLine(pirate, boss)
+    );
+
+    const embed = new EmbedBuilder()
+      .setColor(GOLD)
+      .setTitle(`🏴‍☠️ ${pirate.name} Pirate Raid Boss`)
+      .setDescription(
+        [
+          `**Pirate Level:** ${pirate.level}/100`,
+          `**Weekly Points:** ${fmt(pirate.weeklyPoints || 0)}`,
+          "",
+          ...lines,
+        ].join("\n\n")
+      )
+      .setFooter({
+        text: "Pirate Raid is separate from normal boss/raid systems.",
+      });
+
+    return message.reply({
+      embeds: [embed],
+      allowedMentions: { repliedUser: false },
+    });
+  } catch (error) {
+    return message.reply(makeError(error.message || "Failed to show pirate raid."));
+  }
+}
+
+async function handlePirateAttack(message, args) {
+  const tierKey = normalizePirateRaidTier(args.join(" "));
+
+  if (!tierKey || !PIRATE_RAID_BOSSES[tierKey]) {
+    return message.reply(
+      makeError(
+        [
+          "Usage: `op pirate attack <tier>`",
+          "",
+          "Available tiers:",
+          "• easy",
+          "• normal",
+          "• hard",
+          "• extreme",
+          "• legendary",
+        ].join("\n")
+      )
+    );
+  }
+
+  try {
+    const pirate = requirePirate(message.author.id);
+    const boss = PIRATE_RAID_BOSSES[tierKey];
+
+    if (Number(pirate.level || 1) < Number(boss.minPirateLevel || 1)) {
+      return message.reply(
+        makeError(
+          `${boss.tierName} raid requires Pirate Level **${boss.minPirateLevel}**.`
+        )
+      );
+    }
+
+    const players = readPlayers();
+    const player = getPlayer(players, message.author.id, message.author.username);
+    const bestCards = getBestRaidCards(player, 3);
+
+    if (!bestCards.length) {
+      return message.reply(makeError("You need at least 1 card to attack Pirate Raid Boss."));
+    }
+
+    const currentRaid = getPirateRaidState(pirate, tierKey);
+
+    if (currentRaid.defeated || currentRaid.hpLeft <= 0) {
+      return message.reply(
+        makeError(
+          [
+            `**${boss.name}** is already defeated for this pirate/guild.`,
+            "",
+            "Wait for the weekly reset, or attack another tier.",
+          ].join("\n")
+        )
+      );
+    }
+
+    const damageResult = getPirateRaidDamage(player, pirate);
+    const damage = Math.min(currentRaid.hpLeft, damageResult.damage);
+    const hpLeft = Math.max(0, currentRaid.hpLeft - damage);
+    const defeated = hpLeft <= 0;
+
+    const pointResult = getPirateRaidPoints({
+      boss,
+      damage,
+      defeated,
+      pirate,
+    });
+
+    const updated = updatePirate(pirate.id, (fresh) => {
+      const raids = fresh.raids && typeof fresh.raids === "object" ? { ...fresh.raids } : {};
+      const oldRaid = getPirateRaidState(fresh, tierKey);
+
+      raids[tierKey] = {
+        ...oldRaid,
+        hpLeft,
+        defeated,
+        defeatedAt: defeated ? Date.now() : oldRaid.defeatedAt || 0,
+        totalDamage: Math.max(0, Number(oldRaid.totalDamage || 0)) + damage,
+        lastAttackAt: {
+          ...(oldRaid.lastAttackAt || {}),
+          [String(message.author.id)]: Date.now(),
+        },
+      };
+
+      return {
+        ...fresh,
+        raids,
+        weeklyPoints: Math.max(0, Math.floor(Number(fresh.weeklyPoints || 0))) + pointResult.points,
+        totalPoints: Math.max(0, Math.floor(Number(fresh.totalPoints || 0))) + pointResult.points,
+        logs: [
+          ...(fresh.logs || []),
+          {
+            at: Date.now(),
+            type: "pirate_raid_attack",
+            tierKey,
+            userId: String(message.author.id),
+            damage,
+            points: pointResult.points,
+            defeated,
+          },
+        ].slice(-25),
+      };
+    });
+
+    const cardLines = damageResult.cards.map((entry, index) => {
+      const card = entry.card;
+      return `${index + 1}. ${card.displayName || card.name || card.code || "Unknown"} — Power ${fmt(entry.power)}`;
+    });
+
+    const embed = new EmbedBuilder()
+      .setColor(defeated ? GREEN : BLUE)
+      .setTitle(`🏴‍☠️ Pirate Raid Attack — ${boss.name}`)
+      .setDescription(
+        [
+          `**Tier:** ${boss.tierName}`,
+          `**Damage:** ${fmt(damage)}`,
+          `**Boss HP:** ${defeated ? "Defeated" : `${fmt(hpLeft)} / ${fmt(boss.hp)}`}`,
+          `**Guild Points Earned:** ${fmt(pointResult.points)}`,
+          `**Guild Weekly Points:** ${fmt(updated.weeklyPoints || 0)}`,
+          "",
+          `**Boss Damage Boost:** Lv.${damageResult.bossDamageLevel}`,
+          `**Raid Point Boost:** Lv.${pointResult.raidPointLevel}`,
+          "",
+          "**Attacking Cards:**",
+          ...cardLines,
+        ].join("\n")
+      )
+      .setFooter({
+        text: "Pirate Raid Boss is separate from normal boss/raid systems.",
+      });
+
+    return message.reply({
+      embeds: [embed],
+      allowedMentions: { repliedUser: false },
+    });
+  } catch (error) {
+    return message.reply(makeError(error.message || "Failed to attack pirate raid boss."));
+  }
+}
+
+async function handlePirateLeaderboard(message) {
+  try {
+    const state = readPirateState();
+    const pirates = Object.values(state.pirates || {})
+      .filter((pirate) => Array.isArray(pirate.members) && pirate.members.length > 0)
+      .sort((a, b) => Number(b.weeklyPoints || 0) - Number(a.weeklyPoints || 0))
+      .slice(0, 10);
+
+    if (!pirates.length) {
+      return message.reply(makeError("No pirate leaderboard data yet."));
+    }
+
+    const lines = pirates.map((pirate, index) => {
+      const rank = index + 1;
+      const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
+
+      return `${medal} **${pirate.name}** — ${fmt(pirate.weeklyPoints || 0)} points • Lv.${pirate.level || 1} • ${pirate.members.length}/${MAX_MEMBERS} members`;
+    });
+
+    const embed = new EmbedBuilder()
+      .setColor(GOLD)
+      .setTitle("🏴‍☠️ Pirate Weekly Leaderboard")
+      .setDescription(lines.join("\n"))
+      .setFooter({
+        text: "Weekly reset + token rewards will be added in the next patch.",
+      });
+
+    return message.reply({
+      embeds: [embed],
+      allowedMentions: { repliedUser: false },
+    });
+  } catch (error) {
+    return message.reply(makeError(error.message || "Failed to show pirate leaderboard."));
+  }
+}
+
 module.exports = {
   name: "pirate",
 
@@ -1372,6 +1687,9 @@ module.exports = {
     if (sub === "deposit") return handleDeposit(message, rest);
     if (sub === "shop") return handlePirateShop(message);
     if (sub === "buy") return handlePirateBuy(message, rest);
+    if (sub === "raid") return handlePirateRaid(message);
+    if (sub === "attack") return handlePirateAttack(message, rest);
+    if (["lb", "leaderboard", "rank"].includes(sub)) return handlePirateLeaderboard(message);
     if (sub === "level") return handlePirateLevel(message);
     if (sub === "perks" || sub === "perk") return handlePiratePerks(message);
 
