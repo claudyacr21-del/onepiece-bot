@@ -62,11 +62,77 @@ function makePirateId(name) {
 }
 
 function normalizeMaterialKey(value) {
-  return String(value || "")
+  const key = String(value || "")
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+
+  const aliases = {
+    cola: "cola_engine_part",
+    engine: "cola_engine_part",
+    cola_engine: "cola_engine_part",
+    cola_engine_part: "cola_engine_part",
+
+    enhancement: "enhancement_stone",
+    stone: "enhancement_stone",
+    enhancement_stone: "enhancement_stone",
+
+    wood: "hardwood",
+    hard_wood: "hardwood",
+    hardwood: "hardwood",
+
+    iron: "iron_plating",
+    iron_plate: "iron_plating",
+    iron_plating: "iron_plating",
+
+    cloth: "sail_cloth",
+    sail: "sail_cloth",
+    sail_cloth: "sail_cloth",
+
+    steel: "iron_plating",
+    rope: "sail_cloth",
+    gunpowder: "enhancement_stone",
+    scrap: "hardwood",
+    ship_part: "hardwood",
+    rare_ship_part: "cola_engine_part",
+  };
+
+  return aliases[key] || key;
+}
+
+function normalizeRaidState(rawRaids) {
+  const raids = {};
+
+  if (!rawRaids || typeof rawRaids !== "object") {
+    return raids;
+  }
+
+  for (const [tierKey, raid] of Object.entries(rawRaids)) {
+    if (!raid || typeof raid !== "object") continue;
+
+    const lastAttackAt = {};
+
+    if (raid.lastAttackAt && typeof raid.lastAttackAt === "object") {
+      for (const [userId, timestamp] of Object.entries(raid.lastAttackAt)) {
+        const safeUserId = String(userId || "");
+        const safeTimestamp = Number(timestamp || 0);
+
+        if (!safeUserId || safeTimestamp <= 0) continue;
+        lastAttackAt[safeUserId] = safeTimestamp;
+      }
+    }
+
+    raids[String(tierKey)] = {
+      hpLeft: Math.max(0, Math.floor(Number(raid.hpLeft || 0))),
+      defeated: Boolean(raid.defeated),
+      defeatedAt: Number(raid.defeatedAt || 0),
+      totalDamage: Math.max(0, Math.floor(Number(raid.totalDamage || 0))),
+      lastAttackAt,
+    };
+  }
+
+  return raids;
 }
 
 function normalizePirate(raw) {
@@ -115,6 +181,11 @@ function normalizePirate(raw) {
       materials: storageMaterials,
     },
     perks: raw?.perks && typeof raw.perks === "object" ? raw.perks : {},
+    raids: normalizeRaidState(raw?.raids || {}),
+    lastWeeklyReward:
+      raw?.lastWeeklyReward && typeof raw.lastWeeklyReward === "object"
+        ? raw.lastWeeklyReward
+        : null,
     logs: Array.isArray(raw?.logs) ? raw.logs.slice(-25) : [],
   };
 }

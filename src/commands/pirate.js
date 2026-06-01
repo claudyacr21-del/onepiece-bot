@@ -1588,11 +1588,40 @@ function getPirateRaidPoints({ boss, damage, defeated, pirate }) {
   };
 }
 
+function formatDuration(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(Number(ms || 0) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+function getPirateRaidCooldownInfo(pirate, tierKey, userId) {
+  const raidState = getPirateRaidState(pirate, tierKey);
+  const lastAttackAt = Number(raidState.lastAttackAt?.[String(userId)] || 0);
+  const now = Date.now();
+  const nextAttackAt = lastAttackAt + PIRATE_RAID_ATTACK_COOLDOWN_MS;
+  const remaining = Math.max(0, nextAttackAt - now);
+
+  return {
+    lastAttackAt,
+    nextAttackAt,
+    remaining,
+    ready: remaining <= 0,
+  };
+}
+
 function formatPirateRaidBossLine(pirate, boss, userId = null) {
   const state = getPirateRaidState(pirate, boss.key);
-  const hpText = state.defeated ? "Defeated" : `${fmt(state.hpLeft)} / ${fmt(boss.hp)}`;
+  const hpText = state.defeated
+    ? "Defeated"
+    : `${fmt(state.hpLeft)} / ${fmt(boss.hp)}`;
 
   let cooldownText = "Cooldown: Ready";
+
   if (userId) {
     const cooldown = getPirateRaidCooldownInfo(pirate, boss.key, userId);
     cooldownText = cooldown.ready
@@ -1725,7 +1754,9 @@ async function handlePirateAttack(message, args) {
     });
 
     const updated = updatePirate(pirate.id, (fresh) => {
-      const raids = fresh.raids && typeof fresh.raids === "object" ? { ...fresh.raids } : {};
+      const raids =
+        fresh.raids && typeof fresh.raids === "object" ? { ...fresh.raids } : {};
+
       const oldRaid = getPirateRaidState(fresh, tierKey);
 
       raids[tierKey] = {
@@ -1743,8 +1774,12 @@ async function handlePirateAttack(message, args) {
       return {
         ...fresh,
         raids,
-        weeklyPoints: Math.max(0, Math.floor(Number(fresh.weeklyPoints || 0))) + pointResult.points,
-        totalPoints: Math.max(0, Math.floor(Number(fresh.totalPoints || 0))) + pointResult.points,
+        weeklyPoints:
+          Math.max(0, Math.floor(Number(fresh.weeklyPoints || 0))) +
+          pointResult.points,
+        totalPoints:
+          Math.max(0, Math.floor(Number(fresh.totalPoints || 0))) +
+          pointResult.points,
         logs: [
           ...(fresh.logs || []),
           {
@@ -1901,32 +1936,6 @@ async function handlePirateRewardInfo(message) {
     embeds: [embed],
     allowedMentions: { repliedUser: false },
   });
-}
-
-function formatDuration(ms) {
-  const totalSeconds = Math.max(0, Math.ceil(Number(ms || 0) / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
-}
-
-function getPirateRaidCooldownInfo(pirate, tierKey, userId) {
-  const raidState = getPirateRaidState(pirate, tierKey);
-  const lastAttackAt = Number(raidState.lastAttackAt?.[String(userId)] || 0);
-  const now = Date.now();
-  const nextAttackAt = lastAttackAt + PIRATE_RAID_ATTACK_COOLDOWN_MS;
-  const remaining = Math.max(0, nextAttackAt - now);
-
-  return {
-    lastAttackAt,
-    nextAttackAt,
-    remaining,
-    ready: remaining <= 0,
-  };
 }
 
 module.exports = {
