@@ -48,6 +48,7 @@ function getPirateLevelRequirement(currentLevel) {
   if (level >= 80) {
     materials.iron_plating =
       (materials.iron_plating || 0) + Math.floor(level / 20);
+
     materials.sail_cloth =
       (materials.sail_cloth || 0) + Math.floor(level / 25);
   }
