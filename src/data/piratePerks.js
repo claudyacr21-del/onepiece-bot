@@ -113,6 +113,15 @@ function normalizePerkKey(query) {
   return aliases[raw] || Object.keys(PIRATE_PERKS).find((key) => key.toLowerCase() === raw) || null;
 }
 
+function addMaterial(materials, code, amount) {
+  const safeCode = String(code || "").trim();
+  const safeAmount = Math.max(0, Math.floor(Number(amount || 0)));
+
+  if (!safeCode || safeAmount <= 0) return;
+
+  materials[safeCode] = (materials[safeCode] || 0) + safeAmount;
+}
+
 function getPerkRequirement(perkKey, currentPerkLevel) {
   const perk = PIRATE_PERKS[perkKey];
   if (!perk) return null;
@@ -128,45 +137,48 @@ function getPerkRequirement(perkKey, currentPerkLevel) {
   );
 
   const berries = Math.floor(
-    50000 + perk.unlockGuildLevel * 3000 + nextLevel * 18000 + Math.pow(nextLevel, 1.6) * 9000
+    50000 +
+      perk.unlockGuildLevel * 3000 +
+      nextLevel * 18000 +
+      Math.pow(nextLevel, 1.6) * 9000
   );
 
   const materials = {};
 
   if (perkKey === "berryBoost") {
-    materials.wood = 3 + nextLevel;
-    materials.iron = 2 + Math.floor(nextLevel / 2);
+    addMaterial(materials, "hardwood", 3 + nextLevel);
+    addMaterial(materials, "iron_plating", 2 + Math.floor(nextLevel / 2));
   }
 
   if (perkKey === "gemsBoost") {
-    materials.cola = 2 + Math.floor(nextLevel / 2);
-    materials.enhancement_stone = 2 + nextLevel;
+    addMaterial(materials, "cola_engine_part", 2 + Math.floor(nextLevel / 2));
+    addMaterial(materials, "enhancement_stone", 2 + nextLevel);
   }
 
   if (perkKey === "luckBoost") {
-    materials.cola = 2 + nextLevel;
-    materials.enhancement_stone = 1 + Math.floor(nextLevel / 2);
+    addMaterial(materials, "cola_engine_part", 2 + nextLevel);
+    addMaterial(materials, "enhancement_stone", 1 + Math.floor(nextLevel / 2));
   }
 
   if (perkKey === "raidPointBoost") {
-    materials.gunpowder = 2 + nextLevel;
-    materials.steel = 2 + Math.floor(nextLevel / 2);
+    addMaterial(materials, "iron_plating", 2 + nextLevel);
+    addMaterial(materials, "enhancement_stone", 2 + Math.floor(nextLevel / 2));
   }
 
   if (perkKey === "expBoost") {
-    materials.cloth = 3 + nextLevel;
-    materials.rope = 2 + Math.floor(nextLevel / 2);
+    addMaterial(materials, "sail_cloth", 3 + nextLevel);
+    addMaterial(materials, "hardwood", 2 + Math.floor(nextLevel / 2));
   }
 
   if (perkKey === "shopDiscount") {
-    materials.scrap = 5 + nextLevel;
-    materials.ship_part = 2 + Math.floor(nextLevel / 2);
+    addMaterial(materials, "hardwood", 5 + nextLevel);
+    addMaterial(materials, "sail_cloth", 2 + Math.floor(nextLevel / 2));
   }
 
   if (perkKey === "bossDamageBoost") {
-    materials.engine = 2 + nextLevel;
-    materials.rare_ship_part = 1 + Math.floor(nextLevel / 3);
-    materials.enhancement_stone = 2 + Math.floor(nextLevel / 2);
+    addMaterial(materials, "cola_engine_part", 2 + nextLevel);
+    addMaterial(materials, "iron_plating", 1 + Math.floor(nextLevel / 3));
+    addMaterial(materials, "enhancement_stone", 2 + Math.floor(nextLevel / 2));
   }
 
   return {
