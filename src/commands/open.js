@@ -57,6 +57,109 @@ function getBoxByQuery(query) {
   );
 }
 
+function getOpenableItemByQuery(query) {
+  const q = normalize(query);
+
+  const openableItems = [
+    {
+      name: "Universal Random",
+      code: "universal_random",
+      type: "Consumable",
+    },
+    {
+      name: "Pull Reset Ticket",
+      code: "pull_reset_ticket",
+      type: "Ticket",
+      notOpenableReason:
+        "Pull Reset Ticket is not opened from `op open`.\nUse it through the pull reset system instead.\n\nExample:\n`op reset`",
+    },
+    {
+      name: "Raid Ticket",
+      code: "raid_ticket",
+      type: "Ticket",
+      notOpenableReason:
+        "Raid Ticket is not opened from `op open`.\nIt will be used for the raid system.",
+    },
+    {
+      name: "Gold Raid Ticket",
+      code: "gold_raid_ticket",
+      type: "Ticket",
+      notOpenableReason:
+        "Gold Raid Ticket is not opened from `op open`.\nIt will be used for the raid system.",
+    },
+  ];
+
+  return (
+    openableItems.find((item) => normalize(item.name) === q) ||
+    openableItems.find((item) => normalize(item.code) === q) ||
+    openableItems.find((item) => normalize(item.name).includes(q)) ||
+    openableItems.find((item) => normalize(item.code).includes(q)) ||
+    null
+  );
+}
+
+function getOwnedItemAmount(player, itemCode) {
+  const code = String(itemCode || "").toLowerCase();
+
+  const itemAmount = (Array.isArray(player.items) ? player.items : [])
+    .filter((entry) => String(entry.code || "").toLowerCase() === code)
+    .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+  const ticketAmount = (Array.isArray(player.tickets) ? player.tickets : [])
+    .filter((entry) => String(entry.code || "").toLowerCase() === code)
+    .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+  return Math.max(0, itemAmount + ticketAmount);
+}
+
+function removeItemFromList(list, code, amount) {
+  let left = Number(amount || 0);
+
+  const arr = (Array.isArray(list) ? list : [])
+    .map((entry) => ({ ...entry }))
+    .filter((entry) => Number(entry.amount || 0) > 0);
+
+  for (let i = 0; i < arr.length && left > 0; i++) {
+    if (String(arr[i].code || "").toLowerCase() !== String(code || "").toLowerCase()) {
+      continue;
+    }
+
+    const current = Number(arr[i].amount || 0);
+    const take = Math.min(current, left);
+
+    arr[i].amount = current - take;
+    left -= take;
+  }
+
+  return {
+    list: arr.filter((entry) => Number(entry.amount || 0) > 0),
+    removed: Number(amount || 0) - left,
+    missing: left,
+  };
+}
+
+function removeOwnedOpenableItem(state, code, amount) {
+  let left = Number(amount || 0);
+
+  const itemRemove = removeItemFromList(state.items || [], code, left);
+  left = itemRemove.missing;
+
+  const ticketRemove = removeItemFromList(state.tickets || [], code, left);
+  left = ticketRemove.missing;
+
+  if (left > 0) return null;
+
+  return {
+    items: itemRemove.list,
+    tickets: ticketRemove.list,
+  };
+}
+
+function pickUniversalRandomReward() {
+  const pool = [ITEMS.universalAFragment, ITEMS.universalSFragment].filter(Boolean);
+  return pool[Math.floor(Math.random() * pool.length)] || ITEMS.universalAFragment;
+}
+
 function parseOpenArgs(args) {
   const rawArgs = [...args];
 
@@ -335,6 +438,38 @@ function grantBoxRewards(box, amount, state, rewardMap) {
   return nextState;
 }
 
+function grantOpenableItemRewards(item, amount, state, rewardMap) {
+  let nextState = {
+    materials: [...(state.materials || [])],
+    items: [...(state.items || [])],
+    tickets: [...(state.tickets || [])],
+    fragments: [...(state.fragments || [])],
+    boxes: [...(state.boxes || [])],
+    berries: Number(state.berries || 0),
+    gems: Number(state.gems || 0),
+  };
+
+  if (item.code === "universal_random") {
+    for (let i = 0; i < amount; i++) {
+      const reward = pickUniversalRandomReward();
+      nextState = grantRewardItem(
+        nextState,
+        rewardMap,
+        {
+          ...reward,
+          type: "Fragment",
+        },
+        1,
+        1
+      );
+    }
+
+    return nextState;
+  }
+
+  return null;
+}
+
 function formatRewardLines(rewardMap) {
   const lines = [];
 
@@ -362,23 +497,137 @@ module.exports = {
       return message.reply(
         [
           "Usage:",
-          "`op open <box>`",
-          "`op open <box> <amount>`",
-          "`op open <box> all`",
+          "`op open <box/item name>`",
+          "`op open <box/item name> <amount>`",
+          "`op open <box/item name> all`",
           "",
-          "Example:",
+          "Examples:",
           "`op open rare`",
           "`op open rare 2`",
           "`op open rare all`",
+          "`op open universal random`",
+          "`op open universal random 3`",
+          "`op open universal random all`",
         ].join("\n")
       );
     }
 
     const player = getPlayer(message.author.id, message.author.username);
     const box = getBoxByQuery(parsed.query);
+    const openableItem = box ? null : getOpenableItemByQuery(parsed.query);
 
-    if (!box) {
-      return message.reply("That box was not found.");
+    if (!box && !openableItem) {
+      return message.reply("That box/item was not found.");
+    }
+
+    if (openableItem?.notOpenableReason) {
+      return message.reply(openableItem.notOpenableReason);
+    }
+
+    if (openableItem) {
+      const ownedAmount = getOwnedItemAmount(player, openableItem.code);
+
+      if (ownedAmount <= 0) {
+        return message.reply(`You do not own **${openableItem.name}**.`);
+      }
+
+      const openAmount = parsed.all ? ownedAmount : Number(parsed.requestedAmount || 1);
+
+      if (!Number.isInteger(openAmount) || openAmount <= 0) {
+        return message.reply("Open amount must be a positive number.");
+      }
+
+      if (openAmount > ownedAmount) {
+        return message.reply(
+          `You only own **${ownedAmount}x ${openableItem.name}**.\nUse \`op open ${parsed.query} all\` to open all owned items.`
+        );
+      }
+
+      const rewardMap = new Map();
+
+      try {
+        updatePlayerAtomic(
+          message.author.id,
+          (fresh) => {
+            const freshOwnedAmount = getOwnedItemAmount(fresh, openableItem.code);
+
+            if (freshOwnedAmount <= 0) {
+              throw new Error(`You do not own **${openableItem.name}**.`);
+            }
+
+            if (openAmount > freshOwnedAmount) {
+              throw new Error(
+                `You only own **${freshOwnedAmount}x ${openableItem.name}**.\nUse \`op open ${parsed.query} all\` to open all owned items.`
+              );
+            }
+
+            const removedState = removeOwnedOpenableItem(
+              {
+                items: [...(fresh.items || [])],
+                tickets: [...(fresh.tickets || [])],
+              },
+              openableItem.code,
+              openAmount
+            );
+
+            if (!removedState) {
+              throw new Error(`You do not own enough **${openableItem.name}**.`);
+            }
+
+            const rewardState = grantOpenableItemRewards(
+              openableItem,
+              openAmount,
+              {
+                materials: [...(fresh.materials || [])],
+                items: removedState.items,
+                tickets: removedState.tickets,
+                fragments: [...(fresh.fragments || [])],
+                boxes: [...(fresh.boxes || [])],
+                berries: Number(fresh.berries || 0),
+                gems: Number(fresh.gems || 0),
+              },
+              rewardMap
+            );
+
+            if (!rewardState) {
+              throw new Error("This item is not configured yet.");
+            }
+
+            const updatedQuests = incrementQuestPayload(fresh, "boxesOpened", openAmount);
+
+            return {
+              ...fresh,
+              boxes: rewardState.boxes,
+              materials: rewardState.materials,
+              items: rewardState.items,
+              tickets: rewardState.tickets,
+              fragments: rewardState.fragments,
+              berries: rewardState.berries,
+              gems: rewardState.gems,
+              quests: updatedQuests,
+            };
+          },
+          message.author.username
+        );
+      } catch (error) {
+        return message.reply(error.message || "Failed to open item.");
+      }
+
+      const rewardLines = formatRewardLines(rewardMap);
+
+      return message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x3498db)
+            .setTitle(`📦 Opened ${openableItem.name} x${openAmount}`)
+            .setDescription(
+              rewardLines.length ? rewardLines.join("\n") : "No rewards were generated."
+            )
+            .setFooter({
+              text: "One Piece Bot • Open Item",
+            }),
+        ],
+      });
     }
 
     const ownedAmount = getOwnedBoxAmount(player.boxes || [], box.code);
