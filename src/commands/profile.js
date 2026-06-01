@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, readPlayers } = require("../playerStore");
+const { findPirateByUser } = require("../utils/pirateStore");
 const {
   isPremiumUser,
   isLitePremiumUser,
@@ -483,6 +484,15 @@ function safeLocaleNumber(value) {
   return Number(value || 0).toLocaleString("en-US");
 }
 
+function getProfilePirateName(userId) {
+  try {
+    const pirate = findPirateByUser(userId);
+    return pirate?.name || "Not Joined";
+  } catch (_) {
+    return "Not Joined";
+  }
+}
+
 module.exports = {
   name: "profile",
 
@@ -508,6 +518,7 @@ module.exports = {
       const arena = getArenaSummary(player, message.author.id);
       const ship = getShipSummary(player);
       const cardStats = getCardStatistics(player);
+      const pirateName = getProfilePirateName(message.author.id);
       const avatar = getProfileImage(message);
 
       const embed = new EmbedBuilder()
@@ -524,7 +535,7 @@ module.exports = {
               "Premium",
               isMotherFlame ? "Mother Flame" : isVivreCard ? "Vivre Card" : "Normal"
             ),
-            line("Pirates", player?.pirates?.name || "Coming Soon"),
+            line("Pirates", pirateName),
             line("Ship", `${ship.name} • Tier ${ship.tier}`),
             rawLine("Badges", captainBadges),
             "",
