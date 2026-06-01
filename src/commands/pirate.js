@@ -38,6 +38,7 @@ const {
 const {
   getPirateWeeklyRewardPreview,
   runPirateWeeklyResetIfNeeded,
+  runPirateRaidDailyResetIfNeeded,
 } = require("../utils/pirateWeekly");
 const GOLD = 0xf1c40f;
 const RED = 0xe74c3c;
@@ -1889,8 +1890,22 @@ function buildWeeklyResetNotice(resetResult) {
   ].join("\n");
 }
 
-async function replyWithOptionalResetNotice(message, payload, resetResult) {
-  const notice = buildWeeklyResetNotice(resetResult);
+function buildDailyRaidResetNotice(resetResult) {
+  if (!resetResult?.didReset) return null;
+
+  return [
+    "☠️ **Pirate Raid Boss Daily Reset Completed**",
+    "All Pirate Raid Boss HP, defeated status, and attack cooldowns have been reset.",
+  ].join("\n");
+}
+
+async function replyWithOptionalResetNotice(message, payload, resetResult, dailyRaidResetResult = null) {
+  const notices = [
+    buildDailyRaidResetNotice(dailyRaidResetResult),
+    buildWeeklyResetNotice(resetResult),
+  ].filter(Boolean);
+
+  const notice = notices.join("\n\n");
   if (!notice) return message.reply(payload);
 
   if (typeof payload === "string") {
@@ -1942,6 +1957,7 @@ module.exports = {
   name: "pirate",
 
   async execute(message, args) {
+    const dailyRaidResetResult = runPirateRaidDailyResetIfNeeded();
     const resetResult = runPirateWeeklyResetIfNeeded();
 
     const sub = String(args[0] || "help").toLowerCase();
@@ -1954,7 +1970,8 @@ module.exports = {
           embeds: [usageEmbed()],
           allowedMentions: { repliedUser: false },
         },
-        resetResult
+        resetResult,
+        dailyRaidResetResult
       );
     }
 
