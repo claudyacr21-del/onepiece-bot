@@ -16,10 +16,26 @@ const {
   getRole,
 } = require("../utils/pirateStore");
 
+const {
+  getPirateLevelRequirement,
+  getMaterialDisplayName,
+  formatRequirement,
+} = require("../data/pirateLevels");
+
+const {
+  PIRATE_PERKS,
+  normalizePerkKey,
+  getPerkRequirement,
+  getPerkEffectText,
+} = require("../data/piratePerks");
+
 const GOLD = 0xf1c40f;
 const RED = 0xe74c3c;
 const GREEN = 0x2ecc71;
 const BLUE = 0x3498db;
+
+const PIRATE_CREATE_COST_BERRIES = 5_000_000;
+const PIRATE_CREATE_COST_GEMS = 250;
 
 function fmt(num) {
   return Number(num || 0).toLocaleString("en-US");
@@ -78,6 +94,12 @@ function usageEmbed() {
         "`op pirate deposit berries <amount>`",
         "`op pirate deposit material <amount> <material name>`",
         "`op pirate storage`",
+        "",
+        "**Level & Perk Commands**",
+        "`op pirate level`",
+        "`op pirate upgrade level`",
+        "`op pirate perks`",
+        "`op pirate upgrade perk <perk>`",
         "",
         `Max members: **${MAX_MEMBERS}** — 1 Leader, 1 Vice Leader, 4 Crew`,
       ].join("\n")
@@ -736,6 +758,318 @@ async function handleDeposit(message, args) {
   );
 }
 
+function hasStorageRequirement(pirate, requirement) {
+  const missing = [];
+
+  const storageBerries = Math.floor(Number(pirate?.storage?.berries || 0));
+  if (storageBerries < Number(requirement?.berries || 0)) {
+    missing.push(
+      `Berries: need ${fmt(requirement.berries)}, have ${fmt(storageBerries)}`
+    );
+  }
+
+  for (const [code, amount] of Object.entries(requirement?.materials || {})) {
+    const stored = Math.floor(
+      Number(pirate?.storage?.materials?.[code]?.amount || 0)
+    );
+
+    if (stored < Number(amount || 0)) {
+      missing.push(
+        `${getMaterialDisplayName(code)}: need ${fmt(amount)}, have ${fmt(stored)}`
+      );
+    }
+  }
+
+  return {
+    ok: missing.length === 0,
+    missing,
+  };
+}
+
+function consumeStorageRequirement(pirate, requirement) {
+  const next = JSON.parse(JSON.stringify(pirate || {}));
+
+  next.storage = next.storage || {};
+  next.storage.berries = Math.max(
+    0,
+    Math.floor(Number(next.storage.berries || 0)) -
+      Math.floor(Number(requirement?.berries || 0))
+  );
+
+  next.storage.materials = next.storage.materials || {};
+
+  for (const [code, amount] of Object.entries(requirement?.materials || {})) {
+    const current = next.storage.materials[code] || {
+      code,
+      name: getMaterialDisplayName(code),
+      amount: 0,
+    };
+
+    const left = Math.max(
+      0,
+      Math.floor(Number(current.amount || 0)) - Math.floor(Number(amount || 0))
+    );
+
+    if (left <= 0) {
+      delete next.storage.materials[code];
+    } else {
+      next.storage.materials[code] = {
+        ...current,
+        code,
+        name: current.name || getMaterialDisplayName(code),
+        amount: left,
+      };
+    }
+  }
+
+  return next;
+}
+
+async function handlePirateLevel(message) {
+  try {
+    const pirate = requirePirate(message.author.id);
+    const currentLevel = Math.max(1, Math.min(100, Math.floor(Number(pirate.level || 1))));
+    const req =
+      currentLevel >= 100 ? null : getPirateLevelRequirement(currentLevel);
+
+    const embed = new EmbedBuilder()
+      .setColor(GOLD)
+      .setTitle(`🏴‍☠️ ${pirate.name} Level`)
+      .setDescription(
+        [
+          `**Current Level:** ${currentLevel}/100`,
+          "",
+          currentLevel >= 100
+            ? "**Max level reached.**"
+            : `**Upgrade Requirement Lv.${currentLevel} → Lv.${currentLevel + 1}**\n${formatRequirement(req)}`,
+          "",
+          "Upgrade with:",
+          "`op pirate upgrade level`",
+        ].join("\n")
+      );
+
+    return message.reply({
+      embeds: [embed],
+      allowedMentions: { repliedUser: false },
+    });
+  } catch (error) {
+    return message.reply(makeError(error.message || "Failed to show pirate level."));
+  }
+}
+
+async function handleUpgradeLevel(message) {
+  try {
+    const pirate = requirePirate(message.author.id);
+    requireLeader(pirate, message.author.id);
+
+    const currentLevel = Math.max(1, Math.min(100, Math.floor(Number(pirate.level || 1))));
+
+    if (currentLevel >= 100) {
+      return message.reply(makeError("This pirate/guild is already level 100."));
+    }
+
+    const requirement = getPirateLevelRequirement(currentLevel);
+    const check = hasStorageRequirement(pirate, requirement);
+
+    if (!check.ok) {
+      return message.reply(
+        makeError(
+          [
+            `Not enough guild storage resources to upgrade **${pirate.name}**.`,
+            "",
+            "**Missing:**",
+            ...check.missing.map((line) => `• ${line}`),
+          ].join("\n")
+        )
+      );
+    }
+
+    const updated = updatePirate(pirate.id, (fresh) => {
+      const consumed = consumeStorageRequirement(fresh, requirement);
+
+      return {
+        ...consumed,
+        level: currentLevel + 1,
+        logs: [
+          ...(fresh.logs || []),
+          {
+            at: Date.now(),
+            type: "upgrade_level",
+            userId: String(message.author.id),
+            fromLevel: currentLevel,
+            toLevel: currentLevel + 1,
+          },
+        ].slice(-25),
+      };
+    });
+
+    return message.reply(
+      makeSuccess(
+        "Pirate Level Up",
+        `**${updated.name}** upgraded from Lv.${currentLevel} to **Lv.${updated.level}**.`
+      )
+    );
+  } catch (error) {
+    return message.reply(makeError(error.message || "Failed to upgrade pirate level."));
+  }
+}
+
+async function handlePiratePerks(message) {
+  try {
+    const pirate = requirePirate(message.author.id);
+    const guildLevel = Math.max(1, Math.min(100, Math.floor(Number(pirate.level || 1))));
+    const perkState = pirate.perks || {};
+
+    const lines = Object.values(PIRATE_PERKS).map((perk) => {
+      const currentLevel = Math.max(0, Math.floor(Number(perkState[perk.key] || 0)));
+      const locked = guildLevel < perk.unlockGuildLevel;
+      const status = locked
+        ? `🔒 Unlocks at Pirate Lv.${perk.unlockGuildLevel}`
+        : `Lv.${currentLevel}/${perk.maxLevel} — ${getPerkEffectText(perk.key, currentLevel)}`;
+
+      return [
+        `**${perk.name}**`,
+        status,
+        `_${perk.effect}_`,
+      ].join("\n");
+    });
+
+    const embed = new EmbedBuilder()
+      .setColor(GOLD)
+      .setTitle(`🏴‍☠️ ${pirate.name} Perks`)
+      .setDescription(
+        [
+          `**Pirate Level:** ${guildLevel}/100`,
+          "",
+          ...lines,
+          "",
+          "Upgrade with:",
+          "`op pirate upgrade perk <perk>`",
+          "",
+          "Example:",
+          "`op pirate upgrade perk luck`",
+        ].join("\n\n")
+      );
+
+    return message.reply({
+      embeds: [embed],
+      allowedMentions: { repliedUser: false },
+    });
+  } catch (error) {
+    return message.reply(makeError(error.message || "Failed to show pirate perks."));
+  }
+}
+
+async function handleUpgradePerk(message, args) {
+  const query = cleanText(args.join(" "));
+  const perkKey = normalizePerkKey(query);
+
+  if (!perkKey || !PIRATE_PERKS[perkKey]) {
+    return message.reply(
+      makeError(
+        [
+          "Usage: `op pirate upgrade perk <perk>`",
+          "",
+          "Available perks:",
+          "• berry",
+          "• luck",
+          "• raid",
+          "• exp",
+          "• shop",
+          "• boss",
+        ].join("\n")
+      )
+    );
+  }
+
+  try {
+    const pirate = requirePirate(message.author.id);
+    requireLeader(pirate, message.author.id);
+
+    const perk = PIRATE_PERKS[perkKey];
+    const guildLevel = Math.max(1, Math.min(100, Math.floor(Number(pirate.level || 1))));
+
+    if (guildLevel < perk.unlockGuildLevel) {
+      return message.reply(
+        makeError(
+          `${perk.name} is locked. Required Pirate Level: **${perk.unlockGuildLevel}**.`
+        )
+      );
+    }
+
+    const currentPerkLevel = Math.max(
+      0,
+      Math.floor(Number(pirate.perks?.[perkKey] || 0))
+    );
+
+    if (currentPerkLevel >= perk.maxLevel) {
+      return message.reply(makeError(`${perk.name} is already max level.`));
+    }
+
+    const requirement = getPerkRequirement(perkKey, currentPerkLevel);
+
+    if (guildLevel < requirement.requiredGuildLevel) {
+      return message.reply(
+        makeError(
+          `${perk.name} Lv.${requirement.toLevel} requires Pirate Level **${requirement.requiredGuildLevel}**.`
+        )
+      );
+    }
+
+    const check = hasStorageRequirement(pirate, requirement);
+
+    if (!check.ok) {
+      return message.reply(
+        makeError(
+          [
+            `Not enough guild storage resources to upgrade **${perk.name}**.`,
+            "",
+            "**Missing:**",
+            ...check.missing.map((line) => `• ${line}`),
+          ].join("\n")
+        )
+      );
+    }
+
+    const updated = updatePirate(pirate.id, (fresh) => {
+      const consumed = consumeStorageRequirement(fresh, requirement);
+      const perks = { ...(consumed.perks || {}) };
+
+      perks[perkKey] = currentPerkLevel + 1;
+
+      return {
+        ...consumed,
+        perks,
+        logs: [
+          ...(fresh.logs || []),
+          {
+            at: Date.now(),
+            type: "upgrade_perk",
+            userId: String(message.author.id),
+            perkKey,
+            fromLevel: currentPerkLevel,
+            toLevel: currentPerkLevel + 1,
+          },
+        ].slice(-25),
+      };
+    });
+
+    const newLevel = updated.perks?.[perkKey] || currentPerkLevel + 1;
+
+    return message.reply(
+      makeSuccess(
+        "Pirate Perk Upgraded",
+        [
+          `**${perk.name}** upgraded to **Lv.${newLevel}/${perk.maxLevel}**.`,
+          `Current effect: **${getPerkEffectText(perkKey, newLevel)}**`,
+        ].join("\n")
+      )
+    );
+  } catch (error) {
+    return message.reply(makeError(error.message || "Failed to upgrade pirate perk."));
+  }
+}
+
 module.exports = {
   name: "pirate",
 
@@ -758,6 +1092,26 @@ module.exports = {
     if (sub === "promote") return handlePromote(message, rest);
     if (sub === "demote") return handleDemote(message, rest);
     if (sub === "deposit") return handleDeposit(message, rest);
+    if (sub === "level") return handlePirateLevel(message);
+    if (sub === "perks" || sub === "perk") return handlePiratePerks(message);
+
+    if (sub === "upgrade") {
+    const upgradeType = String(rest[0] || "").toLowerCase();
+    const upgradeArgs = rest.slice(1);
+
+    if (upgradeType === "level") return handleUpgradeLevel(message);
+    if (upgradeType === "perk") return handleUpgradePerk(message, upgradeArgs);
+
+    return message.reply(
+        makeError(
+        [
+            "Usage:",
+            "`op pirate upgrade level`",
+            "`op pirate upgrade perk <perk>`",
+        ].join("\n")
+        )
+    );
+    }
 
     if (["info", "profile"].includes(sub)) {
       try {
