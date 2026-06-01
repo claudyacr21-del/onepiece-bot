@@ -15,20 +15,21 @@ const {
   isOfficer,
   getRole,
 } = require("../utils/pirateStore");
-
 const {
   getPirateLevelRequirement,
   getMaterialDisplayName,
   formatRequirement,
 } = require("../data/pirateLevels");
-
 const {
   PIRATE_PERKS,
   normalizePerkKey,
   getPerkRequirement,
   getPerkEffectText,
 } = require("../data/piratePerks");
-
+const {
+  PIRATE_SHOP_ITEMS,
+  normalizePirateShopKey,
+} = require("../data/pirateShop");
 const GOLD = 0xf1c40f;
 const RED = 0xe74c3c;
 const GREEN = 0x2ecc71;
@@ -103,6 +104,10 @@ function usageEmbed() {
         "`op pirate perks`",
         "`op pirate upgrade perk <perk>`",
         "",
+        "**Pirate Shop Commands**",
+        "`op pirate shop`",
+        "`op pirate buy <item>`",
+        "",
         `Max members: **${MAX_MEMBERS}** — 1 Leader, 1 Vice Leader, 4 Crew`,
       ].join("\n")
     )
@@ -130,6 +135,10 @@ function getPlayer(players, userId, username) {
   players[id].username = username || players[id].username || "Unknown";
   players[id].berries = Math.max(0, Math.floor(Number(players[id].berries || 0)));
   players[id].gems = Math.max(0, Math.floor(Number(players[id].gems || 0)));
+  players[id].pirateTokens = Math.max(
+    0,
+    Math.floor(Number(players[id].pirateTokens || 0))
+  );
   players[id].materials = Array.isArray(players[id].materials)
     ? players[id].materials
     : [];
@@ -1178,6 +1187,166 @@ async function handleUpgradePerk(message, args) {
   }
 }
 
+function addPirateShopItem(player, item) {
+  const next = { ...(player || {}) };
+
+  if (item.type === "ticket") {
+    const tickets = Array.isArray(next.tickets) ? [...next.tickets] : [];
+    const idx = tickets.findIndex(
+      (entry) => String(entry.code || "") === String(item.code)
+    );
+
+    if (idx === -1) {
+      tickets.push({
+        code: item.code,
+        name: item.name,
+        amount: 1,
+        rarity: item.rarity,
+        type: "Ticket",
+      });
+    } else {
+      tickets[idx] = {
+        ...tickets[idx],
+        amount: Number(tickets[idx].amount || 0) + 1,
+      };
+    }
+
+    next.tickets = tickets;
+    return next;
+  }
+
+  const items = Array.isArray(next.items) ? [...next.items] : [];
+  const idx = items.findIndex(
+    (entry) => String(entry.code || "") === String(item.code)
+  );
+
+  if (idx === -1) {
+    items.push({
+      code: item.code,
+      name: item.name,
+      amount: 1,
+      rarity: item.rarity,
+      type: "Pirate Shop",
+      description: item.description || "",
+    });
+  } else {
+    items[idx] = {
+      ...items[idx],
+      amount: Number(items[idx].amount || 0) + 1,
+    };
+  }
+
+  next.items = items;
+  return next;
+}
+
+async function handlePirateShop(message) {
+  try {
+    const pirate = requirePirate(message.author.id);
+    const players = readPlayers();
+    const player = getPlayer(players, message.author.id, message.author.username);
+
+    const lines = Object.values(PIRATE_SHOP_ITEMS).map((item) => {
+      return [
+        `**${item.name}** — ${fmt(item.price)} pirate tokens`,
+        `Code: \`${item.key}\``,
+        `_${item.description}_`,
+      ].join("\n");
+    });
+
+    const embed = new EmbedBuilder()
+      .setColor(GOLD)
+      .setTitle(`🏴‍☠️ ${pirate.name} Pirate Shop`)
+      .setDescription(
+        [
+          `Your Pirate Tokens: **${fmt(player.pirateTokens || 0)}**`,
+          "",
+          ...lines,
+          "",
+          "Buy with:",
+          "`op pirate buy <item>`",
+          "",
+          "Examples:",
+          "`op pirate buy rum`",
+          "`op pirate buy pull reset`",
+          "`op pirate buy universal random`",
+          "`op pirate buy raid ticket`",
+          "`op pirate buy gold raid ticket`",
+        ].join("\n\n")
+      )
+      .setFooter({ text: "Pirate tokens are earned from weekly pirate leaderboard rewards." });
+
+    return message.reply({
+      embeds: [embed],
+      allowedMentions: { repliedUser: false },
+    });
+  } catch (error) {
+    return message.reply(makeError(error.message || "Failed to show pirate shop."));
+  }
+}
+
+async function handlePirateBuy(message, args) {
+  const query = cleanText(args.join(" "));
+  const key = normalizePirateShopKey(query);
+  const item = key ? PIRATE_SHOP_ITEMS[key] : null;
+
+  if (!item) {
+    return message.reply(
+      makeError(
+        [
+          "Usage: `op pirate buy <item>`",
+          "",
+          "Available items:",
+          "• rum",
+          "• pull reset",
+          "• universal random",
+          "• raid ticket",
+          "• gold raid ticket",
+        ].join("\n")
+      )
+    );
+  }
+
+  try {
+    requirePirate(message.author.id);
+
+    const players = readPlayers();
+    let player = getPlayer(players, message.author.id, message.author.username);
+    const tokens = Math.max(0, Math.floor(Number(player.pirateTokens || 0)));
+
+    if (tokens < item.price) {
+      return message.reply(
+        makeError(
+          [
+            `Not enough pirate tokens to buy **${item.name}**.`,
+            "",
+            `Price: **${fmt(item.price)} pirate tokens**`,
+            `You have: **${fmt(tokens)} pirate tokens**`,
+          ].join("\n")
+        )
+      );
+    }
+
+    player.pirateTokens = tokens - item.price;
+    player = addPirateShopItem(player, item);
+
+    players[String(message.author.id)] = player;
+    writePlayers(players);
+
+    return message.reply(
+      makeSuccess(
+        "Pirate Shop Purchase",
+        [
+          `You bought **${item.name}** for **${fmt(item.price)} pirate tokens**.`,
+          `Remaining Pirate Tokens: **${fmt(player.pirateTokens)}**`,
+        ].join("\n")
+      )
+    );
+  } catch (error) {
+    return message.reply(makeError(error.message || "Failed to buy pirate shop item."));
+  }
+}
+
 module.exports = {
   name: "pirate",
 
@@ -1201,6 +1370,8 @@ module.exports = {
     if (sub === "promote") return handlePromote(message, rest);
     if (sub === "demote") return handleDemote(message, rest);
     if (sub === "deposit") return handleDeposit(message, rest);
+    if (sub === "shop") return handlePirateShop(message);
+    if (sub === "buy") return handlePirateBuy(message, rest);
     if (sub === "level") return handlePirateLevel(message);
     if (sub === "perks" || sub === "perk") return handlePiratePerks(message);
 
