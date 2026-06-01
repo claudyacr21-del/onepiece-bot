@@ -34,6 +34,10 @@ const {
   PIRATE_RAID_BOSSES,
   normalizePirateRaidTier,
 } = require("../data/pirateRaidBosses");
+const {
+  getPirateWeeklyRewardPreview,
+  runPirateWeeklyResetIfNeeded,
+} = require("../utils/pirateWeekly");
 const GOLD = 0xf1c40f;
 const RED = 0xe74c3c;
 const GREEN = 0x2ecc71;
@@ -116,6 +120,7 @@ function usageEmbed() {
         "`op pirate raid`",
         "`op pirate attack <tier>`",
         "`op pirate lb`",
+        "`op pirate rewards`",
         "",
         `Max members: **${MAX_MEMBERS}** — 1 Leader, 1 Vice Leader, 4 Crew`,
       ].join("\n")
@@ -1640,17 +1645,26 @@ async function handlePirateLeaderboard(message) {
 
     const lines = pirates.map((pirate, index) => {
       const rank = index + 1;
-      const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
+      const medal =
+        rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
 
-      return `${medal} **${pirate.name}** — ${fmt(pirate.weeklyPoints || 0)} points • Lv.${pirate.level || 1} • ${pirate.members.length}/${MAX_MEMBERS} members`;
+      const reward = getPirateWeeklyRewardPreview(rank);
+
+      return [
+        `${medal} **${pirate.name}**`,
+        `${fmt(pirate.weeklyPoints || 0)} points • Lv.${pirate.level || 1} • ${
+          pirate.members.length
+        }/${MAX_MEMBERS} members`,
+        `Reward: Leader ${reward.leader} tokens • Members/Vice ${reward.member} tokens`,
+      ].join("\n");
     });
 
     const embed = new EmbedBuilder()
       .setColor(GOLD)
       .setTitle("🏴‍☠️ Pirate Weekly Leaderboard")
-      .setDescription(lines.join("\n"))
+      .setDescription(lines.join("\n\n"))
       .setFooter({
-        text: "Weekly reset + token rewards will be added in the next patch.",
+        text: "Weekly reset runs automatically when a pirate command is used after the weekly reset time.",
       });
 
     return message.reply({
@@ -1662,18 +1676,86 @@ async function handlePirateLeaderboard(message) {
   }
 }
 
+function buildWeeklyResetNotice(resetResult) {
+  if (!resetResult?.didReset) return null;
+
+  const rewards = Array.isArray(resetResult.rewards) ? resetResult.rewards : [];
+  const guildCount = new Set(rewards.map((entry) => entry.pirateId)).size;
+
+  return [
+    "🏴‍☠️ **Pirate Weekly Reset Completed**",
+    `Guilds rewarded: **${fmt(guildCount)}**`,
+    "Weekly points and pirate raid bosses have been reset.",
+  ].join("\n");
+}
+
+async function replyWithOptionalResetNotice(message, payload, resetResult) {
+  const notice = buildWeeklyResetNotice(resetResult);
+  if (!notice) return message.reply(payload);
+
+  if (typeof payload === "string") {
+    return message.reply(`${notice}\n\n${payload}`);
+  }
+
+  if (payload?.embeds?.length) {
+    const first = EmbedBuilder.from(payload.embeds[0]);
+    const oldDescription = first.data.description || "";
+
+    first.setDescription(`${notice}\n\n${oldDescription}`);
+
+    return message.reply({
+      ...payload,
+      embeds: [first, ...payload.embeds.slice(1)],
+    });
+  }
+
+  return message.reply(payload);
+}
+
+async function handlePirateRewardInfo(message) {
+  const lines = [1, 2, 3, 4].map((rank) => {
+    const reward = getPirateWeeklyRewardPreview(rank);
+    const label = rank === 4 ? "Rank 4+" : `Rank ${rank}`;
+
+    return `**${label}** — Leader ${reward.leader} tokens • Vice/Crew ${reward.member} tokens`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor(GOLD)
+    .setTitle("🏴‍☠️ Pirate Weekly Rewards")
+    .setDescription(
+      [
+        ...lines,
+        "",
+        "Rewards are distributed automatically during weekly reset.",
+        "Weekly points and pirate raid bosses are reset after rewards are distributed.",
+      ].join("\n")
+    );
+
+  return message.reply({
+    embeds: [embed],
+    allowedMentions: { repliedUser: false },
+  });
+}
+
 module.exports = {
   name: "pirate",
 
   async execute(message, args) {
+    const resetResult = runPirateWeeklyResetIfNeeded();
+
     const sub = String(args[0] || "help").toLowerCase();
     const rest = args.slice(1);
 
     if (["help", "menu"].includes(sub)) {
-      return message.reply({
-        embeds: [usageEmbed()],
-        allowedMentions: { repliedUser: false },
-      });
+      return replyWithOptionalResetNotice(
+        message,
+        {
+          embeds: [usageEmbed()],
+          allowedMentions: { repliedUser: false },
+        },
+        resetResult
+      );
     }
 
     if (sub === "create") return handleCreate(message, rest);
@@ -1690,6 +1772,7 @@ module.exports = {
     if (sub === "raid") return handlePirateRaid(message);
     if (sub === "attack") return handlePirateAttack(message, rest);
     if (["lb", "leaderboard", "rank"].includes(sub)) return handlePirateLeaderboard(message);
+    if (["reward", "rewards"].includes(sub)) return handlePirateRewardInfo(message);
     if (sub === "level") return handlePirateLevel(message);
     if (sub === "perks" || sub === "perk") return handlePiratePerks(message);
 
