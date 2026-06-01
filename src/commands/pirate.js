@@ -3,6 +3,7 @@ const { readPlayers, writePlayers } = require("../playerStore");
 const {
   MAX_MEMBERS,
   normalizeMaterialKey,
+  readPirateState,
   findPirateByUser,
   findPirateByNameOrId,
   createPirate,
@@ -253,6 +254,58 @@ function memberLines(pirate, message) {
   });
 }
 
+function getPirateWeeklyRank(pirateId) {
+  const state = readPirateState();
+
+  const pirates = Object.values(state.pirates || {})
+    .filter((p) => Array.isArray(p.members) && p.members.length > 0)
+    .sort((a, b) => Number(b.weeklyPoints || 0) - Number(a.weeklyPoints || 0));
+
+  const index = pirates.findIndex((p) => String(p.id) === String(pirateId));
+
+  return index === -1 ? null : index + 1;
+}
+
+function compactMaterialCount(materials) {
+  return Object.values(materials || {}).filter((item) => Number(item?.amount || 0) > 0).length;
+}
+
+function formatPerkSummary(pirate) {
+  const perks = pirate.perks || {};
+
+  const list = [
+    ["Berry Boost", "berryBoost"],
+    ["Gems Boost", "gemsBoost"],
+    ["Luck Boost", "luckBoost"],
+    ["Raid Point Boost", "raidPointBoost"],
+    ["EXP Boost", "expBoost"],
+    ["Shop Discount", "shopDiscount"],
+    ["Boss Damage Boost", "bossDamageBoost"],
+  ];
+
+  return list
+    .map(([name, key]) => {
+      const level = Math.max(0, Math.floor(Number(perks[key] || 0)));
+      return `• **${name}:** Lv.${level}`;
+    })
+    .join("\n");
+}
+
+function formatRaidStatusSummary(pirate) {
+  if (!PIRATE_RAID_BOSSES) return "No raid data.";
+
+  return Object.values(PIRATE_RAID_BOSSES)
+    .map((boss) => {
+      const state = getPirateRaidState(pirate, boss.key);
+      const hpText = state.defeated
+        ? "Defeated"
+        : `${fmt(state.hpLeft)} / ${fmt(boss.hp)}`;
+
+      return `• **${boss.tierName}:** ${boss.name} — ${hpText}`;
+    })
+    .join("\n");
+}
+
 function requirePirate(userId) {
   const pirate = findPirateByUser(userId);
   if (!pirate) throw new Error("You are not in any pirate/guild yet.");
@@ -272,25 +325,59 @@ function requireLeader(pirate, userId) {
 }
 
 async function sendPirateInfo(message, pirate) {
+  const players = readPlayers();
+  const player = getPlayer(players, message.author.id, message.author.username);
+
+  const rank = getPirateWeeklyRank(pirate.id);
+  const userRole = getRole(pirate, message.author.id);
+  const materialTypes = compactMaterialCount(pirate.storage?.materials || {});
+  const memberCount = Array.isArray(pirate.members) ? pirate.members.length : 0;
+
   const embed = new EmbedBuilder()
     .setColor(GOLD)
     .setTitle(`🏴‍☠️ ${pirate.name}`)
     .setDescription(
       [
-        `**Guild Level:** ${pirate.level}/100`,
-        `**Members:** ${(pirate.members || []).length}/${MAX_MEMBERS}`,
-        `**Weekly Points:** ${fmt(pirate.weeklyPoints)}`,
-        `**Storage Berries:** ${fmt(pirate.storage?.berries || 0)}`,
+        "## Pirate Overview",
+        `**Pirate Level:** ${pirate.level}/100`,
+        `**Weekly Rank:** ${rank ? `#${rank}` : "Unranked"}`,
+        `**Weekly Points:** ${fmt(pirate.weeklyPoints || 0)}`,
+        `**Total Points:** ${fmt(pirate.totalPoints || 0)}`,
+        `**Members:** ${memberCount}/${MAX_MEMBERS}`,
+        `**Your Role:** ${userRole}`,
+        `**Your Pirate Tokens:** ${fmt(player.pirateTokens || 0)}`,
         "",
-        "**Crew**",
+        "## Storage",
+        `**Berries:** ${fmt(pirate.storage?.berries || 0)}`,
+        `**Material Types:** ${fmt(materialTypes)}`,
+        "",
+        "## Crew",
         ...memberLines(pirate, message),
+        "",
+        "## Global Perks",
+        formatPerkSummary(pirate),
+        "",
+        "## Pirate Raid Status",
+        formatRaidStatusSummary(pirate),
+        "",
+        "## Useful Commands",
+        "`op pirate storage`",
+        "`op pirate perks`",
+        "`op pirate raid`",
+        "`op pirate shop`",
+        "`op pirate lb`",
       ].join("\n")
     )
-    .setFooter({ text: `Pirate ID: ${pirate.id}` });
+    .setFooter({
+      text: `Pirate ID: ${pirate.id}`,
+    });
 
   return message.reply({
     embeds: [embed],
-    allowedMentions: { users: pirate.members || [], repliedUser: false },
+    allowedMentions: {
+      users: pirate.members || [],
+      repliedUser: false,
+    },
   });
 }
 
