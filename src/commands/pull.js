@@ -5,6 +5,7 @@ const rawCards = require("../data/cards");
 const rawWeapons = require("../data/weapons");
 const rawDevilFruits = require("../data/devilFruits");
 const { applyGlobalPullReset } = require("../utils/pullReset");
+const { findPirateByUser } = require("../utils/pirateStore");
 const { applyAutoLevelForDuplicate } = require("../utils/autoLevel");
 const {
   addFragmentWithAutoSac,
@@ -44,6 +45,12 @@ const PREMIUM_PITY_TARGET = 100;
 const VIVRE_PITY_TARGET = 125;
 const NORMAL_PITY_TARGET = 150;
 const PULL_USER_LOCKS = new Set();
+
+function getPirateLuckBoost(userId) {
+  const pirate = findPirateByUser(userId);
+  const luckLevel = Math.max(0, Math.floor(Number(pirate?.perks?.luckBoost || 0)));
+  return Number((luckLevel * 0.1).toFixed(1));
+}
 
 function getSharedPity(player) {
   const pity = player?.pity || {};
@@ -115,7 +122,7 @@ function rollThroneEquivalentCardTier(baseTier) {
   return baseTier;
 }
 
-function pickBaseTier(tier, contentType, triggeredPity) {
+function pickBaseTier(tier, contentType, triggeredPity, pullChanceBonus = 0) {
   if (contentType === "devilFruit") {
     if (tier === "motherFlame") return rollPremiumDevilFruitTier();
     if (tier === "vivreCard") return rollVivreDevilFruitTier();
@@ -132,10 +139,10 @@ function pickBaseTier(tier, contentType, triggeredPity) {
 
   const baseTier =
     tier === "motherFlame"
-      ? rollPremiumBaseTier()
+      ? rollPremiumBaseTier(pullChanceBonus)
       : tier === "vivreCard"
-      ? rollVivreBaseTier()
-      : rollStandardBaseTier();
+      ? rollVivreBaseTier(pullChanceBonus)
+      : rollStandardBaseTier(pullChanceBonus);
 
   if (contentType === "boostCard") {
     return rollThroneEquivalentCardTier(baseTier);
@@ -1056,9 +1063,11 @@ module.exports = {
         : "boostCard"
       : rolledContentType;
 
+    const pirateLuckBoost = getPirateLuckBoost(message.author.id);
+
     const baseTier = triggeredPity
       ? pityGuarantee
-      : pickBaseTier(premiumTier, contentType, false);
+      : pickBaseTier(premiumTier, contentType, false, pirateLuckBoost);
 
     const pool = getRewardPool(contentType);
     const picked =

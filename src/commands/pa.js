@@ -9,6 +9,7 @@ const rawCards = require("../data/cards");
 const rawWeapons = require("../data/weapons");
 const rawDevilFruits = require("../data/devilFruits");
 const { applyGlobalPullReset, applyManualPullReset } = require("../utils/pullReset");
+const { findPirateByUser } = require("../utils/pirateStore");
 const { applyAutoLevelForDuplicate } = require("../utils/autoLevel");
 const {
   addFragmentWithAutoSac,
@@ -31,6 +32,12 @@ const {
 const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 
 const PREMIUM_PITY_TARGET = 100;
+
+function getPirateLuckBoost(userId) {
+  const pirate = findPirateByUser(userId);
+  const luckLevel = Math.max(0, Math.floor(Number(pirate?.perks?.luckBoost || 0)));
+  return Number((luckLevel * 0.1).toFixed(1));
+}
 
 function getSharedPity(player) {
   const pity = player?.pity || {};
@@ -81,12 +88,12 @@ function rollThroneEquivalentCardTier(baseTier) {
   return baseTier;
 }
 
-function getPremiumRewardTier(contentType, triggeredPity) {
+function getPremiumRewardTier(contentType, triggeredPity, pullChanceBonus = 0) {
   if (contentType === "devilFruit") return rollPremiumDevilFruitTier();
   if (contentType === "weapon") return rollPremiumWeaponTier();
   if (triggeredPity) return "S";
 
-  const baseTier = rollPremiumBaseTier();
+  const baseTier = rollPremiumBaseTier(pullChanceBonus);
 
   if (contentType === "boostCard") {
     return rollThroneEquivalentCardTier(baseTier);
@@ -996,6 +1003,7 @@ module.exports = {
     let updatedFragments = [...(player.fragments || [])];
     let updatedTickets = [...(player.tickets || [])];
     let pityCounter = getSharedPity(player);
+    const pirateLuckBoost = getPirateLuckBoost(message.author.id);
     let convertedBerries = 0;
     let convertedCount = 0;
     let cardsPulledThisRun = 0;
@@ -1037,13 +1045,7 @@ module.exports = {
 
       const pool = getRewardPool(contentType);
 
-      const rarity = triggeredPity
-        ? "S"
-        : contentType === "devilFruit"
-        ? rollPremiumDevilFruitTier()
-        : contentType === "weapon"
-        ? rollPremiumWeaponTier()
-        : rollPremiumBaseTier();
+      const rarity = getPremiumRewardTier(contentType, triggeredPity, pirateLuckBoost);
 
       const reward =
         contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, rarity);

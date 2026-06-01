@@ -13,8 +13,8 @@ const PIRATE_PERKS = {
     name: "Luck Boost",
     unlockGuildLevel: 10,
     maxLevel: 25,
-    bonusPerLevel: 0.2,
-    effect: "Increase pull rates by +0.2% per perk level for all crew members.",
+    bonusPerLevel: 0.1,
+    effect: "Increase pull rates by +0.1% per perk level for all crew members.",
   },
 
   raidPointBoost: {
@@ -165,7 +165,7 @@ function getPerkEffectText(perkKey, level) {
   const lv = Math.max(0, Math.floor(Number(level || 0)));
 
   if (!perk) return "Unknown effect.";
-  if (perkKey === "luckBoost") return `+${(lv * 0.2).toFixed(1)}% pull rate`;
+  if (perkKey === "luckBoost") return `+${(lv * 0.1).toFixed(1)}% pull rate`;
 
   return `+${lv * perk.bonusPerLevel}% ${perk.name}`;
 }
