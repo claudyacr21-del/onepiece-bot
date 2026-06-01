@@ -1,2 +1,8 @@
 node_modules
 .env
+src/data/players.json
+data/players.json
+players.json
+src/data/pirates.json
+data/pirates.json
+pirates.json
