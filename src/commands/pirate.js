@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { readPlayers, writePlayers } = require("../playerStore");
+const { hydrateCard } = require("../utils/evolution");
 const {
   MAX_MEMBERS,
   normalizeMaterialKey,
@@ -1502,21 +1503,45 @@ async function handlePirateBuy(message, args) {
 }
 
 function getCardRaidDamage(card) {
-  const atk = Math.max(
-    0,
-    Math.floor(Number(card?.atk || card?.attack || card?.battleAtk || 0))
-  );
+  const hydrated = hydrateCard(card) || card || {};
 
-  return Math.max(1, atk);
+  const atkCandidates = [
+    hydrated.battleAtk,
+    hydrated.currentAtk,
+    hydrated.finalAtk,
+    hydrated.atk,
+    hydrated.attack,
+    hydrated.stats?.atk,
+    hydrated.stats?.attack,
+    hydrated.baseStats?.atk,
+    card?.battleAtk,
+    card?.currentAtk,
+    card?.finalAtk,
+    card?.atk,
+    card?.attack,
+  ];
+
+  const atk = atkCandidates
+    .map((value) => Math.floor(Number(value || 0)))
+    .find((value) => value > 0);
+
+  return Math.max(1, atk || 1);
 }
 
 function getBestRaidCards(player, limit = 3) {
   return (Array.isArray(player?.cards) ? player.cards : [])
     .filter(Boolean)
-    .map((card) => ({
-      card,
-      damage: getCardRaidDamage(card),
-    }))
+    .map((rawCard) => {
+      const card = hydrateCard(rawCard) || rawCard;
+      return {
+        card,
+        damage: getCardRaidDamage(rawCard),
+      };
+    })
+    .filter((entry) => {
+      const role = String(entry.card?.cardRole || "").toLowerCase();
+      return role !== "boost";
+    })
     .sort((a, b) => b.damage - a.damage)
     .slice(0, limit);
 }
