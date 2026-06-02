@@ -78,4 +78,6 @@ module.exports = {
   caesar_clown: "https://cdn.discordapp.com/attachments/1493204525975076944/1498201492409286706/one-piece.gif?ex=69f04c5f&is=69eefadf&hm=739b5a73d8252dac659c913d966a5e965d5351d63e0608d8beea05b62896a0e5&",
   hody_jones: "https://cdn.discordapp.com/attachments/1493204525975076944/1498201492929122304/one-piece-fishman-island.gif?ex=69f04c5f&is=69eefadf&hm=302c71f4c4d276f4931707d3b1a0a70dd6535c9ef1a114478f153e9b46f7708d&",
   gunko_holy_knight: "https://cdn.discordapp.com/attachments/1493204525975076944/1498201488823160905/elbaph-elbaf.gif?ex=69f04c5e&is=69eefade&hm=094b39af7881feba5bf13629d6e06e12d0eb43ad81de360471612d71bed87fd3&",
+  law_surgeon_of_death : "https://cdn.discordapp.com/attachments/1493204525975076944/1511225009845047437/trafalgar-law-trafalgar.gif?ex=6a1fad77&is=6a1e5bf7&hm=46557fe3f542993b921b7308695592ee048e157620d16fed58e300457a721421&",
+  kid_captain: "https://cdn.discordapp.com/attachments/1493204525975076944/1511225009333469366/kid.gif?ex=6a1fad77&is=6a1e5bf7&hm=6e518e1abf4138874419051f81eaff433c6e34b8681104e6dc37c15a7741fb66&",
 };
