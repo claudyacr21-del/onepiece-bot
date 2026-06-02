@@ -7,6 +7,7 @@ const {
 } = require("discord.js");
 const { readPlayers, writePlayers } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
+const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
   MAX_MEMBERS,
   normalizeMaterialKey,
@@ -1510,77 +1511,87 @@ async function handlePirateBuy(message, args) {
   }
 }
 
-function getCardRaidDamage(rawCard) {
-  const card = hydrateCard(rawCard) || rawCard || {};
-
-  const atkMin = Math.max(
-    0,
-    Math.floor(
-      Number(
-        card.battleAtk ||
-          card.currentAtk ||
-          card.finalAtk ||
-          card.atk ||
-          card.attack ||
-          card.stats?.atk ||
-          card.stats?.attack ||
-          rawCard?.battleAtk ||
-          rawCard?.currentAtk ||
-          rawCard?.finalAtk ||
-          rawCard?.atk ||
-          rawCard?.attack ||
-          0
-      )
-    )
-  );
-
-  const atkMax = Math.max(
-    atkMin,
-    Math.floor(
-      Number(
-        card.atkMax ||
-          card.maxAtk ||
-          card.battleAtkMax ||
-          card.displayAtkMax ||
-          rawCard?.atkMax ||
-          rawCard?.maxAtk ||
-          rawCard?.battleAtkMax ||
-          rawCard?.displayAtkMax ||
-          atkMin
-      )
-    )
-  );
+function applyPirateRaidDisplayStats(card, boosts = {}) {
+  if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
 
   return {
-    min: Math.max(1, atkMin),
-    max: Math.max(1, atkMax),
-    roll: Math.max(1, Math.floor(atkMin + Math.random() * Math.max(1, atkMax - atkMin + 1))),
+    ...card,
+    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
   };
 }
 
-function getCardRaidHp(rawCard) {
-  const card = hydrateCard(rawCard) || rawCard || {};
+function rollRaidAtkDamage(atk) {
+  const value = Math.max(1, Math.floor(Number(atk || 1)));
+  const min = Math.max(1, Math.floor(value * 0.85));
+  const max = Math.max(min, Math.floor(value * 1.15));
 
-  const hpCandidates = [
-    card.battleHp,
-    card.currentHp,
-    card.finalHp,
-    card.hp,
-    card.health,
-    card.stats?.hp,
-    card.stats?.health,
-    rawCard?.battleHp,
-    rawCard?.currentHp,
-    rawCard?.finalHp,
-    rawCard?.hp,
-    rawCard?.health,
-  ];
+  return {
+    baseAtk: value,
+    min,
+    max,
+    roll: Math.max(
+      1,
+      Math.floor(min + Math.random() * Math.max(1, max - min + 1))
+    ),
+  };
+}
 
-  const hp = hpCandidates
-    .map((value) => Math.floor(Number(value || 0)))
-    .find((value) => value > 0);
+function getCardRaidDamage(rawCard, boosts = {}) {
+  const hydrated = hydrateCard(rawCard) || rawCard || {};
+  const card = applyPirateRaidDisplayStats(hydrated, boosts);
 
-  return Math.max(1, hp || 1);
+  const atk = Math.max(
+    1,
+    Math.floor(
+      Number(
+        card?.atk ||
+          card?.attack ||
+          card?.battleAtk ||
+          card?.currentAtk ||
+          card?.finalAtk ||
+          card?.stats?.atk ||
+          card?.stats?.attack ||
+          rawCard?.atk ||
+          rawCard?.attack ||
+          rawCard?.battleAtk ||
+          rawCard?.currentAtk ||
+          rawCard?.finalAtk ||
+          1
+      )
+    )
+  );
+
+  return rollRaidAtkDamage(atk);
+}
+
+function getCardRaidHp(rawCard, boosts = {}) {
+  const hydrated = hydrateCard(rawCard) || rawCard || {};
+  const card = applyPirateRaidDisplayStats(hydrated, boosts);
+
+  const hp = Math.max(
+    1,
+    Math.floor(
+      Number(
+        card?.hp ||
+          card?.health ||
+          card?.battleHp ||
+          card?.currentHp ||
+          card?.finalHp ||
+          card?.stats?.hp ||
+          card?.stats?.health ||
+          rawCard?.hp ||
+          rawCard?.health ||
+          rawCard?.battleHp ||
+          rawCard?.currentHp ||
+          rawCard?.finalHp ||
+          1
+      )
+    )
+  );
+
+  return hp;
 }
 
 function getBossCounterDamage(boss) {
@@ -1595,12 +1606,15 @@ function getBossCounterDamage(boss) {
 }
 
 function getBestRaidCards(player, limit = 3) {
+  const boosts = getPassiveBoostSummary(player);
+
   return (Array.isArray(player?.cards) ? player.cards : [])
     .filter(Boolean)
     .map((rawCard) => {
-      const card = hydrateCard(rawCard) || rawCard;
-      const damage = getCardRaidDamage(rawCard);
-      const maxHp = getCardRaidHp(rawCard);
+      const hydrated = hydrateCard(rawCard) || rawCard;
+      const card = applyPirateRaidDisplayStats(hydrated, boosts);
+      const damage = getCardRaidDamage(rawCard, boosts);
+      const maxHp = getCardRaidHp(rawCard, boosts);
 
       return {
         card,
@@ -1637,30 +1651,6 @@ function getPirateRaidState(pirate, tierKey) {
       current.lastAttackAt && typeof current.lastAttackAt === "object"
         ? current.lastAttackAt
         : {},
-  };
-}
-
-function getPirateRaidDamage(player, pirate) {
-  const bestCards = getBestRaidCards(player, 3);
-  const baseDamage = bestCards.reduce(
-    (sum, entry) => sum + Math.max(1, Math.floor(Number(entry.damage?.roll || 0))),
-    0
-  );
-
-  const bossDamageLevel = Math.max(
-    0,
-    Math.floor(Number(pirate?.perks?.bossDamageBoost || 0))
-  );
-
-  const bonusMultiplier = 1 + bossDamageLevel * 0.01;
-  const finalDamage = Math.max(1, Math.floor(baseDamage * bonusMultiplier));
-
-  return {
-    damage: finalDamage,
-    cards: bestCards,
-    bossDamageLevel,
-    bonusMultiplier,
-    baseDamage,
   };
 }
 
@@ -1846,25 +1836,17 @@ function getPirateRaidCooldownInfo(pirate, tierKey, userId) {
   };
 }
 
-function calculateManualRaidCardDamage(entry, pirate) {
+function calculateManualRaidCardDamage(entry) {
   const baseDamage = Math.max(
     1,
     Math.floor(Number(entry?.damage?.roll || entry?.damage || 1))
   );
 
-  const bossDamageLevel = Math.max(
-    0,
-    Math.floor(Number(pirate?.perks?.bossDamageBoost || 0))
-  );
-
-  const bonusMultiplier = 1 + bossDamageLevel * 0.01;
-  const finalDamage = Math.max(1, Math.floor(baseDamage * bonusMultiplier));
-
   return {
     baseDamage,
-    finalDamage,
-    bossDamageLevel,
-    bonusMultiplier,
+    finalDamage: baseDamage,
+    bossDamageLevel: 0,
+    bonusMultiplier: 1,
   };
 }
 
@@ -1893,7 +1875,7 @@ function buildManualRaidEmbed({
 
     return `${dead ? "💀" : "⚔️"} ${index + 1}. ${
       card.displayName || card.name || card.code || "Unknown"
-    } — Damage ${fmt(damage.roll)} (${rangeText}) | HP ${fmt(
+    } — Damage ${fmt(damage.roll)} (${rangeText} after boost) | HP ${fmt(
       entry.currentHp
     )}/${fmt(entry.maxHp)}`;
   });
@@ -2231,10 +2213,7 @@ async function handlePirateAttack(message, args) {
 
       turnCount += 1;
 
-      const damageCalc = calculateManualRaidCardDamage(
-        selected,
-        latestPirate || pirate
-      );
+      const damageCalc = calculateManualRaidCardDamage(selected);
 
       const damage = Math.min(latestRaid.hpLeft, damageCalc.finalDamage);
       const nextHpLeft = Math.max(0, latestRaid.hpLeft - damage);
