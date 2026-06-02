@@ -14,6 +14,8 @@ const MOTHER_FLAME_URL = process.env.PATREON_MOTHER_FLAME_URL || PATREON_URL;
 const VIVRE_CARD_URL = process.env.PATREON_VIVRE_CARD_URL || PATREON_URL;
 const MARINE_CHANNEL_URL = process.env.PATREON_MARINE_CHANNEL_URL || PATREON_URL;
 const TICKET_RESET_URL = process.env.PATREON_TICKET_RESET_URL || PATREON_URL;
+const BUY_STUFF_URL = process.env.PATREON_BUY_STUFF_URL || PATREON_URL;
+
 const SUPPORT_SERVER_URL =
   process.env.SUPPORT_SERVER_URL ||
   process.env.DISCORD_SUPPORT_URL ||
@@ -58,14 +60,14 @@ const PACKAGES = {
 
   vivre_card: {
     label: "Vivre Card 5$",
-    emoji: "🧭",
+    emoji: "📜",
     url: VIVRE_CARD_URL,
     buttonLabel: "Purchase Vivre Card",
     title: "Vivre Card | 5$/Month",
     description: [
       "**Lite Premium Perks**",
       "",
-      "🧭 **Vivre Card Supporter Role**",
+      "📜 **Vivre Card Supporter Role**",
       "",
       "• Extra pull slot every reset: **+1**",
       "• Fight cooldown reduced to **6 minutes 30 seconds**",
@@ -140,10 +142,44 @@ const PACKAGES = {
       "Admin will verify your proof before sending the reward.",
     ].join("\n"),
   },
+
+  buy_stuff: {
+    label: "Buy Stuff",
+    emoji: "🛒",
+    url: BUY_STUFF_URL,
+    buttonLabel: "Purchase Buy Stuff",
+    title: "Buy Stuff | One-Time Purchase",
+    description: [
+      "**Purchase Details**",
+      "",
+      "🛒 **Buy Stuff Menu**",
+      "",
+      "Use this package for one-time item purchases.",
+      "",
+      "**Available Stuff**",
+      "• **Raid Ticket**",
+      "  - Code: `raid_ticket`",
+      "  - Used to create an A-tier raid room.",
+      "",
+      "• **Gold Raid Ticket**",
+      "  - Code: `gold_raid_ticket`",
+      "  - Used to create an S-tier gold raid room.",
+      "",
+      "**Claim Instruction**",
+      "After payment, open a ticket in the Discord server and send:",
+      "• Patreon order proof",
+      "• Payment proof",
+      "• Item you purchased: Raid Ticket / Gold Raid Ticket",
+      "• Your Discord user ID",
+      "",
+      "Admin will verify your proof before sending the item reward.",
+    ].join("\n"),
+  },
 };
 
 function formatRemainingTime(ms) {
   const safeMs = Math.max(0, Number(ms || 0));
+
   if (safeMs <= 0) return "Expired";
 
   const totalMinutes = Math.floor(safeMs / 60000);
@@ -153,6 +189,7 @@ function formatRemainingTime(ms) {
 
   if (days > 0) return `${days}d ${hours}h ${minutes}m`;
   if (hours > 0) return `${hours}h ${minutes}m`;
+
   return `${minutes}m`;
 }
 
@@ -210,7 +247,9 @@ function buildMainEmbed(userId) {
         "Admin will verify your purchase manually.",
       ].join("\n")
     )
-    .setFooter({ text: "One Piece Bot • Patreon" });
+    .setFooter({
+      text: "One Piece Bot • Patreon",
+    });
 }
 
 function buildPackageEmbed(packageKey, userId) {
@@ -220,13 +259,11 @@ function buildPackageEmbed(packageKey, userId) {
     .setColor(0x8e44ad)
     .setTitle(pack.title)
     .setDescription(
-      [
-        `**${getPatreonStatus(userId).line}**`,
-        "",
-        pack.description,
-      ].join("\n")
+      [`**${getPatreonStatus(userId).line}**`, "", pack.description].join("\n")
     )
-    .setFooter({ text: "One Piece Bot • Patreon Package" });
+    .setFooter({
+      text: "One Piece Bot • Patreon Package",
+    });
 }
 
 function buildSelectRow(selected = null) {
@@ -262,6 +299,13 @@ function buildSelectRow(selected = null) {
           value: "ticket_reset",
           emoji: PACKAGES.ticket_reset.emoji,
           default: selected === "ticket_reset",
+        },
+        {
+          label: PACKAGES.buy_stuff.label,
+          description: "Buy Raid Ticket, Gold Raid Ticket, and other items",
+          value: "buy_stuff",
+          emoji: PACKAGES.buy_stuff.emoji,
+          default: selected === "buy_stuff",
         },
       ])
   );
