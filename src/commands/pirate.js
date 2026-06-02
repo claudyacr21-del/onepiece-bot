@@ -1837,14 +1837,17 @@ function getPirateRaidCooldownInfo(pirate, tierKey, userId) {
 }
 
 function calculateManualRaidCardDamage(entry) {
-  const baseDamage = Math.max(
+  const min = Math.max(1, Math.floor(Number(entry?.damage?.min || entry?.damage?.roll || 1)));
+  const max = Math.max(min, Math.floor(Number(entry?.damage?.max || min)));
+
+  const rolledAtkDamage = Math.max(
     1,
-    Math.floor(Number(entry?.damage?.roll || entry?.damage || 1))
+    Math.floor(min + Math.random() * Math.max(1, max - min + 1))
   );
 
   return {
-    baseDamage,
-    finalDamage: baseDamage,
+    baseDamage: rolledAtkDamage,
+    finalDamage: rolledAtkDamage,
     bossDamageLevel: 0,
     bonusMultiplier: 1,
   };
@@ -1865,19 +1868,17 @@ function buildManualRaidEmbed({
 }) {
   const cardLines = selectedCards.map((entry, index) => {
     const card = entry.card;
-    const damage = entry.damage || {};
+    const atk = entry.damage || {};
     const dead = Number(entry.currentHp || 0) <= 0;
 
-    const rangeText =
-      Number(damage.max || 0) > Number(damage.min || 0)
-        ? `${fmt(damage.min)}-${fmt(damage.max)}`
-        : fmt(damage.roll);
+    const atkText =
+      Number(atk.max || 0) > Number(atk.min || 0)
+        ? `${fmt(atk.min)}-${fmt(atk.max)}`
+        : fmt(atk.roll);
 
     return `${dead ? "💀" : "⚔️"} ${index + 1}. ${
       card.displayName || card.name || card.code || "Unknown"
-    } — Damage ${fmt(damage.roll)} (${rangeText} after boost) | HP ${fmt(
-      entry.currentHp
-    )}/${fmt(entry.maxHp)}`;
+    } — ATK ${atkText} | HP ${fmt(entry.currentHp)}/${fmt(entry.maxHp)}`;
   });
 
   return new EmbedBuilder()
@@ -1907,7 +1908,7 @@ function buildManualRaidEmbed({
         .join("\n")
     )
     .setFooter({
-      text: "Choose a card to attack. Boss counters after each attack.",
+      text: "Choose a card to attack. Damage is randomly rolled from the card ATK range.",
     });
 }
 
