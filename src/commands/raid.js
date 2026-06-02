@@ -2340,28 +2340,25 @@ module.exports = {
       message.author.username
     );
 
-    const bossPreviewStats = deriveRaidBossStats(bossInfo.template, raidMode);
-
-    const raidCountNotice = raidCountResult.consumed
-      ? raidCountResult.completed
-        ? `\n\n✅ **Raid Count completed:** 0/${raidCountResult.total} left`
-        : `\n\n🔢 **Raid Count:** ${raidCountResult.leftAfter}/${raidCountResult.total} left`
-      : "";
-
-    const lobbyEmbed = buildLobbyEmbed(
-      message.author.username,
-      room,
-      false,
-      bossPreviewStats
-    );
-
-    if (raidCountNotice) {
-      const oldDescription = lobbyEmbed.data.description || "";
-      lobbyEmbed.setDescription(`${oldDescription}${raidCountNotice}`);
+    if (raidCountResult.consumed) {
+      await message.channel
+        .send({
+          content: raidCountResult.completed
+            ? `✅ Raid Count completed: **0/${raidCountResult.total} left**`
+            : `🔢 Raid Count: **${raidCountResult.leftAfter}/${raidCountResult.total} left**`,
+          allowedMentions: {
+            repliedUser: false,
+          },
+        })
+        .catch(() => null);
     }
 
+    const bossPreviewStats = deriveRaidBossStats(bossInfo.template, raidMode);
+
     const lobbyMessage = await message.reply({
-      embeds: [lobbyEmbed],
+      embeds: [
+        buildLobbyEmbed(message.author.username, room, false, bossPreviewStats),
+      ],
       components: buildLobbyRows(room, false),
     });
 
@@ -2372,7 +2369,7 @@ module.exports = {
     let battleMessage = null;
 
     lobbyCollector.on("collect", async (interaction) => {
-const activeRoom = getRoom(hostId);
+    const activeRoom = getRoom(hostId);
 
       if (!activeRoom || String(activeRoom.roomId) !== String(room.roomId)) {
         await safeDeferReplyInteraction(interaction);
