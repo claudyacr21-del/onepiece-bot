@@ -1516,7 +1516,7 @@ function getRaidRewardConfig(tier, boss = null, raidMode = null) {
       berries: 25000,
       gems: 30,
       fragments: 1,
-      weaponChance: 40,
+      weaponChance: 35,
       fruitChance: 1,
     };
   }
@@ -1547,7 +1547,7 @@ function getRaidRewardConfig(tier, boss = null, raidMode = null) {
       berries: 15000,
       gems: 20,
       fragments: 1,
-      weaponChance: 40,
+      weaponChance: 35,
       fruitChance: 1,
     },
   };
