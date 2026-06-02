@@ -91,37 +91,37 @@ function usageEmbed() {
     .setDescription(
       [
         "**Core Commands**",
-        "`op pirate create <name>`",
+        "`op p create <name>`",
         `Create cost: ${fmt(PIRATE_CREATE_COST_BERRIES)} berries + ${fmt(PIRATE_CREATE_COST_GEMS)} gems`,
-        "`op pirate info`",
-        "`op pirate invite <@user>`",
-        "`op pirate join <pirate name/id>`",
-        "`op pirate leave`",
-        "`op pirate disband`",
-        "`op pirate kick <@user>`",
-        "`op pirate promote <@user>`",
-        "`op pirate demote <@user>`",
+        "`op p info`",
+        "`op p invite <@user>`",
+        "`op p join <pirate name/id>`",
+        "`op p leave`",
+        "`op p disband`",
+        "`op p kick <@user>`",
+        "`op p promote <@user>`",
+        "`op p demote <@user>`",
         "",
         "**Storage Commands**",
-        "`op pirate deposit berries <amount>`",
-        "`op pirate deposit material <amount> <material name>`",
-        "`op pirate storage`",
+        "`op p deposit berries <amount>`",
+        "`op p deposit material <amount> <material name>`",
+        "`op p storage`",
         "",
         "**Level & Perk Commands**",
-        "`op pirate level`",
-        "`op pirate upgrade level`",
-        "`op pirate perks`",
-        "`op pirate upgrade perk <perk>`",
+        "`op p level`",
+        "`op p upgrade level`",
+        "`op p perks`",
+        "`op p upgrade perk <perk>`",
         "",
         "**Pirate Shop Commands**",
-        "`op pirate shop`",
-        "`op pirate buy <item>`",
+        "`op p shop`",
+        "`op p buy <item>`",
         "",
         "**Pirate Raid Commands**",
-        "`op pirate raid`",
-        "`op pirate attack <tier>`",
-        "`op pirate lb`",
-        "`op pirate rewards`",
+        "`op p raid`",
+        "`op p attack <tier>`",
+        "`op p lb`",
+        "`op p rewards`",
         "",
         `Max members: **${MAX_MEMBERS}** — 1 Leader, 1 Vice Leader, 4 Crew`,
       ].join("\n")
@@ -361,11 +361,11 @@ async function sendPirateInfo(message, pirate) {
         formatRaidStatusSummary(pirate),
         "",
         "## Useful Commands",
-        "`op pirate storage`",
-        "`op pirate perks`",
-        "`op pirate raid`",
-        "`op pirate shop`",
-        "`op pirate lb`",
+        "`op p storage`",
+        "`op p perks`",
+        "`op p raid`",
+        "`op p shop`",
+        "`op p lb`",
       ].join("\n")
     )
     .setFooter({
@@ -408,7 +408,7 @@ async function handleCreate(message, args) {
     return message.reply(
       makeError(
         [
-          "Usage: `op pirate create <name>`",
+          "Usage: `op p create <name>`",
           "",
           "**Create Cost:**",
           `• ${fmt(PIRATE_CREATE_COST_BERRIES)} berries`,
@@ -485,7 +485,7 @@ async function handleCreate(message, args) {
           `• ${fmt(PIRATE_CREATE_COST_BERRIES)} berries`,
           `• ${fmt(PIRATE_CREATE_COST_GEMS)} gems`,
           "",
-          "Next: invite crew with `op pirate invite <@user>`",
+          "Next: invite crew with `op p invite <@user>`",
         ].join("\n")
       )
     );
@@ -505,7 +505,7 @@ async function handleInvite(message, args) {
 
     const targetId = getMentionId(args[0]);
     if (!targetId) {
-      return message.reply(makeError("Usage: `op pirate invite <@user>`"));
+      return message.reply(makeError("Usage: `op p invite <@user>`"));
     }
 
     if (String(targetId) === String(message.author.id)) {
@@ -532,7 +532,7 @@ async function handleInvite(message, args) {
               `<@${targetId}> has been invited to **${pirate.name}**.`,
               "",
               `They can join with:`,
-              `\`op pirate join ${pirate.id}\``,
+              `\`op p join ${pirate.id}\``,
             ].join("\n")
           ),
       ],
@@ -546,7 +546,7 @@ async function handleInvite(message, args) {
 async function handleJoin(message, args) {
   const query = cleanText(args.join(" "));
   if (!query) {
-    return message.reply(makeError("Usage: `op pirate join <pirate name/id>`"));
+    return message.reply(makeError("Usage: `op p join <pirate name/id>`"));
   }
 
   try {
@@ -659,7 +659,7 @@ async function handleDisband(message, args) {
             "• Weekly points",
             "",
             "To confirm, type:",
-            "`op pirate disband confirm`",
+            "`op p disband confirm`",
           ].join("\n")
         )
       );
@@ -686,7 +686,7 @@ async function handleKick(message, args) {
 
     const targetId = getMentionId(args[0]);
     if (!targetId) {
-      return message.reply(makeError("Usage: `op pirate kick <@user>`"));
+      return message.reply(makeError("Usage: `op p kick <@user>`"));
     }
 
     if (!(pirate.members || []).map(String).includes(String(targetId))) {
@@ -738,7 +738,7 @@ async function handlePromote(message, args) {
 
     const targetId = getMentionId(args[0]);
     if (!targetId) {
-      return message.reply(makeError("Usage: `op pirate promote <@user>`"));
+      return message.reply(makeError("Usage: `op p promote <@user>`"));
     }
 
     if (!(pirate.members || []).map(String).includes(String(targetId))) {
@@ -784,7 +784,7 @@ async function handleDemote(message, args) {
 
     const targetId = getMentionId(args[0]);
     if (!targetId) {
-      return message.reply(makeError("Usage: `op pirate demote <@user>`"));
+      return message.reply(makeError("Usage: `op p demote <@user>`"));
     }
 
     if (!isViceLeader(pirate, targetId)) {
@@ -822,7 +822,7 @@ async function handleDemote(message, args) {
 async function handleDepositBerries(message, args) {
   const amount = Math.floor(Number(args[0] || 0));
   if (!amount || amount <= 0) {
-    return message.reply(makeError("Usage: `op pirate deposit berries <amount>`"));
+    return message.reply(makeError("Usage: `op p deposit berries <amount>`"));
   }
 
   try {
@@ -875,7 +875,7 @@ async function handleDepositMaterial(message, args) {
   const query = cleanText(args.slice(1).join(" "));
 
   if (!amount || amount <= 0 || !query) {
-    return message.reply(makeError("Usage: `op pirate deposit material <amount> <material name>`"));
+    return message.reply(makeError("Usage: `op p deposit material <amount> <material name>`"));
   }
 
   try {
@@ -969,8 +969,8 @@ async function handleDeposit(message, args) {
     makeError(
       [
         "Usage:",
-        "`op pirate deposit berries <amount>`",
-        "`op pirate deposit material <amount> <material name>`",
+        "`op p deposit berries <amount>`",
+        "`op p deposit material <amount> <material name>`",
       ].join("\n")
     )
   );
@@ -1062,7 +1062,7 @@ async function handlePirateLevel(message) {
             : `**Upgrade Requirement Lv.${currentLevel} → Lv.${currentLevel + 1}**\n${formatRequirement(req)}`,
           "",
           "Upgrade with:",
-          "`op pirate upgrade level`",
+          "`op p upgrade level`",
         ].join("\n")
       );
 
@@ -1162,10 +1162,10 @@ async function handlePiratePerks(message) {
           ...lines,
           "",
           "Upgrade with:",
-          "`op pirate upgrade perk <perk>`",
+          "`op p upgrade perk <perk>`",
           "",
           "Example:",
-          "`op pirate upgrade perk luck`",
+          "`op p upgrade perk luck`",
         ].join("\n\n")
       );
 
@@ -1186,7 +1186,7 @@ async function handleUpgradePerk(message, args) {
     return message.reply(
       makeError(
         [
-          "Usage: `op pirate upgrade perk <perk>`",
+          "Usage: `op p upgrade perk <perk>`",
           "",
           "Available perks:",
           "• berry",
@@ -1405,14 +1405,14 @@ async function handlePirateShop(message) {
           ...lines,
           "",
           "Buy with:",
-          "`op pirate buy <item>`",
+          "`op p buy <item>`",
           "",
           "Examples:",
-          "`op pirate buy rum`",
-          "`op pirate buy pull reset`",
-          "`op pirate buy universal random`",
-          "`op pirate buy raid ticket`",
-          "`op pirate buy gold raid ticket`",
+          "`op p buy rum`",
+          "`op p buy pull reset`",
+          "`op p buy universal random`",
+          "`op p buy raid ticket`",
+          "`op p buy gold raid ticket`",
         ].join("\n\n")
       )
       .setFooter({ text: "Pirate tokens are earned from weekly pirate leaderboard rewards." });
@@ -1435,7 +1435,7 @@ async function handlePirateBuy(message, args) {
     return message.reply(
       makeError(
         [
-          "Usage: `op pirate buy <item>`",
+          "Usage: `op p buy <item>`",
           "",
           "Available items:",
           "• rum",
@@ -1639,6 +1639,30 @@ function getPirateRaidClearReward(boss) {
   );
 }
 
+function addRaidRewardStack(list, item) {
+  const arr = Array.isArray(list) ? [...list] : [];
+  const code = String(item?.code || "");
+  const amount = Math.max(1, Math.floor(Number(item?.amount || 1)));
+
+  if (!code) return arr;
+
+  const index = arr.findIndex((entry) => String(entry.code || "") === code);
+
+  if (index === -1) {
+    arr.push({
+      ...item,
+      amount,
+    });
+  } else {
+    arr[index] = {
+      ...arr[index],
+      amount: Math.max(0, Math.floor(Number(arr[index].amount || 0))) + amount,
+    };
+  }
+
+  return arr;
+}
+
 function applyPirateRaidContributorRewards(message, boss, contributors) {
   const entries = Object.entries(contributors || {}).filter(
     ([, data]) => Number(data?.damage || 0) > 0
@@ -1663,10 +1687,30 @@ function applyPirateRaidContributorRewards(message, boss, contributors) {
       Math.max(0, Math.floor(Number(player.gems || 0))) +
       Math.max(0, Math.floor(Number(reward.gems || 0)));
 
+    for (const item of reward.items || []) {
+      if (String(item.type || "").toLowerCase() === "ticket") {
+        player.tickets = addRaidRewardStack(player.tickets, item);
+      } else if (String(item.type || "").toLowerCase() === "box") {
+        player.boxes = addRaidRewardStack(player.boxes, item);
+      } else {
+        player.items = addRaidRewardStack(player.items, item);
+      }
+    }
+
     players[String(userId)] = player;
 
+    const itemText = (reward.items || [])
+      .map((item) => `${item.name || item.code} x${fmt(item.amount || 1)}`)
+      .join(", ");
+
     rewardLines.push(
-      `• <@${userId}> — +${fmt(reward.berries)} berries, +${fmt(reward.gems)} gems | Damage: ${fmt(data.damage)}`
+      [
+        `• <@${userId}> — +${fmt(reward.berries)} berries, +${fmt(reward.gems)} gems`,
+        itemText ? `  Rewards: ${itemText}` : null,
+        `  Damage: ${fmt(data.damage)}`,
+      ]
+        .filter(Boolean)
+        .join("\n")
     );
   }
 
@@ -1721,7 +1765,7 @@ function formatPirateRaidBossLine(pirate, boss, userId = null) {
     `Min Pirate Lv.${boss.minPirateLevel} • Base Points: ${fmt(boss.basePoints)}`,
     `HP: ${hpText}`,
     cooldownText,
-    `Attack: \`op pirate attack ${boss.key}\``,
+    `Attack: \`op p attack ${boss.key}\``,
     `_${boss.description}_`,
   ].join("\n");
 }
@@ -1765,7 +1809,7 @@ async function handlePirateAttack(message, args) {
     return message.reply(
       makeError(
         [
-          "Usage: `op pirate attack <tier>`",
+          "Usage: `op p attack <tier>`",
           "",
           "Available tiers:",
           "• easy",
@@ -1908,7 +1952,7 @@ async function handlePirateAttack(message, args) {
 
     const cardLines = damageResult.cards.map((entry, index) => {
       const card = entry.card;
-      return `${index + 1}. ${card.displayName || card.name || card.code || "Unknown"} — ATK ${fmt(entry.power)}`;
+      return `${index + 1}. ${card.displayName || card.name || card.code || "Unknown"} — Damage ${fmt(entry.damage)}`;
     });
 
     const clearRewardLines = defeated
@@ -2127,8 +2171,8 @@ module.exports = {
         makeError(
         [
             "Usage:",
-            "`op pirate upgrade level`",
-            "`op pirate upgrade perk <perk>`",
+            "`op p upgrade level`",
+            "`op p upgrade perk <perk>`",
         ].join("\n")
         )
     );
