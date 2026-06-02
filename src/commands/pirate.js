@@ -38,7 +38,6 @@ const {
 const {
   getPirateWeeklyRewardPreview,
   runPirateWeeklyResetIfNeeded,
-  runPirateRaidDailyResetIfNeeded,
 } = require("../utils/pirateWeekly");
 const GOLD = 0xf1c40f;
 const RED = 0xe74c3c;
@@ -1502,28 +1501,13 @@ async function handlePirateBuy(message, args) {
   }
 }
 
-function getCardRaidPower(card) {
-  const atk = Number(card?.atk || card?.attack || 0);
-  const hp = Number(card?.hp || 0);
-  const spd = Number(card?.speed || card?.spd || 0);
-  const level = Number(card?.level || 1);
-  const power = Number(card?.currentPower || card?.power || 0);
-  const prestige = Math.max(
-    Number(card?.prestige || 0),
-    Number(card?.raidPrestige || 0),
-    Number(card?.bossPrestige || 0),
-    Number(card?.arenaPrestige || 0)
+function getCardRaidDamage(card) {
+  const atk = Math.max(
+    0,
+    Math.floor(Number(card?.atk || card?.attack || card?.battleAtk || 0))
   );
 
-  const rawPower =
-    power ||
-    atk * 1.5 +
-      hp * 0.25 +
-      spd * 12 +
-      level * 35 +
-      prestige * 250;
-
-  return Math.max(1, Math.floor(rawPower));
+  return Math.max(1, atk);
 }
 
 function getBestRaidCards(player, limit = 3) {
@@ -1531,9 +1515,9 @@ function getBestRaidCards(player, limit = 3) {
     .filter(Boolean)
     .map((card) => ({
       card,
-      power: getCardRaidPower(card),
+      damage: getCardRaidDamage(card),
     }))
-    .sort((a, b) => b.power - a.power)
+    .sort((a, b) => b.damage - a.damage)
     .slice(0, limit);
 }
 
@@ -1546,14 +1530,22 @@ function getPirateRaidState(pirate, tierKey) {
     hpLeft: Math.max(0, Math.floor(Number(current.hpLeft ?? boss.hp))),
     defeated: Boolean(current.defeated),
     defeatedAt: Number(current.defeatedAt || 0),
+    clearRewardedAt: Number(current.clearRewardedAt || 0),
     totalDamage: Math.max(0, Math.floor(Number(current.totalDamage || 0))),
-    lastAttackAt: current.lastAttackAt && typeof current.lastAttackAt === "object" ? current.lastAttackAt : {},
+    contributors:
+      current.contributors && typeof current.contributors === "object"
+        ? current.contributors
+        : {},
+    lastAttackAt:
+      current.lastAttackAt && typeof current.lastAttackAt === "object"
+        ? current.lastAttackAt
+        : {},
   };
 }
 
 function getPirateRaidDamage(player, pirate) {
   const bestCards = getBestRaidCards(player, 3);
-  const baseDamage = bestCards.reduce((sum, entry) => sum + entry.power, 0);
+  const baseDamage = bestCards.reduce((sum, entry) => sum + entry.damage, 0);
 
   const bossDamageLevel = Math.max(
     0,
@@ -1587,6 +1579,100 @@ function getPirateRaidPoints({ boss, damage, defeated, pirate }) {
     points: Math.max(1, boosted),
     raidPointLevel,
   };
+}
+
+function getPirateRaidClearReward(boss) {
+  const rewards = {
+    easy: {
+      berries: 10000,
+      gems: 5,
+      items: [
+        { code: "rare_resource_box", name: "Rare Resource Box", type: "Box", amount: 1 },
+      ],
+    },
+
+    normal: {
+      berries: 20000,
+      gems: 10,
+      items: [
+        { code: "rare_resource_box", name: "Rare Resource Box", type: "Box", amount: 2 },
+      ],
+    },
+
+    hard: {
+      berries: 50000,
+      gems: 20,
+      items: [
+        { code: "elite_resource_box", name: "Elite Resource Box", type: "Box", amount: 1 },
+        { code: "pull_reset_ticket", name: "Pull Reset Ticket", type: "Item", amount: 1 },
+      ],
+    },
+
+    extreme: {
+      berries: 100000,
+      gems: 35,
+      items: [
+        { code: "elite_resource_box", name: "Elite Resource Box", type: "Box", amount: 2 },
+        { code: "pull_reset_ticket", name: "Pull Reset Ticket", type: "Item", amount: 1 },
+      ],
+    },
+
+    legendary: {
+      berries: 250000,
+      gems: 75,
+      items: [
+        { code: "legend_resource_box", name: "Legend Resource Box", type: "Box", amount: 2 },
+        { code: "pull_reset_ticket", name: "Pull Reset Ticket", type: "Item", amount: 1 },
+        { code: "gold_raid_ticket", name: "Gold Raid Ticket", type: "Ticket", amount: 1 },
+      ],
+    },
+  };
+
+  return (
+    rewards[boss.key] || {
+      berries: Math.max(10000, Math.floor(Number(boss.basePoints || 1) * 100)),
+      gems: Math.max(5, Math.floor(Number(boss.basePoints || 1) / 50)),
+      items: [
+        { code: "rare_resource_box", name: "Rare Resource Box", type: "Box", amount: 1 },
+      ],
+    }
+  );
+}
+
+function applyPirateRaidContributorRewards(message, boss, contributors) {
+  const entries = Object.entries(contributors || {}).filter(
+    ([, data]) => Number(data?.damage || 0) > 0
+  );
+
+  if (!entries.length) {
+    return [];
+  }
+
+  const reward = getPirateRaidClearReward(boss);
+  const players = readPlayers();
+  const rewardLines = [];
+
+  for (const [userId, data] of entries) {
+    const player = getPlayer(players, userId, `User ${userId}`);
+
+    player.berries =
+      Math.max(0, Math.floor(Number(player.berries || 0))) +
+      Math.max(0, Math.floor(Number(reward.berries || 0)));
+
+    player.gems =
+      Math.max(0, Math.floor(Number(player.gems || 0))) +
+      Math.max(0, Math.floor(Number(reward.gems || 0)));
+
+    players[String(userId)] = player;
+
+    rewardLines.push(
+      `• <@${userId}> — +${fmt(reward.berries)} berries, +${fmt(reward.gems)} gems | Damage: ${fmt(data.damage)}`
+    );
+  }
+
+  writePlayers(players);
+
+  return rewardLines;
 }
 
 function formatDuration(ms) {
@@ -1759,16 +1845,40 @@ async function handlePirateAttack(message, args) {
         fresh.raids && typeof fresh.raids === "object" ? { ...fresh.raids } : {};
 
       const oldRaid = getPirateRaidState(fresh, tierKey);
+      const userId = String(message.author.id);
+
+      const contributors =
+        oldRaid.contributors && typeof oldRaid.contributors === "object"
+          ? { ...oldRaid.contributors }
+          : {};
+
+      const oldContributor = contributors[userId] || {
+        damage: 0,
+        points: 0,
+        attacks: 0,
+        lastAttackAt: 0,
+      };
+
+      contributors[userId] = {
+        damage: Math.max(0, Math.floor(Number(oldContributor.damage || 0))) + damage,
+        points:
+          Math.max(0, Math.floor(Number(oldContributor.points || 0))) +
+          pointResult.points,
+        attacks: Math.max(0, Math.floor(Number(oldContributor.attacks || 0))) + 1,
+        lastAttackAt: Date.now(),
+      };
 
       raids[tierKey] = {
         ...oldRaid,
         hpLeft,
         defeated,
         defeatedAt: defeated ? Date.now() : oldRaid.defeatedAt || 0,
+        clearRewardedAt: defeated ? Date.now() : Number(oldRaid.clearRewardedAt || 0),
         totalDamage: Math.max(0, Number(oldRaid.totalDamage || 0)) + damage,
+        contributors,
         lastAttackAt: {
           ...(oldRaid.lastAttackAt || {}),
-          [String(message.author.id)]: Date.now(),
+          [userId]: Date.now(),
         },
       };
 
@@ -1787,7 +1897,7 @@ async function handlePirateAttack(message, args) {
             at: Date.now(),
             type: "pirate_raid_attack",
             tierKey,
-            userId: String(message.author.id),
+            userId,
             damage,
             points: pointResult.points,
             defeated,
@@ -1798,8 +1908,16 @@ async function handlePirateAttack(message, args) {
 
     const cardLines = damageResult.cards.map((entry, index) => {
       const card = entry.card;
-      return `${index + 1}. ${card.displayName || card.name || card.code || "Unknown"} — Power ${fmt(entry.power)}`;
+      return `${index + 1}. ${card.displayName || card.name || card.code || "Unknown"} — ATK ${fmt(entry.power)}`;
     });
+
+    const clearRewardLines = defeated
+      ? applyPirateRaidContributorRewards(
+          message,
+          boss,
+          updated.raids?.[tierKey]?.contributors || {}
+        )
+      : [];
 
     const embed = new EmbedBuilder()
       .setColor(defeated ? GREEN : BLUE)
@@ -1817,7 +1935,12 @@ async function handlePirateAttack(message, args) {
           "",
           "**Attacking Cards:**",
           ...cardLines,
-        ].join("\n")
+          clearRewardLines.length ? "" : null,
+          clearRewardLines.length ? "**Clear Rewards:**" : null,
+          ...clearRewardLines,
+        ]
+          .filter(Boolean)
+          .join("\n")
       )
       .setFooter({
         text: "Pirate Raid Boss is separate from normal boss/raid systems.",
@@ -1955,9 +2078,9 @@ async function handlePirateRewardInfo(message) {
 
 module.exports = {
   name: "pirate",
+  aliases: ["p"],
 
   async execute(message, args) {
-    const dailyRaidResetResult = runPirateRaidDailyResetIfNeeded();
     const resetResult = runPirateWeeklyResetIfNeeded();
 
     const sub = String(args[0] || "help").toLowerCase();

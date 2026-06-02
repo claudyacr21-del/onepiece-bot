@@ -123,11 +123,29 @@ function normalizeRaidState(rawRaids) {
       }
     }
 
+    const contributors = {};
+
+    if (raid.contributors && typeof raid.contributors === "object") {
+      for (const [userId, data] of Object.entries(raid.contributors)) {
+        const safeUserId = String(userId || "");
+        if (!safeUserId) continue;
+
+        contributors[safeUserId] = {
+          damage: Math.max(0, Math.floor(Number(data?.damage || 0))),
+          points: Math.max(0, Math.floor(Number(data?.points || 0))),
+          attacks: Math.max(0, Math.floor(Number(data?.attacks || 0))),
+          lastAttackAt: Number(data?.lastAttackAt || 0),
+        };
+      }
+    }
+
     raids[String(tierKey)] = {
       hpLeft: Math.max(0, Math.floor(Number(raid.hpLeft || 0))),
       defeated: Boolean(raid.defeated),
       defeatedAt: Number(raid.defeatedAt || 0),
+      clearRewardedAt: Number(raid.clearRewardedAt || 0),
       totalDamage: Math.max(0, Math.floor(Number(raid.totalDamage || 0))),
+      contributors,
       lastAttackAt,
     };
   }

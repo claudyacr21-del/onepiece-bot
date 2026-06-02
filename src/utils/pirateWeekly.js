@@ -35,16 +35,6 @@ function getWeeklyResetBucket(date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
-function getDailyResetBucket(date = new Date()) {
-  const parts = getJakartaDateParts(date);
-
-  const y = parts.year;
-  const m = String(parts.month + 1).padStart(2, "0");
-  const d = String(parts.date).padStart(2, "0");
-
-  return `${y}-${m}-${d}`;
-}
-
 function getRewardForRank(rank, role) {
   const isLeader = role === "leader";
 
@@ -59,6 +49,13 @@ function getPirateMemberRole(pirate, userId) {
   if (String(pirate.leaderId || "") === String(userId || "")) return "leader";
   if (String(pirate.viceLeaderId || "") === String(userId || "")) return "vice";
   return "crew";
+}
+
+function resetPirateRaidState(pirate) {
+  return {
+    ...pirate,
+    raids: {},
+  };
 }
 
 function addPirateTokens(userId, amount) {
@@ -134,13 +131,16 @@ function runPirateWeeklyResetIfNeeded() {
     const current = state.pirates[pirate.id];
     if (!current) return;
 
-    state.pirates[pirate.id] = {
+    state.pirates[pirate.id] = resetPirateRaidState({
       ...current,
       weeklyPoints: 0,
       updatedAt: Date.now(),
       lastWeeklyReward: {
         rank,
-        previousWeeklyPoints: Math.max(0, Math.floor(Number(pirate.weeklyPoints || 0))),
+        previousWeeklyPoints: Math.max(
+          0,
+          Math.floor(Number(pirate.weeklyPoints || 0))
+        ),
         bucket: state.lastWeeklyResetBucket,
         rewardedAt: Date.now(),
       },
@@ -154,9 +154,10 @@ function runPirateWeeklyResetIfNeeded() {
             0,
             Math.floor(Number(pirate.weeklyPoints || 0))
           ),
+          resetRaidBosses: true,
         },
       ].slice(-25),
-    };
+    });
   });
 
   state.lastWeeklyResetBucket = currentBucket;
@@ -181,70 +182,9 @@ function getPirateWeeklyRewardPreview(rank) {
   };
 }
 
-function runPirateRaidDailyResetIfNeeded() {
-  const state = readPirateState();
-  const currentBucket = getDailyResetBucket();
-
-  if (!state.lastPirateRaidDailyResetBucket) {
-    state.lastPirateRaidDailyResetBucket = currentBucket;
-    writePirateState(state);
-
-    return {
-      didReset: false,
-      initialized: true,
-      currentBucket,
-    };
-  }
-
-  if (state.lastPirateRaidDailyResetBucket === currentBucket) {
-    return {
-      didReset: false,
-      initialized: false,
-      currentBucket,
-    };
-  }
-
-  for (const pirate of Object.values(state.pirates || {})) {
-    if (!pirate?.id || !state.pirates[pirate.id]) continue;
-
-    const current = state.pirates[pirate.id];
-
-    state.pirates[pirate.id] = {
-      ...current,
-      raids: {},
-      updatedAt: Date.now(),
-      lastPirateRaidDailyReset: {
-        bucket: state.lastPirateRaidDailyResetBucket,
-        resetAt: Date.now(),
-      },
-      logs: [
-        ...(current.logs || []),
-        {
-          at: Date.now(),
-          type: "pirate_raid_daily_reset",
-          bucket: state.lastPirateRaidDailyResetBucket,
-        },
-      ].slice(-25),
-    };
-  }
-
-  state.lastPirateRaidDailyResetBucket = currentBucket;
-  state.lastPirateRaidDailyResetAt = Date.now();
-
-  writePirateState(state);
-
-  return {
-    didReset: true,
-    initialized: false,
-    currentBucket,
-  };
-}
-
 module.exports = {
-  getDailyResetBucket,
   getWeeklyResetBucket,
   getRewardForRank,
   getPirateWeeklyRewardPreview,
   runPirateWeeklyResetIfNeeded,
-  runPirateRaidDailyResetIfNeeded,
 };
