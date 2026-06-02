@@ -1,4 +1,10 @@
-const { EmbedBuilder } = require("discord.js");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  MessageFlags,
+} = require("discord.js");
 const { readPlayers, writePlayers } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const {
@@ -45,6 +51,8 @@ const RED = 0xe74c3c;
 const GREEN = 0x2ecc71;
 const BLUE = 0x3498db;
 const PIRATE_RAID_ATTACK_COOLDOWN_MS = 12 * 60 * 60 * 1000;
+const PIRATE_RAID_MANUAL_FIGHT_TIMEOUT_MS = 3 * 60 * 1000;
+const PIRATE_RAID_MAX_TURNS = 15;
 const PIRATE_CREATE_COST_BERRIES = 2_000_000;
 const PIRATE_CREATE_COST_GEMS = 250;
 
@@ -1502,30 +1510,88 @@ async function handlePirateBuy(message, args) {
   }
 }
 
-function getCardRaidDamage(card) {
-  const hydrated = hydrateCard(card) || card || {};
+function getCardRaidDamage(rawCard) {
+  const card = hydrateCard(rawCard) || rawCard || {};
 
-  const atkCandidates = [
-    hydrated.battleAtk,
-    hydrated.currentAtk,
-    hydrated.finalAtk,
-    hydrated.atk,
-    hydrated.attack,
-    hydrated.stats?.atk,
-    hydrated.stats?.attack,
-    hydrated.baseStats?.atk,
-    card?.battleAtk,
-    card?.currentAtk,
-    card?.finalAtk,
-    card?.atk,
-    card?.attack,
+  const atkMin = Math.max(
+    0,
+    Math.floor(
+      Number(
+        card.battleAtk ||
+          card.currentAtk ||
+          card.finalAtk ||
+          card.atk ||
+          card.attack ||
+          card.stats?.atk ||
+          card.stats?.attack ||
+          rawCard?.battleAtk ||
+          rawCard?.currentAtk ||
+          rawCard?.finalAtk ||
+          rawCard?.atk ||
+          rawCard?.attack ||
+          0
+      )
+    )
+  );
+
+  const atkMax = Math.max(
+    atkMin,
+    Math.floor(
+      Number(
+        card.atkMax ||
+          card.maxAtk ||
+          card.battleAtkMax ||
+          card.displayAtkMax ||
+          rawCard?.atkMax ||
+          rawCard?.maxAtk ||
+          rawCard?.battleAtkMax ||
+          rawCard?.displayAtkMax ||
+          atkMin
+      )
+    )
+  );
+
+  return {
+    min: Math.max(1, atkMin),
+    max: Math.max(1, atkMax),
+    roll: Math.max(1, Math.floor(atkMin + Math.random() * Math.max(1, atkMax - atkMin + 1))),
+  };
+}
+
+function getCardRaidHp(rawCard) {
+  const card = hydrateCard(rawCard) || rawCard || {};
+
+  const hpCandidates = [
+    card.battleHp,
+    card.currentHp,
+    card.finalHp,
+    card.hp,
+    card.health,
+    card.stats?.hp,
+    card.stats?.health,
+    rawCard?.battleHp,
+    rawCard?.currentHp,
+    rawCard?.finalHp,
+    rawCard?.hp,
+    rawCard?.health,
   ];
 
-  const atk = atkCandidates
+  const hp = hpCandidates
     .map((value) => Math.floor(Number(value || 0)))
     .find((value) => value > 0);
 
-  return Math.max(1, atk || 1);
+  return Math.max(1, hp || 1);
+}
+
+function getBossCounterDamage(boss) {
+  const baseAtk = Math.max(1, Math.floor(Number(boss?.atk || 1)));
+  const min = Math.max(1, Math.floor(baseAtk * 0.9));
+  const max = Math.max(min, Math.floor(baseAtk * 1.1));
+
+  return Math.max(
+    1,
+    Math.floor(min + Math.random() * Math.max(1, max - min + 1))
+  );
 }
 
 function getBestRaidCards(player, limit = 3) {
@@ -1533,16 +1599,22 @@ function getBestRaidCards(player, limit = 3) {
     .filter(Boolean)
     .map((rawCard) => {
       const card = hydrateCard(rawCard) || rawCard;
+      const damage = getCardRaidDamage(rawCard);
+      const maxHp = getCardRaidHp(rawCard);
+
       return {
         card,
-        damage: getCardRaidDamage(rawCard),
+        damage,
+        maxHp,
+        currentHp: maxHp,
+        sortDamage: Math.max(Number(damage.max || 0), Number(damage.roll || 0)),
       };
     })
     .filter((entry) => {
       const role = String(entry.card?.cardRole || "").toLowerCase();
       return role !== "boost";
     })
-    .sort((a, b) => b.damage - a.damage)
+    .sort((a, b) => b.sortDamage - a.sortDamage)
     .slice(0, limit);
 }
 
@@ -1570,7 +1642,10 @@ function getPirateRaidState(pirate, tierKey) {
 
 function getPirateRaidDamage(player, pirate) {
   const bestCards = getBestRaidCards(player, 3);
-  const baseDamage = bestCards.reduce((sum, entry) => sum + entry.damage, 0);
+  const baseDamage = bestCards.reduce(
+    (sum, entry) => sum + Math.max(1, Math.floor(Number(entry.damage?.roll || 0))),
+    0
+  );
 
   const bossDamageLevel = Math.max(
     0,
@@ -1585,6 +1660,7 @@ function getPirateRaidDamage(player, pirate) {
     cards: bestCards,
     bossDamageLevel,
     bonusMultiplier,
+    baseDamage,
   };
 }
 
@@ -1770,6 +1846,146 @@ function getPirateRaidCooldownInfo(pirate, tierKey, userId) {
   };
 }
 
+function calculateManualRaidCardDamage(entry, pirate) {
+  const baseDamage = Math.max(
+    1,
+    Math.floor(Number(entry?.damage?.roll || entry?.damage || 1))
+  );
+
+  const bossDamageLevel = Math.max(
+    0,
+    Math.floor(Number(pirate?.perks?.bossDamageBoost || 0))
+  );
+
+  const bonusMultiplier = 1 + bossDamageLevel * 0.01;
+  const finalDamage = Math.max(1, Math.floor(baseDamage * bonusMultiplier));
+
+  return {
+    baseDamage,
+    finalDamage,
+    bossDamageLevel,
+    bonusMultiplier,
+  };
+}
+
+function buildManualRaidEmbed({
+  boss,
+  pirate,
+  hpLeft,
+  maxHp,
+  selectedCards,
+  turnCount,
+  totalDamage,
+  totalPoints,
+  defeated,
+  battleLog = [],
+  clearRewardLines = [],
+}) {
+  const cardLines = selectedCards.map((entry, index) => {
+    const card = entry.card;
+    const damage = entry.damage || {};
+    const dead = Number(entry.currentHp || 0) <= 0;
+
+    const rangeText =
+      Number(damage.max || 0) > Number(damage.min || 0)
+        ? `${fmt(damage.min)}-${fmt(damage.max)}`
+        : fmt(damage.roll);
+
+    return `${dead ? "💀" : "⚔️"} ${index + 1}. ${
+      card.displayName || card.name || card.code || "Unknown"
+    } — Damage ${fmt(damage.roll)} (${rangeText}) | HP ${fmt(
+      entry.currentHp
+    )}/${fmt(entry.maxHp)}`;
+  });
+
+  return new EmbedBuilder()
+    .setColor(defeated ? GREEN : BLUE)
+    .setTitle(`☠️ Pirate Raid Manual Fight — ${boss.name}`)
+    .setDescription(
+      [
+        `**Tier:** ${boss.tierName}`,
+        `**Boss ATK:** ${fmt(boss.atk || 0)}`,
+        `**Boss HP:** ${defeated ? "Defeated" : `${fmt(hpLeft)} / ${fmt(maxHp)}`}`,
+        `**Pirate:** ${pirate.name}`,
+        `**Turn:** ${fmt(turnCount)}/${fmt(PIRATE_RAID_MAX_TURNS)}`,
+        "",
+        `**Total Damage This Session:** ${fmt(totalDamage)}`,
+        `**Total Points This Session:** ${fmt(totalPoints)}`,
+        "",
+        "**Your Cards:**",
+        ...cardLines,
+        battleLog.length ? "" : null,
+        battleLog.length ? "**Battle Log:**" : null,
+        ...battleLog.slice(-6),
+        clearRewardLines.length ? "" : null,
+        clearRewardLines.length ? "**Clear Rewards:**" : null,
+        ...clearRewardLines,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    )
+    .setFooter({
+      text: "Choose a card to attack. Boss counters after each attack.",
+    });
+}
+
+function buildManualRaidButtons(sessionId, selectedCards, disabled = false) {
+  const row = new ActionRowBuilder();
+
+  selectedCards.forEach((entry, index) => {
+    const card = entry.card;
+    const dead = Number(entry.currentHp || 0) <= 0;
+
+    const label = String(card.displayName || card.name || `Card ${index + 1}`)
+      .slice(0, 70);
+
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`praid:${sessionId}:atk:${index}`)
+        .setLabel(`${index + 1}. ${label}`)
+        .setStyle(dead ? ButtonStyle.Secondary : ButtonStyle.Primary)
+        .setDisabled(disabled || dead)
+    );
+  });
+
+  return [row];
+}
+
+function markPirateRaidCooldown(pirateId, tierKey, userId) {
+  updatePirate(pirateId, (fresh) => {
+    const raids =
+      fresh.raids && typeof fresh.raids === "object" ? { ...fresh.raids } : {};
+
+    const oldRaid = getPirateRaidState(fresh, tierKey);
+
+    raids[tierKey] = {
+      ...oldRaid,
+      lastAttackAt: {
+        ...(oldRaid.lastAttackAt || {}),
+        [String(userId)]: Date.now(),
+      },
+    };
+
+    return {
+      ...fresh,
+      raids,
+      logs: [
+        ...(fresh.logs || []),
+        {
+          at: Date.now(),
+          type: "pirate_raid_manual_start",
+          tierKey,
+          userId: String(userId),
+        },
+      ].slice(-25),
+    };
+  });
+}
+
+function areAllManualRaidCardsDead(selectedCards) {
+  return selectedCards.every((entry) => Number(entry.currentHp || 0) <= 0);
+}
+
 function formatPirateRaidBossLine(pirate, boss, userId = null) {
   const state = getPirateRaidState(pirate, boss.key);
   const hpText = state.defeated
@@ -1859,14 +2075,6 @@ async function handlePirateAttack(message, args) {
       );
     }
 
-    const players = readPlayers();
-    const player = getPlayer(players, message.author.id, message.author.username);
-    const bestCards = getBestRaidCards(player, 3);
-
-    if (!bestCards.length) {
-      return message.reply(makeError("You need at least 1 card to attack Pirate Raid Boss."));
-    }
-
     const currentRaid = getPirateRaidState(pirate, tierKey);
 
     if (currentRaid.defeated || currentRaid.hpLeft <= 0) {
@@ -1897,130 +2105,325 @@ async function handlePirateAttack(message, args) {
       );
     }
 
-    const damageResult = getPirateRaidDamage(player, pirate);
-    const damage = Math.min(currentRaid.hpLeft, damageResult.damage);
-    const hpLeft = Math.max(0, currentRaid.hpLeft - damage);
-    const defeated = hpLeft <= 0;
+    const players = readPlayers();
+    const player = getPlayer(players, message.author.id, message.author.username);
+    const selectedCards = getBestRaidCards(player, 3);
 
-    const pointResult = getPirateRaidPoints({
-      boss,
-      damage,
-      defeated,
-      pirate,
+    if (!selectedCards.length) {
+      return message.reply(
+        makeError("You need at least 1 card to attack Pirate Raid Boss.")
+      );
+    }
+
+    const sessionId = `${Date.now()}_${message.author.id}`;
+    let hpLeft = currentRaid.hpLeft;
+    let defeated = false;
+    let totalDamage = 0;
+    let totalPoints = 0;
+    let turnCount = 0;
+    let battleLog = [];
+    let clearRewardLines = [];
+
+    markPirateRaidCooldown(pirate.id, tierKey, message.author.id);
+
+    const sent = await message.reply({
+      embeds: [
+        buildManualRaidEmbed({
+          boss,
+          pirate,
+          hpLeft,
+          maxHp: boss.hp,
+          selectedCards,
+          turnCount,
+          totalDamage,
+          totalPoints,
+          defeated,
+          battleLog,
+          clearRewardLines,
+        }),
+      ],
+      components: buildManualRaidButtons(sessionId, selectedCards),
+      allowedMentions: { repliedUser: false },
     });
 
-    const updated = updatePirate(pirate.id, (fresh) => {
-      const raids =
-        fresh.raids && typeof fresh.raids === "object" ? { ...fresh.raids } : {};
+    const collector = sent.createMessageComponentCollector({
+      time: PIRATE_RAID_MANUAL_FIGHT_TIMEOUT_MS,
+    });
 
-      const oldRaid = getPirateRaidState(fresh, tierKey);
-      const userId = String(message.author.id);
+    collector.on("collect", async (interaction) => {
+      if (interaction.user.id !== message.author.id) {
+        return interaction.reply({
+          content: "Only the raid attacker can use these buttons.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
 
-      const contributors =
-        oldRaid.contributors && typeof oldRaid.contributors === "object"
-          ? { ...oldRaid.contributors }
-          : {};
+      const parts = String(interaction.customId || "").split(":");
+      const clickedSessionId = parts[1];
+      const action = parts[2];
+      const index = Math.floor(Number(parts[3]));
 
-      const oldContributor = contributors[userId] || {
-        damage: 0,
-        points: 0,
-        attacks: 0,
-        lastAttackAt: 0,
-      };
+      if (
+        clickedSessionId !== sessionId ||
+        action !== "atk" ||
+        !Number.isInteger(index) ||
+        index < 0 ||
+        index >= selectedCards.length
+      ) {
+        return interaction.reply({
+          content: "Invalid raid button.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
 
-      contributors[userId] = {
-        damage: Math.max(0, Math.floor(Number(oldContributor.damage || 0))) + damage,
-        points:
-          Math.max(0, Math.floor(Number(oldContributor.points || 0))) +
-          pointResult.points,
-        attacks: Math.max(0, Math.floor(Number(oldContributor.attacks || 0))) + 1,
-        lastAttackAt: Date.now(),
-      };
+      const selected = selectedCards[index];
 
-      raids[tierKey] = {
-        ...oldRaid,
-        hpLeft,
-        defeated,
-        defeatedAt: defeated ? Date.now() : oldRaid.defeatedAt || 0,
-        clearRewardedAt: defeated ? Date.now() : Number(oldRaid.clearRewardedAt || 0),
-        totalDamage: Math.max(0, Number(oldRaid.totalDamage || 0)) + damage,
-        contributors,
-        lastAttackAt: {
-          ...(oldRaid.lastAttackAt || {}),
-          [userId]: Date.now(),
-        },
-      };
+      if (Number(selected.currentHp || 0) <= 0) {
+        return interaction.reply({
+          content: "This card is already defeated.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
 
-      return {
-        ...fresh,
-        raids,
-        weeklyPoints:
-          Math.max(0, Math.floor(Number(fresh.weeklyPoints || 0))) +
-          pointResult.points,
-        totalPoints:
-          Math.max(0, Math.floor(Number(fresh.totalPoints || 0))) +
-          pointResult.points,
-        logs: [
-          ...(fresh.logs || []),
-          {
-            at: Date.now(),
-            type: "pirate_raid_attack",
-            tierKey,
-            userId,
-            damage,
-            points: pointResult.points,
-            defeated,
+      if (defeated) {
+        return interaction.reply({
+          content: "This boss is already defeated.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      if (turnCount >= PIRATE_RAID_MAX_TURNS) {
+        return interaction.reply({
+          content: "This manual raid fight has reached the turn limit.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const latestPirate = findPirateByUser(message.author.id);
+      const latestRaid = getPirateRaidState(latestPirate || pirate, tierKey);
+
+      if (latestRaid.defeated || latestRaid.hpLeft <= 0) {
+        defeated = true;
+        hpLeft = 0;
+
+        await interaction.update({
+          embeds: [
+            buildManualRaidEmbed({
+              boss,
+              pirate: latestPirate || pirate,
+              hpLeft,
+              maxHp: boss.hp,
+              selectedCards,
+              turnCount,
+              totalDamage,
+              totalPoints,
+              defeated,
+              battleLog,
+              clearRewardLines,
+            }),
+          ],
+          components: buildManualRaidButtons(sessionId, selectedCards, true),
+        });
+
+        collector.stop("defeated");
+        return;
+      }
+
+      turnCount += 1;
+
+      const damageCalc = calculateManualRaidCardDamage(
+        selected,
+        latestPirate || pirate
+      );
+
+      const damage = Math.min(latestRaid.hpLeft, damageCalc.finalDamage);
+      const nextHpLeft = Math.max(0, latestRaid.hpLeft - damage);
+      const nextDefeated = nextHpLeft <= 0;
+
+      const pointResult = getPirateRaidPoints({
+        boss,
+        damage,
+        defeated: nextDefeated,
+        pirate: latestPirate || pirate,
+      });
+
+      let bossCounterDamage = 0;
+
+      if (!nextDefeated) {
+        bossCounterDamage = Math.min(
+          Number(selected.currentHp || 0),
+          getBossCounterDamage(boss)
+        );
+
+        selected.currentHp = Math.max(
+          0,
+          Math.floor(Number(selected.currentHp || 0)) - bossCounterDamage
+        );
+      }
+
+      const updated = updatePirate((latestPirate || pirate).id, (fresh) => {
+        const raids =
+          fresh.raids && typeof fresh.raids === "object" ? { ...fresh.raids } : {};
+
+        const oldRaid = getPirateRaidState(fresh, tierKey);
+        const userId = String(message.author.id);
+
+        const contributors =
+          oldRaid.contributors && typeof oldRaid.contributors === "object"
+            ? { ...oldRaid.contributors }
+            : {};
+
+        const oldContributor = contributors[userId] || {
+          damage: 0,
+          points: 0,
+          attacks: 0,
+          lastAttackAt: 0,
+        };
+
+        contributors[userId] = {
+          damage:
+            Math.max(0, Math.floor(Number(oldContributor.damage || 0))) + damage,
+          points:
+            Math.max(0, Math.floor(Number(oldContributor.points || 0))) +
+            pointResult.points,
+          attacks:
+            Math.max(0, Math.floor(Number(oldContributor.attacks || 0))) + 1,
+          lastAttackAt: Date.now(),
+        };
+
+        raids[tierKey] = {
+          ...oldRaid,
+          hpLeft: nextHpLeft,
+          defeated: nextDefeated,
+          defeatedAt: nextDefeated ? Date.now() : oldRaid.defeatedAt || 0,
+          clearRewardedAt: nextDefeated
+            ? Date.now()
+            : Number(oldRaid.clearRewardedAt || 0),
+          totalDamage: Math.max(0, Number(oldRaid.totalDamage || 0)) + damage,
+          contributors,
+          lastAttackAt: {
+            ...(oldRaid.lastAttackAt || {}),
+            [userId]: Date.now(),
           },
-        ].slice(-25),
-      };
-    });
+        };
 
-    const cardLines = damageResult.cards.map((entry, index) => {
-      const card = entry.card;
-      return `${index + 1}. ${card.displayName || card.name || card.code || "Unknown"} — Damage ${fmt(entry.damage)}`;
-    });
+        return {
+          ...fresh,
+          raids,
+          weeklyPoints:
+            Math.max(0, Math.floor(Number(fresh.weeklyPoints || 0))) +
+            pointResult.points,
+          totalPoints:
+            Math.max(0, Math.floor(Number(fresh.totalPoints || 0))) +
+            pointResult.points,
+          logs: [
+            ...(fresh.logs || []),
+            {
+              at: Date.now(),
+              type: "pirate_raid_manual_attack",
+              tierKey,
+              userId,
+              card:
+                selected.card?.displayName ||
+                selected.card?.name ||
+                selected.card?.code ||
+                "Unknown",
+              damage,
+              bossCounterDamage,
+              points: pointResult.points,
+              defeated: nextDefeated,
+            },
+          ].slice(-25),
+        };
+      });
 
-    const clearRewardLines = defeated
-      ? applyPirateRaidContributorRewards(
+      hpLeft = nextHpLeft;
+      defeated = nextDefeated;
+      totalDamage += damage;
+      totalPoints += pointResult.points;
+
+      battleLog.push(
+        `⚔️ ${
+          selected.card?.displayName ||
+          selected.card?.name ||
+          selected.card?.code ||
+          "Card"
+        } dealt **${fmt(damage)}** damage.`
+      );
+
+      if (bossCounterDamage > 0) {
+        battleLog.push(
+          `☠️ ${boss.name} countered for **${fmt(
+            bossCounterDamage
+          )}** damage.`
+        );
+      }
+
+      if (Number(selected.currentHp || 0) <= 0) {
+        battleLog.push(
+          `💀 ${
+            selected.card?.displayName ||
+            selected.card?.name ||
+            selected.card?.code ||
+            "Card"
+          } was defeated.`
+        );
+      }
+
+      if (defeated) {
+        clearRewardLines = applyPirateRaidContributorRewards(
           message,
           boss,
           updated.raids?.[tierKey]?.contributors || {}
-        )
-      : [];
+        );
+      }
 
-    const embed = new EmbedBuilder()
-      .setColor(defeated ? GREEN : BLUE)
-      .setTitle(`🏴‍☠️ Pirate Raid Attack — ${boss.name}`)
-      .setDescription(
-        [
-          `**Tier:** ${boss.tierName}`,
-          `**Damage:** ${fmt(damage)}`,
-          `**Boss HP:** ${defeated ? "Defeated" : `${fmt(hpLeft)} / ${fmt(boss.hp)}`}`,
-          `**Guild Points Earned:** ${fmt(pointResult.points)}`,
-          `**Guild Weekly Points:** ${fmt(updated.weeklyPoints || 0)}`,
-          "",
-          `**Boss Damage Boost:** Lv.${damageResult.bossDamageLevel}`,
-          `**Raid Point Boost:** Lv.${pointResult.raidPointLevel}`,
-          "",
-          "**Attacking Cards:**",
-          ...cardLines,
-          clearRewardLines.length ? "" : null,
-          clearRewardLines.length ? "**Clear Rewards:**" : null,
-          ...clearRewardLines,
-        ]
-          .filter(Boolean)
-          .join("\n")
-      )
-      .setFooter({
-        text: "Pirate Raid Boss is separate from normal boss/raid systems.",
+      const ended =
+        defeated ||
+        areAllManualRaidCardsDead(selectedCards) ||
+        turnCount >= PIRATE_RAID_MAX_TURNS;
+
+      await interaction.update({
+        embeds: [
+          buildManualRaidEmbed({
+            boss,
+            pirate: updated,
+            hpLeft,
+            maxHp: boss.hp,
+            selectedCards,
+            turnCount,
+            totalDamage,
+            totalPoints,
+            defeated,
+            battleLog,
+            clearRewardLines,
+          }),
+        ],
+        components: buildManualRaidButtons(sessionId, selectedCards, ended),
       });
 
-    return message.reply({
-      embeds: [embed],
-      allowedMentions: { repliedUser: false },
+      if (ended) {
+        collector.stop(
+          defeated
+            ? "defeated"
+            : areAllManualRaidCardsDead(selectedCards)
+            ? "all_cards_dead"
+            : "turn_limit"
+        );
+      }
+    });
+
+    collector.on("end", async () => {
+      try {
+        await sent.edit({
+          components: buildManualRaidButtons(sessionId, selectedCards, true),
+        });
+      } catch {}
     });
   } catch (error) {
-    return message.reply(makeError(error.message || "Failed to attack pirate raid boss."));
+    return message.reply(
+      makeError(error.message || "Failed to attack pirate raid boss.")
+    );
   }
 }
 
@@ -2082,22 +2485,8 @@ function buildWeeklyResetNotice(resetResult) {
   ].join("\n");
 }
 
-function buildDailyRaidResetNotice(resetResult) {
-  if (!resetResult?.didReset) return null;
-
-  return [
-    "☠️ **Pirate Raid Boss Daily Reset Completed**",
-    "All Pirate Raid Boss HP, defeated status, and attack cooldowns have been reset.",
-  ].join("\n");
-}
-
-async function replyWithOptionalResetNotice(message, payload, resetResult, dailyRaidResetResult = null) {
-  const notices = [
-    buildDailyRaidResetNotice(dailyRaidResetResult),
-    buildWeeklyResetNotice(resetResult),
-  ].filter(Boolean);
-
-  const notice = notices.join("\n\n");
+async function replyWithOptionalResetNotice(message, payload, resetResult) {
+  const notice = buildWeeklyResetNotice(resetResult);
   if (!notice) return message.reply(payload);
 
   if (typeof payload === "string") {
@@ -2162,8 +2551,7 @@ module.exports = {
           embeds: [usageEmbed()],
           allowedMentions: { repliedUser: false },
         },
-        resetResult,
-        dailyRaidResetResult
+        resetResult
       );
     }
 
