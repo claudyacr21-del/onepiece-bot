@@ -371,6 +371,16 @@ module.exports = [
     description: "Increases reset pull bonus by 2 and grants 1 Reset Token whenever claiming daily rewards."
   },
   {
+    code: "shiku_shiku_no_mi",
+    name: "Shiku Shiku no Mi",
+    rarity: "S",
+    owners: ["doc_q_sickly_support"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 7, hp: 6, speed: 4 },
+    image: "",
+    description: "A sickness fruit that allows the user to create and spread diseases with strange and dangerous effects."
+  },
+  {
     code: "ryu_ryu_no_mi_model_brachiosaurus",
     name: "Ryu Ryu no Mi, Model: Brachiosaurus",
     rarity: "S",
