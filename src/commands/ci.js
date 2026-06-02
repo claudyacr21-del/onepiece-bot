@@ -110,6 +110,112 @@ function getAllGlobalPower(card) {
   return Number(card?.currentPower || card?.powerCaps?.M3 || 0);
 }
 
+function isBoostCardTemplate(card) {
+  const role = String(card?.cardRole || card?.role || "").toLowerCase();
+  const category = String(card?.category || "").toLowerCase();
+
+  return (
+    role === "boost" ||
+    category === "boost" ||
+    Boolean(card?.boostType) ||
+    Boolean(card?.boostTarget) ||
+    Boolean(card?.effectText)
+  );
+}
+
+function getDirectDevilFruitName(...sources) {
+  for (const source of sources) {
+    const value =
+      source?.displayFruitName ||
+      source?.devilFruit ||
+      source?.devil_fruit ||
+      source?.fruitName ||
+      source?.fruit;
+
+    if (!value) continue;
+
+    const text = String(value).trim();
+    if (text && text.toLowerCase() !== "none") return text;
+  }
+
+  return null;
+}
+
+function getCiNameKeys(...sources) {
+  return sources
+    .flatMap((source) => [
+      source?.code,
+      source?.id,
+      source?.name,
+      source?.displayName,
+      source?.cardName,
+      source?.title,
+    ])
+    .map(normalizeNameSearch)
+    .filter(Boolean);
+}
+
+function scoreDevilFruitSource(boostKeys, candidate) {
+  if (!candidate || isBoostCardTemplate(candidate)) return 0;
+
+  const candidateKeys = getCiNameKeys(candidate);
+
+  if (!boostKeys.length || !candidateKeys.length) return 0;
+
+  let best = 0;
+
+  for (const boostKey of boostKeys) {
+    for (const candidateKey of candidateKeys) {
+      if (!boostKey || !candidateKey) continue;
+
+      if (boostKey === candidateKey) best = Math.max(best, 1000 + candidateKey.length);
+      else if (candidateKey.includes(boostKey)) best = Math.max(best, 700 + boostKey.length);
+      else if (boostKey.includes(candidateKey)) best = Math.max(best, 650 + candidateKey.length);
+      else {
+        const words = boostKey.split(" ").filter(Boolean);
+        if (words.length && words.every((word) => candidateKey.includes(word))) {
+          best = Math.max(best, 400 + words.join("").length);
+        }
+      }
+    }
+  }
+
+  return best;
+}
+
+function getDevilFruitForCi(card, stageCard = null, form = null, statSource = null) {
+  const direct = getDirectDevilFruitName(form, statSource, stageCard, card);
+  if (direct) return direct;
+
+  const boostKeys = getCiNameKeys(card, stageCard, form, statSource);
+
+  const matched = getAllCards()
+    .map((candidate) => ({
+      candidate,
+      score: scoreDevilFruitSource(boostKeys, candidate),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.candidate)
+    .find((candidate) => {
+      const fruit = getDirectDevilFruitName(
+        candidate,
+        ...(Array.isArray(candidate?.evolutionForms) ? candidate.evolutionForms : [])
+      );
+
+      return Boolean(fruit);
+    });
+
+  if (!matched) return "None";
+
+  return (
+    getDirectDevilFruitName(
+      matched,
+      ...(Array.isArray(matched?.evolutionForms) ? matched.evolutionForms : [])
+    ) || "None"
+  );
+}
+
 function getStageRawForm(card, stage) {
   return card?.evolutionForms?.[stage - 1] || {};
 }
@@ -848,15 +954,7 @@ function buildEmbed(card, owned, stage, player = null) {
     `Effect: ${getRoadPoneglyphDisplayEffect(stageCard, stage, form?.effectText || stageCard.effectText || "No effect text")}`,
     `Target: ${stageCard.boostTarget || "team"}`,
     `Boost Type: ${stageCard.boostType || "unknown"}`,
-    `Devil Fruit: ${
-      form?.displayFruitName ||
-      form?.devilFruit ||
-      stageCard.displayFruitName ||
-      stageCard.devilFruit ||
-      card.displayFruitName ||
-      card.devilFruit ||
-      "None"
-    }`,
+    `Devil Fruit: ${getDevilFruitForCi(card, stageCard, form, displayStats.source)}`,
     `Fragments: ${Number(owned?.fragments || 0)}`,
   ] : [
           `Form: ${stageLabel}`,
@@ -869,7 +967,7 @@ function buildEmbed(card, owned, stage, player = null) {
           `HP: ${Number(displayStats.hp || 0)}`,
           `SPD: ${Number(displayStats.speed || 0)}`,
           `Weapon Set: ${statSource.weapon || card.weapon || "None"}`,
-          `Devil Fruit: ${statSource.devilFruit || card.devilFruit || "None"}`,
+          `Devil Fruit: ${getDevilFruitForCi(card, stageCard, form, statSource)}`,
         ];
 
   return buildCardStyleEmbed({
