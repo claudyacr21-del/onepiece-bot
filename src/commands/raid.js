@@ -318,6 +318,12 @@ function formatDisplayStat(value) {
 
 const RAID_COUNT_MAX = 999;
 
+const activeRaidCountByUser = new Map();
+
+function getRaidCountUserKey(userId) {
+  return String(userId || "");
+}
+
 function getRaidCountState(player) {
   const raw = player?.raidCountState;
 
@@ -360,43 +366,39 @@ function setRaidCountForUser(userId, username, amount) {
     Math.min(RAID_COUNT_MAX, Math.floor(Number(amount || 0)))
   );
 
+  const userKey = getRaidCountUserKey(userId);
   let nextState = null;
+
+  if (safeAmount <= 0) {
+    nextState = {
+      enabled: false,
+      total: 0,
+      left: 0,
+      used: 0,
+      startedAt: 0,
+      updatedAt: Date.now(),
+    };
+
+    activeRaidCountByUser.delete(userKey);
+  } else {
+    nextState = {
+      enabled: true,
+      total: safeAmount,
+      left: safeAmount,
+      used: 0,
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    activeRaidCountByUser.set(userKey, nextState);
+  }
 
   updatePlayerAtomic(
     String(userId),
-    (fresh) => {
-      const player = fresh || {};
-
-      if (safeAmount <= 0) {
-        nextState = {
-          enabled: false,
-          total: 0,
-          left: 0,
-          used: 0,
-          startedAt: 0,
-          updatedAt: Date.now(),
-        };
-
-        return {
-          ...player,
-          raidCountState: nextState,
-        };
-      }
-
-      nextState = {
-        enabled: true,
-        total: safeAmount,
-        left: safeAmount,
-        used: 0,
-        startedAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-
-      return {
-        ...player,
-        raidCountState: nextState,
-      };
-    },
+    (fresh) => ({
+      ...(fresh || {}),
+      raidCountState: nextState,
+    }),
     username || "Unknown"
   );
 
@@ -404,6 +406,8 @@ function setRaidCountForUser(userId, username, amount) {
 }
 
 function consumeRaidCountForUser(userId, username) {
+  const userKey = getRaidCountUserKey(userId);
+
   let result = {
     activeBefore: false,
     consumed: false,
@@ -414,13 +418,20 @@ function consumeRaidCountForUser(userId, username) {
     completed: false,
   };
 
+  let nextState = null;
+
   updatePlayerAtomic(
     String(userId),
     (fresh) => {
       const player = fresh || {};
-      const current = getRaidCountState(player);
+      const runtimeState = activeRaidCountByUser.get(userKey);
+      const current = getRaidCountState(
+        runtimeState?.enabled ? { raidCountState: runtimeState } : player
+      );
 
       if (!current.enabled || current.left <= 0) {
+        activeRaidCountByUser.delete(userKey);
+
         result = {
           activeBefore: false,
           consumed: false,
@@ -438,7 +449,7 @@ function consumeRaidCountForUser(userId, username) {
       const used = Math.max(0, current.used + 1);
       const completed = leftAfter <= 0;
 
-      const nextState = {
+      nextState = {
         enabled: !completed,
         total: current.total,
         left: leftAfter,
@@ -446,6 +457,12 @@ function consumeRaidCountForUser(userId, username) {
         startedAt: current.startedAt || Date.now(),
         updatedAt: Date.now(),
       };
+
+      if (completed) {
+        activeRaidCountByUser.delete(userKey);
+      } else {
+        activeRaidCountByUser.set(userKey, nextState);
+      }
 
       result = {
         activeBefore: true,
@@ -2143,8 +2160,12 @@ async function handleRaidCountCommand(message, args) {
   }
 
   if (["status", "check", "info"].includes(sub)) {
+    const userKey = getRaidCountUserKey(message.author.id);
+    const runtimeState = activeRaidCountByUser.get(userKey);
     const player = getPlayer(message.author.id, message.author.username);
-    const state = getRaidCountState(player);
+    const state = getRaidCountState(
+      runtimeState?.enabled ? { raidCountState: runtimeState } : player
+    );
 
     return message.reply({
       embeds: [
