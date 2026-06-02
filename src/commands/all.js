@@ -1,8 +1,9 @@
 const {
+  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder,
+  MessageFlags,
 } = require("discord.js");
 
 const { getPlayer } = require("../playerStore");
@@ -547,7 +548,7 @@ module.exports = {
       if (i.user.id !== message.author.id) {
         return i.reply({
           content: "Only you can control this viewer.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
