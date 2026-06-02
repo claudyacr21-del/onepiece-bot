@@ -316,6 +316,179 @@ function formatDisplayStat(value) {
   return Number(value || 0).toLocaleString("en-US");
 }
 
+const RAID_COUNT_MAX = 999;
+
+function getRaidCountState(player) {
+  const raw = player?.raidCountState;
+
+  if (!raw || typeof raw !== "object") {
+    return {
+      enabled: false,
+      total: 0,
+      left: 0,
+      used: 0,
+      startedAt: 0,
+      updatedAt: 0,
+    };
+  }
+
+  const total = Math.max(0, Math.floor(Number(raw.total || 0)));
+  const left = Math.max(0, Math.floor(Number(raw.left || 0)));
+  const used = Math.max(0, Math.floor(Number(raw.used || 0)));
+
+  return {
+    enabled: Boolean(raw.enabled) && left > 0,
+    total,
+    left,
+    used,
+    startedAt: Number(raw.startedAt || 0),
+    updatedAt: Number(raw.updatedAt || 0),
+  };
+}
+
+function formatRaidCountLine(state) {
+  const count = getRaidCountState(state);
+
+  if (!count.enabled) return "Raid Count: inactive";
+
+  return `Raid Count: ${count.left}/${count.total} left`;
+}
+
+function setRaidCountForUser(userId, username, amount) {
+  const safeAmount = Math.max(
+    0,
+    Math.min(RAID_COUNT_MAX, Math.floor(Number(amount || 0)))
+  );
+
+  let nextState = null;
+
+  updatePlayerAtomic(
+    String(userId),
+    (fresh) => {
+      const player = fresh || {};
+
+      if (safeAmount <= 0) {
+        nextState = {
+          enabled: false,
+          total: 0,
+          left: 0,
+          used: 0,
+          startedAt: 0,
+          updatedAt: Date.now(),
+        };
+
+        return {
+          ...player,
+          raidCountState: nextState,
+        };
+      }
+
+      nextState = {
+        enabled: true,
+        total: safeAmount,
+        left: safeAmount,
+        used: 0,
+        startedAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      return {
+        ...player,
+        raidCountState: nextState,
+      };
+    },
+    username || "Unknown"
+  );
+
+  return nextState;
+}
+
+function consumeRaidCountForUser(userId, username) {
+  let result = {
+    activeBefore: false,
+    consumed: false,
+    total: 0,
+    leftBefore: 0,
+    leftAfter: 0,
+    used: 0,
+    completed: false,
+  };
+
+  updatePlayerAtomic(
+    String(userId),
+    (fresh) => {
+      const player = fresh || {};
+      const current = getRaidCountState(player);
+
+      if (!current.enabled || current.left <= 0) {
+        result = {
+          activeBefore: false,
+          consumed: false,
+          total: current.total,
+          leftBefore: current.left,
+          leftAfter: current.left,
+          used: current.used,
+          completed: false,
+        };
+
+        return player;
+      }
+
+      const leftAfter = Math.max(0, current.left - 1);
+      const used = Math.max(0, current.used + 1);
+      const completed = leftAfter <= 0;
+
+      const nextState = {
+        enabled: !completed,
+        total: current.total,
+        left: leftAfter,
+        used,
+        startedAt: current.startedAt || Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      result = {
+        activeBefore: true,
+        consumed: true,
+        total: current.total,
+        leftBefore: current.left,
+        leftAfter,
+        used,
+        completed,
+      };
+
+      return {
+        ...player,
+        raidCountState: nextState,
+      };
+    },
+    username || "Unknown"
+  );
+
+  return result;
+}
+
+function buildRaidCountEmbed(message, countState) {
+  const state = getRaidCountState({ raidCountState: countState });
+
+  return new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle("Raid Count")
+    .setDescription(
+      [
+        `User: <@${message.author.id}>`,
+        state.enabled
+          ? `Counter started: **${state.left}/${state.total} left**`
+          : "Counter disabled.",
+        "",
+        "Every time this user creates a raid room, the counter will decrease by 1.",
+        "",
+        "Tracked commands:",
+        "`op raid`, `op craid`, `op graid`, `op throne`",
+      ].join("\n")
+    );
+}
+
 function getRaidDisplayPower(card) {
   return Number(
     card?.currentPower ||
@@ -1953,13 +2126,93 @@ function handleRaidAttack(state, actor) {
   checkEndState(state);
 }
 
+async function handleRaidCountCommand(message, args) {
+  const sub = String(args[0] || "").toLowerCase();
+
+  if (["off", "stop", "reset", "clear", "0"].includes(sub)) {
+    const nextState = setRaidCountForUser(
+      message.author.id,
+      message.author.username,
+      0
+    );
+
+    return message.reply({
+      embeds: [buildRaidCountEmbed(message, nextState)],
+      allowedMentions: { repliedUser: false },
+    });
+  }
+
+  if (["status", "check", "info"].includes(sub)) {
+    const player = getPlayer(message.author.id, message.author.username);
+    const state = getRaidCountState(player);
+
+    return message.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x3498db)
+          .setTitle("Raid Count Status")
+          .setDescription(
+            [
+              `User: <@${message.author.id}>`,
+              state.enabled
+                ? `Current counter: **${state.left}/${state.total} left**`
+                : "Raid Count is inactive.",
+              "",
+              "Set a new counter with:",
+              "`op raidcount <amount>`",
+            ].join("\n")
+          ),
+      ],
+      allowedMentions: { repliedUser: false },
+    });
+  }
+
+  const amount = Math.floor(Number(args[0] || 0));
+
+  if (!amount || amount < 0) {
+    return message.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle("Raid Count")
+          .setDescription(
+            [
+              "Usage:",
+              "`op raidcount <amount>`",
+              "`op raidcount status`",
+              "`op raidcount off`",
+              "",
+              "Example:",
+              "`op raidcount 5`",
+            ].join("\n")
+          ),
+      ],
+      allowedMentions: { repliedUser: false },
+    });
+  }
+
+  const nextState = setRaidCountForUser(
+    message.author.id,
+    message.author.username,
+    amount
+  );
+
+  return message.reply({
+    embeds: [buildRaidCountEmbed(message, nextState)],
+    allowedMentions: { repliedUser: false },
+  });
+}
+
 module.exports = {
   name: "raid",
-  aliases: ["craid", "graid", "throne"],
+  aliases: ["craid", "graid", "throne", "raidcount"],
 
   async execute(message, args) {
     const raw = String(message.content || "").trim().split(/\s+/);
     const usedCommandRaw = String(raw[1] || "").toLowerCase();
+    if (usedCommandRaw === "raidcount") {
+      return handleRaidCountCommand(message, args);
+    }
     const usedCommand = ["craid", "raid", "graid", "throne"].includes(usedCommandRaw)
       ? usedCommandRaw
       : "raid";
@@ -2082,10 +2335,33 @@ module.exports = {
       uniqueCardCodesOnly: !isThroneRaid,
     });
 
+    const raidCountResult = consumeRaidCountForUser(
+      hostId,
+      message.author.username
+    );
+
     const bossPreviewStats = deriveRaidBossStats(bossInfo.template, raidMode);
 
+    const raidCountNotice = raidCountResult.consumed
+      ? raidCountResult.completed
+        ? `\n\n✅ **Raid Count completed:** 0/${raidCountResult.total} left`
+        : `\n\n🔢 **Raid Count:** ${raidCountResult.leftAfter}/${raidCountResult.total} left`
+      : "";
+
+    const lobbyEmbed = buildLobbyEmbed(
+      message.author.username,
+      room,
+      false,
+      bossPreviewStats
+    );
+
+    if (raidCountNotice) {
+      const oldDescription = lobbyEmbed.data.description || "";
+      lobbyEmbed.setDescription(`${oldDescription}${raidCountNotice}`);
+    }
+
     const lobbyMessage = await message.reply({
-      embeds: [buildLobbyEmbed(message.author.username, room, false, bossPreviewStats)],
+      embeds: [lobbyEmbed],
       components: buildLobbyRows(room, false),
     });
 
