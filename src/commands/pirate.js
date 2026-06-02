@@ -1899,7 +1899,7 @@ function buildManualRaidEmbed({
         ...cardLines,
         battleLog.length ? "" : null,
         battleLog.length ? "**Battle Log:**" : null,
-        ...battleLog.slice(-6),
+        ...battleLog.slice(-2),
         clearRewardLines.length ? "" : null,
         clearRewardLines.length ? "**Clear Rewards:**" : null,
         ...clearRewardLines,

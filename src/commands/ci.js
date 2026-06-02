@@ -111,124 +111,71 @@ function getAllGlobalPower(card) {
 }
 
 function getDirectDevilFruitName(...sources) {
+  const keys = [
+    "displayFruitName",
+    "devilFruit",
+    "devilfruit",
+    "devil_fruit",
+    "devilFruitName",
+    "devilfruitName",
+    "devil_fruit_name",
+    "fruitName",
+    "fruit",
+    "df",
+    "dfName",
+  ];
+
   for (const source of sources) {
-    const value =
-      source?.displayFruitName ||
-      source?.devilFruit ||
-      source?.devil_fruit ||
-      source?.fruitName ||
-      source?.fruit;
+    if (!source || typeof source !== "object") continue;
 
-    if (!value) continue;
+    for (const key of keys) {
+      const value = source[key];
 
-    const text = String(value).trim();
-    if (text && text.toLowerCase() !== "none") return text;
+      if (!value) continue;
+
+      const text = String(value).trim();
+
+      if (text && text.toLowerCase() !== "none") {
+        return text;
+      }
+    }
   }
 
   return null;
 }
 
-function isCiBoostCard(card) {
-  const role = String(card?.cardRole || card?.role || "").toLowerCase();
-  const category = String(card?.category || "").toLowerCase();
-
-  return (
-    role === "boost" ||
-    category === "boost" ||
-    Boolean(card?.boostType) ||
-    Boolean(card?.boostTarget) ||
-    Boolean(card?.effectText)
-  );
-}
-
-function getCiMatchKeys(...sources) {
-  return sources
-    .flatMap((source) => [
-      source?.code,
-      source?.id,
-      source?.name,
-      source?.displayName,
-      source?.cardName,
-      source?.title,
-      source?.baseCode,
-      source?.cardCode,
-      source?.characterCode,
-      source?.sourceCode,
-      source?.ownerCode,
-      source?.owner,
-      source?.user,
-      source?.signatureOwner,
-      source?.ownerSignature,
-    ])
-    .map(normalizeNameSearch)
-    .filter(Boolean);
-}
-
-function scoreCiFruitCandidate(boostKeys, candidate) {
-  if (!candidate || isCiBoostCard(candidate)) return 0;
-
-  const fruit = getDirectDevilFruitName(
-    candidate,
-    ...(Array.isArray(candidate?.evolutionForms) ? candidate.evolutionForms : [])
-  );
-
-  if (!fruit) return 0;
-
-  const candidateKeys = getCiMatchKeys(candidate);
-  let best = 0;
-
-  for (const boostKey of boostKeys) {
-    for (const candidateKey of candidateKeys) {
-      if (!boostKey || !candidateKey) continue;
-
-      if (boostKey === candidateKey) {
-        best = Math.max(best, 1000 + candidateKey.length);
-      } else if (boostKey.includes(candidateKey)) {
-        best = Math.max(best, 800 + candidateKey.length);
-      } else if (candidateKey.includes(boostKey)) {
-        best = Math.max(best, 700 + boostKey.length);
-      } else {
-        const boostWords = boostKey.split(" ").filter((word) => word.length >= 3);
-        const candidateWords = candidateKey
-          .split(" ")
-          .filter((word) => word.length >= 3);
-
-        if (
-          boostWords.length &&
-          candidateWords.length &&
-          candidateWords.every((word) => boostWords.includes(word))
-        ) {
-          best = Math.max(best, 500 + candidateWords.join("").length);
-        }
-      }
-    }
-  }
-
-  return best;
-}
-
 function getBoostDevilFruitForCi(card, stageCard = null, form = null) {
-  const direct = getDirectDevilFruitName(form, stageCard, card);
-  if (direct) return direct;
+  const allGlobalCard = getAllGlobalCard(card);
 
-  const boostKeys = getCiMatchKeys(card, stageCard, form);
+  const sources = [
+    form,
 
-  const matched = getAllCards()
-    .map((candidate) => ({
-      candidate,
-      score: scoreCiFruitCandidate(boostKeys, candidate),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score)[0]?.candidate;
+    ...(Array.isArray(stageCard?.evolutionForms)
+      ? stageCard.evolutionForms
+      : []),
 
-  if (!matched) return "None";
+    ...(Array.isArray(card?.evolutionForms)
+      ? card.evolutionForms
+      : []),
 
-  return (
-    getDirectDevilFruitName(
-      matched,
-      ...(Array.isArray(matched?.evolutionForms) ? matched.evolutionForms : [])
-    ) || "None"
-  );
+    ...(Array.isArray(allGlobalCard?.evolutionForms)
+      ? allGlobalCard.evolutionForms
+      : []),
+
+    stageCard,
+    card,
+    allGlobalCard,
+
+    stageCard?.source,
+    card?.source,
+    allGlobalCard?.source,
+
+    stageCard?.template,
+    card?.template,
+    allGlobalCard?.template,
+  ];
+
+  return getDirectDevilFruitName(...sources) || "None";
 }
 
 function getStageRawForm(card, stage) {
