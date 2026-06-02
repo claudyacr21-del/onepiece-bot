@@ -3,6 +3,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
@@ -94,7 +95,7 @@ module.exports = {
       if (interaction.user.id !== message.author.id) {
         return interaction.reply({
           content: "This auto-sacrifice menu does not belong to you.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
@@ -129,7 +130,7 @@ module.exports = {
       } catch (error) {
         return interaction.reply({
           content: error.message || "Failed to update auto-sacrifice settings.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 

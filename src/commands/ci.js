@@ -3,6 +3,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const {
@@ -955,7 +956,7 @@ module.exports = {
       if (i.user.id !== message.author.id) {
         return i.reply({
           content: "Only you can control this card viewer.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
@@ -963,7 +964,7 @@ module.exports = {
       if (i.customId === "ci_next") stage = Math.min(3, stage + 1);
 
       if (i.customId === "ci_info") {
-      await i.deferReply({ ephemeral: true }).catch(() => null);
+      await i.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
 
       try {
         const freshPlayer = getPlayer(message.author.id, message.author.username);
@@ -982,7 +983,7 @@ module.exports = {
     }
 
       if (i.customId === "ci_required_for") {
-      await i.deferReply({ ephemeral: true }).catch(() => null);
+      await i.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
 
       try {
         return await i.editReply({

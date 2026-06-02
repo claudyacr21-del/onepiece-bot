@@ -3,6 +3,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 
 const { getPlayer } = require("../playerStore");
@@ -298,7 +299,7 @@ module.exports = {
       if (isPrivate && !isOwner) {
         return interaction.reply({
           content: "This fragment menu is private right now.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 
@@ -314,7 +315,7 @@ module.exports = {
         if (!isOwner) {
           return interaction.reply({
             content: "Only the owner can change the visibility mode.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
         }
 

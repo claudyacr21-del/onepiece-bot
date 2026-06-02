@@ -3,6 +3,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
@@ -380,7 +381,7 @@ module.exports = {
       if (interaction.user.id !== message.author.id) {
         return interaction.reply({
           content: "Only the command user can use these buttons.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 

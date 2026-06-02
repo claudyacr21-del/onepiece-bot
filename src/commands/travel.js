@@ -3,6 +3,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const {
@@ -265,7 +266,7 @@ async function sendRouteMenu(message, player, currentIsland, unlockedIslands, pa
     if (interaction.user.id !== message.author.id) {
       return interaction.reply({
         content: "This travel menu is not yours.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 

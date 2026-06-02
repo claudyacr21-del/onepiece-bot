@@ -2,6 +2,7 @@ const {
   EmbedBuilder,
   ActionRowBuilder,
   StringSelectMenuBuilder,
+  MessageFlags,
 } = require("discord.js");
 
 const PREFIX = "op";
@@ -409,7 +410,7 @@ module.exports = {
       if (interaction.user.id !== message.author.id) {
         return interaction.reply({
           content: "Only the command user can use this help menu.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 

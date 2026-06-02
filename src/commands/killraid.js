@@ -2,6 +2,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 const { getRoom, deleteRoom } = require("../utils/partyRooms");
 
@@ -41,7 +42,7 @@ module.exports = {
       if (interaction.user.id !== hostId) {
         return interaction.reply({
           content: "Only the raid host can use these buttons.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 

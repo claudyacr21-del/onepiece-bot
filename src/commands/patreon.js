@@ -4,6 +4,7 @@ const {
   StringSelectMenuBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 
 const { readPatreonRoles } = require("../utils/patreonRoleStore");
@@ -312,7 +313,7 @@ module.exports = {
       if (interaction.user.id !== message.author.id) {
         return interaction.reply({
           content: "Only the command user can use this Patreon menu.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 

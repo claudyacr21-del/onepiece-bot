@@ -3,6 +3,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
@@ -621,7 +622,7 @@ module.exports = {
       if (interaction.user.id !== message.author.id) {
         return interaction.reply({
           content: "Only the command user can confirm this weapon upgrade.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 

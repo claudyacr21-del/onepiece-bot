@@ -3,6 +3,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } = require("discord.js");
 
 const { getPlayer, updatePlayer, readPlayers, writePlayers } = require("../playerStore");
@@ -590,7 +591,7 @@ async function spawnMarineEvent(message) {
     if (!currentEvent || currentEvent.claimed) {
       return interaction.reply({
         content: "This Marine encounter has already been claimed.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 
@@ -609,7 +610,7 @@ async function spawnMarineEvent(message) {
       return interaction.reply({
         content:
           "You need **3 battle cards** in your team before battling the Marine force.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 
