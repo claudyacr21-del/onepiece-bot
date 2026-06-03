@@ -30,7 +30,8 @@ function enqueuePlayerSnapshotSave(userId, player) {
       const saved = await upsertOnePlayerToPostgres(id, snapshot);
 
       if (saved) {
-        persistedCache[id] = cloneJson(snapshot);
+        const latest = await getPlayerFromPostgres(id);
+        persistedCache[id] = cloneJson(latest || snapshot);
       }
 
       return snapshot;
@@ -57,18 +58,27 @@ function cloneJson(value) {
 }
 
 function getCardIdentityKey(card) {
-  const keys = [
-    card?.instanceId,
-    card?.uid,
-    card?.id,
+  const direct = String(card?.instanceId || card?.uid || card?.id || "")
+    .toLowerCase()
+    .trim();
+
+  if (direct) return direct;
+
+  return [
     card?.code,
     card?.name,
     card?.displayName,
+    card?.cardName,
   ]
-    .map((value) => String(value || "").trim().toLowerCase())
-    .filter(Boolean);
+    .map((value) => String(value || "").toLowerCase().trim())
+    .filter(Boolean)
+    .join(":");
+}
 
-  return keys[0] || "";
+function getStackIdentityKey(item) {
+  return String(item?.code || item?.name || item?.id || "")
+    .toLowerCase()
+    .trim();
 }
 
 function getCardStageNumber(card) {
@@ -141,7 +151,8 @@ function mergeNoRollbackCard(incomingCard, persistedCard) {
   return withCardStage(merged, finalStage);
 }
 
-function mergeNoRollbackCards(incomingCards, persistedCards) {
+function mergeCardsNoRollback(incomingCards, persistedCards, options = {}) {
+  const preserveMissingCards = Boolean(options.preserveMissingCards);
   const incomingList = Array.isArray(incomingCards) ? incomingCards : [];
   const persistedList = Array.isArray(persistedCards) ? persistedCards : [];
 
@@ -153,34 +164,128 @@ function mergeNoRollbackCards(incomingCards, persistedCards) {
     persistedByKey.set(key, card);
   }
 
-  const usedPersistedKeys = new Set();
+  const usedKeys = new Set();
 
-  const mergedIncoming = incomingList.map((card) => {
+  const merged = incomingList.map((card) => {
     const key = getCardIdentityKey(card);
-    const persisted = key ? persistedByKey.get(key) : null;
+    const persistedCard = key ? persistedByKey.get(key) : null;
 
-    if (key) usedPersistedKeys.add(key);
+    if (key) usedKeys.add(key);
 
-    return mergeNoRollbackCard(card, persisted);
+    return mergeNoRollbackCard(card, persistedCard);
   });
 
-  for (const card of persistedList) {
-    const key = getCardIdentityKey(card);
-    if (!key || usedPersistedKeys.has(key)) continue;
-
-    mergedIncoming.push(card);
+  if (preserveMissingCards) {
+    for (const card of persistedList) {
+      const key = getCardIdentityKey(card);
+      if (!key || usedKeys.has(key)) continue;
+      merged.push(card);
+    }
   }
 
-  return mergedIncoming;
+  return merged;
 }
 
-function mergeNoRollbackPlayer(incomingPlayer, persistedPlayer) {
+function mergeStackNoRollback(incomingList, persistedList, options = {}) {
+  const preserveMissingItems = Boolean(options.preserveMissingItems);
+  const incoming = Array.isArray(incomingList) ? incomingList : [];
+  const persisted = Array.isArray(persistedList) ? persistedList : [];
+
+  const persistedByKey = new Map();
+
+  for (const item of persisted) {
+    const key = getStackIdentityKey(item);
+    if (!key) continue;
+    persistedByKey.set(key, item);
+  }
+
+  const usedKeys = new Set();
+
+  const merged = incoming.map((item) => {
+    const key = getStackIdentityKey(item);
+    const oldItem = key ? persistedByKey.get(key) : null;
+
+    if (key) usedKeys.add(key);
+    if (!oldItem) return item;
+
+    return {
+      ...item,
+      amount: Math.max(
+        Number(item.amount || 0),
+        Number(oldItem.amount || 0)
+      ),
+    };
+  });
+
+  if (preserveMissingItems) {
+    for (const item of persisted) {
+      const key = getStackIdentityKey(item);
+      if (!key || usedKeys.has(key)) continue;
+      merged.push(item);
+    }
+  }
+
+  return merged;
+}
+
+function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
   if (!persistedPlayer) return incomingPlayer;
   if (!incomingPlayer) return persistedPlayer;
 
+  const preserveMissingCards = Boolean(options.preserveMissingCards);
+  const preserveMissingItems = Boolean(options.preserveMissingItems);
+
   return {
     ...incomingPlayer,
-    cards: mergeNoRollbackCards(incomingPlayer.cards, persistedPlayer.cards),
+
+    cards: mergeCardsNoRollback(
+      incomingPlayer.cards,
+      persistedPlayer.cards,
+      { preserveMissingCards }
+    ),
+
+    weapons: mergeStackNoRollback(
+      incomingPlayer.weapons,
+      persistedPlayer.weapons,
+      { preserveMissingItems }
+    ),
+
+    devilFruits: mergeStackNoRollback(
+      incomingPlayer.devilFruits,
+      persistedPlayer.devilFruits,
+      { preserveMissingItems }
+    ),
+
+    tickets: mergeStackNoRollback(
+      incomingPlayer.tickets,
+      persistedPlayer.tickets,
+      { preserveMissingItems }
+    ),
+
+    boxes: mergeStackNoRollback(
+      incomingPlayer.boxes,
+      persistedPlayer.boxes,
+      { preserveMissingItems }
+    ),
+
+    items: mergeStackNoRollback(
+      incomingPlayer.items,
+      persistedPlayer.items,
+      { preserveMissingItems }
+    ),
+
+    materials: mergeStackNoRollback(
+      incomingPlayer.materials,
+      persistedPlayer.materials,
+      { preserveMissingItems }
+    ),
+
+    fragments: mergeStackNoRollback(
+      incomingPlayer.fragments,
+      persistedPlayer.fragments,
+      { preserveMissingItems }
+    ),
+
     raidPrestigeBank: {
       ...(persistedPlayer.raidPrestigeBank || {}),
       ...(incomingPlayer.raidPrestigeBank || {}),
@@ -306,12 +411,15 @@ async function upsertOnePlayerToPostgres(userId, data) {
 
     if (persisted) {
       safeData = normalizePlayer(
-        mergeNoRollbackPlayer(incoming, persisted),
+        mergePlayerNoRollback(incoming, persisted, {
+          preserveMissingCards: true,
+          preserveMissingItems: true,
+        }),
         incoming.username || persisted.username || "Unknown"
       );
     }
   } catch (error) {
-    console.error("[PLAYER DB MERGE READ ERROR]", {
+    console.error("[PLAYER DB NO-ROLLBACK MERGE READ ERROR]", {
       userId: id,
       message: error?.message || error,
     });
@@ -359,7 +467,10 @@ async function updateOnePlayerInPostgresAtomic(userId, username, mutator) {
       typeof mutator === "function" ? mutator(cloneJson(currentPlayer)) : currentPlayer;
 
     const nextPlayer = normalizePlayer(
-      mergeNoRollbackPlayer(result || currentPlayer, dbPlayer || currentPlayer),
+      mergePlayerNoRollback(result || currentPlayer, dbPlayer || currentPlayer, {
+        preserveMissingCards: false,
+        preserveMissingItems: false,
+      }),
       currentPlayer.username || username
     );
 
@@ -439,12 +550,18 @@ async function updateTwoPlayersInPostgresAtomic(
         : { playerA, playerB };
 
     const nextA = normalizePlayer(
-      mergeNoRollbackPlayer(result?.playerA || playerA, playerA),
+      mergePlayerNoRollback(result?.playerA || playerA, playerA, {
+        preserveMissingCards: false,
+        preserveMissingItems: false,
+      }),
       playerA.username || usernameA
     );
 
     const nextB = normalizePlayer(
-      mergeNoRollbackPlayer(result?.playerB || playerB, playerB),
+      mergePlayerNoRollback(result?.playerB || playerB, playerB, {
+        preserveMissingCards: false,
+        preserveMissingItems: false,
+      }),
       playerB.username || usernameB
     );
 
@@ -514,8 +631,12 @@ async function flushChangedPlayersToPostgres(data) {
   if (!changed.length) return;
 
   for (const [userId, player] of changed) {
-    await upsertOnePlayerToPostgres(userId, normalizePlayer(player, player?.username || "Unknown"));
-    persistedCache[userId] = cloneJson(player);
+    const normalized = normalizePlayer(player, player?.username || "Unknown");
+
+    await upsertOnePlayerToPostgres(userId, normalized);
+
+    const latest = await getPlayerFromPostgres(userId);
+    persistedCache[userId] = cloneJson(latest || normalized);
   }
 }
 
