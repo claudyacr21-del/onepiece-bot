@@ -1,7 +1,21 @@
 const fs = require("fs");
 const path = require("path");
 
-const MAX_MEMBERS = 6;
+const BASE_MAX_MEMBERS = 6;
+const MAX_CREW_SLOT_PERK_LEVEL = 4;
+const MAX_MEMBERS = BASE_MAX_MEMBERS + MAX_CREW_SLOT_PERK_LEVEL;
+
+function getPirateMemberLimit(raw) {
+  const level = Math.max(
+    0,
+    Math.min(
+      MAX_CREW_SLOT_PERK_LEVEL,
+      Math.floor(Number(raw?.perks?.crewSlotBoost || 0))
+    )
+  );
+
+  return BASE_MAX_MEMBERS + level;
+}
 const STORE_VERSION = 1;
 const PIRATE_STATE_KEY = "pirates";
 let dbReady = false;
@@ -155,8 +169,10 @@ function normalizeRaidState(rawRaids) {
 
 function normalizePirate(raw) {
   const now = Date.now();
+  const memberLimit = getPirateMemberLimit(raw);
+
   const members = Array.isArray(raw?.members)
-    ? [...new Set(raw.members.map(String).filter(Boolean))].slice(0, MAX_MEMBERS)
+    ? [...new Set(raw.members.map(String).filter(Boolean))].slice(0, memberLimit)
     : [];
 
   const leaderId = String(raw?.leaderId || members[0] || "");
@@ -167,7 +183,7 @@ function normalizePirate(raw) {
 
   const finalMembers = [...new Set([leaderId, ...members].filter(Boolean))].slice(
     0,
-    MAX_MEMBERS
+    memberLimit
   );
 
   const storageMaterials = {};
@@ -191,6 +207,7 @@ function normalizePirate(raw) {
     leaderId,
     viceLeaderId: finalMembers.includes(viceLeaderId) ? viceLeaderId : null,
     members: finalMembers,
+    memberLimit,
     level: Math.max(1, Math.min(100, Math.floor(Number(raw?.level || 1)))),
     weeklyPoints: Math.max(0, Math.floor(Number(raw?.weeklyPoints || 0))),
     totalPoints: Math.max(0, Math.floor(Number(raw?.totalPoints || 0))),
@@ -479,6 +496,9 @@ function getRole(pirate, userId) {
 
 module.exports = {
   MAX_MEMBERS,
+  BASE_MAX_MEMBERS,
+  MAX_CREW_SLOT_PERK_LEVEL,
+  getPirateMemberLimit,
   normalizeMaterialKey,
   readPirateState,
   writePirateState,

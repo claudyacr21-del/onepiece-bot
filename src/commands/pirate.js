@@ -10,6 +10,7 @@ const { hydrateCard } = require("../utils/evolution");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
   MAX_MEMBERS,
+  getPirateMemberLimit,
   normalizeMaterialKey,
   readPirateState,
   findPirateByUser,
@@ -59,6 +60,19 @@ const PIRATE_CREATE_COST_GEMS = 250;
 
 function fmt(num) {
   return Number(num || 0).toLocaleString("en-US");
+}
+
+function getPirateLimit(pirate) {
+  if (typeof getPirateMemberLimit === "function") {
+    return getPirateMemberLimit(pirate);
+  }
+
+  const perkLevel = Math.max(
+    0,
+    Math.min(4, Math.floor(Number(pirate?.perks?.crewSlotBoost || 0)))
+  );
+
+  return 6 + perkLevel;
 }
 
 function cleanText(value) {
@@ -291,6 +305,7 @@ function formatPerkSummary(pirate) {
     ["EXP Boost", "expBoost"],
     ["Shop Discount", "shopDiscount"],
     ["Boss Damage Boost", "bossDamageBoost"],
+    ["Crew Slot", "crewSlotBoost"],
   ];
 
   return list
@@ -342,7 +357,7 @@ async function sendPirateInfo(message, pirate) {
   const userRole = getRole(pirate, message.author.id);
   const materialTypes = compactMaterialCount(pirate.storage?.materials || {});
   const memberCount = Array.isArray(pirate.members) ? pirate.members.length : 0;
-
+  const memberLimit = getPirateLimit(pirate);
   const embed = new EmbedBuilder()
     .setColor(GOLD)
     .setTitle(`🏴‍☠️ ${pirate.name}`)
@@ -353,7 +368,7 @@ async function sendPirateInfo(message, pirate) {
         `**Weekly Rank:** ${rank ? `#${rank}` : "Unranked"}`,
         `**Weekly Points:** ${fmt(pirate.weeklyPoints || 0)}`,
         `**Total Points:** ${fmt(pirate.totalPoints || 0)}`,
-        `**Members:** ${memberCount}/${MAX_MEMBERS}`,
+        `**Members:** ${memberCount}/${memberLimit}`,
         `**Your Role:** ${userRole}`,
         `**Your Pirate Tokens:** ${fmt(player.pirateTokens || 0)}`,
         "",
@@ -489,7 +504,7 @@ async function handleCreate(message, args) {
         [
           `**${pirate.name}** has been created.`,
           `Leader: <@${message.author.id}>`,
-          `Members: **1/${MAX_MEMBERS}**`,
+          `Members: **1/${getPirateLimit(pirate)}**`,
           "",
           "**Paid:**",
           `• ${fmt(PIRATE_CREATE_COST_BERRIES)} berries`,
@@ -509,8 +524,12 @@ async function handleInvite(message, args) {
     const pirate = requirePirate(message.author.id);
     requireOfficer(pirate, message.author.id);
 
-    if ((pirate.members || []).length >= MAX_MEMBERS) {
-      return message.reply(makeError(`This pirate/guild is already full (${MAX_MEMBERS}/${MAX_MEMBERS}).`));
+    const memberLimit = getPirateLimit(pirate);
+
+    if ((pirate.members || []).length >= memberLimit) {
+      return message.reply(
+        makeError(`This pirate/guild is already full (${memberLimit}/${memberLimit}).`)
+      );
     }
 
     const targetId = getMentionId(args[0]);
@@ -569,8 +588,12 @@ async function handleJoin(message, args) {
       return message.reply(makeError("Pirate/guild not found."));
     }
 
-    if ((pirate.members || []).length >= MAX_MEMBERS) {
-      return message.reply(makeError(`This pirate/guild is already full (${MAX_MEMBERS}/${MAX_MEMBERS}).`));
+    const memberLimit = getPirateLimit(pirate);
+
+    if ((pirate.members || []).length >= memberLimit) {
+      return message.reply(
+        makeError(`This pirate/guild is already full (${memberLimit}/${memberLimit}).`)
+      );
     }
 
     const invite = consumeInvite(message.author.id, pirate.id);
@@ -584,7 +607,7 @@ async function handleJoin(message, args) {
       ...fresh,
       members: [...new Set([...(fresh.members || []), String(message.author.id)])].slice(
         0,
-        MAX_MEMBERS
+        getPirateLimit(fresh)
       ),
       logs: [
         ...(fresh.logs || []),
@@ -599,7 +622,7 @@ async function handleJoin(message, args) {
     return message.reply(
       makeSuccess(
         "Joined Pirate",
-        `You joined **${updated.name}**.\nMembers: **${updated.members.length}/${MAX_MEMBERS}**`
+        `You joined **${updated.name}**.\nMembers: **${updated.members.length}/${getPirateLimit(updated)}**`
       )
     );
   } catch (error) {
@@ -1206,6 +1229,7 @@ async function handleUpgradePerk(message, args) {
           "• exp",
           "• shop",
           "• boss",
+          "• crewslot / slot",
         ].join("\n")
       )
     );

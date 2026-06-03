@@ -44,6 +44,15 @@ const PIRATE_PERKS = {
     effect: "Increase EXP gained by all crew members.",
   },
 
+  crewSlotBoost: {
+    key: "crewSlotBoost",
+    name: "Crew Slot",
+    unlockGuildLevel: 40,
+    maxLevel: 4,
+    bonusPerLevel: 1,
+    effect: "Increase pirate/guild member capacity by +1 slot per level.",
+  },
+
   shopDiscount: {
     key: "shopDiscount",
     name: "Pirate Bargain",
@@ -108,6 +117,18 @@ function normalizePerkKey(query) {
     damage: "bossDamageBoost",
     bossdamage: "bossDamageBoost",
     warbanner: "bossDamageBoost",
+
+    slot: "crewSlotBoost",
+    slots: "crewSlotBoost",
+    member: "crewSlotBoost",
+    members: "crewSlotBoost",
+    crewslot: "crewSlotBoost",
+    crewslots: "crewSlotBoost",
+    guildslot: "crewSlotBoost",
+    guildslots: "crewSlotBoost",
+    pirateslot: "crewSlotBoost",
+    pirateslots: "crewSlotBoost",
+    crewslotboost: "crewSlotBoost",
   };
 
   return aliases[raw] || Object.keys(PIRATE_PERKS).find((key) => key.toLowerCase() === raw) || null;
@@ -136,12 +157,15 @@ function getPerkRequirement(perkKey, currentPerkLevel) {
     perk.unlockGuildLevel + Math.floor(level / 3) * 2
   );
 
-  const berries = Math.floor(
-    50000 +
-      perk.unlockGuildLevel * 3000 +
-      nextLevel * 18000 +
-      Math.pow(nextLevel, 1.6) * 9000
+  let berries = Math.floor(
+    50000 + perk.unlockGuildLevel * 3000 + nextLevel * 18000 + Math.pow(nextLevel, 1.6) * 9000
   );
+
+  if (perkKey === "crewSlotBoost") {
+    berries = Math.floor(
+      700000 + nextLevel * 500000 + Math.pow(nextLevel, 2) * 300000
+    );
+  }
 
   const materials = {};
 
@@ -181,6 +205,14 @@ function getPerkRequirement(perkKey, currentPerkLevel) {
     addMaterial(materials, "enhancement_stone", 2 + Math.floor(nextLevel / 2));
   }
 
+  if (perkKey === "crewSlotBoost") {
+    materials.cola_engine_part = 25 + nextLevel * 15;
+    materials.enhancement_stone = 20 + nextLevel * 12;
+    materials.hardwood = 80 + nextLevel * 30;
+    materials.iron_plating = 70 + nextLevel * 25;
+    materials.sail_cloth = 60 + nextLevel * 20;
+  }
+
   return {
     perkKey,
     fromLevel: level,
@@ -197,7 +229,7 @@ function getPerkEffectText(perkKey, level) {
 
   if (!perk) return "Unknown effect.";
   if (perkKey === "luckBoost") return `+${(lv * 0.1).toFixed(1)}% pull rate`;
-
+  if (perkKey === "crewSlotBoost") return `+${lv} member slot${lv === 1 ? "" : "s"}`;
   return `+${lv * perk.bonusPerLevel}% ${perk.name}`;
 }
 
