@@ -51,6 +51,38 @@ function getCachedArenaPlayers() {
   return players;
 }
 
+function looksLikeDiscordUserId(value) {
+  return /^\d{15,25}$/.test(String(value || "").trim());
+}
+
+function cleanArenaUsername(value) {
+  const text = String(value || "").trim();
+  if (!text || looksLikeDiscordUserId(text)) return null;
+  if (/^<@!?\d{15,25}>$/.test(text)) return null;
+  return text;
+}
+
+function getArenaDisplayName(message, userId, raw = {}) {
+  const id = String(userId || "");
+
+  const memberName = cleanArenaUsername(
+    message?.guild?.members?.cache?.get(id)?.displayName
+  );
+
+  const userName = cleanArenaUsername(
+    message?.client?.users?.cache?.get(id)?.username
+  );
+
+  const storedName =
+    cleanArenaUsername(raw?.displayName) ||
+    cleanArenaUsername(raw?.globalName) ||
+    cleanArenaUsername(raw?.username) ||
+    cleanArenaUsername(raw?.name) ||
+    cleanArenaUsername(raw?.tag);
+
+  return memberName || userName || storedName || `Player ${id.slice(-4)}`;
+}
+
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const ARENA_DAILY_LIMIT = 5;
 const ARENA_TOTAL_RANK_SLOTS = 500;
@@ -429,7 +461,7 @@ function getRealArenaEntries(message) {
       const player = {
         userId,
         ...raw,
-        username: raw?.username || "Unknown",
+        username: getArenaDisplayName(message, userId, raw),
         cards: Array.isArray(raw?.cards) ? raw.cards : [],
         team: raw?.team || {
           slots: [null, null, null],
@@ -1513,6 +1545,7 @@ module.exports = {
   async execute(message) {
     const player = getPlayer(message.author.id, message.author.username);
     player.userId = String(message.author.id);
+    player.username = getArenaDisplayName(message, message.author.id, player);
 
     const myTeam = getTeamUnits(player, "player");
 
@@ -1575,6 +1608,7 @@ if (interaction.user.id !== message.author.id) {
 
       const freshPlayer = getPlayer(message.author.id, message.author.username);
       freshPlayer.userId = String(message.author.id);
+      freshPlayer.username = getArenaDisplayName(message, message.author.id, freshPlayer);
 
       const freshUsesLeft = getArenaUsesLeft(freshPlayer.arena || {});
 
