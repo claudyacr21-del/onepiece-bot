@@ -206,11 +206,11 @@ function getPerkRequirement(perkKey, currentPerkLevel) {
   }
 
   if (perkKey === "crewSlotBoost") {
-    materials.cola_engine_part = 25 + nextLevel * 15;
-    materials.enhancement_stone = 20 + nextLevel * 12;
-    materials.hardwood = 80 + nextLevel * 30;
-    materials.iron_plating = 70 + nextLevel * 25;
-    materials.sail_cloth = 60 + nextLevel * 20;
+    materials.cola_engine_part = 2 + nextLevel * 4;
+    materials.enhancement_stone = 2 + nextLevel * 3;
+    materials.hardwood = 12 + nextLevel * 8;
+    materials.iron_plating = 10 + nextLevel * 6;
+    materials.sail_cloth = 8 + nextLevel * 6;
   }
 
   return {
