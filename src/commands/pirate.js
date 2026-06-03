@@ -1605,11 +1605,39 @@ function getBossCounterDamage(boss) {
   );
 }
 
+function getPirateTeamBattleCards(player) {
+  const slots = Array.isArray(player?.team?.slots)
+    ? player.team.slots.slice(0, 3)
+    : [];
+
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+
+  return slots
+    .map((instanceId) => {
+      if (!instanceId) return null;
+
+      return (
+        cards.find((card) => {
+          const hydrated = hydrateCard(card) || card;
+
+          return (
+            String(hydrated.instanceId || card.instanceId || "") ===
+              String(instanceId) &&
+            String(hydrated.cardRole || card.cardRole || "").toLowerCase() ===
+              "battle"
+          );
+        }) || null
+      );
+    })
+    .filter(Boolean);
+}
+
 function getBestRaidCards(player, limit = 3) {
   const boosts = getPassiveBoostSummary(player);
+  const teamCards = getPirateTeamBattleCards(player);
 
-  return (Array.isArray(player?.cards) ? player.cards : [])
-    .filter(Boolean)
+  return teamCards
+    .slice(0, limit)
     .map((rawCard) => {
       const hydrated = hydrateCard(rawCard) || rawCard;
       const card = applyPirateRaidDisplayStats(hydrated, boosts);
@@ -1626,10 +1654,8 @@ function getBestRaidCards(player, limit = 3) {
     })
     .filter((entry) => {
       const role = String(entry.card?.cardRole || "").toLowerCase();
-      return role !== "boost";
-    })
-    .sort((a, b) => b.sortDamage - a.sortDamage)
-    .slice(0, limit);
+      return role === "battle";
+    });
 }
 
 function getPirateRaidState(pirate, tierKey) {
@@ -2092,9 +2118,16 @@ async function handlePirateAttack(message, args) {
     const player = getPlayer(players, message.author.id, message.author.username);
     const selectedCards = getBestRaidCards(player, 3);
 
-    if (!selectedCards.length) {
+    if (selectedCards.length < 3) {
       return message.reply(
-        makeError("You need at least 1 card to attack Pirate Raid Boss.")
+        makeError(
+          [
+            "Pirate Raid Boss requires **3 battle cards** from your current team.",
+            "",
+            "Set your team first, then try again:",
+            "`op team` / your current team command",
+          ].join("\n")
+        )
       );
     }
 

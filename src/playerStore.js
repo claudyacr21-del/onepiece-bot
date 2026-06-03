@@ -56,6 +56,138 @@ function cloneJson(value) {
   return value && typeof value === "object" ? JSON.parse(JSON.stringify(value)) : {};
 }
 
+function getCardIdentityKey(card) {
+  const keys = [
+    card?.instanceId,
+    card?.uid,
+    card?.id,
+    card?.code,
+    card?.name,
+    card?.displayName,
+  ]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .filter(Boolean);
+
+  return keys[0] || "";
+}
+
+function getCardStageNumber(card) {
+  const stageValue = Number(card?.evolutionStage || 0);
+
+  if (Number.isFinite(stageValue) && stageValue > 0) {
+    return Math.max(1, Math.min(3, Math.floor(stageValue)));
+  }
+
+  const key = String(card?.evolutionKey || card?.form || card?.stage || "")
+    .toUpperCase()
+    .trim();
+
+  const matched = key.match(/M([123])/);
+  if (matched) return Number(matched[1]);
+
+  return 1;
+}
+
+function withCardStage(card, stage) {
+  const safeStage = Math.max(1, Math.min(3, Math.floor(Number(stage || 1))));
+
+  return {
+    ...card,
+    evolutionStage: safeStage,
+    evolutionKey: `M${safeStage}`,
+  };
+}
+
+function mergeNoRollbackCard(incomingCard, persistedCard) {
+  if (!persistedCard) return incomingCard;
+  if (!incomingCard) return persistedCard;
+
+  const incomingStage = getCardStageNumber(incomingCard);
+  const persistedStage = getCardStageNumber(persistedCard);
+  const finalStage = Math.max(incomingStage, persistedStage);
+
+  const merged = {
+    ...incomingCard,
+  };
+
+  if (persistedStage > incomingStage) {
+    merged.evolutionForms =
+      incomingCard.evolutionForms || persistedCard.evolutionForms;
+    merged.stageStats = incomingCard.stageStats || persistedCard.stageStats;
+    merged.stats = incomingCard.stats || persistedCard.stats;
+    merged.stageImages = incomingCard.stageImages || persistedCard.stageImages;
+  }
+
+  merged.level = Math.max(
+    Number(incomingCard.level || 0),
+    Number(persistedCard.level || 0)
+  );
+
+  merged.currentLevel = Math.max(
+    Number(incomingCard.currentLevel || 0),
+    Number(persistedCard.currentLevel || 0)
+  );
+
+  merged.lvl = Math.max(
+    Number(incomingCard.lvl || 0),
+    Number(persistedCard.lvl || 0)
+  );
+
+  merged.raidPrestige = Math.max(
+    Number(incomingCard.raidPrestige || 0),
+    Number(persistedCard.raidPrestige || 0)
+  );
+
+  return withCardStage(merged, finalStage);
+}
+
+function mergeNoRollbackCards(incomingCards, persistedCards) {
+  const incomingList = Array.isArray(incomingCards) ? incomingCards : [];
+  const persistedList = Array.isArray(persistedCards) ? persistedCards : [];
+
+  const persistedByKey = new Map();
+
+  for (const card of persistedList) {
+    const key = getCardIdentityKey(card);
+    if (!key) continue;
+    persistedByKey.set(key, card);
+  }
+
+  const usedPersistedKeys = new Set();
+
+  const mergedIncoming = incomingList.map((card) => {
+    const key = getCardIdentityKey(card);
+    const persisted = key ? persistedByKey.get(key) : null;
+
+    if (key) usedPersistedKeys.add(key);
+
+    return mergeNoRollbackCard(card, persisted);
+  });
+
+  for (const card of persistedList) {
+    const key = getCardIdentityKey(card);
+    if (!key || usedPersistedKeys.has(key)) continue;
+
+    mergedIncoming.push(card);
+  }
+
+  return mergedIncoming;
+}
+
+function mergeNoRollbackPlayer(incomingPlayer, persistedPlayer) {
+  if (!persistedPlayer) return incomingPlayer;
+  if (!incomingPlayer) return persistedPlayer;
+
+  return {
+    ...incomingPlayer,
+    cards: mergeNoRollbackCards(incomingPlayer.cards, persistedPlayer.cards),
+    raidPrestigeBank: {
+      ...(persistedPlayer.raidPrestigeBank || {}),
+      ...(incomingPlayer.raidPrestigeBank || {}),
+    },
+  };
+}
+
 function setPlayersCache(value) {
   playersCache = value && typeof value === "object" ? value : {};
   return playersCache;
@@ -159,16 +291,43 @@ async function upsertOnePlayerToPostgres(userId, data) {
 
   await ensurePlayersTable();
 
+  const id = String(userId);
+  const incoming = normalizePlayer(data || {}, data?.username || "Unknown");
+
+  let safeData = incoming;
+
+  try {
+    const existing = await pool.query(
+      "select data from players where user_id = $1 limit 1",
+      [id]
+    );
+
+    const persisted = existing.rows?.[0]?.data || null;
+
+    if (persisted) {
+      safeData = normalizePlayer(
+        mergeNoRollbackPlayer(incoming, persisted),
+        incoming.username || persisted.username || "Unknown"
+      );
+    }
+  } catch (error) {
+    console.error("[PLAYER DB MERGE READ ERROR]", {
+      userId: id,
+      message: error?.message || error,
+    });
+  }
+
   await pool.query(
     `
     insert into players (user_id, username, data, updated_at)
     values ($1, $2, $3::jsonb, now())
-    on conflict (user_id) do update
-    set username = excluded.username,
-        data = excluded.data,
-        updated_at = now()
+    on conflict (user_id)
+    do update set
+      username = excluded.username,
+      data = excluded.data,
+      updated_at = now()
     `,
-    [String(userId), data?.username || "Unknown", JSON.stringify(data || {})]
+    [id, safeData?.username || "Unknown", JSON.stringify(safeData || {})]
   );
 
   return true;
@@ -200,7 +359,7 @@ async function updateOnePlayerInPostgresAtomic(userId, username, mutator) {
       typeof mutator === "function" ? mutator(cloneJson(currentPlayer)) : currentPlayer;
 
     const nextPlayer = normalizePlayer(
-      result || currentPlayer,
+      mergeNoRollbackPlayer(result || currentPlayer, dbPlayer || currentPlayer),
       currentPlayer.username || username
     );
 
@@ -279,8 +438,15 @@ async function updateTwoPlayersInPostgresAtomic(
         ? mutator(cloneJson(playerA), cloneJson(playerB))
         : { playerA, playerB };
 
-    const nextA = normalizePlayer(result?.playerA || playerA, playerA.username || usernameA);
-    const nextB = normalizePlayer(result?.playerB || playerB, playerB.username || usernameB);
+    const nextA = normalizePlayer(
+      mergeNoRollbackPlayer(result?.playerA || playerA, playerA),
+      playerA.username || usernameA
+    );
+
+    const nextB = normalizePlayer(
+      mergeNoRollbackPlayer(result?.playerB || playerB, playerB),
+      playerB.username || usernameB
+    );
 
     await client.query(
       `

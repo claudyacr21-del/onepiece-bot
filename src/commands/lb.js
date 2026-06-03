@@ -249,13 +249,45 @@ function getPlayerCollectionPower(player) {
   );
 }
 
-function getPowerLeaderboardRows(playersMap) {
+function looksLikeGeneratedUserName(value, id = "") {
+  const text = String(value || "").trim();
+  const userId = String(id || "").trim();
+
+  if (!text) return true;
+  if (/^unknown$/i.test(text)) return true;
+  if (/^user\s*\d{10,25}$/i.test(text)) return true;
+  if (userId && text === userId) return true;
+
+  return false;
+}
+
+function getLeaderboardUsername(id, player, message = null) {
+  const raw = String(player?.username || "").trim();
+  const userId = String(id || "").trim();
+
+  const guildMember =
+    message?.guild?.members?.cache?.get(userId)?.user?.username ||
+    message?.guild?.members?.cache?.get(userId)?.displayName;
+
+  const clientUser = message?.client?.users?.cache?.get(userId)?.username;
+
+  const picked = guildMember || clientUser || raw;
+
+  if (!looksLikeGeneratedUserName(picked, userId)) {
+    return picked;
+  }
+
+  return "Unknown Player";
+}
+
+function getPowerLeaderboardRows(playersMap, message = null) {
   return Object.entries(playersMap || {})
     .map(([id, player]) => ({
       id,
-      username: player.username || "Unknown",
+      username: getLeaderboardUsername(id, player, message),
       value: getPlayerCollectionPower(player),
     }))
+    .filter((entry) => Number(entry.value || 0) > 0)
     .sort((a, b) => {
       if (b.value !== a.value) return b.value - a.value;
       return String(a.username).localeCompare(String(b.username));
@@ -266,13 +298,14 @@ function getPowerLeaderboardRows(playersMap) {
     }));
 }
 
-function getSimpleValueRows(playersMap, valueGetter) {
+function getSimpleValueRows(playersMap, valueGetter, message = null) {
   return Object.entries(playersMap || {})
     .map(([id, player]) => ({
       id,
-      username: player.username || "Unknown",
+      username: getLeaderboardUsername(id, player, message),
       value: Number(valueGetter(player) || 0),
     }))
+    .filter((entry) => Number(entry.value || 0) > 0)
     .sort((a, b) => {
       if (b.value !== a.value) return b.value - a.value;
       return String(a.username).localeCompare(String(b.username));
@@ -302,11 +335,11 @@ function buildSimpleValueDescription(rows, userId, limit = 25) {
   return lines.length ? lines.join("\n") : "No leaderboard data yet.";
 }
 
-function getArenaLeaderboardRows(playersMap) {
+function getArenaLeaderboardRows(playersMap, message = null) {
   const realPlayers = Object.entries(playersMap || {})
     .map(([id, player]) => ({
       id,
-      username: player.username || "Unknown",
+      username: getLeaderboardUsername(id, player, message),
       points: Number(player?.arena?.points || 0),
       wins: Number(player?.arena?.wins || 0),
       losses: Number(player?.arena?.losses || 0),
@@ -396,7 +429,7 @@ function buildLeaderboardEmbed(message, mode = null) {
   const userId = message.author.id;
 
   if (mode === "arena") {
-    const rows = getArenaLeaderboardRows(playersMap);
+    const rows = getArenaLeaderboardRows(playersMap, message);
 
     return new EmbedBuilder()
       .setColor(COLOR)
@@ -408,7 +441,7 @@ function buildLeaderboardEmbed(message, mode = null) {
   }
 
   if (mode === "power") {
-    const rows = getPowerLeaderboardRows(playersMap);
+    const rows = getPowerLeaderboardRows(playersMap, message);
 
     return new EmbedBuilder()
       .setColor(COLOR)
@@ -420,7 +453,7 @@ function buildLeaderboardEmbed(message, mode = null) {
   }
 
   if (mode === "votes") {
-    const rows = getSimpleValueRows(playersMap, (player) => player?.vote?.totalVotes || 0);
+    const rows = getSimpleValueRows(playersMap, (player) => player?.vote?.totalVotes || 0, message);
 
     return new EmbedBuilder()
       .setColor(COLOR)
@@ -430,7 +463,7 @@ function buildLeaderboardEmbed(message, mode = null) {
   }
 
   if (mode === "berries") {
-    const rows = getSimpleValueRows(playersMap, (player) => player.berries || 0);
+    const rows = getSimpleValueRows(playersMap, (player) => player.berries || 0, message);
 
     return new EmbedBuilder()
       .setColor(COLOR)
@@ -440,7 +473,7 @@ function buildLeaderboardEmbed(message, mode = null) {
   }
 
   if (mode === "gems") {
-    const rows = getSimpleValueRows(playersMap, (player) => player.gems || 0);
+    const rows = getSimpleValueRows(playersMap, (player) => player.gems || 0, message);
 
     return new EmbedBuilder()
       .setColor(COLOR)
@@ -450,7 +483,7 @@ function buildLeaderboardEmbed(message, mode = null) {
   }
 
   if (mode === "cards_pulled") {
-    const rows = getSimpleValueRows(playersMap, (player) => player?.stats?.cardsPulled || 0);
+    const rows = getSimpleValueRows(playersMap, (player) => player?.stats?.cardsPulled || 0, message);
 
     return new EmbedBuilder()
       .setColor(COLOR)
