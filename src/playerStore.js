@@ -223,9 +223,9 @@ function mergeCardsNoRollback(incomingCards, persistedCards, options = {}) {
 
 function mergeStackNoRollback(incomingList, persistedList, options = {}) {
   const preserveMissingItems = Boolean(options.preserveMissingItems);
+  const preserveHigherAmount = Boolean(options.preserveHigherAmount);
   const incoming = Array.isArray(incomingList) ? incomingList : [];
   const persisted = Array.isArray(persistedList) ? persistedList : [];
-
   const persistedByKey = new Map();
 
   for (const item of persisted) {
@@ -236,26 +236,33 @@ function mergeStackNoRollback(incomingList, persistedList, options = {}) {
 
   const usedKeys = new Set();
 
-  const merged = incoming.map((item) => {
-    const key = getStackIdentityKey(item);
-    const oldItem = key ? persistedByKey.get(key) : null;
+  const merged = incoming
+    .map((item) => {
+      const key = getStackIdentityKey(item);
+      const oldItem = key ? persistedByKey.get(key) : null;
+      if (key) usedKeys.add(key);
 
-    if (key) usedKeys.add(key);
-    if (!oldItem) return item;
+      if (!oldItem) return item;
 
-    return {
-      ...item,
-      amount: Math.max(
-        Number(item.amount || 0),
-        Number(oldItem.amount || 0)
-      ),
-    };
-  });
+      const incomingAmount = Math.max(0, Number(item.amount || 0));
+      const oldAmount = Math.max(0, Number(oldItem.amount || 0));
+      const finalAmount = preserveHigherAmount
+        ? Math.max(incomingAmount, oldAmount)
+        : incomingAmount;
+
+      return {
+        ...oldItem,
+        ...item,
+        amount: finalAmount,
+      };
+    })
+    .filter((item) => Number(item?.amount || 0) > 0);
 
   if (preserveMissingItems) {
     for (const item of persisted) {
       const key = getStackIdentityKey(item);
       if (!key || usedKeys.has(key)) continue;
+      if (Number(item?.amount || 0) <= 0) continue;
       merged.push(item);
     }
   }
@@ -279,47 +286,34 @@ function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
       { preserveMissingCards }
     ),
 
-    weapons: mergeStackNoRollback(
-      incomingPlayer.weapons,
-      persistedPlayer.weapons,
-      { preserveMissingItems }
-    ),
-
-    devilFruits: mergeStackNoRollback(
-      incomingPlayer.devilFruits,
-      persistedPlayer.devilFruits,
-      { preserveMissingItems }
-    ),
-
-    tickets: mergeStackNoRollback(
-      incomingPlayer.tickets,
-      persistedPlayer.tickets,
-      { preserveMissingItems }
-    ),
-
-    boxes: mergeStackNoRollback(
-      incomingPlayer.boxes,
-      persistedPlayer.boxes,
-      { preserveMissingItems }
-    ),
-
-    items: mergeStackNoRollback(
-      incomingPlayer.items,
-      persistedPlayer.items,
-      { preserveMissingItems }
-    ),
-
-    materials: mergeStackNoRollback(
-      incomingPlayer.materials,
-      persistedPlayer.materials,
-      { preserveMissingItems }
-    ),
-
-    fragments: mergeStackNoRollback(
-      incomingPlayer.fragments,
-      persistedPlayer.fragments,
-      { preserveMissingItems }
-    ),
+    weapons: mergeStackNoRollback(incomingPlayer.weapons, persistedPlayer.weapons, {
+      preserveMissingItems,
+      preserveHigherAmount: false,
+    }),
+    devilFruits: mergeStackNoRollback(incomingPlayer.devilFruits, persistedPlayer.devilFruits, {
+      preserveMissingItems,
+      preserveHigherAmount: false,
+    }),
+    tickets: mergeStackNoRollback(incomingPlayer.tickets, persistedPlayer.tickets, {
+      preserveMissingItems: false,
+      preserveHigherAmount: false,
+    }),
+    boxes: mergeStackNoRollback(incomingPlayer.boxes, persistedPlayer.boxes, {
+      preserveMissingItems: false,
+      preserveHigherAmount: false,
+    }),
+    items: mergeStackNoRollback(incomingPlayer.items, persistedPlayer.items, {
+      preserveMissingItems: false,
+      preserveHigherAmount: false,
+    }),
+    materials: mergeStackNoRollback(incomingPlayer.materials, persistedPlayer.materials, {
+      preserveMissingItems: false,
+      preserveHigherAmount: false,
+    }),
+    fragments: mergeStackNoRollback(incomingPlayer.fragments, persistedPlayer.fragments, {
+      preserveMissingItems: false,
+      preserveHigherAmount: false,
+    }),
 
     raidPrestigeBank: {
       ...(persistedPlayer.raidPrestigeBank || {}),
@@ -808,7 +802,7 @@ function writePlayers(data) {
 async function initPlayerStore() {
   ensureFile();
   installPlayerStoreShutdownDrain();
-  
+
   if (!USE_POSTGRES) {
     readPlayers();
     setPersistedCache(playersCache || {});
