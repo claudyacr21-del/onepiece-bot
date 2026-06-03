@@ -1,6 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, readPlayers } = require("../playerStore");
-const { findPirateByUser } = require("../utils/pirateStore");
+const { findPirateByUser, getRole } = require("../utils/pirateStore");
 const {
   isPremiumUser,
   isLitePremiumUser,
@@ -480,6 +480,21 @@ function rawLine(label, value) {
   return `↪ ${label}: ${value}`;
 }
 
+function formatPirateProfileLine(userId) {
+  const pirate = findPirateByUser(userId);
+
+  if (!pirate) {
+    return "None";
+  }
+
+  const role = getRole(pirate, userId) || "Crew";
+  const roleText = String(role || "Crew")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+  return `${pirate.name} ( ${roleText} )`;
+}
+
 function safeLocaleNumber(value) {
   return Number(value || 0).toLocaleString("en-US");
 }
@@ -499,7 +514,7 @@ module.exports = {
   async execute(message) {
     try {
       const player = getPlayer(message.author.id, message.author.username);
-
+      const pirateProfileText = formatPirateProfileLine(message.author.id);
       const totalFragments = countTotalAmount(player.fragments);
 
       const isMotherFlame = await isPremiumUser(message).catch(() => false);
@@ -535,7 +550,7 @@ module.exports = {
               "Premium",
               isMotherFlame ? "Mother Flame" : isVivreCard ? "Vivre Card" : "Normal"
             ),
-            line("Pirates", pirateName),
+            line("Pirates", pirateProfileText),
             line("Ship", `${ship.name} • Tier ${ship.tier}`),
             rawLine("Badges", captainBadges),
             "",
