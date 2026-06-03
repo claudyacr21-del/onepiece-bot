@@ -15,6 +15,41 @@ let dbPool = null;
 let dbReady = false;
 
 const playerSaveQueues = new Map();
+let playerStoreShutdownDrainInstalled = false;
+
+function getPendingPlayerSavePromises() {
+  return [...playerSaveQueues.values()].filter(Boolean);
+}
+
+async function drainPlayerStoreSaves(timeoutMs = 25000) {
+  const pending = getPendingPlayerSavePromises();
+  if (!pending.length) return;
+
+  await Promise.race([
+    Promise.allSettled(pending),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
+function installPlayerStoreShutdownDrain() {
+  if (playerStoreShutdownDrainInstalled) return;
+  playerStoreShutdownDrainInstalled = true;
+
+  const drainAndExit = async (signal) => {
+    try {
+      console.log(`[PLAYER STORE] ${signal} received. Draining pending player saves...`);
+      await drainPlayerStoreSaves(Number(process.env.PLAYER_DB_SHUTDOWN_DRAIN_MS || 25000));
+      console.log("[PLAYER STORE] Pending player saves drained.");
+    } catch (error) {
+      console.error("[PLAYER STORE] Failed while draining pending saves.", error);
+    } finally {
+      process.exit(0);
+    }
+  };
+
+  process.once("SIGTERM", () => drainAndExit("SIGTERM"));
+  process.once("SIGINT", () => drainAndExit("SIGINT"));
+}
 
 function enqueuePlayerSnapshotSave(userId, player) {
   const id = String(userId);
@@ -743,13 +778,27 @@ function writePlayersLocalBackupOnly(data) {
 
 function writePlayers(data) {
   const safeData = data && typeof data === "object" ? data : {};
-
   setPlayersCache(safeData);
 
   if (USE_POSTGRES && dbReady) {
-    flushChangedPlayersToPostgres(safeData).catch((error) => {
-      console.error("[PLAYER DB CHANGED FLUSH ERROR]", error);
-    });
+    const pending = [];
+
+    for (const [userId, player] of Object.entries(safeData)) {
+      const normalized = normalizePlayer(player, player?.username || "Unknown");
+      const before = JSON.stringify(persistedCache?.[userId] || null);
+      const after = JSON.stringify(normalized || null);
+
+      if (before !== after) {
+        pending.push(enqueuePlayerSnapshotSave(userId, normalized));
+      }
+    }
+
+    if (pending.length) {
+      Promise.allSettled(pending).catch((error) => {
+        console.error("[PLAYER DB QUEUED WRITE ERROR]", error);
+      });
+    }
+
     return;
   }
 
@@ -758,7 +807,8 @@ function writePlayers(data) {
 
 async function initPlayerStore() {
   ensureFile();
-
+  installPlayerStoreShutdownDrain();
+  
   if (!USE_POSTGRES) {
     readPlayers();
     setPersistedCache(playersCache || {});
