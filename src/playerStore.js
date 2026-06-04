@@ -310,6 +310,84 @@ function mergeStackNoRollback(incomingList, persistedList, options = {}) {
   return merged;
 }
 
+function normalizePrestigeCardCode(card) {
+  const code = String(card?.code || card?.baseCode || "")
+    .toLowerCase()
+    .trim();
+
+  const name = String(card?.displayName || card?.name || "")
+    .toLowerCase()
+    .trim();
+
+  if (code === "imu" || name === "imu") return "imu";
+
+  return (
+    code ||
+    name
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+  );
+}
+
+function mergeRaidPrestigeBankMax(incomingBank, persistedBank) {
+  const incoming =
+    incomingBank && typeof incomingBank === "object" ? incomingBank : {};
+  const persisted =
+    persistedBank && typeof persistedBank === "object" ? persistedBank : {};
+
+  const merged = {
+    ...persisted,
+    ...incoming,
+  };
+
+  for (const key of new Set([...Object.keys(persisted), ...Object.keys(incoming)])) {
+    const oldEntry = persisted[key] || {};
+    const newEntry = incoming[key] || {};
+    const oldPrestige = Math.max(0, Math.min(200, Number(oldEntry.raidPrestige || 0)));
+    const newPrestige = Math.max(0, Math.min(200, Number(newEntry.raidPrestige || 0)));
+
+    merged[key] = {
+      ...oldEntry,
+      ...newEntry,
+      raidPrestige: Math.max(oldPrestige, newPrestige),
+    };
+  }
+
+  return merged;
+}
+
+function syncRaidPrestigeBankToCards(player) {
+  if (!player || typeof player !== "object") return player;
+
+  const bank =
+    player.raidPrestigeBank && typeof player.raidPrestigeBank === "object"
+      ? player.raidPrestigeBank
+      : {};
+
+  if (!Object.keys(bank).length) return player;
+
+  const cards = Array.isArray(player.cards)
+    ? player.cards.map((card) => {
+        const bankCode = normalizePrestigeCardCode(card);
+        const bankEntry = bankCode ? bank[bankCode] : null;
+        const bankPrestige = Math.max(0, Math.min(200, Number(bankEntry?.raidPrestige || 0)));
+        const cardPrestige = Math.max(0, Math.min(200, Number(card?.raidPrestige || 0)));
+
+        if (bankPrestige <= cardPrestige) return card;
+
+        return {
+          ...card,
+          raidPrestige: bankPrestige,
+        };
+      })
+    : player.cards;
+
+  return {
+    ...player,
+    cards,
+  };
+}
+
 function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
   if (!persistedPlayer) return incomingPlayer;
   if (!incomingPlayer) return persistedPlayer;
@@ -317,7 +395,7 @@ function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
   const preserveMissingCards = Boolean(options.preserveMissingCards);
   const preserveMissingItems = Boolean(options.preserveMissingItems);
 
-  return {
+  return syncRaidPrestigeBankToCards({
     ...incomingPlayer,
 
     cards: mergeCardsNoRollback(
@@ -330,36 +408,42 @@ function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
       preserveMissingItems,
       preserveHigherAmount: false,
     }),
+
     devilFruits: mergeStackNoRollback(incomingPlayer.devilFruits, persistedPlayer.devilFruits, {
       preserveMissingItems,
       preserveHigherAmount: false,
     }),
+
     tickets: mergeStackNoRollback(incomingPlayer.tickets, persistedPlayer.tickets, {
       preserveMissingItems: false,
       preserveHigherAmount: false,
     }),
+
     boxes: mergeStackNoRollback(incomingPlayer.boxes, persistedPlayer.boxes, {
       preserveMissingItems: false,
       preserveHigherAmount: false,
     }),
+
     items: mergeStackNoRollback(incomingPlayer.items, persistedPlayer.items, {
       preserveMissingItems: false,
       preserveHigherAmount: false,
     }),
+
     materials: mergeStackNoRollback(incomingPlayer.materials, persistedPlayer.materials, {
       preserveMissingItems: false,
       preserveHigherAmount: false,
     }),
+
     fragments: mergeStackNoRollback(incomingPlayer.fragments, persistedPlayer.fragments, {
       preserveMissingItems: false,
       preserveHigherAmount: false,
     }),
 
-    raidPrestigeBank: {
-      ...(persistedPlayer.raidPrestigeBank || {}),
-      ...(incomingPlayer.raidPrestigeBank || {}),
-    },
-  };
+    raidPrestigeBank: mergeRaidPrestigeBankMax(
+      incomingPlayer.raidPrestigeBank,
+      persistedPlayer.raidPrestigeBank
+    ),
+  });
 }
 
 function setPlayersCache(value) {

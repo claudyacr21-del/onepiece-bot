@@ -30,7 +30,8 @@ function isSummonableCard(card) {
   if (!card) return false;
 
   const code = normalize(card.code);
-  if (card.canPull === false && card.canPA === false && card.summonOnly === true) {return true;
+  if (card.canPull === false && card.canPA === false && card.summonOnly === true) {
+return true;
   }
 
   return SUMMONABLE_CARD_ROLES.has(getCardRole(card));
@@ -299,6 +300,45 @@ function isImuCard(card) {
   return code === "imu" || name === "imu";
 }
 
+function getRaidPrestigeBankCodeForCard(card) {
+  const code = normalize(card?.code);
+  const name = normalize(getCardName(card));
+
+  if (code === "imu" || name === "imu") return "imu";
+
+  return (
+    code ||
+    name
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+  );
+}
+
+function getBankedRaidPrestigeForCard(player, card) {
+  const bankCode = getRaidPrestigeBankCodeForCard(card);
+  if (!bankCode) return 0;
+
+  const bank =
+    player?.raidPrestigeBank && typeof player.raidPrestigeBank === "object"
+      ? player.raidPrestigeBank
+      : {};
+
+  const entry = bank[bankCode] || null;
+
+  return Math.max(0, Math.min(200, Number(entry?.raidPrestige || 0)));
+}
+
+function applyBankedRaidPrestigeToSummonedCard(player, ownedCard, sourceCard) {
+  const bankedPrestige = getBankedRaidPrestigeForCard(player, sourceCard);
+  const currentPrestige = Math.max(0, Math.min(200, Number(ownedCard?.raidPrestige || 0)));
+  const finalPrestige = Math.max(currentPrestige, bankedPrestige);
+
+  return {
+    ...ownedCard,
+    raidPrestige: finalPrestige,
+  };
+}
+
 function hasLuffyM3(player) {
   const cards = Array.isArray(player?.cards) ? player.cards : [];
 
@@ -500,7 +540,11 @@ module.exports = {
               throw new Error("Failed to consume fragments.");
             }
 
-            ownedCard = createOwnedCard(card);
+            ownedCard = applyBankedRaidPrestigeToSummonedCard(
+              fresh,
+              createOwnedCard(card),
+              card
+            );
             summonedType = "card";
             summonedName = getCardName(card);
             summonedRarity = String(card.baseTier || card.rarity || "C").toUpperCase();

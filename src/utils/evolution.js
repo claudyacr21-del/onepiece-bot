@@ -236,14 +236,57 @@ function findCardTemplate(query) {
 
 function findTemplateByCode(code) {
   const q = normalize(code);
-
   return safeArray(cards).find((card) => normalize(card.code) === q) || null;
+}
+
+function findTemplateForOwnedCard(ownedCard) {
+  if (!ownedCard) return null;
+
+  const codeMatch = findTemplateByCode(ownedCard.code || ownedCard.baseCode);
+  if (codeMatch) return codeMatch;
+
+  const names = [
+    ownedCard.displayName,
+    ownedCard.name,
+    ownedCard.cardName,
+    ownedCard.title,
+    String(ownedCard.code || "").replace(/_/g, " "),
+  ]
+    .map(normalize)
+    .filter(Boolean);
+
+  if (!names.length) return null;
+
+  return (
+    safeArray(cards).find((card) => {
+      const templateNames = [
+        card.code,
+        String(card.code || "").replace(/_/g, " "),
+        card.name,
+        card.displayName,
+        card.cardName,
+        card.title,
+        card.variant,
+      ]
+        .map(normalize)
+        .filter(Boolean);
+
+      return names.some((ownedName) =>
+        templateNames.some((templateName) => {
+          if (ownedName === templateName) return true;
+          if (ownedName.includes(templateName)) return true;
+          if (templateName.includes(ownedName)) return true;
+          return false;
+        })
+      );
+    }) || null
+  );
 }
 
 function mergeOwnedCardWithTemplate(ownedCard) {
   if (!ownedCard) return null;
 
-  const template = findTemplateByCode(ownedCard.code);
+  const template = findTemplateForOwnedCard(ownedCard);
 
   if (!template) return clone(ownedCard);
 
@@ -1176,20 +1219,50 @@ function awakenOwnedCard(player, query) {
   }
 
   const nextStage = currentStage + 1;
-  const req = target.awakenRequirements?.[`M${nextStage}`];
+  const latestTemplate =
+    findTemplateForOwnedCard(originalCard) ||
+    findCardTemplate(query) ||
+    findTemplateForOwnedCard(target) ||
+    target;
+
+  const latestTarget = hydrateCard({
+    ...target,
+    ...latestTemplate,
+    instanceId: target.instanceId,
+    ownerId: target.ownerId,
+    level: target.level,
+    xp: target.xp,
+    exp: target.exp,
+    kills: target.kills,
+    fragments: target.fragments,
+    raidPrestige: target.raidPrestige,
+    evolutionStage: target.evolutionStage,
+    evolutionKey: target.evolutionKey,
+    currentTier: target.currentTier,
+    rarity: target.rarity,
+    equippedWeapons: target.equippedWeapons || [],
+    equippedWeapon: target.equippedWeapon || null,
+    equippedWeaponName: target.equippedWeaponName || null,
+    equippedWeaponCode: target.equippedWeaponCode || null,
+    equippedWeaponLevel: target.equippedWeaponLevel || 0,
+    equippedDevilFruit: target.equippedDevilFruit || null,
+    equippedDevilFruitName: target.equippedDevilFruitName || null,
+  });
+
+  const req = latestTemplate?.awakenRequirements?.[`M${nextStage}`];
 
   if (!req) {
     throw new Error("No awaken requirement found.");
   }
 
-  validateAwakenRequirement(player, target, req);
+  validateAwakenRequirement(player, latestTarget, req);
 
-  const gemsNeed = getAwakenGemsCost(req, target);
+  const gemsNeed = getAwakenGemsCost(req, latestTarget);
 
   const afterFragmentConsume = consumeOwnedFragments(
     player,
     targetIndex,
-    target,
+    latestTarget,
     Number(req.selfFragments || 0)
   );
 
@@ -1224,7 +1297,7 @@ function awakenOwnedCard(player, query) {
   return {
     updatedCards: nextCards,
     updatedFragments: afterFragmentConsume.updatedFragments,
-    berries: Number(player.berries || 0) - getAwakenBerriesCost(req, target),
+    berries: Number(player.berries || 0) - getAwakenBerriesCost(req, latestTarget),
     gems: Number(player.gems || 0) - gemsNeed,
     target: updatedTarget,
   };
