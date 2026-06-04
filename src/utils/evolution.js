@@ -1036,38 +1036,69 @@ function requirementCandidates(requirement) {
     requirement.name,
     requirement.displayName,
     requirement.cardName,
-    requirement.title,
-    requirement.subtitle,
-    requirement.epithet,
-    requirement.form,
-    requirement.arc,
-    requirement.variant,
   ].filter(Boolean);
 }
 
+function normalizeRequirementIdentity(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/['’]/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function compactRequirementIdentity(value) {
+  return normalizeRequirementIdentity(value).replace(/\s+/g, "");
+}
+
 function doesRequirementMatchOwnedCard(ownedCard, requirement) {
-  const reqNames = requirementCandidates(requirement).map(normalize).filter(Boolean);
+  const reqNames = requirementCandidates(requirement)
+    .map(normalizeRequirementIdentity)
+    .filter(Boolean);
+
+  const reqCompact = requirementCandidates(requirement)
+    .map(compactRequirementIdentity)
+    .filter(Boolean);
 
   const ownedNames = [
     ownedCard?.code,
+    ownedCard?.baseCode,
     ownedCard?.name,
     ownedCard?.displayName,
     ownedCard?.cardName,
-    ownedCard?.title,
   ]
-    .map(normalize)
+    .map(normalizeRequirementIdentity)
     .filter(Boolean);
 
-  if (!reqNames.length || !ownedNames.length) return false;
+  const ownedCompact = [
+    ownedCard?.code,
+    ownedCard?.baseCode,
+    ownedCard?.name,
+    ownedCard?.displayName,
+    ownedCard?.cardName,
+  ]
+    .map(compactRequirementIdentity)
+    .filter(Boolean);
 
-  return reqNames.some((reqName) =>
-    ownedNames.some((ownedName) => {
+  if ((!reqNames.length && !reqCompact.length) || (!ownedNames.length && !ownedCompact.length)) {
+    return false;
+  }
+
+  for (const reqName of reqNames) {
+    for (const ownedName of ownedNames) {
       if (ownedName === reqName) return true;
-      if (ownedName.includes(reqName)) return true;
-      if (reqName.includes(ownedName)) return true;
-      return false;
-    })
-  );
+    }
+  }
+
+  for (const reqName of reqCompact) {
+    for (const ownedName of ownedCompact) {
+      if (ownedName === reqName) return true;
+    }
+  }
+
+  return false;
 }
 
 function findOwnedRequirementCard(player, requirement) {
