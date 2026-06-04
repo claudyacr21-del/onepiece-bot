@@ -65,18 +65,7 @@ function enqueuePlayerSnapshotSave(userId, player) {
       const saved = await upsertOnePlayerToPostgres(id, snapshot);
 
       if (saved) {
-        const latest = await getPlayerFromPostgres(id);
-        const currentCache = playersCache?.[id] || null;
-        const mergedLatest = mergePlayerNoRollback(
-          currentCache || latest || snapshot,
-          latest || snapshot,
-          {
-            preserveMissingCards: true,
-            preserveMissingItems: false,
-          }
-        );
-
-        persistedCache[id] = cloneJson(mergedLatest);
+        persistedCache[id] = cloneJson(snapshot);
       }
 
       return snapshot;
@@ -1799,20 +1788,20 @@ function getPlayer(userId, username) {
   const id = String(userId);
 
   if (!players[id]) {
-    players[id] = getDefaultPlayer(username);
+    const createdPlayer = normalizePlayer(getDefaultPlayer(username), username);
+    players[id] = createdPlayer;
     setPlayersCache(players);
 
     if (USE_POSTGRES && dbReady) {
-      upsertOnePlayerToPostgres(id, players[id]).catch((error) => {
-        console.error("[PLAYER DB CREATE ASYNC ERROR]", error);
-      });
+      enqueuePlayerSnapshotSave(id, createdPlayer);
     } else {
       writePlayersLocalBackupOnly(players);
     }
+
+    return createdPlayer;
   }
 
   const normalizedPlayer = normalizePlayer(players[id], username);
-
   players[id] = normalizedPlayer;
   setPlayersCache(players);
 
@@ -1824,47 +1813,39 @@ function updatePlayer(userId, newData) {
     userId,
     (currentPlayer) => ({
       ...currentPlayer,
-      ...newData,
+      ...(newData || {}),
     }),
     newData?.username || "Unknown"
   );
 }
 
 function updatePlayerAtomic(userId, mutator, username = "Unknown") {
-  if (USE_POSTGRES && dbReady) {
-    const players = readPlayers();
-    const id = String(userId);
-    const currentPlayer = players[id]
-      ? normalizePlayer(players[id], username)
-      : getDefaultPlayer(username);
-
-    const result =
-      typeof mutator === "function" ? mutator(cloneJson(currentPlayer)) : currentPlayer;
-
-    const nextPlayer = normalizePlayer(result || currentPlayer, currentPlayer.username || username);
-
-    players[id] = nextPlayer;
-    setPlayersCache(players);
-
-    // Save the computed final snapshot in order.
-    // Do not rerun mutator against an older DB row, because that can rollback cards/items.
-    enqueuePlayerSnapshotSave(id, nextPlayer);
-
-    return nextPlayer;
-  }
-
   const players = readPlayers();
   const id = String(userId);
+
   const currentPlayer = players[id]
     ? normalizePlayer(players[id], username)
     : getDefaultPlayer(username);
 
   const result =
-    typeof mutator === "function" ? mutator(cloneJson(currentPlayer)) : currentPlayer;
+    typeof mutator === "function"
+      ? mutator(cloneJson(currentPlayer))
+      : currentPlayer;
 
-  const nextPlayer = normalizePlayer(result || currentPlayer, currentPlayer.username || username);
+  const nextPlayer = normalizePlayer(
+    result || currentPlayer,
+    currentPlayer.username || username
+  );
+
   players[id] = nextPlayer;
-  writePlayers(players);
+  setPlayersCache(players);
+
+  if (USE_POSTGRES && dbReady) {
+    enqueuePlayerSnapshotSave(id, nextPlayer);
+  } else {
+    writePlayersLocalBackupOnly(players);
+  }
+
   return nextPlayer;
 }
 

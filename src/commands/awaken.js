@@ -207,9 +207,19 @@ function findOwnedCardIndexByNameOrCode(cardsOwned, query) {
 }
 
 function findLatestTemplateForAwaken(ownedCard, query) {
-  const keys = [
+  const codeKeys = [
     ownedCard?.code,
     String(ownedCard?.code || "").replace(/_/g, " "),
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  for (const key of codeKeys) {
+    const found = findCardTemplate(key);
+    if (found && String(found?.code || "").trim()) return found;
+  }
+
+  const otherKeys = [
     ownedCard?.displayName,
     ownedCard?.name,
     ownedCard?.title,
@@ -219,7 +229,7 @@ function findLatestTemplateForAwaken(ownedCard, query) {
     .map((value) => String(value || "").trim())
     .filter(Boolean);
 
-  for (const key of keys) {
+  for (const key of otherKeys) {
     const found = findCardTemplate(key);
     if (found && String(found?.code || "").trim()) return found;
   }
@@ -229,9 +239,9 @@ function findLatestTemplateForAwaken(ownedCard, query) {
 
 function mergeOwnedProgressIntoLatestTemplate(ownedCard, template) {
   const clean = stripTemplateOnlyFields(ownedCard);
-  if (!template) return clean;
+  if (!template) return applyAwakenRequirementOverride(clean);
 
-  return {
+  const merged = {
     ...cloneDeep(template),
 
     instanceId: clean.instanceId,
@@ -265,27 +275,124 @@ function mergeOwnedProgressIntoLatestTemplate(ownedCard, template) {
     role: template.role || clean.role,
     category: template.category || clean.category,
   };
+
+  return applyAwakenRequirementOverride(merged);
+}
+
+function normalizeAwakenCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, "_")
+    .replace(/\s+/g, "_");
+}
+
+function getAwakenRequirementOverrideByCode(code) {
+  const cleanCode = normalizeAwakenCode(code);
+
+  if (cleanCode === "cola_engine") {
+    return {
+      M2: {
+        berries: 120000,
+        gems: 350,
+        selfFragments: 25,
+        minLevel: 0,
+        cards: [
+          {
+            code: "franky_cyborg",
+            name: "Franky",
+            stage: 1,
+          },
+        ],
+        boosts: [],
+        cardsText: ["Franky M1"],
+        boostsText: [],
+      },
+      M3: {
+        berries: 280000,
+        gems: 700,
+        selfFragments: 35,
+        minLevel: 0,
+        cards: [
+          {
+            code: "franky_cyborg",
+            name: "Franky",
+            stage: 2,
+          },
+        ],
+        boosts: [],
+        cardsText: ["Franky M2"],
+        boostsText: [],
+      },
+    };
+  }
+
+  return null;
+}
+
+function applyAwakenRequirementOverride(card) {
+  const code = normalizeAwakenCode(card?.code);
+  const override = getAwakenRequirementOverrideByCode(code);
+
+  if (!override) return card;
+
+  const next = {
+    ...card,
+    awakenRequirements: {
+      ...(card.awakenRequirements || {}),
+      ...override,
+    },
+  };
+
+  if (Array.isArray(next.evolutionForms)) {
+    next.evolutionForms = next.evolutionForms.map((form, index) => {
+      const stage = index + 1;
+      const stageKey = `M${stage}`;
+      const req = override[stageKey];
+
+      if (!req) return form;
+
+      return {
+        ...form,
+        require: {
+          ...(form?.require || {}),
+          ...req,
+        },
+      };
+    });
+  }
+
+  return next;
+}
+
+function getAwakenTargetQuery(owned, template, originalQuery) {
+  return (
+    template?.code ||
+    owned?.code ||
+    owned?.displayName ||
+    owned?.name ||
+    owned?.title ||
+    originalQuery
+  );
 }
 
 function preparePlayerForLatestAwakenTemplate(player, query) {
   const prepared = cloneDeep(player || {});
-  prepared.cards = Array.isArray(prepared.cards)
-    ? prepared.cards.map(stripTemplateOnlyFields)
-    : [];
+  const cards = Array.isArray(prepared.cards) ? prepared.cards : [];
 
-  const targetIndex = findOwnedCardIndexByNameOrCode(prepared.cards, query);
+  const targetIndex = findOwnedCardIndexByNameOrCode(cards, query);
+
+  prepared.cards = cards.map(stripTemplateOnlyFields);
 
   if (targetIndex === -1) return prepared;
 
-  const ownedCard = prepared.cards[targetIndex];
+  const ownedCard = cards[targetIndex];
   const latestTemplate = findLatestTemplateForAwaken(ownedCard, query);
 
-  if (latestTemplate) {
-    prepared.cards[targetIndex] = mergeOwnedProgressIntoLatestTemplate(
-      ownedCard,
-      latestTemplate
-    );
-  }
+  prepared.cards[targetIndex] = mergeOwnedProgressIntoLatestTemplate(
+    ownedCard,
+    latestTemplate
+  );
 
   return prepared;
 }
@@ -560,7 +667,8 @@ module.exports = {
 
     const nextStage = currentStage + 1;
 
-    const awakenTargetQuery = getAwakenTargetQuery(owned, query);
+    const latestTemplate = findLatestTemplateForAwaken(owned, query);
+    const awakenTargetQuery = getAwakenTargetQuery(owned, latestTemplate, query);
 
     try {
 
@@ -581,7 +689,7 @@ module.exports = {
                 "**Missing / Error Detail**",
                 formatAwakenErrorDetail(error),
                 "",
-                `Use \`op ci ${owned.code || owned.displayName || owned.name || query}\` then press **(i)** to check the same requirement panel.`,
+                `Use \`op ci ${latestTemplate?.code || owned.code || owned.displayName || owned.name || query}\` then press **(i)** to check the same requirement panel.`,
               ].join("\n")
             ),
         ],
@@ -678,7 +786,7 @@ module.exports = {
                   "**Missing / Error Detail**",
                   formatAwakenErrorDetail(error),
                   "",
-                  `Use \`op ci ${owned.code || owned.displayName || owned.name || query}\` then press **(i)** to check the same requirement panel.`,
+                  `Use \`op ci ${latestTemplate?.code || owned.code || owned.displayName || owned.name || query}\` then press **(i)** to check the same requirement panel.`,
                 ].join("\n")
               ),
           ],
