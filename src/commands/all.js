@@ -109,6 +109,7 @@ function tierScore(tier) {
       S: 4,
       SS: 5,
       UR: 6,
+      M: 7,
     }[String(tier || "").toUpperCase()] || 0
   );
 }
