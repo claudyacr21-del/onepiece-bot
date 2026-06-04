@@ -386,33 +386,50 @@ function buildLzsSourceTemplateForCi(code, stage = 1) {
   };
 }
 
+function getLzsCiStageFactor(stage) {
+  const n = Number(stage || 1);
+
+  if (n === 1) return 0.6;
+  if (n === 2) return 0.8;
+  return 1;
+}
+
 function buildCiLzsCard(player, baseCard, stage = 1) {
   const template = findTemplateByCodeForCi("lzs") || baseCard || {};
   const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
+  const stageFactor = getLzsCiStageFactor(targetStage);
 
   const form = Array.isArray(template.evolutionForms)
     ? template.evolutionForms[targetStage - 1] || {}
     : {};
 
+  // CI display pakai full source M3 sebagai basis, lalu diskalakan:
+  // M1 = 60%, M2 = 80%, M3 = 100%.
+  // Ini supaya angka M1/M2/M3 beda, dan M3 tetap angka tertinggi.
   const sources = LZS_SOURCE_CODES.map((code) =>
-    buildLzsSourceTemplateForCi(code, targetStage)
+    buildLzsSourceTemplateForCi(code, 3)
   );
 
-  const atk = Math.floor(
+  const fullAtk = Math.floor(
     sources.reduce((total, source) => total + source.atk * 0.5, 0)
   );
 
-  const hp = Math.floor(
+  const fullHp = Math.floor(
     sources.reduce((total, source) => total + source.hp * 0.5, 0)
   );
 
-  const speed = Math.floor(
+  const fullSpeed = Math.floor(
     sources.reduce((total, source) => total + source.speed * 0.5, 0)
   );
 
-  const power = Math.floor(
+  const fullPower = Math.floor(
     sources.reduce((total, source) => total + source.power * 0.5, 0)
   );
+
+  const atk = Math.floor(fullAtk * stageFactor);
+  const hp = Math.floor(fullHp * stageFactor);
+  const speed = Math.floor(fullSpeed * stageFactor);
+  const power = Math.floor(fullPower * stageFactor);
 
   const weapon = joinUniqueCiText(sources.map((source) => source.weapon));
   const devilFruit = joinUniqueCiText(
@@ -460,9 +477,9 @@ function buildCiLzsCard(player, baseCard, stage = 1) {
     power,
     currentPower: power,
     powerCaps: {
-      M1: power,
-      M2: power,
-      M3: power,
+      M1: Math.floor(fullPower * 0.6),
+      M2: Math.floor(fullPower * 0.8),
+      M3: fullPower,
     },
 
     weapon,
