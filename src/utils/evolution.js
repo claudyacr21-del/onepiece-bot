@@ -980,48 +980,85 @@ function consumeOwnedFragments(player, targetIndex, targetCard, amount) {
 }
 
 function scoreAwakenOwnedCard(card, query) {
-  const q = normalize(query);
-  if (!q) return 0;
+ const q = normalize(query);
 
-  const fields = [
-    card?.name,
-    card?.displayName,
-    String(card?.code || "").replace(/_/g, " "),
-  ]
-    .map(normalize)
-    .filter(Boolean);
+ if (!q) return 0;
 
-  let best = 0;
+ const rawFields = [
+  card?.instanceId,
+  card?.id,
+  card?.code,
+  String(card?.code || "").replace(/_/g, " "),
+  String(card?.code || "").replace(/[-_]+/g, " "),
+  card?.name,
+  card?.displayName,
+  card?.cardName,
+  card?.title,
+  card?.subtitle,
+  card?.epithet,
+  card?.form,
+  card?.arc,
+  card?.variant,
+ ];
 
-  for (const field of fields) {
-    if (field === q) best = Math.max(best, 1000 + field.length);
-    else if (field.startsWith(q)) best = Math.max(best, 800 + q.length);
-    else if (field.includes(q)) best = Math.max(best, 500 + q.length);
-    else {
-      const qWords = q.split(" ").filter(Boolean);
-      const fieldWords = field.split(" ").filter(Boolean);
+ const forms = Array.isArray(card?.evolutionForms) ? card.evolutionForms : [];
+ for (const form of forms) {
+  rawFields.push(
+   form?.name,
+   form?.displayName,
+   form?.title,
+   form?.subtitle,
+   form?.epithet,
+   form?.form,
+   form?.arc,
+   form?.variant
+  );
+ }
 
-      if (qWords.length && qWords.every((word) => fieldWords.includes(word))) {
-        best = Math.max(best, 350 + qWords.join("").length);
-      }
-    }
+ const aliases = Array.isArray(card?.aliases) ? card.aliases : [];
+ rawFields.push(...aliases);
+
+ const fields = rawFields.map(normalize).filter(Boolean);
+
+ let best = 0;
+
+ for (const field of fields) {
+  if (field === q) {
+   best = Math.max(best, 2000 + field.length);
+  } else if (field.startsWith(q)) {
+   best = Math.max(best, 1200 + q.length);
+  } else if (field.includes(q)) {
+   best = Math.max(best, 900 + q.length);
+  } else if (q.includes(field) && field.length >= 3) {
+   best = Math.max(best, 700 + field.length);
+  } else {
+   const qWords = q.split(" ").filter(Boolean);
+   const fieldWords = field.split(" ").filter(Boolean);
+
+   if (qWords.length && qWords.every((word) => fieldWords.includes(word))) {
+    best = Math.max(best, 500 + qWords.join("").length);
+   }
   }
+ }
 
-  return best;
+ return best;
 }
 
 function findOwnedCardIndexForAwaken(cardsOwned, query) {
-  const list = safeArray(cardsOwned);
+ const list = safeArray(cardsOwned);
 
-  const scored = list
-    .map((card, index) => ({
-      index,
-      score: scoreAwakenOwnedCard(card, query),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
+ const scored = list
+  .map((card, index) => ({
+   index,
+   score: scoreAwakenOwnedCard(card, query),
+  }))
+  .filter((entry) => entry.score > 0)
+  .sort((a, b) => {
+   if (b.score !== a.score) return b.score - a.score;
+   return a.index - b.index;
+  });
 
-  return scored.length ? scored[0].index : -1;
+ return scored.length ? scored[0].index : -1;
 }
 
 function normalizeRequirementNameOnly(value) {

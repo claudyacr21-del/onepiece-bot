@@ -550,11 +550,23 @@ module.exports = {
     }
 
     const currentStage = Number(owned.evolutionStage || 1);
+
     const nextStage = currentStage + 1;
 
+    const awakenTargetQuery =
+    owned.instanceId ||
+    owned.id ||
+    owned.code ||
+    owned.displayName ||
+    owned.name ||
+    query;
+
     try {
-      const validationPlayer = preparePlayerForLatestAwakenTemplate(player, query);
-      awakenOwnedCard(validationPlayer, query);
+
+    const validationPlayer = preparePlayerForLatestAwakenTemplate(player, awakenTargetQuery);
+
+    awakenOwnedCard(validationPlayer, awakenTargetQuery);
+
     } catch (error) {
       return message.reply({
         embeds: [
@@ -630,8 +642,8 @@ module.exports = {
         updatePlayerAtomic(
           message.author.id,
           (fresh) => {
-            const preparedFresh = preparePlayerForLatestAwakenTemplate(fresh, query);
-            awakenResult = awakenOwnedCard(preparedFresh, query);
+            const preparedFresh = preparePlayerForLatestAwakenTemplate(fresh, awakenTargetQuery);
+            awakenResult = awakenOwnedCard(preparedFresh, awakenTargetQuery);
 
             freshPlayerForDisplay = {
               ...preparedFresh,
