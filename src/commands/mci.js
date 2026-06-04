@@ -1,6 +1,11 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const {
+  isLzsCard,
+  buildMergedLzsCard,
+  findOwnedCardByCodeOrName,
+} = require("../utils/mergeCards");
+const {
   hydrateCard,
   getWeaponPower,
   getFruitPower,
@@ -142,12 +147,17 @@ function getOwnedCards(player) {
 function findOwnedCardByNameOnly(player, query) {
   const cards = getOwnedCards(player);
 
+  const direct = findOwnedCardByCodeOrName(cards, query);
+  if (direct) return direct;
+
   const scored = cards
     .map((card) => ({
       card,
       score: scoreQuery(query, [
+        card.code,
         card.name,
         card.displayName,
+        card.title,
       ]),
     }))
     .filter((entry) => entry.score > 0)
@@ -525,8 +535,8 @@ function buildOwnedCardEmbed(ownerName, player, card) {
           `Health: ${Number(card.hp || 0)}`,
           `Speed: ${Number(card.speed || 0)}`,
           `Attack: ${atkRange}`,
-          `Weapons: ${card.displayWeaponName || "None"}`,
-          `Devil Fruit: ${card.displayFruitName || "None"}`,
+          `Weapons: ${card.displayWeaponName || card.weaponSet || card.weapon || "None"}`,
+          `Devil Fruit: ${card.displayFruitName || card.devilFruit || "None"}`,
           `Type: ${card.type || card.cardRole}`,
           `Kills: ${Number(card.kills || 0)}`,
           `Fragments: ${syncedFragments}`,
@@ -567,7 +577,11 @@ module.exports = {
     }
 
     const ownedCard = findOwnedCardByNameOnly(player, query);
-    const card = applyBoostedDisplayStats(ownedCard, boosts);
+    const syncedOwnedCard = isLzsCard(ownedCard)
+      ? buildMergedLzsCard(player, ownedCard)
+      : ownedCard;
+
+    const card = applyBoostedDisplayStats(syncedOwnedCard, boosts);
 
     if (card) {
       return message.reply({

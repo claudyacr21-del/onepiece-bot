@@ -1,7 +1,7 @@
-const fs = require("fs"); const { syncMergedCardsInPlayer } = require("./utils/mergeCards");
+const fs = require("fs");
 const path = require("path");
 const { Pool } = require("pg");
-
+const { syncMergedCardsInPlayer } = require("./utils/mergeCards");
 const persistentDir = process.env.PLAYER_DATA_DIR || path.join(__dirname, "data");
 const fallbackDir = path.join(__dirname, "data");
 
@@ -1809,11 +1809,14 @@ function getPlayer(userId, username) {
     } else {
       writePlayersLocalBackupOnly(players);
     }
-
-    return players[id];
   }
 
-  return normalizePlayer(players[id], username);
+  const normalizedPlayer = normalizePlayer(players[id], username);
+
+  players[id] = normalizedPlayer;
+  setPlayersCache(players);
+
+  return normalizedPlayer;
 }
 
 function updatePlayer(userId, newData) {

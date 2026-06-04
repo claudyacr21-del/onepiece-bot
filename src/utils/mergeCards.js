@@ -55,17 +55,77 @@ function findOwnedSource(player, code) {
   );
 }
 
+function getForm(template, stage) {
+  return Array.isArray(template?.evolutionForms)
+    ? template.evolutionForms[stage - 1] || {}
+    : {};
+}
+
+function getNumber(card, keys) {
+  for (const key of keys) {
+    const value = Number(card?.[key]);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+
+  return 0;
+}
+
+function getAtk(card) {
+  return getNumber(card, [
+    "atk",
+    "currentAtk",
+    "finalAtk",
+    "totalAtk",
+    "battleAtk",
+    "baseAtk",
+  ]);
+}
+
+function getHp(card) {
+  return getNumber(card, [
+    "hp",
+    "maxHp",
+    "currentHp",
+    "finalHp",
+    "totalHp",
+    "battleHp",
+    "baseHp",
+  ]);
+}
+
+function getSpeed(card) {
+  return getNumber(card, [
+    "speed",
+    "spd",
+    "currentSpeed",
+    "finalSpeed",
+    "totalSpeed",
+    "battleSpeed",
+    "baseSpeed",
+  ]);
+}
+
+function getPower(card) {
+  return getNumber(card, [
+    "currentPower",
+    "basePower",
+    "power",
+    "finalPower",
+    "totalPower",
+    "battlePower",
+  ]);
+}
+
 function getSourceMergedCard(player, code, stageOverride = null, options = {}) {
   const template = getTemplateByCode(code) || {};
   const owned = options.templateOnly ? null : findOwnedSource(player, code);
+
   const stage = Math.max(
     1,
     Math.min(3, Number(stageOverride || getStage(owned || template) || 1))
   );
 
-  const form = Array.isArray(template.evolutionForms)
-    ? template.evolutionForms[stage - 1] || {}
-    : {};
+  const form = getForm(template, stage);
 
   if (options.templateOnly) {
     return {
@@ -90,61 +150,6 @@ function getSourceMergedCard(player, code, stageOverride = null, options = {}) {
     evolutionStage: stage,
     evolutionKey: `M${stage}`,
   };
-}
-
-function getNumber(card, keys) {
-  for (const key of keys) {
-    const value = Number(card?.[key]);
-    if (Number.isFinite(value) && value > 0) return value;
-  }
-
-  return 0;
-}
-
-function getAtk(card) {
-  return getNumber(card, [
-    "finalAtk",
-    "currentAtk",
-    "totalAtk",
-    "battleAtk",
-    "atk",
-    "baseAtk",
-  ]);
-}
-
-function getHp(card) {
-  return getNumber(card, [
-    "finalHp",
-    "currentHp",
-    "totalHp",
-    "battleHp",
-    "maxHp",
-    "hp",
-    "baseHp",
-  ]);
-}
-
-function getSpeed(card) {
-  return getNumber(card, [
-    "finalSpeed",
-    "currentSpeed",
-    "totalSpeed",
-    "battleSpeed",
-    "speed",
-    "spd",
-    "baseSpeed",
-  ]);
-}
-
-function getPower(card) {
-  return getNumber(card, [
-    "currentPower",
-    "basePower",
-    "power",
-    "finalPower",
-    "totalPower",
-    "battlePower",
-  ]);
 }
 
 function cleanValue(value) {
@@ -192,7 +197,7 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
   const sourceStage = options.sourceStage || options.displayStage || null;
 
   const sources = MERGE_SOURCE_CODES.map((code) =>
-  getSourceMergedCard(player, code, sourceStage, options)
+    getSourceMergedCard(player, code, sourceStage, options)
   );
 
   const atk = Math.floor(
@@ -207,37 +212,35 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
     sources.reduce((sum, card) => sum + getSpeed(card) * MERGE_RATIO, 0)
   );
 
-  const basePower = Math.floor(
+  const currentPower = Math.floor(
     sources.reduce((sum, card) => sum + getPower(card) * MERGE_RATIO, 0)
   );
 
   const weapon = uniqueJoin(
     sources.map((card) =>
-        options.templateOnly
+      options.templateOnly
         ? card.weaponSet || card.weapon
         : card.displayWeaponName ||
-            card.equippedWeaponName ||
-            card.equippedWeapon ||
-            card.weaponSet ||
-            card.weapon
+          card.equippedWeaponName ||
+          card.equippedWeapon ||
+          card.weaponSet ||
+          card.weapon
     )
   );
 
   const devilFruit = uniqueJoin(
     sources.map((card) =>
-        options.templateOnly
+      options.templateOnly
         ? card.devilFruitName || card.devilFruit
         : card.displayFruitName ||
-            card.equippedDevilFruitName ||
-            card.equippedDevilFruit ||
-            card.devilFruitName ||
-            card.devilFruit
+          card.equippedDevilFruitName ||
+          card.equippedDevilFruit ||
+          card.devilFruitName ||
+          card.devilFruit
     )
   );
 
-  const form = Array.isArray(template.evolutionForms)
-    ? template.evolutionForms[stage - 1] || {}
-    : {};
+  const form = getForm(template, stage);
 
   return {
     ...template,
@@ -280,18 +283,21 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
     speed,
     spd: speed,
 
-    basePower,
-    power: basePower,
-    currentPower: basePower,
+    basePower: currentPower,
+    power: currentPower,
+    currentPower,
     powerCaps: {
-      M1: basePower,
-      M2: basePower,
-      M3: basePower,
+      M1: currentPower,
+      M2: currentPower,
+      M3: currentPower,
     },
 
     weapon,
     weaponSet: weapon,
+    displayWeaponName: weapon,
     devilFruit,
+    displayFruitName: devilFruit,
+
     equipType:
       weapon !== "None" && devilFruit !== "None"
         ? "Devil Fruit / Weapon"
@@ -311,12 +317,42 @@ function syncMergedCardsInPlayer(player) {
   const cards = Array.isArray(player.cards) ? player.cards : [];
   if (!cards.some(isLzsCard)) return player;
 
+  const basePlayer = {
+    ...player,
+    cards,
+  };
+
   return {
     ...player,
     cards: cards.map((card) =>
-      isLzsCard(card) ? buildMergedLzsCard(player, card) : card
+      isLzsCard(card) ? buildMergedLzsCard(basePlayer, card) : card
     ),
   };
+}
+
+function findOwnedCardByCodeOrName(cards, query) {
+  const q = normalize(query);
+  const qCode = normalizeCode(query);
+
+  if (!q) return null;
+
+  return (
+    (Array.isArray(cards) ? cards : []).find((card) => {
+      const code = normalizeCode(card?.code);
+      const name = normalize(card?.name);
+      const displayName = normalize(card?.displayName);
+      const title = normalize(card?.title);
+
+      return (
+        code === qCode ||
+        name === q ||
+        displayName === q ||
+        title === q ||
+        name.includes(q) ||
+        displayName.includes(q)
+      );
+    }) || null
+  );
 }
 
 module.exports = {
@@ -324,4 +360,5 @@ module.exports = {
   isLzsCard,
   buildMergedLzsCard,
   syncMergedCardsInPlayer,
+  findOwnedCardByCodeOrName,
 };

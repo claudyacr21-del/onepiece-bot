@@ -5,7 +5,11 @@ const {
   EmbedBuilder,
   MessageFlags,
 } = require("discord.js");
-
+const {
+  isLzsCard,
+  buildMergedLzsCard,
+  syncMergedCardsInPlayer,
+} = require("../utils/mergeCards");
 const { getPlayer } = require("../playerStore");
 const {
   hydrateCard,
@@ -46,6 +50,7 @@ const RARITY_EMOJIS = {
   S: cleanEmoji(process.env.RARITY_EMOJI_S, "S"),
   SS: cleanEmoji(process.env.RARITY_EMOJI_SS, "SS"),
   UR: cleanEmoji(process.env.RARITY_EMOJI_UR, "UR"),
+  M: cleanEmoji(process.env.RARITY_EMOJI_M, "M"),
 };
 
 async function safeComponentReply(interaction, content) {
@@ -228,14 +233,20 @@ function getStageImage(card) {
   );
 }
 
-function mergeOwnedCardWithLatestTemplate(rawCard, sourceIndex = null) {
+function mergeOwnedCardWithLatestTemplate(rawCard, sourceIndex = null, player = null) {
   const card = hydrateCard(rawCard);
   if (!card) return null;
 
-  return {
+  const merged = {
     ...card,
     sourceIndex: Number.isInteger(sourceIndex) ? sourceIndex : null,
   };
+
+  if (isLzsCard(merged) && player) {
+    return buildMergedLzsCard(player, merged);
+  }
+
+  return merged;
 }
 
 function getFragmentAmount(player, target) {
@@ -339,8 +350,8 @@ function buildViewerEmbed(ownerName, player, card, index, total, label = "Collec
           `Health: ${card.hp || 0}`,
           `Speed: ${card.speed || 0}`,
           `Attack: ${atkRange}`,
-          `Weapons: ${card.displayWeaponName || "None"}`,
-          `Devil Fruit: ${card.displayFruitName || "None"}`,
+          `Weapons: ${card.displayWeaponName || card.weaponSet || card.weapon || "None"}`,
+          `Devil Fruit: ${card.displayFruitName || card.devilFruit || "None"}`,
           `Type: ${card.type || card.cardRole || "Unknown"}`,
           `Kills: ${card.kills || 0}`,
           `Fragments: ${syncedFragments}`,
@@ -384,6 +395,7 @@ function getTierRank(tier) {
     S: 4,
     SS: 5,
     UR: 6,
+    M: 7,
   };
 
   return order[String(tier || "C").toUpperCase()] || 0;
@@ -773,12 +785,36 @@ function findOwnedFruit(player, query) {
 }
 
 function findOwnedCardByQuery(cards, query) {
+  const q = normalize(query);
+  if (!q) return null;
+
+  const direct = (Array.isArray(cards) ? cards : []).find((card) => {
+    const code = normalize(card?.code);
+    const name = normalize(card?.name);
+    const displayName = normalize(card?.displayName);
+    const title = normalize(card?.title);
+
+    return (
+      code === q ||
+      name === q ||
+      displayName === q ||
+      title === q ||
+      name.includes(q) ||
+      displayName.includes(q) ||
+      title.includes(q)
+    );
+  });
+
+  if (direct) return direct;
+
   const scored = cards
     .map((card) => ({
       card,
       score: scoreQuery(query, [
+        card.code,
         card.name,
         card.displayName,
+        card.title,
       ]),
     }))
     .filter((entry) => entry.score > 0)
@@ -872,21 +908,25 @@ module.exports = {
   aliases: ["mycards"],
 
   async execute(message, args) {
-    const player = getPlayer(message.author.id, message.author.username);
+    const player = syncMergedCardsInPlayer(
+      getPlayer(message.author.id, message.author.username)
+    );
+
     const boosts = getPassiveBoostSummary(player);
+    const rawQuery = args.join(" ").trim();
     let sub1 = String(args?.[0] || "").toLowerCase();
-    let query = args.join(" ").trim();
+    let query = rawQuery;
 
     const allowedSubCommands = ["text", "boost", "weapon", "m1", "m2", "m3"];
 
-    if (query && !allowedSubCommands.includes(sub1)) {
-      sub1 = "";
-      query = "";
+    if (rawQuery && !allowedSubCommands.includes(sub1)) {
+      sub1 = "search";
+      query = rawQuery;
     }
 
     const cards = dedupeCollection(
       (player.cards || [])
-        .map(mergeOwnedCardWithLatestTemplate)
+        .map((card, index) => mergeOwnedCardWithLatestTemplate(card, index, player))
         .filter(Boolean)
         .map((card) => applyBoostedDisplayStats(card, boosts))
     );
@@ -976,10 +1016,6 @@ module.exports = {
       return;
     }
 
-    if (query && !allowedSubCommands.includes(sub1)) {
-      args.length = 0;
-    }
-
     if (!cards.length) {
       return message.reply("You do not own any cards yet.");
     }
@@ -987,7 +1023,16 @@ module.exports = {
     let working = [...cards];
     let title = "Card Collection";
 
-    if (sub1 === "boost") {
+    if (sub1 === "search") {
+      const foundCard = findOwnedCardByQuery(cards, query);
+
+      if (!foundCard) {
+        return message.reply(`Card not found in your collection: \`${query}\`.`);
+      }
+
+      working = [foundCard];
+      title = "Card Search";
+    } else if (sub1 === "boost") {
       working = working.filter((card) => card.cardRole === "boost");
       title = "Boost Collection";
     } else if (sub1 === "text") {
