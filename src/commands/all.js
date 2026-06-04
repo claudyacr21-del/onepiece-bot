@@ -89,6 +89,174 @@ function getBaseCardStats(card, form = null) {
   };
 }
 
+const LZS_SOURCE_CODES_FOR_ALL = [
+  "luffy_straw_hat",
+  "zoro_pirate_hunter",
+  "sanji_black_leg",
+];
+
+function findAllCardTemplateByCode(code) {
+  const target = normalize(code);
+
+  return (
+    getAllCards().find((card) => normalize(card?.code) === target) || null
+  );
+}
+
+function getAllStageForm(card, stageKey = "M1") {
+  const stageIndex = Math.max(
+    0,
+    Math.min(2, Number(String(stageKey).replace("M", "")) - 1)
+  );
+
+  return Array.isArray(card?.evolutionForms)
+    ? card.evolutionForms[stageIndex] || null
+    : null;
+}
+
+function getLzsAllPower(card, form, stageKey = "M1") {
+  return Number(
+    form?.currentPower ||
+      form?.basePower ||
+      form?.power ||
+      form?.powerCaps?.[stageKey] ||
+      card?.powerCaps?.[stageKey] ||
+      card?.basePower ||
+      card?.power ||
+      card?.currentPower ||
+      0
+  );
+}
+
+function joinUniqueAllText(values) {
+  const seen = new Set();
+  const out = [];
+
+  for (const raw of values) {
+    const text = String(raw || "").trim();
+
+    if (!text || text.toLowerCase() === "none") continue;
+    if (text.toLowerCase().includes("synced from")) continue;
+
+    const parts = text
+      .split(/\s*[,/]\s*/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    for (const part of parts) {
+      const key = normalize(part);
+      if (!key || key === "none" || seen.has(key)) continue;
+
+      seen.add(key);
+      out.push(part);
+    }
+  }
+
+  return out.length ? out.join(", ") : "None";
+}
+
+function buildLzsAllDisplayCard(card, stageKey = "M1") {
+  const stageNumber = Math.max(
+    1,
+    Math.min(3, Number(String(stageKey).replace("M", "")) || 1)
+  );
+
+  const sources = LZS_SOURCE_CODES_FOR_ALL.map((code) => {
+    const sourceCard = findAllCardTemplateByCode(code) || {};
+    const sourceForm = getAllStageForm(sourceCard, stageKey);
+    const stats = getBaseCardStats(sourceCard, sourceForm);
+
+    return {
+      card: sourceCard,
+      form: sourceForm,
+      atk: Number(stats.atk || 0),
+      hp: Number(stats.hp || 0),
+      speed: Number(stats.speed || 0),
+      power: getLzsAllPower(sourceCard, sourceForm, stageKey),
+      weapon:
+        sourceForm?.weaponSet ||
+        sourceForm?.weapon ||
+        sourceCard.weaponSet ||
+        sourceCard.weapon,
+      devilFruit:
+        sourceForm?.devilFruitName ||
+        sourceForm?.devilFruit ||
+        sourceCard.devilFruitName ||
+        sourceCard.devilFruit,
+    };
+  });
+
+  const atk = Math.floor(
+    sources.reduce((total, source) => total + source.atk * 0.5, 0)
+  );
+
+  const hp = Math.floor(
+    sources.reduce((total, source) => total + source.hp * 0.5, 0)
+  );
+
+  const speed = Math.floor(
+    sources.reduce((total, source) => total + source.speed * 0.5, 0)
+  );
+
+  const power = Math.floor(
+    sources.reduce((total, source) => total + source.power * 0.5, 0)
+  );
+
+  const weapon = joinUniqueAllText(sources.map((source) => source.weapon));
+  const devilFruit = joinUniqueAllText(
+    sources.map((source) => source.devilFruit)
+  );
+
+  const form = getAllStageForm(card, stageKey);
+
+  return {
+    ...card,
+    ...(form || {}),
+
+    code: "lzs",
+    name: "Monster Trio",
+    displayName: "Monster Trio",
+    title: "Monster Trio",
+
+    rarity: "M",
+    baseTier: "M",
+    currentTier: "M",
+    tier: "M",
+
+    cardRole: "battle",
+    role: "battle",
+    category: "battle",
+    type: "Merge",
+
+    evolutionStage: stageNumber,
+    evolutionKey: stageKey,
+
+    atk,
+    hp,
+    speed,
+    spd: speed,
+
+    basePower: power,
+    power,
+    currentPower: power,
+    powerCaps: {
+      [stageKey]: power,
+    },
+
+    weapon,
+    weaponSet: weapon,
+    devilFruit,
+    equipType:
+      weapon !== "None" && devilFruit !== "None"
+        ? "Devil Fruit / Weapon"
+        : devilFruit !== "None"
+        ? "Devil Fruit"
+        : weapon !== "None"
+        ? "Weapon"
+        : "None",
+  };
+}
+
 function getUpgradedWeaponPercent(item, level = 5) {
   const base = item?.statPercent || {};
   const lv = Math.max(0, Number(level || 0));
@@ -505,12 +673,7 @@ module.exports = {
         getAllCards()
           .filter((c) => c.cardRole === mode)
           .map((card) =>
-            isLzsCard(card)
-              ? buildMergedLzsCard(player, card, 1, {
-                  sourceStage: 1,
-                  templateOnly: true,
-                })
-              : card
+            isLzsCard(card) ? buildLzsAllDisplayCard(card, "M1") : card
           ),
         mode
       );

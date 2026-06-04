@@ -233,34 +233,35 @@ function getStageRawPower(card, stageCard, stage) {
 }
 
 function getStageDisplayStats(card, stageCard, stage) {
- if (isLzsCard(card)) {
-  return {
-   source: stageCard,
-   atk: Number(stageCard?.atk || 0),
-   hp: Number(stageCard?.hp || 0),
-   speed: Number(stageCard?.speed || stageCard?.spd || 0),
-   power: Number(stageCard?.currentPower || stageCard?.basePower || stageCard?.power || 0),
-  };
- }
+  if (isLzsCard(card)) {
+    return {
+      source: card,
+      atk: Number(card?.atk || 0),
+      hp: Number(card?.hp || 0),
+      speed: Number(card?.speed || card?.spd || 0),
+      power: Number(card?.currentPower || card?.basePower || card?.power || 0),
+    };
+  }
 
- if (Number(stage) === 3) {
-  const allGlobalCard = getAllGlobalCard(card);
-  return {
-   source: allGlobalCard,
-   atk: Number(allGlobalCard?.atk || 0),
-   hp: Number(allGlobalCard?.hp || 0),
-   speed: Number(allGlobalCard?.speed || 0),
-   power: getAllGlobalPower(allGlobalCard),
-  };
- }
+  if (Number(stage) === 3) {
+    const allGlobalCard = getAllGlobalCard(card);
 
- return {
-  source: card,
-  atk: Number(getStageRawStat(card, stageCard, stage, "atk") || 0),
-  hp: Number(getStageRawStat(card, stageCard, stage, "hp") || 0),
-  speed: Number(getStageRawStat(card, stageCard, stage, "speed", "spd") || 0),
-  power: getStageRawPower(card, stageCard, stage),
- };
+    return {
+      source: allGlobalCard,
+      atk: Number(allGlobalCard?.atk || 0),
+      hp: Number(allGlobalCard?.hp || 0),
+      speed: Number(allGlobalCard?.speed || 0),
+      power: getAllGlobalPower(allGlobalCard),
+    };
+  }
+
+  return {
+    source: card,
+    atk: Number(getStageRawStat(card, stageCard, stage, "atk") || 0),
+    hp: Number(getStageRawStat(card, stageCard, stage, "hp") || 0),
+    speed: Number(getStageRawStat(card, stageCard, stage, "speed", "spd") || 0),
+    power: getStageRawPower(card, stageCard, stage),
+  };
 }
 
 const LZS_SOURCE_CODES = [
@@ -286,92 +287,51 @@ function findTemplateByCodeForCi(code) {
   );
 }
 
-function findOwnedByCodeForCi(player, code) {
-  const target = normalizeCiCode(code);
+function getCiStageForm(template, stage = 1) {
+  const n = Math.max(1, Math.min(3, Number(stage || 1)));
 
-  return (
-    (Array.isArray(player?.cards) ? player.cards : []).find(
-      (card) => normalizeCiCode(card?.code) === target
-    ) || null
-  );
+  return Array.isArray(template?.evolutionForms)
+    ? template.evolutionForms[n - 1] || null
+    : null;
 }
 
-function getCiStageFromOwned(card) {
-  const n = Number(card?.evolutionStage || card?.stage || 0);
-  if (n >= 1) return Math.max(1, Math.min(3, Math.floor(n)));
-
-  const key = String(card?.evolutionKey || card?.form || "").toUpperCase();
-  const matched = key.match(/M([123])/);
-  return matched ? Number(matched[1]) : 1;
-}
-
-function buildLzsSourceCardForCi(code, stage = 1) {
-  const template = findTemplateByCodeForCi(code) || {};
-  const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
-
-  return hydrateCard({
-    ...template,
-    code: template.code || code,
-    name: template.name,
-    displayName: template.displayName || template.name,
-    evolutionStage: targetStage,
-    evolutionKey: `M${targetStage}`,
-  });
-}
-
-function pickCiNumber(card, keys) {
-  for (const key of keys) {
-    const value = Number(card?.[key]);
-    if (Number.isFinite(value) && value > 0) return value;
+function pickCiDisplayNumber(card, form, keys) {
+  for (const source of [form, card]) {
+    for (const key of keys) {
+      const value = Number(source?.[key]);
+      if (Number.isFinite(value) && value > 0) return value;
+    }
   }
 
   return 0;
 }
 
-function getCiAtk(card) {
-  return pickCiNumber(card, [
-    "finalAtk",
-    "currentAtk",
-    "totalAtk",
-    "battleAtk",
-    "atk",
-    "baseAtk",
-  ]);
+function getCiDisplayAtk(card, form) {
+  return pickCiDisplayNumber(card, form, ["atk", "baseAtk"]);
 }
 
-function getCiHp(card) {
-  return pickCiNumber(card, [
-    "finalHp",
-    "currentHp",
-    "totalHp",
-    "battleHp",
-    "maxHp",
-    "hp",
-    "baseHp",
-  ]);
+function getCiDisplayHp(card, form) {
+  return pickCiDisplayNumber(card, form, ["hp", "baseHp"]);
 }
 
-function getCiSpeed(card) {
-  return pickCiNumber(card, [
-    "finalSpeed",
-    "currentSpeed",
-    "totalSpeed",
-    "battleSpeed",
-    "speed",
-    "spd",
-    "baseSpeed",
-  ]);
+function getCiDisplaySpeed(card, form) {
+  return pickCiDisplayNumber(card, form, ["speed", "spd", "baseSpeed"]);
 }
 
-function getCiPower(card) {
-  return pickCiNumber(card, [
-    "currentPower",
-    "basePower",
-    "power",
-    "finalPower",
-    "totalPower",
-    "battlePower",
-  ]);
+function getCiDisplayPower(card, form, stage = 1) {
+  const stageKey = `M${Math.max(1, Math.min(3, Number(stage || 1)))}`;
+
+  return Number(
+    form?.currentPower ||
+      form?.basePower ||
+      form?.power ||
+      form?.powerCaps?.[stageKey] ||
+      card?.powerCaps?.[stageKey] ||
+      card?.basePower ||
+      card?.power ||
+      card?.currentPower ||
+      0
+  );
 }
 
 function cleanCiText(value) {
@@ -397,12 +357,33 @@ function joinUniqueCiText(values) {
     for (const part of parts) {
       const key = normalizeNameSearch(part);
       if (!key || key === "none" || seen.has(key)) continue;
+
       seen.add(key);
       out.push(part);
     }
   }
 
   return out.length ? out.join(", ") : "None";
+}
+
+function buildLzsSourceTemplateForCi(code, stage = 1) {
+  const template = findTemplateByCodeForCi(code) || {};
+  const form = getCiStageForm(template, stage);
+
+  return {
+    template,
+    form,
+    atk: getCiDisplayAtk(template, form),
+    hp: getCiDisplayHp(template, form),
+    speed: getCiDisplaySpeed(template, form),
+    power: getCiDisplayPower(template, form, stage),
+    weapon: form?.weaponSet || form?.weapon || template.weaponSet || template.weapon,
+    devilFruit:
+      form?.devilFruitName ||
+      form?.devilFruit ||
+      template.devilFruitName ||
+      template.devilFruit,
+  };
 }
 
 function buildCiLzsCard(player, baseCard, stage = 1) {
@@ -414,31 +395,28 @@ function buildCiLzsCard(player, baseCard, stage = 1) {
     : {};
 
   const sources = LZS_SOURCE_CODES.map((code) =>
-    buildLzsSourceCardForCi(code, targetStage)
+    buildLzsSourceTemplateForCi(code, targetStage)
   );
 
   const atk = Math.floor(
-    sources.reduce((total, card) => total + getCiAtk(card) * 0.5, 0)
+    sources.reduce((total, source) => total + source.atk * 0.5, 0)
   );
 
   const hp = Math.floor(
-    sources.reduce((total, card) => total + getCiHp(card) * 0.5, 0)
+    sources.reduce((total, source) => total + source.hp * 0.5, 0)
   );
 
   const speed = Math.floor(
-    sources.reduce((total, card) => total + getCiSpeed(card) * 0.5, 0)
+    sources.reduce((total, source) => total + source.speed * 0.5, 0)
   );
 
   const power = Math.floor(
-    sources.reduce((total, card) => total + getCiPower(card) * 0.5, 0)
+    sources.reduce((total, source) => total + source.power * 0.5, 0)
   );
 
-  const weapon = joinUniqueCiText(
-    sources.map((card) => card.weaponSet || card.weapon)
-  );
-
+  const weapon = joinUniqueCiText(sources.map((source) => source.weapon));
   const devilFruit = joinUniqueCiText(
-    sources.map((card) => card.devilFruitName || card.devilFruit)
+    sources.map((source) => source.devilFruit)
   );
 
   return {
