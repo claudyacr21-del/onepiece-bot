@@ -178,6 +178,139 @@ function findCardTemplateSafe(card) {
   return card;
 }
 
+function stripTemplateOnlyFields(card) {
+  const clean = cloneDeep(card || {});
+
+  delete clean.awakenRequirements;
+  delete clean.evolutionRequirements;
+  delete clean.requirements;
+  delete clean.requiredCards;
+  delete clean.requiredBoosts;
+  delete clean.cardsText;
+  delete clean.boostsText;
+
+  return clean;
+}
+
+function findOwnedCardIndexByNameOrCode(cardsOwned, query) {
+  const list = Array.isArray(cardsOwned) ? cardsOwned : [];
+
+  const scored = list
+    .map((card, index) => ({
+      index,
+      score: scoreOwnedCardQuery(card, query),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored.length ? scored[0].index : -1;
+}
+
+function findLatestTemplateForAwaken(ownedCard, query) {
+  const keys = [
+    query,
+    ownedCard?.code,
+    String(ownedCard?.code || "").replace(/_/g, " "),
+    ownedCard?.displayName,
+    ownedCard?.name,
+    ownedCard?.title,
+    ownedCard?.variant,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  for (const key of keys) {
+    const found = findCardTemplate(key);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+function mergeOwnedProgressIntoLatestTemplate(ownedCard, template) {
+  const clean = stripTemplateOnlyFields(ownedCard);
+
+  if (!template) return clean;
+
+  return {
+    ...cloneDeep(template),
+
+    instanceId: clean.instanceId,
+    ownerId: clean.ownerId,
+
+    level: clean.level,
+    xp: clean.xp,
+    exp: clean.exp,
+    kills: clean.kills,
+    fragments: clean.fragments,
+    raidPrestige: clean.raidPrestige,
+
+    evolutionStage: clean.evolutionStage,
+    evolutionKey: clean.evolutionKey,
+
+    currentTier: clean.currentTier || template.currentTier,
+    rarity: clean.rarity || template.rarity,
+
+    equippedWeapons: clean.equippedWeapons || [],
+    equippedWeapon: clean.equippedWeapon || null,
+    equippedWeaponName: clean.equippedWeaponName || null,
+    equippedWeaponCode: clean.equippedWeaponCode || null,
+    equippedWeaponLevel: clean.equippedWeaponLevel || 0,
+
+    equippedDevilFruit: clean.equippedDevilFruit || null,
+    equippedDevilFruitName: clean.equippedDevilFruitName || null,
+
+    cardRole: clean.cardRole || template.cardRole,
+  };
+}
+
+function preparePlayerForLatestAwakenTemplate(player, query) {
+  const prepared = cloneDeep(player || {});
+  prepared.cards = Array.isArray(prepared.cards)
+    ? prepared.cards.map(stripTemplateOnlyFields)
+    : [];
+
+  const targetIndex = findOwnedCardIndexByNameOrCode(prepared.cards, query);
+
+  if (targetIndex === -1) return prepared;
+
+  const ownedCard = prepared.cards[targetIndex];
+  const latestTemplate = findLatestTemplateForAwaken(ownedCard, query);
+
+  if (latestTemplate) {
+    prepared.cards[targetIndex] = mergeOwnedProgressIntoLatestTemplate(
+      ownedCard,
+      latestTemplate
+    );
+  }
+
+  return prepared;
+}
+
+function formatAwakenErrorDetail(error) {
+  const raw = String(error?.message || "Unknown awaken requirement error.")
+    .replace(/^Missing requirements:\s*/i, "")
+    .replace(/^\*\*?Missing \/ Error Detail\*\*?\s*/i, "")
+    .trim();
+
+  const lines = raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const seen = new Set();
+  const unique = [];
+
+  for (const line of lines) {
+    const key = line.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(line);
+  }
+
+  return unique.length ? unique.join("\n") : "Unknown awaken requirement error.";
+}
+
 function getStageKey(stage) {
   return `M${Number(stage || 1)}`;
 }
@@ -414,7 +547,7 @@ module.exports = {
     const nextStage = currentStage + 1;
 
     try {
-      const validationPlayer = cloneDeep(player);
+      const validationPlayer = preparePlayerForLatestAwakenTemplate(player, query);
       awakenOwnedCard(validationPlayer, query);
     } catch (error) {
       return message.reply({
@@ -427,9 +560,7 @@ module.exports = {
                 `**${owned.displayName || owned.name || owned.code}** cannot awaken to **M${nextStage}** yet.`,
                 "",
                 "**Missing / Error Detail**",
-                String(error?.message || "Unknown awaken requirement error.")
-                  .replace(/^Missing requirements:\s*/i, "")
-                  .trim(),
+                formatAwakenErrorDetail(error),
                 "",
                 `Use \`op ci ${owned.displayName || owned.name || owned.code}\` then press **(i)** to check the same requirement panel.`,
               ].join("\n")
@@ -493,10 +624,11 @@ module.exports = {
         updatePlayerAtomic(
           message.author.id,
           (fresh) => {
-            awakenResult = awakenOwnedCard(fresh, query);
+            const preparedFresh = preparePlayerForLatestAwakenTemplate(fresh, query);
+            awakenResult = awakenOwnedCard(preparedFresh, query);
 
             freshPlayerForDisplay = {
-              ...fresh,
+              ...preparedFresh,
               cards: awakenResult.updatedCards,
               fragments: awakenResult.updatedFragments,
               berries: awakenResult.berries,
@@ -525,7 +657,7 @@ module.exports = {
                   `**${owned.displayName || owned.name || owned.code}** cannot awaken right now.`,
                   "",
                   "**Missing / Error Detail**",
-                  String(error?.message || "Unknown awaken requirement error."),
+                  formatAwakenErrorDetail(error),
                   "",
                   `Use \`op ci ${owned.displayName || owned.name || query}\` then press **(i)** to check the same requirement panel.`,
                 ].join("\n")
