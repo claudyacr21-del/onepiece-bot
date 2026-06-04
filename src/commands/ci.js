@@ -1,3 +1,4 @@
+const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
 const {
   EmbedBuilder,
   ActionRowBuilder,
@@ -82,16 +83,31 @@ function scoreNameOnly(query, names) {
   return best;
 }
 
-function findCardTemplateByNameOnly(query) {
-  const scored = getAllCards()
-    .map((card) => ({
-      card,
-      score: scoreNameOnly(query, [card.displayName, card.name]),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
+function isLzsQuery(query) {
+ const q = normalizeNameSearch(query).replace(/\s+/g, "_");
+ return q === "lzs" || q === "monster_trio";
+}
 
-  return scored.length ? scored[0].card : null;
+function findCardTemplateByNameOnly(query) {
+ if (isLzsQuery(query)) {
+  const lzs = getAllCards().find((card) => {
+   const code = String(card?.code || "").toLowerCase().trim();
+   const name = normalizeNameSearch(card?.displayName || card?.name || card?.title);
+   return code === "lzs" || name === "monster trio";
+  });
+
+  if (lzs) return lzs;
+ }
+
+ const scored = getAllCards()
+  .map((card) => ({
+   card,
+   score: scoreNameOnly(query, [card.displayName, card.name]),
+  }))
+  .filter((entry) => entry.score > 0)
+  .sort((a, b) => b.score - a.score);
+
+ return scored.length ? scored[0].card : null;
 }
 
 function getAllGlobalCard(card) {

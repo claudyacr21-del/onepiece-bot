@@ -1,27 +1,76 @@
-const MERGE_SOURCE_CODES = ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"];
+const rawCards = require("../data/cards");
+
+const MERGE_SOURCE_CODES = [
+ "luffy_straw_hat",
+ "zoro_pirate_hunter",
+ "sanji_black_leg",
+];
+
 const MERGE_RATIO = 0.5;
 
 function normalize(value) {
- return String(value || "").toLowerCase().trim().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+ return String(value || "")
+  .toLowerCase()
+  .trim()
+  .replace(/[_-]+/g, " ")
+  .replace(/\s+/g, " ");
+}
+
+function normalizeCode(value) {
+ return normalize(value).replace(/\s+/g, "_");
 }
 
 function isLzsCard(card) {
- const code = normalize(card?.code).replace(/\s+/g, "_");
+ const code = normalizeCode(card?.code);
  const name = normalize(card?.displayName || card?.name || card?.title);
  return code === "lzs" || name === "monster trio";
 }
 
+function getTemplateByCode(code) {
+ const target = normalizeCode(code);
+ return (
+  (Array.isArray(rawCards) ? rawCards : []).find(
+   (card) => normalizeCode(card?.code) === target
+  ) || null
+ );
+}
+
 function getStage(card) {
- const stage = Number(card?.evolutionStage || 0);
- if (stage >= 1) return Math.max(1, Math.min(3, Math.floor(stage)));
- const key = String(card?.evolutionKey || card?.form || card?.stage || "").toUpperCase();
+ const n = Number(card?.evolutionStage || card?.stage || 0);
+ if (n >= 1) return Math.max(1, Math.min(3, Math.floor(n)));
+
+ const key = String(card?.evolutionKey || card?.form || "").toUpperCase();
  const matched = key.match(/M([123])/);
  return matched ? Number(matched[1]) : 1;
 }
 
-function findSourceCard(cards, code) {
- const target = normalize(code);
- return (Array.isArray(cards) ? cards : []).find((card) => normalize(card?.code) === target) || null;
+function findOwnedSource(player, code) {
+ const target = normalizeCode(code);
+ return (
+  (Array.isArray(player?.cards) ? player.cards : []).find(
+   (card) => normalizeCode(card?.code) === target
+  ) || null
+ );
+}
+
+function getSourceMergedCard(player, code) {
+ const owned = findOwnedSource(player, code);
+ const template = getTemplateByCode(code) || {};
+ const stage = getStage(owned || template);
+ const form = Array.isArray(template.evolutionForms)
+  ? template.evolutionForms[stage - 1] || {}
+  : {};
+
+ return {
+  ...template,
+  ...form,
+  ...owned,
+  code: template.code || owned?.code || code,
+  name: template.name || owned?.name,
+  displayName: template.displayName || template.name || owned?.displayName || owned?.name,
+  evolutionStage: stage,
+  evolutionKey: `M${stage}`,
+ };
 }
 
 function getNumber(card, keys) {
@@ -33,25 +82,63 @@ function getNumber(card, keys) {
 }
 
 function getAtk(card) {
- return getNumber(card, ["finalAtk", "currentAtk", "totalAtk", "battleAtk", "atk"]);
+ return getNumber(card, [
+  "finalAtk",
+  "currentAtk",
+  "totalAtk",
+  "battleAtk",
+  "atk",
+  "baseAtk",
+ ]);
 }
 
 function getHp(card) {
- return getNumber(card, ["finalHp", "currentHp", "totalHp", "battleHp", "maxHp", "hp"]);
+ return getNumber(card, [
+  "finalHp",
+  "currentHp",
+  "totalHp",
+  "battleHp",
+  "maxHp",
+  "hp",
+  "baseHp",
+ ]);
 }
 
 function getSpeed(card) {
- return getNumber(card, ["finalSpeed", "currentSpeed", "totalSpeed", "battleSpeed", "speed", "spd"]);
+ return getNumber(card, [
+  "finalSpeed",
+  "currentSpeed",
+  "totalSpeed",
+  "battleSpeed",
+  "speed",
+  "spd",
+  "baseSpeed",
+ ]);
 }
 
 function getPower(card) {
- return getNumber(card, ["finalPower", "currentPower", "totalPower", "battlePower", "basePower", "power"]);
+ return getNumber(card, [
+  "finalPower",
+  "currentPower",
+  "totalPower",
+  "battlePower",
+  "basePower",
+  "power",
+ ]);
 }
 
 function cleanValue(value) {
  const text = String(value || "").trim();
  if (!text || text.toLowerCase() === "none") return "";
+ if (text.toLowerCase().includes("synced from")) return "";
  return text;
+}
+
+function splitParts(value) {
+ return cleanValue(value)
+  .split(/\s*[,/]\s*/)
+  .map((part) => part.trim())
+  .filter(Boolean);
 }
 
 function uniqueJoin(values) {
@@ -59,10 +146,7 @@ function uniqueJoin(values) {
  const out = [];
 
  for (const value of values) {
-  const text = cleanValue(value);
-  if (!text) continue;
-
-  for (const part of text.split(/\s*[,/]\s*/).map((x) => x.trim()).filter(Boolean)) {
+  for (const part of splitParts(value)) {
    const key = normalize(part);
    if (!key || key === "none" || seen.has(key)) continue;
    seen.add(key);
@@ -73,35 +157,59 @@ function uniqueJoin(values) {
  return out.length ? out.join(", ") : "None";
 }
 
-function buildMergedLzsCard(player, ownedLzsCard) {
- const cards = Array.isArray(player?.cards) ? player.cards : [];
- const sources = MERGE_SOURCE_CODES.map((code) => findSourceCard(cards, code)).filter(Boolean);
+function buildMergedLzsCard(player, baseCard = null, stageOverride = null) {
+ const template = getTemplateByCode("lzs") || {};
+ const ownedLzs =
+  baseCard && isLzsCard(baseCard)
+   ? baseCard
+   : findOwnedSource(player, "lzs") || baseCard || template;
 
- if (!isLzsCard(ownedLzsCard) || sources.length < 3) {
-  return ownedLzsCard;
- }
+ const sources = MERGE_SOURCE_CODES.map((code) => getSourceMergedCard(player, code));
 
- const atk = Math.floor(sources.reduce((sum, card) => sum + getAtk(card) * MERGE_RATIO, 0));
- const hp = Math.floor(sources.reduce((sum, card) => sum + getHp(card) * MERGE_RATIO, 0));
- const speed = Math.floor(sources.reduce((sum, card) => sum + getSpeed(card) * MERGE_RATIO, 0));
- const basePower = Math.floor(sources.reduce((sum, card) => sum + getPower(card) * MERGE_RATIO, 0));
+ const stage = Math.max(
+  1,
+  Math.min(3, Number(stageOverride || getStage(ownedLzs) || 1))
+ );
 
- const weapon = uniqueJoin(sources.map((card) => card.equippedWeapon || card.weapon));
- const devilFruit = uniqueJoin(sources.map((card) => card.equippedDevilFruitName || card.equippedDevilFruit || card.devilFruit));
+ const atk = Math.floor(
+  sources.reduce((sum, card) => sum + getAtk(card) * MERGE_RATIO, 0)
+ );
+ const hp = Math.floor(
+  sources.reduce((sum, card) => sum + getHp(card) * MERGE_RATIO, 0)
+ );
+ const speed = Math.floor(
+  sources.reduce((sum, card) => sum + getSpeed(card) * MERGE_RATIO, 0)
+ );
+ const basePower = Math.floor(
+  sources.reduce((sum, card) => sum + getPower(card) * MERGE_RATIO, 0)
+ );
 
- const equipType =
-  weapon !== "None" && devilFruit !== "None"
-   ? "Devil Fruit / Weapon"
-   : devilFruit !== "None"
-    ? "Devil Fruit"
-    : weapon !== "None"
-     ? "Weapon"
-     : "None";
+const weapon = uniqueJoin(
+ sources.map((card) =>
+  card.equippedWeaponName ||
+  card.equippedWeapon ||
+  card.weaponSet ||
+  card.weapon
+ )
+);
 
- const stage = getStage(ownedLzsCard);
+const devilFruit = uniqueJoin(
+ sources.map((card) =>
+  card.equippedDevilFruitName ||
+  card.equippedDevilFruit ||
+  card.devilFruitName ||
+  card.devilFruit
+ )
+);
+
+ const form = Array.isArray(template.evolutionForms)
+  ? template.evolutionForms[stage - 1] || {}
+  : {};
 
  return {
-  ...ownedLzsCard,
+  ...template,
+  ...form,
+  ...ownedLzs,
   code: "lzs",
   name: "Monster Trio",
   displayName: "Monster Trio",
@@ -110,43 +218,65 @@ function buildMergedLzsCard(player, ownedLzsCard) {
   baseTier: "M",
   currentTier: "M",
   tier: "M",
-  evolutionStage: stage,
-  evolutionKey: "M" + stage,
+  cardRole: "battle",
+  role: "battle",
+  category: "battle",
+  type: "Merge",
   canPull: false,
   canPA: false,
   summonOnly: true,
   mergeOnly: true,
+  canEquipWeapon: false,
+  canEquipDevilFruit: false,
+  equipmentLocked: true,
+  equipmentSyncOnly: true,
   mergeSourceCodes: MERGE_SOURCE_CODES,
   mergeStatRatio: MERGE_RATIO,
+  evolutionStage: stage,
+  evolutionKey: `M${stage}`,
   atk,
   hp,
   speed,
   spd: speed,
   basePower,
+  power: basePower,
   currentPower: basePower,
+  powerCaps: {
+  M1: basePower,
+  M2: basePower,
+  M3: basePower,
+  },
   weapon,
+  weaponSet: weapon,
   devilFruit,
-  equipType,
-  syncedFrom: MERGE_SOURCE_CODES,
+  equipType:
+  weapon !== "None" && devilFruit !== "None"
+  ? "Devil Fruit / Weapon"
+  : devilFruit !== "None"
+      ? "Devil Fruit"
+      : weapon !== "None"
+      ? "Weapon"
+      : "None",
   syncNote: "50% Monkey D. Luffy + 50% Roronoa Zoro + 50% Sanji",
- };
+  };
 }
 
 function syncMergedCardsInPlayer(player) {
  if (!player || typeof player !== "object") return player;
+
  const cards = Array.isArray(player.cards) ? player.cards : [];
  if (!cards.some(isLzsCard)) return player;
 
- const basePlayer = { ...player, cards };
- const syncedCards = cards.map((card) => (isLzsCard(card) ? buildMergedLzsCard(basePlayer, card) : card));
-
  return {
   ...player,
-  cards: syncedCards,
+  cards: cards.map((card) =>
+   isLzsCard(card) ? buildMergedLzsCard(player, card) : card
+  ),
  };
 }
 
 module.exports = {
+ MERGE_SOURCE_CODES,
  isLzsCard,
  buildMergedLzsCard,
  syncMergedCardsInPlayer,

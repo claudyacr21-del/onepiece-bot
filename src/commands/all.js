@@ -1,3 +1,4 @@
+const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
 const {
   EmbedBuilder,
   ActionRowBuilder,
@@ -34,13 +35,13 @@ function normalize(value = "") {
 }
 
 function getCardPower(card, stageKey = "M1") {
-  return Number(
-    card.powerCaps?.[stageKey] ||
-      card.basePower ||
-      card.power ||
-      card.currentPower ||
-      0
-  );
+ return Number(
+  card.powerCaps?.[stageKey] ||
+   card.currentPower ||
+   card.basePower ||
+   card.power ||
+   0
+ );
 }
 
 
@@ -101,17 +102,17 @@ function getUpgradedWeaponPercent(item, level = 5) {
 }
 
 function tierScore(tier) {
-  return (
-    {
-      C: 1,
-      B: 2,
-      A: 3,
-      S: 4,
-      SS: 5,
-      UR: 6,
-      M: 7,
-    }[String(tier || "").toUpperCase()] || 0
-  );
+ return (
+  {
+   C: 1,
+   B: 2,
+   A: 3,
+   S: 4,
+   SS: 5,
+   UR: 6,
+   M: 7,
+  }[String(tier || "").toUpperCase()] || 0
+ );
 }
 
 function statEffectText(item) {
@@ -217,7 +218,13 @@ function buildCardEmbed(card, index, total, mode) {
   const stageIndex = 0;
   const stageKey = "M1";
   const form = card.evolutionForms?.[stageIndex] || null;
-  const baseStats = getBaseCardStats(card, form);
+  const baseStats = isLzsCard(card)
+  ? {
+      atk: Number(card.atk || 0),
+      hp: Number(card.hp || 0),
+      speed: Number(card.speed || card.spd || 0),
+    }
+  : getBaseCardStats(card, form);
 
   const stageImage =
     form?.image ||
@@ -493,13 +500,19 @@ module.exports = {
     }
 
     if (mode === "battle" || mode === "boost") {
-      const normalCards = sortCardsForAll(
-        getAllCards().filter((c) => c.cardRole === mode),
-        mode
-      );
+    const player = getPlayer(message.author.id, message.author.username);
 
-      list = normalCards;
- renderer = (item, index, total) => buildCardEmbed(item, index, total, mode);
+    const normalCards = sortCardsForAll(
+      getAllCards()
+      .filter((c) => c.cardRole === mode)
+      .map((card) =>
+        isLzsCard(card) ? buildMergedLzsCard(player, card, 1) : card
+      ),
+      mode
+    );
+
+    list = normalCards;
+    renderer = (item, index, total) => buildCardEmbed(item, index, total, mode);
     }
 
     if (mode === "weapon") {
