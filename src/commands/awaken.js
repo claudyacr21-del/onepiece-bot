@@ -207,12 +207,18 @@ function findOwnedCardIndexByNameOrCode(cardsOwned, query) {
 }
 
 function findLatestTemplateForAwaken(ownedCard, query) {
+  const directQuery = String(query || "").trim();
+
+  if (directQuery) {
+    const foundByQuery = findCardTemplate(directQuery);
+    if (foundByQuery) return foundByQuery;
+  }
+
   const keys = [
-    query,
-    ownedCard?.code,
-    String(ownedCard?.code || "").replace(/_/g, " "),
     ownedCard?.displayName,
     ownedCard?.name,
+    ownedCard?.code,
+    String(ownedCard?.code || "").replace(/_/g, " "),
     ownedCard?.title,
     ownedCard?.variant,
   ]

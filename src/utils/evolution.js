@@ -1083,9 +1083,11 @@ function findOwnedRequirementCard(player, requirement) {
 
 function getLatestTemplateRequirementForAwaken(ownedCard, targetCard, nextStage, query = "") {
   const template =
-    findTemplateForOwnedCard(ownedCard) ||
+    findCardTemplate(query) ||
+    findCardTemplate(targetCard?.displayName || targetCard?.name || targetCard?.code) ||
+    findCardTemplate(ownedCard?.displayName || ownedCard?.name || ownedCard?.code) ||
     findTemplateForOwnedCard(targetCard) ||
-    findCardTemplate(query || targetCard?.displayName || targetCard?.name || targetCard?.code) ||
+    findTemplateForOwnedCard(ownedCard) ||
     null;
 
   if (!template) return null;
@@ -1371,7 +1373,13 @@ function awakenOwnedCard(player, query) {
   const nextCards = afterFragmentConsume.updatedCards.map((card, index) => {
     if (index !== targetIndex) return stripOwnedTemplateOnlyFields(card);
 
-    const cleanCard = stripOwnedTemplateOnlyFields(card);
+    const cleanCard = stripOwnedTemplateOnlyFields({
+      ...card,
+      code: latestRequirement?.template?.code || card.code,
+      name: latestRequirement?.template?.name || card.name,
+      displayName: latestRequirement?.template?.displayName || card.displayName,
+      cardRole: latestRequirement?.template?.cardRole || card.cardRole,
+    });
 
     const awakened = hydrateCard({
       ...cleanCard,
@@ -1379,7 +1387,7 @@ function awakenOwnedCard(player, query) {
       evolutionKey: `M${nextStage}`,
     });
 
-    return {
+    return stripOwnedTemplateOnlyFields({
       ...cleanCard,
       evolutionStage: nextStage,
       evolutionKey: `M${nextStage}`,
@@ -1393,7 +1401,7 @@ function awakenOwnedCard(player, query) {
       speed: awakened.speed,
       currentPower: awakened.currentPower,
       powerCaps: awakened.powerCaps,
-    };
+    });
   });
 
   const updatedTarget = hydrateCard(mergeOwnedCardWithTemplate(nextCards[targetIndex]));
