@@ -20,18 +20,19 @@ const SHOP_ITEMS = [
     cost: 75,
     description: "High-grade resource box.",
   },
+    {
+    key: "reset",
+    name: "Pull Reset Ticket x1",
+    cost: 100,
+    description: "Reset your pull slots manually.",
+  },
   {
     key: "legend",
     name: "Legend Resource Box x1",
-    cost: 100,
+    cost: 150,
     description: "Premium resource box for late progression.",
   },
-  {
-    key: "reset",
-    name: "Pull Reset Ticket x1",
-    cost: 150,
-    description: "Reset your pull slots manually.",
-  },
+
 ];
 
 function getFruitEssenceAmount(player) {
