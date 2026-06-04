@@ -8,6 +8,7 @@ module.exports = {
       "effect",
       "lb",
       "team",
+      "convert",
       "finv",
       "ci",
       "help",
