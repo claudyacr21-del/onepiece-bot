@@ -1024,22 +1024,7 @@ function findOwnedCardIndexForAwaken(cardsOwned, query) {
   return scored.length ? scored[0].index : -1;
 }
 
-function requirementCandidates(requirement) {
-  if (!requirement) return [];
-
-  if (typeof requirement === "string") {
-    return [requirement];
-  }
-
-  return [
-    requirement.code,
-    requirement.name,
-    requirement.displayName,
-    requirement.cardName,
-  ].filter(Boolean);
-}
-
-function normalizeRequirementIdentity(value) {
+function normalizeRequirementNameOnly(value) {
   return String(value || "")
     .toLowerCase()
     .trim()
@@ -1049,52 +1034,78 @@ function normalizeRequirementIdentity(value) {
     .replace(/\s+/g, " ");
 }
 
-function compactRequirementIdentity(value) {
-  return normalizeRequirementIdentity(value).replace(/\s+/g, "");
+function normalizeRequirementCodeOnly(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function requirementNameCandidates(requirement) {
+  if (!requirement) return [];
+
+  if (typeof requirement === "string") {
+    return [requirement].map(normalizeRequirementNameOnly).filter(Boolean);
+  }
+
+  return [
+    requirement.name,
+    requirement.displayName,
+    requirement.cardName,
+  ]
+    .map(normalizeRequirementNameOnly)
+    .filter(Boolean);
+}
+
+function requirementCodeCandidates(requirement) {
+  if (!requirement || typeof requirement === "string") return [];
+
+  return [
+    requirement.code,
+    requirement.baseCode,
+  ]
+    .map(normalizeRequirementCodeOnly)
+    .filter(Boolean);
+}
+
+function ownedNameCandidates(ownedCard) {
+  return [
+    ownedCard?.name,
+    ownedCard?.displayName,
+    ownedCard?.cardName,
+  ]
+    .map(normalizeRequirementNameOnly)
+    .filter(Boolean);
+}
+
+function ownedCodeCandidates(ownedCard) {
+  return [
+    ownedCard?.code,
+    ownedCard?.baseCode,
+  ]
+    .map(normalizeRequirementCodeOnly)
+    .filter(Boolean);
 }
 
 function doesRequirementMatchOwnedCard(ownedCard, requirement) {
-  const reqNames = requirementCandidates(requirement)
-    .map(normalizeRequirementIdentity)
-    .filter(Boolean);
+  const reqCodes = requirementCodeCandidates(requirement);
+  const ownedCodes = ownedCodeCandidates(ownedCard);
 
-  const reqCompact = requirementCandidates(requirement)
-    .map(compactRequirementIdentity)
-    .filter(Boolean);
-
-  const ownedNames = [
-    ownedCard?.code,
-    ownedCard?.baseCode,
-    ownedCard?.name,
-    ownedCard?.displayName,
-    ownedCard?.cardName,
-  ]
-    .map(normalizeRequirementIdentity)
-    .filter(Boolean);
-
-  const ownedCompact = [
-    ownedCard?.code,
-    ownedCard?.baseCode,
-    ownedCard?.name,
-    ownedCard?.displayName,
-    ownedCard?.cardName,
-  ]
-    .map(compactRequirementIdentity)
-    .filter(Boolean);
-
-  if ((!reqNames.length && !reqCompact.length) || (!ownedNames.length && !ownedCompact.length)) {
-    return false;
-  }
-
-  for (const reqName of reqNames) {
-    for (const ownedName of ownedNames) {
-      if (ownedName === reqName) return true;
+  for (const reqCode of reqCodes) {
+    for (const ownedCode of ownedCodes) {
+      if (reqCode && ownedCode && reqCode === ownedCode) return true;
     }
   }
 
-  for (const reqName of reqCompact) {
-    for (const ownedName of ownedCompact) {
-      if (ownedName === reqName) return true;
+  const reqNames = requirementNameCandidates(requirement);
+  const ownedNames = ownedNameCandidates(ownedCard);
+
+  for (const reqName of reqNames) {
+    for (const ownedName of ownedNames) {
+      if (reqName && ownedName && reqName === ownedName) return true;
     }
   }
 
