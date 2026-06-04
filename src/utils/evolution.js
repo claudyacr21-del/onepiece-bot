@@ -234,84 +234,156 @@ function findCardTemplate(query) {
   );
 }
 
+function normalizeTemplateIdentity(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function compactTemplateIdentity(value) {
+  return normalizeTemplateIdentity(value).replace(/_/g, "");
+}
+
+function getTemplateAliases(card) {
+  return [
+    card?.code,
+    card?.baseCode,
+    card?.id,
+    card?.name,
+    card?.displayName,
+    card?.cardName,
+    card?.title,
+    card?.variant,
+    String(card?.code || "").replace(/_/g, " "),
+    `${card?.name || ""} ${card?.title || ""}`,
+    `${card?.name || ""} ${card?.variant || ""}`,
+    `${card?.displayName || ""} ${card?.title || ""}`,
+    `${card?.displayName || ""} ${card?.variant || ""}`,
+  ]
+    .map(normalizeTemplateIdentity)
+    .filter(Boolean);
+}
+
+function getTemplateCompactAliases(card) {
+  return getTemplateAliases(card).map(compactTemplateIdentity).filter(Boolean);
+}
+
 function findTemplateByCode(code) {
-  const q = normalize(code);
-  return safeArray(cards).find((card) => normalize(card.code) === q) || null;
+  const q = normalizeTemplateIdentity(code);
+  if (!q) return null;
+
+  return (
+    safeArray(cards).find((card) => normalizeTemplateIdentity(card.code) === q) ||
+    safeArray(cards).find((card) => normalizeTemplateIdentity(card.baseCode) === q) ||
+    null
+  );
 }
 
 function findTemplateForOwnedCard(ownedCard) {
   if (!ownedCard) return null;
 
-  const codeMatch = findTemplateByCode(ownedCard.code || ownedCard.baseCode);
-  if (codeMatch) return codeMatch;
+  const byCode = findTemplateByCode(ownedCard.code || ownedCard.baseCode);
+  if (byCode) return byCode;
 
-  const names = [
-    ownedCard.displayName,
-    ownedCard.name,
-    ownedCard.cardName,
-    ownedCard.title,
-    String(ownedCard.code || "").replace(/_/g, " "),
-  ]
-    .map(normalize)
-    .filter(Boolean);
+  const ownedAliases = getTemplateAliases(ownedCard);
+  const ownedCompactAliases = getTemplateCompactAliases(ownedCard);
 
-  if (!names.length) return null;
+  if (!ownedAliases.length && !ownedCompactAliases.length) return null;
 
-  return (
-    safeArray(cards).find((card) => {
-      const templateNames = [
-        card.code,
-        String(card.code || "").replace(/_/g, " "),
-        card.name,
-        card.displayName,
-        card.cardName,
-        card.title,
-        card.variant,
-      ]
-        .map(normalize)
-        .filter(Boolean);
+  let best = null;
+  let bestScore = 0;
 
-      return names.some((ownedName) =>
-        templateNames.some((templateName) => {
-          if (ownedName === templateName) return true;
-          if (ownedName.includes(templateName)) return true;
-          if (templateName.includes(ownedName)) return true;
-          return false;
-        })
-      );
-    }) || null
-  );
+  for (const template of safeArray(cards)) {
+    const templateAliases = getTemplateAliases(template);
+    const templateCompactAliases = getTemplateCompactAliases(template);
+
+    let score = 0;
+
+    for (const ownedAlias of ownedAliases) {
+      for (const templateAlias of templateAliases) {
+        if (!ownedAlias || !templateAlias) continue;
+
+        if (ownedAlias === templateAlias) score = Math.max(score, 1000 + templateAlias.length);
+        else if (ownedAlias.includes(templateAlias)) score = Math.max(score, 700 + templateAlias.length);
+        else if (templateAlias.includes(ownedAlias)) score = Math.max(score, 500 + ownedAlias.length);
+      }
+    }
+
+    for (const ownedAlias of ownedCompactAliases) {
+      for (const templateAlias of templateCompactAliases) {
+        if (!ownedAlias || !templateAlias) continue;
+
+        if (ownedAlias === templateAlias) score = Math.max(score, 900 + templateAlias.length);
+        else if (ownedAlias.includes(templateAlias)) score = Math.max(score, 650 + templateAlias.length);
+        else if (templateAlias.includes(ownedAlias)) score = Math.max(score, 450 + ownedAlias.length);
+      }
+    }
+
+    if (score > bestScore) {
+      best = template;
+      bestScore = score;
+    }
+  }
+
+  return bestScore > 0 ? best : null;
+}
+
+function stripOwnedTemplateOnlyFields(card) {
+  const cleaned = clone(card || {});
+
+  delete cleaned.awakenRequirements;
+  delete cleaned.evolutionRequirements;
+  delete cleaned.requirements;
+  delete cleaned.requiredCards;
+  delete cleaned.requiredBoosts;
+  delete cleaned.cardsText;
+  delete cleaned.boostsText;
+
+  return cleaned;
 }
 
 function mergeOwnedCardWithTemplate(ownedCard) {
   if (!ownedCard) return null;
 
   const template = findTemplateForOwnedCard(ownedCard);
+  const cleanOwned = stripOwnedTemplateOnlyFields(ownedCard);
 
-  if (!template) return clone(ownedCard);
+  if (!template) return cleanOwned;
 
   return {
     ...clone(template),
-    instanceId: ownedCard.instanceId,
-    ownerId: ownedCard.ownerId,
-    level: ownedCard.level,
-    xp: ownedCard.xp,
-    exp: ownedCard.exp,
-    kills: ownedCard.kills,
-    fragments: ownedCard.fragments,
-    raidPrestige: Math.max(0, Math.min(200, Number(ownedCard.raidPrestige || 0))),
-    evolutionStage: ownedCard.evolutionStage,
-    evolutionKey: ownedCard.evolutionKey,
-    currentTier: ownedCard.currentTier || template.currentTier,
-    rarity: ownedCard.rarity || template.rarity,
-    equippedWeapons: clone(ownedCard.equippedWeapons || []),
-    equippedWeapon: ownedCard.equippedWeapon || null,
-    equippedWeaponName: ownedCard.equippedWeaponName || null,
-    equippedWeaponCode: ownedCard.equippedWeaponCode || null,
-    equippedWeaponLevel: ownedCard.equippedWeaponLevel || 0,
-    equippedDevilFruit: ownedCard.equippedDevilFruit || null,
-    equippedDevilFruitName: ownedCard.equippedDevilFruitName || null,
-    cardRole: ownedCard.cardRole || template.cardRole,
+
+    instanceId: cleanOwned.instanceId,
+    ownerId: cleanOwned.ownerId,
+
+    level: cleanOwned.level,
+    xp: cleanOwned.xp,
+    exp: cleanOwned.exp,
+    kills: cleanOwned.kills,
+    fragments: cleanOwned.fragments,
+
+    raidPrestige: Math.max(0, Math.min(200, Number(cleanOwned.raidPrestige || 0))),
+
+    evolutionStage: cleanOwned.evolutionStage,
+    evolutionKey: cleanOwned.evolutionKey,
+
+    currentTier: cleanOwned.currentTier || template.currentTier,
+    rarity: cleanOwned.rarity || template.rarity,
+
+    equippedWeapons: clone(cleanOwned.equippedWeapons || []),
+    equippedWeapon: cleanOwned.equippedWeapon || null,
+    equippedWeaponName: cleanOwned.equippedWeaponName || null,
+    equippedWeaponCode: cleanOwned.equippedWeaponCode || null,
+    equippedWeaponLevel: cleanOwned.equippedWeaponLevel || 0,
+
+    equippedDevilFruit: cleanOwned.equippedDevilFruit || null,
+    equippedDevilFruitName: cleanOwned.equippedDevilFruitName || null,
+
+    cardRole: cleanOwned.cardRole || template.cardRole,
   };
 }
 
@@ -1009,6 +1081,56 @@ function findOwnedRequirementCard(player, requirement) {
   );
 }
 
+function getLatestTemplateRequirementForAwaken(ownedCard, targetCard, nextStage, query = "") {
+  const template =
+    findTemplateForOwnedCard(ownedCard) ||
+    findTemplateForOwnedCard(targetCard) ||
+    findCardTemplate(query || targetCard?.displayName || targetCard?.name || targetCard?.code) ||
+    null;
+
+  if (!template) return null;
+
+  const latest = hydrateCard({
+    ...clone(template),
+
+    instanceId: targetCard?.instanceId,
+    ownerId: targetCard?.ownerId,
+
+    level: targetCard?.level,
+    xp: targetCard?.xp,
+    exp: targetCard?.exp,
+    kills: targetCard?.kills,
+    fragments: targetCard?.fragments,
+    raidPrestige: targetCard?.raidPrestige,
+
+    evolutionStage: targetCard?.evolutionStage,
+    evolutionKey: targetCard?.evolutionKey,
+
+    currentTier: targetCard?.currentTier,
+    rarity: targetCard?.rarity,
+
+    equippedWeapons: targetCard?.equippedWeapons || [],
+    equippedWeapon: targetCard?.equippedWeapon || null,
+    equippedWeaponName: targetCard?.equippedWeaponName || null,
+    equippedWeaponCode: targetCard?.equippedWeaponCode || null,
+    equippedWeaponLevel: targetCard?.equippedWeaponLevel || 0,
+
+    equippedDevilFruit: targetCard?.equippedDevilFruit || null,
+    equippedDevilFruitName: targetCard?.equippedDevilFruitName || null,
+  });
+
+  const req =
+    template?.awakenRequirements?.[`M${nextStage}`] ||
+    latest?.awakenRequirements?.[`M${nextStage}`] ||
+    null;
+
+  return {
+    template,
+    latest,
+    req,
+  };
+}
+
 const AWAKEN_GEMS_COST_BY_BASE_TIER = {
   S: {
     1: 750,  // M1 -> M2
@@ -1219,37 +1341,16 @@ function awakenOwnedCard(player, query) {
   }
 
   const nextStage = currentStage + 1;
-  const latestTemplate =
-    findTemplateForOwnedCard(originalCard) ||
-    findCardTemplate(query) ||
-    findTemplateForOwnedCard(target) ||
-    target;
 
-  const latestTarget = hydrateCard({
-    ...target,
-    ...latestTemplate,
-    instanceId: target.instanceId,
-    ownerId: target.ownerId,
-    level: target.level,
-    xp: target.xp,
-    exp: target.exp,
-    kills: target.kills,
-    fragments: target.fragments,
-    raidPrestige: target.raidPrestige,
-    evolutionStage: target.evolutionStage,
-    evolutionKey: target.evolutionKey,
-    currentTier: target.currentTier,
-    rarity: target.rarity,
-    equippedWeapons: target.equippedWeapons || [],
-    equippedWeapon: target.equippedWeapon || null,
-    equippedWeaponName: target.equippedWeaponName || null,
-    equippedWeaponCode: target.equippedWeaponCode || null,
-    equippedWeaponLevel: target.equippedWeaponLevel || 0,
-    equippedDevilFruit: target.equippedDevilFruit || null,
-    equippedDevilFruitName: target.equippedDevilFruitName || null,
-  });
+  const latestRequirement = getLatestTemplateRequirementForAwaken(
+    originalCard,
+    target,
+    nextStage,
+    query
+  );
 
-  const req = latestTemplate?.awakenRequirements?.[`M${nextStage}`];
+  const latestTarget = latestRequirement?.latest || target;
+  const req = latestRequirement?.req || null;
 
   if (!req) {
     throw new Error("No awaken requirement found.");
@@ -1257,6 +1358,7 @@ function awakenOwnedCard(player, query) {
 
   validateAwakenRequirement(player, latestTarget, req);
 
+  const berriesNeed = getAwakenBerriesCost(req, latestTarget);
   const gemsNeed = getAwakenGemsCost(req, latestTarget);
 
   const afterFragmentConsume = consumeOwnedFragments(
@@ -1267,16 +1369,18 @@ function awakenOwnedCard(player, query) {
   );
 
   const nextCards = afterFragmentConsume.updatedCards.map((card, index) => {
-    if (index !== targetIndex) return card;
+    if (index !== targetIndex) return stripOwnedTemplateOnlyFields(card);
+
+    const cleanCard = stripOwnedTemplateOnlyFields(card);
 
     const awakened = hydrateCard({
-      ...card,
+      ...cleanCard,
       evolutionStage: nextStage,
       evolutionKey: `M${nextStage}`,
     });
 
     return {
-      ...card,
+      ...cleanCard,
       evolutionStage: nextStage,
       evolutionKey: `M${nextStage}`,
       currentTier: awakened.currentTier,
@@ -1297,7 +1401,7 @@ function awakenOwnedCard(player, query) {
   return {
     updatedCards: nextCards,
     updatedFragments: afterFragmentConsume.updatedFragments,
-    berries: Number(player.berries || 0) - getAwakenBerriesCost(req, latestTarget),
+    berries: Number(player.berries || 0) - berriesNeed,
     gems: Number(player.gems || 0) - gemsNeed,
     target: updatedTarget,
   };
