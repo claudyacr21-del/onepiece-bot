@@ -55,9 +55,9 @@ function findOwnedSource(player, code) {
   );
 }
 
-function getSourceMergedCard(player, code, stageOverride = null) {
-  const owned = findOwnedSource(player, code);
+function getSourceMergedCard(player, code, stageOverride = null, options = {}) {
   const template = getTemplateByCode(code) || {};
+  const owned = options.templateOnly ? null : findOwnedSource(player, code);
   const stage = Math.max(
     1,
     Math.min(3, Number(stageOverride || getStage(owned || template) || 1))
@@ -66,6 +66,18 @@ function getSourceMergedCard(player, code, stageOverride = null) {
   const form = Array.isArray(template.evolutionForms)
     ? template.evolutionForms[stage - 1] || {}
     : {};
+
+  if (options.templateOnly) {
+    return {
+      ...template,
+      ...form,
+      code: template.code || code,
+      name: template.name,
+      displayName: template.displayName || template.name,
+      evolutionStage: stage,
+      evolutionKey: `M${stage}`,
+    };
+  }
 
   return {
     ...template,
@@ -180,7 +192,7 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
   const sourceStage = options.sourceStage || options.displayStage || null;
 
   const sources = MERGE_SOURCE_CODES.map((code) =>
-    getSourceMergedCard(player, code, sourceStage)
+  getSourceMergedCard(player, code, sourceStage, options)
   );
 
   const atk = Math.floor(
@@ -200,24 +212,26 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
   );
 
   const weapon = uniqueJoin(
-    sources.map(
-      (card) =>
-        card.displayWeaponName ||
-        card.equippedWeaponName ||
-        card.equippedWeapon ||
-        card.weaponSet ||
-        card.weapon
+    sources.map((card) =>
+        options.templateOnly
+        ? card.weaponSet || card.weapon
+        : card.displayWeaponName ||
+            card.equippedWeaponName ||
+            card.equippedWeapon ||
+            card.weaponSet ||
+            card.weapon
     )
   );
 
   const devilFruit = uniqueJoin(
-    sources.map(
-      (card) =>
-        card.displayFruitName ||
-        card.equippedDevilFruitName ||
-        card.equippedDevilFruit ||
-        card.devilFruitName ||
-        card.devilFruit
+    sources.map((card) =>
+        options.templateOnly
+        ? card.devilFruitName || card.devilFruit
+        : card.displayFruitName ||
+            card.equippedDevilFruitName ||
+            card.equippedDevilFruit ||
+            card.devilFruitName ||
+            card.devilFruit
     )
   );
 

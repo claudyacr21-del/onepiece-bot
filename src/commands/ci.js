@@ -305,20 +305,17 @@ function getCiStageFromOwned(card) {
   return matched ? Number(matched[1]) : 1;
 }
 
-function buildLzsSourceCardForCi(player, code) {
+function buildLzsSourceCardForCi(code, stage = 1) {
   const template = findTemplateByCodeForCi(code) || {};
-  const owned = findOwnedByCodeForCi(player, code) || {};
-  const stage = getCiStageFromOwned(owned) || 1;
+  const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
 
   return hydrateCard({
     ...template,
-    ...owned,
-    code: template.code || owned.code || code,
-    name: template.name || owned.name,
-    displayName:
-      template.displayName || template.name || owned.displayName || owned.name,
-    evolutionStage: stage,
-    evolutionKey: `M${stage}`,
+    code: template.code || code,
+    name: template.name,
+    displayName: template.displayName || template.name,
+    evolutionStage: targetStage,
+    evolutionKey: `M${targetStage}`,
   });
 }
 
@@ -410,7 +407,6 @@ function joinUniqueCiText(values) {
 
 function buildCiLzsCard(player, baseCard, stage = 1) {
   const template = findTemplateByCodeForCi("lzs") || baseCard || {};
-  const ownedLzs = findOwnedByCodeForCi(player, "lzs") || {};
   const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
 
   const form = Array.isArray(template.evolutionForms)
@@ -418,7 +414,7 @@ function buildCiLzsCard(player, baseCard, stage = 1) {
     : {};
 
   const sources = LZS_SOURCE_CODES.map((code) =>
-    buildLzsSourceCardForCi(player, code)
+    buildLzsSourceCardForCi(code, targetStage)
   );
 
   const atk = Math.floor(
@@ -438,31 +434,16 @@ function buildCiLzsCard(player, baseCard, stage = 1) {
   );
 
   const weapon = joinUniqueCiText(
-    sources.map(
-      (card) =>
-        card.displayWeaponName ||
-        card.equippedWeaponName ||
-        card.equippedWeapon ||
-        card.weaponSet ||
-        card.weapon
-    )
+    sources.map((card) => card.weaponSet || card.weapon)
   );
 
   const devilFruit = joinUniqueCiText(
-    sources.map(
-      (card) =>
-        card.displayFruitName ||
-        card.equippedDevilFruitName ||
-        card.equippedDevilFruit ||
-        card.devilFruitName ||
-        card.devilFruit
-    )
+    sources.map((card) => card.devilFruitName || card.devilFruit)
   );
 
   return {
     ...template,
     ...form,
-    ...ownedLzs,
 
     code: "lzs",
     name: "Monster Trio",

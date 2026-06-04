@@ -506,7 +506,10 @@ module.exports = {
           .filter((c) => c.cardRole === mode)
           .map((card) =>
             isLzsCard(card)
-              ? buildMergedLzsCard(player, card, 1, { sourceStage: 1 })
+              ? buildMergedLzsCard(player, card, 1, {
+                  sourceStage: 1,
+                  templateOnly: true,
+                })
               : card
           ),
         mode
