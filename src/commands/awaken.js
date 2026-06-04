@@ -207,27 +207,21 @@ function findOwnedCardIndexByNameOrCode(cardsOwned, query) {
 }
 
 function findLatestTemplateForAwaken(ownedCard, query) {
-  const directQuery = String(query || "").trim();
-
-  if (directQuery) {
-    const foundByQuery = findCardTemplate(directQuery);
-    if (foundByQuery) return foundByQuery;
-  }
-
   const keys = [
-    ownedCard?.displayName,
-    ownedCard?.name,
     ownedCard?.code,
     String(ownedCard?.code || "").replace(/_/g, " "),
+    ownedCard?.displayName,
+    ownedCard?.name,
     ownedCard?.title,
     ownedCard?.variant,
+    query,
   ]
     .map((value) => String(value || "").trim())
     .filter(Boolean);
 
   for (const key of keys) {
     const found = findCardTemplate(key);
-    if (found) return found;
+    if (found && String(found?.code || "").trim()) return found;
   }
 
   return null;
@@ -235,7 +229,6 @@ function findLatestTemplateForAwaken(ownedCard, query) {
 
 function mergeOwnedProgressIntoLatestTemplate(ownedCard, template) {
   const clean = stripTemplateOnlyFields(ownedCard);
-
   if (!template) return clean;
 
   return {
@@ -245,6 +238,8 @@ function mergeOwnedProgressIntoLatestTemplate(ownedCard, template) {
     ownerId: clean.ownerId,
 
     level: clean.level,
+    currentLevel: clean.currentLevel,
+    lvl: clean.lvl,
     xp: clean.xp,
     exp: clean.exp,
     kills: clean.kills,
@@ -254,7 +249,7 @@ function mergeOwnedProgressIntoLatestTemplate(ownedCard, template) {
     evolutionStage: clean.evolutionStage,
     evolutionKey: clean.evolutionKey,
 
-    currentTier: clean.currentTier || template.currentTier,
+    currentTier: clean.currentTier || template.currentTier || template.rarity,
     rarity: clean.rarity || template.rarity,
 
     equippedWeapons: clean.equippedWeapons || [],
@@ -266,7 +261,9 @@ function mergeOwnedProgressIntoLatestTemplate(ownedCard, template) {
     equippedDevilFruit: clean.equippedDevilFruit || null,
     equippedDevilFruitName: clean.equippedDevilFruitName || null,
 
-    cardRole: clean.cardRole || template.cardRole,
+    cardRole: template.cardRole || clean.cardRole,
+    role: template.role || clean.role,
+    category: template.category || clean.category,
   };
 }
 
@@ -291,6 +288,16 @@ function preparePlayerForLatestAwakenTemplate(player, query) {
   }
 
   return prepared;
+}
+
+function getAwakenTargetQuery(owned, originalQuery) {
+  return (
+    owned?.code ||
+    owned?.displayName ||
+    owned?.name ||
+    owned?.title ||
+    originalQuery
+  );
 }
 
 function formatAwakenErrorDetail(error) {
@@ -553,13 +560,7 @@ module.exports = {
 
     const nextStage = currentStage + 1;
 
-    const awakenTargetQuery =
-    owned.instanceId ||
-    owned.id ||
-    owned.code ||
-    owned.displayName ||
-    owned.name ||
-    query;
+    const awakenTargetQuery = getAwakenTargetQuery(owned, query);
 
     try {
 
@@ -580,7 +581,7 @@ module.exports = {
                 "**Missing / Error Detail**",
                 formatAwakenErrorDetail(error),
                 "",
-                `Use \`op ci ${owned.displayName || owned.name || owned.code}\` then press **(i)** to check the same requirement panel.`,
+                `Use \`op ci ${owned.code || owned.displayName || owned.name || query}\` then press **(i)** to check the same requirement panel.`,
               ].join("\n")
             ),
         ],
@@ -677,7 +678,7 @@ module.exports = {
                   "**Missing / Error Detail**",
                   formatAwakenErrorDetail(error),
                   "",
-                  `Use \`op ci ${owned.displayName || owned.name || query}\` then press **(i)** to check the same requirement panel.`,
+                  `Use \`op ci ${owned.code || owned.displayName || owned.name || query}\` then press **(i)** to check the same requirement panel.`,
                 ].join("\n")
               ),
           ],
