@@ -97,46 +97,62 @@ function cloneDeep(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-function normalizeCode(value) {
+function normalizeAwakenName(value) {
   return String(value || "")
     .toLowerCase()
     .trim()
     .replace(/[_-]+/g, " ")
-    .replace(/[^a-z0-9\s,&]+/g, "")
+    .replace(/[^a-z0-9\s]+/g, "")
     .replace(/\s+/g, " ");
 }
 
-function scoreOwnedCardQuery(card, query) {
-  const q = normalizeCode(query);
+function normalizeAwakenCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, "_")
+    .replace(/\s+/g, "_");
+}
+
+function isLzsAwakenQuery(query) {
+  const q = normalizeAwakenName(query).replace(/\s+/g, "_");
+  return q === "lzs" || q === "monster_trio";
+}
+
+function isLzsCard(card) {
+  const code = String(card?.code || "").toLowerCase().trim();
+  const name = normalizeAwakenName(card?.displayName || card?.name || card?.title);
+
+  return code === "lzs" || name === "monster trio";
+}
+
+function scoreAwakenNameOnly(query, card) {
+  const q = normalizeAwakenName(query);
   if (!q) return 0;
 
-  const fields = [
-    card?.instanceId,
-    card?.id,
-    card?.code,
-    card?.name,
+  const names = [
     card?.displayName,
+    card?.name,
     card?.title,
-    String(card?.code || "").replace(/_/g, " "),
+    card?.variant,
   ]
-    .map(normalizeCode)
+    .map(normalizeAwakenName)
     .filter(Boolean);
 
   let best = 0;
 
-  for (const field of fields) {
-    if (field === q) {
-      best = Math.max(best, 1000 + field.length);
-    } else if (field.startsWith(q)) {
-      best = Math.max(best, 800 + q.length);
-    } else if (field.includes(q)) {
-      best = Math.max(best, 500 + q.length);
+  for (const name of names) {
+    if (name === q) {
+      best = Math.max(best, 2000 + name.length);
+    } else if (name.startsWith(q)) {
+      best = Math.max(best, 1200 + q.length);
+    } else if (name.includes(q)) {
+      best = Math.max(best, 900 + q.length);
     } else {
       const qWords = q.split(" ").filter(Boolean);
-      const fieldWords = field.split(" ").filter(Boolean);
 
-      if (qWords.length && qWords.every((word) => fieldWords.includes(word))) {
-        best = Math.max(best, 350 + qWords.join("").length);
+      if (qWords.length && qWords.every((word) => name.includes(word))) {
+        best = Math.max(best, 500 + qWords.join("").length);
       }
     }
   }
@@ -144,38 +160,33 @@ function scoreOwnedCardQuery(card, query) {
   return best;
 }
 
-function findOwnedCardByNameOrCode(cardsOwned, query) {
-  const list = Array.isArray(cardsOwned) ? cardsOwned : [];
+function findOwnedCardIndexByAwakenNameOnly(cards, query) {
+  const list = Array.isArray(cards) ? cards : [];
+
+  if (isLzsAwakenQuery(query)) {
+    const index = list.findIndex((card) => isLzsCard(card));
+    if (index !== -1) return index;
+  }
 
   const scored = list
-    .map((card) => ({
-      card,
-      score: scoreOwnedCardQuery(card, query),
+    .map((card, index) => ({
+      index,
+      score: scoreAwakenNameOnly(query, card),
     }))
     .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.index - b.index;
+    });
 
-  return scored.length ? hydrateCard(scored[0].card) : null;
+  return scored.length ? scored[0].index : -1;
 }
 
-function findCardTemplateSafe(card) {
-  const code = String(card?.code || "").trim();
+function findOwnedCardByAwakenNameOnly(cards, query) {
+  const list = Array.isArray(cards) ? cards : [];
+  const index = findOwnedCardIndexByAwakenNameOnly(list, query);
 
-  if (code) {
-    const byCode = findCardTemplate(code);
-    if (byCode) return byCode;
-  }
-
-  const keys = [card?.displayName, card?.name]
-    .map((value) => String(value || "").trim())
-    .filter(Boolean);
-
-  for (const key of keys) {
-    const found = findCardTemplate(key);
-    if (found) return found;
-  }
-
-  return card;
+  return index === -1 ? null : hydrateCard(list[index]);
 }
 
 function stripTemplateOnlyFields(card) {
@@ -192,99 +203,21 @@ function stripTemplateOnlyFields(card) {
   return clean;
 }
 
-function findOwnedCardIndexByNameOrCode(cardsOwned, query) {
-  const list = Array.isArray(cardsOwned) ? cardsOwned : [];
-
-  const scored = list
-    .map((card, index) => ({
-      index,
-      score: scoreOwnedCardQuery(card, query),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
-
-  return scored.length ? scored[0].index : -1;
-}
-
-function findLatestTemplateForAwaken(ownedCard, query) {
-  const codeKeys = [
-    ownedCard?.code,
-    String(ownedCard?.code || "").replace(/_/g, " "),
-  ]
-    .map((value) => String(value || "").trim())
-    .filter(Boolean);
-
-  for (const key of codeKeys) {
-    const found = findCardTemplate(key);
-    if (found && String(found?.code || "").trim()) return found;
+function findTemplateForAwakenNameOnly(ownedCard, query) {
+  if (isLzsAwakenQuery(query) || isLzsCard(ownedCard)) {
+    return findCardTemplate("lzs") || findCardTemplate("Monster Trio") || ownedCard;
   }
 
-  const otherKeys = [
-    ownedCard?.displayName,
-    ownedCard?.name,
-    ownedCard?.title,
-    ownedCard?.variant,
-    query,
-  ]
-    .map((value) => String(value || "").trim())
-    .filter(Boolean);
+  const targetName =
+    ownedCard?.displayName ||
+    ownedCard?.name ||
+    ownedCard?.title ||
+    query;
 
-  for (const key of otherKeys) {
-    const found = findCardTemplate(key);
-    if (found && String(found?.code || "").trim()) return found;
-  }
+  const direct = findCardTemplate(targetName);
+  if (direct) return direct;
 
-  return null;
-}
-
-function mergeOwnedProgressIntoLatestTemplate(ownedCard, template) {
-  const clean = stripTemplateOnlyFields(ownedCard);
-  if (!template) return applyAwakenRequirementOverride(clean);
-
-  const merged = {
-    ...cloneDeep(template),
-
-    instanceId: clean.instanceId,
-    ownerId: clean.ownerId,
-
-    level: clean.level,
-    currentLevel: clean.currentLevel,
-    lvl: clean.lvl,
-    xp: clean.xp,
-    exp: clean.exp,
-    kills: clean.kills,
-    fragments: clean.fragments,
-    raidPrestige: clean.raidPrestige,
-
-    evolutionStage: clean.evolutionStage,
-    evolutionKey: clean.evolutionKey,
-
-    currentTier: clean.currentTier || template.currentTier || template.rarity,
-    rarity: clean.rarity || template.rarity,
-
-    equippedWeapons: clean.equippedWeapons || [],
-    equippedWeapon: clean.equippedWeapon || null,
-    equippedWeaponName: clean.equippedWeaponName || null,
-    equippedWeaponCode: clean.equippedWeaponCode || null,
-    equippedWeaponLevel: clean.equippedWeaponLevel || 0,
-
-    equippedDevilFruit: clean.equippedDevilFruit || null,
-    equippedDevilFruitName: clean.equippedDevilFruitName || null,
-
-    cardRole: template.cardRole || clean.cardRole,
-    role: template.role || clean.role,
-    category: template.category || clean.category,
-  };
-
-  return applyAwakenRequirementOverride(merged);
-}
-
-function normalizeAwakenCode(value) {
-  return String(value || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[_-]+/g, "_")
-    .replace(/\s+/g, "_");
+  return ownedCard;
 }
 
 function getAwakenRequirementOverrideByCode(code) {
@@ -365,29 +298,61 @@ function applyAwakenRequirementOverride(card) {
   return next;
 }
 
-function getAwakenTargetQuery(owned, template, originalQuery) {
-  return (
-    template?.code ||
-    owned?.code ||
-    owned?.displayName ||
-    owned?.name ||
-    owned?.title ||
-    originalQuery
-  );
+function mergeOwnedProgressIntoLatestTemplate(ownedCard, template) {
+  const clean = stripTemplateOnlyFields(ownedCard);
+
+  if (!template) return applyAwakenRequirementOverride(clean);
+
+  const merged = {
+    ...cloneDeep(template),
+
+    instanceId: clean.instanceId,
+    ownerId: clean.ownerId,
+
+    level: clean.level,
+    currentLevel: clean.currentLevel,
+    lvl: clean.lvl,
+    xp: clean.xp,
+    exp: clean.exp,
+    kills: clean.kills,
+    fragments: clean.fragments,
+    raidPrestige: clean.raidPrestige,
+
+    evolutionStage: clean.evolutionStage,
+    evolutionKey: clean.evolutionKey,
+
+    currentTier: clean.currentTier || template.currentTier || template.rarity,
+    rarity: clean.rarity || template.rarity,
+
+    equippedWeapons: clean.equippedWeapons || [],
+    equippedWeapon: clean.equippedWeapon || null,
+    equippedWeaponName: clean.equippedWeaponName || null,
+    equippedWeaponCode: clean.equippedWeaponCode || null,
+    equippedWeaponLevel: clean.equippedWeaponLevel || 0,
+
+    equippedDevilFruit: clean.equippedDevilFruit || null,
+    equippedDevilFruitName: clean.equippedDevilFruitName || null,
+
+    cardRole: template.cardRole || clean.cardRole,
+    role: template.role || clean.role,
+    category: template.category || clean.category,
+  };
+
+  return applyAwakenRequirementOverride(merged);
 }
 
 function preparePlayerForLatestAwakenTemplate(player, query) {
   const prepared = cloneDeep(player || {});
   const cards = Array.isArray(prepared.cards) ? prepared.cards : [];
 
-  const targetIndex = findOwnedCardIndexByNameOrCode(cards, query);
+  const targetIndex = findOwnedCardIndexByAwakenNameOnly(cards, query);
 
   prepared.cards = cards.map(stripTemplateOnlyFields);
 
   if (targetIndex === -1) return prepared;
 
   const ownedCard = cards[targetIndex];
-  const latestTemplate = findLatestTemplateForAwaken(ownedCard, query);
+  const latestTemplate = findTemplateForAwakenNameOnly(ownedCard, query);
 
   prepared.cards[targetIndex] = mergeOwnedProgressIntoLatestTemplate(
     ownedCard,
@@ -397,14 +362,25 @@ function preparePlayerForLatestAwakenTemplate(player, query) {
   return prepared;
 }
 
-function getAwakenTargetQuery(owned, originalQuery) {
+function getAwakenTargetQueryByNameOnly(owned, originalQuery) {
+  if (isLzsAwakenQuery(originalQuery) || isLzsCard(owned)) {
+    return "lzs";
+  }
+
   return (
-    owned?.code ||
     owned?.displayName ||
     owned?.name ||
     owned?.title ||
     originalQuery
   );
+}
+
+function getCiQueryText(owned, originalQuery) {
+  if (isLzsAwakenQuery(originalQuery) || isLzsCard(owned)) {
+    return "lzs";
+  }
+
+  return owned?.displayName || owned?.name || owned?.title || originalQuery;
 }
 
 function formatAwakenErrorDetail(error) {
@@ -433,6 +409,23 @@ function formatAwakenErrorDetail(error) {
 
 function getStageKey(stage) {
   return `M${Number(stage || 1)}`;
+}
+
+function findCardTemplateSafe(card) {
+  if (isLzsCard(card)) {
+    return findCardTemplate("lzs") || findCardTemplate("Monster Trio") || card;
+  }
+
+  const keys = [card?.displayName, card?.name, card?.title]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  for (const key of keys) {
+    const found = findCardTemplate(key);
+    if (found) return found;
+  }
+
+  return card;
 }
 
 function getStageForm(template, stage) {
@@ -504,7 +497,7 @@ function getFormName(card, stage) {
 function getBoostEffectText(card, stage = 1) {
   if (!card || card.cardRole !== "boost") return "";
 
-  const template = findCardTemplate(card?.code || card?.displayName || card?.name) || card;
+  const template = findCardTemplate(card?.displayName || card?.name) || card;
   const stageCard = getStageCard(template, stage);
   const form =
     stageCard?.evolutionForms?.[stage - 1] ||
@@ -648,7 +641,7 @@ module.exports = {
     }
 
     const player = getPlayer(message.author.id, message.author.username);
-    const owned = findOwnedCardByNameOrCode(player.cards || [], query);
+    const owned = findOwnedCardByAwakenNameOnly(player.cards || [], query);
 
     if (!owned) {
       return message.reply({
@@ -664,18 +657,17 @@ module.exports = {
     }
 
     const currentStage = Number(owned.evolutionStage || 1);
-
     const nextStage = currentStage + 1;
-
-    const latestTemplate = findLatestTemplateForAwaken(owned, query);
-    const awakenTargetQuery = getAwakenTargetQuery(owned, latestTemplate, query);
+    const awakenTargetQuery = getAwakenTargetQueryByNameOnly(owned, query);
+    const ciQueryText = getCiQueryText(owned, query);
 
     try {
+      const validationPlayer = preparePlayerForLatestAwakenTemplate(
+        player,
+        awakenTargetQuery
+      );
 
-    const validationPlayer = preparePlayerForLatestAwakenTemplate(player, awakenTargetQuery);
-
-    awakenOwnedCard(validationPlayer, awakenTargetQuery);
-
+      awakenOwnedCard(validationPlayer, awakenTargetQuery);
     } catch (error) {
       return message.reply({
         embeds: [
@@ -689,7 +681,7 @@ module.exports = {
                 "**Missing / Error Detail**",
                 formatAwakenErrorDetail(error),
                 "",
-                `Use \`op ci ${latestTemplate?.code || owned.code || owned.displayName || owned.name || query}\` then press **(i)** to check the same requirement panel.`,
+                `Use \`op ci ${ciQueryText}\` then press **(i)** to check the same requirement panel.`,
               ].join("\n")
             ),
         ],
@@ -751,7 +743,11 @@ module.exports = {
         updatePlayerAtomic(
           message.author.id,
           (fresh) => {
-            const preparedFresh = preparePlayerForLatestAwakenTemplate(fresh, awakenTargetQuery);
+            const preparedFresh = preparePlayerForLatestAwakenTemplate(
+              fresh,
+              awakenTargetQuery
+            );
+
             awakenResult = awakenOwnedCard(preparedFresh, awakenTargetQuery);
 
             freshPlayerForDisplay = {
@@ -786,7 +782,7 @@ module.exports = {
                   "**Missing / Error Detail**",
                   formatAwakenErrorDetail(error),
                   "",
-                  `Use \`op ci ${latestTemplate?.code || owned.code || owned.displayName || owned.name || query}\` then press **(i)** to check the same requirement panel.`,
+                  `Use \`op ci ${ciQueryText}\` then press **(i)** to check the same requirement panel.`,
                 ].join("\n")
               ),
           ],
