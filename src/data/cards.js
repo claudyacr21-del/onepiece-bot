@@ -1430,15 +1430,14 @@ function applyLzsFinalRules() {
    specialName: "Monster Trio",
    effectText: effects.M2,
    description: effects.M2,
-   require: {
-    ...(oldForms[1]?.require || {}),
-    berries: 0,
-    gems: 0,
-    selfFragments: 0,
-    fragments: m2Fragments,
-    cards: trioM3Cards,
-    cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
-   },
+    require: {
+      ...(oldForms[1]?.require || {}),
+      berries: 0,
+      gems: 0,
+      fragments: m2Fragments,
+      cards: trioM3Cards,
+      cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
+    },
   },
   {
    ...(oldForms[2] || {}),
@@ -1452,39 +1451,36 @@ function applyLzsFinalRules() {
    specialName: "Monster Trio",
    effectText: effects.M3,
    description: effects.M3,
-   require: {
-    ...(oldForms[2]?.require || {}),
-    berries: 0,
-    gems: 0,
-    selfFragments: 0,
-    fragments: m3Fragments,
-    cards: trioM3Cards,
-    cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
-   },
+    require: {
+      ...(oldForms[2]?.require || {}),
+      berries: 0,
+      gems: 0,
+      fragments: m3Fragments,
+      cards: trioM3Cards,
+      cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
+    },
   },
  ];
 
- lzs.awakenRequirements = {
-  ...(lzs.awakenRequirements || {}),
-  M2: {
-   ...(lzs.awakenRequirements?.M2 || {}),
-   berries: 0,
-   gems: 0,
-   selfFragments: 0,
-   fragments: m2Fragments,
-   cards: trioM3Cards,
-   cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
-  },
-  M3: {
-   ...(lzs.awakenRequirements?.M3 || {}),
-   berries: 0,
-   gems: 0,
-   selfFragments: 0,
-   fragments: m3Fragments,
-   cards: trioM3Cards,
-   cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
-  },
- };
+  lzs.awakenRequirements = {
+    ...(lzs.awakenRequirements || {}),
+    M2: {
+      ...(lzs.awakenRequirements?.M2 || {}),
+      berries: 0,
+      gems: 0,
+      fragments: m2Fragments,
+      cards: trioM3Cards,
+      cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
+    },
+    M3: {
+      ...(lzs.awakenRequirements?.M3 || {}),
+      berries: 0,
+      gems: 0,
+      fragments: m3Fragments,
+      cards: trioM3Cards,
+      cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
+    },
+  };
 }
 applyLzsFinalRules();
  applyRoadPoneglyphFinalRules();

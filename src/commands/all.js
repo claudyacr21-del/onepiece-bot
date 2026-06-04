@@ -17,7 +17,6 @@ const {
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const weapons = require("../data/weapons");
 const devilFruits = require("../data/devilFruits");
-const {  } = require("../data/cards")
 const {
   getRarityBadge,
   getCardImage,
@@ -500,19 +499,21 @@ module.exports = {
     }
 
     if (mode === "battle" || mode === "boost") {
-    const player = getPlayer(message.author.id, message.author.username);
+      const player = getPlayer(message.author.id, message.author.username);
 
-    const normalCards = sortCardsForAll(
-      getAllCards()
-      .filter((c) => c.cardRole === mode)
-      .map((card) =>
-        isLzsCard(card) ? buildMergedLzsCard(player, card, 1) : card
-      ),
-      mode
-    );
+      const normalCards = sortCardsForAll(
+        getAllCards()
+          .filter((c) => c.cardRole === mode)
+          .map((card) =>
+            isLzsCard(card)
+              ? buildMergedLzsCard(player, card, 1, { sourceStage: 1 })
+              : card
+          ),
+        mode
+      );
 
-    list = normalCards;
-    renderer = (item, index, total) => buildCardEmbed(item, index, total, mode);
+      list = normalCards;
+      renderer = (item, index, total) => buildCardEmbed(item, index, total, mode);
     }
 
     if (mode === "weapon") {

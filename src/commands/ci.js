@@ -233,25 +233,333 @@ function getStageRawPower(card, stageCard, stage) {
 }
 
 function getStageDisplayStats(card, stageCard, stage) {
-  if (Number(stage) === 3) {
-    const allGlobalCard = getAllGlobalCard(card);
+ if (isLzsCard(card)) {
+  return {
+   source: stageCard,
+   atk: Number(stageCard?.atk || 0),
+   hp: Number(stageCard?.hp || 0),
+   speed: Number(stageCard?.speed || stageCard?.spd || 0),
+   power: Number(stageCard?.currentPower || stageCard?.basePower || stageCard?.power || 0),
+  };
+ }
 
+ if (Number(stage) === 3) {
+  const allGlobalCard = getAllGlobalCard(card);
+  return {
+   source: allGlobalCard,
+   atk: Number(allGlobalCard?.atk || 0),
+   hp: Number(allGlobalCard?.hp || 0),
+   speed: Number(allGlobalCard?.speed || 0),
+   power: getAllGlobalPower(allGlobalCard),
+  };
+ }
+
+ return {
+  source: card,
+  atk: Number(getStageRawStat(card, stageCard, stage, "atk") || 0),
+  hp: Number(getStageRawStat(card, stageCard, stage, "hp") || 0),
+  speed: Number(getStageRawStat(card, stageCard, stage, "speed", "spd") || 0),
+  power: getStageRawPower(card, stageCard, stage),
+ };
+}
+
+const LZS_SOURCE_CODES = [
+  "luffy_straw_hat",
+  "zoro_pirate_hunter",
+  "sanji_black_leg",
+];
+
+function normalizeCiCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, "_");
+}
+
+function findTemplateByCodeForCi(code) {
+  const target = normalizeCiCode(code);
+
+  return (
+    getAllCards().find((card) => normalizeCiCode(card?.code) === target) ||
+    null
+  );
+}
+
+function findOwnedByCodeForCi(player, code) {
+  const target = normalizeCiCode(code);
+
+  return (
+    (Array.isArray(player?.cards) ? player.cards : []).find(
+      (card) => normalizeCiCode(card?.code) === target
+    ) || null
+  );
+}
+
+function getCiStageFromOwned(card) {
+  const n = Number(card?.evolutionStage || card?.stage || 0);
+  if (n >= 1) return Math.max(1, Math.min(3, Math.floor(n)));
+
+  const key = String(card?.evolutionKey || card?.form || "").toUpperCase();
+  const matched = key.match(/M([123])/);
+  return matched ? Number(matched[1]) : 1;
+}
+
+function buildLzsSourceCardForCi(player, code) {
+  const template = findTemplateByCodeForCi(code) || {};
+  const owned = findOwnedByCodeForCi(player, code) || {};
+  const stage = getCiStageFromOwned(owned) || 1;
+
+  return hydrateCard({
+    ...template,
+    ...owned,
+    code: template.code || owned.code || code,
+    name: template.name || owned.name,
+    displayName:
+      template.displayName || template.name || owned.displayName || owned.name,
+    evolutionStage: stage,
+    evolutionKey: `M${stage}`,
+  });
+}
+
+function pickCiNumber(card, keys) {
+  for (const key of keys) {
+    const value = Number(card?.[key]);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+
+  return 0;
+}
+
+function getCiAtk(card) {
+  return pickCiNumber(card, [
+    "finalAtk",
+    "currentAtk",
+    "totalAtk",
+    "battleAtk",
+    "atk",
+    "baseAtk",
+  ]);
+}
+
+function getCiHp(card) {
+  return pickCiNumber(card, [
+    "finalHp",
+    "currentHp",
+    "totalHp",
+    "battleHp",
+    "maxHp",
+    "hp",
+    "baseHp",
+  ]);
+}
+
+function getCiSpeed(card) {
+  return pickCiNumber(card, [
+    "finalSpeed",
+    "currentSpeed",
+    "totalSpeed",
+    "battleSpeed",
+    "speed",
+    "spd",
+    "baseSpeed",
+  ]);
+}
+
+function getCiPower(card) {
+  return pickCiNumber(card, [
+    "currentPower",
+    "basePower",
+    "power",
+    "finalPower",
+    "totalPower",
+    "battlePower",
+  ]);
+}
+
+function cleanCiText(value) {
+  const text = String(value || "").trim();
+  if (!text || text.toLowerCase() === "none") return "";
+  if (text.toLowerCase().includes("synced from")) return "";
+  return text;
+}
+
+function joinUniqueCiText(values) {
+  const seen = new Set();
+  const out = [];
+
+  for (const value of values) {
+    const text = cleanCiText(value);
+    if (!text) continue;
+
+    const parts = text
+      .split(/\s*[,/]\s*/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    for (const part of parts) {
+      const key = normalizeNameSearch(part);
+      if (!key || key === "none" || seen.has(key)) continue;
+      seen.add(key);
+      out.push(part);
+    }
+  }
+
+  return out.length ? out.join(", ") : "None";
+}
+
+function buildCiLzsCard(player, baseCard, stage = 1) {
+  const template = findTemplateByCodeForCi("lzs") || baseCard || {};
+  const ownedLzs = findOwnedByCodeForCi(player, "lzs") || {};
+  const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
+
+  const form = Array.isArray(template.evolutionForms)
+    ? template.evolutionForms[targetStage - 1] || {}
+    : {};
+
+  const sources = LZS_SOURCE_CODES.map((code) =>
+    buildLzsSourceCardForCi(player, code)
+  );
+
+  const atk = Math.floor(
+    sources.reduce((total, card) => total + getCiAtk(card) * 0.5, 0)
+  );
+
+  const hp = Math.floor(
+    sources.reduce((total, card) => total + getCiHp(card) * 0.5, 0)
+  );
+
+  const speed = Math.floor(
+    sources.reduce((total, card) => total + getCiSpeed(card) * 0.5, 0)
+  );
+
+  const power = Math.floor(
+    sources.reduce((total, card) => total + getCiPower(card) * 0.5, 0)
+  );
+
+  const weapon = joinUniqueCiText(
+    sources.map(
+      (card) =>
+        card.displayWeaponName ||
+        card.equippedWeaponName ||
+        card.equippedWeapon ||
+        card.weaponSet ||
+        card.weapon
+    )
+  );
+
+  const devilFruit = joinUniqueCiText(
+    sources.map(
+      (card) =>
+        card.displayFruitName ||
+        card.equippedDevilFruitName ||
+        card.equippedDevilFruit ||
+        card.devilFruitName ||
+        card.devilFruit
+    )
+  );
+
+  return {
+    ...template,
+    ...form,
+    ...ownedLzs,
+
+    code: "lzs",
+    name: "Monster Trio",
+    displayName: "Monster Trio",
+    title: "Monster Trio",
+
+    rarity: "M",
+    baseTier: "M",
+    currentTier: "M",
+    tier: "M",
+
+    cardRole: "battle",
+    role: "battle",
+    category: "battle",
+    type: "Merge",
+
+    canPull: false,
+    canPA: false,
+    summonOnly: true,
+    mergeOnly: true,
+
+    canEquipWeapon: false,
+    canEquipDevilFruit: false,
+    equipmentLocked: true,
+    equipmentSyncOnly: true,
+
+    evolutionStage: targetStage,
+    evolutionKey: `M${targetStage}`,
+
+    atk,
+    hp,
+    speed,
+    spd: speed,
+
+    basePower: power,
+    power,
+    currentPower: power,
+    powerCaps: {
+      M1: power,
+      M2: power,
+      M3: power,
+    },
+
+    weapon,
+    weaponSet: weapon,
+    devilFruit,
+    equipType:
+      weapon !== "None" && devilFruit !== "None"
+        ? "Devil Fruit / Weapon"
+        : devilFruit !== "None"
+        ? "Devil Fruit"
+        : weapon !== "None"
+        ? "Weapon"
+        : "None",
+  };
+}
+
+function getLzsRequirementForCi(stage) {
+  const n = Number(stage || 1);
+
+  if (n === 2) {
     return {
-      source: allGlobalCard,
-      atk: Number(allGlobalCard?.atk || 0),
-      hp: Number(allGlobalCard?.hp || 0),
-      speed: Number(allGlobalCard?.speed || 0),
-      power: getAllGlobalPower(allGlobalCard),
+      berries: 0,
+      gems: 0,
+      fragments: [
+        { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 75 },
+        { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 75 },
+        { code: "sanji_black_leg", name: "Sanji", amount: 75 },
+      ],
+      cards: [
+        { code: "luffy_straw_hat", name: "Monkey D. Luffy", stage: 3 },
+        { code: "zoro_pirate_hunter", name: "Roronoa Zoro", stage: 3 },
+        { code: "sanji_black_leg", name: "Sanji", stage: 3 },
+      ],
+      boosts: [],
     };
   }
 
-  return {
-    source: card,
-    atk: Number(getStageRawStat(card, stageCard, stage, "atk") || 0),
-    hp: Number(getStageRawStat(card, stageCard, stage, "hp") || 0),
-    speed: Number(getStageRawStat(card, stageCard, stage, "speed", "spd") || 0),
-    power: getStageRawPower(card, stageCard, stage),
-  };
+  if (n === 3) {
+    return {
+      berries: 0,
+      gems: 0,
+      fragments: [
+        { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 100 },
+        { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 100 },
+        { code: "sanji_black_leg", name: "Sanji", amount: 100 },
+      ],
+      cards: [
+        { code: "luffy_straw_hat", name: "Monkey D. Luffy", stage: 3 },
+        { code: "zoro_pirate_hunter", name: "Roronoa Zoro", stage: 3 },
+        { code: "sanji_black_leg", name: "Sanji", stage: 3 },
+      ],
+      boosts: [],
+    };
+  }
+
+  return null;
 }
 
 function prettifyCode(value) {
@@ -690,9 +998,7 @@ function buildRequiredForEmbed(card, stage) {
   const targets = getRequiredForTargets(card, stage);
 
   const lines = targets.length
-    ? targets.map(
-        (target) => `↪ ${target.targetName} ${target.targetStage}`
-      )
+    ? targets.map((target) => `↪ ${target.targetName} ${target.targetStage}`)
     : ["This card/form is not required by any other card yet."];
 
   return new EmbedBuilder()
@@ -709,12 +1015,6 @@ function buildRequiredForEmbed(card, stage) {
       text: "One Piece Bot • Requirement Lookup",
     });
 }
-
-
-
-
-
-
 
 function normalizeRequirementCode(value) {
   return String(value || "")
@@ -802,12 +1102,22 @@ function mergeCanonRequirementsIntoReq(req, card, targetStage) {
 }
 
 function buildReqEmbed(card, stage, player) {
-  const stageCard = getStageCard(card, stage);
-  let req =
-    stageCard.awakenRequirements?.[`M${stage}`] ||
-    card.awakenRequirements?.[`M${stage}`];
+  const isLzs = isLzsCard(card);
 
-  req = mergeCanonRequirementsIntoReq(req, card, stage);
+  if (isLzs) {
+    card = buildCiLzsCard(player, card, stage);
+  }
+
+  const stageCard = getStageCard(card, stage);
+
+  let req = isLzs
+    ? getLzsRequirementForCi(stage)
+    : stageCard.awakenRequirements?.[`M${stage}`] ||
+      card.awakenRequirements?.[`M${stage}`];
+
+  if (!isLzs) {
+    req = mergeCanonRequirementsIntoReq(req, card, stage);
+  }
 
   if (!req) {
     return new EmbedBuilder()
@@ -832,16 +1142,40 @@ function buildReqEmbed(card, stage, player) {
   );
 
   const requiredBerries = Number(req.berries || 0);
-  const requiredGems = getDisplayAwakenGemsCost(req, stage, card, stageCard);
-  const requiredFragments = Number(req.selfFragments || 0);
-  const requiredLevel =
-    stageCard.cardRole === "battle" ? Number(req.minLevel || 0) : 0;
+  const requiredGems = isLzs
+    ? Number(req.gems || 0)
+    : getDisplayAwakenGemsCost(req, stage, card, stageCard);
+
+  const requiredFragments = isLzs ? 0 : Number(req.selfFragments || 0);
+  const requiredLevel = isLzs
+    ? 0
+    : stageCard.cardRole === "battle"
+    ? Number(req.minLevel || 0)
+    : 0;
 
   const berriesOk = playerBerries >= requiredBerries;
   const gemsOk = playerGems >= requiredGems;
   const fragmentsOk = ownedFragments >= requiredFragments;
-  const levelOk =
-    stageCard.cardRole === "battle" ? ownedLevel >= requiredLevel : true;
+  const levelOk = isLzs
+    ? true
+    : stageCard.cardRole === "battle"
+    ? ownedLevel >= requiredLevel
+    : true;
+
+  const fragmentRequiredLines =
+    isLzs && Array.isArray(req.fragments) && req.fragments.length
+      ? req.fragments.map((entry) => {
+          const owned = getOwnedSelfFragmentAmount(player, entry, null);
+          const amount = Number(entry.amount || 0);
+
+          return formatCheckedLine(
+            `↪ ${owned}/${amount}x ${
+              entry.name || prettifyCode(entry.code)
+            } Fragment`,
+            owned >= amount
+          );
+        })
+      : [];
 
   const cardsRequiredLines = getRequirementStatusLines(
     req,
@@ -857,6 +1191,57 @@ function buildReqEmbed(card, stage, player) {
     getPlayerBoostRequirementPool(player)
   );
 
+  const descriptionLines = [
+    "**Requirement Panel**",
+    "",
+    "**Berries Required**",
+    formatCheckedLine(
+      `↪ ${requiredBerries.toLocaleString("en-US")}`,
+      berriesOk
+    ),
+    "",
+    "**Gems Required**",
+    formatCheckedLine(`↪ ${requiredGems.toLocaleString("en-US")}`, gemsOk),
+    "",
+  ];
+
+  if (isLzs) {
+    descriptionLines.push(
+      "**Fragments Required**",
+      ...fragmentRequiredLines,
+      "",
+      "**Cards Required**",
+      ...cardsRequiredLines,
+      "",
+      "✨ **Boosts Required**",
+      ...boostsRequiredLines
+    );
+  } else {
+    descriptionLines.push(
+      "**Self Fragments Required**",
+      formatCheckedLine(
+        `↪ ${ownedFragments}/${requiredFragments}x ${
+          stageCard.displayName || card.displayName || card.name
+        }`,
+        fragmentsOk
+      ),
+      "",
+      "**Level Requirement**",
+      formatCheckedLine(
+        `↪ ${
+          stageCard.cardRole === "battle" ? requiredLevel : "Not required"
+        }`,
+        levelOk
+      ),
+      "",
+      "**Cards Required**",
+      ...cardsRequiredLines,
+      "",
+      "✨ **Boosts Required**",
+      ...boostsRequiredLines
+    );
+  }
+
   return new EmbedBuilder()
     .setColor(0x2ecc71)
     .setTitle(
@@ -864,48 +1249,15 @@ function buildReqEmbed(card, stage, player) {
         stageCard.displayName || card.displayName || card.name
       } • M${stage}`
     )
-    .setDescription(
-      [
-        "**Requirement Panel**",
-        "",
-        "**Berries Required**",
-        formatCheckedLine(
-          `↪ ${requiredBerries.toLocaleString("en-US")}`,
-          berriesOk
-        ),
-        "",
-        "**Gems Required**",
-        formatCheckedLine(
-          `↪ ${requiredGems.toLocaleString("en-US")}`,
-          gemsOk
-        ),
-        "",
-        "**Self Fragments Required**",
-        formatCheckedLine(
-          `↪ ${ownedFragments}/${requiredFragments}x ${
-            stageCard.displayName || card.displayName || card.name
-          }`,
-          fragmentsOk
-        ),
-        "",
-        "**Level Requirement**",
-        formatCheckedLine(
-          `↪ ${
-            stageCard.cardRole === "battle" ? requiredLevel : "Not required"
-          }`,
-          levelOk
-        ),
-        "",
-        "**Cards Required**",
-        ...cardsRequiredLines,
-        "",
-        "✨ **Boosts Required**",
-        ...boostsRequiredLines,
-      ].join("\n")
-    );
+    .setDescription(descriptionLines.join("\n"));
 }
 
 function buildEmbed(card, owned, stage, player = null) {
+  if (isLzsCard(card)) {
+    card = buildCiLzsCard(player, card, stage);
+    owned = card;
+  }
+
   const stageCard = getStageCard(card, stage);
   const form =
     stageCard.evolutionForms?.[stage - 1] || card.evolutionForms?.[stage - 1];
@@ -920,23 +1272,31 @@ function buildEmbed(card, owned, stage, player = null) {
   if (isRoadPoneglyphCard(stageCard)) {
     stageCard.effectText = getRoadPoneglyphEffect(stage);
     stageCard.boostDescription = getRoadPoneglyphEffect(stage);
+
     if (form) {
       form.effectText = getRoadPoneglyphEffect(stage);
       form.boostDescription = getRoadPoneglyphEffect(stage);
     }
   }
 
-  const extraLines = stageCard.cardRole === "boost" ? [
-    `Form: ${stageLabel}`,
-    `Tier: ${form?.tier || stageCard.currentTier || stageCard.rarity}`,
-    `Role: ${stageCard.cardRole}`,
-    `Power: ${displayStats.power}`,
-    `Effect: ${getRoadPoneglyphDisplayEffect(stageCard, stage, form?.effectText || stageCard.effectText || "No effect text")}`,
-    `Target: ${stageCard.boostTarget || "team"}`,
-    `Boost Type: ${stageCard.boostType || "unknown"}`,
-    `Devil Fruit: ${getBoostDevilFruitForCi(card, stageCard, form)}`,
-    `Fragments: ${Number(owned?.fragments || 0)}`,
-  ] : [
+  const extraLines =
+    stageCard.cardRole === "boost"
+      ? [
+          `Form: ${stageLabel}`,
+          `Tier: ${form?.tier || stageCard.currentTier || stageCard.rarity}`,
+          `Role: ${stageCard.cardRole}`,
+          `Power: ${displayStats.power}`,
+          `Effect: ${getRoadPoneglyphDisplayEffect(
+            stageCard,
+            stage,
+            form?.effectText || stageCard.effectText || "No effect text"
+          )}`,
+          `Target: ${stageCard.boostTarget || "team"}`,
+          `Boost Type: ${stageCard.boostType || "unknown"}`,
+          `Devil Fruit: ${getBoostDevilFruitForCi(card, stageCard, form)}`,
+          `Fragments: ${Number(owned?.fragments || 0)}`,
+        ]
+      : [
           `Form: ${stageLabel}`,
           `Tier: ${form?.tier || stageCard.currentTier || stageCard.rarity}`,
           `Role: ${statSource.cardRole || card.cardRole || stageCard.cardRole}`,
@@ -946,8 +1306,8 @@ function buildEmbed(card, owned, stage, player = null) {
           `ATK: ${formatAtkRange(displayStats.atk)}`,
           `HP: ${Number(displayStats.hp || 0)}`,
           `SPD: ${Number(displayStats.speed || 0)}`,
-          `Weapon Set: ${statSource.weapon || card.weapon || "None"}`,
-          `Devil Fruit: ${statSource.devilFruit || card.devilFruit || "None"}`,
+          `Weapon Set: ${statSource.weaponSet || statSource.weapon || "None"}`,
+          `Devil Fruit: ${statSource.devilFruit || "None"}`,
         ];
 
   return buildCardStyleEmbed({
@@ -1079,7 +1439,9 @@ module.exports = {
     }
 
       const freshPlayer = getPlayer(message.author.id, message.author.username);
-      const freshOwned = findOwnedCard(freshPlayer.cards || [], query);
+      const freshOwned = isLzsCard(globalCard)
+        ? buildCiLzsCard(freshPlayer, globalCard, stage)
+        : findOwnedCard(freshPlayer.cards || [], query);
 
       return i.update({
         embeds: [buildEmbed(globalCard, freshOwned, stage, freshPlayer)],
