@@ -205,7 +205,8 @@ const EXTRA_CHARACTER_CARDS = [
   battleCard({ id: 161, code: "gunko_holy_knight", name: "Manmayer Gunko", title: "Holy Knight", rarity: "S", arc: "Elbaf", faction: "Holy Knights", variant: "Arrow Executioner", type: "Control", atk: 225, hp: 1280, speed: 94, basePower: 2475, weapon: "None", devilFruit: "Aro Aro no Mi", equipType: "Devil Fruit", image: "" }),
   battleCard({ id: 162, code: "hody_jones", name: "Hody Jones", title: "Captain of the New Fish-Man Pirates", rarity: "A", arc: "Fish-Man Island", faction: "New Fish-Man Pirates", variant: "Steroid Tyrant", type: "Bruiser", atk: 142, hp: 1080, speed: 58, basePower: 1720, weapon: "Trident", devilFruit: "None", equipType: "Weapon", image: "" }),
   battleCard({ id: 163, code: "law_surgeon_of_death", name: "Trafalgar D. Water Law", title: "Surgeon of Death", rarity: "S", arc: "Dressrosa", faction: "Heart Pirates", variant: "Room", type: "Control", atk: 215, hp: 1360, speed: 85, basePower: 2390, weapon: "Kikoku", devilFruit: "Ope Ope no Mi", equipType: "Devil Fruit", image: "" }),
-  battleCard({ id: 164, code: "kid_captain", name: "Eustass Kid", title: "Captain", rarity: "S", arc: "Wano", faction: "Kid Pirates", variant: "Punk Rotten", type: "Burst", atk: 215, hp: 1360, speed: 82, basePower: 2390, weapon: "Metal Arm", devilFruit: "Jiki Jiki no Mi", equipType: "Devil Fruit", image: "" })
+  battleCard({ id: 164, code: "kid_captain", name: "Eustass Kid", title: "Captain", rarity: "S", arc: "Wano", faction: "Kid Pirates", variant: "Punk Rotten", type: "Burst", atk: 215, hp: 1360, speed: 82, basePower: 2390, weapon: "Metal Arm", devilFruit: "Jiki Jiki no Mi", equipType: "Devil Fruit", image: "" }),
+  battleCard({ id: 166, code: "lzs", name: "Monster Trio", title: "Monster Trio", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"], mergeStatRatio: 0.5, arc: "Final Saga", faction: "Straw Hat Pirates", variant: "Luffy, Zoro & Sanji", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "Synced from Monkey D. Luffy, Roronoa Zoro, and Sanji", devilFruit: "Synced from Monkey D. Luffy, Roronoa Zoro, and Sanji", equipType: "Devil Fruit / Weapon", image: "" })
 ];
 
 const SPECIAL_FORMS = {
@@ -1336,7 +1337,157 @@ function applyRoadPoneglyphFinalRules() {
   };
 }
 
-applyRoadPoneglyphFinalRules();
+
+function applyLzsFinalRules() {
+ const lzs = ALL_CARDS.find((card) => card.code === "lzs");
+ if (!lzs) return;
+
+ const effects = {
+  M1: "Monster Trio merge card. Stats, weapon, and devil fruit are synced live from owned Monkey D. Luffy, Roronoa Zoro, and Sanji.",
+  M2: "Monster Trio M2. The trio formation grows stronger while still syncing live from the three source cards.",
+  M3: "Monster Trio M3. Peak Monster Trio merge state, still rarity M and still synced from the three source cards.",
+ };
+
+ const trioM3Cards = [
+  { code: "luffy_straw_hat", name: "Monkey D. Luffy", stage: 3, minStage: 3, evolutionStage: 3 },
+  { code: "zoro_pirate_hunter", name: "Roronoa Zoro", stage: 3, minStage: 3, evolutionStage: 3 },
+  { code: "sanji_black_leg", name: "Sanji", stage: 3, minStage: 3, evolutionStage: 3 },
+ ];
+
+ const summonFragments = [
+  { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 50 },
+  { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 50 },
+  { code: "sanji_black_leg", name: "Sanji", amount: 50 },
+ ];
+
+ const m2Fragments = [
+  { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 75 },
+  { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 75 },
+  { code: "sanji_black_leg", name: "Sanji", amount: 75 },
+ ];
+
+ const m3Fragments = [
+  { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 100 },
+  { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 100 },
+  { code: "sanji_black_leg", name: "Sanji", amount: 100 },
+ ];
+
+ const oldForms = Array.isArray(lzs.evolutionForms) ? lzs.evolutionForms : [];
+
+ lzs.rarity = "M";
+ lzs.baseTier = "M";
+ lzs.currentTier = "M";
+ lzs.canPull = false;
+ lzs.canPA = false;
+ lzs.summonOnly = true;
+ lzs.mergeOnly = true;
+ lzs.mergeSourceCodes = ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"];
+ lzs.mergeStatRatio = 0.5;
+ lzs.cardRole = "battle";
+ lzs.role = "battle";
+ lzs.category = "battle";
+ lzs.effectText = effects.M1;
+ lzs.description = effects.M1;
+ lzs.weapon = "Synced from Monkey D. Luffy, Roronoa Zoro, and Sanji";
+ lzs.devilFruit = "Synced from Monkey D. Luffy, Roronoa Zoro, and Sanji";
+ lzs.equipType = "Devil Fruit / Weapon";
+
+ lzs.summonRequirements = {
+  cards: trioM3Cards,
+  cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
+  fragments: summonFragments,
+  fragmentsText: [
+   "50x Monkey D. Luffy Fragment",
+   "50x Roronoa Zoro Fragment",
+   "50x Sanji Fragment",
+  ],
+ };
+
+ lzs.evolutionForms = [
+  {
+   ...(oldForms[0] || {}),
+   stage: 1,
+   key: "M1",
+   rarity: "M",
+   tier: "M",
+   currentTier: "M",
+   name: "Monster Trio",
+   formTitle: "Monster Trio",
+   specialName: "Monster Trio",
+   effectText: effects.M1,
+   description: effects.M1,
+   require: null,
+  },
+  {
+   ...(oldForms[1] || {}),
+   stage: 2,
+   key: "M2",
+   rarity: "M",
+   tier: "M",
+   currentTier: "M",
+   name: "Monster Trio",
+   formTitle: "Monster Trio",
+   specialName: "Monster Trio",
+   effectText: effects.M2,
+   description: effects.M2,
+   require: {
+    ...(oldForms[1]?.require || {}),
+    berries: 0,
+    gems: 0,
+    selfFragments: 0,
+    fragments: m2Fragments,
+    cards: trioM3Cards,
+    cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
+   },
+  },
+  {
+   ...(oldForms[2] || {}),
+   stage: 3,
+   key: "M3",
+   rarity: "M",
+   tier: "M",
+   currentTier: "M",
+   name: "Monster Trio",
+   formTitle: "Monster Trio",
+   specialName: "Monster Trio",
+   effectText: effects.M3,
+   description: effects.M3,
+   require: {
+    ...(oldForms[2]?.require || {}),
+    berries: 0,
+    gems: 0,
+    selfFragments: 0,
+    fragments: m3Fragments,
+    cards: trioM3Cards,
+    cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
+   },
+  },
+ ];
+
+ lzs.awakenRequirements = {
+  ...(lzs.awakenRequirements || {}),
+  M2: {
+   ...(lzs.awakenRequirements?.M2 || {}),
+   berries: 0,
+   gems: 0,
+   selfFragments: 0,
+   fragments: m2Fragments,
+   cards: trioM3Cards,
+   cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
+  },
+  M3: {
+   ...(lzs.awakenRequirements?.M3 || {}),
+   berries: 0,
+   gems: 0,
+   selfFragments: 0,
+   fragments: m3Fragments,
+   cards: trioM3Cards,
+   cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
+  },
+ };
+}
+applyLzsFinalRules();
+ applyRoadPoneglyphFinalRules();
 
 module.exports = ALL_CARDS;
 

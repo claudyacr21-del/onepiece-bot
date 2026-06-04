@@ -1,4 +1,4 @@
-const fs = require("fs");
+const fs = require("fs"); const { syncMergedCardsInPlayer } = require("./utils/mergeCards");
 const path = require("path");
 const { Pool } = require("pg");
 
@@ -1541,7 +1541,7 @@ function normalizePlayer(player = {}, username = "Unknown") {
     currentIsland,
     messageMilestones: normalizeMessageMilestones(player.messageMilestones),
     dailyLastClaim: player.dailyLastClaim || null,
-    cards: normalizeCards(player.cards),
+    cards: syncMergedCardsInPlayer({ cards: normalizeCards(player.cards) }).cards,
     fragments: normalizeFragmentList(player.fragments),
     autoLevel: normalizeAutoLevel(player.autoLevel),
     autoSac: normalizeAutoSac(player.autoSac),

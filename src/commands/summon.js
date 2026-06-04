@@ -358,6 +358,41 @@ function hasLuffyM3(player) {
   });
 }
 
+
+function hasOwnedCardStage(player, targetCode, minStage = 1) {
+ const cards = Array.isArray(player?.cards) ? player.cards : [];
+ const target = normalize(targetCode);
+
+ return cards.some((owned) => {
+  const code = normalize(owned?.code);
+  const stage = Number(owned?.evolutionStage || owned?.stage || 1);
+  const key = String(owned?.evolutionKey || "").toUpperCase();
+  const keyStage = key === "M3" ? 3 : key === "M2" ? 2 : 1;
+  return code === target && Math.max(stage, keyStage) >= minStage;
+ });
+}
+
+function isLzsCard(card) {
+ const code = normalize(card?.code).replace(/\s+/g, "_");
+ const name = normalize(getCardName(card));
+ return code === "lzs" || name === "monster trio";
+}
+
+function getCardTemplateByCode(code) {
+ const target = normalize(code);
+ return rawCards.find((card) => normalize(card?.code) === target) || null;
+}
+
+function getSpecialSummonFragments(card) {
+ if (!isLzsCard(card)) return null;
+
+ return [
+  { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 50 },
+  { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 50 },
+  { code: "sanji_black_leg", name: "Sanji", amount: 50 },
+ ];
+}
+
 function getSpecialSummonRequirementError(player, card) {
   if (isImuCard(card) && !hasLuffyM3(player)) {
     return [
@@ -491,7 +526,7 @@ module.exports = {
     let summonedType = "";
     let summonedName = "";
     let summonedRarity = "C";
-    let remainingFragments = 0;
+    let remainingFragments = 0; let summonCostText = "";
     let ownedCard = null;
     let weaponImage = null;
     let weaponBadge = null;
@@ -520,7 +555,62 @@ module.exports = {
               throw new Error(requirementError);
             }
 
-            const ownedFragments = getTotalCardFragments(fragments, card);
+            
+ const specialFragments = getSpecialSummonFragments(card);
+
+ if (specialFragments) {
+  let nextFragments = fragments;
+  const remainingTexts = [];
+
+  for (const req of specialFragments) {
+   const template = getCardTemplateByCode(req.code) || req;
+   const consumed = consumeCardFragments(nextFragments, template, req.amount);
+
+   if (!consumed) {
+    throw new Error(`Failed to consume **${req.amount}x ${req.name} Fragment**.`);
+   }
+
+   nextFragments = consumed.fragments;
+   remainingTexts.push(`${req.name}: ${consumed.remaining}`);
+  }
+
+  ownedCard = applyBankedRaidPrestigeToSummonedCard(
+   fresh,
+   createOwnedCard(card),
+   card
+  );
+
+  ownedCard = {
+   ...ownedCard,
+   code: "lzs",
+   name: "Monster Trio",
+   displayName: "Monster Trio",
+   rarity: "M",
+   baseTier: "M",
+   currentTier: "M",
+   tier: "M",
+   summonOnly: true,
+   mergeOnly: true,
+   mergeSourceCodes: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
+   mergeStatRatio: 0.5,
+   evolutionStage: 1,
+   evolutionKey: "M1",
+  };
+
+  summonedType = "card";
+  summonedName = getCardName(card);
+  summonedRarity = "M";
+  remainingFragments = remainingTexts.join(", ");
+  summonCostText = specialFragments.map((req) => `${req.amount}x ${req.name} Fragment`).join(", ");
+  cardRoleLabel = getRoleLabel(card); summonCostText = `${SUMMON_FRAGMENT_COST}x ${summonedName} Fragment`;
+
+  return {
+   ...fresh,
+   cards: [...(fresh.cards || []), ownedCard],
+   fragments: nextFragments,
+  };
+ }
+ const ownedFragments = getTotalCardFragments(fragments, card);
 
             if (ownedFragments <= 0) {
               throw new Error(
@@ -618,7 +708,7 @@ module.exports = {
                 `**Card:** ${summonedName}`,
                 `**Type:** ${cardRoleLabel}`,
                 `**Rarity:** ${summonedRarity}`,
-                `**Cost:** ${SUMMON_FRAGMENT_COST}x ${summonedName} Fragment`,
+                `**Cost:** ${summonCostText || `${SUMMON_FRAGMENT_COST}x ${summonedName} Fragment`}`,
                 `**Remaining Fragments:** ${remainingFragments}`,
                 "",
                 "The card has been added to your collection.",
