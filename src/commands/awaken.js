@@ -427,9 +427,11 @@ module.exports = {
                 `**${owned.displayName || owned.name || owned.code}** cannot awaken to **M${nextStage}** yet.`,
                 "",
                 "**Missing / Error Detail**",
-                String(error?.message || "Unknown awaken requirement error."),
+                String(error?.message || "Unknown awaken requirement error.")
+                  .replace(/^Missing requirements:\s*/i, "")
+                  .trim(),
                 "",
-                `Use \`op ci ${owned.name}\` to check the full requirements.`,
+                `Use \`op ci ${owned.displayName || owned.name || owned.code}\` then press **(i)** to check the same requirement panel.`,
               ].join("\n")
             ),
         ],
@@ -525,7 +527,7 @@ module.exports = {
                   "**Missing / Error Detail**",
                   String(error?.message || "Unknown awaken requirement error."),
                   "",
-                  `Use \`op ci ${owned.displayName || owned.name || query}\` to check the full requirements.`,
+                  `Use \`op ci ${owned.displayName || owned.name || query}\` then press **(i)** to check the same requirement panel.`,
                 ].join("\n")
               ),
           ],

@@ -66,7 +66,17 @@ function enqueuePlayerSnapshotSave(userId, player) {
 
       if (saved) {
         const latest = await getPlayerFromPostgres(id);
-        persistedCache[id] = cloneJson(latest || snapshot);
+        const currentCache = playersCache?.[id] || null;
+        const mergedLatest = mergePlayerNoRollback(
+          currentCache || latest || snapshot,
+          latest || snapshot,
+          {
+            preserveMissingCards: true,
+            preserveMissingItems: false,
+          }
+        );
+
+        persistedCache[id] = cloneJson(mergedLatest);
       }
 
       return snapshot;
@@ -92,22 +102,52 @@ function cloneJson(value) {
   return value && typeof value === "object" ? JSON.parse(JSON.stringify(value)) : {};
 }
 
-function getCardIdentityKey(card) {
-  const direct = String(card?.instanceId || card?.uid || card?.id || "")
+function getCardIdentityKey(card, index = -1) {
+  const direct = String(card?.instanceId || card?.uid || card?.uniqueId || card?.cardInstanceId || "")
     .toLowerCase()
     .trim();
 
-  if (direct) return direct;
+  if (direct) return `instance:${direct}`;
 
-  return [
-    card?.code,
-    card?.name,
-    card?.displayName,
-    card?.cardName,
-  ]
-    .map((value) => String(value || "").toLowerCase().trim())
-    .filter(Boolean)
-    .join(":");
+  const code = String(card?.code || card?.baseCode || card?.name || card?.displayName || card?.cardName || "")
+    .toLowerCase()
+    .trim();
+
+  const role = String(card?.cardRole || card?.role || "battle")
+    .toLowerCase()
+    .trim();
+
+  const stage = String(card?.evolutionKey || card?.evolutionStage || card?.form || card?.stage || "M1")
+    .toLowerCase()
+    .trim();
+
+  const rarity = String(card?.rarity || card?.currentTier || "")
+    .toLowerCase()
+    .trim();
+
+  const created = String(card?.createdAt || card?.obtainedAt || card?.pulledAt || "")
+    .toLowerCase()
+    .trim();
+
+  const legacyId = String(card?.id || "")
+    .toLowerCase()
+    .trim();
+
+  if (code || legacyId) {
+    return [
+      "fingerprint",
+      role,
+      code || legacyId,
+      stage,
+      rarity,
+      created,
+      index >= 0 ? `idx${index}` : "",
+    ]
+      .filter(Boolean)
+      .join(":");
+  }
+
+  return index >= 0 ? `unknown:${index}` : "";
 }
 
 function getStackIdentityKey(item) {
@@ -193,16 +233,16 @@ function mergeCardsNoRollback(incomingCards, persistedCards, options = {}) {
 
   const persistedByKey = new Map();
 
-  for (const card of persistedList) {
-    const key = getCardIdentityKey(card);
+  for (const [index, card] of persistedList.entries()) {
+    const key = getCardIdentityKey(card, index);
     if (!key) continue;
     persistedByKey.set(key, card);
   }
 
   const usedKeys = new Set();
 
-  const merged = incomingList.map((card) => {
-    const key = getCardIdentityKey(card);
+  const merged = incomingList.map((card, index) => {
+    const key = getCardIdentityKey(card, index);
     const persistedCard = key ? persistedByKey.get(key) : null;
 
     if (key) usedKeys.add(key);
@@ -211,8 +251,8 @@ function mergeCardsNoRollback(incomingCards, persistedCards, options = {}) {
   });
 
   if (preserveMissingCards) {
-    for (const card of persistedList) {
-      const key = getCardIdentityKey(card);
+    for (const [index, card] of persistedList.entries()) {
+      const key = getCardIdentityKey(card, index);
       if (!key || usedKeys.has(key)) continue;
       merged.push(card);
     }

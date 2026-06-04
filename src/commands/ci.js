@@ -787,9 +787,11 @@ function mergeCanonRequirementsIntoReq(req, card, targetStage) {
 
 function buildReqEmbed(card, stage, player) {
   const stageCard = getStageCard(card, stage);
-  const req =
+  let req =
     stageCard.awakenRequirements?.[`M${stage}`] ||
     card.awakenRequirements?.[`M${stage}`];
+
+  req = mergeCanonRequirementsIntoReq(req, card, stage);
 
   if (!req) {
     return new EmbedBuilder()
