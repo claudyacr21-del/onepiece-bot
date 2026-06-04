@@ -29,7 +29,7 @@ const SHOP_ITEMS = [
   {
     key: "legend",
     name: "Legend Resource Box x1",
-    cost: 150,
+    cost: 100,
     description: "Premium resource box for late progression.",
   },
 
