@@ -232,36 +232,104 @@ function getStageRawPower(card, stageCard, stage) {
   );
 }
 
-function getStageDisplayStats(card, stageCard, stage) {
-  if (isLzsCard(card)) {
-    return {
-      source: card,
-      atk: Number(card?.atk || 0),
-      hp: Number(card?.hp || 0),
-      speed: Number(card?.speed || card?.spd || 0),
-      power: Number(card?.currentPower || card?.basePower || card?.power || 0),
-    };
+function firstPositiveNumber(...values) {
+  for (const value of values) {
+    const n = Number(value || 0);
+    if (Number.isFinite(n) && n > 0) return n;
   }
+  return 0;
+}
 
-  if (Number(stage) === 3) {
-    const allGlobalCard = getAllGlobalCard(card);
-
-    return {
-      source: allGlobalCard,
-      atk: Number(allGlobalCard?.atk || 0),
-      hp: Number(allGlobalCard?.hp || 0),
-      speed: Number(allGlobalCard?.speed || 0),
-      power: getAllGlobalPower(allGlobalCard),
-    };
-  }
+function getStageStatObject(source, stage) {
+  const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
+  const stageKey = `M${safeStage}`;
+  const form = source?.evolutionForms?.[safeStage - 1] || {};
+  const stageStats =
+    source?.stageStats?.[stageKey] ||
+    source?.stats?.[stageKey] ||
+    source?.masteryStats?.[stageKey] ||
+    {};
 
   return {
-    source: card,
-    atk: Number(getStageRawStat(card, stageCard, stage, "atk") || 0),
-    hp: Number(getStageRawStat(card, stageCard, stage, "hp") || 0),
-    speed: Number(getStageRawStat(card, stageCard, stage, "speed", "spd") || 0),
-    power: getStageRawPower(card, stageCard, stage),
+    source,
+    atk: firstPositiveNumber(
+      form.atk,
+      form.baseAtk,
+      stageStats.atk,
+      stageStats.baseAtk,
+      source?.[`atk${stageKey}`],
+      source?.atk,
+      source?.baseAtk
+    ),
+    hp: firstPositiveNumber(
+      form.hp,
+      form.baseHp,
+      stageStats.hp,
+      stageStats.baseHp,
+      source?.[`hp${stageKey}`],
+      source?.hp,
+      source?.baseHp
+    ),
+    speed: firstPositiveNumber(
+      form.speed,
+      form.spd,
+      form.baseSpeed,
+      stageStats.speed,
+      stageStats.spd,
+      stageStats.baseSpeed,
+      source?.[`speed${stageKey}`],
+      source?.speed,
+      source?.spd,
+      source?.baseSpeed
+    ),
+    power: firstPositiveNumber(
+      form.currentPower,
+      form.power,
+      form.powerCaps?.[stageKey],
+      stageStats.currentPower,
+      stageStats.power,
+      stageStats.powerCaps?.[stageKey],
+      source?.powerCaps?.[stageKey],
+      source?.currentPower,
+      source?.power
+    ),
   };
+}
+
+function getStatScore(stats) {
+  return (
+    Number(stats?.power || 0) * 1000000 +
+    Number(stats?.hp || 0) * 1000 +
+    Number(stats?.atk || 0) * 10 +
+    Number(stats?.speed || 0)
+  );
+}
+
+function getStageDisplayStats(card, stageCard, stage) {
+  const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
+
+  const candidates = [
+    getStageStatObject(card, safeStage),
+    getStageStatObject(stageCard, safeStage),
+  ];
+
+  if (safeStage === 3) {
+    candidates.push(getStageStatObject(getAllGlobalCard(card), safeStage));
+  }
+
+  const best = candidates
+    .filter((entry) => entry && (entry.atk || entry.hp || entry.speed || entry.power))
+    .sort((a, b) => getStatScore(b) - getStatScore(a))[0];
+
+  return (
+    best || {
+      source: card,
+      atk: Number(getStageRawStat(card, stageCard, safeStage, "atk") || 0),
+      hp: Number(getStageRawStat(card, stageCard, safeStage, "hp") || 0),
+      speed: Number(getStageRawStat(card, stageCard, safeStage, "speed", "spd") || 0),
+      power: getStageRawPower(card, stageCard, safeStage),
+    }
+  );
 }
 
 const LZS_SOURCE_CODES = [

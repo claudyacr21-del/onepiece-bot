@@ -153,18 +153,86 @@ function formatAtkRange(atk) {
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
-function applyBoostedDisplayStats(card, boosts = {}) {
-  if (!card || String(card.cardRole || "").toLowerCase() === "boost") {
-    return card;
+function firstPositiveNumber(...values) {
+  for (const value of values) {
+    const n = Number(value || 0);
+    if (Number.isFinite(n) && n > 0) return n;
   }
+  return 0;
+}
+
+function resolveCurrentStageBaseStats(card) {
+  const stage = Math.max(1, Math.min(3, Number(card?.evolutionStage || 1)));
+  const stageKey = `M${stage}`;
+  const form = card?.evolutionForms?.[stage - 1] || {};
+  const stageStats =
+    card?.stageStats?.[stageKey] ||
+    card?.stats?.[stageKey] ||
+    card?.masteryStats?.[stageKey] ||
+    {};
+
+  return {
+    atk: firstPositiveNumber(
+      card?.atk,
+      card?.displayAtk,
+      card?.combatAtk,
+      form.atk,
+      form.baseAtk,
+      stageStats.atk,
+      stageStats.baseAtk
+    ),
+    hp: firstPositiveNumber(
+      card?.hp,
+      card?.displayHp,
+      card?.combatHp,
+      form.hp,
+      form.baseHp,
+      stageStats.hp,
+      stageStats.baseHp
+    ),
+    speed: firstPositiveNumber(
+      card?.speed,
+      card?.spd,
+      card?.displaySpeed,
+      card?.combatSpeed,
+      form.speed,
+      form.spd,
+      form.baseSpeed,
+      stageStats.speed,
+      stageStats.spd,
+      stageStats.baseSpeed
+    ),
+    power: firstPositiveNumber(
+      card?.currentPower,
+      form.currentPower,
+      form.power,
+      stageStats.currentPower,
+      stageStats.power,
+      card?.powerCaps?.[stageKey]
+    ),
+  };
+}
+
+function applyBoostedDisplayStats(card, boosts = {}) {
+  if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
+
+  const base = resolveCurrentStageBaseStats(card);
+  const boostedAtk = Math.floor(base.atk * (1 + Number(boosts.atk || 0) / 100));
+  const boostedHp = Math.floor(base.hp * (1 + Number(boosts.hp || 0) / 100));
+  const boostedSpeed = Math.floor(base.speed * (1 + Number(boosts.spd || 0) / 100));
 
   return {
     ...card,
-    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
-    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
-    speed: Math.floor(
-      Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)
-    ),
+    atk: boostedAtk,
+    hp: boostedHp,
+    speed: boostedSpeed,
+    displayAtk: boostedAtk,
+    displayHp: boostedHp,
+    displaySpeed: boostedSpeed,
+    combatAtk: boostedAtk,
+    combatHp: boostedHp,
+    combatSpeed: boostedSpeed,
+    currentPower: Math.max(Number(card.currentPower || 0), Number(base.power || 0)),
   };
 }
 

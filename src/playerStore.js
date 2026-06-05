@@ -62,13 +62,22 @@ function enqueuePlayerSnapshotSave(userId, player) {
     .then(async () => {
       if (!USE_POSTGRES || !dbReady) return null;
 
-      const saved = await upsertOnePlayerToPostgres(id, snapshot);
+      const dbPlayer = await getPlayerFromPostgres(id).catch(() => null);
+      const persistedPlayer = dbPlayer || persistedCache[id] || snapshot;
 
+      const safeSnapshot = normalizePlayer(
+        mergePlayerNoRollback(snapshot, persistedPlayer, {
+          preserveMissingCards: true,
+          preserveMissingItems: true,
+        }),
+        snapshot?.username || persistedPlayer?.username || "Unknown"
+      );
+
+      const saved = await upsertOnePlayerToPostgres(id, safeSnapshot);
       if (saved) {
-        persistedCache[id] = cloneJson(snapshot);
+        persistedCache[id] = cloneJson(safeSnapshot);
       }
-
-      return snapshot;
+      return safeSnapshot;
     })
     .catch((error) => {
       console.error("[PLAYER DB SNAPSHOT SAVE ERROR]", {
@@ -584,8 +593,8 @@ async function updateOnePlayerInPostgresAtomic(userId, username, mutator) {
 
     const nextPlayer = normalizePlayer(
       mergePlayerNoRollback(result || currentPlayer, dbPlayer || currentPlayer, {
-        preserveMissingCards: false,
-        preserveMissingItems: false,
+        preserveMissingCards: true,
+        preserveMissingItems: true,
       }),
       currentPlayer.username || username
     );
@@ -667,16 +676,16 @@ async function updateTwoPlayersInPostgresAtomic(
 
     const nextA = normalizePlayer(
       mergePlayerNoRollback(result?.playerA || playerA, playerA, {
-        preserveMissingCards: false,
-        preserveMissingItems: false,
+        preserveMissingCards: true,
+        preserveMissingItems: true,
       }),
       playerA.username || usernameA
     );
 
     const nextB = normalizePlayer(
       mergePlayerNoRollback(result?.playerB || playerB, playerB, {
-        preserveMissingCards: false,
-        preserveMissingItems: false,
+        preserveMissingCards: true,
+        preserveMissingItems: true,
       }),
       playerB.username || usernameB
     );
