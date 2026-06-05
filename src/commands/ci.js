@@ -222,68 +222,169 @@ function firstPositiveNumber(...values) {
   return 0;
 }
 
+function hasStageSpecificData(source) {
+  return Boolean(
+    (Array.isArray(source?.evolutionForms) && source.evolutionForms.length) ||
+      (source?.stageStats && typeof source.stageStats === "object") ||
+      (source?.stats && typeof source.stats === "object") ||
+      (source?.masteryStats && typeof source.masteryStats === "object") ||
+      (source?.powerCaps && typeof source.powerCaps === "object")
+  );
+}
+
 function getStageStatObject(source, stage) {
   const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
   const stageKey = `M${safeStage}`;
   const form = source?.evolutionForms?.[safeStage - 1] || {};
+
   const stageStats =
     source?.stageStats?.[stageKey] ||
     source?.stats?.[stageKey] ||
     source?.masteryStats?.[stageKey] ||
     {};
 
+  const hasStageData = hasStageSpecificData(source);
+
+  // Kalau card punya M1/M2/M3 data, jangan fallback ke top-level M3 untuk M1/M2.
+  // Top-level fallback hanya aman untuk:
+  // 1. card lama yang tidak punya stage data sama sekali
+  // 2. M3, karena top-level biasanya final/max form.
+  const allowTopLevelFallback = !hasStageData || safeStage === 3;
+
+  const atk = firstPositiveNumber(
+    form.atk,
+    form.baseAtk,
+    form.displayAtk,
+    form.combatAtk,
+    form.finalAtk,
+
+    stageStats.atk,
+    stageStats.baseAtk,
+    stageStats.displayAtk,
+    stageStats.combatAtk,
+    stageStats.finalAtk,
+
+    source?.[`atk${stageKey}`],
+    source?.[`baseAtk${stageKey}`],
+    source?.[`displayAtk${stageKey}`],
+    source?.[`combatAtk${stageKey}`],
+    source?.[`finalAtk${stageKey}`],
+
+    allowTopLevelFallback ? source?.displayAtk : 0,
+    allowTopLevelFallback ? source?.combatAtk : 0,
+    allowTopLevelFallback ? source?.finalAtk : 0,
+    allowTopLevelFallback ? source?.baseAtk : 0,
+    allowTopLevelFallback ? source?.atk : 0
+  );
+
+  const hp = firstPositiveNumber(
+    form.hp,
+    form.baseHp,
+    form.displayHp,
+    form.combatHp,
+    form.finalHp,
+    form.maxHp,
+
+    stageStats.hp,
+    stageStats.baseHp,
+    stageStats.displayHp,
+    stageStats.combatHp,
+    stageStats.finalHp,
+    stageStats.maxHp,
+
+    source?.[`hp${stageKey}`],
+    source?.[`baseHp${stageKey}`],
+    source?.[`displayHp${stageKey}`],
+    source?.[`combatHp${stageKey}`],
+    source?.[`finalHp${stageKey}`],
+
+    allowTopLevelFallback ? source?.displayHp : 0,
+    allowTopLevelFallback ? source?.combatHp : 0,
+    allowTopLevelFallback ? source?.finalHp : 0,
+    allowTopLevelFallback ? source?.maxHp : 0,
+    allowTopLevelFallback ? source?.baseHp : 0,
+    allowTopLevelFallback ? source?.hp : 0
+  );
+
+  const speed = firstPositiveNumber(
+    form.speed,
+    form.spd,
+    form.baseSpeed,
+    form.displaySpeed,
+    form.combatSpeed,
+    form.finalSpeed,
+
+    stageStats.speed,
+    stageStats.spd,
+    stageStats.baseSpeed,
+    stageStats.displaySpeed,
+    stageStats.combatSpeed,
+    stageStats.finalSpeed,
+
+    source?.[`speed${stageKey}`],
+    source?.[`spd${stageKey}`],
+    source?.[`baseSpeed${stageKey}`],
+    source?.[`displaySpeed${stageKey}`],
+    source?.[`combatSpeed${stageKey}`],
+    source?.[`finalSpeed${stageKey}`],
+
+    allowTopLevelFallback ? source?.displaySpeed : 0,
+    allowTopLevelFallback ? source?.combatSpeed : 0,
+    allowTopLevelFallback ? source?.finalSpeed : 0,
+    allowTopLevelFallback ? source?.baseSpeed : 0,
+    allowTopLevelFallback ? source?.speed : 0,
+    allowTopLevelFallback ? source?.spd : 0
+  );
+
+  const power = firstPositiveNumber(
+    form.currentPower,
+    form.power,
+    form.basePower,
+    form.finalPower,
+    form.powerCaps?.[stageKey],
+
+    stageStats.currentPower,
+    stageStats.power,
+    stageStats.basePower,
+    stageStats.finalPower,
+    stageStats.powerCaps?.[stageKey],
+
+    source?.powerCaps?.[stageKey],
+    source?.[`power${stageKey}`],
+    source?.[`currentPower${stageKey}`],
+    source?.[`basePower${stageKey}`],
+    source?.[`finalPower${stageKey}`],
+
+    allowTopLevelFallback ? source?.currentPower : 0,
+    allowTopLevelFallback ? source?.power : 0,
+    allowTopLevelFallback ? source?.basePower : 0,
+    allowTopLevelFallback ? source?.finalPower : 0
+  );
+
   return {
     source,
-    atk: firstPositiveNumber(
-      form.atk,
-      form.baseAtk,
-      stageStats.atk,
-      stageStats.baseAtk,
-      source?.[`atk${stageKey}`],
-      source?.atk,
-      source?.baseAtk
-    ),
-    hp: firstPositiveNumber(
-      form.hp,
-      form.baseHp,
-      stageStats.hp,
-      stageStats.baseHp,
-      source?.[`hp${stageKey}`],
-      source?.hp,
-      source?.baseHp
-    ),
-    speed: firstPositiveNumber(
-      form.speed,
-      form.spd,
-      form.baseSpeed,
-      stageStats.speed,
-      stageStats.spd,
-      stageStats.baseSpeed,
-      source?.[`speed${stageKey}`],
-      source?.speed,
-      source?.spd,
-      source?.baseSpeed
-    ),
-    power: firstPositiveNumber(
-      form.currentPower,
-      form.power,
-      form.powerCaps?.[stageKey],
-      stageStats.currentPower,
-      stageStats.power,
-      stageStats.powerCaps?.[stageKey],
-      source?.powerCaps?.[stageKey],
-      source?.currentPower,
-      source?.power
-    ),
+    atk,
+    hp,
+    speed,
+    power,
   };
 }
 
 function getStatScore(stats) {
+  const atk = Number(stats?.atk || 0);
+  const hp = Number(stats?.hp || 0);
+  const speed = Number(stats?.speed || 0);
+  const power = Number(stats?.power || 0);
+
+  // Jangan pilih kandidat power besar tapi atk/hp/speed kosong/salah.
+  const physicalCount = (atk > 0 ? 1 : 0) + (hp > 0 ? 1 : 0) + (speed > 0 ? 1 : 0);
+
   return (
-    Number(stats?.power || 0) * 1000000 +
-    Number(stats?.hp || 0) * 1000 +
-    Number(stats?.atk || 0) * 10 +
-    Number(stats?.speed || 0)
+    physicalCount * 1000000000000 +
+    power * 1000000 +
+    hp * 1000 +
+    atk * 10 +
+    speed
   );
 }
 
@@ -295,6 +396,8 @@ function getStageDisplayStats(card, stageCard, stage) {
     getStageStatObject(stageCard, safeStage),
   ];
 
+  // Jangan paksa global M3 masuk ke semua kondisi.
+  // Global fallback M3 hanya dipakai untuk M3, dan tetap kalah kalau kandidat stageCard punya atk/hp/spd lengkap.
   if (safeStage === 3) {
     candidates.push(getStageStatObject(getAllGlobalCard(card), safeStage));
   }
@@ -303,15 +406,15 @@ function getStageDisplayStats(card, stageCard, stage) {
     .filter((entry) => entry && (entry.atk || entry.hp || entry.speed || entry.power))
     .sort((a, b) => getStatScore(b) - getStatScore(a))[0];
 
-  return (
-    best || {
-      source: card,
-      atk: Number(getStageRawStat(card, stageCard, safeStage, "atk") || 0),
-      hp: Number(getStageRawStat(card, stageCard, safeStage, "hp") || 0),
-      speed: Number(getStageRawStat(card, stageCard, safeStage, "speed", "spd") || 0),
-      power: getStageRawPower(card, stageCard, safeStage),
-    }
-  );
+  if (best) return best;
+
+  return {
+    source: card,
+    atk: Number(getStageRawStat(card, stageCard, safeStage, "atk") || 0),
+    hp: Number(getStageRawStat(card, stageCard, safeStage, "hp") || 0),
+    speed: Number(getStageRawStat(card, stageCard, safeStage, "speed", "spd") || 0),
+    power: getStageRawPower(card, stageCard, safeStage),
+  };
 }
 
 const LZS_SOURCE_CODES = [
@@ -1346,9 +1449,13 @@ function buildReqEmbed(card, stage, player) {
   const isLzs = isLzsCard(card);
 
   if (isLzs) {
-    card = buildCiLzsFromCiBattleStats(stage);
+    card = buildMergedLzsCard(player || { cards: [] }, card, stage, {
+      templateOnly: true,
+      sourceStage: stage,
+      displayStage: stage,
+      displayLevel: stage === 1 ? 50 : stage === 2 ? 85 : 100,
+    });
   }
-
   const stageCard = getStageCard(card, stage);
   const isMergeCard = isGenericMergeCardForCi(card);
 
