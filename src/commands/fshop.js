@@ -20,7 +20,7 @@ const SHOP_ITEMS = [
     cost: 75,
     description: "High-grade resource box.",
   },
-    {
+  {
     key: "reset",
     name: "Pull Reset Ticket x1",
     cost: 100,

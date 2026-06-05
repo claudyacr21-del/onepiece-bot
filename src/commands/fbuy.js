@@ -30,7 +30,7 @@ const SHOP_ITEMS = {
   reset: {
     key: "reset",
     label: "Pull Reset Ticket x1",
-    cost: 150,
+    cost: 100,
     tickets: [{ item: ITEMS.pullResetTicket, amount: 1 }],
   },
 };
