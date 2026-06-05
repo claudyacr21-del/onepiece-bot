@@ -500,39 +500,65 @@ function getLzsRequirementForCi(stage) {
   const n = Number(stage || 1);
 
   if (n === 2) {
-    return {
-      berries: 0,
-      gems: 0,
-      fragments: [
-        { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 75 },
-        { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 75 },
-        { code: "sanji_black_leg", name: "Sanji", amount: 75 },
-      ],
-      cards: [
-        { code: "luffy_straw_hat", name: "Monkey D. Luffy", stage: 3 },
-        { code: "zoro_pirate_hunter", name: "Roronoa Zoro", stage: 3 },
-        { code: "sanji_black_leg", name: "Sanji", stage: 3 },
-      ],
-      boosts: [],
-    };
+    return normalizeMergeRequirementForCi(
+      {
+        code: "lzs",
+        name: "Monster Trio",
+        displayName: "Monster Trio",
+        type: "Merge",
+        mergeOnly: true,
+        summonOnly: true,
+        mergeSourceCodes: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
+      },
+      2,
+      {
+        berries: 2000000,
+        gems: 2000,
+        selfFragments: 0,
+        fragments: [
+          { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 75 },
+          { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 75 },
+          { code: "sanji_black_leg", name: "Sanji", amount: 75 },
+        ],
+        cards: [
+          { code: "luffy_straw_hat", name: "Monkey D. Luffy", stage: 3 },
+          { code: "zoro_pirate_hunter", name: "Roronoa Zoro", stage: 3 },
+          { code: "sanji_black_leg", name: "Sanji", stage: 3 },
+        ],
+        boosts: [],
+      }
+    );
   }
 
   if (n === 3) {
-    return {
-      berries: 0,
-      gems: 0,
-      fragments: [
-        { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 100 },
-        { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 100 },
-        { code: "sanji_black_leg", name: "Sanji", amount: 100 },
-      ],
-      cards: [
-        { code: "luffy_straw_hat", name: "Monkey D. Luffy", stage: 3 },
-        { code: "zoro_pirate_hunter", name: "Roronoa Zoro", stage: 3 },
-        { code: "sanji_black_leg", name: "Sanji", stage: 3 },
-      ],
-      boosts: [],
-    };
+    return normalizeMergeRequirementForCi(
+      {
+        code: "lzs",
+        name: "Monster Trio",
+        displayName: "Monster Trio",
+        type: "Merge",
+        mergeOnly: true,
+        summonOnly: true,
+        mergeSourceCodes: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
+      },
+      3,
+      {
+        berries: 2000000,
+        gems: 2000,
+        selfFragments: 0,
+        fragments: [
+          { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 100 },
+          { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 100 },
+          { code: "sanji_black_leg", name: "Sanji", amount: 100 },
+        ],
+        cards: [
+          { code: "luffy_straw_hat", name: "Monkey D. Luffy", stage: 3 },
+          { code: "zoro_pirate_hunter", name: "Roronoa Zoro", stage: 3 },
+          { code: "sanji_black_leg", name: "Sanji", stage: 3 },
+        ],
+        boosts: [],
+      }
+    );
   }
 
   return null;
@@ -1077,6 +1103,89 @@ function mergeCanonRequirementsIntoReq(req, card, targetStage) {
   };
 }
 
+function isGenericMergeCardForCi(card) {
+  const type = String(card?.type || "").toLowerCase().trim();
+
+  return Boolean(
+    card &&
+      (card.mergeOnly === true ||
+        (card.summonOnly === true && Array.isArray(card.mergeSourceCodes)) ||
+        type === "merge")
+  );
+}
+
+function makeRoadPoneglyphRequirementForCi(stage) {
+  return {
+    code: "road_poneglyph",
+    name: "Road Poneglyph",
+    displayName: "Road Poneglyph",
+    stage,
+    minStage: stage,
+    evolutionStage: stage,
+  };
+}
+
+function uniqCiRequirementCards(cards = []) {
+  const out = [];
+  const seen = new Set();
+
+  for (const entry of Array.isArray(cards) ? cards : []) {
+    if (!entry) continue;
+
+    const code = String(entry.code || "").toLowerCase().trim();
+    const name = String(entry.name || entry.displayName || entry.cardName || "").toLowerCase().trim();
+    const stage = Number(entry.stage || entry.minStage || entry.evolutionStage || 1);
+    const key = `${code || name}:m${stage}`;
+
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    out.push({
+      ...entry,
+      stage,
+      minStage: stage,
+      evolutionStage: stage,
+    });
+  }
+
+  return out;
+}
+
+function normalizeMergeRequirementForCi(card, stage, req) {
+  if (!isGenericMergeCardForCi(card)) return req;
+
+  const nextStage = Number(stage || 1);
+
+  if (nextStage < 2) return req;
+
+  const baseReq = req || {};
+  const roadStage = nextStage;
+
+  return {
+    ...baseReq,
+
+    berries: 2000000,
+    gems: 2000,
+
+    // Merge card tidak pakai fragment dirinya sendiri.
+    selfFragments: 0,
+
+    cards: uniqCiRequirementCards([
+      ...(Array.isArray(baseReq.cards) ? baseReq.cards : []),
+      makeRoadPoneglyphRequirementForCi(roadStage),
+    ]),
+
+    cardsText: [
+      ...(Array.isArray(baseReq.cardsText) ? baseReq.cardsText : []),
+      `Road Poneglyph M${roadStage}`,
+    ].filter((value, index, arr) => arr.indexOf(value) === index),
+
+    fragments: Array.isArray(baseReq.fragments) ? baseReq.fragments : [],
+    boosts: Array.isArray(baseReq.boosts) ? baseReq.boosts : [],
+    boostsText: Array.isArray(baseReq.boostsText) ? baseReq.boostsText : [],
+  };
+}
+
 function buildReqEmbed(card, stage, player) {
   const isLzs = isLzsCard(card);
 
@@ -1085,6 +1194,7 @@ function buildReqEmbed(card, stage, player) {
   }
 
   const stageCard = getStageCard(card, stage);
+  const isMergeCard = isGenericMergeCardForCi(card);
 
   let req = isLzs
     ? getLzsRequirementForCi(stage)
@@ -1094,6 +1204,8 @@ function buildReqEmbed(card, stage, player) {
   if (!isLzs) {
     req = mergeCanonRequirementsIntoReq(req, card, stage);
   }
+
+  req = normalizeMergeRequirementForCi(card, stage, req);
 
   if (!req) {
     return new EmbedBuilder()
@@ -1118,12 +1230,14 @@ function buildReqEmbed(card, stage, player) {
   );
 
   const requiredBerries = Number(req.berries || 0);
-  const requiredGems = isLzs
+
+  const requiredGems = isMergeCard
     ? Number(req.gems || 0)
     : getDisplayAwakenGemsCost(req, stage, card, stageCard);
 
-  const requiredFragments = isLzs ? 0 : Number(req.selfFragments || 0);
-  const requiredLevel = isLzs
+  const requiredFragments = isMergeCard ? 0 : Number(req.selfFragments || 0);
+
+  const requiredLevel = isMergeCard
     ? 0
     : stageCard.cardRole === "battle"
     ? Number(req.minLevel || 0)
@@ -1131,15 +1245,16 @@ function buildReqEmbed(card, stage, player) {
 
   const berriesOk = playerBerries >= requiredBerries;
   const gemsOk = playerGems >= requiredGems;
-  const fragmentsOk = ownedFragments >= requiredFragments;
-  const levelOk = isLzs
+  const fragmentsOk = isMergeCard ? true : ownedFragments >= requiredFragments;
+
+  const levelOk = isMergeCard
     ? true
     : stageCard.cardRole === "battle"
     ? ownedLevel >= requiredLevel
     : true;
 
   const fragmentRequiredLines =
-    isLzs && Array.isArray(req.fragments) && req.fragments.length
+    isMergeCard && Array.isArray(req.fragments) && req.fragments.length
       ? req.fragments.map((entry) => {
           const owned = getOwnedSelfFragmentAmount(player, entry, null);
           const amount = Number(entry.amount || 0);
@@ -1181,10 +1296,10 @@ function buildReqEmbed(card, stage, player) {
     "",
   ];
 
-  if (isLzs) {
+  if (isMergeCard) {
     descriptionLines.push(
       "**Fragments Required**",
-      ...fragmentRequiredLines,
+      ...(fragmentRequiredLines.length ? fragmentRequiredLines : ["↪ None"]),
       "",
       "**Cards Required**",
       ...cardsRequiredLines,
