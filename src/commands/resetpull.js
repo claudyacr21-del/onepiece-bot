@@ -270,7 +270,7 @@ module.exports = {
     let payload = null;
 
     try {
-      await await updatePlayerAtomic(message.author.id,
+      await updatePlayerAtomic(message.author.id,
         (fresh) => {
           const basePlayer = {
             ...fresh,
@@ -341,9 +341,14 @@ module.exports = {
           } else {
             const itemIndex = items.findIndex(isPullResetTicket);
 
-            if (itemIndex === -1 || Number(items[itemIndex]?.amount || 0) <= 0) {
-              throw new Error("You do not have any Pull Reset Ticket.");
-            }
+          if (itemIndex === -1 || Number(items[itemIndex]?.amount || 0) <= 0) {
+            action = "NO_TICKET";
+            payload = {
+              message: "You do not have any Pull Reset Ticket.",
+            };
+
+            return freshWithSnapshot;
+          }
 
             const consumed = consumeTicket(items, itemIndex);
             if (!consumed) throw new Error("Failed to consume Pull Reset Ticket.");
@@ -416,6 +421,15 @@ module.exports = {
     if (action === "BLOCKED") {
       return message.reply({
         embeds: [buildBlockedEmbed(payload)],
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
+    if (action === "NO_TICKET") {
+      return message.reply({
+        content: payload?.message || "You do not have any Pull Reset Ticket.",
         allowedMentions: {
           repliedUser: false,
         },
