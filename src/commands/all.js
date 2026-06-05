@@ -34,15 +34,14 @@ function normalize(value = "") {
 }
 
 function getCardPower(card, stageKey = "M1") {
- return Number(
-  card.powerCaps?.[stageKey] ||
-   card.currentPower ||
-   card.basePower ||
-   card.power ||
-   0
- );
+  return Number(
+    card.currentPower ||
+      card.power ||
+      card.powerCaps?.[stageKey] ||
+      card.basePower ||
+      0
+  );
 }
-
 
 function isRoadPoneglyphCard(card) {
   const code = String(card?.code || "").toLowerCase().trim();
@@ -361,19 +360,11 @@ function getCardSortTier(card) {
 
 function sortCardsForAll(list, mode = "battle") {
   return [...list].sort((a, b) => {
-    if (mode === "boost") {
-      const tierDiff = tierScore(getCardSortTier(b)) - tierScore(getCardSortTier(a));
-      if (tierDiff !== 0) return tierDiff;
+    const tierDiff = tierScore(getCardSortTier(b)) - tierScore(getCardSortTier(a));
+    if (tierDiff !== 0) return tierDiff;
 
-      const powerDiff = getCardPower(b) - getCardPower(a);
-      if (powerDiff !== 0) return powerDiff;
-    } else {
-      const powerDiff = getCardPower(b) - getCardPower(a);
-      if (powerDiff !== 0) return powerDiff;
-
-      const tierDiff = tierScore(getCardSortTier(b)) - tierScore(getCardSortTier(a));
-      if (tierDiff !== 0) return tierDiff;
-    }
+    const powerDiff = getCardPower(b) - getCardPower(a);
+    if (powerDiff !== 0) return powerDiff;
 
     return String(a.displayName || a.name).localeCompare(
       String(b.displayName || b.name)
@@ -676,6 +667,7 @@ module.exports = {
             isLzsCard(card)
               ? buildMergedLzsCard(player, card, 1, {
                   templateOnly: true,
+                  sourceStage: 1,
                   displayLevel: 50,
                 })
               : card

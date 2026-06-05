@@ -1,4 +1,4 @@
-const { isLzsCard, buildMergedLzsCard, MERGE_RATIO } = require("../utils/mergeCards");
+const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
 const {
   EmbedBuilder,
   ActionRowBuilder,
@@ -395,9 +395,12 @@ function getLzsCiStageFactor(stage) {
 }
 
 function buildCiLzsCard(player, baseCard, stage = 1) {
-  return buildMergedLzsCard(player, baseCard, stage, {
+  const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
+
+  return buildMergedLzsCard(player, baseCard, targetStage, {
     templateOnly: true,
-    displayLevel: Number(stage) === 1 ? 50 : Number(stage) === 2 ? 85 : 100,
+    sourceStage: targetStage,
+    displayLevel: targetStage === 1 ? 50 : targetStage === 2 ? 85 : 100,
   });
 }
 
@@ -1303,8 +1306,20 @@ function buildEmbed(card, owned, stage, player = null) {
           `HP: ${Number(displayStats.hp || 0)}`,
           `SPD: ${Number(displayStats.speed || 0)}`,
           `Weapon Set: ${statSource.weaponSet || statSource.weapon || "None"}`,
-          `Devil Fruit: ${statSource.devilFruit || statSource.displayFruitName || "None"}`,
-          `After Boost Effect: ${stageCard.afterBoostEffect || card.afterBoostEffect || statSource.afterBoostEffect || stageCard.boostAfterEffect || card.boostAfterEffect || statSource.boostAfterEffect || "None"}`,
+          `Devil Fruit: ${
+            statSource.devilFruit ||
+            statSource.displayFruitName ||
+            "None"
+          }`,
+          `After Boost Effect: ${
+            stageCard.afterBoostEffect ||
+            card.afterBoostEffect ||
+            statSource.afterBoostEffect ||
+            stageCard.boostAfterEffect ||
+            card.boostAfterEffect ||
+            statSource.boostAfterEffect ||
+            "None"
+          }`,
         ];
 
   return buildCardStyleEmbed({
