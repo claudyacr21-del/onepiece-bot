@@ -49,33 +49,65 @@ function getOwnedBattleCards(player) {
     .filter((card) => card && String(card.cardRole || "").toLowerCase() !== "boost");
 }
 
-function findMatchingCard(player, query) {
-  const cards = getOwnedBattleCards(player);
+function isLzsQuery(query) {
+ const q = normalize(query).replace(/\s+/g, "_");
+ return q === "lzs" || q === "monster_trio";
+}
 
-  const scored = cards
-    .map((card, index) => {
-      const displayName = getDisplayName(card);
+function isLzsCard(card) {
+ const code = String(card?.code || "").toLowerCase().trim();
+ const name = normalize(card?.displayName || card?.name || card?.title);
+ return code === "lzs" || name === "monster trio";
+}
 
-      return {
-        card,
-        index,
-        displayName,
-        score: scoreDisplayName(query, displayName),
-      };
-    })
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
+function scoreCardQuery(card, query) {
+ const q = normalize(query);
+ if (!q) return 0;
 
-      const aName = normalize(a.displayName);
-      const bName = normalize(b.displayName);
+ if (isLzsQuery(query) && isLzsCard(card)) {
+  return 999999;
+ }
 
-      if (aName.length !== bName.length) return aName.length - bName.length;
+ const fields = [
+  card.displayName,
+  card.name,
+  card.title,
+  card.code,
+  String(card.code || "").replace(/_/g, " "),
+  card.variant,
+  card.arc,
+  card.instanceId,
+ ]
+  .filter(Boolean)
+  .map((value) => normalize(value));
 
-      return a.index - b.index;
-    });
+ let best = 0;
 
-  return scored.length ? scored[0].card : null;
+ for (const field of fields) {
+  if (field === q) best = Math.max(best, 3000 + field.length);
+  else if (field.startsWith(q)) best = Math.max(best, 1600 + q.length);
+  else if (field.includes(q)) best = Math.max(best, 900 + q.length);
+  else {
+   const words = q.split(" ").filter(Boolean);
+   if (words.length && words.every((word) => field.includes(word))) {
+    best = Math.max(best, 500 + words.join("").length);
+   }
+  }
+ }
+
+ return best;
+}
+
+function findMatchingCard(cards, query) {
+ return (Array.isArray(cards) ? cards : [])
+  .filter((card) => card.cardRole !== "boost")
+  .map((card) => ({
+   card,
+   score: scoreCardQuery(card, query),
+  }))
+  .filter((entry) => entry.score > 0)
+  .sort((a, b) => b.score - a.score)
+  .map((entry) => entry.card);
 }
 
 module.exports = {

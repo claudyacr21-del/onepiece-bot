@@ -391,6 +391,62 @@ function addNamedItem(list, reward) {
   return arr;
 }
 
+function addDevilFruitItem(list, fruit) {
+ const arr = Array.isArray(list) ? [...list] : [];
+ const code = String(fruit?.code || fruit?.name || "")
+  .toLowerCase()
+  .trim();
+
+ const index = arr.findIndex((entry) => {
+  const entryCode = String(entry?.code || entry?.name || "")
+   .toLowerCase()
+   .trim();
+
+  return entryCode === code;
+ });
+
+ if (index !== -1) {
+  arr[index] = {
+   ...arr[index],
+   ...fruit,
+   code: fruit.code || arr[index].code,
+   name: fruit.name || arr[index].name,
+   amount: Number(arr[index].amount || 1) + 1,
+   rarity: fruit.rarity || arr[index].rarity,
+   type: fruit.type || arr[index].type || "Devil Fruit",
+   statPercent: fruit.statPercent || arr[index].statPercent || {
+    atk: 0,
+    hp: 0,
+    speed: 0,
+   },
+   description: fruit.description || arr[index].description || "",
+   power: fruit.power || arr[index].power,
+   image: fruit.image || arr[index].image || "",
+  };
+
+  return arr;
+ }
+
+ arr.push({
+  ...fruit,
+  code: fruit.code,
+  name: fruit.name,
+  amount: 1,
+  rarity: fruit.rarity || "C",
+  type: fruit.type || "Devil Fruit",
+  statPercent: fruit.statPercent || {
+   atk: 0,
+   hp: 0,
+   speed: 0,
+  },
+  description: fruit.description || "",
+  power: fruit.power || undefined,
+  image: fruit.image || "",
+ });
+
+ return arr;
+}
+
 function addTicket(list, ticket) {
   const arr = Array.isArray(list) ? [...list] : [];
   const idx = arr.findIndex((x) => String(x.code) === String(ticket.code));
@@ -1174,8 +1230,8 @@ module.exports = {
     } else {
       updatedWeapons = addNamedItem(updatedWeapons, picked);
     }
-    } else {
-      updatedDevilFruits = addNamedItem(updatedDevilFruits, picked);
+    } else if (contentType === "devilFruit") {
+    updatedDevilFruits = addDevilFruitItem(updatedDevilFruits, picked);
     }
 
     if (triggeredPity) {
@@ -1234,13 +1290,13 @@ module.exports = {
           duplicateLine || `**${rewardName}**`,
           duplicateLine ? null : `**Type:** ${getTypeLabel(contentType)}`,
           duplicateLine ? null : `**Rarity:** ${rewardRarity}`,
-          duplicateLine || contentType === "weapon" || contentType === "devilFruit"
-            ? picked.type
-              ? `**Category:** ${picked.type}`
-              : null
-            : contentType === "ticket"
-            ? `**Category:** Ticket`
-            : `**Current Form:** ${ownedCard?.evolutionKey || "M1"}`,
+          contentType === "weapon" || contentType === "devilFruit"
+          ? picked.type
+            ? `**Category:** ${picked.type}`
+            : `**Category:** ${getTypeLabel(contentType)}`
+          : contentType === "ticket"
+          ? `**Category:** Ticket`
+          : `**Current Form:** ${ownedCard?.evolutionKey || "M1"}`,
           "",
           contentType === "battleCard" || contentType === "boostCard"
             ? buildRewardStatsText(contentType, ownedCard || picked).join("\n")

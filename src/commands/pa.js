@@ -309,6 +309,62 @@ function addNamedItem(list, reward) {
   return items;
 }
 
+function addDevilFruitItem(list, fruit) {
+  const arr = Array.isArray(list) ? [...list] : [];
+  const code = String(fruit?.code || fruit?.name || "")
+    .toLowerCase()
+    .trim();
+
+  const index = arr.findIndex((entry) => {
+    const entryCode = String(entry?.code || entry?.name || "")
+      .toLowerCase()
+      .trim();
+
+    return entryCode === code;
+  });
+
+  if (index !== -1) {
+    arr[index] = {
+      ...arr[index],
+      ...fruit,
+      code: fruit.code || arr[index].code,
+      name: fruit.name || arr[index].name,
+      amount: Number(arr[index].amount || 1) + 1,
+      rarity: fruit.rarity || arr[index].rarity,
+      type: fruit.type || arr[index].type || "Devil Fruit",
+      statPercent: fruit.statPercent || arr[index].statPercent || {
+        atk: 0,
+        hp: 0,
+        speed: 0,
+      },
+      description: fruit.description || arr[index].description || "",
+      power: fruit.power || arr[index].power,
+      image: fruit.image || arr[index].image || "",
+    };
+
+    return arr;
+  }
+
+  arr.push({
+    ...fruit,
+    code: fruit.code,
+    name: fruit.name,
+    amount: 1,
+    rarity: fruit.rarity || "C",
+    type: fruit.type || "Devil Fruit",
+    statPercent: fruit.statPercent || {
+      atk: 0,
+      hp: 0,
+      speed: 0,
+    },
+    description: fruit.description || "",
+    power: fruit.power || undefined,
+    image: fruit.image || "",
+  });
+
+  return arr;
+}
+
 function addTicket(list, ticket) {
   const items = Array.isArray(list) ? [...list] : [];
   const existingIndex = items.findIndex(
@@ -374,13 +430,12 @@ function getTypeLabel(contentType) {
 function getCollectionStorageInfo(player) {
   const cards = Array.isArray(player.cards) ? player.cards.length : 0;
   const weapons = Array.isArray(player.weapons) ? player.weapons.length : 0;
-  const devilFruits = Array.isArray(player.devilFruits)
-    ? player.devilFruits.length
-    : 0;
 
-  const used = cards + weapons + devilFruits;
+  // Devil Fruits are inventory stack items, not collection/fragment storage.
+  // They must never be auto-sacced by collection storage full logic.
+  const used = cards + weapons;
+
   const max = Number(player?.storage?.max || player?.storageLimit || 250);
-
   return { used, max };
 }
 
@@ -1064,7 +1119,7 @@ module.exports = {
         hasNamedItemByCode(updatedWeapons, rewardResult.storedReward.code);
 
       const needsStorageSlot =
-        rewardResult.storageKey !== "tickets" &&
+        ["cards", "weapons"].includes(rewardResult.storageKey) &&
         !isDuplicateCard &&
         !isDuplicateWeapon;
 
@@ -1148,8 +1203,8 @@ module.exports = {
         } else {
           updatedWeapons = addNamedItem(updatedWeapons, rewardResult.storedReward);
         }
-      } else {
-        updatedDevilFruits = addNamedItem(
+      } else if (rewardResult.storageKey === "devilFruits") {
+        updatedDevilFruits = addDevilFruitItem(
           updatedDevilFruits,
           rewardResult.storedReward
         );
