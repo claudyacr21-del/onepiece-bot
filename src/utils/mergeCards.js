@@ -86,28 +86,22 @@ function getRaidPrestige(card) {
   return Math.max(0, Math.min(RAID_PRESTIGE_CAP, Math.floor(prestige)));
 }
 
-function getLzsOwnLevelFactor(stage, level) {
+function getOwnLevelFactor(stage, level) {
   const s = Math.max(1, Math.min(3, Number(stage || 1)));
   const lvl = Math.max(1, Math.min(100, Number(level || 1)));
+  const maxLevel = getStageMaxLevel(s);
+
+  if (lvl >= maxLevel) return 1;
 
   if (s === 1) {
-    if (lvl <= 1) return 0.45;
-    if (lvl >= 50) return 1;
-
-    return 0.45 + ((lvl - 1) / 49) * 0.55;
+    return 0.45 + ((Math.max(1, lvl) - 1) / 49) * 0.55;
   }
 
   if (s === 2) {
-    if (lvl <= 50) return 0.78;
-    if (lvl >= 85) return 1;
-
-    return 0.78 + ((lvl - 50) / 35) * 0.22;
+    return 0.78 + ((Math.max(50, lvl) - 50) / 35) * 0.22;
   }
 
-  if (lvl <= 85) return 0.88;
-  if (lvl >= 100) return 1;
-
-  return 0.88 + ((lvl - 85) / 15) * 0.12;
+  return 0.88 + ((Math.max(85, lvl) - 85) / 15) * 0.12;
 }
 
 function applyPrestige(value, percent) {
@@ -142,8 +136,12 @@ function getNumber(source, keys) {
   return 0;
 }
 
+function getStat(card, keys) {
+  return getNumber(card, keys);
+}
+
 function getAtk(card) {
-  return getNumber(card, [
+  return getStat(card, [
     "atk",
     "displayAtk",
     "combatAtk",
@@ -156,7 +154,7 @@ function getAtk(card) {
 }
 
 function getHp(card) {
-  return getNumber(card, [
+  return getStat(card, [
     "hp",
     "displayHp",
     "combatHp",
@@ -170,7 +168,7 @@ function getHp(card) {
 }
 
 function getSpeed(card) {
-  return getNumber(card, [
+  return getStat(card, [
     "speed",
     "spd",
     "displaySpeed",
@@ -184,7 +182,7 @@ function getSpeed(card) {
 }
 
 function getPower(card) {
-  return getNumber(card, [
+  return getStat(card, [
     "currentPower",
     "power",
     "basePower",
@@ -232,36 +230,35 @@ function buildLiveSourceCard(player, code) {
   });
 }
 
-function getSourceWeaponText(card, templateCode) {
+function getSourceWeaponText(card, templateCode, forcedStage = null) {
   const template = getTemplateByCode(templateCode) || {};
-  const stage = getStage(card);
+  const stage = forcedStage || getStage(card);
   const form = getForm(template, stage);
 
   return (
-    card?.displayWeaponName ||
-    card?.weaponSet ||
-    card?.weapon ||
     form?.weaponSet ||
     form?.weapon ||
     template.weaponSet ||
     template.weapon ||
+    card?.weaponSet ||
+    card?.weapon ||
     "None"
   );
 }
 
-function getSourceFruitText(card, templateCode) {
+function getSourceFruitText(card, templateCode, forcedStage = null) {
   const template = getTemplateByCode(templateCode) || {};
-  const stage = getStage(card);
+  const stage = forcedStage || getStage(card);
   const form = getForm(template, stage);
 
   return (
-    card?.displayFruitName ||
-    card?.devilFruitName ||
-    card?.devilFruit ||
     form?.devilFruitName ||
     form?.devilFruit ||
     template.devilFruitName ||
     template.devilFruit ||
+    card?.devilFruitName ||
+    card?.devilFruit ||
+    card?.displayFruitName ||
     "None"
   );
 }
@@ -320,15 +317,18 @@ function buildLzsSources(player, stage, options = {}) {
       hp: getHp(source),
       speed: getSpeed(source),
       power: getPower(source),
-      weapon: getSourceWeaponText(source, code),
-      devilFruit: getSourceFruitText(source, code),
+      weapon: getSourceWeaponText(source, code, sourceStage),
+      devilFruit: getSourceFruitText(source, code, sourceStage),
     };
   });
 }
 
 function sumMergedStat(sources, key) {
   return Math.floor(
-    sources.reduce((sum, source) => sum + Number(source?.[key] || 0) * MERGE_RATIO, 0)
+    sources.reduce(
+      (sum, source) => sum + Number(source?.[key] || 0) * MERGE_RATIO,
+      0
+    )
   );
 }
 
@@ -357,17 +357,17 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
     displayLevel: options.displayLevel || getStageMaxLevel(stage),
   });
 
-  const liveAtk = sumMergedStat(sources, "atk");
-  const liveHp = sumMergedStat(sources, "hp");
-  const liveSpeed = sumMergedStat(sources, "speed");
-  const livePower = sumMergedStat(sources, "power");
+  const mergedAtk = sumMergedStat(sources, "atk");
+  const mergedHp = sumMergedStat(sources, "hp");
+  const mergedSpeed = sumMergedStat(sources, "speed");
+  const mergedPower = sumMergedStat(sources, "power");
 
-  const ownLevelFactor = options.templateOnly ? 1 : getLzsOwnLevelFactor(stage, level);
+  const ownLevelFactor = options.templateOnly ? 1 : getOwnLevelFactor(stage, level);
 
-  const scaledAtk = Math.floor(liveAtk * ownLevelFactor);
-  const scaledHp = Math.floor(liveHp * ownLevelFactor);
-  const scaledSpeed = Math.floor(liveSpeed * ownLevelFactor);
-  const scaledPower = Math.floor(livePower * ownLevelFactor);
+  const scaledAtk = Math.floor(mergedAtk * ownLevelFactor);
+  const scaledHp = Math.floor(mergedHp * ownLevelFactor);
+  const scaledSpeed = Math.floor(mergedSpeed * ownLevelFactor);
+  const scaledPower = Math.floor(mergedPower * ownLevelFactor);
 
   const finalAtk = applyPrestige(
     scaledAtk,
@@ -442,13 +442,13 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
     raidPrestige: prestige,
     prestige,
 
-    originalBaseAtk: liveAtk,
-    originalBaseHp: liveHp,
-    originalBaseSpeed: liveSpeed,
+    originalBaseAtk: mergedAtk,
+    originalBaseHp: mergedHp,
+    originalBaseSpeed: mergedSpeed,
 
-    baseAtk: liveAtk,
-    baseHp: liveHp,
-    baseSpeed: liveSpeed,
+    baseAtk: mergedAtk,
+    baseHp: mergedHp,
+    baseSpeed: mergedSpeed,
 
     atk: finalAtk,
     hp: finalHp,
@@ -467,15 +467,13 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
     combatHp: finalHp,
     combatSpeed: finalSpeed,
 
-    basePower: livePower,
+    basePower: mergedPower,
     power: finalPower,
     currentPower: finalPower,
-
-    // For sorting/ranking, M card should stay above UR in global/all display.
     powerCaps: {
-      M1: Math.floor(livePower),
-      M2: Math.floor(livePower),
-      M3: Math.floor(livePower),
+      M1: mergedPower,
+      M2: mergedPower,
+      M3: mergedPower,
     },
 
     weapon,
@@ -493,11 +491,6 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
         : weapon !== "None"
         ? "Weapon"
         : "None",
-
-    afterBoostEffect:
-      ownedLzs.afterBoostEffect ||
-      template.afterBoostEffect ||
-      "Live merge stats from 30% Monkey D. Luffy + 30% Roronoa Zoro + 30% Sanji.",
 
     syncNote: "Live 30% Monkey D. Luffy + 30% Roronoa Zoro + 30% Sanji",
   };

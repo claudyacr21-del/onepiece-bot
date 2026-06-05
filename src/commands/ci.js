@@ -1306,20 +1306,7 @@ function buildEmbed(card, owned, stage, player = null) {
           `HP: ${Number(displayStats.hp || 0)}`,
           `SPD: ${Number(displayStats.speed || 0)}`,
           `Weapon Set: ${statSource.weaponSet || statSource.weapon || "None"}`,
-          `Devil Fruit: ${
-            statSource.devilFruit ||
-            statSource.displayFruitName ||
-            "None"
-          }`,
-          `After Boost Effect: ${
-            stageCard.afterBoostEffect ||
-            card.afterBoostEffect ||
-            statSource.afterBoostEffect ||
-            stageCard.boostAfterEffect ||
-            card.boostAfterEffect ||
-            statSource.boostAfterEffect ||
-            "None"
-          }`,
+          `Devil Fruit: ${statSource.devilFruit || statSource.displayFruitName || "None"}`,
         ];
 
   return buildCardStyleEmbed({
