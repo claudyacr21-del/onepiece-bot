@@ -511,27 +511,33 @@ function getSourceTextFromStage(sourceTemplate, sourceStageCard, stage, type) {
     sourceTemplate?.evolutionForms?.[stage - 1] ||
     {};
 
+  const sources = [
+    form,
+    sourceStageCard,
+    sourceTemplate,
+    ...(Array.isArray(sourceStageCard?.evolutionForms) ? sourceStageCard.evolutionForms : []),
+    ...(Array.isArray(sourceTemplate?.evolutionForms) ? sourceTemplate.evolutionForms : []),
+  ];
+
   if (type === "weapon") {
     return (
-      form?.weaponSet ||
-      form?.weapon ||
-      sourceStageCard?.weaponSet ||
-      sourceStageCard?.weapon ||
-      sourceTemplate?.weaponSet ||
-      sourceTemplate?.weapon ||
-      "None"
+      sources
+        .map((source) => {
+          return (
+            source?.displayWeaponName ||
+            source?.weaponSet ||
+            source?.weapon ||
+            source?.equippedWeaponName ||
+            source?.equippedWeapon ||
+            source?.weaponName ||
+            ""
+          );
+        })
+        .find((value) => cleanCiText(value)) || "None"
     );
   }
 
-  return (
-    form?.devilFruitName ||
-    form?.devilFruit ||
-    sourceStageCard?.displayFruitName ||
-    sourceStageCard?.devilFruit ||
-    sourceTemplate?.devilFruitName ||
-    sourceTemplate?.devilFruit ||
-    "None"
-  );
+  return getDirectDevilFruitName(...sources) || "None";
 }
 
 function buildCiLzsFromSourceStats(stage = 1) {
@@ -545,14 +551,42 @@ function buildCiLzsFromSourceStats(stage = 1) {
     const sourceStageCard = getStageCard(sourceTemplate, targetStage);
     const stats = getStageDisplayStats(sourceTemplate, sourceStageCard, targetStage);
 
+    const atk = firstPositiveNumber(
+      stats.atk,
+      sourceStageCard.displayAtk,
+      sourceStageCard.combatAtk,
+      sourceStageCard.finalAtk,
+      sourceStageCard.atk,
+      sourceStageCard.baseAtk
+    );
+
+    const hp = firstPositiveNumber(
+      stats.hp,
+      sourceStageCard.displayHp,
+      sourceStageCard.combatHp,
+      sourceStageCard.finalHp,
+      sourceStageCard.hp,
+      sourceStageCard.baseHp
+    );
+
+    const speed = firstPositiveNumber(
+      stats.speed,
+      sourceStageCard.displaySpeed,
+      sourceStageCard.combatSpeed,
+      sourceStageCard.finalSpeed,
+      sourceStageCard.speed,
+      sourceStageCard.spd,
+      sourceStageCard.baseSpeed
+    );
+
     return {
       code,
       template: sourceTemplate,
       stageCard: sourceStageCard,
-      atk: Number(stats.atk || 0),
-      hp: Number(stats.hp || 0),
-      speed: Number(stats.speed || 0),
-      power: Number(stats.power || 0),
+      atk,
+      hp,
+      speed,
+      power: Number(stats.power || sourceStageCard.currentPower || sourceStageCard.power || 0),
       weapon: getSourceTextFromStage(sourceTemplate, sourceStageCard, targetStage, "weapon"),
       devilFruit: getSourceTextFromStage(sourceTemplate, sourceStageCard, targetStage, "fruit"),
     };
