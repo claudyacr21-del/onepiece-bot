@@ -1,4 +1,4 @@
-const { isLzsCard } = require("../utils/mergeCards");
+const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
 const {
   EmbedBuilder,
   ActionRowBuilder,
@@ -1503,7 +1503,12 @@ function buildEmbed(card, owned, stage, player = null) {
   const isLzs = isLzsCard(card) || isLzsCard(owned);
 
   if (isLzs) {
-    card = buildCiLzsFromCiBattleStats(stage);
+    card = buildMergedLzsCard(player || { cards: [] }, card, stage, {
+      templateOnly: true,
+      sourceStage: stage,
+      displayStage: stage,
+      displayLevel: stage === 1 ? 50 : stage === 2 ? 85 : 100,
+    });
     owned = card;
   }
 
@@ -1678,7 +1683,12 @@ module.exports = {
 
       const freshPlayer = getPlayer(message.author.id, message.author.username);
       const freshOwned = isLzsCard(globalCard)
-        ? buildCiLzsFromCiBattleStats(stage)
+        ? buildMergedLzsCard(freshPlayer || { cards: [] }, globalCard, stage, {
+            templateOnly: true,
+            sourceStage: stage,
+            displayStage: stage,
+            displayLevel: stage === 1 ? 50 : stage === 2 ? 85 : 100,
+          })
         : findOwnedCard(freshPlayer.cards || [], query);
 
       return i.update({

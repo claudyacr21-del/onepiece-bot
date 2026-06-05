@@ -8,6 +8,7 @@ const MERGE_SOURCE_CODES = [
 ];
 
 const MERGE_RATIO = 0.3;
+const MERGE_FIXED_POWER = 100000;
 
 const RAID_PRESTIGE_CAP = 200;
 const RAID_PRESTIGE_ATK_PER_LEVEL = 0.25;
@@ -124,63 +125,300 @@ function getForm(template, stage) {
     : {};
 }
 
-function getNumber(source, keys) {
-  for (const key of keys) {
-    const value = Number(source?.[key]);
+function getStageStatsBlock(source, stage) {
+  const stageKey = `M${Math.max(1, Math.min(3, Number(stage || 1)))}`;
 
-    if (Number.isFinite(value) && value > 0) {
-      return value;
-    }
+  return (
+    source?.stageStats?.[stageKey] ||
+    source?.stats?.[stageKey] ||
+    source?.masteryStats?.[stageKey] ||
+    {}
+  );
+}
+
+function firstPositiveNumber(...values) {
+  for (const value of values) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return n;
   }
 
   return 0;
 }
 
-function getAtk(card) {
-  return getNumber(card, [
-    "displayAtk",
-    "combatAtk",
-    "finalAtk",
-    "atk",
-    "baseAtk",
-  ]);
+function getStageSpecificNumber(template, hydrated, stage, statType) {
+  const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
+  const stageKey = `M${safeStage}`;
+  const form = getForm(template, safeStage);
+  const templateStageStats = getStageStatsBlock(template, safeStage);
+  const hydratedStageStats = getStageStatsBlock(hydrated, safeStage);
+
+  if (statType === "atk") {
+    return firstPositiveNumber(
+      form?.atk,
+      form?.baseAtk,
+      form?.displayAtk,
+      form?.combatAtk,
+      form?.finalAtk,
+
+      templateStageStats?.atk,
+      templateStageStats?.baseAtk,
+      templateStageStats?.displayAtk,
+      templateStageStats?.combatAtk,
+      templateStageStats?.finalAtk,
+
+      hydratedStageStats?.atk,
+      hydratedStageStats?.baseAtk,
+      hydratedStageStats?.displayAtk,
+      hydratedStageStats?.combatAtk,
+      hydratedStageStats?.finalAtk,
+
+      template?.[`atk${stageKey}`],
+      template?.[`baseAtk${stageKey}`],
+      hydrated?.[`atk${stageKey}`],
+      hydrated?.[`baseAtk${stageKey}`],
+
+      hydrated?.displayAtk,
+      hydrated?.combatAtk,
+      hydrated?.finalAtk,
+      hydrated?.currentAtk,
+      hydrated?.totalAtk,
+      hydrated?.battleAtk,
+      hydrated?.baseAtk,
+      hydrated?.atk,
+
+      template?.displayAtk,
+      template?.combatAtk,
+      template?.finalAtk,
+      template?.currentAtk,
+      template?.totalAtk,
+      template?.battleAtk,
+      template?.baseAtk,
+      template?.atk
+    );
+  }
+
+  if (statType === "hp") {
+    return firstPositiveNumber(
+      form?.hp,
+      form?.baseHp,
+      form?.displayHp,
+      form?.combatHp,
+      form?.finalHp,
+      form?.maxHp,
+
+      templateStageStats?.hp,
+      templateStageStats?.baseHp,
+      templateStageStats?.displayHp,
+      templateStageStats?.combatHp,
+      templateStageStats?.finalHp,
+      templateStageStats?.maxHp,
+
+      hydratedStageStats?.hp,
+      hydratedStageStats?.baseHp,
+      hydratedStageStats?.displayHp,
+      hydratedStageStats?.combatHp,
+      hydratedStageStats?.finalHp,
+      hydratedStageStats?.maxHp,
+
+      template?.[`hp${stageKey}`],
+      template?.[`baseHp${stageKey}`],
+      hydrated?.[`hp${stageKey}`],
+      hydrated?.[`baseHp${stageKey}`],
+
+      hydrated?.displayHp,
+      hydrated?.combatHp,
+      hydrated?.finalHp,
+      hydrated?.maxHp,
+      hydrated?.currentHp,
+      hydrated?.totalHp,
+      hydrated?.battleHp,
+      hydrated?.baseHp,
+      hydrated?.hp,
+
+      template?.displayHp,
+      template?.combatHp,
+      template?.finalHp,
+      template?.maxHp,
+      template?.currentHp,
+      template?.totalHp,
+      template?.battleHp,
+      template?.baseHp,
+      template?.hp
+    );
+  }
+
+  if (statType === "speed") {
+    return firstPositiveNumber(
+      form?.speed,
+      form?.spd,
+      form?.baseSpeed,
+      form?.displaySpeed,
+      form?.combatSpeed,
+      form?.finalSpeed,
+
+      templateStageStats?.speed,
+      templateStageStats?.spd,
+      templateStageStats?.baseSpeed,
+      templateStageStats?.displaySpeed,
+      templateStageStats?.combatSpeed,
+      templateStageStats?.finalSpeed,
+
+      hydratedStageStats?.speed,
+      hydratedStageStats?.spd,
+      hydratedStageStats?.baseSpeed,
+      hydratedStageStats?.displaySpeed,
+      hydratedStageStats?.combatSpeed,
+      hydratedStageStats?.finalSpeed,
+
+      template?.[`speed${stageKey}`],
+      template?.[`spd${stageKey}`],
+      template?.[`baseSpeed${stageKey}`],
+      hydrated?.[`speed${stageKey}`],
+      hydrated?.[`spd${stageKey}`],
+      hydrated?.[`baseSpeed${stageKey}`],
+
+      hydrated?.displaySpeed,
+      hydrated?.combatSpeed,
+      hydrated?.finalSpeed,
+      hydrated?.currentSpeed,
+      hydrated?.totalSpeed,
+      hydrated?.battleSpeed,
+      hydrated?.baseSpeed,
+      hydrated?.speed,
+      hydrated?.spd,
+
+      template?.displaySpeed,
+      template?.combatSpeed,
+      template?.finalSpeed,
+      template?.currentSpeed,
+      template?.totalSpeed,
+      template?.battleSpeed,
+      template?.baseSpeed,
+      template?.speed,
+      template?.spd
+    );
+  }
+
+  return firstPositiveNumber(
+    form?.currentPower,
+    form?.power,
+    form?.basePower,
+    form?.finalPower,
+    form?.powerCaps?.[stageKey],
+
+    templateStageStats?.currentPower,
+    templateStageStats?.power,
+    templateStageStats?.basePower,
+    templateStageStats?.finalPower,
+    templateStageStats?.powerCaps?.[stageKey],
+
+    hydratedStageStats?.currentPower,
+    hydratedStageStats?.power,
+    hydratedStageStats?.basePower,
+    hydratedStageStats?.finalPower,
+    hydratedStageStats?.powerCaps?.[stageKey],
+
+    template?.powerCaps?.[stageKey],
+    hydrated?.powerCaps?.[stageKey],
+
+    hydrated?.currentPower,
+    hydrated?.power,
+    hydrated?.basePower,
+    hydrated?.finalPower,
+    hydrated?.totalPower,
+    hydrated?.battlePower,
+
+    template?.currentPower,
+    template?.power,
+    template?.basePower,
+    template?.finalPower,
+    template?.totalPower,
+    template?.battlePower
+  );
 }
 
-function getHp(card) {
-  return getNumber(card, [
-    "displayHp",
-    "combatHp",
-    "finalHp",
-    "hp",
-    "baseHp",
-  ]);
-}
+function getLiveNumber(card, templateCode, statType) {
+  const stage = getStage(card);
+  const template = getTemplateByCode(templateCode) || {};
+  const form = getForm(template, stage);
+  const stageStats = getStageStatsBlock(template, stage);
 
-function getSpeed(card) {
-  return getNumber(card, [
-    "displaySpeed",
-    "combatSpeed",
-    "finalSpeed",
-    "speed",
-    "spd",
-    "baseSpeed",
-  ]);
-}
+  if (statType === "atk") {
+    return firstPositiveNumber(
+      card?.displayAtk,
+      card?.combatAtk,
+      card?.finalAtk,
+      card?.currentAtk,
+      card?.totalAtk,
+      card?.battleAtk,
+      card?.atk,
+      card?.baseAtk,
+      form?.atk,
+      form?.baseAtk,
+      stageStats?.atk,
+      stageStats?.baseAtk
+    );
+  }
 
-function getPower(card) {
-  return getNumber(card, [
-    "currentPower",
-    "power",
-    "basePower",
-    "finalPower",
-  ]);
+  if (statType === "hp") {
+    return firstPositiveNumber(
+      card?.displayHp,
+      card?.combatHp,
+      card?.finalHp,
+      card?.maxHp,
+      card?.currentHp,
+      card?.totalHp,
+      card?.battleHp,
+      card?.hp,
+      card?.baseHp,
+      form?.hp,
+      form?.baseHp,
+      stageStats?.hp,
+      stageStats?.baseHp
+    );
+  }
+
+  if (statType === "speed") {
+    return firstPositiveNumber(
+      card?.displaySpeed,
+      card?.combatSpeed,
+      card?.finalSpeed,
+      card?.currentSpeed,
+      card?.totalSpeed,
+      card?.battleSpeed,
+      card?.speed,
+      card?.spd,
+      card?.baseSpeed,
+      form?.speed,
+      form?.spd,
+      form?.baseSpeed,
+      stageStats?.speed,
+      stageStats?.spd,
+      stageStats?.baseSpeed
+    );
+  }
+
+  return firstPositiveNumber(
+    card?.currentPower,
+    card?.power,
+    card?.basePower,
+    card?.finalPower,
+    card?.totalPower,
+    card?.battlePower,
+    form?.currentPower,
+    form?.power,
+    form?.basePower,
+    stageStats?.currentPower,
+    stageStats?.power,
+    card?.powerCaps?.[`M${stage}`]
+  );
 }
 
 function buildTemplateSourceCard(code, stage, level) {
   const template = getTemplateByCode(code) || {};
   const form = getForm(template, stage);
 
-  return hydrateCard({
+  const hydrated = hydrateCard({
     ...template,
     ...form,
     code: template.code || code,
@@ -194,6 +432,35 @@ function buildTemplateSourceCard(code, stage, level) {
     raidPrestige: 0,
     prestige: 0,
   });
+
+  const atk = getStageSpecificNumber(template, hydrated, stage, "atk");
+  const hp = getStageSpecificNumber(template, hydrated, stage, "hp");
+  const speed = getStageSpecificNumber(template, hydrated, stage, "speed");
+  const power = getStageSpecificNumber(template, hydrated, stage, "power");
+
+  return {
+    ...hydrated,
+    atk,
+    baseAtk: atk,
+    displayAtk: atk,
+    combatAtk: atk,
+    finalAtk: atk,
+    hp,
+    baseHp: hp,
+    displayHp: hp,
+    combatHp: hp,
+    finalHp: hp,
+    speed,
+    spd: speed,
+    baseSpeed: speed,
+    displaySpeed: speed,
+    combatSpeed: speed,
+    finalSpeed: speed,
+    power,
+    basePower: power,
+    currentPower: power,
+    finalPower: power,
+  };
 }
 
 function buildLiveSourceCard(player, code) {
@@ -213,20 +480,10 @@ function buildLiveSourceCard(player, code) {
   });
 }
 
-function getSourceWeaponText(card, templateCode, forcedStage = null, templateOnly = false) {
+function getSourceWeaponText(card, templateCode, forcedStage = null) {
   const template = getTemplateByCode(templateCode) || {};
   const stage = forcedStage || getStage(card);
   const form = getForm(template, stage);
-
-  if (templateOnly) {
-    return (
-      form?.weaponSet ||
-      form?.weapon ||
-      template.weaponSet ||
-      template.weapon ||
-      "None"
-    );
-  }
 
   return (
     card?.displayWeaponName ||
@@ -241,20 +498,10 @@ function getSourceWeaponText(card, templateCode, forcedStage = null, templateOnl
   );
 }
 
-function getSourceFruitText(card, templateCode, forcedStage = null, templateOnly = false) {
+function getSourceFruitText(card, templateCode, forcedStage = null) {
   const template = getTemplateByCode(templateCode) || {};
   const stage = forcedStage || getStage(card);
   const form = getForm(template, stage);
-
-  if (templateOnly) {
-    return (
-      form?.devilFruitName ||
-      form?.devilFruit ||
-      template.devilFruitName ||
-      template.devilFruit ||
-      "None"
-    );
-  }
 
   return (
     card?.displayFruitName ||
@@ -320,12 +567,20 @@ function buildLzsSources(player, stage, options = {}) {
     return {
       code,
       card: source || {},
-      atk: getAtk(source),
-      hp: getHp(source),
-      speed: getSpeed(source),
-      power: getPower(source),
-      weapon: getSourceWeaponText(source, code, sourceStage, templateOnly),
-      devilFruit: getSourceFruitText(source, code, sourceStage, templateOnly),
+      atk: templateOnly
+        ? getStageSpecificNumber(getTemplateByCode(code) || {}, source, sourceStage, "atk")
+        : getLiveNumber(source, code, "atk"),
+      hp: templateOnly
+        ? getStageSpecificNumber(getTemplateByCode(code) || {}, source, sourceStage, "hp")
+        : getLiveNumber(source, code, "hp"),
+      speed: templateOnly
+        ? getStageSpecificNumber(getTemplateByCode(code) || {}, source, sourceStage, "speed")
+        : getLiveNumber(source, code, "speed"),
+      power: templateOnly
+        ? getStageSpecificNumber(getTemplateByCode(code) || {}, source, sourceStage, "power")
+        : getLiveNumber(source, code, "power"),
+      weapon: getSourceWeaponText(source, code, sourceStage),
+      devilFruit: getSourceFruitText(source, code, sourceStage),
     };
   });
 }
@@ -367,14 +622,12 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
   const mergedAtk = sumMergedStat(sources, "atk");
   const mergedHp = sumMergedStat(sources, "hp");
   const mergedSpeed = sumMergedStat(sources, "speed");
-  const mergedPower = sumMergedStat(sources, "power");
 
   const ownLevelFactor = options.templateOnly ? 1 : getOwnLevelFactor(stage, level);
 
   const scaledAtk = Math.floor(mergedAtk * ownLevelFactor);
   const scaledHp = Math.floor(mergedHp * ownLevelFactor);
   const scaledSpeed = Math.floor(mergedSpeed * ownLevelFactor);
-  const scaledPower = Math.floor(mergedPower * ownLevelFactor);
 
   const finalAtk = applyPrestige(
     scaledAtk,
@@ -389,17 +642,6 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
   const finalSpeed = applyPrestige(
     scaledSpeed,
     prestige * RAID_PRESTIGE_SPD_PER_LEVEL
-  );
-
-  const finalPower = Math.floor(
-    scaledPower *
-      (1 +
-        prestige *
-          ((RAID_PRESTIGE_ATK_PER_LEVEL +
-            RAID_PRESTIGE_HP_PER_LEVEL +
-            RAID_PRESTIGE_SPD_PER_LEVEL) /
-            3) /
-          100)
   );
 
   const weapon = uniqueJoin(sources.map((source) => source.weapon));
@@ -474,13 +716,14 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
     combatHp: finalHp,
     combatSpeed: finalSpeed,
 
-    basePower: mergedPower,
-    power: finalPower,
-    currentPower: finalPower,
+    basePower: MERGE_FIXED_POWER,
+    power: MERGE_FIXED_POWER,
+    currentPower: MERGE_FIXED_POWER,
+    finalPower: MERGE_FIXED_POWER,
     powerCaps: {
-      M1: mergedPower,
-      M2: mergedPower,
-      M3: mergedPower,
+      M1: MERGE_FIXED_POWER,
+      M2: MERGE_FIXED_POWER,
+      M3: MERGE_FIXED_POWER,
     },
 
     weapon,
@@ -499,9 +742,8 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
         ? "Weapon"
         : "None",
 
-    syncNote: options.templateOnly
-      ? "30% signature stats from Monkey D. Luffy + Roronoa Zoro + Sanji"
-      : "Live 30% owned stats from Monkey D. Luffy + Roronoa Zoro + Sanji",
+    syncNote:
+      "Live 30% Monkey D. Luffy + 30% Roronoa Zoro + 30% Sanji",
   };
 }
 
@@ -509,7 +751,6 @@ function syncMergedCardsInPlayer(player) {
   if (!player || typeof player !== "object") return player;
 
   const cards = Array.isArray(player.cards) ? player.cards : [];
-
   if (!cards.some(isLzsCard)) return player;
 
   const basePlayer = {
@@ -553,6 +794,7 @@ function findOwnedCardByCodeOrName(cards, query) {
 module.exports = {
   MERGE_SOURCE_CODES,
   MERGE_RATIO,
+  MERGE_FIXED_POWER,
   isLzsCard,
   buildMergedLzsCard,
   syncMergedCardsInPlayer,
