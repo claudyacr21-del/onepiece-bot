@@ -539,33 +539,7 @@ async function upsertOnePlayerToPostgres(userId, data) {
   await ensurePlayersTable();
 
   const id = String(userId);
-  const incoming = normalizePlayer(data || {}, data?.username || "Unknown");
-
-  let safeData = incoming;
-
-  try {
-    const existing = await pool.query(
-      "select data from players where user_id = $1 limit 1",
-      [id]
-    );
-
-    const persisted = existing.rows?.[0]?.data || null;
-
-    if (persisted) {
-      safeData = normalizePlayer(
-        mergePlayerNoRollback(incoming, persisted, {
-          preserveMissingCards: true,
-          preserveMissingItems: true,
-        }),
-        incoming.username || persisted.username || "Unknown"
-      );
-    }
-  } catch (error) {
-    console.error("[PLAYER DB NO-ROLLBACK MERGE READ ERROR]", {
-      userId: id,
-      message: error?.message || error,
-    });
-  }
+  const safeData = normalizePlayer(data || {}, data?.username || "Unknown");
 
   await pool.query(
     `
@@ -762,23 +736,20 @@ async function flushChangedPlayersToPostgres(data) {
   const changed = [];
 
   for (const [userId, player] of Object.entries(safeData)) {
+    const normalized = normalizePlayer(player, player?.username || "Unknown");
     const before = JSON.stringify(persistedCache?.[userId] || null);
-    const after = JSON.stringify(player || null);
+    const after = JSON.stringify(normalized || null);
 
     if (before !== after) {
-      changed.push([userId, player]);
+      changed.push([userId, normalized]);
     }
   }
 
   if (!changed.length) return;
 
-  for (const [userId, player] of changed) {
-    const normalized = normalizePlayer(player, player?.username || "Unknown");
-
+  for (const [userId, normalized] of changed) {
     await upsertOnePlayerToPostgres(userId, normalized);
-
-    const latest = await getPlayerFromPostgres(userId);
-    persistedCache[userId] = cloneJson(latest || normalized);
+    persistedCache[userId] = cloneJson(normalized);
   }
 }
 
