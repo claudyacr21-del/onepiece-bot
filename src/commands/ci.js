@@ -1333,7 +1333,16 @@ function buildEmbed(card, owned, stage, player = null) {
   const specialFormName = getSpecialFormName(card, stageCard, form, stage);
   const stageImage = getStageImage(card, stageCard, stage);
   const stageBadge = getStageBadge(card, stageCard, stage);
-  const displayStats = getStageDisplayStats(card, stageCard, stage);
+  const displayStats = isLzsCard(card)
+    ? {
+        source: stageCard,
+        atk: Number(stageCard.atk || stageCard.displayAtk || stageCard.combatAtk || stageCard.finalAtk || 0),
+        hp: Number(stageCard.hp || stageCard.displayHp || stageCard.combatHp || stageCard.finalHp || 0),
+        speed: Number(stageCard.speed || stageCard.spd || stageCard.displaySpeed || stageCard.combatSpeed || stageCard.finalSpeed || 0),
+        power: Number(stageCard.currentPower || stageCard.power || stageCard.finalPower || stageCard.basePower || 0),
+      }
+    : getStageDisplayStats(card, stageCard, stage);
+
   const statSource = displayStats.source || card;
 
   if (isRoadPoneglyphCard(stageCard)) {

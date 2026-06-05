@@ -82,6 +82,15 @@ function resolveCurrentStageBaseStats(card) {
     card?.masteryStats?.[stageKey] ||
     {};
 
+  if (isLzsCard(card)) {
+    return {
+      atk: firstPositiveNumber(card?.finalAtk, card?.combatAtk, card?.displayAtk, card?.atk, card?.baseAtk),
+      hp: firstPositiveNumber(card?.finalHp, card?.combatHp, card?.displayHp, card?.hp, card?.baseHp),
+      speed: firstPositiveNumber(card?.finalSpeed, card?.combatSpeed, card?.displaySpeed, card?.speed, card?.spd, card?.baseSpeed),
+      power: firstPositiveNumber(card?.finalPower, card?.currentPower, card?.power, card?.basePower),
+    };
+  }
+
   return {
     atk: firstPositiveNumber(
       card?.atk,
