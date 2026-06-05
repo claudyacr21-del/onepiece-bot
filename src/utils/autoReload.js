@@ -2,6 +2,7 @@ const DEFAULT_RELOAD_MINUTE = 0;
 
 let autoReloadStarted = false;
 let reloadTimer = null;
+let reloading = false;
 
 function toBool(value, defaultValue = false) {
   if (value === undefined || value === null || value === "") return defaultValue;
@@ -12,17 +13,13 @@ function toBool(value, defaultValue = false) {
 
 function getReloadMinute() {
   const value = Number(process.env.AUTO_RELOAD_MINUTE ?? DEFAULT_RELOAD_MINUTE);
-
   if (!Number.isFinite(value)) return DEFAULT_RELOAD_MINUTE;
-
   return Math.max(0, Math.min(59, Math.floor(value)));
 }
 
 function getReloadSecond() {
   const value = Number(process.env.AUTO_RELOAD_SECOND ?? 0);
-
   if (!Number.isFinite(value)) return 0;
-
   return Math.max(0, Math.min(59, Math.floor(value)));
 }
 
@@ -47,7 +44,56 @@ function formatMs(ms) {
   return `${minutes}m ${seconds}s`;
 }
 
-function scheduleNextReload() {
+function getBotToken() {
+  return (
+    process.env.DISCORD_TOKEN ||
+    process.env.BOT_TOKEN ||
+    process.env.TOKEN ||
+    ""
+  );
+}
+
+async function softReloadDiscordClient(client) {
+  if (!client || typeof client.destroy !== "function" || typeof client.login !== "function") {
+    console.log("[AUTO RELOAD] Client not available. Skipping soft reload.");
+    return;
+  }
+
+  if (reloading) {
+    console.log("[AUTO RELOAD] Reload already running. Skipping duplicate reload.");
+    return;
+  }
+
+  const token = getBotToken();
+
+  if (!token) {
+    console.log("[AUTO RELOAD] Missing bot token env. Cannot soft reload.");
+    return;
+  }
+
+  reloading = true;
+
+  try {
+    console.log("[AUTO RELOAD] Soft reloading Discord client...");
+
+    client.destroy();
+
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    await client.login(token);
+
+    console.log("[AUTO RELOAD] Discord client reloaded successfully.");
+  } catch (error) {
+    console.error("[AUTO RELOAD] Soft reload failed:", error);
+
+    // Do NOT process.exit() here.
+    // Render marks self-exit as instance failed.
+  } finally {
+    reloading = false;
+  }
+}
+
+function scheduleNextReload(client) {
   const delay = getNextReloadDelayMs();
 
   if (reloadTimer) {
@@ -55,14 +101,14 @@ function scheduleNextReload() {
   }
 
   console.log(
-    `[AUTO RELOAD] Next automatic reload in ${formatMs(delay)} at minute ${getReloadMinute().toString().padStart(2, "0")}:${getReloadSecond()
-      .toString()
-      .padStart(2, "0")}.`
+    `[AUTO RELOAD] Next soft reload in ${formatMs(delay)} at minute ${String(
+      getReloadMinute()
+    ).padStart(2, "0")}:${String(getReloadSecond()).padStart(2, "0")}.`
   );
 
-  reloadTimer = setTimeout(() => {
-    console.log("[AUTO RELOAD] Reload time reached. Exiting process for platform restart...");
-    process.exit(0);
+  reloadTimer = setTimeout(async () => {
+    await softReloadDiscordClient(client);
+    scheduleNextReload(client);
   }, delay);
 
   if (typeof reloadTimer.unref === "function") {
@@ -70,7 +116,7 @@ function scheduleNextReload() {
   }
 }
 
-function startAutoReloadService() {
+function startAutoReloadService(client) {
   if (autoReloadStarted) return;
   autoReloadStarted = true;
 
@@ -81,7 +127,7 @@ function startAutoReloadService() {
     return;
   }
 
-  scheduleNextReload();
+  scheduleNextReload(client);
 }
 
 module.exports = {

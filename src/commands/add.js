@@ -17,7 +17,7 @@ function normalizeCode(text) {
 }
 
 function getDisplayName(card) {
-  return String(card?.displayName || card?.name || "").trim();
+  return String(card?.displayName || card?.name || card?.title || "").trim();
 }
 
 function isLzsQuery(query) {
@@ -42,6 +42,9 @@ function scoreCardQuery(card, query) {
     card.variant,
     card.arc,
     card.instanceId,
+    card.ownedId,
+    card.uid,
+    card.id,
   ]
     .filter(Boolean)
     .map((value) => normalize(value));
@@ -67,17 +70,50 @@ function scoreCardQuery(card, query) {
   return best;
 }
 
+function getCardInstanceId(card) {
+  return (
+    card?.instanceId ||
+    card?.ownedId ||
+    card?.uid ||
+    card?.id ||
+    null
+  );
+}
+
+function hydrateOwnedBattleCard(player, rawCard, sourceIndex) {
+  const rawInstanceId = getCardInstanceId(rawCard);
+
+  const hydrated = isLzsCard(rawCard)
+    ? buildMergedLzsCard(player, rawCard)
+    : hydrateCard(rawCard);
+
+  if (!hydrated) return null;
+
+  const card = {
+    ...hydrated,
+
+    // Important:
+    // hydrateCard/template merge can drop instanceId.
+    // Team slots must use the real owned card id from raw player data.
+    instanceId: rawInstanceId,
+    ownedId: rawCard?.ownedId,
+    uid: rawCard?.uid,
+    id: rawCard?.id,
+    sourceIndex,
+  };
+
+  if (!card.instanceId) {
+    card.instanceId = `source_index:${sourceIndex}`;
+  }
+
+  return card;
+}
+
 function getOwnedBattleCards(player) {
   const cards = Array.isArray(player?.cards) ? player.cards : [];
 
   return cards
-    .map((rawCard) => {
-      if (isLzsCard(rawCard)) {
-        return buildMergedLzsCard(player, rawCard);
-      }
-
-      return hydrateCard(rawCard);
-    })
+    .map((rawCard, sourceIndex) => hydrateOwnedBattleCard(player, rawCard, sourceIndex))
     .filter((card) => {
       if (!card) return false;
       if (String(card.cardRole || "").toLowerCase() === "boost") return false;
@@ -104,13 +140,17 @@ function findMatchingCard(player, query) {
   return scored.length ? scored[0].card : null;
 }
 
-function getCardInstanceId(card) {
-  return (
-    card?.instanceId ||
-    card?.ownedId ||
-    card?.uid ||
-    card?.id ||
-    null
+function getExistingSlotId(slot) {
+  if (!slot) return "";
+
+  if (typeof slot === "string") return slot;
+
+  return String(
+    slot.instanceId ||
+      slot.ownedId ||
+      slot.uid ||
+      slot.id ||
+      ""
   );
 }
 
@@ -147,15 +187,15 @@ module.exports = {
     if (!instanceId) {
       return message.reply(
         [
-          `**${getDisplayName(card) || query}** is missing an instance ID.`,
+          `**${getDisplayName(card) || query}** could not be added.`,
           "",
-          "This card data looks corrupted or was saved before the current card system.",
-          "Please resave/fix that owned card data first.",
+          "This owned card does not have a valid team slot ID.",
+          "Try repulling/resaving this card data first.",
         ].join("\n")
       );
     }
 
-    if (slots.includes(instanceId)) {
+    if (slots.map(getExistingSlotId).includes(instanceId)) {
       return message.reply(`${getDisplayName(card)} is already in your team.`);
     }
 

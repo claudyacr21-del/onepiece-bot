@@ -437,7 +437,7 @@ client.once("clientReady", async () => {
 
   startTopggWebhookServer(client);
   startResetReminderService(client);
-  startAutoReloadService();
+  startAutoReloadService(client);
   
   syncArenaRankRoles(client).catch((error) => {
     console.error("[ARENA RANK ROLES READY SYNC ERROR]", error);
