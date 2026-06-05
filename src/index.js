@@ -610,7 +610,9 @@ function isIgnorableDiscordInteractionError(error) {
 
 process.on("unhandledRejection", (error) => {
   if (isIgnorableDiscordInteractionError(error)) {
-    console.warn("[IGNORED DISCORD INTERACTION ERROR]", error?.message || error);
+    if (String(process.env.LOG_IGNORED_INTERACTIONS || "false").toLowerCase() === "true") {
+      console.warn("[IGNORED DISCORD INTERACTION ERROR]", error?.message || error);
+    }
     return;
   }
 
@@ -619,7 +621,9 @@ process.on("unhandledRejection", (error) => {
 
 process.on("uncaughtException", (error) => {
   if (isIgnorableDiscordInteractionError(error)) {
-    console.warn("[IGNORED DISCORD INTERACTION EXCEPTION]", error?.message || error);
+    if (String(process.env.LOG_IGNORED_INTERACTIONS || "false").toLowerCase() === "true") {
+      console.warn("[IGNORED DISCORD INTERACTION EXCEPTION]", error?.message || error);
+    }
     return;
   }
 
