@@ -27,7 +27,7 @@ const LZS_SOURCE_CODES = [
   "sanji_black_leg",
 ];
 
-const LZS_MERGE_RATIO = 0.3;
+const LZS_MERGE_RATIO = 0.5;
 const LZS_FIXED_POWER = 100000;
 
 function isRoadPoneglyphCard(card) {
