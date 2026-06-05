@@ -8,7 +8,8 @@ const {
 
 const { getPlayer } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
-
+const cardsData = require("../data/cards");
+const weaponsData = require("../data/weapons");
 const PAGE_SIZE = 8;
 const COLOR = 0x8e44ad;
 const BASE_FRAGMENT_STORAGE = 200;
@@ -44,6 +45,130 @@ function getFragmentAmount(fragment) {
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
 }
 
+function normalizeFragmentCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/['".]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function normalizeFragmentName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/['".]/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function isValidRarity(value) {
+  return VALID_RARITIES.has(String(value || "").toUpperCase()) || String(value || "").toUpperCase() === "M";
+}
+
+function getCatalogRarity(entry) {
+  const rarity = String(
+    entry?.currentTier ||
+      entry?.tier ||
+      entry?.rarity ||
+      entry?.baseTier ||
+      entry?.baseRarity ||
+      "C"
+  ).toUpperCase();
+
+  return isValidRarity(rarity) ? rarity : "C";
+}
+
+function getFragmentCatalogMatch(fragment) {
+  const category = String(fragment?.category || "").toLowerCase();
+  const codeKeys = [
+    fragment?.code,
+    fragment?.cardCode,
+    fragment?.sourceCode,
+    fragment?.weaponCode,
+    String(fragment?.code || "").replace(/^fragment_/i, ""),
+    String(fragment?.code || "").replace(/_fragment$/i, ""),
+  ]
+    .map(normalizeFragmentCode)
+    .filter(Boolean);
+
+  const nameKeys = [
+    fragment?.displayName,
+    fragment?.name,
+    fragment?.title,
+    String(fragment?.name || "").replace(/\s+fragment$/i, ""),
+    String(fragment?.displayName || "").replace(/\s+fragment$/i, ""),
+  ]
+    .map(normalizeFragmentName)
+    .filter(Boolean);
+
+  if (category === "weapon") {
+    return (
+      (Array.isArray(weaponsData) ? weaponsData : []).find((weapon) => {
+        const weaponCodes = [
+          weapon?.code,
+          weapon?.id,
+          weapon?.name,
+        ]
+          .map(normalizeFragmentCode)
+          .filter(Boolean);
+
+        const weaponNames = [
+          weapon?.name,
+          weapon?.displayName,
+          weapon?.title,
+        ]
+          .map(normalizeFragmentName)
+          .filter(Boolean);
+
+        return (
+          codeKeys.some((key) => weaponCodes.includes(key)) ||
+          nameKeys.some((key) => weaponNames.includes(key))
+        );
+      }) || null
+    );
+  }
+
+  return (
+    (Array.isArray(cardsData) ? cardsData : []).find((card) => {
+      const cardCodes = [
+        card?.code,
+        card?.baseCode,
+        card?.id,
+      ]
+        .map(normalizeFragmentCode)
+        .filter(Boolean);
+
+      const cardNames = [
+        card?.displayName,
+        card?.name,
+        card?.title,
+        card?.variant,
+      ]
+        .map(normalizeFragmentName)
+        .filter(Boolean);
+
+      return (
+        codeKeys.some((key) => cardCodes.includes(key)) ||
+        nameKeys.some((key) => cardNames.includes(key))
+      );
+    }) || null
+  );
+}
+
+function getDisplayRarity(fragment) {
+  const matched = getFragmentCatalogMatch(fragment);
+
+  if (matched) {
+    return getCatalogRarity(matched);
+  }
+
+  return formatRarity(fragment?.rarity);
+}
+
 function getStorageInfo(player, fragments) {
   const total = (Array.isArray(fragments) ? fragments : []).reduce(
     (sum, item) => sum + getFragmentAmount(item),
@@ -63,6 +188,7 @@ function getStorageInfo(player, fragments) {
 
 function sortFragments(fragments) {
   const rarityOrder = {
+    M: 7,
     UR: 6,
     SS: 5,
     S: 4,
@@ -76,8 +202,8 @@ function sortFragments(fragments) {
     if (amountDiff !== 0) return amountDiff;
 
     const rarityDiff =
-      (rarityOrder[formatRarity(b?.rarity)] || 0) -
-      (rarityOrder[formatRarity(a?.rarity)] || 0);
+      (rarityOrder[getDisplayRarity(b)] || 0) -
+      (rarityOrder[getDisplayRarity(a)] || 0);
 
     if (rarityDiff !== 0) return rarityDiff;
 
@@ -156,7 +282,7 @@ function filterFragments(fragments, query) {
   const upperQuery = rawQuery.toUpperCase();
 
   if (isExactRarityQuery(rawQuery)) {
-    return list.filter((fragment) => formatRarity(fragment.rarity) === upperQuery);
+    return list.filter((fragment) => getDisplayRarity(fragment) === upperQuery);
   }
 
   return list.filter((fragment) => fragmentMatchesQuery(fragment, rawQuery));
@@ -200,7 +326,7 @@ function buildPageEmbed(message, player, fragments, currentPage, isPrivate, sear
         const icon = getFragmentIcon(fragment);
         const name = getDisplayName(fragment);
         const amount = getFragmentAmount(fragment).toLocaleString("en-US");
-        const rarity = formatRarity(fragment?.rarity);
+        const rarity = getDisplayRarity(fragment);
         const category = String(fragment?.category || "fragment").toLowerCase();
 
         return `${icon} **${name}** x${amount} • ${rarity} • ${category}`;
