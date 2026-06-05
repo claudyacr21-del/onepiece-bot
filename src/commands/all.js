@@ -187,19 +187,19 @@ function buildLzsAllDisplayCard(card, stageKey = "M1") {
   });
 
   const atk = Math.floor(
-    sources.reduce((total, source) => total + source.atk * 0.5, 0)
+    sources.reduce((total, source) => total + source.atk * 0.3, 0)
   );
 
   const hp = Math.floor(
-    sources.reduce((total, source) => total + source.hp * 0.5, 0)
+    sources.reduce((total, source) => total + source.hp * 0.3, 0)
   );
 
   const speed = Math.floor(
-    sources.reduce((total, source) => total + source.speed * 0.5, 0)
+    sources.reduce((total, source) => total + source.speed * 0.3, 0)
   );
 
   const power = Math.floor(
-    sources.reduce((total, source) => total + source.power * 0.5, 0)
+    sources.reduce((total, source) => total + source.power * 0.3, 0)
   );
 
   const weapon = joinUniqueAllText(sources.map((source) => source.weapon));

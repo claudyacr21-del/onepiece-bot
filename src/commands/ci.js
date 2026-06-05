@@ -411,19 +411,19 @@ function buildCiLzsCard(player, baseCard, stage = 1) {
   );
 
   const fullAtk = Math.floor(
-    sources.reduce((total, source) => total + source.atk * 0.5, 0)
+    sources.reduce((total, source) => total + source.atk * 0.3, 0)
   );
 
   const fullHp = Math.floor(
-    sources.reduce((total, source) => total + source.hp * 0.5, 0)
+    sources.reduce((total, source) => total + source.hp * 0.3, 0)
   );
 
   const fullSpeed = Math.floor(
-    sources.reduce((total, source) => total + source.speed * 0.5, 0)
+    sources.reduce((total, source) => total + source.speed * 0.3, 0)
   );
 
   const fullPower = Math.floor(
-    sources.reduce((total, source) => total + source.power * 0.5, 0)
+    sources.reduce((total, source) => total + source.power * 0.3, 0)
   );
 
   const atk = Math.floor(fullAtk * stageFactor);
