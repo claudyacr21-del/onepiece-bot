@@ -234,6 +234,135 @@ function findCardTemplate(query) {
   );
 }
 
+function normalizeAwakenDisplayNameOnly(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function normalizeAwakenCodeOnly(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, "_")
+    .replace(/\s+/g, "_");
+}
+
+function isLzsAwakenNameQuery(query) {
+  const q = normalizeAwakenDisplayNameOnly(query).replace(/\s+/g, "_");
+  return q === "lzs" || q === "monster_trio";
+}
+
+function getAwakenRequirementOverride(card, nextStage) {
+  const code = normalizeAwakenCodeOnly(card?.code);
+  const name = normalizeAwakenDisplayNameOnly(
+    card?.displayName || card?.name || card?.title
+  );
+
+  if (code === "cola_engine" || name === "cola engine") {
+    if (Number(nextStage) === 2) {
+      return {
+        berries: 120000,
+        gems: 350,
+        selfFragments: 25,
+        minLevel: 0,
+        cards: [
+          {
+            code: "franky_cyborg",
+            name: "Franky",
+            stage: 1,
+          },
+        ],
+        boosts: [],
+        cardsText: ["Franky M1"],
+        boostsText: [],
+      };
+    }
+
+    if (Number(nextStage) === 3) {
+      return {
+        berries: 280000,
+        gems: 700,
+        selfFragments: 35,
+        minLevel: 0,
+        cards: [
+          {
+            code: "franky_cyborg",
+            name: "Franky",
+            stage: 2,
+          },
+        ],
+        boosts: [],
+        cardsText: ["Franky M2"],
+        boostsText: [],
+      };
+    }
+  }
+
+  return null;
+}
+
+function findTemplateByDisplayNameOnly(card, query) {
+  if (isLzsAwakenNameQuery(query)) {
+    return (
+      safeArray(cards).find((entry) => {
+        const code = String(entry?.code || "").toLowerCase().trim();
+        const name = normalizeAwakenDisplayNameOnly(
+          entry?.displayName || entry?.name || entry?.title
+        );
+
+        return code === "lzs" || name === "monster trio";
+      }) || null
+    );
+  }
+
+  const target =
+    normalizeAwakenDisplayNameOnly(card?.displayName) ||
+    normalizeAwakenDisplayNameOnly(card?.name) ||
+    normalizeAwakenDisplayNameOnly(card?.title) ||
+    normalizeAwakenDisplayNameOnly(query);
+
+  if (!target) return null;
+
+  let best = null;
+  let bestScore = 0;
+
+  for (const template of safeArray(cards)) {
+    const names = [
+      template?.displayName,
+      template?.name,
+      template?.title,
+      template?.variant,
+    ]
+      .map(normalizeAwakenDisplayNameOnly)
+      .filter(Boolean);
+
+    let score = 0;
+
+    for (const name of names) {
+      if (name === target) score = Math.max(score, 3000 + name.length);
+      else if (name.startsWith(target)) score = Math.max(score, 1600 + target.length);
+      else if (name.includes(target)) score = Math.max(score, 900 + target.length);
+      else {
+        const words = target.split(" ").filter(Boolean);
+        if (words.length && words.every((word) => name.includes(word))) {
+          score = Math.max(score, 500 + words.join("").length);
+        }
+      }
+    }
+
+    if (score > bestScore) {
+      best = template;
+      bestScore = score;
+    }
+  }
+
+  return bestScore > 0 ? best : null;
+}
+
 function normalizeTemplateIdentity(value) {
   return String(value || "")
     .toLowerCase()
@@ -980,68 +1109,45 @@ function consumeOwnedFragments(player, targetIndex, targetCard, amount) {
 }
 
 function scoreAwakenOwnedCard(card, query) {
- const q = normalize(query);
+  const q = normalizeAwakenDisplayNameOnly(query);
+  if (!q) return 0;
 
- if (!q) return 0;
+  if (isLzsAwakenNameQuery(query)) {
+    const code = String(card?.code || "").toLowerCase().trim();
+    const name = normalizeAwakenDisplayNameOnly(
+      card?.displayName || card?.name || card?.title
+    );
 
- const rawFields = [
-  card?.instanceId,
-  card?.id,
-  card?.code,
-  String(card?.code || "").replace(/_/g, " "),
-  String(card?.code || "").replace(/[-_]+/g, " "),
-  card?.name,
-  card?.displayName,
-  card?.cardName,
-  card?.title,
-  card?.subtitle,
-  card?.epithet,
-  card?.form,
-  card?.arc,
-  card?.variant,
- ];
-
- const forms = Array.isArray(card?.evolutionForms) ? card.evolutionForms : [];
- for (const form of forms) {
-  rawFields.push(
-   form?.name,
-   form?.displayName,
-   form?.title,
-   form?.subtitle,
-   form?.epithet,
-   form?.form,
-   form?.arc,
-   form?.variant
-  );
- }
-
- const aliases = Array.isArray(card?.aliases) ? card.aliases : [];
- rawFields.push(...aliases);
-
- const fields = rawFields.map(normalize).filter(Boolean);
-
- let best = 0;
-
- for (const field of fields) {
-  if (field === q) {
-   best = Math.max(best, 2000 + field.length);
-  } else if (field.startsWith(q)) {
-   best = Math.max(best, 1200 + q.length);
-  } else if (field.includes(q)) {
-   best = Math.max(best, 900 + q.length);
-  } else if (q.includes(field) && field.length >= 3) {
-   best = Math.max(best, 700 + field.length);
-  } else {
-   const qWords = q.split(" ").filter(Boolean);
-   const fieldWords = field.split(" ").filter(Boolean);
-
-   if (qWords.length && qWords.every((word) => fieldWords.includes(word))) {
-    best = Math.max(best, 500 + qWords.join("").length);
-   }
+    if (code === "lzs" || name === "monster trio") return 999999;
   }
- }
 
- return best;
+  const fields = [
+    card?.displayName,
+    card?.name,
+    card?.title,
+    card?.variant,
+  ]
+    .map(normalizeAwakenDisplayNameOnly)
+    .filter(Boolean);
+
+  let best = 0;
+
+  for (const field of fields) {
+    if (field === q) {
+      best = Math.max(best, 3000 + field.length);
+    } else if (field.startsWith(q)) {
+      best = Math.max(best, 1600 + q.length);
+    } else if (field.includes(q)) {
+      best = Math.max(best, 900 + q.length);
+    } else {
+      const qWords = q.split(" ").filter(Boolean);
+      if (qWords.length && qWords.every((word) => field.includes(word))) {
+        best = Math.max(best, 500 + qWords.join("").length);
+      }
+    }
+  }
+
+  return best;
 }
 
 function findOwnedCardIndexForAwaken(cardsOwned, query) {
@@ -1162,11 +1268,8 @@ function findOwnedRequirementCard(player, requirement) {
 
 function getLatestTemplateRequirementForAwaken(ownedCard, targetCard, nextStage, query = "") {
   const template =
-    findCardTemplate(query) ||
-    findCardTemplate(targetCard?.displayName || targetCard?.name || targetCard?.code) ||
-    findCardTemplate(ownedCard?.displayName || ownedCard?.name || ownedCard?.code) ||
-    findTemplateForOwnedCard(targetCard) ||
-    findTemplateForOwnedCard(ownedCard) ||
+    findTemplateByDisplayNameOnly(targetCard, query) ||
+    findTemplateByDisplayNameOnly(ownedCard, query) ||
     null;
 
   if (!template) return null;
@@ -1200,7 +1303,13 @@ function getLatestTemplateRequirementForAwaken(ownedCard, targetCard, nextStage,
     equippedDevilFruitName: targetCard?.equippedDevilFruitName || null,
   });
 
+  const overrideReq =
+    getAwakenRequirementOverride(template, nextStage) ||
+    getAwakenRequirementOverride(latest, nextStage) ||
+    getAwakenRequirementOverride(targetCard, nextStage);
+
   const req =
+    overrideReq ||
     template?.awakenRequirements?.[`M${nextStage}`] ||
     latest?.awakenRequirements?.[`M${nextStage}`] ||
     null;
@@ -1294,10 +1403,12 @@ function getDefaultAwakenBerriesCost(targetCard) {
 }
 
 function getAwakenBerriesCost(req, targetCard) {
+  if (Number.isFinite(Number(req?.berries))) return Number(req.berries);
   return getDefaultAwakenBerriesCost(targetCard);
 }
 
 function getAwakenGemsCost(req, targetCard) {
+  if (Number.isFinite(Number(req?.gems))) return Number(req.gems);
   return getDefaultAwakenGemsCost(targetCard);
 }
 

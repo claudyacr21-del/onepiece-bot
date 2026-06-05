@@ -61,6 +61,43 @@ function addReward(rewards, reward) {
   });
 }
 
+function normalizeDailyText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function hasBaccaratDailyDevilFruit(player) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+
+  return cards.some((card) => {
+    const fruitValues = [
+      card?.equippedDevilFruit,
+      card?.equippedDevilFruitName,
+      card?.displayFruitName,
+      card?.devilFruit,
+      card?.devilFruitName,
+    ].map(normalizeDailyText);
+
+    return fruitValues.some(
+      (value) =>
+        value === "raki raki no mi" ||
+        value === "baccarat" ||
+        value.includes("raki raki")
+    );
+  });
+}
+
+function applyBaccaratDailyBonus(player, rewards) {
+  if (!hasBaccaratDailyDevilFruit(player)) return false;
+
+  addReward(rewards, makeReward(ITEMS.pullResetTicket, 1));
+  return true;
+}
+
 function makeReward(item, amount = 1) {
   if (!item) return null;
 
@@ -336,6 +373,7 @@ module.exports = {
     }
 
     const rewardBundle = getDailyTierRewards(dailyTier);
+    const baccaratBonusApplied = applyBaccaratDailyBonus(player, rewardBundle.rewards);
     const nextReadyAt = now + DAILY_COOLDOWN_MS;
 
     let updatedSnapshot = null;
@@ -396,6 +434,10 @@ module.exports = {
           (reward) => `↪ ${reward.name} x${reward.amount}`
         )
       : ["↪ No extra reward this time"];
+
+    if (baccaratBonusApplied) {
+      extraLines.push("↪ Baccarat Devil Fruit Bonus: +1 Pull Reset");
+    }
 
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
