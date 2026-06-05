@@ -1,4 +1,4 @@
-const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
+const { isLzsCard } = require("../utils/mergeCards");
 const {
   EmbedBuilder,
   ActionRowBuilder,
@@ -19,7 +19,6 @@ const cardsData = require("../data/cards");
 const SPECIAL_FORMS = cardsData.SPECIAL_FORMS || cardsData.specialForms || {
   luffy_straw_hat: ["The Beginning", "Revival", "Gear 5"],
 };
-
 
 function isRoadPoneglyphCard(card) {
   const code = String(card?.code || "").toLowerCase().trim();
@@ -84,30 +83,30 @@ function scoreNameOnly(query, names) {
 }
 
 function isLzsQuery(query) {
- const q = normalizeNameSearch(query).replace(/\s+/g, "_");
- return q === "lzs" || q === "monster_trio";
+  const q = normalizeNameSearch(query).replace(/\s+/g, "_");
+  return q === "lzs" || q === "monster_trio";
 }
 
 function findCardTemplateByNameOnly(query) {
- if (isLzsQuery(query)) {
-  const lzs = getAllCards().find((card) => {
-   const code = String(card?.code || "").toLowerCase().trim();
-   const name = normalizeNameSearch(card?.displayName || card?.name || card?.title);
-   return code === "lzs" || name === "monster trio";
-  });
+  if (isLzsQuery(query)) {
+    const lzs = getAllCards().find((card) => {
+      const code = String(card?.code || "").toLowerCase().trim();
+      const name = normalizeNameSearch(card?.displayName || card?.name || card?.title);
+      return code === "lzs" || name === "monster trio";
+    });
 
-  if (lzs) return lzs;
- }
+    if (lzs) return lzs;
+  }
 
- const scored = getAllCards()
-  .map((card) => ({
-   card,
-   score: scoreNameOnly(query, [card.displayName, card.name]),
-  }))
-  .filter((entry) => entry.score > 0)
-  .sort((a, b) => b.score - a.score);
+  const scored = getAllCards()
+    .map((card) => ({
+      card,
+      score: scoreNameOnly(query, [card.displayName, card.name]),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
 
- return scored.length ? scored[0].card : null;
+  return scored.length ? scored[0].card : null;
 }
 
 function getAllGlobalCard(card) {
@@ -120,10 +119,6 @@ function getAllGlobalCard(card) {
       (entry) => String(entry.code || "").toLowerCase() === code
     ) || card
   );
-}
-
-function getAllGlobalPower(card) {
-  return Number(card?.currentPower || card?.powerCaps?.M3 || 0);
 }
 
 function getDirectDevilFruitName(...sources) {
@@ -146,7 +141,6 @@ function getDirectDevilFruitName(...sources) {
 
     for (const key of keys) {
       const value = source[key];
-
       if (!value) continue;
 
       const text = String(value).trim();
@@ -165,27 +159,15 @@ function getBoostDevilFruitForCi(card, stageCard = null, form = null) {
 
   const sources = [
     form,
-
-    ...(Array.isArray(stageCard?.evolutionForms)
-      ? stageCard.evolutionForms
-      : []),
-
-    ...(Array.isArray(card?.evolutionForms)
-      ? card.evolutionForms
-      : []),
-
-    ...(Array.isArray(allGlobalCard?.evolutionForms)
-      ? allGlobalCard.evolutionForms
-      : []),
-
+    ...(Array.isArray(stageCard?.evolutionForms) ? stageCard.evolutionForms : []),
+    ...(Array.isArray(card?.evolutionForms) ? card.evolutionForms : []),
+    ...(Array.isArray(allGlobalCard?.evolutionForms) ? allGlobalCard.evolutionForms : []),
     stageCard,
     card,
     allGlobalCard,
-
     stageCard?.source,
     card?.source,
     allGlobalCard?.source,
-
     stageCard?.template,
     card?.template,
     allGlobalCard?.template,
@@ -363,45 +345,6 @@ function getCiStageForm(template, stage = 1) {
     : null;
 }
 
-function pickCiDisplayNumber(card, form, keys) {
-  for (const source of [form, card]) {
-    for (const key of keys) {
-      const value = Number(source?.[key]);
-      if (Number.isFinite(value) && value > 0) return value;
-    }
-  }
-
-  return 0;
-}
-
-function getCiDisplayAtk(card, form) {
-  return pickCiDisplayNumber(card, form, ["atk", "baseAtk"]);
-}
-
-function getCiDisplayHp(card, form) {
-  return pickCiDisplayNumber(card, form, ["hp", "baseHp"]);
-}
-
-function getCiDisplaySpeed(card, form) {
-  return pickCiDisplayNumber(card, form, ["speed", "spd", "baseSpeed"]);
-}
-
-function getCiDisplayPower(card, form, stage = 1) {
-  const stageKey = `M${Math.max(1, Math.min(3, Number(stage || 1)))}`;
-
-  return Number(
-    form?.currentPower ||
-      form?.basePower ||
-      form?.power ||
-      form?.powerCaps?.[stageKey] ||
-      card?.powerCaps?.[stageKey] ||
-      card?.basePower ||
-      card?.power ||
-      card?.currentPower ||
-      0
-  );
-}
-
 function cleanCiText(value) {
   const text = String(value || "").trim();
   if (!text || text.toLowerCase() === "none") return "";
@@ -434,42 +377,138 @@ function joinUniqueCiText(values) {
   return out.length ? out.join(", ") : "None";
 }
 
-function buildLzsSourceTemplateForCi(code, stage = 1) {
-  const template = findTemplateByCodeForCi(code) || {};
-  const form = getCiStageForm(template, stage);
+function buildCiLzsFromCiBattleStats(stage = 1) {
+  const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
+  const template = findTemplateByCodeForCi("lzs") || {};
+  const form = getCiStageForm(template, targetStage) || {};
+
+  const sourceRows = LZS_SOURCE_CODES.map((code) => {
+    const sourceTemplate = findTemplateByCodeForCi(code) || {};
+    const sourceStageCard = getStageCard(sourceTemplate, targetStage);
+    const sourceForm =
+      sourceStageCard.evolutionForms?.[targetStage - 1] ||
+      sourceTemplate.evolutionForms?.[targetStage - 1] ||
+      {};
+
+    const stats = getStageDisplayStats(sourceTemplate, sourceStageCard, targetStage);
+    const statSource = stats.source || sourceStageCard || sourceTemplate;
+
+    return {
+      code,
+      template: sourceTemplate,
+      stageCard: sourceStageCard,
+      form: sourceForm,
+      atk: Number(stats.atk || 0),
+      hp: Number(stats.hp || 0),
+      speed: Number(stats.speed || 0),
+      power: Number(stats.power || 0),
+      weapon:
+        statSource.weaponSet ||
+        statSource.weapon ||
+        sourceForm.weaponSet ||
+        sourceForm.weapon ||
+        sourceTemplate.weaponSet ||
+        sourceTemplate.weapon ||
+        "None",
+      devilFruit:
+        statSource.devilFruit ||
+        statSource.displayFruitName ||
+        sourceForm.devilFruitName ||
+        sourceForm.devilFruit ||
+        sourceTemplate.devilFruitName ||
+        sourceTemplate.devilFruit ||
+        "None",
+    };
+  });
+
+  const mergedAtk = Math.floor(
+    sourceRows.reduce((sum, source) => sum + source.atk * 0.3, 0)
+  );
+  const mergedHp = Math.floor(
+    sourceRows.reduce((sum, source) => sum + source.hp * 0.3, 0)
+  );
+  const mergedSpeed = Math.floor(
+    sourceRows.reduce((sum, source) => sum + source.speed * 0.3, 0)
+  );
+  const mergedPower = Math.floor(
+    sourceRows.reduce((sum, source) => sum + source.power * 0.3, 0)
+  );
+
+  const weapon = joinUniqueCiText(sourceRows.map((source) => source.weapon));
+  const devilFruit = joinUniqueCiText(sourceRows.map((source) => source.devilFruit));
 
   return {
-    template,
-    form,
-    atk: getCiDisplayAtk(template, form),
-    hp: getCiDisplayHp(template, form),
-    speed: getCiDisplaySpeed(template, form),
-    power: getCiDisplayPower(template, form, stage),
-    weapon: form?.weaponSet || form?.weapon || template.weaponSet || template.weapon,
-    devilFruit:
-      form?.devilFruitName ||
-      form?.devilFruit ||
-      template.devilFruitName ||
-      template.devilFruit,
+    ...template,
+    ...form,
+
+    code: "lzs",
+    name: "Monster Trio",
+    displayName: "Monster Trio",
+    title: "Monster Trio",
+
+    rarity: "M",
+    currentTier: "M",
+    tier: "M",
+    baseTier: "M",
+
+    cardRole: "battle",
+    role: "battle",
+    category: "battle",
+    type: "Merge",
+
+    summonOnly: true,
+    mergeOnly: true,
+    mergeSourceCodes: LZS_SOURCE_CODES,
+    mergeStatRatio: 0.3,
+
+    evolutionStage: targetStage,
+    evolutionKey: `M${targetStage}`,
+
+    atk: mergedAtk,
+    baseAtk: mergedAtk,
+    displayAtk: mergedAtk,
+    combatAtk: mergedAtk,
+    finalAtk: mergedAtk,
+
+    hp: mergedHp,
+    baseHp: mergedHp,
+    displayHp: mergedHp,
+    combatHp: mergedHp,
+    finalHp: mergedHp,
+
+    speed: mergedSpeed,
+    spd: mergedSpeed,
+    baseSpeed: mergedSpeed,
+    displaySpeed: mergedSpeed,
+    combatSpeed: mergedSpeed,
+    finalSpeed: mergedSpeed,
+
+    power: mergedPower,
+    basePower: mergedPower,
+    currentPower: mergedPower,
+    finalPower: mergedPower,
+    powerCaps: {
+      ...(template.powerCaps || {}),
+      [`M${targetStage}`]: mergedPower,
+    },
+
+    weapon,
+    weaponSet: weapon,
+    displayWeaponName: weapon,
+
+    devilFruit,
+    displayFruitName: devilFruit,
   };
 }
 
-function getLzsCiStageFactor(stage) {
-  const n = Number(stage || 1);
-
-  if (n === 1) return 0.6;
-  if (n === 2) return 0.8;
-  return 1;
-}
-
-function buildCiLzsCard(player, baseCard, stage = 1) {
-  const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
-
-  return buildMergedLzsCard(player, baseCard, targetStage, {
-    templateOnly: true,
-    sourceStage: targetStage,
-    displayLevel: targetStage === 1 ? 50 : targetStage === 2 ? 85 : 100,
-  });
+function getCiLzsDisplayStats(card) {
+  return {
+    source: card,
+    atk: Number(card?.atk || 0),
+    hp: Number(card?.hp || 0),
+    speed: Number(card?.speed || card?.spd || 0),
+    power: Number(card?.currentPower || card?.power || 0),
+  };
 }
 
 function getLzsRequirementForCi(stage) {
@@ -571,8 +610,8 @@ function getStageCard(card, stage) {
 
 const AWAKEN_GEMS_COST_BY_BASE_TIER = {
   S: {
-    2: 750,  // M1 -> M2
-    3: 1500, // M2 -> M3
+    2: 750,
+    3: 1500,
   },
   A: {
     2: 500,
@@ -784,9 +823,6 @@ function doesEntryMatchRequirement(entry, requirement) {
   return requirementNames.some((reqName) =>
     entryNames.some((entryName) => {
       if (entryName === reqName) return true;
-
-      // Allow short search like "soul solid" matching full display name,
-      // but avoid matching unrelated fields like equippedOn / effect text.
       return entryName.includes(reqName) || reqName.includes(entryName);
     })
   );
@@ -940,7 +976,7 @@ function getRequiredForTargets(currentCard, currentStage) {
     for (const stageKey of ["M2", "M3"]) {
       const targetStage = Number(String(stageKey).replace("M", ""));
       let req = requirements?.[stageKey];
-  req = mergeCanonRequirementsIntoReq(req, targetCard, targetStage);
+      req = mergeCanonRequirementsIntoReq(req, targetCard, targetStage);
 
       if (!req) continue;
 
@@ -1139,23 +1175,17 @@ function normalizeMergeRequirementForCi(card, stage, req) {
 
   return {
     ...baseReq,
-
     berries: 2000000,
     gems: 2000,
-
-    // Merge card tidak pakai fragment dirinya sendiri.
     selfFragments: 0,
-
     cards: uniqCiRequirementCards([
       ...(Array.isArray(baseReq.cards) ? baseReq.cards : []),
       makeRoadPoneglyphRequirementForCi(roadStage),
     ]),
-
     cardsText: [
       ...(Array.isArray(baseReq.cardsText) ? baseReq.cardsText : []),
       `Road Poneglyph M${roadStage}`,
     ].filter((value, index, arr) => arr.indexOf(value) === index),
-
     fragments: Array.isArray(baseReq.fragments) ? baseReq.fragments : [],
     boosts: Array.isArray(baseReq.boosts) ? baseReq.boosts : [],
     boostsText: Array.isArray(baseReq.boostsText) ? baseReq.boostsText : [],
@@ -1166,7 +1196,7 @@ function buildReqEmbed(card, stage, player) {
   const isLzs = isLzsCard(card);
 
   if (isLzs) {
-    card = buildCiLzsCard(player, card, stage);
+    card = buildCiLzsFromCiBattleStats(stage);
   }
 
   const stageCard = getStageCard(card, stage);
@@ -1319,51 +1349,11 @@ function buildReqEmbed(card, stage, player) {
     .setDescription(descriptionLines.join("\n"));
 }
 
-function getLzsCiDisplayCard(card, owned, stage, player = null) {
-  const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
-
-  const base =
-    owned && isLzsCard(owned)
-      ? owned
-      : card && isLzsCard(card)
-      ? card
-      : null;
-
-  const merged = buildMergedLzsCard(player || { cards: [] }, base, targetStage, {
-    templateOnly: true,
-    sourceStage: targetStage,
-    displayStage: targetStage,
-    displayLevel: targetStage === 1 ? 50 : targetStage === 2 ? 85 : 100,
-  });
-
-  return {
-    ...merged,
-    evolutionStage: targetStage,
-    evolutionKey: `M${targetStage}`,
-    currentTier: "M",
-    rarity: "M",
-    tier: "M",
-    cardRole: "battle",
-    role: "battle",
-    type: "Merge",
-  };
-}
-
-function getLzsCiStats(card) {
-  return {
-    source: card,
-    atk: Number(card?.atk ?? card?.finalAtk ?? card?.displayAtk ?? card?.combatAtk ?? 0),
-    hp: Number(card?.hp ?? card?.finalHp ?? card?.displayHp ?? card?.combatHp ?? 0),
-    speed: Number(card?.speed ?? card?.spd ?? card?.finalSpeed ?? card?.displaySpeed ?? card?.combatSpeed ?? 0),
-    power: Number(card?.currentPower ?? card?.power ?? card?.finalPower ?? card?.basePower ?? 0),
-  };
-}
-
 function buildEmbed(card, owned, stage, player = null) {
   const isLzs = isLzsCard(card) || isLzsCard(owned);
 
   if (isLzs) {
-    card = getLzsCiDisplayCard(card, owned, stage, player);
+    card = buildCiLzsFromCiBattleStats(stage);
     owned = card;
   }
 
@@ -1378,7 +1368,7 @@ function buildEmbed(card, owned, stage, player = null) {
   const stageImage = getStageImage(card, stageCard, stage);
   const stageBadge = getStageBadge(card, stageCard, stage);
   const displayStats = isLzs
-    ? getLzsCiStats(stageCard)
+    ? getCiLzsDisplayStats(stageCard)
     : getStageDisplayStats(card, stageCard, stage);
 
   const statSource = displayStats.source || card;
@@ -1500,45 +1490,45 @@ module.exports = {
       if (i.customId === "ci_next") stage = Math.min(3, stage + 1);
 
       if (i.customId === "ci_info") {
-      await i.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+        await i.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
 
-      try {
-        const freshPlayer = getPlayer(message.author.id, message.author.username);
-        return await i.editReply({
-          embeds: [buildReqEmbed(globalCard, stage, freshPlayer)],
-        });
-      } catch (error) {
-        console.error("[CI INFO INTERACTION ERROR]", error);
+        try {
+          const freshPlayer = getPlayer(message.author.id, message.author.username);
+          return await i.editReply({
+            embeds: [buildReqEmbed(globalCard, stage, freshPlayer)],
+          });
+        } catch (error) {
+          console.error("[CI INFO INTERACTION ERROR]", error);
 
-        return i.editReply({
-          content: "❌ Failed to load requirement panel. Please try again.",
-          embeds: [],
-          components: [],
-        }).catch(() => null);
+          return i.editReply({
+            content: "❌ Failed to load requirement panel. Please try again.",
+            embeds: [],
+            components: [],
+          }).catch(() => null);
+        }
       }
-    }
 
       if (i.customId === "ci_required_for") {
-      await i.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+        await i.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
 
-      try {
-        return await i.editReply({
-          embeds: [buildRequiredForEmbed(globalCard, stage)],
-        });
-      } catch (error) {
-        console.error("[CI REQUIRED FOR INTERACTION ERROR]", error);
+        try {
+          return await i.editReply({
+            embeds: [buildRequiredForEmbed(globalCard, stage)],
+          });
+        } catch (error) {
+          console.error("[CI REQUIRED FOR INTERACTION ERROR]", error);
 
-        return i.editReply({
-          content: "❌ Failed to load required-for panel. Please try again.",
-          embeds: [],
-          components: [],
-        }).catch(() => null);
+          return i.editReply({
+            content: "❌ Failed to load required-for panel. Please try again.",
+            embeds: [],
+            components: [],
+          }).catch(() => null);
+        }
       }
-    }
 
       const freshPlayer = getPlayer(message.author.id, message.author.username);
       const freshOwned = isLzsCard(globalCard)
-        ? getLzsCiDisplayCard(globalCard, null, stage, freshPlayer)
+        ? buildCiLzsFromCiBattleStats(stage)
         : findOwnedCard(freshPlayer.cards || [], query);
 
       return i.update({
