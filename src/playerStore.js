@@ -1895,6 +1895,30 @@ function updateTwoPlayersAtomic(userIdA, userIdB, mutator, usernameA = "Unknown"
   };
 }
 
+async function flushPlayerStoreNow(timeoutMs = 25000) {
+  const safeTimeout = Math.max(1000, Number(timeoutMs || 25000));
+
+  try {
+    const players = readPlayers();
+
+    if (USE_POSTGRES && dbReady) {
+      await Promise.race([
+        flushChangedPlayersToPostgres(players),
+        new Promise((resolve) => setTimeout(resolve, safeTimeout)),
+      ]);
+
+      await drainPlayerStoreSaves(safeTimeout);
+      return true;
+    }
+
+    writePlayersLocalBackupOnly(players);
+    return true;
+  } catch (error) {
+    console.error("[PLAYER STORE FLUSH NOW ERROR]", error);
+    return false;
+  }
+}
+
 module.exports = {
   readPlayers,
   writePlayers,
@@ -1904,5 +1928,7 @@ module.exports = {
   updateTwoPlayersAtomic,
   normalizePlayer,
   initPlayerStore,
+  flushPlayerStoreNow,
+  drainPlayerStoreSaves,
   filePath,
 };
