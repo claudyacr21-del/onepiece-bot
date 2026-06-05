@@ -19,6 +19,7 @@ const {
 } = require("./utils/patreonRoleStore");
 const { initPirateStore } = require("./utils/pirateStore");
 const { startResetReminderService } = require("./utils/resetReminderService");
+const { startAutoReloadService } = require("./utils/autoReload");
 const { initRedeemCodeStore } = require("./utils/redeemCodeStore");
 const { maybeSpawnMarineEvent } = require("./utils/marineEvent");
 const channelRules = require("./config/channelRules");
@@ -436,7 +437,8 @@ client.once("clientReady", async () => {
 
   startTopggWebhookServer(client);
   startResetReminderService(client);
-
+  startAutoReloadService();
+  
   syncArenaRankRoles(client).catch((error) => {
     console.error("[ARENA RANK ROLES READY SYNC ERROR]", error);
   });
