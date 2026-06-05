@@ -378,9 +378,9 @@ function isLzsCard(card) {
  return code === "lzs" || name === "monster trio";
 }
 
-//function isLzsSummonDisabled(card) {
-// return isLzsCard(card);
-//}
+function isLzsSummonDisabled(card) {
+ return isLzsCard(card);
+}
 
 function isGenericMergeSummonCard(card) {
   const type = String(card?.type || "").toLowerCase().trim();
