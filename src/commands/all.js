@@ -673,7 +673,12 @@ module.exports = {
         getAllCards()
           .filter((c) => c.cardRole === mode)
           .map((card) =>
-            isLzsCard(card) ? buildLzsAllDisplayCard(card, "M1") : card
+            isLzsCard(card)
+              ? buildMergedLzsCard(player, card, 1, {
+                  templateOnly: true,
+                  displayLevel: 50,
+                })
+              : card
           ),
         mode
       );
