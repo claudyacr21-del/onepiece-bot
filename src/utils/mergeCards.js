@@ -47,7 +47,7 @@ function getTemplateByCode(code) {
 function getStage(card) {
   const n = Number(card?.evolutionStage || card?.stage || 0);
 
-  if (n >= 1) {
+  if (Number.isFinite(n) && n >= 1) {
     return Math.max(1, Math.min(3, Math.floor(n)));
   }
 
@@ -55,6 +55,10 @@ function getStage(card) {
   const matched = key.match(/M([123])/);
 
   return matched ? Number(matched[1]) : 1;
+}
+
+function getStageKey(stage) {
+  return `M${Math.max(1, Math.min(3, Number(stage || 1)))}`;
 }
 
 function getStageMaxLevel(stage) {
@@ -121,12 +125,12 @@ function findOwnedSource(player, code) {
 
 function getForm(template, stage) {
   return Array.isArray(template?.evolutionForms)
-    ? template.evolutionForms[stage - 1] || {}
+    ? template.evolutionForms[Math.max(1, Math.min(3, Number(stage || 1))) - 1] || {}
     : {};
 }
 
 function getStageStatsBlock(source, stage) {
-  const stageKey = `M${Math.max(1, Math.min(3, Number(stage || 1)))}`;
+  const stageKey = getStageKey(stage);
 
   return (
     source?.stageStats?.[stageKey] ||
@@ -147,7 +151,7 @@ function firstPositiveNumber(...values) {
 
 function getStageSpecificNumber(template, hydrated, stage, statType) {
   const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
-  const stageKey = `M${safeStage}`;
+  const stageKey = getStageKey(safeStage);
   const form = getForm(template, safeStage);
   const templateStageStats = getStageStatsBlock(template, safeStage);
   const hydratedStageStats = getStageStatsBlock(hydrated, safeStage);
@@ -340,77 +344,50 @@ function getStageSpecificNumber(template, hydrated, stage, statType) {
 function getLiveNumber(card, templateCode, statType) {
   const stage = getStage(card);
   const template = getTemplateByCode(templateCode) || {};
-  const form = getForm(template, stage);
-  const stageStats = getStageStatsBlock(template, stage);
-
-  if (statType === "atk") {
-    return firstPositiveNumber(
-      card?.displayAtk,
-      card?.combatAtk,
-      card?.finalAtk,
-      card?.currentAtk,
-      card?.totalAtk,
-      card?.battleAtk,
-      card?.atk,
-      card?.baseAtk,
-      form?.atk,
-      form?.baseAtk,
-      stageStats?.atk,
-      stageStats?.baseAtk
-    );
-  }
-
-  if (statType === "hp") {
-    return firstPositiveNumber(
-      card?.displayHp,
-      card?.combatHp,
-      card?.finalHp,
-      card?.maxHp,
-      card?.currentHp,
-      card?.totalHp,
-      card?.battleHp,
-      card?.hp,
-      card?.baseHp,
-      form?.hp,
-      form?.baseHp,
-      stageStats?.hp,
-      stageStats?.baseHp
-    );
-  }
-
-  if (statType === "speed") {
-    return firstPositiveNumber(
-      card?.displaySpeed,
-      card?.combatSpeed,
-      card?.finalSpeed,
-      card?.currentSpeed,
-      card?.totalSpeed,
-      card?.battleSpeed,
-      card?.speed,
-      card?.spd,
-      card?.baseSpeed,
-      form?.speed,
-      form?.spd,
-      form?.baseSpeed,
-      stageStats?.speed,
-      stageStats?.spd,
-      stageStats?.baseSpeed
-    );
-  }
+  const hydrated = hydrateCard({
+    ...card,
+    evolutionStage: stage,
+    evolutionKey: `M${stage}`,
+  });
 
   return firstPositiveNumber(
-    card?.currentPower,
-    card?.power,
-    card?.basePower,
-    card?.finalPower,
-    card?.totalPower,
-    card?.battlePower,
-    form?.currentPower,
-    form?.power,
-    form?.basePower,
-    stageStats?.currentPower,
-    stageStats?.power,
-    card?.powerCaps?.[`M${stage}`]
+    statType === "atk" ? card?.displayAtk : 0,
+    statType === "atk" ? card?.combatAtk : 0,
+    statType === "atk" ? card?.finalAtk : 0,
+    statType === "atk" ? card?.currentAtk : 0,
+    statType === "atk" ? card?.totalAtk : 0,
+    statType === "atk" ? card?.battleAtk : 0,
+    statType === "atk" ? card?.atk : 0,
+    statType === "atk" ? card?.baseAtk : 0,
+
+    statType === "hp" ? card?.displayHp : 0,
+    statType === "hp" ? card?.combatHp : 0,
+    statType === "hp" ? card?.finalHp : 0,
+    statType === "hp" ? card?.maxHp : 0,
+    statType === "hp" ? card?.currentHp : 0,
+    statType === "hp" ? card?.totalHp : 0,
+    statType === "hp" ? card?.battleHp : 0,
+    statType === "hp" ? card?.hp : 0,
+    statType === "hp" ? card?.baseHp : 0,
+
+    statType === "speed" ? card?.displaySpeed : 0,
+    statType === "speed" ? card?.combatSpeed : 0,
+    statType === "speed" ? card?.finalSpeed : 0,
+    statType === "speed" ? card?.currentSpeed : 0,
+    statType === "speed" ? card?.totalSpeed : 0,
+    statType === "speed" ? card?.battleSpeed : 0,
+    statType === "speed" ? card?.speed : 0,
+    statType === "speed" ? card?.spd : 0,
+    statType === "speed" ? card?.baseSpeed : 0,
+
+    statType === "power" ? card?.currentPower : 0,
+    statType === "power" ? card?.power : 0,
+    statType === "power" ? card?.basePower : 0,
+    statType === "power" ? card?.finalPower : 0,
+    statType === "power" ? card?.totalPower : 0,
+    statType === "power" ? card?.battlePower : 0,
+
+    getStageSpecificNumber(template, hydrated, stage, statType)
   );
 }
 
@@ -440,22 +417,26 @@ function buildTemplateSourceCard(code, stage, level) {
 
   return {
     ...hydrated,
+
     atk,
     baseAtk: atk,
     displayAtk: atk,
     combatAtk: atk,
     finalAtk: atk,
+
     hp,
     baseHp: hp,
     displayHp: hp,
     combatHp: hp,
     finalHp: hp,
+
     speed,
     spd: speed,
     baseSpeed: speed,
     displaySpeed: speed,
     combatSpeed: speed,
     finalSpeed: speed,
+
     power,
     basePower: power,
     currentPower: power,
@@ -466,7 +447,14 @@ function buildTemplateSourceCard(code, stage, level) {
 function buildLiveSourceCard(player, code) {
   const owned = findOwnedSource(player, code);
 
-  if (owned) return hydrateCard(owned);
+  if (owned) {
+    const stage = getStage(owned);
+    return hydrateCard({
+      ...owned,
+      evolutionStage: stage,
+      evolutionKey: `M${stage}`,
+    });
+  }
 
   const template = getTemplateByCode(code) || {};
 
@@ -480,22 +468,44 @@ function buildLiveSourceCard(player, code) {
   });
 }
 
+function getTextFromSources(sources, keys) {
+  for (const source of sources) {
+    if (!source || typeof source !== "object") continue;
+
+    for (const key of keys) {
+      const value = source?.[key];
+      const text = String(value || "").trim();
+
+      if (text && text.toLowerCase() !== "none") return text;
+    }
+  }
+
+  return "None";
+}
+
 function getSourceWeaponText(card, templateCode, forcedStage = null) {
   const template = getTemplateByCode(templateCode) || {};
   const stage = forcedStage || getStage(card);
   const form = getForm(template, stage);
 
-  return (
-    card?.displayWeaponName ||
-    card?.weaponSet ||
-    card?.weapon ||
-    card?.equippedWeaponName ||
-    form?.weaponSet ||
-    form?.weapon ||
-    template.weaponSet ||
-    template.weapon ||
-    "None"
-  );
+  const sources = [
+    card,
+    form,
+    template,
+    ...(Array.isArray(card?.equippedWeapons) ? card.equippedWeapons : []),
+    ...(Array.isArray(card?.evolutionForms) ? card.evolutionForms : []),
+    ...(Array.isArray(template?.evolutionForms) ? template.evolutionForms : []),
+  ];
+
+  return getTextFromSources(sources, [
+    "displayWeaponName",
+    "weaponSet",
+    "weapon",
+    "equippedWeaponName",
+    "equippedWeapon",
+    "weaponName",
+    "name",
+  ]);
 }
 
 function getSourceFruitText(card, templateCode, forcedStage = null) {
@@ -503,17 +513,27 @@ function getSourceFruitText(card, templateCode, forcedStage = null) {
   const stage = forcedStage || getStage(card);
   const form = getForm(template, stage);
 
-  return (
-    card?.displayFruitName ||
-    card?.equippedDevilFruitName ||
-    card?.devilFruitName ||
-    card?.devilFruit ||
-    form?.devilFruitName ||
-    form?.devilFruit ||
-    template.devilFruitName ||
-    template.devilFruit ||
-    "None"
-  );
+  const sources = [
+    card,
+    form,
+    template,
+    ...(Array.isArray(card?.evolutionForms) ? card.evolutionForms : []),
+    ...(Array.isArray(template?.evolutionForms) ? template.evolutionForms : []),
+  ];
+
+  return getTextFromSources(sources, [
+    "displayFruitName",
+    "equippedDevilFruitName",
+    "equippedDevilFruit",
+    "devilFruitName",
+    "devilFruit",
+    "devilfruitName",
+    "devilfruit",
+    "fruitName",
+    "fruit",
+    "df",
+    "dfName",
+  ]);
 }
 
 function cleanValue(value) {
@@ -527,7 +547,7 @@ function cleanValue(value) {
 
 function splitParts(value) {
   return cleanValue(value)
-    .split(/\s*[,/]\s*/)
+    .split(/\s*,\s*|\s+\/\s+/)
     .map((part) => part.trim())
     .filter(Boolean);
 }
@@ -742,8 +762,9 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
         ? "Weapon"
         : "None",
 
-    syncNote:
-      "Live 30% Monkey D. Luffy + 30% Roronoa Zoro + 30% Sanji",
+    syncNote: options.templateOnly
+      ? "30% max mastery stats from Monkey D. Luffy + Roronoa Zoro + Sanji"
+      : "Live 30% owned stats from Monkey D. Luffy + Roronoa Zoro + Sanji",
   };
 }
 
