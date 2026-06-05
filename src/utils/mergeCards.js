@@ -136,59 +136,43 @@ function getNumber(source, keys) {
   return 0;
 }
 
-function getStat(card, keys) {
-  return getNumber(card, keys);
-}
-
 function getAtk(card) {
-  return getStat(card, [
-    "atk",
+  return getNumber(card, [
     "displayAtk",
     "combatAtk",
     "finalAtk",
-    "currentAtk",
-    "totalAtk",
-    "battleAtk",
+    "atk",
     "baseAtk",
   ]);
 }
 
 function getHp(card) {
-  return getStat(card, [
-    "hp",
+  return getNumber(card, [
     "displayHp",
     "combatHp",
     "finalHp",
-    "maxHp",
-    "currentHp",
-    "totalHp",
-    "battleHp",
+    "hp",
     "baseHp",
   ]);
 }
 
 function getSpeed(card) {
-  return getStat(card, [
-    "speed",
-    "spd",
+  return getNumber(card, [
     "displaySpeed",
     "combatSpeed",
     "finalSpeed",
-    "currentSpeed",
-    "totalSpeed",
-    "battleSpeed",
+    "speed",
+    "spd",
     "baseSpeed",
   ]);
 }
 
 function getPower(card) {
-  return getStat(card, [
+  return getNumber(card, [
     "currentPower",
     "power",
     "basePower",
     "finalPower",
-    "totalPower",
-    "battlePower",
   ]);
 }
 
@@ -215,11 +199,10 @@ function buildTemplateSourceCard(code, stage, level) {
 function buildLiveSourceCard(player, code) {
   const owned = findOwnedSource(player, code);
 
-  if (owned) {
-    return hydrateCard(owned);
-  }
+  if (owned) return hydrateCard(owned);
 
   const template = getTemplateByCode(code) || {};
+
   return hydrateCard({
     ...template,
     evolutionStage: 1,
@@ -230,35 +213,58 @@ function buildLiveSourceCard(player, code) {
   });
 }
 
-function getSourceWeaponText(card, templateCode, forcedStage = null) {
+function getSourceWeaponText(card, templateCode, forcedStage = null, templateOnly = false) {
   const template = getTemplateByCode(templateCode) || {};
   const stage = forcedStage || getStage(card);
   const form = getForm(template, stage);
 
+  if (templateOnly) {
+    return (
+      form?.weaponSet ||
+      form?.weapon ||
+      template.weaponSet ||
+      template.weapon ||
+      "None"
+    );
+  }
+
   return (
+    card?.displayWeaponName ||
+    card?.weaponSet ||
+    card?.weapon ||
+    card?.equippedWeaponName ||
     form?.weaponSet ||
     form?.weapon ||
     template.weaponSet ||
     template.weapon ||
-    card?.weaponSet ||
-    card?.weapon ||
     "None"
   );
 }
 
-function getSourceFruitText(card, templateCode, forcedStage = null) {
+function getSourceFruitText(card, templateCode, forcedStage = null, templateOnly = false) {
   const template = getTemplateByCode(templateCode) || {};
   const stage = forcedStage || getStage(card);
   const form = getForm(template, stage);
 
+  if (templateOnly) {
+    return (
+      form?.devilFruitName ||
+      form?.devilFruit ||
+      template.devilFruitName ||
+      template.devilFruit ||
+      "None"
+    );
+  }
+
   return (
+    card?.displayFruitName ||
+    card?.equippedDevilFruitName ||
+    card?.devilFruitName ||
+    card?.devilFruit ||
     form?.devilFruitName ||
     form?.devilFruit ||
     template.devilFruitName ||
     template.devilFruit ||
-    card?.devilFruitName ||
-    card?.devilFruit ||
-    card?.displayFruitName ||
     "None"
   );
 }
@@ -304,9 +310,10 @@ function buildLzsSources(player, stage, options = {}) {
   );
 
   const displayLevel = Number(options.displayLevel || getStageMaxLevel(sourceStage));
+  const templateOnly = Boolean(options.templateOnly);
 
   return MERGE_SOURCE_CODES.map((code) => {
-    const source = options.templateOnly
+    const source = templateOnly
       ? buildTemplateSourceCard(code, sourceStage, displayLevel)
       : buildLiveSourceCard(player, code);
 
@@ -317,8 +324,8 @@ function buildLzsSources(player, stage, options = {}) {
       hp: getHp(source),
       speed: getSpeed(source),
       power: getPower(source),
-      weapon: getSourceWeaponText(source, code, sourceStage),
-      devilFruit: getSourceFruitText(source, code, sourceStage),
+      weapon: getSourceWeaponText(source, code, sourceStage, templateOnly),
+      devilFruit: getSourceFruitText(source, code, sourceStage, templateOnly),
     };
   });
 }
@@ -492,7 +499,9 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
         ? "Weapon"
         : "None",
 
-    syncNote: "Live 30% Monkey D. Luffy + 30% Roronoa Zoro + 30% Sanji",
+    syncNote: options.templateOnly
+      ? "30% signature stats from Monkey D. Luffy + Roronoa Zoro + Sanji"
+      : "Live 30% owned stats from Monkey D. Luffy + Roronoa Zoro + Sanji",
   };
 }
 

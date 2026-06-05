@@ -369,6 +369,15 @@ async function checkUserCooldownReminders(client) {
 }
 
 async function sendGlobalPullResetNotification(client) {
+  if (!client || !client.isReady || !client.isReady()) {
+    console.warn("[RESET REMINDER] Client is not ready. Skipping global reset notification.");
+    return false;
+  }
+
+  if (!client.token) {
+    console.warn("[RESET REMINDER] Client token is not available. Skipping global reset notification.");
+    return false;
+  }
   if (!RESET_CHANNEL_ID) {
     console.warn("[RESET REMINDER] Missing RESET_CHANNEL_ID.");
     return false;
@@ -437,7 +446,10 @@ function scheduleNextGlobalReset(client) {
       );
 
       if (claimed) {
-        await sendGlobalPullResetNotification(client);
+        const sent = await sendGlobalPullResetNotification(client);
+        if (!sent) {
+          console.warn("[RESET REMINDER] Global reset notification skipped.");
+        }
       }
     } catch (error) {
       console.error("[GLOBAL RESET NOTIFICATION ERROR]", error);
