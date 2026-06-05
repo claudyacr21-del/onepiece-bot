@@ -1319,28 +1319,66 @@ function buildReqEmbed(card, stage, player) {
     .setDescription(descriptionLines.join("\n"));
 }
 
+function getLzsCiDisplayCard(card, owned, stage, player = null) {
+  const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
+
+  const base =
+    owned && isLzsCard(owned)
+      ? owned
+      : card && isLzsCard(card)
+      ? card
+      : null;
+
+  const merged = buildMergedLzsCard(player || { cards: [] }, base, targetStage, {
+    templateOnly: true,
+    sourceStage: targetStage,
+    displayStage: targetStage,
+    displayLevel: targetStage === 1 ? 50 : targetStage === 2 ? 85 : 100,
+  });
+
+  return {
+    ...merged,
+    evolutionStage: targetStage,
+    evolutionKey: `M${targetStage}`,
+    currentTier: "M",
+    rarity: "M",
+    tier: "M",
+    cardRole: "battle",
+    role: "battle",
+    type: "Merge",
+  };
+}
+
+function getLzsCiStats(card) {
+  return {
+    source: card,
+    atk: Number(card?.atk ?? card?.finalAtk ?? card?.displayAtk ?? card?.combatAtk ?? 0),
+    hp: Number(card?.hp ?? card?.finalHp ?? card?.displayHp ?? card?.combatHp ?? 0),
+    speed: Number(card?.speed ?? card?.spd ?? card?.finalSpeed ?? card?.displaySpeed ?? card?.combatSpeed ?? 0),
+    power: Number(card?.currentPower ?? card?.power ?? card?.finalPower ?? card?.basePower ?? 0),
+  };
+}
+
 function buildEmbed(card, owned, stage, player = null) {
-  if (isLzsCard(card)) {
-    card = buildCiLzsCard(player, card, stage);
+  const isLzs = isLzsCard(card) || isLzsCard(owned);
+
+  if (isLzs) {
+    card = getLzsCiDisplayCard(card, owned, stage, player);
     owned = card;
   }
 
-  const stageCard = getStageCard(card, stage);
+  const stageCard = isLzs ? card : getStageCard(card, stage);
   const form =
-    stageCard.evolutionForms?.[stage - 1] || card.evolutionForms?.[stage - 1];
+    stageCard.evolutionForms?.[stage - 1] ||
+    card.evolutionForms?.[stage - 1] ||
+    {};
 
   const stageLabel = getStageLabel(stage);
   const specialFormName = getSpecialFormName(card, stageCard, form, stage);
   const stageImage = getStageImage(card, stageCard, stage);
   const stageBadge = getStageBadge(card, stageCard, stage);
-  const displayStats = isLzsCard(card)
-    ? {
-        source: stageCard,
-        atk: Number(stageCard.atk || stageCard.displayAtk || stageCard.combatAtk || stageCard.finalAtk || 0),
-        hp: Number(stageCard.hp || stageCard.displayHp || stageCard.combatHp || stageCard.finalHp || 0),
-        speed: Number(stageCard.speed || stageCard.spd || stageCard.displaySpeed || stageCard.combatSpeed || stageCard.finalSpeed || 0),
-        power: Number(stageCard.currentPower || stageCard.power || stageCard.finalPower || stageCard.basePower || 0),
-      }
+  const displayStats = isLzs
+    ? getLzsCiStats(stageCard)
     : getStageDisplayStats(card, stageCard, stage);
 
   const statSource = displayStats.source || card;
@@ -1425,22 +1463,6 @@ function buildRows(stage) {
   ];
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 module.exports = {
   name: "ci",
   aliases: ["cardinfo"],
@@ -1516,7 +1538,7 @@ module.exports = {
 
       const freshPlayer = getPlayer(message.author.id, message.author.username);
       const freshOwned = isLzsCard(globalCard)
-        ? buildCiLzsCard(freshPlayer, globalCard, stage)
+        ? getLzsCiDisplayCard(globalCard, null, stage, freshPlayer)
         : findOwnedCard(freshPlayer.cards || [], query);
 
       return i.update({
