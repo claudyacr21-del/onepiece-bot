@@ -154,6 +154,11 @@ function fmtResolvedEntry(entry) {
     return `${entry.amount.toLocaleString("en-US")} berries`;
   }
 
+  if (entry.kind === "stack" && entry.store === "fragments") {
+    const label = getFragmentCategoryLabel(entry.fragmentCategory || "");
+    return `${entry.displayName || entry.code} (${label}) x${entry.amount}`;
+  }
+
   return `${entry.displayName || entry.code} x${entry.amount}`;
 }
 
@@ -289,11 +294,123 @@ function getStackFields(entry) {
     entry?.displayName,
     entry?.title,
     entry?.type,
+    entry?.category,
+    entry?.kind,
     entry?.rarity,
     entry?.weaponCode,
     entry?.cardCode,
+    entry?.characterCode,
+    entry?.boostCode,
     entry?.sourceCode,
+    entry?.sourceType,
   ];
+}
+
+function normalizeFragmentCategory(value = "") {
+  const text = normalize(value);
+
+  if (!text) return "";
+
+  if (
+    text.includes("weapon") ||
+    text.includes("sword") ||
+    text.includes("blade")
+  ) {
+    return "weapon";
+  }
+
+  if (
+    text.includes("boost") ||
+    text.includes("scroll") ||
+    text.includes("skill")
+  ) {
+    return "boost";
+  }
+
+  if (
+    text.includes("battle") ||
+    text.includes("card") ||
+    text.includes("character")
+  ) {
+    return "battle";
+  }
+
+  return "";
+}
+
+function getFragmentCategory(entry) {
+  const directCategory =
+    normalizeFragmentCategory(entry?.category) ||
+    normalizeFragmentCategory(entry?.type) ||
+    normalizeFragmentCategory(entry?.kind) ||
+    normalizeFragmentCategory(entry?.sourceType);
+
+  if (directCategory) return directCategory;
+
+  const text = normalize(
+    [
+      entry?.code,
+      entry?.name,
+      entry?.displayName,
+      entry?.title,
+      entry?.sourceCode,
+      entry?.weaponCode,
+      entry?.boostCode,
+      entry?.cardCode,
+      entry?.characterCode,
+    ]
+      .filter(Boolean)
+      .join(" ")
+  );
+
+  if (text.includes("scroll")) return "boost";
+  if (text.includes("boost")) return "boost";
+  if (text.includes("weapon")) return "weapon";
+  if (text.includes("sword")) return "weapon";
+  if (text.includes("blade")) return "weapon";
+
+  if (entry?.weaponCode) return "weapon";
+  if (entry?.boostCode) return "boost";
+  if (entry?.cardCode || entry?.characterCode) return "battle";
+
+  return "";
+}
+
+function getFragmentQueryCategory(query = "") {
+  const q = normalize(query);
+
+  if (
+    q.includes("weapon") ||
+    q.includes("sword") ||
+    q.includes("blade")
+  ) {
+    return "weapon";
+  }
+
+  if (
+    q.includes("scroll") ||
+    q.includes("boost") ||
+    q.includes("skill")
+  ) {
+    return "boost";
+  }
+
+  if (
+    q.includes("battle") ||
+    q.includes("card") ||
+    q.includes("character")
+  ) {
+    return "battle";
+  }
+
+  return "";
+}
+
+function getFragmentCategoryLabel(category) {
+  if (category === "weapon") return "Weapon Fragment";
+  if (category === "boost") return "Boost/Scroll Fragment";
+  if (category === "battle") return "Battle Card Fragment";
+  return "Fragment";
 }
 
 function findStackMatches(list, query) {
@@ -329,6 +446,54 @@ function getMatchingStackEntries(list, codeOrQuery) {
   if (exactMatches.length) return exactMatches;
 
   return findStackMatches(arr, codeOrQuery);
+}
+
+function getMatchingFragmentEntries(list, codeOrQuery, forcedCategory = "") {
+  const arr = Array.isArray(list) ? list : [];
+  const requestedCategory = forcedCategory || getFragmentQueryCategory(codeOrQuery);
+  const normalizedCode = normalizeTradeAliasCode(codeOrQuery);
+
+  const exactMatches = arr
+    .map((entry, index) => ({
+      entry,
+      index,
+      score: 3000,
+    }))
+    .filter(({ entry }) => {
+      if (requestedCategory && getFragmentCategory(entry) !== requestedCategory) {
+        return false;
+      }
+
+      return normalizeTradeAliasCode(entry?.code || "") === normalizedCode;
+    });
+
+  const hits = exactMatches.length
+    ? exactMatches
+    : findStackMatches(arr, codeOrQuery).filter((hit) => {
+        if (!requestedCategory) return true;
+        return getFragmentCategory(hit.entry) === requestedCategory;
+      });
+
+  if (!requestedCategory && hits.length > 1) {
+    const categories = new Set(
+      hits.map((hit) => getFragmentCategory(hit.entry)).filter(Boolean)
+    );
+
+    if (categories.size > 1) {
+      throw new Error(
+        `Fragment query \`${codeOrQuery}\` is ambiguous. Use \`${codeOrQuery} weapon_<amount>\` for weapon fragments or \`${codeOrQuery} scroll_<amount>\` for scroll/boost fragments.`
+      );
+    }
+  }
+
+  return hits;
+}
+
+function getFragmentStackTotal(list, codeOrQuery, forcedCategory = "") {
+  return getMatchingFragmentEntries(list, codeOrQuery, forcedCategory).reduce(
+    (total, hit) => total + getStackAmount(hit.entry),
+    0
+  );
 }
 
 function getStackAmount(entry) {
@@ -489,11 +654,24 @@ function resolveEntry(player, entry) {
   let insufficient = null;
 
   for (const store of stores) {
-    const hits = getMatchingStackEntries(player[store], entry.raw || entry.code);
+    const query = entry.raw || entry.code;
+
+    const hits =
+      store === "fragments"
+        ? getMatchingFragmentEntries(player[store], query)
+        : getMatchingStackEntries(player[store], query);
+
     if (!hits.length) continue;
 
-    const totalHave = getStackTotal(player[store], entry.raw || entry.code);
     const displayEntry = hits[0].entry;
+    const fragmentCategory =
+      store === "fragments" ? getFragmentCategory(displayEntry) : "";
+
+    const totalHave =
+      store === "fragments"
+        ? getFragmentStackTotal(player[store], query, fragmentCategory)
+        : getStackTotal(player[store], query);
+
     const displayName = getDisplayName(displayEntry, entry.code);
 
     if (isBlockedTradeEntry(displayEntry, displayEntry?.code || entry.code)) {
@@ -504,7 +682,10 @@ function resolveEntry(player, entry) {
 
     if (totalHave < entry.amount) {
       insufficient = {
-        displayName,
+        displayName:
+          store === "fragments" && fragmentCategory
+            ? `${displayName} (${getFragmentCategoryLabel(fragmentCategory)})`
+            : displayName,
         have: totalHave,
       };
       continue;
@@ -515,10 +696,11 @@ function resolveEntry(player, entry) {
       store,
       amount: entry.amount,
       code: displayEntry?.code || entry.code,
-      query: entry.raw || entry.code,
+      query,
       displayName,
       sourceEntry: displayEntry,
       storeLabel: STORE_LABELS[store] || store,
+      fragmentCategory,
     };
   }
 
@@ -538,11 +720,18 @@ function resolveEntry(player, entry) {
   );
 }
 
-function removeStack(list, codeOrQuery, amount) {
+function removeStack(list, codeOrQuery, amount, options = {}) {
   const arr = Array.isArray(list) ? [...list] : [];
   let remaining = Number(amount || 0);
 
-  const hits = getMatchingStackEntries(arr, codeOrQuery).sort((a, b) => {
+  const isFragmentStore = options.store === "fragments";
+  const forcedCategory = options.fragmentCategory || "";
+
+  const hits = (
+    isFragmentStore
+      ? getMatchingFragmentEntries(arr, codeOrQuery, forcedCategory)
+      : getMatchingStackEntries(arr, codeOrQuery)
+  ).sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     return a.index - b.index;
   });
@@ -593,7 +782,11 @@ function consumeResolvedForValidation(player, resolved) {
     next[resolved.store] = removeStack(
       next[resolved.store],
       resolved.query || resolved.code,
-      resolved.amount
+      resolved.amount,
+      {
+        store: resolved.store,
+        fragmentCategory: resolved.fragmentCategory || "",
+      }
     );
     return next;
   }
@@ -674,8 +867,14 @@ function applyResolvedTrade(from, to, resolved) {
       const query = entry.query || entry.code;
 
       const sourceHit =
-        findExactStackEntryByCode(fromNext[entry.store], entry.code) ||
-        getMatchingStackEntries(fromNext[entry.store], query)[0];
+        entry.store === "fragments"
+          ? getMatchingFragmentEntries(
+              fromNext[entry.store],
+              query,
+              entry.fragmentCategory || ""
+            )[0]
+          : findExactStackEntryByCode(fromNext[entry.store], entry.code) ||
+            getMatchingStackEntries(fromNext[entry.store], query)[0];
 
       if (!sourceHit) {
         throw new Error(`Missing ${entry.displayName || entry.code} during trade apply.`);
@@ -686,7 +885,11 @@ function applyResolvedTrade(from, to, resolved) {
         amount: entry.amount,
       };
 
-      fromNext[entry.store] = removeStack(fromNext[entry.store], query, entry.amount);
+      fromNext[entry.store] = removeStack(fromNext[entry.store], query, entry.amount, {
+        store: entry.store,
+        fragmentCategory: entry.fragmentCategory || "",
+      });
+
       toNext[entry.store] = addStack(toNext[entry.store], transferPayload, entry.amount);
       continue;
     }
