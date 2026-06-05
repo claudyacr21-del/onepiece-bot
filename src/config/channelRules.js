@@ -7,6 +7,7 @@ module.exports = {
       "cd",
       "effect",
       "lb",
+      "starter",
       "team",
       "convert",
       "finv",

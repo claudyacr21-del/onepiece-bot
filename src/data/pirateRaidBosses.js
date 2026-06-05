@@ -48,7 +48,7 @@ const PIRATE_RAID_BOSSES = {
     name: "Kaido",
     tierName: "Legendary",
     hp: 7500000,
-    atk: 10500,
+    atk: 9000,
     basePoints: 1000,
     minPirateLevel: 60,
     description: "A Yonko-tier pirate raid boss.",
