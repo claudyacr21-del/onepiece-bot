@@ -209,19 +209,89 @@ function getStageForm(template, stage) {
   return safeArray(template?.evolutionForms)[index] || null;
 }
 
+function isMergeCardTemplate(template) {
+  const type = String(template?.type || "").toLowerCase().trim();
+
+  return Boolean(
+    template &&
+      (template.mergeOnly === true ||
+        template.summonOnly === true && Array.isArray(template.mergeSourceCodes) ||
+        type === "merge")
+  );
+}
+
+function uniqReqCardsForAwaken(cards = []) {
+  const out = [];
+  const seen = new Set();
+
+  for (const entry of Array.isArray(cards) ? cards : []) {
+    if (!entry) continue;
+
+    const code = normalizeCode(entry.code || "");
+    const name = normalizeName(entry.name || entry.displayName || entry.cardName || "");
+    const stage = Number(entry.stage || entry.minStage || entry.evolutionStage || 1);
+    const key = `${code || name}:m${stage}`;
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
+  }
+
+  return out;
+}
+
+function getMergeRoadPoneglyphReq(stage) {
+  return {
+    code: "road_poneglyph",
+    name: "Road Poneglyph",
+    stage,
+    minStage: stage,
+    evolutionStage: stage,
+  };
+}
+
+function normalizeMergeAwakenRequirement(template, nextStage, req) {
+  if (!isMergeCardTemplate(template)) return req;
+
+  const stage = Number(nextStage || 1);
+
+  if (stage < 2) return req;
+
+  const baseReq = req || {};
+
+  return {
+    ...baseReq,
+    berries: 2000000,
+    gems: 2000,
+    selfFragments: 0,
+    cards: uniqReqCardsForAwaken([
+      ...(Array.isArray(baseReq.cards) ? baseReq.cards : []),
+      getMergeRoadPoneglyphReq(stage),
+    ]),
+    cardsText: [
+      ...(Array.isArray(baseReq.cardsText) ? baseReq.cardsText : []),
+      `Road Poneglyph M${stage}`,
+    ].filter((value, index, arr) => arr.indexOf(value) === index),
+    fragments: Array.isArray(baseReq.fragments) ? baseReq.fragments : [],
+    boosts: Array.isArray(baseReq.boosts) ? baseReq.boosts : [],
+    boostsText: Array.isArray(baseReq.boostsText) ? baseReq.boostsText : [],
+  };
+}
+
 function getAwakenRequirement(template, nextStage) {
   if (!template) return null;
 
   const stageKey = getStageKey(nextStage);
   const form = getStageForm(template, nextStage);
 
-  return (
+  const req =
     form?.require ||
     template.awakenRequirements?.[stageKey] ||
     template.evolutionRequirements?.[stageKey] ||
     template.requirements?.[stageKey] ||
-    null
-  );
+    null;
+
+  return normalizeMergeAwakenRequirement(template, nextStage, req);
 }
 
 function getCurrentStage(card) {
@@ -252,6 +322,12 @@ function getOwnedFragmentAmount(player, target) {
 
 function consumeFragmentAmount(player, targetIndex, target, amount) {
   let remaining = Number(amount || 0);
+  if (remaining <= 0) {
+    return {
+      cards: safeArray(player?.cards),
+      fragments: safeArray(player?.fragments),
+    };
+  }
   const code = normalizeCode(target?.code);
   const name = normalizeName(target?.displayName || target?.name || target?.title);
 
@@ -434,12 +510,15 @@ function validateRequirement(player, targetIndex, targetCard, req) {
   }
 
   const selfFragmentsNeed = Number(req?.selfFragments || 0);
-  const selfFragmentsOwned = getOwnedFragmentAmount(player, targetCard);
 
-  if (selfFragmentsOwned < selfFragmentsNeed) {
-    missing.push(
-      `Self fragments ${selfFragmentsOwned}/${selfFragmentsNeed}x ${targetCard.displayName || targetCard.name}`
-    );
+  if (selfFragmentsNeed > 0) {
+    const selfFragmentsOwned = getOwnedFragmentAmount(player, targetCard);
+
+    if (selfFragmentsOwned < selfFragmentsNeed) {
+      missing.push(
+        `Self fragments ${selfFragmentsOwned}/${selfFragmentsNeed}x ${targetCard.displayName || targetCard.name}`
+      );
+    }
   }
 
   for (const fragReq of safeArray(req?.fragments)) {

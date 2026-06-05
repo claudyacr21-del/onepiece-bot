@@ -382,6 +382,45 @@ function isLzsSummonDisabled(card) {
  return isLzsCard(card);
 }
 
+function isGenericMergeSummonCard(card) {
+  const type = String(card?.type || "").toLowerCase().trim();
+
+  return Boolean(
+    card &&
+      (card.mergeOnly === true ||
+        card.summonOnly === true && Array.isArray(card.mergeSourceCodes) ||
+        type === "merge")
+  );
+}
+
+function hasOwnedCardStageForSummon(player, targetCode, minStage = 1) {
+  const target = String(targetCode || "").toLowerCase().trim();
+
+  return (Array.isArray(player?.cards) ? player.cards : []).some((card) => {
+    const code = String(card?.code || "").toLowerCase().trim();
+    const stage = Number(card?.evolutionStage || card?.stage || 1);
+    const key = String(card?.evolutionKey || "").toUpperCase();
+    const keyStage = key === "M3" ? 3 : key === "M2" ? 2 : 1;
+
+    return code === target && Math.max(stage, keyStage) >= Number(minStage || 1);
+  });
+}
+
+function getGenericMergeSummonRequirementError(player, card) {
+  if (!isGenericMergeSummonCard(card)) return null;
+
+  if (!hasOwnedCardStageForSummon(player, "road_poneglyph", 1)) {
+    return [
+      `You cannot summon **${getCardName(card)}** yet.`,
+      "",
+      "**Special Requirement:**",
+      "You must own **Road Poneglyph M1** first.",
+    ].join("\n");
+  }
+
+  return null;
+}
+
 function getCardTemplateByCode(code) {
  const target = normalize(code);
  return rawCards.find((card) => normalize(card?.code) === target) || null;
@@ -398,6 +437,8 @@ function getSpecialSummonFragments(card) {
 }
 
 function getSpecialSummonRequirementError(player, card) {
+  const mergeRequirementError = getGenericMergeSummonRequirementError(player, card);
+  if (mergeRequirementError) return mergeRequirementError;
   if (isImuCard(card) && !hasLuffyM3(player)) {
     return [
       `You cannot summon **${getCardName(card)}** yet.`,

@@ -1483,7 +1483,176 @@ function applyLzsFinalRules() {
   };
 }
 applyLzsFinalRules();
- applyRoadPoneglyphFinalRules();
+function uniqRequirementCards(cards = []) {
+  const out = [];
+  const seen = new Set();
+
+  for (const entry of Array.isArray(cards) ? cards : []) {
+    if (!entry) continue;
+
+    const code = String(entry.code || "").toLowerCase().trim();
+    const name = String(entry.name || entry.displayName || entry.cardName || "").toLowerCase().trim();
+    const stage = Number(entry.stage || entry.minStage || entry.evolutionStage || 1);
+    const key = `${code || name}:m${stage}`;
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
+  }
+
+  return out;
+}
+
+function isGenericMergeCard(card) {
+  const code = String(card?.code || "").toLowerCase().trim();
+  const type = String(card?.type || "").toLowerCase().trim();
+
+  return Boolean(
+    card &&
+      code &&
+      (card.mergeOnly === true ||
+        card.summonOnly === true && Array.isArray(card.mergeSourceCodes) ||
+        type === "merge")
+  );
+}
+
+function makeRoadPoneglyphReq(stage) {
+  return {
+    code: "road_poneglyph",
+    name: "Road Poneglyph",
+    stage,
+    minStage: stage,
+    evolutionStage: stage,
+  };
+}
+
+function applyGenericMergeCardRules() {
+  const mergeCards = ALL_CARDS.filter(isGenericMergeCard);
+
+  for (const card of mergeCards) {
+    card.rarity = "M";
+    card.baseTier = "M";
+    card.currentTier = "M";
+    card.tier = "M";
+    card.canPull = false;
+    card.canPA = false;
+    card.summonOnly = true;
+    card.mergeOnly = true;
+    card.cardRole = "battle";
+    card.role = "battle";
+    card.category = "battle";
+
+    const summonReq = card.summonRequirements || {};
+    card.summonRequirements = {
+      ...summonReq,
+      cards: uniqRequirementCards([
+        ...(Array.isArray(summonReq.cards) ? summonReq.cards : []),
+        makeRoadPoneglyphReq(1),
+      ]),
+      cardsText: [
+        ...(Array.isArray(summonReq.cardsText) ? summonReq.cardsText : []),
+        "Road Poneglyph M1",
+      ].filter((value, index, arr) => arr.indexOf(value) === index),
+      fragments: Array.isArray(summonReq.fragments) ? summonReq.fragments : [],
+      fragmentsText: Array.isArray(summonReq.fragmentsText)
+        ? summonReq.fragmentsText
+        : [],
+    };
+
+    if (Array.isArray(card.evolutionForms)) {
+      card.evolutionForms = card.evolutionForms.map((form, index) => {
+        const stage = index + 1;
+
+        if (stage === 1) {
+          return {
+            ...form,
+            rarity: "M",
+            tier: "M",
+            currentTier: "M",
+            require: null,
+          };
+        }
+
+        const oldReq = form?.require || {};
+        const roadStage = stage;
+        const cost = {
+          berries: 2000000,
+          gems: 2000,
+        };
+
+        return {
+          ...form,
+          rarity: "M",
+          tier: "M",
+          currentTier: "M",
+          require: {
+            ...oldReq,
+            berries: cost.berries,
+            gems: cost.gems,
+            selfFragments: 0,
+            cards: uniqRequirementCards([
+              ...(Array.isArray(oldReq.cards) ? oldReq.cards : []),
+              makeRoadPoneglyphReq(roadStage),
+            ]),
+            cardsText: [
+              ...(Array.isArray(oldReq.cardsText) ? oldReq.cardsText : []),
+              `Road Poneglyph M${roadStage}`,
+            ].filter((value, index, arr) => arr.indexOf(value) === index),
+            fragments: Array.isArray(oldReq.fragments) ? oldReq.fragments : [],
+            boosts: Array.isArray(oldReq.boosts) ? oldReq.boosts : [],
+            boostsText: Array.isArray(oldReq.boostsText)
+              ? oldReq.boostsText
+              : [],
+          },
+        };
+      });
+    }
+
+    const m2Old = card.awakenRequirements?.M2 || card.evolutionForms?.[1]?.require || {};
+    const m3Old = card.awakenRequirements?.M3 || card.evolutionForms?.[2]?.require || {};
+
+    card.awakenRequirements = {
+      ...(card.awakenRequirements || {}),
+      M2: {
+        ...m2Old,
+        berries: 2000000,
+        gems: 2000,
+        selfFragments: 0,
+        cards: uniqRequirementCards([
+          ...(Array.isArray(m2Old.cards) ? m2Old.cards : []),
+          makeRoadPoneglyphReq(2),
+        ]),
+        cardsText: [
+          ...(Array.isArray(m2Old.cardsText) ? m2Old.cardsText : []),
+          "Road Poneglyph M2",
+        ].filter((value, index, arr) => arr.indexOf(value) === index),
+        fragments: Array.isArray(m2Old.fragments) ? m2Old.fragments : [],
+        boosts: Array.isArray(m2Old.boosts) ? m2Old.boosts : [],
+        boostsText: Array.isArray(m2Old.boostsText) ? m2Old.boostsText : [],
+      },
+      M3: {
+        ...m3Old,
+        berries: 2000000,
+        gems: 2000,
+        selfFragments: 0,
+        cards: uniqRequirementCards([
+          ...(Array.isArray(m3Old.cards) ? m3Old.cards : []),
+          makeRoadPoneglyphReq(3),
+        ]),
+        cardsText: [
+          ...(Array.isArray(m3Old.cardsText) ? m3Old.cardsText : []),
+          "Road Poneglyph M3",
+        ].filter((value, index, arr) => arr.indexOf(value) === index),
+        fragments: Array.isArray(m3Old.fragments) ? m3Old.fragments : [],
+        boosts: Array.isArray(m3Old.boosts) ? m3Old.boosts : [],
+        boostsText: Array.isArray(m3Old.boostsText) ? m3Old.boostsText : [],
+      },
+    };
+  }
+}
+
+applyGenericMergeCardRules();
+applyRoadPoneglyphFinalRules();
 
 module.exports = ALL_CARDS;
 
