@@ -1,4 +1,4 @@
-const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
+const { isLzsCard, buildMergedLzsCard, MERGE_RATIO } = require("../utils/mergeCards");
 const {
   EmbedBuilder,
   ActionRowBuilder,
@@ -395,105 +395,10 @@ function getLzsCiStageFactor(stage) {
 }
 
 function buildCiLzsCard(player, baseCard, stage = 1) {
-  const template = findTemplateByCodeForCi("lzs") || baseCard || {};
-  const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
-  const stageFactor = getLzsCiStageFactor(targetStage);
-
-  const form = Array.isArray(template.evolutionForms)
-    ? template.evolutionForms[targetStage - 1] || {}
-    : {};
-
-  // CI display pakai full source M3 sebagai basis, lalu diskalakan:
-  // M1 = 60%, M2 = 80%, M3 = 100%.
-  // Ini supaya angka M1/M2/M3 beda, dan M3 tetap angka tertinggi.
-  const sources = LZS_SOURCE_CODES.map((code) =>
-    buildLzsSourceTemplateForCi(code, 3)
-  );
-
-  const fullAtk = Math.floor(
-    sources.reduce((total, source) => total + source.atk * 0.3, 0)
-  );
-
-  const fullHp = Math.floor(
-    sources.reduce((total, source) => total + source.hp * 0.3, 0)
-  );
-
-  const fullSpeed = Math.floor(
-    sources.reduce((total, source) => total + source.speed * 0.3, 0)
-  );
-
-  const fullPower = Math.floor(
-    sources.reduce((total, source) => total + source.power * 0.3, 0)
-  );
-
-  const atk = Math.floor(fullAtk * stageFactor);
-  const hp = Math.floor(fullHp * stageFactor);
-  const speed = Math.floor(fullSpeed * stageFactor);
-  const power = Math.floor(fullPower * stageFactor);
-
-  const weapon = joinUniqueCiText(sources.map((source) => source.weapon));
-  const devilFruit = joinUniqueCiText(
-    sources.map((source) => source.devilFruit)
-  );
-
-  return {
-    ...template,
-    ...form,
-
-    code: "lzs",
-    name: "Monster Trio",
-    displayName: "Monster Trio",
-    title: "Monster Trio",
-
-    rarity: "M",
-    baseTier: "M",
-    currentTier: "M",
-    tier: "M",
-
-    cardRole: "battle",
-    role: "battle",
-    category: "battle",
-    type: "Merge",
-
-    canPull: false,
-    canPA: false,
-    summonOnly: true,
-    mergeOnly: true,
-
-    canEquipWeapon: false,
-    canEquipDevilFruit: false,
-    equipmentLocked: true,
-    equipmentSyncOnly: true,
-
-    evolutionStage: targetStage,
-    evolutionKey: `M${targetStage}`,
-
-    atk,
-    hp,
-    speed,
-    spd: speed,
-
-    basePower: power,
-    power,
-    currentPower: power,
-    powerCaps: {
-      M1: Math.floor(fullPower * 0.6),
-      M2: Math.floor(fullPower * 0.8),
-      M3: fullPower,
-    },
-
-    weapon,
-    weaponSet: weapon,
-    devilFruit,
-    equipType:
-      weapon !== "None" && devilFruit !== "None"
-        ? "Devil Fruit / Weapon"
-        : devilFruit !== "None"
-        ? "Devil Fruit"
-        : weapon !== "None"
-        ? "Weapon"
-        : "None",
-  };
+  return buildMergedLzsCard(player, baseCard, stage, {
+    templateOnly: true,
+    displayLevel: Number(stage) === 1 ? 50 : Number(stage) === 2 ? 85 : 100,
+  });
 }
 
 function getLzsRequirementForCi(stage) {
@@ -1398,7 +1303,8 @@ function buildEmbed(card, owned, stage, player = null) {
           `HP: ${Number(displayStats.hp || 0)}`,
           `SPD: ${Number(displayStats.speed || 0)}`,
           `Weapon Set: ${statSource.weaponSet || statSource.weapon || "None"}`,
-          `Devil Fruit: ${statSource.devilFruit || "None"}`,
+          `Devil Fruit: ${statSource.devilFruit || statSource.displayFruitName || "None"}`,
+          `After Boost Effect: ${stageCard.afterBoostEffect || card.afterBoostEffect || statSource.afterBoostEffect || stageCard.boostAfterEffect || card.boostAfterEffect || statSource.boostAfterEffect || "None"}`,
         ];
 
   return buildCardStyleEmbed({

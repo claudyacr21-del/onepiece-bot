@@ -7,6 +7,8 @@ const MERGE_SOURCE_CODES = [
 ];
 
 const MERGE_RATIO = 0.3;
+const MERGE_POWER_MULTIPLIER = 1.35;
+
 const RAID_PRESTIGE_CAP = 200;
 const RAID_PRESTIGE_ATK_PER_LEVEL = 0.25;
 const RAID_PRESTIGE_HP_PER_LEVEL = 0.25;
@@ -76,28 +78,36 @@ function getRaidPrestige(card) {
   return Math.max(0, Math.min(RAID_PRESTIGE_CAP, Math.floor(prestige)));
 }
 
-function getLevelMultiplier(stage, level) {
+function getStageFactor(stage) {
+  const n = Math.max(1, Math.min(3, Number(stage || 1)));
+
+  if (n === 1) return 0.72;
+  if (n === 2) return 0.88;
+  return 1;
+}
+
+function getLevelFactor(stage, level) {
   const s = Math.max(1, Math.min(3, Number(stage || 1)));
   const lvl = Math.max(1, Math.min(100, Number(level || 1)));
 
   if (s === 1) {
-    if (lvl <= 1) return 1;
-    if (lvl >= 50) return 3;
+    if (lvl <= 1) return 0.55;
+    if (lvl >= 50) return 1;
 
-    return 1 + ((lvl - 1) / 49) * 2;
+    return 0.55 + ((lvl - 1) / 49) * 0.45;
   }
 
   if (s === 2) {
-    if (lvl <= 50) return 3;
-    if (lvl >= 85) return 3.8;
+    if (lvl <= 50) return 0.82;
+    if (lvl >= 85) return 1;
 
-    return 3 + ((lvl - 50) / 35) * 0.8;
+    return 0.82 + ((lvl - 50) / 35) * 0.18;
   }
 
-  if (lvl <= 85) return 3.8;
-  if (lvl >= 100) return 3.8 * 1.18;
+  if (lvl <= 85) return 0.9;
+  if (lvl >= 100) return 1;
 
-  return 3.8 + ((lvl - 85) / 15) * (3.8 * 1.18 - 3.8);
+  return 0.9 + ((lvl - 85) / 15) * 0.1;
 }
 
 function applyPrestige(value, percent) {
@@ -154,20 +164,20 @@ function getBasePower(template, form) {
   );
 }
 
-function buildSourceTemplateSnapshot(code, stageOverride = 1) {
+function buildSourceTemplateSnapshot(code) {
   const template = getTemplateByCode(code) || {};
-  const stage = Math.max(1, Math.min(3, Number(stageOverride || 1)));
-  const form = getForm(template, stage);
+  const form = getForm(template, 3);
 
   return {
     code: template.code || code,
     name: template.name,
     displayName: template.displayName || template.name,
-    stage,
+
     baseAtk: getBaseAtk(template, form),
     baseHp: getBaseHp(template, form),
     baseSpeed: getBaseSpeed(template, form),
     basePower: getBasePower(template, form),
+
     weapon: form?.weaponSet || form?.weapon || template.weaponSet || template.weapon,
     devilFruit:
       form?.devilFruitName ||
@@ -211,6 +221,37 @@ function uniqueJoin(values) {
   return out.length ? out.join(", ") : "None";
 }
 
+function calculateLzsBaseStats() {
+  const sources = MERGE_SOURCE_CODES.map(buildSourceTemplateSnapshot);
+
+  const atk = Math.floor(
+    sources.reduce((sum, source) => sum + source.baseAtk * MERGE_RATIO, 0)
+  );
+
+  const hp = Math.floor(
+    sources.reduce((sum, source) => sum + source.baseHp * MERGE_RATIO, 0)
+  );
+
+  const speed = Math.floor(
+    sources.reduce((sum, source) => sum + source.baseSpeed * MERGE_RATIO, 0)
+  );
+
+  const power = Math.floor(
+    sources.reduce((sum, source) => sum + source.basePower * MERGE_RATIO, 0) *
+      MERGE_POWER_MULTIPLIER
+  );
+
+  return {
+    sources,
+    atk,
+    hp,
+    speed,
+    power,
+    weapon: uniqueJoin(sources.map((source) => source.weapon)),
+    devilFruit: uniqueJoin(sources.map((source) => source.devilFruit)),
+  };
+}
+
 function buildMergedLzsCard(player, baseCard = null, stageOverride = null, options = {}) {
   const template = getTemplateByCode("lzs") || {};
 
@@ -224,40 +265,21 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
     Math.min(3, Number(stageOverride || getStage(ownedLzs) || 1))
   );
 
-  const level = getLevel(ownedLzs);
-  const prestige = getRaidPrestige(ownedLzs);
+  const level = options.templateOnly
+    ? Number(options.displayLevel || (stage === 1 ? 50 : stage === 2 ? 85 : 100))
+    : getLevel(ownedLzs);
 
-  const sourceStage =
-    options.sourceStage ||
-    options.displayStage ||
-    stage;
+  const prestige = options.templateOnly ? 0 : getRaidPrestige(ownedLzs);
 
-  const sources = MERGE_SOURCE_CODES.map((code) =>
-    buildSourceTemplateSnapshot(code, sourceStage)
-  );
+  const base = calculateLzsBaseStats();
 
-  const mergedBaseAtk = Math.floor(
-    sources.reduce((sum, source) => sum + source.baseAtk * MERGE_RATIO, 0)
-  );
+  const stageFactor = getStageFactor(stage);
+  const levelFactor = getLevelFactor(stage, level);
 
-  const mergedBaseHp = Math.floor(
-    sources.reduce((sum, source) => sum + source.baseHp * MERGE_RATIO, 0)
-  );
-
-  const mergedBaseSpeed = Math.floor(
-    sources.reduce((sum, source) => sum + source.baseSpeed * MERGE_RATIO, 0)
-  );
-
-  const mergedBasePower = Math.floor(
-    sources.reduce((sum, source) => sum + source.basePower * MERGE_RATIO, 0)
-  );
-
-  const levelMultiplier = getLevelMultiplier(stage, level);
-
-  const scaledAtk = Math.floor(mergedBaseAtk * levelMultiplier);
-  const scaledHp = Math.floor(mergedBaseHp * levelMultiplier);
-  const scaledSpeed = Math.floor(mergedBaseSpeed * levelMultiplier);
-  const scaledPower = Math.floor(mergedBasePower * levelMultiplier);
+  const scaledAtk = Math.floor(base.atk * stageFactor * levelFactor);
+  const scaledHp = Math.floor(base.hp * stageFactor * levelFactor);
+  const scaledSpeed = Math.floor(base.speed * stageFactor * levelFactor);
+  const scaledPower = Math.floor(base.power * stageFactor * levelFactor);
 
   const finalAtk = applyPrestige(
     scaledAtk,
@@ -284,9 +306,6 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
             3) /
           100)
   );
-
-  const weapon = uniqueJoin(sources.map((source) => source.weapon));
-  const devilFruit = uniqueJoin(sources.map((source) => source.devilFruit));
 
   const form = getForm(template, stage);
 
@@ -333,13 +352,13 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
     raidPrestige: prestige,
     prestige,
 
-    originalBaseAtk: mergedBaseAtk,
-    originalBaseHp: mergedBaseHp,
-    originalBaseSpeed: mergedBaseSpeed,
+    originalBaseAtk: base.atk,
+    originalBaseHp: base.hp,
+    originalBaseSpeed: base.speed,
 
-    baseAtk: mergedBaseAtk,
-    baseHp: mergedBaseHp,
-    baseSpeed: mergedBaseSpeed,
+    baseAtk: base.atk,
+    baseHp: base.hp,
+    baseSpeed: base.speed,
 
     atk: finalAtk,
     hp: finalHp,
@@ -358,28 +377,28 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
     combatHp: finalHp,
     combatSpeed: finalSpeed,
 
-    basePower: mergedBasePower,
+    basePower: base.power,
     power: finalPower,
     currentPower: finalPower,
     powerCaps: {
-      M1: Math.floor(mergedBasePower * getLevelMultiplier(1, 50)),
-      M2: Math.floor(mergedBasePower * getLevelMultiplier(2, 85)),
-      M3: Math.floor(mergedBasePower * getLevelMultiplier(3, 100)),
+      M1: Math.floor(base.power * getStageFactor(1)),
+      M2: Math.floor(base.power * getStageFactor(2)),
+      M3: Math.floor(base.power * getStageFactor(3)),
     },
 
-    weapon,
-    weaponSet: weapon,
-    displayWeaponName: weapon,
+    weapon: base.weapon,
+    weaponSet: base.weapon,
+    displayWeaponName: base.weapon,
 
-    devilFruit,
-    displayFruitName: devilFruit,
+    devilFruit: base.devilFruit,
+    displayFruitName: base.devilFruit,
 
     equipType:
-      weapon !== "None" && devilFruit !== "None"
+      base.weapon !== "None" && base.devilFruit !== "None"
         ? "Devil Fruit / Weapon"
-        : devilFruit !== "None"
+        : base.devilFruit !== "None"
         ? "Devil Fruit"
-        : weapon !== "None"
+        : base.weapon !== "None"
         ? "Weapon"
         : "None",
 
@@ -434,6 +453,7 @@ function findOwnedCardByCodeOrName(cards, query) {
 
 module.exports = {
   MERGE_SOURCE_CODES,
+  MERGE_RATIO,
   isLzsCard,
   buildMergedLzsCard,
   syncMergedCardsInPlayer,
