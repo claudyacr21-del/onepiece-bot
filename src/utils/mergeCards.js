@@ -483,57 +483,91 @@ function getTextFromSources(sources, keys) {
   return "None";
 }
 
-function getSourceWeaponText(card, templateCode, forcedStage = null) {
+function getSourceWeaponText(card, templateCode, forcedStage = null, templateOnly = false) {
   const template = getTemplateByCode(templateCode) || {};
   const stage = forcedStage || getStage(card);
   const form = getForm(template, stage);
 
-  const sources = [
-    card,
-    form,
-    template,
-    ...(Array.isArray(card?.equippedWeapons) ? card.equippedWeapons : []),
-    ...(Array.isArray(card?.evolutionForms) ? card.evolutionForms : []),
-    ...(Array.isArray(template?.evolutionForms) ? template.evolutionForms : []),
-  ];
+  if (templateOnly) {
+    return (
+      form?.weaponSet ||
+      form?.weapon ||
+      template.weaponSet ||
+      template.weapon ||
+      "None"
+    );
+  }
 
-  return getTextFromSources(sources, [
-    "displayWeaponName",
-    "weaponSet",
-    "weapon",
-    "equippedWeaponName",
-    "equippedWeapon",
-    "weaponName",
-    "name",
-  ]);
+  const equippedWeapons = Array.isArray(card?.equippedWeapons)
+    ? card.equippedWeapons
+    : [];
+
+  const equippedNames = equippedWeapons
+    .map((weapon) => {
+      return (
+        weapon?.displayName ||
+        weapon?.name ||
+        weapon?.weaponName ||
+        weapon?.code ||
+        ""
+      );
+    })
+    .map((value) => String(value || "").trim())
+    .filter((value) => value && value.toLowerCase() !== "none");
+
+  if (equippedNames.length) {
+    return equippedNames.join(", ");
+  }
+
+  const singleEquipped =
+    card?.equippedWeaponName ||
+    card?.equippedWeaponDisplayName ||
+    card?.equippedWeapon;
+
+  if (singleEquipped && String(singleEquipped).trim().toLowerCase() !== "none") {
+    return String(singleEquipped).trim();
+  }
+
+  // Owned/live merge: jangan fallback ke form/template weapon.
+  // Kalau source card player belum equip weapon, harus None.
+  return "None";
 }
 
-function getSourceFruitText(card, templateCode, forcedStage = null) {
+function getSourceFruitText(card, templateCode, forcedStage = null, templateOnly = false) {
   const template = getTemplateByCode(templateCode) || {};
   const stage = forcedStage || getStage(card);
   const form = getForm(template, stage);
 
-  const sources = [
-    card,
-    form,
-    template,
-    ...(Array.isArray(card?.evolutionForms) ? card.evolutionForms : []),
-    ...(Array.isArray(template?.evolutionForms) ? template.evolutionForms : []),
-  ];
+  if (templateOnly) {
+    return (
+      form?.devilFruitName ||
+      form?.devilFruit ||
+      template.devilFruitName ||
+      template.devilFruit ||
+      "None"
+    );
+  }
 
-  return getTextFromSources(sources, [
-    "displayFruitName",
-    "equippedDevilFruitName",
-    "equippedDevilFruit",
-    "devilFruitName",
-    "devilFruit",
-    "devilfruitName",
-    "devilfruit",
-    "fruitName",
-    "fruit",
-    "df",
-    "dfName",
-  ]);
+  const ownedFruit =
+    card?.displayFruitName ||
+    card?.equippedDevilFruitName ||
+    card?.equippedDevilFruitDisplayName ||
+    card?.equippedDevilFruit ||
+    card?.devilFruitName ||
+    card?.devilFruit;
+
+  if (ownedFruit && String(ownedFruit).trim().toLowerCase() !== "none") {
+    return String(ownedFruit).trim();
+  }
+
+  // Fruit bawaan canon masih boleh fallback dari form/template.
+  return (
+    form?.devilFruitName ||
+    form?.devilFruit ||
+    template.devilFruitName ||
+    template.devilFruit ||
+    "None"
+  );
 }
 
 function cleanValue(value) {
@@ -599,8 +633,8 @@ function buildLzsSources(player, stage, options = {}) {
       power: templateOnly
         ? getStageSpecificNumber(getTemplateByCode(code) || {}, source, sourceStage, "power")
         : getLiveNumber(source, code, "power"),
-      weapon: getSourceWeaponText(source, code, sourceStage),
-      devilFruit: getSourceFruitText(source, code, sourceStage),
+      weapon: getSourceWeaponText(source, code, sourceStage, templateOnly),
+      devilFruit: getSourceFruitText(source, code, sourceStage, templateOnly),
     };
   });
 }
