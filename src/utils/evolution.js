@@ -1108,17 +1108,35 @@ function consumeOwnedFragments(player, targetIndex, targetCard, amount) {
   };
 }
 
+function normalizeAwakenLookupName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function isLzsAwakenLookup(query) {
+  const q = normalizeAwakenLookupName(query).replace(/\s+/g, "_");
+  return q === "lzs" || q === "monster_trio";
+}
+
+function isLzsOwnedCard(card) {
+  const code = String(card?.code || "").toLowerCase().trim();
+  const name = normalizeAwakenLookupName(
+    card?.displayName || card?.name || card?.title
+  );
+
+  return code === "lzs" || name === "monster trio";
+}
+
 function scoreAwakenOwnedCard(card, query) {
-  const q = normalizeAwakenDisplayNameOnly(query);
+  const q = normalizeAwakenLookupName(query);
   if (!q) return 0;
 
-  if (isLzsAwakenNameQuery(query)) {
-    const code = String(card?.code || "").toLowerCase().trim();
-    const name = normalizeAwakenDisplayNameOnly(
-      card?.displayName || card?.name || card?.title
-    );
-
-    if (code === "lzs" || name === "monster trio") return 999999;
+  if (isLzsAwakenLookup(query) && isLzsOwnedCard(card)) {
+    return 999999;
   }
 
   const fields = [
@@ -1127,7 +1145,7 @@ function scoreAwakenOwnedCard(card, query) {
     card?.title,
     card?.variant,
   ]
-    .map(normalizeAwakenDisplayNameOnly)
+    .map(normalizeAwakenLookupName)
     .filter(Boolean);
 
   let best = 0;
@@ -1141,6 +1159,7 @@ function scoreAwakenOwnedCard(card, query) {
       best = Math.max(best, 900 + q.length);
     } else {
       const qWords = q.split(" ").filter(Boolean);
+
       if (qWords.length && qWords.every((word) => field.includes(word))) {
         best = Math.max(best, 500 + qWords.join("").length);
       }
@@ -1151,20 +1170,20 @@ function scoreAwakenOwnedCard(card, query) {
 }
 
 function findOwnedCardIndexForAwaken(cardsOwned, query) {
- const list = safeArray(cardsOwned);
+  const list = safeArray(cardsOwned);
 
- const scored = list
-  .map((card, index) => ({
-   index,
-   score: scoreAwakenOwnedCard(card, query),
-  }))
-  .filter((entry) => entry.score > 0)
-  .sort((a, b) => {
-   if (b.score !== a.score) return b.score - a.score;
-   return a.index - b.index;
-  });
+  const scored = list
+    .map((card, index) => ({
+      index,
+      score: scoreAwakenOwnedCard(card, query),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.index - b.index;
+    });
 
- return scored.length ? scored[0].index : -1;
+  return scored.length ? scored[0].index : -1;
 }
 
 function normalizeRequirementNameOnly(value) {
@@ -1266,10 +1285,131 @@ function findOwnedRequirementCard(player, requirement) {
   );
 }
 
+function normalizeAwakenRequirementCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, "_")
+    .replace(/[^a-z0-9_]+/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function findTemplateByAwakenDisplayNameOnly(card, query) {
+  if (isLzsAwakenLookup(query) || isLzsOwnedCard(card)) {
+    return (
+      safeArray(cards).find((entry) => {
+        const code = String(entry?.code || "").toLowerCase().trim();
+        const name = normalizeAwakenLookupName(
+          entry?.displayName || entry?.name || entry?.title
+        );
+
+        return code === "lzs" || name === "monster trio";
+      }) || null
+    );
+  }
+
+  const target =
+    normalizeAwakenLookupName(card?.displayName) ||
+    normalizeAwakenLookupName(card?.name) ||
+    normalizeAwakenLookupName(card?.title) ||
+    normalizeAwakenLookupName(query);
+
+  if (!target) return null;
+
+  let best = null;
+  let bestScore = 0;
+
+  for (const template of safeArray(cards)) {
+    const fields = [
+      template?.displayName,
+      template?.name,
+      template?.title,
+      template?.variant,
+    ]
+      .map(normalizeAwakenLookupName)
+      .filter(Boolean);
+
+    let score = 0;
+
+    for (const field of fields) {
+      if (field === target) {
+        score = Math.max(score, 3000 + field.length);
+      } else if (field.startsWith(target)) {
+        score = Math.max(score, 1600 + target.length);
+      } else if (field.includes(target)) {
+        score = Math.max(score, 900 + target.length);
+      } else {
+        const words = target.split(" ").filter(Boolean);
+
+        if (words.length && words.every((word) => field.includes(word))) {
+          score = Math.max(score, 500 + words.join("").length);
+        }
+      }
+    }
+
+    if (score > bestScore) {
+      best = template;
+      bestScore = score;
+    }
+  }
+
+  return bestScore > 0 ? best : null;
+}
+
+function getAwakenRequirementOverride(card, nextStage) {
+  const code = normalizeAwakenRequirementCode(card?.code);
+  const name = normalizeAwakenLookupName(
+    card?.displayName || card?.name || card?.title
+  );
+
+  if (code === "cola_engine" || name === "cola engine") {
+    if (Number(nextStage) === 2) {
+      return {
+        berries: 120000,
+        gems: 350,
+        selfFragments: 25,
+        minLevel: 0,
+        cards: [
+          {
+            code: "franky_cyborg",
+            name: "Franky",
+            stage: 1,
+          },
+        ],
+        boosts: [],
+        cardsText: ["Franky M1"],
+        boostsText: [],
+      };
+    }
+
+    if (Number(nextStage) === 3) {
+      return {
+        berries: 280000,
+        gems: 700,
+        selfFragments: 35,
+        minLevel: 0,
+        cards: [
+          {
+            code: "franky_cyborg",
+            name: "Franky",
+            stage: 2,
+          },
+        ],
+        boosts: [],
+        cardsText: ["Franky M2"],
+        boostsText: [],
+      };
+    }
+  }
+
+  return null;
+}
+
 function getLatestTemplateRequirementForAwaken(ownedCard, targetCard, nextStage, query = "") {
   const template =
-    findTemplateByDisplayNameOnly(targetCard, query) ||
-    findTemplateByDisplayNameOnly(ownedCard, query) ||
+    findTemplateByAwakenDisplayNameOnly(targetCard, query) ||
+    findTemplateByAwakenDisplayNameOnly(ownedCard, query) ||
     null;
 
   if (!template) return null;
