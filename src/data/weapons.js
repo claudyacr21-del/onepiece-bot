@@ -247,7 +247,7 @@ module.exports = [
   },
   {
     code: "fish_man_karate",
-    name: "Fish-Man Karate",
+    name: "FishMan Karate",
     rarity: "A",
     owners: ["jinbe_first_son_of_the_sea"],
     type: "Martial Art",
