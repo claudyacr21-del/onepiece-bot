@@ -397,76 +397,132 @@ function getStageSpecificSourceStatsForLzs(template, stage = 1) {
     {};
 
   const stageStats =
-    stageCard?.stageStats?.[stageKey] ||
     template?.stageStats?.[stageKey] ||
-    stageCard?.stats?.[stageKey] ||
+    stageCard?.stageStats?.[stageKey] ||
     template?.stats?.[stageKey] ||
-    stageCard?.masteryStats?.[stageKey] ||
+    stageCard?.stats?.[stageKey] ||
     template?.masteryStats?.[stageKey] ||
+    stageCard?.masteryStats?.[stageKey] ||
     {};
 
   const ciStats = getStageDisplayStats(template, stageCard, targetStage);
 
+  // IMPORTANT:
+  // Untuk LZS, jangan ambil stageCard.atk/hp/speed dulu.
+  // stageCard bisa masih bawa top-level M1 dari hydrateCard.
+  // Jadi prioritas wajib stage-specific: form M1/M2/M3 -> stageStats.Mx -> explicit atkM2/atkM3 -> baru fallback.
   const atk = pickPositiveNumber(
-    stageCard?.atk,
+    form?.atk,
+    form?.baseAtk,
+    form?.displayAtk,
+    form?.combatAtk,
+    form?.finalAtk,
+    stageStats?.atk,
+    stageStats?.baseAtk,
+    stageStats?.displayAtk,
+    stageStats?.combatAtk,
+    stageStats?.finalAtk,
+    template?.[`atk${stageKey}`],
+    template?.[`baseAtk${stageKey}`],
+    stageCard?.[`atk${stageKey}`],
+    stageCard?.[`baseAtk${stageKey}`],
+    ciStats?.atk,
     stageCard?.displayAtk,
     stageCard?.combatAtk,
     stageCard?.finalAtk,
     stageCard?.baseAtk,
-    form?.atk,
-    form?.baseAtk,
-    stageStats?.atk,
-    stageStats?.baseAtk,
-    template?.[`atk${stageKey}`],
-    ciStats?.atk
+    stageCard?.atk,
+    template?.displayAtk,
+    template?.combatAtk,
+    template?.finalAtk,
+    template?.baseAtk,
+    template?.atk
   );
 
   const hp = pickPositiveNumber(
-    stageCard?.hp,
+    form?.hp,
+    form?.baseHp,
+    form?.displayHp,
+    form?.combatHp,
+    form?.finalHp,
+    stageStats?.hp,
+    stageStats?.baseHp,
+    stageStats?.displayHp,
+    stageStats?.combatHp,
+    stageStats?.finalHp,
+    template?.[`hp${stageKey}`],
+    template?.[`baseHp${stageKey}`],
+    stageCard?.[`hp${stageKey}`],
+    stageCard?.[`baseHp${stageKey}`],
+    ciStats?.hp,
     stageCard?.displayHp,
     stageCard?.combatHp,
     stageCard?.finalHp,
     stageCard?.baseHp,
-    form?.hp,
-    form?.baseHp,
-    stageStats?.hp,
-    stageStats?.baseHp,
-    template?.[`hp${stageKey}`],
-    ciStats?.hp
+    stageCard?.hp,
+    template?.displayHp,
+    template?.combatHp,
+    template?.finalHp,
+    template?.baseHp,
+    template?.hp
   );
 
   const speed = pickPositiveNumber(
-    stageCard?.speed,
-    stageCard?.spd,
+    form?.speed,
+    form?.spd,
+    form?.baseSpeed,
+    form?.displaySpeed,
+    form?.combatSpeed,
+    form?.finalSpeed,
+    stageStats?.speed,
+    stageStats?.spd,
+    stageStats?.baseSpeed,
+    stageStats?.displaySpeed,
+    stageStats?.combatSpeed,
+    stageStats?.finalSpeed,
+    template?.[`speed${stageKey}`],
+    template?.[`spd${stageKey}`],
+    template?.[`baseSpeed${stageKey}`],
+    stageCard?.[`speed${stageKey}`],
+    stageCard?.[`spd${stageKey}`],
+    stageCard?.[`baseSpeed${stageKey}`],
+    ciStats?.speed,
     stageCard?.displaySpeed,
     stageCard?.combatSpeed,
     stageCard?.finalSpeed,
     stageCard?.baseSpeed,
-    form?.speed,
-    form?.spd,
-    form?.baseSpeed,
-    stageStats?.speed,
-    stageStats?.spd,
-    stageStats?.baseSpeed,
-    template?.[`speed${stageKey}`],
-    ciStats?.speed
+    stageCard?.speed,
+    stageCard?.spd,
+    template?.displaySpeed,
+    template?.combatSpeed,
+    template?.finalSpeed,
+    template?.baseSpeed,
+    template?.speed,
+    template?.spd
   );
 
   const power = pickPositiveNumber(
-    stageCard?.currentPower,
-    stageCard?.power,
-    stageCard?.finalPower,
-    stageCard?.basePower,
     form?.currentPower,
     form?.power,
     form?.basePower,
+    form?.finalPower,
     form?.powerCaps?.[stageKey],
     stageStats?.currentPower,
     stageStats?.power,
     stageStats?.basePower,
+    stageStats?.finalPower,
     stageStats?.powerCaps?.[stageKey],
     template?.powerCaps?.[stageKey],
-    ciStats?.power
+    stageCard?.powerCaps?.[stageKey],
+    ciStats?.power,
+    stageCard?.currentPower,
+    stageCard?.power,
+    stageCard?.finalPower,
+    stageCard?.basePower,
+    template?.currentPower,
+    template?.power,
+    template?.finalPower,
+    template?.basePower
   );
 
   return {
@@ -477,18 +533,18 @@ function getStageSpecificSourceStatsForLzs(template, stage = 1) {
     speed,
     power,
     weapon:
-      stageCard?.weaponSet ||
-      stageCard?.weapon ||
       form?.weaponSet ||
       form?.weapon ||
+      stageCard?.weaponSet ||
+      stageCard?.weapon ||
       template?.weaponSet ||
       template?.weapon ||
       "None",
     devilFruit:
-      stageCard?.devilFruit ||
-      stageCard?.displayFruitName ||
       form?.devilFruitName ||
       form?.devilFruit ||
+      stageCard?.devilFruit ||
+      stageCard?.displayFruitName ||
       template?.devilFruitName ||
       template?.devilFruit ||
       "None",
