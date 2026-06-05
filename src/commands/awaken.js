@@ -8,13 +8,623 @@ const {
 
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const {
-  awakenOwnedCard,
-  findCardTemplate,
   hydrateCard,
   getBoostStageValue,
 } = require("../utils/evolution");
 const { getCardImage } = require("../config/assetLinks");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const rawCards = require("../data/cards");
+
+function cloneDeep(value) {
+  if (value === undefined || value === null) return value;
+  return JSON.parse(JSON.stringify(value));
+}
+
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function normalizeCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function isLzsQuery(query) {
+  const q = normalizeName(query).replace(/\s+/g, "_");
+  return q === "lzs" || q === "monster_trio";
+}
+
+function isLzsCard(card) {
+  const code = String(card?.code || "").toLowerCase().trim();
+  const name = normalizeName(card?.displayName || card?.name || card?.title);
+  return code === "lzs" || name === "monster trio";
+}
+
+function getNameFields(card) {
+  return [
+    card?.displayName,
+    card?.name,
+    card?.title,
+    card?.variant,
+  ]
+    .map(normalizeName)
+    .filter(Boolean);
+}
+
+function scoreNameOnly(query, card) {
+  const q = normalizeName(query);
+  if (!q) return 0;
+
+  if (isLzsQuery(query) && isLzsCard(card)) {
+    return 999999;
+  }
+
+  let best = 0;
+
+  for (const field of getNameFields(card)) {
+    if (field === q) {
+      best = Math.max(best, 3000 + field.length);
+    } else if (field.startsWith(q)) {
+      best = Math.max(best, 1600 + q.length);
+    } else if (field.includes(q)) {
+      best = Math.max(best, 900 + q.length);
+    } else {
+      const words = q.split(" ").filter(Boolean);
+
+      if (words.length && words.every((word) => field.includes(word))) {
+        best = Math.max(best, 500 + words.join("").length);
+      }
+    }
+  }
+
+  return best;
+}
+
+function findOwnedIndexByNameOnly(cardsOwned, query) {
+  const list = safeArray(cardsOwned);
+
+  const scored = list
+    .map((card, index) => ({
+      index,
+      score: scoreNameOnly(query, card),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.index - b.index;
+    });
+
+  return scored.length ? scored[0].index : -1;
+}
+
+function findTemplateByNameOnly(ownedCard, query) {
+  const templates = safeArray(rawCards);
+
+  if (isLzsQuery(query) || isLzsCard(ownedCard)) {
+    return (
+      templates.find((card) => isLzsCard(card)) ||
+      null
+    );
+  }
+
+  const target =
+    ownedCard?.displayName ||
+    ownedCard?.name ||
+    ownedCard?.title ||
+    query;
+
+  const scored = templates
+    .map((card) => ({
+      card,
+      score: scoreNameOnly(target, card),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored.length ? scored[0].card : null;
+}
+
+function stripOwnedTemplateFields(card) {
+  const clean = cloneDeep(card || {});
+
+  delete clean.awakenRequirements;
+  delete clean.evolutionRequirements;
+  delete clean.requirements;
+  delete clean.requiredCards;
+  delete clean.requiredBoosts;
+  delete clean.cardsText;
+  delete clean.boostsText;
+  delete clean.evolutionForms;
+  delete clean.stageStats;
+  delete clean.stats;
+  delete clean.forms;
+
+  return clean;
+}
+
+function mergeOwnedWithTemplateForAwaken(ownedCard, template) {
+  const owned = stripOwnedTemplateFields(ownedCard);
+
+  if (!template) {
+    return owned;
+  }
+
+  return {
+    ...cloneDeep(template),
+
+    instanceId: owned.instanceId,
+    ownerId: owned.ownerId,
+
+    level: owned.level,
+    currentLevel: owned.currentLevel,
+    lvl: owned.lvl,
+    xp: owned.xp,
+    exp: owned.exp,
+    kills: owned.kills,
+    fragments: owned.fragments,
+    raidPrestige: owned.raidPrestige,
+
+    evolutionStage: owned.evolutionStage,
+    evolutionKey: owned.evolutionKey,
+
+    currentTier: owned.currentTier || template.currentTier || template.rarity,
+    rarity: owned.rarity || template.rarity,
+
+    equippedWeapons: owned.equippedWeapons || [],
+    equippedWeapon: owned.equippedWeapon || null,
+    equippedWeaponName: owned.equippedWeaponName || null,
+    equippedWeaponCode: owned.equippedWeaponCode || null,
+    equippedWeaponLevel: owned.equippedWeaponLevel || 0,
+
+    equippedDevilFruit: owned.equippedDevilFruit || null,
+    equippedDevilFruitName: owned.equippedDevilFruitName || null,
+    equippedDevilFruitCode: owned.equippedDevilFruitCode || null,
+
+    cardRole: template.cardRole || owned.cardRole,
+    role: template.role || owned.role,
+    category: template.category || owned.category,
+  };
+}
+
+function getStageKey(stage) {
+  return `M${Number(stage || 1)}`;
+}
+
+function getStageForm(template, stage) {
+  const index = Number(stage || 1) - 1;
+  return safeArray(template?.evolutionForms)[index] || null;
+}
+
+function getAwakenRequirement(template, nextStage) {
+  if (!template) return null;
+
+  const stageKey = getStageKey(nextStage);
+  const form = getStageForm(template, nextStage);
+
+  return (
+    form?.require ||
+    template.awakenRequirements?.[stageKey] ||
+    template.evolutionRequirements?.[stageKey] ||
+    template.requirements?.[stageKey] ||
+    null
+  );
+}
+
+function getCurrentStage(card) {
+  const stage = Number(card?.evolutionStage || 1);
+  return Math.max(1, Math.min(3, Number.isFinite(stage) ? Math.floor(stage) : 1));
+}
+
+function getOwnedFragmentAmount(player, target) {
+  const code = normalizeCode(target?.code);
+  const name = normalizeName(target?.displayName || target?.name || target?.title);
+  const fragments = safeArray(player?.fragments);
+
+  const globalAmount = fragments.reduce((sum, entry) => {
+    const entryCode = normalizeCode(entry?.code);
+    const entryName = normalizeName(entry?.name || entry?.displayName);
+
+    const matched =
+      (code && entryCode === code) ||
+      (name && entryName === name) ||
+      (code && entryName === code) ||
+      (name && entryCode === name);
+
+    return matched ? sum + Number(entry.amount || 0) : sum;
+  }, 0);
+
+  return globalAmount + Number(target?.fragments || 0);
+}
+
+function consumeFragmentAmount(player, targetIndex, target, amount) {
+  let remaining = Number(amount || 0);
+  const code = normalizeCode(target?.code);
+  const name = normalizeName(target?.displayName || target?.name || target?.title);
+
+  const updatedFragments = safeArray(player?.fragments)
+    .map((entry) => {
+      if (remaining <= 0) return entry;
+
+      const entryCode = normalizeCode(entry?.code);
+      const entryName = normalizeName(entry?.name || entry?.displayName);
+
+      const matched =
+        (code && entryCode === code) ||
+        (name && entryName === name) ||
+        (code && entryName === code) ||
+        (name && entryCode === name);
+
+      if (!matched) return entry;
+
+      const current = Number(entry.amount || 0);
+      const taken = Math.min(current, remaining);
+      remaining -= taken;
+
+      return {
+        ...entry,
+        amount: current - taken,
+      };
+    })
+    .filter((entry) => Number(entry.amount || 0) > 0);
+
+  const updatedCards = safeArray(player?.cards).map((card, index) => {
+    if (index !== targetIndex || remaining <= 0) return card;
+
+    const current = Number(card.fragments || 0);
+    const taken = Math.min(current, remaining);
+    remaining -= taken;
+
+    return {
+      ...card,
+      fragments: current - taken,
+    };
+  });
+
+  if (remaining > 0) {
+    throw new Error("Not enough self fragments.");
+  }
+
+  return {
+    cards: updatedCards,
+    fragments: updatedFragments,
+  };
+}
+
+function consumeExternalFragments(player, targetIndex, fragmentsReq) {
+  let nextCards = safeArray(player?.cards);
+  let nextFragments = safeArray(player?.fragments);
+
+  for (const req of safeArray(fragmentsReq)) {
+    const amount = Number(req?.amount || 0);
+    if (amount <= 0) continue;
+
+    const target = {
+      code: req.code,
+      name: req.name,
+      displayName: req.displayName || req.name,
+      title: req.title,
+    };
+
+    const consumed = consumeFragmentAmount(
+      {
+        ...player,
+        cards: nextCards,
+        fragments: nextFragments,
+      },
+      targetIndex,
+      target,
+      amount
+    );
+
+    nextCards = consumed.cards;
+    nextFragments = consumed.fragments;
+  }
+
+  return {
+    cards: nextCards,
+    fragments: nextFragments,
+  };
+}
+
+function requirementNameCandidates(req) {
+  if (!req) return [];
+
+  if (typeof req === "string") {
+    return [normalizeName(req)].filter(Boolean);
+  }
+
+  return [
+    req.displayName,
+    req.name,
+    req.cardName,
+    req.title,
+    req.variant,
+  ]
+    .map(normalizeName)
+    .filter(Boolean);
+}
+
+function requirementCodeCandidates(req) {
+  if (!req || typeof req === "string") return [];
+
+  return [
+    req.code,
+    req.baseCode,
+  ]
+    .map(normalizeCode)
+    .filter(Boolean);
+}
+
+function doesRequirementMatchCard(card, req) {
+  const reqCodes = requirementCodeCandidates(req);
+  const cardCodes = [
+    card?.code,
+    card?.baseCode,
+  ]
+    .map(normalizeCode)
+    .filter(Boolean);
+
+  for (const reqCode of reqCodes) {
+    for (const cardCode of cardCodes) {
+      if (reqCode && cardCode && reqCode === cardCode) return true;
+    }
+  }
+
+  const reqNames = requirementNameCandidates(req);
+  const cardNames = [
+    card?.displayName,
+    card?.name,
+    card?.title,
+    card?.variant,
+  ]
+    .map(normalizeName)
+    .filter(Boolean);
+
+  for (const reqName of reqNames) {
+    for (const cardName of cardNames) {
+      if (reqName && cardName && reqName === cardName) return true;
+    }
+  }
+
+  return false;
+}
+
+function findRequirementOwnedCard(player, req) {
+  return (
+    safeArray(player?.cards)
+      .map((card) => hydrateCard(card))
+      .filter(Boolean)
+      .find((card) => doesRequirementMatchCard(card, req)) || null
+  );
+}
+
+function validateRequirement(player, targetIndex, targetCard, req) {
+  const missing = [];
+
+  const berriesNeed = Number(req?.berries || 0);
+  const berriesOwned = Number(player?.berries || 0);
+
+  if (berriesOwned < berriesNeed) {
+    missing.push(
+      `Berries ${berriesOwned.toLocaleString("en-US")}/${berriesNeed.toLocaleString("en-US")}`
+    );
+  }
+
+  const gemsNeed = Number(req?.gems || 0);
+  const gemsOwned = Number(player?.gems || 0);
+
+  if (gemsOwned < gemsNeed) {
+    missing.push(
+      `Gems ${gemsOwned.toLocaleString("en-US")}/${gemsNeed.toLocaleString("en-US")}`
+    );
+  }
+
+  const selfFragmentsNeed = Number(req?.selfFragments || 0);
+  const selfFragmentsOwned = getOwnedFragmentAmount(player, targetCard);
+
+  if (selfFragmentsOwned < selfFragmentsNeed) {
+    missing.push(
+      `Self fragments ${selfFragmentsOwned}/${selfFragmentsNeed}x ${targetCard.displayName || targetCard.name}`
+    );
+  }
+
+  for (const fragReq of safeArray(req?.fragments)) {
+    const amount = Number(fragReq?.amount || 0);
+    const owned = getOwnedFragmentAmount(player, fragReq);
+
+    if (owned < amount) {
+      missing.push(
+        `${fragReq.name || fragReq.displayName || fragReq.code || "Fragment"} fragments ${owned}/${amount}`
+      );
+    }
+  }
+
+  const isBattle = String(targetCard?.cardRole || "").toLowerCase() === "battle";
+
+  if (isBattle) {
+    const levelNeed = Number(req?.minLevel || 0);
+    const levelOwned = Number(targetCard?.level || 1);
+
+    if (levelOwned < levelNeed) {
+      missing.push(`Level ${levelOwned}/${levelNeed}`);
+    }
+  }
+
+  for (const cardReq of safeArray(req?.cards)) {
+    const owned = findRequirementOwnedCard(player, cardReq);
+    const stageNeed = Number(cardReq?.stage || cardReq?.minStage || cardReq?.evolutionStage || 1);
+
+    if (!owned) {
+      missing.push(
+        `${cardReq.displayName || cardReq.name || cardReq.cardName || cardReq.title || cardReq.code || "Required Card"} M${stageNeed}`
+      );
+      continue;
+    }
+
+    const ownedStage = Number(owned.evolutionStage || 1);
+    if (ownedStage < stageNeed) {
+      missing.push(`${owned.displayName || owned.name} M${ownedStage}/M${stageNeed}`);
+    }
+  }
+
+  for (const boostReq of safeArray(req?.boosts)) {
+    const owned = findRequirementOwnedCard(player, boostReq);
+    const stageNeed = Number(boostReq?.stage || boostReq?.minStage || boostReq?.evolutionStage || 1);
+
+    if (!owned) {
+      missing.push(
+        `${boostReq.displayName || boostReq.name || boostReq.cardName || boostReq.title || boostReq.code || "Required Boost"} M${stageNeed}`
+      );
+      continue;
+    }
+
+    const ownedStage = Number(owned.evolutionStage || 1);
+    if (ownedStage < stageNeed) {
+      missing.push(`${owned.displayName || owned.name} M${ownedStage}/M${stageNeed}`);
+    }
+  }
+
+  if (missing.length) {
+    throw new Error(missing.join("\n"));
+  }
+}
+
+function makeAwakenedCard(rawCard, template, nextStage) {
+  const clean = stripOwnedTemplateFields(rawCard);
+  const form = getStageForm(template, nextStage);
+
+  const next = {
+    ...cloneDeep(template || {}),
+    ...clean,
+
+    code: template?.code || clean.code,
+    name: template?.name || clean.name,
+    displayName: template?.displayName || clean.displayName,
+    title: template?.title || clean.title,
+
+    cardRole: template?.cardRole || clean.cardRole,
+    role: template?.role || clean.role,
+    category: template?.category || clean.category,
+
+    currentTier:
+      form?.tier ||
+      template?.currentTier ||
+      template?.rarity ||
+      clean.currentTier ||
+      clean.rarity,
+
+    rarity:
+      form?.tier ||
+      template?.currentTier ||
+      template?.rarity ||
+      clean.currentTier ||
+      clean.rarity,
+
+    evolutionStage: nextStage,
+    evolutionKey: getStageKey(nextStage),
+  };
+
+  return stripOwnedTemplateFields(next);
+}
+
+function runAwaken(player, query) {
+  const cardsOwned = safeArray(player?.cards);
+  const targetIndex = findOwnedIndexByNameOnly(cardsOwned, query);
+
+  if (targetIndex === -1) {
+    throw new Error("You do not own that card.");
+  }
+
+  const originalCard = cardsOwned[targetIndex];
+  const template = findTemplateByNameOnly(originalCard, query);
+  const targetCard = hydrateCard(mergeOwnedWithTemplateForAwaken(originalCard, template));
+
+  if (!targetCard) {
+    throw new Error("Card data could not be loaded.");
+  }
+
+  const currentStage = getCurrentStage(targetCard);
+
+  if (currentStage >= 3) {
+    throw new Error("This card is already at M3.");
+  }
+
+  const nextStage = currentStage + 1;
+  const req = getAwakenRequirement(template, nextStage);
+
+  if (!req) {
+    throw new Error("No awaken requirement found.");
+  }
+
+  const validationPlayer = {
+    ...player,
+    cards: cardsOwned,
+  };
+
+  validateRequirement(validationPlayer, targetIndex, targetCard, req);
+
+  const berriesNeed = Number(req?.berries || 0);
+  const gemsNeed = Number(req?.gems || 0);
+
+  const afterSelfFragments = consumeFragmentAmount(
+    validationPlayer,
+    targetIndex,
+    targetCard,
+    Number(req?.selfFragments || 0)
+  );
+
+  const afterExternalFragments = consumeExternalFragments(
+    {
+      ...validationPlayer,
+      cards: afterSelfFragments.cards,
+      fragments: afterSelfFragments.fragments,
+    },
+    targetIndex,
+    req?.fragments
+  );
+
+  const updatedCards = afterExternalFragments.cards.map((card, index) => {
+    if (index !== targetIndex) return stripOwnedTemplateFields(card);
+    return makeAwakenedCard(card, template, nextStage);
+  });
+
+  const updatedPlayer = {
+    ...player,
+    cards: updatedCards,
+    fragments: afterExternalFragments.fragments,
+    berries: Number(player?.berries || 0) - berriesNeed,
+    gems: Number(player?.gems || 0) - gemsNeed,
+  };
+
+  const resultTarget = hydrateCard(updatedCards[targetIndex]);
+
+  return {
+    updatedPlayer,
+    target: resultTarget,
+    updatedCards,
+    updatedFragments: afterExternalFragments.fragments,
+    berries: updatedPlayer.berries,
+    gems: updatedPlayer.gems,
+    currentStage,
+    nextStage,
+    requirement: req,
+    template,
+  };
+}
 
 function isIgnorableInteractionError(error) {
   const code = Number(error?.code || error?.rawError?.code || 0);
@@ -93,294 +703,82 @@ async function safeStopCollector(collector, reason) {
   } catch (_) {}
 }
 
-function cloneDeep(obj) {
-  return JSON.parse(JSON.stringify(obj));
+function getStageImage(card, stage) {
+  const stageKey = getStageKey(stage);
+  const template = findTemplateByNameOnly(card, card?.displayName || card?.name || "");
+
+  const form = getStageForm(template, stage);
+  const image =
+    form?.image ||
+    template?.stageImages?.[stageKey] ||
+    template?.images?.[stageKey] ||
+    template?.forms?.[stageKey]?.image ||
+    card?.stageImages?.[stageKey] ||
+    card?.image ||
+    "";
+
+  if (image) return image;
+
+  const code = String(template?.code || card?.code || "").trim();
+  return code ? getCardImage(code, stageKey, "") : "";
 }
 
-function normalizeAwakenName(value) {
-  return String(value || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[_-]+/g, " ")
-    .replace(/[^a-z0-9\s]+/g, "")
-    .replace(/\s+/g, " ");
-}
-
-function normalizeAwakenCode(value) {
-  return String(value || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[_-]+/g, "_")
-    .replace(/\s+/g, "_");
-}
-
-function isLzsAwakenQuery(query) {
-  const q = normalizeAwakenName(query).replace(/\s+/g, "_");
-  return q === "lzs" || q === "monster_trio";
-}
-
-function isLzsCard(card) {
-  const code = String(card?.code || "").toLowerCase().trim();
-  const name = normalizeAwakenName(card?.displayName || card?.name || card?.title);
-
-  return code === "lzs" || name === "monster trio";
-}
-
-function scoreAwakenNameOnly(query, card) {
-  const q = normalizeAwakenName(query);
-  if (!q) return 0;
-
-  const names = [
-    card?.displayName,
-    card?.name,
-    card?.title,
-    card?.variant,
-  ]
-    .map(normalizeAwakenName)
-    .filter(Boolean);
-
-  let best = 0;
-
-  for (const name of names) {
-    if (name === q) {
-      best = Math.max(best, 2000 + name.length);
-    } else if (name.startsWith(q)) {
-      best = Math.max(best, 1200 + q.length);
-    } else if (name.includes(q)) {
-      best = Math.max(best, 900 + q.length);
-    } else {
-      const qWords = q.split(" ").filter(Boolean);
-
-      if (qWords.length && qWords.every((word) => name.includes(word))) {
-        best = Math.max(best, 500 + qWords.join("").length);
-      }
-    }
-  }
-
-  return best;
-}
-
-function findOwnedCardIndexByAwakenNameOnly(cards, query) {
-  const list = Array.isArray(cards) ? cards : [];
-
-  if (isLzsAwakenQuery(query)) {
-    const index = list.findIndex((card) => isLzsCard(card));
-    if (index !== -1) return index;
-  }
-
-  const scored = list
-    .map((card, index) => ({
-      index,
-      score: scoreAwakenNameOnly(query, card),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return a.index - b.index;
-    });
-
-  return scored.length ? scored[0].index : -1;
-}
-
-function findOwnedCardByAwakenNameOnly(cards, query) {
-  const list = Array.isArray(cards) ? cards : [];
-  const index = findOwnedCardIndexByAwakenNameOnly(list, query);
-
-  return index === -1 ? null : hydrateCard(list[index]);
-}
-
-function stripTemplateOnlyFields(card) {
-  const clean = cloneDeep(card || {});
-
-  delete clean.awakenRequirements;
-  delete clean.evolutionRequirements;
-  delete clean.requirements;
-  delete clean.requiredCards;
-  delete clean.requiredBoosts;
-  delete clean.cardsText;
-  delete clean.boostsText;
-
-  return clean;
-}
-
-function findTemplateForAwakenNameOnly(ownedCard, query) {
-  if (isLzsAwakenQuery(query) || isLzsCard(ownedCard)) {
-    return findCardTemplate("lzs") || findCardTemplate("Monster Trio") || ownedCard;
-  }
-
-  const targetName =
-    ownedCard?.displayName ||
-    ownedCard?.name ||
-    ownedCard?.title ||
-    query;
-
-  const direct = findCardTemplate(targetName);
-  if (direct) return direct;
-
-  return ownedCard;
-}
-
-function getAwakenRequirementOverrideByCode(code) {
-  const cleanCode = normalizeAwakenCode(code);
-
-  if (cleanCode === "cola_engine") {
-    return {
-      M2: {
-        berries: 120000,
-        gems: 350,
-        selfFragments: 25,
-        minLevel: 0,
-        cards: [
-          {
-            code: "franky_cyborg",
-            name: "Franky",
-            stage: 1,
-          },
-        ],
-        boosts: [],
-        cardsText: ["Franky M1"],
-        boostsText: [],
-      },
-      M3: {
-        berries: 280000,
-        gems: 700,
-        selfFragments: 35,
-        minLevel: 0,
-        cards: [
-          {
-            code: "franky_cyborg",
-            name: "Franky",
-            stage: 2,
-          },
-        ],
-        boosts: [],
-        cardsText: ["Franky M2"],
-        boostsText: [],
-      },
-    };
-  }
-
-  return null;
-}
-
-function applyAwakenRequirementOverride(card) {
-  const code = normalizeAwakenCode(card?.code);
-  const override = getAwakenRequirementOverrideByCode(code);
-
-  if (!override) return card;
-
-  const next = {
-    ...card,
-    awakenRequirements: {
-      ...(card.awakenRequirements || {}),
-      ...override,
-    },
-  };
-
-  if (Array.isArray(next.evolutionForms)) {
-    next.evolutionForms = next.evolutionForms.map((form, index) => {
-      const stage = index + 1;
-      const stageKey = `M${stage}`;
-      const req = override[stageKey];
-
-      if (!req) return form;
-
-      return {
-        ...form,
-        require: {
-          ...(form?.require || {}),
-          ...req,
-        },
-      };
-    });
-  }
-
-  return next;
-}
-
-function mergeOwnedProgressIntoLatestTemplate(ownedCard, template) {
-  const clean = stripTemplateOnlyFields(ownedCard);
-
-  if (!template) return applyAwakenRequirementOverride(clean);
-
-  const merged = {
-    ...cloneDeep(template),
-
-    instanceId: clean.instanceId,
-    ownerId: clean.ownerId,
-
-    level: clean.level,
-    currentLevel: clean.currentLevel,
-    lvl: clean.lvl,
-    xp: clean.xp,
-    exp: clean.exp,
-    kills: clean.kills,
-    fragments: clean.fragments,
-    raidPrestige: clean.raidPrestige,
-
-    evolutionStage: clean.evolutionStage,
-    evolutionKey: clean.evolutionKey,
-
-    currentTier: clean.currentTier || template.currentTier || template.rarity,
-    rarity: clean.rarity || template.rarity,
-
-    equippedWeapons: clean.equippedWeapons || [],
-    equippedWeapon: clean.equippedWeapon || null,
-    equippedWeaponName: clean.equippedWeaponName || null,
-    equippedWeaponCode: clean.equippedWeaponCode || null,
-    equippedWeaponLevel: clean.equippedWeaponLevel || 0,
-
-    equippedDevilFruit: clean.equippedDevilFruit || null,
-    equippedDevilFruitName: clean.equippedDevilFruitName || null,
-
-    cardRole: template.cardRole || clean.cardRole,
-    role: template.role || clean.role,
-    category: template.category || clean.category,
-  };
-
-  return applyAwakenRequirementOverride(merged);
-}
-
-function preparePlayerForLatestAwakenTemplate(player, query) {
-  const prepared = cloneDeep(player || {});
-  const cards = Array.isArray(prepared.cards) ? prepared.cards : [];
-
-  const targetIndex = findOwnedCardIndexByAwakenNameOnly(cards, query);
-
-  prepared.cards = cards.map(stripTemplateOnlyFields);
-
-  if (targetIndex === -1) return prepared;
-
-  const ownedCard = cards[targetIndex];
-  const latestTemplate = findTemplateForAwakenNameOnly(ownedCard, query);
-
-  prepared.cards[targetIndex] = mergeOwnedProgressIntoLatestTemplate(
-    ownedCard,
-    latestTemplate
-  );
-
-  return prepared;
-}
-
-function getAwakenTargetQueryByNameOnly(owned, originalQuery) {
-  if (isLzsAwakenQuery(originalQuery) || isLzsCard(owned)) {
-    return "lzs";
-  }
+function getFormName(card, stage) {
+  const template = findTemplateByNameOnly(card, card?.displayName || card?.name || "");
+  const form = getStageForm(template, stage);
 
   return (
-    owned?.displayName ||
-    owned?.name ||
-    owned?.title ||
-    originalQuery
+    form?.name ||
+    form?.formTitle ||
+    form?.specialName ||
+    template?.variant ||
+    card?.variant ||
+    card?.displayName ||
+    card?.name ||
+    "Unknown"
   );
 }
 
-function getCiQueryText(owned, originalQuery) {
-  if (isLzsAwakenQuery(originalQuery) || isLzsCard(owned)) {
-    return "lzs";
+function getBoostEffectText(card, stage = 1) {
+  if (!card || String(card.cardRole || "").toLowerCase() !== "boost") return "";
+
+  const template = findTemplateByNameOnly(card, card?.displayName || card?.name || "") || card;
+  const form = getStageForm(template, stage);
+
+  const existingText =
+    form?.effectText ||
+    form?.boostDescription ||
+    template?.effectText ||
+    template?.boostDescription ||
+    card?.effectText ||
+    card?.boostDescription ||
+    "";
+
+  if (existingText) return existingText;
+
+  const boostType = String(template?.boostType || card?.boostType || "").toLowerCase();
+  const target = template?.boostTarget || card?.boostTarget || "team";
+  const value = getBoostStageValue(template || card, stage);
+
+  if (boostType === "fragmentstorage" || boostType === "fragment_storage") {
+    return `Increase ${target} fragment storage by ${value}.`;
   }
 
-  return owned?.displayName || owned?.name || owned?.title || originalQuery;
+  if (boostType === "pullchance" || boostType === "pull_chance") {
+    return `Increase ${target} pull chance by ${value}%.`;
+  }
+
+  if (boostType === "daily") {
+    return `Increase ${target} daily reward quality by ${value}.`;
+  }
+
+  const suffix = ["atk", "hp", "spd", "speed", "exp", "dmg"].includes(boostType)
+    ? "%"
+    : "";
+
+  if (!boostType) return "No boost effect description.";
+
+  return `Increase ${target} ${boostType.toUpperCase()} by ${value}${suffix}.`;
 }
 
 function formatAwakenErrorDetail(error) {
@@ -407,146 +805,22 @@ function formatAwakenErrorDetail(error) {
   return unique.length ? unique.join("\n") : "Unknown awaken requirement error.";
 }
 
-function getStageKey(stage) {
-  return `M${Number(stage || 1)}`;
+function formatAtkRange(atk) {
+  const value = Number(atk || 0);
+  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
-function findCardTemplateSafe(card) {
-  if (isLzsCard(card)) {
-    return findCardTemplate("lzs") || findCardTemplate("Monster Trio") || card;
+function applyBoostedDisplayStats(card, boosts = {}) {
+  if (!card || String(card.cardRole || "").toLowerCase() === "boost") {
+    return card;
   }
 
-  const keys = [card?.displayName, card?.name, card?.title]
-    .map((value) => String(value || "").trim())
-    .filter(Boolean);
-
-  for (const key of keys) {
-    const found = findCardTemplate(key);
-    if (found) return found;
-  }
-
-  return card;
-}
-
-function getStageForm(template, stage) {
-  const index = Number(stage || 1) - 1;
-  return template?.evolutionForms?.[index] || null;
-}
-
-function getStageCard(card, stage) {
-  const template = findCardTemplateSafe(card);
-  const stageKey = getStageKey(stage);
-
-  return hydrateCard({
+  return {
     ...card,
-    ...template,
-    code: template?.code || card?.code,
-    displayName:
-      template?.displayName ||
-      card?.displayName ||
-      template?.name ||
-      card?.name,
-    name: template?.name || card?.name,
-    evolutionStage: stage,
-    evolutionKey: stageKey,
-    image: template?.image || card?.image || "",
-    stageImages: template?.stageImages || {},
-    evolutionForms: template?.evolutionForms || [],
-  });
-}
-
-function getStageImage(card, stage) {
-  const stageKey = getStageKey(stage);
-  const template = findCardTemplateSafe(card);
-  const form = getStageForm(template, stage);
-
-  const templateStageImage =
-    form?.image ||
-    template?.stageImages?.[stageKey] ||
-    template?.images?.[stageKey] ||
-    template?.forms?.[stageKey]?.image;
-
-  if (templateStageImage) return templateStageImage;
-
-  const cardCode = String(card?.code || template?.code || "").trim();
-  const assetImage = cardCode ? getCardImage(cardCode, stageKey, "") : "";
-
-  if (assetImage) return assetImage;
-
-  return template?.image || card?.image || "";
-}
-
-function getFormName(card, stage) {
-  const template = findCardTemplateSafe(card);
-  const stageCard = getStageCard(card, stage);
-  const form = getStageForm(template, stage);
-
-  return (
-    form?.name ||
-    form?.formTitle ||
-    form?.specialName ||
-    stageCard?.variant ||
-    template?.variant ||
-    card?.variant ||
-    card?.displayName ||
-    card?.name ||
-    "Unknown"
-  );
-}
-
-function getBoostEffectText(card, stage = 1) {
-  if (!card || card.cardRole !== "boost") return "";
-
-  const template = findCardTemplate(card?.displayName || card?.name) || card;
-  const stageCard = getStageCard(template, stage);
-  const form =
-    stageCard?.evolutionForms?.[stage - 1] ||
-    template?.evolutionForms?.[stage - 1];
-
-  const existingText =
-    form?.effectText ||
-    stageCard?.effectText ||
-    template?.effectText ||
-    card?.effectText ||
-    form?.boostDescription ||
-    stageCard?.boostDescription ||
-    template?.boostDescription ||
-    card?.boostDescription ||
-    "";
-
-  if (existingText) return existingText;
-
-  const boostType = String(
-    stageCard?.boostType || template?.boostType || card?.boostType || ""
-  ).toLowerCase();
-
-  const target =
-    stageCard?.boostTarget ||
-    template?.boostTarget ||
-    card?.boostTarget ||
-    "team";
-
-  const value = getBoostStageValue(stageCard || card, stage);
-
-  if (boostType === "fragmentstorage" || boostType === "fragment_storage") {
-    return `Increase ${target} fragment storage by ${value}.`;
-  }
-
-  if (boostType === "pullchance" || boostType === "pull_chance") {
-    return `Increase ${target} pull chance by ${value}%.`;
-  }
-
-  if (boostType === "daily") {
-    return `Increase ${target} daily reward quality by ${value}.`;
-  }
-
-  const suffix = ["atk", "hp", "spd", "speed", "exp", "dmg"].includes(boostType)
-    ? "%"
-    : "";
-
-  if (!boostType) return "No boost effect description.";
-
-  return `Increase ${target} ${boostType.toUpperCase()} by ${value}${suffix}.`;
+    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+  };
 }
 
 function buildConfirmEmbed(owned, currentStage, nextStage) {
@@ -570,26 +844,6 @@ function buildConfirmEmbed(owned, currentStage, nextStage) {
   return embed;
 }
 
-function applyBoostedDisplayStats(card, boosts = {}) {
-  if (!card || String(card.cardRole || "").toLowerCase() === "boost") {
-    return card;
-  }
-
-  return {
-    ...card,
-    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
-    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
-    speed: Math.floor(
-      Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)
-    ),
-  };
-}
-
-function formatAtkRange(atk) {
-  const value = Number(atk || 0);
-  return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
-}
-
 function buildSuccessEmbed(result, player) {
   const rawCard = hydrateCard(result.target);
   const boosts = getPassiveBoostSummary(player);
@@ -606,7 +860,7 @@ function buildSuccessEmbed(result, player) {
   ];
 
   const description =
-    card.cardRole === "boost"
+    String(card.cardRole || "").toLowerCase() === "boost"
       ? [
           ...baseLines,
           "**Boost Effect**",
@@ -629,6 +883,11 @@ function buildSuccessEmbed(result, player) {
   return embed;
 }
 
+function getCiQueryText(card, query) {
+  if (isLzsQuery(query) || isLzsCard(card)) return "lzs";
+  return card?.displayName || card?.name || card?.title || query;
+}
+
 module.exports = {
   name: "awaken",
   aliases: ["evolve"],
@@ -641,9 +900,9 @@ module.exports = {
     }
 
     const player = getPlayer(message.author.id, message.author.username);
-    const owned = findOwnedCardByAwakenNameOnly(player.cards || [], query);
+    const targetIndex = findOwnedIndexByNameOnly(player.cards || [], query);
 
-    if (!owned) {
+    if (targetIndex === -1) {
       return message.reply({
         content: "You do not own that card.",
         allowedMentions: {
@@ -652,22 +911,19 @@ module.exports = {
       });
     }
 
-    if (Number(owned.evolutionStage || 1) >= 3) {
+    const ownedRaw = safeArray(player.cards)[targetIndex];
+    const template = findTemplateByNameOnly(ownedRaw, query);
+    const owned = hydrateCard(mergeOwnedWithTemplateForAwaken(ownedRaw, template));
+    const currentStage = getCurrentStage(owned);
+    const nextStage = currentStage + 1;
+    const ciQueryText = getCiQueryText(owned, query);
+
+    if (currentStage >= 3) {
       return message.reply("This card is already at M3.");
     }
 
-    const currentStage = Number(owned.evolutionStage || 1);
-    const nextStage = currentStage + 1;
-    const awakenTargetQuery = getAwakenTargetQueryByNameOnly(owned, query);
-    const ciQueryText = getCiQueryText(owned, query);
-
     try {
-      const validationPlayer = preparePlayerForLatestAwakenTemplate(
-        player,
-        awakenTargetQuery
-      );
-
-      awakenOwnedCard(validationPlayer, awakenTargetQuery);
+      runAwaken(player, ciQueryText);
     } catch (error) {
       return message.reply({
         embeds: [
@@ -743,22 +999,9 @@ module.exports = {
         updatePlayerAtomic(
           message.author.id,
           (fresh) => {
-            const preparedFresh = preparePlayerForLatestAwakenTemplate(
-              fresh,
-              awakenTargetQuery
-            );
-
-            awakenResult = awakenOwnedCard(preparedFresh, awakenTargetQuery);
-
-            freshPlayerForDisplay = {
-              ...preparedFresh,
-              cards: awakenResult.updatedCards,
-              fragments: awakenResult.updatedFragments,
-              berries: awakenResult.berries,
-              gems: awakenResult.gems,
-            };
-
-            return freshPlayerForDisplay;
+            awakenResult = runAwaken(fresh, ciQueryText);
+            freshPlayerForDisplay = awakenResult.updatedPlayer;
+            return awakenResult.updatedPlayer;
           },
           message.author.username
         );
