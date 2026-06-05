@@ -377,61 +377,155 @@ function joinUniqueCiText(values) {
   return out.length ? out.join(", ") : "None";
 }
 
+function pickPositiveNumber(...values) {
+  for (const value of values) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+
+  return 0;
+}
+
+function getStageSpecificSourceStatsForLzs(template, stage = 1) {
+  const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
+  const stageKey = `M${targetStage}`;
+
+  const stageCard = getStageCard(template, targetStage);
+  const form =
+    stageCard?.evolutionForms?.[targetStage - 1] ||
+    template?.evolutionForms?.[targetStage - 1] ||
+    {};
+
+  const stageStats =
+    stageCard?.stageStats?.[stageKey] ||
+    template?.stageStats?.[stageKey] ||
+    stageCard?.stats?.[stageKey] ||
+    template?.stats?.[stageKey] ||
+    stageCard?.masteryStats?.[stageKey] ||
+    template?.masteryStats?.[stageKey] ||
+    {};
+
+  const ciStats = getStageDisplayStats(template, stageCard, targetStage);
+
+  const atk = pickPositiveNumber(
+    stageCard?.atk,
+    stageCard?.displayAtk,
+    stageCard?.combatAtk,
+    stageCard?.finalAtk,
+    stageCard?.baseAtk,
+    form?.atk,
+    form?.baseAtk,
+    stageStats?.atk,
+    stageStats?.baseAtk,
+    template?.[`atk${stageKey}`],
+    ciStats?.atk
+  );
+
+  const hp = pickPositiveNumber(
+    stageCard?.hp,
+    stageCard?.displayHp,
+    stageCard?.combatHp,
+    stageCard?.finalHp,
+    stageCard?.baseHp,
+    form?.hp,
+    form?.baseHp,
+    stageStats?.hp,
+    stageStats?.baseHp,
+    template?.[`hp${stageKey}`],
+    ciStats?.hp
+  );
+
+  const speed = pickPositiveNumber(
+    stageCard?.speed,
+    stageCard?.spd,
+    stageCard?.displaySpeed,
+    stageCard?.combatSpeed,
+    stageCard?.finalSpeed,
+    stageCard?.baseSpeed,
+    form?.speed,
+    form?.spd,
+    form?.baseSpeed,
+    stageStats?.speed,
+    stageStats?.spd,
+    stageStats?.baseSpeed,
+    template?.[`speed${stageKey}`],
+    ciStats?.speed
+  );
+
+  const power = pickPositiveNumber(
+    stageCard?.currentPower,
+    stageCard?.power,
+    stageCard?.finalPower,
+    stageCard?.basePower,
+    form?.currentPower,
+    form?.power,
+    form?.basePower,
+    form?.powerCaps?.[stageKey],
+    stageStats?.currentPower,
+    stageStats?.power,
+    stageStats?.basePower,
+    stageStats?.powerCaps?.[stageKey],
+    template?.powerCaps?.[stageKey],
+    ciStats?.power
+  );
+
+  return {
+    stageCard,
+    form,
+    atk,
+    hp,
+    speed,
+    power,
+    weapon:
+      stageCard?.weaponSet ||
+      stageCard?.weapon ||
+      form?.weaponSet ||
+      form?.weapon ||
+      template?.weaponSet ||
+      template?.weapon ||
+      "None",
+    devilFruit:
+      stageCard?.devilFruit ||
+      stageCard?.displayFruitName ||
+      form?.devilFruitName ||
+      form?.devilFruit ||
+      template?.devilFruitName ||
+      template?.devilFruit ||
+      "None",
+  };
+}
+
 function buildCiLzsFromCiBattleStats(stage = 1) {
   const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
+  const stageKey = `M${targetStage}`;
   const template = findTemplateByCodeForCi("lzs") || {};
   const form = getCiStageForm(template, targetStage) || {};
 
   const sourceRows = LZS_SOURCE_CODES.map((code) => {
     const sourceTemplate = findTemplateByCodeForCi(code) || {};
-    const sourceStageCard = getStageCard(sourceTemplate, targetStage);
-    const sourceForm =
-      sourceStageCard.evolutionForms?.[targetStage - 1] ||
-      sourceTemplate.evolutionForms?.[targetStage - 1] ||
-      {};
-
-    const stats = getStageDisplayStats(sourceTemplate, sourceStageCard, targetStage);
-    const statSource = stats.source || sourceStageCard || sourceTemplate;
+    const sourceStats = getStageSpecificSourceStatsForLzs(sourceTemplate, targetStage);
 
     return {
       code,
       template: sourceTemplate,
-      stageCard: sourceStageCard,
-      form: sourceForm,
-      atk: Number(stats.atk || 0),
-      hp: Number(stats.hp || 0),
-      speed: Number(stats.speed || 0),
-      power: Number(stats.power || 0),
-      weapon:
-        statSource.weaponSet ||
-        statSource.weapon ||
-        sourceForm.weaponSet ||
-        sourceForm.weapon ||
-        sourceTemplate.weaponSet ||
-        sourceTemplate.weapon ||
-        "None",
-      devilFruit:
-        statSource.devilFruit ||
-        statSource.displayFruitName ||
-        sourceForm.devilFruitName ||
-        sourceForm.devilFruit ||
-        sourceTemplate.devilFruitName ||
-        sourceTemplate.devilFruit ||
-        "None",
+      ...sourceStats,
     };
   });
 
   const mergedAtk = Math.floor(
-    sourceRows.reduce((sum, source) => sum + source.atk * 0.3, 0)
+    sourceRows.reduce((sum, source) => sum + Number(source.atk || 0) * 0.3, 0)
   );
+
   const mergedHp = Math.floor(
-    sourceRows.reduce((sum, source) => sum + source.hp * 0.3, 0)
+    sourceRows.reduce((sum, source) => sum + Number(source.hp || 0) * 0.3, 0)
   );
+
   const mergedSpeed = Math.floor(
-    sourceRows.reduce((sum, source) => sum + source.speed * 0.3, 0)
+    sourceRows.reduce((sum, source) => sum + Number(source.speed || 0) * 0.3, 0)
   );
+
   const mergedPower = Math.floor(
-    sourceRows.reduce((sum, source) => sum + source.power * 0.3, 0)
+    sourceRows.reduce((sum, source) => sum + Number(source.power || 0) * 0.3, 0)
   );
 
   const weapon = joinUniqueCiText(sourceRows.map((source) => source.weapon));
@@ -462,7 +556,7 @@ function buildCiLzsFromCiBattleStats(stage = 1) {
     mergeStatRatio: 0.3,
 
     evolutionStage: targetStage,
-    evolutionKey: `M${targetStage}`,
+    evolutionKey: stageKey,
 
     atk: mergedAtk,
     baseAtk: mergedAtk,
@@ -489,7 +583,7 @@ function buildCiLzsFromCiBattleStats(stage = 1) {
     finalPower: mergedPower,
     powerCaps: {
       ...(template.powerCaps || {}),
-      [`M${targetStage}`]: mergedPower,
+      [stageKey]: mergedPower,
     },
 
     weapon,
@@ -504,10 +598,10 @@ function buildCiLzsFromCiBattleStats(stage = 1) {
 function getCiLzsDisplayStats(card) {
   return {
     source: card,
-    atk: Number(card?.atk || 0),
-    hp: Number(card?.hp || 0),
-    speed: Number(card?.speed || card?.spd || 0),
-    power: Number(card?.currentPower || card?.power || 0),
+    atk: Number(card?.atk || card?.displayAtk || card?.combatAtk || card?.finalAtk || 0),
+    hp: Number(card?.hp || card?.displayHp || card?.combatHp || card?.finalHp || 0),
+    speed: Number(card?.speed || card?.spd || card?.displaySpeed || card?.combatSpeed || card?.finalSpeed || 0),
+    power: Number(card?.currentPower || card?.power || card?.finalPower || card?.basePower || 0),
   };
 }
 
