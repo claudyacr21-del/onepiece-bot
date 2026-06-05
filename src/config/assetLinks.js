@@ -819,6 +819,11 @@ const CARD_IMAGES = {
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1509896780605821068/content.png?ex=6a1ad875&is=6a1986f5&hm=91a3346638973f4edd898901e05de3fcc6d3e386d05371c41fa108067c32266c&",
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1509896781029310504/content.png?ex=6a1ad875&is=6a1986f5&hm=0ccb2aeec6920bf5e61f4300f8cf59e27c954da4ada502e75877bb88645f25c3&",
   },
+  lzs: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1509772346238570596/content.png?ex=6a239f11&is=6a224d91&hm=cef4b7a9905d2a6aa8b536c48ac7dfaa6e78e56277f2a6fb6285a7efa08e2f46&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1509772346851069983/content.png?ex=6a239f11&is=6a224d91&hm=f968664bc0f44cda1f4b91c076750783e0e610e3156524b2a7584eeeafba9624&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1509772347354251284/content.png?ex=6a239f11&is=6a224d91&hm=59b24f1b48a7d59e5beb001a0f255ce89718448572003f16ec56f387dec1a793&",
+  },
 };
 
 const WEAPON_IMAGES = {
