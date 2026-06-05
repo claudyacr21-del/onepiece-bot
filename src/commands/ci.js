@@ -1,4 +1,4 @@
-const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
+const { isLzsCard } = require("../utils/mergeCards");
 const {
   EmbedBuilder,
   ActionRowBuilder,
@@ -16,9 +16,19 @@ const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
 
 const cardsData = require("../data/cards");
+
 const SPECIAL_FORMS = cardsData.SPECIAL_FORMS || cardsData.specialForms || {
   luffy_straw_hat: ["The Beginning", "Revival", "Gear 5"],
 };
+
+const LZS_SOURCE_CODES = [
+  "luffy_straw_hat",
+  "zoro_pirate_hunter",
+  "sanji_black_leg",
+];
+
+const LZS_MERGE_RATIO = 0.3;
+const LZS_FIXED_POWER = 100000;
 
 function isRoadPoneglyphCard(card) {
   const code = String(card?.code || "").toLowerCase().trim();
@@ -56,6 +66,38 @@ function normalizeNameSearch(text) {
     .trim()
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ");
+}
+
+function normalizeCompare(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function normalizeCiCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, "_");
+}
+
+function normalizeRequirementCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+}
+
+function firstPositiveNumber(...values) {
+  for (const value of values) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+
+  return 0;
 }
 
 function scoreNameOnly(query, names) {
@@ -101,7 +143,7 @@ function findCardTemplateByNameOnly(query) {
   const scored = getAllCards()
     .map((card) => ({
       card,
-      score: scoreNameOnly(query, [card.displayName, card.name]),
+      score: scoreNameOnly(query, [card.displayName, card.name, card.title]),
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -109,15 +151,55 @@ function findCardTemplateByNameOnly(query) {
   return scored.length ? scored[0].card : null;
 }
 
+function findTemplateByCodeForCi(code) {
+  const target = normalizeCiCode(code);
+
+  return (
+    getAllCards().find((card) => normalizeCiCode(card?.code) === target) ||
+    null
+  );
+}
+
 function getAllGlobalCard(card) {
   const code = String(card?.code || "").toLowerCase();
-
   if (!code) return card;
 
   return (
     getAllCards().find(
       (entry) => String(entry.code || "").toLowerCase() === code
     ) || card
+  );
+}
+
+function getStageCard(card, stage) {
+  return hydrateCard({
+    ...card,
+    evolutionStage: stage,
+    evolutionKey: `M${stage}`,
+  });
+}
+
+function getStageLabel(stage) {
+  return `M${Number(stage || 1)}`;
+}
+
+function getStageKey(stage) {
+  return `M${Math.max(1, Math.min(3, Number(stage || 1)))}`;
+}
+
+function getStageForm(card, stage) {
+  const n = Math.max(1, Math.min(3, Number(stage || 1)));
+  return card?.evolutionForms?.[n - 1] || {};
+}
+
+function getStageStatsBlock(card, stage) {
+  const stageKey = getStageKey(stage);
+
+  return (
+    card?.stageStats?.[stageKey] ||
+    card?.stats?.[stageKey] ||
+    card?.masteryStats?.[stageKey] ||
+    {}
   );
 }
 
@@ -144,10 +226,7 @@ function getDirectDevilFruitName(...sources) {
       if (!value) continue;
 
       const text = String(value).trim();
-
-      if (text && text.toLowerCase() !== "none") {
-        return text;
-      }
+      if (text && text.toLowerCase() !== "none") return text;
     }
   }
 
@@ -205,64 +284,41 @@ function getStageRawPower(card, stageCard, stage) {
   return Number(
     form?.currentPower ??
       form?.power ??
+      form?.basePower ??
+      form?.finalPower ??
       form?.powerCaps?.[stageKey] ??
+      card?.stageStats?.[stageKey]?.currentPower ??
+      card?.stageStats?.[stageKey]?.power ??
+      card?.stats?.[stageKey]?.currentPower ??
+      card?.stats?.[stageKey]?.power ??
+      card?.masteryStats?.[stageKey]?.currentPower ??
+      card?.masteryStats?.[stageKey]?.power ??
       card?.powerCaps?.[stageKey] ??
       stageCard?.currentPower ??
+      stageCard?.power ??
       card?.currentPower ??
-      card?.powerCaps?.M3 ??
+      card?.power ??
       0
   );
 }
 
-function firstPositiveNumber(...values) {
-  for (const value of values) {
-    const n = Number(value || 0);
-    if (Number.isFinite(n) && n > 0) return n;
-  }
-  return 0;
-}
-
-function hasStageSpecificData(source) {
-  return Boolean(
-    (Array.isArray(source?.evolutionForms) && source.evolutionForms.length) ||
-      (source?.stageStats && typeof source.stageStats === "object") ||
-      (source?.stats && typeof source.stats === "object") ||
-      (source?.masteryStats && typeof source.masteryStats === "object") ||
-      (source?.powerCaps && typeof source.powerCaps === "object")
-  );
-}
-
-function getStageStatObject(source, stage) {
-  const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
-  const stageKey = `M${safeStage}`;
-  const form = source?.evolutionForms?.[safeStage - 1] || {};
-
-  const stageStats =
-    source?.stageStats?.[stageKey] ||
-    source?.stats?.[stageKey] ||
-    source?.masteryStats?.[stageKey] ||
-    {};
-
-  const hasStageData = hasStageSpecificData(source);
-
-  // Kalau card punya M1/M2/M3 data, jangan fallback ke top-level M3 untuk M1/M2.
-  // Top-level fallback hanya aman untuk:
-  // 1. card lama yang tidak punya stage data sama sekali
-  // 2. M3, karena top-level biasanya final/max form.
-  const allowTopLevelFallback = !hasStageData || safeStage === 3;
+function getPhysicalStatsFromSource(source, stage, allowTopLevel = true) {
+  const stageKey = getStageKey(stage);
+  const form = getStageForm(source, stage);
+  const stageStats = getStageStatsBlock(source, stage);
 
   const atk = firstPositiveNumber(
-    form.atk,
-    form.baseAtk,
-    form.displayAtk,
-    form.combatAtk,
-    form.finalAtk,
+    form?.atk,
+    form?.baseAtk,
+    form?.displayAtk,
+    form?.combatAtk,
+    form?.finalAtk,
 
-    stageStats.atk,
-    stageStats.baseAtk,
-    stageStats.displayAtk,
-    stageStats.combatAtk,
-    stageStats.finalAtk,
+    stageStats?.atk,
+    stageStats?.baseAtk,
+    stageStats?.displayAtk,
+    stageStats?.combatAtk,
+    stageStats?.finalAtk,
 
     source?.[`atk${stageKey}`],
     source?.[`baseAtk${stageKey}`],
@@ -270,27 +326,27 @@ function getStageStatObject(source, stage) {
     source?.[`combatAtk${stageKey}`],
     source?.[`finalAtk${stageKey}`],
 
-    allowTopLevelFallback ? source?.displayAtk : 0,
-    allowTopLevelFallback ? source?.combatAtk : 0,
-    allowTopLevelFallback ? source?.finalAtk : 0,
-    allowTopLevelFallback ? source?.baseAtk : 0,
-    allowTopLevelFallback ? source?.atk : 0
+    allowTopLevel ? source?.displayAtk : 0,
+    allowTopLevel ? source?.combatAtk : 0,
+    allowTopLevel ? source?.finalAtk : 0,
+    allowTopLevel ? source?.baseAtk : 0,
+    allowTopLevel ? source?.atk : 0
   );
 
   const hp = firstPositiveNumber(
-    form.hp,
-    form.baseHp,
-    form.displayHp,
-    form.combatHp,
-    form.finalHp,
-    form.maxHp,
+    form?.hp,
+    form?.baseHp,
+    form?.displayHp,
+    form?.combatHp,
+    form?.finalHp,
+    form?.maxHp,
 
-    stageStats.hp,
-    stageStats.baseHp,
-    stageStats.displayHp,
-    stageStats.combatHp,
-    stageStats.finalHp,
-    stageStats.maxHp,
+    stageStats?.hp,
+    stageStats?.baseHp,
+    stageStats?.displayHp,
+    stageStats?.combatHp,
+    stageStats?.finalHp,
+    stageStats?.maxHp,
 
     source?.[`hp${stageKey}`],
     source?.[`baseHp${stageKey}`],
@@ -298,28 +354,28 @@ function getStageStatObject(source, stage) {
     source?.[`combatHp${stageKey}`],
     source?.[`finalHp${stageKey}`],
 
-    allowTopLevelFallback ? source?.displayHp : 0,
-    allowTopLevelFallback ? source?.combatHp : 0,
-    allowTopLevelFallback ? source?.finalHp : 0,
-    allowTopLevelFallback ? source?.maxHp : 0,
-    allowTopLevelFallback ? source?.baseHp : 0,
-    allowTopLevelFallback ? source?.hp : 0
+    allowTopLevel ? source?.displayHp : 0,
+    allowTopLevel ? source?.combatHp : 0,
+    allowTopLevel ? source?.finalHp : 0,
+    allowTopLevel ? source?.maxHp : 0,
+    allowTopLevel ? source?.baseHp : 0,
+    allowTopLevel ? source?.hp : 0
   );
 
   const speed = firstPositiveNumber(
-    form.speed,
-    form.spd,
-    form.baseSpeed,
-    form.displaySpeed,
-    form.combatSpeed,
-    form.finalSpeed,
+    form?.speed,
+    form?.spd,
+    form?.baseSpeed,
+    form?.displaySpeed,
+    form?.combatSpeed,
+    form?.finalSpeed,
 
-    stageStats.speed,
-    stageStats.spd,
-    stageStats.baseSpeed,
-    stageStats.displaySpeed,
-    stageStats.combatSpeed,
-    stageStats.finalSpeed,
+    stageStats?.speed,
+    stageStats?.spd,
+    stageStats?.baseSpeed,
+    stageStats?.displaySpeed,
+    stageStats?.combatSpeed,
+    stageStats?.finalSpeed,
 
     source?.[`speed${stageKey}`],
     source?.[`spd${stageKey}`],
@@ -328,26 +384,38 @@ function getStageStatObject(source, stage) {
     source?.[`combatSpeed${stageKey}`],
     source?.[`finalSpeed${stageKey}`],
 
-    allowTopLevelFallback ? source?.displaySpeed : 0,
-    allowTopLevelFallback ? source?.combatSpeed : 0,
-    allowTopLevelFallback ? source?.finalSpeed : 0,
-    allowTopLevelFallback ? source?.baseSpeed : 0,
-    allowTopLevelFallback ? source?.speed : 0,
-    allowTopLevelFallback ? source?.spd : 0
+    allowTopLevel ? source?.displaySpeed : 0,
+    allowTopLevel ? source?.combatSpeed : 0,
+    allowTopLevel ? source?.finalSpeed : 0,
+    allowTopLevel ? source?.baseSpeed : 0,
+    allowTopLevel ? source?.speed : 0,
+    allowTopLevel ? source?.spd : 0
   );
 
-  const power = firstPositiveNumber(
-    form.currentPower,
-    form.power,
-    form.basePower,
-    form.finalPower,
-    form.powerCaps?.[stageKey],
+  return {
+    atk,
+    hp,
+    speed,
+  };
+}
 
-    stageStats.currentPower,
-    stageStats.power,
-    stageStats.basePower,
-    stageStats.finalPower,
-    stageStats.powerCaps?.[stageKey],
+function getPowerFromSource(source, stage, allowTopLevel = true) {
+  const stageKey = getStageKey(stage);
+  const form = getStageForm(source, stage);
+  const stageStats = getStageStatsBlock(source, stage);
+
+  return firstPositiveNumber(
+    form?.currentPower,
+    form?.power,
+    form?.basePower,
+    form?.finalPower,
+    form?.powerCaps?.[stageKey],
+
+    stageStats?.currentPower,
+    stageStats?.power,
+    stageStats?.basePower,
+    stageStats?.finalPower,
+    stageStats?.powerCaps?.[stageKey],
 
     source?.powerCaps?.[stageKey],
     source?.[`power${stageKey}`],
@@ -355,97 +423,54 @@ function getStageStatObject(source, stage) {
     source?.[`basePower${stageKey}`],
     source?.[`finalPower${stageKey}`],
 
-    allowTopLevelFallback ? source?.currentPower : 0,
-    allowTopLevelFallback ? source?.power : 0,
-    allowTopLevelFallback ? source?.basePower : 0,
-    allowTopLevelFallback ? source?.finalPower : 0
-  );
-
-  return {
-    source,
-    atk,
-    hp,
-    speed,
-    power,
-  };
-}
-
-function getStatScore(stats) {
-  const atk = Number(stats?.atk || 0);
-  const hp = Number(stats?.hp || 0);
-  const speed = Number(stats?.speed || 0);
-  const power = Number(stats?.power || 0);
-
-  // Jangan pilih kandidat power besar tapi atk/hp/speed kosong/salah.
-  const physicalCount = (atk > 0 ? 1 : 0) + (hp > 0 ? 1 : 0) + (speed > 0 ? 1 : 0);
-
-  return (
-    physicalCount * 1000000000000 +
-    power * 1000000 +
-    hp * 1000 +
-    atk * 10 +
-    speed
+    allowTopLevel ? source?.currentPower : 0,
+    allowTopLevel ? source?.power : 0,
+    allowTopLevel ? source?.basePower : 0,
+    allowTopLevel ? source?.finalPower : 0
   );
 }
 
 function getStageDisplayStats(card, stageCard, stage) {
   const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
 
-  const candidates = [
-    getStageStatObject(card, safeStage),
-    getStageStatObject(stageCard, safeStage),
-  ];
+  // IMPORTANT:
+  // stageCard adalah hasil hydrateCard({ evolutionStage: Mx }).
+  // Jadi top-level stageCard.atk/hp/speed/currentPower HARUS boleh dipakai.
+  // Ini yang bikin battle card biasa M1/M2/M3 normal lagi.
+  const hydratedStats = getPhysicalStatsFromSource(stageCard, safeStage, true);
+  const templateStats = getPhysicalStatsFromSource(card, safeStage, false);
 
-  // Jangan paksa global M3 masuk ke semua kondisi.
-  // Global fallback M3 hanya dipakai untuk M3, dan tetap kalah kalau kandidat stageCard punya atk/hp/spd lengkap.
-  if (safeStage === 3) {
-    candidates.push(getStageStatObject(getAllGlobalCard(card), safeStage));
-  }
+  const atk = firstPositiveNumber(
+    hydratedStats.atk,
+    templateStats.atk,
+    getStageRawStat(card, stageCard, safeStage, "atk", "baseAtk")
+  );
 
-  const best = candidates
-    .filter((entry) => entry && (entry.atk || entry.hp || entry.speed || entry.power))
-    .sort((a, b) => getStatScore(b) - getStatScore(a))[0];
+  const hp = firstPositiveNumber(
+    hydratedStats.hp,
+    templateStats.hp,
+    getStageRawStat(card, stageCard, safeStage, "hp", "baseHp")
+  );
 
-  if (best) return best;
+  const speed = firstPositiveNumber(
+    hydratedStats.speed,
+    templateStats.speed,
+    getStageRawStat(card, stageCard, safeStage, "speed", "spd")
+  );
+
+  const power = firstPositiveNumber(
+    getPowerFromSource(stageCard, safeStage, true),
+    getPowerFromSource(card, safeStage, false),
+    getStageRawPower(card, stageCard, safeStage)
+  );
 
   return {
-    source: card,
-    atk: Number(getStageRawStat(card, stageCard, safeStage, "atk") || 0),
-    hp: Number(getStageRawStat(card, stageCard, safeStage, "hp") || 0),
-    speed: Number(getStageRawStat(card, stageCard, safeStage, "speed", "spd") || 0),
-    power: getStageRawPower(card, stageCard, safeStage),
+    source: stageCard || card,
+    atk,
+    hp,
+    speed,
+    power,
   };
-}
-
-const LZS_SOURCE_CODES = [
-  "luffy_straw_hat",
-  "zoro_pirate_hunter",
-  "sanji_black_leg",
-];
-
-function normalizeCiCode(value) {
-  return String(value || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, "_");
-}
-
-function findTemplateByCodeForCi(code) {
-  const target = normalizeCiCode(code);
-
-  return (
-    getAllCards().find((card) => normalizeCiCode(card?.code) === target) ||
-    null
-  );
-}
-
-function getCiStageForm(template, stage = 1) {
-  const n = Math.max(1, Math.min(3, Number(stage || 1)));
-
-  return Array.isArray(template?.evolutionForms)
-    ? template.evolutionForms[n - 1] || null
-    : null;
 }
 
 function cleanCiText(value) {
@@ -480,211 +505,69 @@ function joinUniqueCiText(values) {
   return out.length ? out.join(", ") : "None";
 }
 
-function pickPositiveNumber(...values) {
-  for (const value of values) {
-    const n = Number(value);
-    if (Number.isFinite(n) && n > 0) return n;
-  }
-
-  return 0;
-}
-
-function getStageSpecificSourceStatsForLzs(template, stage = 1) {
-  const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
-  const stageKey = `M${targetStage}`;
-
-  const stageCard = getStageCard(template, targetStage);
+function getSourceTextFromStage(sourceTemplate, sourceStageCard, stage, type) {
   const form =
-    stageCard?.evolutionForms?.[targetStage - 1] ||
-    template?.evolutionForms?.[targetStage - 1] ||
+    sourceStageCard?.evolutionForms?.[stage - 1] ||
+    sourceTemplate?.evolutionForms?.[stage - 1] ||
     {};
 
-  const stageStats =
-    template?.stageStats?.[stageKey] ||
-    stageCard?.stageStats?.[stageKey] ||
-    template?.stats?.[stageKey] ||
-    stageCard?.stats?.[stageKey] ||
-    template?.masteryStats?.[stageKey] ||
-    stageCard?.masteryStats?.[stageKey] ||
-    {};
-
-  const ciStats = getStageDisplayStats(template, stageCard, targetStage);
-
-  // IMPORTANT:
-  // Untuk LZS, jangan ambil stageCard.atk/hp/speed dulu.
-  // stageCard bisa masih bawa top-level M1 dari hydrateCard.
-  // Jadi prioritas wajib stage-specific: form M1/M2/M3 -> stageStats.Mx -> explicit atkM2/atkM3 -> baru fallback.
-  const atk = pickPositiveNumber(
-    form?.atk,
-    form?.baseAtk,
-    form?.displayAtk,
-    form?.combatAtk,
-    form?.finalAtk,
-    stageStats?.atk,
-    stageStats?.baseAtk,
-    stageStats?.displayAtk,
-    stageStats?.combatAtk,
-    stageStats?.finalAtk,
-    template?.[`atk${stageKey}`],
-    template?.[`baseAtk${stageKey}`],
-    stageCard?.[`atk${stageKey}`],
-    stageCard?.[`baseAtk${stageKey}`],
-    ciStats?.atk,
-    stageCard?.displayAtk,
-    stageCard?.combatAtk,
-    stageCard?.finalAtk,
-    stageCard?.baseAtk,
-    stageCard?.atk,
-    template?.displayAtk,
-    template?.combatAtk,
-    template?.finalAtk,
-    template?.baseAtk,
-    template?.atk
-  );
-
-  const hp = pickPositiveNumber(
-    form?.hp,
-    form?.baseHp,
-    form?.displayHp,
-    form?.combatHp,
-    form?.finalHp,
-    stageStats?.hp,
-    stageStats?.baseHp,
-    stageStats?.displayHp,
-    stageStats?.combatHp,
-    stageStats?.finalHp,
-    template?.[`hp${stageKey}`],
-    template?.[`baseHp${stageKey}`],
-    stageCard?.[`hp${stageKey}`],
-    stageCard?.[`baseHp${stageKey}`],
-    ciStats?.hp,
-    stageCard?.displayHp,
-    stageCard?.combatHp,
-    stageCard?.finalHp,
-    stageCard?.baseHp,
-    stageCard?.hp,
-    template?.displayHp,
-    template?.combatHp,
-    template?.finalHp,
-    template?.baseHp,
-    template?.hp
-  );
-
-  const speed = pickPositiveNumber(
-    form?.speed,
-    form?.spd,
-    form?.baseSpeed,
-    form?.displaySpeed,
-    form?.combatSpeed,
-    form?.finalSpeed,
-    stageStats?.speed,
-    stageStats?.spd,
-    stageStats?.baseSpeed,
-    stageStats?.displaySpeed,
-    stageStats?.combatSpeed,
-    stageStats?.finalSpeed,
-    template?.[`speed${stageKey}`],
-    template?.[`spd${stageKey}`],
-    template?.[`baseSpeed${stageKey}`],
-    stageCard?.[`speed${stageKey}`],
-    stageCard?.[`spd${stageKey}`],
-    stageCard?.[`baseSpeed${stageKey}`],
-    ciStats?.speed,
-    stageCard?.displaySpeed,
-    stageCard?.combatSpeed,
-    stageCard?.finalSpeed,
-    stageCard?.baseSpeed,
-    stageCard?.speed,
-    stageCard?.spd,
-    template?.displaySpeed,
-    template?.combatSpeed,
-    template?.finalSpeed,
-    template?.baseSpeed,
-    template?.speed,
-    template?.spd
-  );
-
-  const power = pickPositiveNumber(
-    form?.currentPower,
-    form?.power,
-    form?.basePower,
-    form?.finalPower,
-    form?.powerCaps?.[stageKey],
-    stageStats?.currentPower,
-    stageStats?.power,
-    stageStats?.basePower,
-    stageStats?.finalPower,
-    stageStats?.powerCaps?.[stageKey],
-    template?.powerCaps?.[stageKey],
-    stageCard?.powerCaps?.[stageKey],
-    ciStats?.power,
-    stageCard?.currentPower,
-    stageCard?.power,
-    stageCard?.finalPower,
-    stageCard?.basePower,
-    template?.currentPower,
-    template?.power,
-    template?.finalPower,
-    template?.basePower
-  );
-
-  return {
-    stageCard,
-    form,
-    atk,
-    hp,
-    speed,
-    power,
-    weapon:
+  if (type === "weapon") {
+    return (
       form?.weaponSet ||
       form?.weapon ||
-      stageCard?.weaponSet ||
-      stageCard?.weapon ||
-      template?.weaponSet ||
-      template?.weapon ||
-      "None",
-    devilFruit:
-      form?.devilFruitName ||
-      form?.devilFruit ||
-      stageCard?.devilFruit ||
-      stageCard?.displayFruitName ||
-      template?.devilFruitName ||
-      template?.devilFruit ||
-      "None",
-  };
+      sourceStageCard?.weaponSet ||
+      sourceStageCard?.weapon ||
+      sourceTemplate?.weaponSet ||
+      sourceTemplate?.weapon ||
+      "None"
+    );
+  }
+
+  return (
+    form?.devilFruitName ||
+    form?.devilFruit ||
+    sourceStageCard?.displayFruitName ||
+    sourceStageCard?.devilFruit ||
+    sourceTemplate?.devilFruitName ||
+    sourceTemplate?.devilFruit ||
+    "None"
+  );
 }
 
-function buildCiLzsFromCiBattleStats(stage = 1) {
+function buildCiLzsFromSourceStats(stage = 1) {
   const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
-  const stageKey = `M${targetStage}`;
+  const stageKey = getStageKey(targetStage);
   const template = findTemplateByCodeForCi("lzs") || {};
-  const form = getCiStageForm(template, targetStage) || {};
+  const form = getStageForm(template, targetStage);
 
   const sourceRows = LZS_SOURCE_CODES.map((code) => {
     const sourceTemplate = findTemplateByCodeForCi(code) || {};
-    const sourceStats = getStageSpecificSourceStatsForLzs(sourceTemplate, targetStage);
+    const sourceStageCard = getStageCard(sourceTemplate, targetStage);
+    const stats = getStageDisplayStats(sourceTemplate, sourceStageCard, targetStage);
 
     return {
       code,
       template: sourceTemplate,
-      ...sourceStats,
+      stageCard: sourceStageCard,
+      atk: Number(stats.atk || 0),
+      hp: Number(stats.hp || 0),
+      speed: Number(stats.speed || 0),
+      power: Number(stats.power || 0),
+      weapon: getSourceTextFromStage(sourceTemplate, sourceStageCard, targetStage, "weapon"),
+      devilFruit: getSourceTextFromStage(sourceTemplate, sourceStageCard, targetStage, "fruit"),
     };
   });
 
   const mergedAtk = Math.floor(
-    sourceRows.reduce((sum, source) => sum + Number(source.atk || 0) * 0.3, 0)
+    sourceRows.reduce((sum, source) => sum + Number(source.atk || 0) * LZS_MERGE_RATIO, 0)
   );
 
   const mergedHp = Math.floor(
-    sourceRows.reduce((sum, source) => sum + Number(source.hp || 0) * 0.3, 0)
+    sourceRows.reduce((sum, source) => sum + Number(source.hp || 0) * LZS_MERGE_RATIO, 0)
   );
 
   const mergedSpeed = Math.floor(
-    sourceRows.reduce((sum, source) => sum + Number(source.speed || 0) * 0.3, 0)
-  );
-
-  const mergedPower = Math.floor(
-    sourceRows.reduce((sum, source) => sum + Number(source.power || 0) * 0.3, 0)
+    sourceRows.reduce((sum, source) => sum + Number(source.speed || 0) * LZS_MERGE_RATIO, 0)
   );
 
   const weapon = joinUniqueCiText(sourceRows.map((source) => source.weapon));
@@ -711,8 +594,10 @@ function buildCiLzsFromCiBattleStats(stage = 1) {
 
     summonOnly: true,
     mergeOnly: true,
+    canPull: false,
+    canPA: false,
     mergeSourceCodes: LZS_SOURCE_CODES,
-    mergeStatRatio: 0.3,
+    mergeStatRatio: LZS_MERGE_RATIO,
 
     evolutionStage: targetStage,
     evolutionKey: stageKey,
@@ -736,13 +621,14 @@ function buildCiLzsFromCiBattleStats(stage = 1) {
     combatSpeed: mergedSpeed,
     finalSpeed: mergedSpeed,
 
-    power: mergedPower,
-    basePower: mergedPower,
-    currentPower: mergedPower,
-    finalPower: mergedPower,
+    power: LZS_FIXED_POWER,
+    basePower: LZS_FIXED_POWER,
+    currentPower: LZS_FIXED_POWER,
+    finalPower: LZS_FIXED_POWER,
     powerCaps: {
-      ...(template.powerCaps || {}),
-      [stageKey]: mergedPower,
+      M1: LZS_FIXED_POWER,
+      M2: LZS_FIXED_POWER,
+      M3: LZS_FIXED_POWER,
     },
 
     weapon,
@@ -853,14 +739,6 @@ function formatReqEntry(entry) {
   return `${name} M${stage}`;
 }
 
-function getStageCard(card, stage) {
-  return hydrateCard({
-    ...card,
-    evolutionStage: stage,
-    evolutionKey: `M${stage}`,
-  });
-}
-
 const AWAKEN_GEMS_COST_BY_BASE_TIER = {
   S: {
     2: 750,
@@ -918,13 +796,8 @@ function getAwakenCostBaseTier(card, stageCard) {
 
   const tier = String(tierCandidates.find(Boolean) || "C").toUpperCase();
 
-  if (tier === "UR" || tier === "SS") {
-    return "S";
-  }
-
-  if (["S", "A", "B", "C"].includes(tier)) {
-    return tier;
-  }
+  if (tier === "UR" || tier === "SS") return "S";
+  if (["S", "A", "B", "C"].includes(tier)) return tier;
 
   return "C";
 }
@@ -970,10 +843,6 @@ function getStageBadge(card, stageCard, stage) {
   );
 }
 
-function getStageLabel(stage) {
-  return `M${Number(stage || 1)}`;
-}
-
 function isBadSpecialFormName(value) {
   const text = String(value || "").trim().toLowerCase();
   return !text || ["base", "m1", "m2", "m3", "unknown form"].includes(text);
@@ -1007,14 +876,6 @@ function getSpecialFormName(card, stageCard, form, stage) {
   return found || getStageLabel(stage);
 }
 
-function normalizeCompare(value) {
-  return String(value || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
-}
-
 function getOwnedEvolutionStage(item) {
   if (!item) return 1;
 
@@ -1025,9 +886,7 @@ function getOwnedEvolutionStage(item) {
   const evoKey = String(item.evolutionKey || item.form || item.stage || "").toUpperCase();
   const matched = evoKey.match(/M([123])/);
 
-  if (matched) {
-    return Number(matched[1]);
-  }
+  if (matched) return Number(matched[1]);
 
   return 1;
 }
@@ -1283,13 +1142,6 @@ function buildRequiredForEmbed(card, stage) {
     });
 }
 
-function normalizeRequirementCode(value) {
-  return String(value || "")
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, "_");
-}
-
 function getCanonLinksForCard(card) {
   const links = cardsData.CANON_LINKS || cardsData.canon_links || cardsData.canonLinks || {};
   const keys = [
@@ -1420,7 +1272,6 @@ function normalizeMergeRequirementForCi(card, stage, req) {
   if (!isGenericMergeCardForCi(card)) return req;
 
   const nextStage = Number(stage || 1);
-
   if (nextStage < 2) return req;
 
   const baseReq = req || {};
@@ -1449,13 +1300,9 @@ function buildReqEmbed(card, stage, player) {
   const isLzs = isLzsCard(card);
 
   if (isLzs) {
-    card = buildMergedLzsCard(player || { cards: [] }, card, stage, {
-      templateOnly: true,
-      sourceStage: stage,
-      displayStage: stage,
-      displayLevel: stage === 1 ? 50 : stage === 2 ? 85 : 100,
-    });
+    card = buildCiLzsFromSourceStats(stage);
   }
+
   const stageCard = getStageCard(card, stage);
   const isMergeCard = isGenericMergeCardForCi(card);
 
@@ -1610,12 +1457,7 @@ function buildEmbed(card, owned, stage, player = null) {
   const isLzs = isLzsCard(card) || isLzsCard(owned);
 
   if (isLzs) {
-    card = buildMergedLzsCard(player || { cards: [] }, card, stage, {
-      templateOnly: true,
-      sourceStage: stage,
-      displayStage: stage,
-      displayLevel: stage === 1 ? 50 : stage === 2 ? 85 : 100,
-    });
+    card = buildCiLzsFromSourceStats(stage);
     owned = card;
   }
 
@@ -1633,7 +1475,7 @@ function buildEmbed(card, owned, stage, player = null) {
     ? getCiLzsDisplayStats(stageCard)
     : getStageDisplayStats(card, stageCard, stage);
 
-  const statSource = displayStats.source || card;
+  const statSource = displayStats.source || stageCard || card;
 
   if (isRoadPoneglyphCard(stageCard)) {
     stageCard.effectText = getRoadPoneglyphEffect(stage);
@@ -1790,12 +1632,7 @@ module.exports = {
 
       const freshPlayer = getPlayer(message.author.id, message.author.username);
       const freshOwned = isLzsCard(globalCard)
-        ? buildMergedLzsCard(freshPlayer || { cards: [] }, globalCard, stage, {
-            templateOnly: true,
-            sourceStage: stage,
-            displayStage: stage,
-            displayLevel: stage === 1 ? 50 : stage === 2 ? 85 : 100,
-          })
+        ? buildCiLzsFromSourceStats(stage)
         : findOwnedCard(freshPlayer.cards || [], query);
 
       return i.update({
