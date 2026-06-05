@@ -288,14 +288,28 @@ function cleanFragmentBaseName(name) {
     .trim();
 }
 
-function buildCardFragmentEntry(catalogEntry, amount) {
-  const baseName = catalogEntry.displayName || catalogEntry.name || catalogEntry.code || "Unknown";
+function getFragmentRarityFromCatalog(catalogEntry) {
+  const rarity = String(
+    catalogEntry?.currentTier ||
+      catalogEntry?.tier ||
+      catalogEntry?.rarity ||
+      catalogEntry?.baseTier ||
+      catalogEntry?.baseRarity ||
+      "C"
+  ).toUpperCase();
 
+  if (["C", "B", "A", "S", "SS", "UR", "M"].includes(rarity)) {
+    return rarity;
+  }
+
+  return "C";
+}
+
+function buildCardFragmentEntry(catalogEntry, amount) {
   return {
-    name: baseName,
-    displayName: baseName,
+    name: catalogEntry.displayName || catalogEntry.name || catalogEntry.code,
     amount,
-    rarity: catalogEntry.baseTier || catalogEntry.rarity || "C",
+    rarity: getFragmentRarityFromCatalog(catalogEntry),
     category: catalogEntry.cardRole === "boost" ? "boost" : "battle",
     code: catalogEntry.code,
     cardCode: catalogEntry.code,
