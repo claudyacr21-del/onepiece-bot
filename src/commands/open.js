@@ -39,6 +39,34 @@ function addOrIncrease(list, item) {
   return arr;
 }
 
+function moveMisplacedConsumablesToItems(state) {
+  const nextState = {
+    ...state,
+    materials: [...(state.materials || [])],
+    items: [...(state.items || [])],
+  };
+
+  const misplacedCodes = new Set(["rum_beer", "universal_random"]);
+
+  const remainingMaterials = [];
+
+  for (const material of nextState.materials) {
+    const code = String(material?.code || "").toLowerCase();
+
+    if (misplacedCodes.has(code)) {
+      nextState.items = addOrIncrease(nextState.items, {
+        ...material,
+        type: material.type || "Consumable",
+      });
+    } else {
+      remainingMaterials.push(material);
+    }
+  }
+
+  nextState.materials = remainingMaterials;
+  return nextState;
+}
+
 function addRewardLine(rewardMap, label, amount) {
   const current = Number(rewardMap.get(label) || 0);
   rewardMap.set(label, current + Number(amount || 0));
@@ -109,7 +137,11 @@ function getOwnedItemAmount(player, itemCode) {
     .filter((entry) => String(entry.code || "").toLowerCase() === code)
     .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
 
-  return Math.max(0, itemAmount + ticketAmount);
+  const materialAmount = (Array.isArray(player.materials) ? player.materials : [])
+    .filter((entry) => String(entry.code || "").toLowerCase() === code)
+    .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+  return Math.max(0, itemAmount + ticketAmount + materialAmount);
 }
 
 function removeItemFromList(list, code, amount) {
@@ -147,11 +179,15 @@ function removeOwnedOpenableItem(state, code, amount) {
   const ticketRemove = removeItemFromList(state.tickets || [], code, left);
   left = ticketRemove.missing;
 
+  const materialRemove = removeItemFromList(state.materials || [], code, left);
+  left = materialRemove.missing;
+
   if (left > 0) return null;
 
   return {
     items: itemRemove.list,
     tickets: ticketRemove.list,
+    materials: materialRemove.list,
   };
 }
 
@@ -254,6 +290,30 @@ function isUniversalFragment(item) {
   );
 }
 
+function getRewardStorageKey(item) {
+  const type = String(item?.type || "").toLowerCase();
+  const code = String(item?.code || "").toLowerCase();
+
+  if (type === "material") return "materials";
+  if (type === "ticket") return "tickets";
+  if (type === "fragment") return "fragments";
+  if (type === "box") return "boxes";
+
+  if (type === "consumable") return "items";
+
+  if (code === "pull_reset_ticket") return "tickets";
+
+  if (
+    code === "rum_beer" ||
+    code === "universal_random" ||
+    code.startsWith("universal_")
+  ) {
+    return "items";
+  }
+
+  return "items";
+}
+
 function grantRewardItem(state, rewardMap, item, qty, boxAmount) {
   if (!item) return state;
 
@@ -263,7 +323,7 @@ function grantRewardItem(state, rewardMap, item, qty, boxAmount) {
   const reward = normalizeRewardItem(item, totalAmount);
   const type = getRewardType(reward);
 
-  const nextState = {
+  let nextState = {
     ...state,
     materials: [...(state.materials || [])],
     items: [...(state.items || [])],
@@ -272,11 +332,7 @@ function grantRewardItem(state, rewardMap, item, qty, boxAmount) {
     boxes: [...(state.boxes || [])],
   };
 
-  if (type === "material") {
-    nextState.materials = addOrIncrease(nextState.materials, reward);
-  } else if (type === "ticket") {
-    nextState.tickets = addOrIncrease(nextState.tickets, reward);
-  } else if (type === "fragment") {
+  if (type === "fragment") {
     if (isUniversalFragment(reward)) {
       nextState.items = addOrIncrease(nextState.items, {
         ...reward,
@@ -289,19 +345,33 @@ function grantRewardItem(state, rewardMap, item, qty, boxAmount) {
         category: reward.category || "fragment",
       });
     }
-  } else if (type === "box") {
+
+    addRewardLine(rewardMap, reward.name || "Unknown Reward", totalAmount);
+    return moveMisplacedConsumablesToItems(nextState);
+  }
+
+  const storageKey = getRewardStorageKey(reward);
+
+  if (storageKey === "materials") {
+    nextState.materials = addOrIncrease(nextState.materials, reward);
+  } else if (storageKey === "tickets") {
+    nextState.tickets = addOrIncrease(nextState.tickets, reward);
+  } else if (storageKey === "boxes") {
     nextState.boxes = addOrIncrease(nextState.boxes, reward);
   } else {
-    nextState.items = addOrIncrease(nextState.items, reward);
+    nextState.items = addOrIncrease(nextState.items, {
+      ...reward,
+      type: reward.type || "Consumable",
+    });
   }
 
   addRewardLine(rewardMap, reward.name || "Unknown Reward", totalAmount);
-
-  return nextState;
+  return moveMisplacedConsumablesToItems(nextState);
 }
 
 function addRandomUniversalFragment(state, rewardMap, pool, qty, boxAmount) {
   const list = (Array.isArray(pool) ? pool : []).filter(Boolean);
+
   if (!list.length) return state;
 
   const picked = list[Math.floor(Math.random() * list.length)];
@@ -435,7 +505,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     return null;
   }
 
-  return nextState;
+  return moveMisplacedConsumablesToItems(nextState);
 }
 
 function grantOpenableItemRewards(item, amount, state, rewardMap) {
@@ -452,6 +522,7 @@ function grantOpenableItemRewards(item, amount, state, rewardMap) {
   if (item.code === "universal_random") {
     for (let i = 0; i < amount; i++) {
       const reward = pickUniversalRandomReward();
+
       nextState = grantRewardItem(
         nextState,
         rewardMap,
@@ -464,7 +535,7 @@ function grantOpenableItemRewards(item, amount, state, rewardMap) {
       );
     }
 
-    return nextState;
+    return moveMisplacedConsumablesToItems(nextState);
   }
 
   return null;
@@ -475,11 +546,11 @@ function formatRewardLines(rewardMap) {
 
   for (const [name, amount] of rewardMap.entries()) {
     if (name === "Berries") {
-      lines.push(`💰 Berries +${Number(amount || 0).toLocaleString("en-US")}`);
+      lines.push(` Berries +${Number(amount || 0).toLocaleString("en-US")}`);
     } else if (name === "Gems") {
-      lines.push(`💎 Gems +${Number(amount || 0).toLocaleString("en-US")}`);
+      lines.push(` Gems +${Number(amount || 0).toLocaleString("en-US")}`);
     } else {
-      lines.push(`📦 ${name} x${Number(amount || 0).toLocaleString("en-US")}`);
+      lines.push(` ${name} x${Number(amount || 0).toLocaleString("en-US")}`);
     }
   }
 
@@ -497,9 +568,9 @@ module.exports = {
       return message.reply(
         [
           "Usage:",
-          "`op open <box/item name>`",
-          "`op open <box/item name> <amount>`",
-          "`op open <box/item name> all`",
+          "`op open <box name>`",
+          "`op open <box name> <amount>`",
+          "`op open <box name> all`",
           "",
           "Examples:",
           "`op open rare`",
@@ -549,7 +620,13 @@ module.exports = {
         updatePlayerAtomic(
           message.author.id,
           (fresh) => {
-            const freshOwnedAmount = getOwnedItemAmount(fresh, openableItem.code);
+            const fixedFresh = moveMisplacedConsumablesToItems({
+              ...fresh,
+              materials: [...(fresh.materials || [])],
+              items: [...(fresh.items || [])],
+            });
+
+            const freshOwnedAmount = getOwnedItemAmount(fixedFresh, openableItem.code);
 
             if (freshOwnedAmount <= 0) {
               throw new Error(`You do not own **${openableItem.name}**.`);
@@ -563,8 +640,9 @@ module.exports = {
 
             const removedState = removeOwnedOpenableItem(
               {
-                items: [...(fresh.items || [])],
-                tickets: [...(fresh.tickets || [])],
+                items: [...(fixedFresh.items || [])],
+                tickets: [...(fixedFresh.tickets || [])],
+                materials: [...(fixedFresh.materials || [])],
               },
               openableItem.code,
               openAmount
@@ -578,13 +656,13 @@ module.exports = {
               openableItem,
               openAmount,
               {
-                materials: [...(fresh.materials || [])],
+                materials: removedState.materials,
                 items: removedState.items,
                 tickets: removedState.tickets,
-                fragments: [...(fresh.fragments || [])],
-                boxes: [...(fresh.boxes || [])],
-                berries: Number(fresh.berries || 0),
-                gems: Number(fresh.gems || 0),
+                fragments: [...(fixedFresh.fragments || [])],
+                boxes: [...(fixedFresh.boxes || [])],
+                berries: Number(fixedFresh.berries || 0),
+                gems: Number(fixedFresh.gems || 0),
               },
               rewardMap
             );
@@ -593,10 +671,10 @@ module.exports = {
               throw new Error("This item is not configured yet.");
             }
 
-            const updatedQuests = incrementQuestPayload(fresh, "boxesOpened", openAmount);
+            const updatedQuests = incrementQuestPayload(fixedFresh, "boxesOpened", openAmount);
 
             return {
-              ...fresh,
+              ...fixedFresh,
               boxes: rewardState.boxes,
               materials: rewardState.materials,
               items: rewardState.items,
@@ -619,7 +697,7 @@ module.exports = {
         embeds: [
           new EmbedBuilder()
             .setColor(0x3498db)
-            .setTitle(`📦 Opened ${openableItem.name} x${openAmount}`)
+            .setTitle(` Opened ${openableItem.name} x${openAmount}`)
             .setDescription(
               rewardLines.length ? rewardLines.join("\n") : "No rewards were generated."
             )
@@ -654,7 +732,13 @@ module.exports = {
       updatePlayerAtomic(
         message.author.id,
         (fresh) => {
-          const freshOwnedAmount = getOwnedBoxAmount(fresh.boxes || [], box.code);
+          const fixedFresh = moveMisplacedConsumablesToItems({
+            ...fresh,
+            materials: [...(fresh.materials || [])],
+            items: [...(fresh.items || [])],
+          });
+
+          const freshOwnedAmount = getOwnedBoxAmount(fixedFresh.boxes || [], box.code);
 
           if (freshOwnedAmount <= 0) {
             throw new Error(`You do not own **${box.name}**.`);
@@ -666,7 +750,7 @@ module.exports = {
             );
           }
 
-          const updatedBoxes = removeBoxes(fresh.boxes || [], box.code, openAmount);
+          const updatedBoxes = removeBoxes(fixedFresh.boxes || [], box.code, openAmount);
 
           if (!updatedBoxes) {
             throw new Error(`You do not own enough **${box.name}**.`);
@@ -676,13 +760,13 @@ module.exports = {
             box,
             openAmount,
             {
-              materials: [...(fresh.materials || [])],
-              items: [...(fresh.items || [])],
-              tickets: [...(fresh.tickets || [])],
-              fragments: [...(fresh.fragments || [])],
+              materials: [...(fixedFresh.materials || [])],
+              items: [...(fixedFresh.items || [])],
+              tickets: [...(fixedFresh.tickets || [])],
+              fragments: [...(fixedFresh.fragments || [])],
               boxes: updatedBoxes,
-              berries: Number(fresh.berries || 0),
-              gems: Number(fresh.gems || 0),
+              berries: Number(fixedFresh.berries || 0),
+              gems: Number(fixedFresh.gems || 0),
             },
             rewardMap
           );
@@ -691,10 +775,10 @@ module.exports = {
             throw new Error("This box is not configured yet.");
           }
 
-          const updatedQuests = incrementQuestPayload(fresh, "boxesOpened", openAmount);
+          const updatedQuests = incrementQuestPayload(fixedFresh, "boxesOpened", openAmount);
 
           return {
-            ...fresh,
+            ...fixedFresh,
             boxes: rewardState.boxes,
             materials: rewardState.materials,
             items: rewardState.items,
@@ -717,7 +801,7 @@ module.exports = {
       embeds: [
         new EmbedBuilder()
           .setColor(0x3498db)
-          .setTitle(`📦 Opened ${box.name} x${openAmount}`)
+          .setTitle(` Opened ${box.name} x${openAmount}`)
           .setDescription(
             rewardLines.length ? rewardLines.join("\n") : "No rewards were generated."
           )
