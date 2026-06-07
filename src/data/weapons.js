@@ -32,7 +32,7 @@ module.exports = [
     owners: ["roger_king_of_the_pirates"],
     type: "Supreme Grade Sword",
     statPercent: { atk: 7, hp: 5, speed: 3 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "Roger's legendary saber."
   },
@@ -43,7 +43,7 @@ module.exports = [
     owners: ["oden"],
     type: "Great Grade Sword",
     statPercent: { atk: 7, hp: 5, speed: 3 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "One of Oden's legendary swords."
   },
@@ -76,7 +76,7 @@ module.exports = [
     owners: ["usopp_sniper"],
     type: "Ranged Weapon",
     statPercent: { atk: 2, hp: 1, speed: 1 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 3, hp: 3, speed: 2 },
     image: "",
     description: "A simple but reliable slingshot."
   },
@@ -87,7 +87,7 @@ module.exports = [
     owners: ["nami_cat_burglar"],
     type: "Staff",
     statPercent: { atk: 2, hp: 1, speed: 1 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 3, hp: 3, speed: 2 },
     image: "",
     description: "A basic staff used for agile support combat."
   },
@@ -98,7 +98,7 @@ module.exports = [
     owners: ["sentomaru"],
     type: "Axe",
     statPercent: { atk: 5, hp: 3, speed: 2 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "A heavy axe built for defense and impact."
   },
@@ -142,7 +142,7 @@ module.exports = [
     owners: ["sanji_black_leg"],
     type: "Combat Boots",
     statPercent: { atk: 5, hp: 3, speed: 2 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "High-performance shoes used for devastating kicking techniques."
   },
@@ -153,7 +153,7 @@ module.exports = [
     owners: ["wyper_shandian_warrior"],
     type: "Bazooka",
     statPercent: { atk: 5, hp: 3, speed: 2 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "A powerful bazooka fueled by dials."
   },
@@ -186,7 +186,7 @@ module.exports = [
     owners: ["kuro_hundred_plans"],
     type: "Claws",
     statPercent: { atk: 3, hp: 2, speed: 1 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 3, hp: 3, speed: 2 },
     image: "",
     description: "Deadly claw blades built for assassination."
   },
@@ -208,7 +208,7 @@ module.exports = [
     owners: ["sabo_flame_emperor"],
     type: "Gloves",
     statPercent: { atk: 6, hp: 4, speed: 3 },
-    ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
+    ownerBonusPercent: { atk: 2, hp: 2, speed: 2 },
     image: "",
     description: "Martial gloves for the Dragon Claw technique."
   },
@@ -230,7 +230,7 @@ module.exports = [
     owners: ["xebec_captain_of_rocks"],
     type: "Legendary Blade",
     statPercent: { atk: 7, hp: 5, speed: 3 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "A terrifying blade fit for the captain of the Rocks Pirates."
   },
@@ -241,7 +241,7 @@ module.exports = [
     owners: ["oden", "zoro_pirate_hunter"],
     type: "Great Grade Sword",
     statPercent: { atk: 7, hp: 5, speed: 3 },
-    ownerBonusPercent: { atk: 2, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 3, hp: 3, speed: 2 },
     image: "",
     description: "A blade that draws out its wielder's haki."
   },
@@ -252,7 +252,7 @@ module.exports = [
     owners: ["jinbe_first_son_of_the_sea"],
     type: "Martial Art",
     statPercent: { atk: 5, hp: 3, speed: 2 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "A close-range martial art using water shockwaves."
   },
@@ -263,7 +263,7 @@ module.exports = [
     owners: ["garp_hero_of_the_marines"],
     type: "Martial Art",
     statPercent: { atk: 7, hp: 5, speed: 3 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "Pure overwhelming fist power."
   },
@@ -274,7 +274,7 @@ module.exports = [
     owners: ["saul"],
     type: "Martial Art",
     statPercent: { atk: 5, hp: 3, speed: 2 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "The overwhelming force of a giant's fists."
   },
@@ -318,7 +318,7 @@ module.exports = [
     owners: ["franky_cyborg"],
     type: "Cyborg Arsenal",
     statPercent: { atk: 5, hp: 3, speed: 2 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Heavy battle arsenal built into General Franky."
   },
@@ -329,7 +329,7 @@ module.exports = [
     owners: ["shanks_red_hair"],
     type: "Sword",
     statPercent: { atk: 7, hp: 5, speed: 3 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "Shanks's signature saber."
   },
@@ -395,7 +395,7 @@ module.exports = [
     owners: ["arlong_saw"],
     type: "Saw Blade",
     statPercent: { atk: 5, hp: 3, speed: 2 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "Arlong's signature serrated weapon."
   },
@@ -417,7 +417,7 @@ module.exports = [
     owners: ["yasopp"],
     type: "Rifle",
     statPercent: { atk: 6, hp: 4, speed: 3 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "A deadeye long rifle."
   },
@@ -428,7 +428,7 @@ module.exports = [
     owners: ["rayleigh_dark_king"],
     type: "Sword",
     statPercent: { atk: 7, hp: 5, speed: 3 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "A perfectly balanced sword of a master."
   },
@@ -516,7 +516,7 @@ module.exports = [
     owners: ["garling"],
     type: "Saber",
     statPercent: { atk: 6, hp: 4, speed: 3 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "A refined saber used by Holy Knights."
   },
@@ -582,7 +582,7 @@ module.exports = [
     owners: ["hatchan_six_sword_style"],
     type: "Fixed Multi-Sword Set",
     statPercent: { atk: 3, hp: 3, speed: 2 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 3, hp: 3, speed: 2 },
     image: "",
     description: "Hatchan's fixed six-sword fighting style.",
   },
@@ -670,7 +670,7 @@ module.exports = [
     owners: ["mihawk_hawk_eyes"],
     type: "Black Blade",
     statPercent: { atk: 7, hp: 5, speed: 3 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "The strongest black blade in the world."
   },
@@ -681,7 +681,7 @@ module.exports = [
     owners: ["hody_jones"],
     type: "Trident",
     statPercent: { atk: 5, hp: 3, speed: 2 },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 5, hp: 4, speed: 3 },
     image: "",
     description: "A brutal trident used by Hody Jones in close-range domination and piercing attacks."
   },
@@ -692,7 +692,7 @@ module.exports = [
     owners: ["kid_captain"],
     type: "Mechanical Arm",
     statPercent: { atk: 6, hp: 4, speed: 3, },
-    ownerBonusPercent: { atk: 3, hp: 2, speed: 1, },
+    ownerBonusPercent: { atk: 3, hp: 2, speed: 1 },
     image: "",
     description: "Eustass Kid's magnetic metal arm, assembled with the Jiki Jiki no Mi for crushing close-range attacks.",
   },
