@@ -169,6 +169,48 @@ function getFruitDataForBoostCard(card) {
   );
 }
 
+function isBaccaratFruitData(fruit) {
+  const values = [
+    fruit?.code,
+    fruit?.name,
+    fruit?.displayName,
+    fruit?.title,
+  ]
+    .map(normalize)
+    .filter(Boolean);
+
+  return values.some((value) => value.includes("baccarat"));
+}
+
+function hasEquippedBaccaratFruit(card) {
+  if (!card || String(card.cardRole || "").toLowerCase() !== "boost") return false;
+  if (!isBaccaratBoostCard(card)) return false;
+
+  const fruit = getFruitDataForBoostCard(card);
+  return isBaccaratFruitData(fruit);
+}
+
+function getDailyBoostCards(player) {
+  return getBoostCards(player).filter((card) => {
+    if (normalizeBoostType(card.boostType) !== "daily") return false;
+
+    // Baccarat daily reward hanya aktif kalau Baccarat Fruit benar-benar equipped.
+    if (isBaccaratBoostCard(card)) {
+      return hasEquippedBaccaratFruit(card);
+    }
+
+    return true;
+  });
+}
+
+function sumDailyBoost(player) {
+  return getDailyBoostCards(player).reduce((sum, card) => {
+    const value = getEffectiveBoostValue(card);
+    const amount = getBoostAmount(card);
+    return sum + value * amount;
+  }, 0);
+}
+
 function getBoostFruitGlobalBonus(card) {
   if (!card || String(card.cardRole || "").toLowerCase() !== "boost") {
     return {
@@ -364,9 +406,7 @@ function getPassiveBoostSummary(player) {
   const boostCards = getBoostCards(player);
   const uniqueBoostCards = getUniqueBoostCards(player);
   const highestPullChance = getHighestBoost(boostCards, "pullChance");
-  const dailyCards = boostCards.filter(
-    (card) => normalizeBoostType(card.boostType) === "daily"
-  );
+  const dailyCards = getDailyBoostCards(player);
   const fruitGlobalBoosts = sumBoostFruitGlobalBonuses(boostCards);
 
   return {
@@ -395,7 +435,7 @@ function getPassiveBoostSummary(player) {
     pullChance: highestPullChance ? getEffectiveBoostValue(highestPullChance) : 0,
     pullChanceCard: highestPullChance || null,
 
-    daily: sumBoost(boostCards, "daily"),
+    daily: sumDailyBoost(player),
     dailyCards,
     dailyCard: dailyCards.length ? dailyCards[0] : null,
 
@@ -427,4 +467,7 @@ module.exports = {
   formatBoostValue,
   buildBoostEffectLines,
   getBoostAmount,
+  hasEquippedBaccaratFruit,
+  getDailyBoostCards,
+  sumDailyBoost,
 };
