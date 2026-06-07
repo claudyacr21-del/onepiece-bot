@@ -7,7 +7,7 @@ const {
 } = require("discord.js");
 
 const { getPlayer, updateTwoPlayersAtomic } = require("../playerStore");
-
+const rawCards = require("../data/cards");
 const SESSION_MS = 10 * 60 * 1000;
 const MAX_ITEMS = 5;
 
@@ -154,9 +154,8 @@ function fmtResolvedEntry(entry) {
     return `${entry.amount.toLocaleString("en-US")} berries`;
   }
 
-  if (entry.kind === "stack" && entry.store === "fragments") {
-    const label = getFragmentCategoryLabel(entry.fragmentCategory || "");
-    return `${entry.displayName || entry.code} (${label}) x${entry.amount}`;
+  if (entry.kind === "cardFragment") {
+    return `${entry.displayName || "Card Fragment"} x${entry.amount}`;
   }
 
   return `${entry.displayName || entry.code} x${entry.amount}`;
@@ -304,6 +303,228 @@ function getStackFields(entry) {
     entry?.sourceCode,
     entry?.sourceType,
   ];
+}
+
+function isExplicitWeaponFragmentQuery(query) {
+  const code = slug(query);
+  const text = normalize(query);
+
+  return (
+    code.endsWith("_weapon") ||
+    code.includes("_weapon_") ||
+    text.endsWith(" weapon") ||
+    text.includes(" weapon ")
+  );
+}
+
+function isExplicitScrollFragmentQuery(query) {
+  const code = slug(query);
+  const text = normalize(query);
+
+  return (
+    code.endsWith("_scroll") ||
+    code.includes("_scroll_") ||
+    code.endsWith("_boost") ||
+    code.includes("_boost_") ||
+    text.endsWith(" scroll") ||
+    text.includes(" scroll ") ||
+    text.endsWith(" boost") ||
+    text.includes(" boost ")
+  );
+}
+
+function isExplicitNonCardFragmentQuery(query) {
+  return isExplicitWeaponFragmentQuery(query) || isExplicitScrollFragmentQuery(query);
+}
+
+function findCardTemplateForFragmentQuery(query) {
+  if (isExplicitNonCardFragmentQuery(query)) return null;
+
+  const scored = (Array.isArray(rawCards) ? rawCards : [])
+    .map((card) => ({
+      card,
+      score: scoreQuery(query, [
+        card?.code,
+        card?.name,
+        card?.displayName,
+        card?.title,
+      ]),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored.length ? scored[0].card : null;
+}
+
+function isWeaponFragmentEntry(entry) {
+  const code = slug(entry?.code || "");
+  const name = normalize(entry?.name || entry?.displayName || "");
+
+  return (
+    Boolean(entry?.weaponCode || entry?.sourceWeaponCode) ||
+    code.startsWith("weapon_fragment_") ||
+    code.includes("_weapon_fragment") ||
+    name.includes("weapon fragment")
+  );
+}
+
+function isScrollFragmentEntry(entry) {
+  const code = slug(entry?.code || "");
+  const name = normalize(entry?.name || entry?.displayName || "");
+  const type = normalize(entry?.type || entry?.category || "");
+
+  return (
+    Boolean(entry?.boostCode || entry?.scrollCode || entry?.sourceBoostCode) ||
+    code.includes("scroll") ||
+    code.includes("boost") ||
+    name.includes("scroll") ||
+    name.includes("boost") ||
+    type.includes("scroll") ||
+    type.includes("boost")
+  );
+}
+
+function getCardFragmentMatchKeys(card) {
+  const code = slug(card?.code || "");
+  const name = normalize(card?.name || "");
+  const displayName = normalize(card?.displayName || "");
+  const title = normalize(card?.title || "");
+
+  return [code, name, displayName, title].filter(Boolean);
+}
+
+function isCardFragmentEntryForTemplate(entry, card) {
+  if (!entry || !card) return false;
+
+  // Card fragment normal tidak boleh ketarik weapon/scroll.
+  if (isWeaponFragmentEntry(entry) || isScrollFragmentEntry(entry)) return false;
+
+  const cardKeys = getCardFragmentMatchKeys(card);
+  if (!cardKeys.length) return false;
+
+  const entryCode = slug(entry?.code || "");
+  const entryName = normalize(entry?.name || entry?.displayName || entry?.title || "");
+  const entryCardCode = slug(
+    entry?.cardCode ||
+      entry?.sourceCode ||
+      entry?.characterCode ||
+      entry?.sourceCardCode ||
+      entry?.targetCode ||
+      ""
+  );
+
+  return cardKeys.some((key) => {
+    const keySlug = slug(key);
+    const keyText = normalize(key);
+
+    return (
+      entryCode === keySlug ||
+      entryCode === `${keySlug}_fragment` ||
+      entryCode === `fragment_${keySlug}` ||
+      entryCardCode === keySlug ||
+      entryName === keyText ||
+      entryName === `${keyText} fragment` ||
+      entryName.includes(`${keyText} fragment`) ||
+      entryName.includes(keyText)
+    );
+  });
+}
+
+function getCardFragmentMatchesForTrade(fragments, card) {
+  return (Array.isArray(fragments) ? fragments : [])
+    .map((entry, index) => ({
+      entry,
+      index,
+      amount: getStackAmount(entry),
+      score: scoreQuery(card?.displayName || card?.name || card?.code, [
+        entry?.code,
+        entry?.name,
+        entry?.displayName,
+        entry?.cardCode,
+        entry?.sourceCode,
+        entry?.characterCode,
+      ]),
+    }))
+    .filter((hit) => hit.amount > 0 && isCardFragmentEntryForTemplate(hit.entry, card))
+    .sort((a, b) => {
+      const aExact = slug(a.entry?.cardCode || a.entry?.sourceCode || a.entry?.code || "") === slug(card?.code || "") ? 1 : 0;
+      const bExact = slug(b.entry?.cardCode || b.entry?.sourceCode || b.entry?.code || "") === slug(card?.code || "") ? 1 : 0;
+
+      if (bExact !== aExact) return bExact - aExact;
+      if (b.score !== a.score) return b.score - a.score;
+      return a.index - b.index;
+    });
+}
+
+function getCardFragmentTotalForTrade(fragments, card) {
+  return getCardFragmentMatchesForTrade(fragments, card).reduce(
+    (total, hit) => total + Number(hit.amount || 0),
+    0
+  );
+}
+
+function removeCardFragmentsForTrade(fragments, card, amount) {
+  const arr = Array.isArray(fragments) ? [...fragments] : [];
+  let remaining = Number(amount || 0);
+
+  const matches = getCardFragmentMatchesForTrade(arr, card);
+  const totalHave = matches.reduce((total, hit) => total + Number(hit.amount || 0), 0);
+
+  if (totalHave < remaining) {
+    throw new Error(`Not enough ${getDisplayName(card)} Fragment.`);
+  }
+
+  for (const hit of matches) {
+    if (remaining <= 0) break;
+
+    const currentIndex = arr.findIndex((entry) => entry === hit.entry);
+    if (currentIndex < 0) continue;
+
+    const currentAmount = getStackAmount(arr[currentIndex]);
+    const take = Math.min(currentAmount, remaining);
+    const left = currentAmount - take;
+
+    remaining -= take;
+
+    if (left <= 0) {
+      arr.splice(currentIndex, 1);
+    } else {
+      arr[currentIndex] = {
+        ...arr[currentIndex],
+        amount: left,
+      };
+    }
+  }
+
+  return arr;
+}
+
+function resolveCardFragmentEntry(player, entry) {
+  const rawQuery = entry.raw || entry.code;
+  const cardTemplate = findCardTemplateForFragmentQuery(rawQuery);
+  if (!cardTemplate) return null;
+
+  const matches = getCardFragmentMatchesForTrade(player.fragments, cardTemplate);
+  if (!matches.length) return null;
+
+  const totalHave = getCardFragmentTotalForTrade(player.fragments, cardTemplate);
+  const displayName = `${getDisplayName(cardTemplate)} Fragment`;
+
+  if (totalHave < entry.amount) {
+    throw new Error(`${player.username} lacks ${displayName} x${entry.amount}.`);
+  }
+
+  return {
+    kind: "cardFragment",
+    store: "fragments",
+    amount: entry.amount,
+    code: matches[0].entry?.code || `${slug(cardTemplate.code || cardTemplate.name)}_fragment`,
+    query: rawQuery,
+    displayName,
+    cardTemplate,
+    sourceEntry: matches[0].entry,
+    storeLabel: "Fragment",
+  };
 }
 
 function normalizeFragmentCategory(value = "") {
@@ -625,9 +846,16 @@ function resolveEntry(player, entry) {
   }
 
   const normalizedCode = normalizeTradeAliasCode(entry.code || entry.raw);
-
   if (isBlockedTradeItemCode(normalizedCode)) {
     throw new Error(`Item \`${entry.raw || entry.code}\` is untradeable.`);
+  }
+
+  // IMPORTANT:
+  // Franky_55 / Luffy_10 / Zoro_20 default = CARD fragments.
+  // Weapon/scroll fragments must use explicit query like Franky_weapon_55 or Franky_scroll_55.
+  const cardFragmentEntry = resolveCardFragmentEntry(player, entry);
+  if (cardFragmentEntry) {
+    return cardFragmentEntry;
   }
 
   const ticketEntry = resolveTicketEntry(player, entry.code || entry.raw);
@@ -778,15 +1006,20 @@ function consumeResolvedForValidation(player, resolved) {
     return next;
   }
 
+  if (resolved.kind === "cardFragment") {
+    next.fragments = removeCardFragmentsForTrade(
+      next.fragments,
+      resolved.cardTemplate,
+      resolved.amount
+    );
+    return next;
+  }
+
   if (resolved.kind === "stack") {
     next[resolved.store] = removeStack(
       next[resolved.store],
       resolved.query || resolved.code,
-      resolved.amount,
-      {
-        store: resolved.store,
-        fragmentCategory: resolved.fragmentCategory || "",
-      }
+      resolved.amount
     );
     return next;
   }
@@ -860,6 +1093,30 @@ function applyResolvedTrade(from, to, resolved) {
 
       fromNext.berries = num(fromNext.berries) - entry.amount;
       toNext.berries = num(toNext.berries) + entry.amount;
+      continue;
+    }
+
+    if (entry.kind === "cardFragment") {
+      const sourceHit = getCardFragmentMatchesForTrade(fromNext.fragments, entry.cardTemplate)[0];
+
+      if (!sourceHit) {
+        throw new Error(`Missing ${entry.displayName || entry.code} during trade apply.`);
+      }
+
+      const transferPayload = {
+        ...sourceHit.entry,
+        code: sourceHit.entry?.code || entry.code,
+        name: sourceHit.entry?.name || entry.displayName,
+        amount: entry.amount,
+      };
+
+      fromNext.fragments = removeCardFragmentsForTrade(
+        fromNext.fragments,
+        entry.cardTemplate,
+        entry.amount
+      );
+
+      toNext.fragments = addStack(toNext.fragments, transferPayload, entry.amount);
       continue;
     }
 
