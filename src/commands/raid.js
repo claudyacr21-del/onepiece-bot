@@ -501,7 +501,7 @@ function buildRaidCountEmbed(message, countState) {
         "Every time this user creates a raid room, the counter will decrease by 1.",
         "",
         "Tracked commands:",
-        "`op raid`, `op craid`, `op graid`, `op throne`",
+        "`op raid`, `op craid`, `op graid`, `op throne`, `op mraid`",
       ].join("\n")
     );
 }
@@ -1574,6 +1574,14 @@ function getRaidRewardConfig(tier, boss = null, raidMode = null) {
       weaponChance: 35,
       fruitChance: 1,
     },
+    M: {
+      berries: 50000,
+      gems: 40,
+      fragments: 0,
+      universalS: 2,
+      weaponChance: 35,
+      fruitChance: 1,
+    },
   };
 
   return configs[rewardTier] || configs.C;
@@ -1726,6 +1734,94 @@ function pickRandomLinkedRaidItem(db, boss) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
+function isMythicMergeRaid(stateOrMode = {}) {
+ const raidMode = stateOrMode?.raidMode || stateOrMode || {};
+ const ticketCode = String(raidMode?.ticketCode || "").toLowerCase();
+ const modeName = String(raidMode?.modeName || "").toLowerCase();
+
+ return ticketCode === "mythic_raid_ticket" || modeName.includes("mythic");
+}
+
+function getMergeRaidComponentBosses(boss = {}) {
+ const code = String(boss.code || boss.bossCode || boss.cardCode || "").toLowerCase();
+ const name = String(boss.name || boss.bossName || boss.displayName || "").toLowerCase();
+
+ const manual = {
+  lzs: ["luffy", "zoro", "sanji"],
+ };
+
+ const key = code || name.replace(/[^a-z0-9]+/g, "");
+ const mapped = manual[key];
+
+ if (Array.isArray(mapped) && mapped.length) {
+  return mapped.map((componentCode) => ({
+   code: componentCode,
+   bossCode: componentCode,
+   name: componentCode,
+   bossName: componentCode,
+  }));
+ }
+
+ const rawComponents = [
+  ...(Array.isArray(boss.components) ? boss.components : []),
+  ...(Array.isArray(boss.mergeComponents) ? boss.mergeComponents : []),
+  ...(Array.isArray(boss.requiredCards) ? boss.requiredCards : []),
+  ...(Array.isArray(boss.materialCards) ? boss.materialCards : []),
+ ];
+
+ return rawComponents
+  .map((entry) => {
+   if (typeof entry === "string") {
+    return {
+     code: entry,
+     bossCode: entry,
+     name: entry,
+     bossName: entry,
+    };
+   }
+
+   return {
+    code: entry?.code || entry?.cardCode || entry?.id || entry?.name || "",
+    bossCode: entry?.code || entry?.cardCode || entry?.id || entry?.name || "",
+    name: entry?.displayName || entry?.name || entry?.code || "",
+    bossName: entry?.displayName || entry?.name || entry?.code || "",
+   };
+  })
+  .filter((entry) => entry.code || entry.name);
+}
+
+function pickRandomLinkedMergeRaidItem(db, boss) {
+ const components = getMergeRaidComponentBosses(boss);
+ if (!components.length) return pickRandomLinkedRaidItem(db, boss);
+
+ const pool = components.flatMap((component) => findLinkedRaidItems(db, component));
+ if (!pool.length) return null;
+
+ const seen = new Set();
+ const unique = pool.filter((item) => {
+  const key = String(item.code || item.name || "").toLowerCase();
+  if (!key || seen.has(key)) return false;
+  seen.add(key);
+  return true;
+ });
+
+ if (!unique.length) return null;
+ return unique[Math.floor(Math.random() * unique.length)];
+}
+
+function addUniversalSReward(items, amount = 2) {
+ return addAmountEntry(
+  items,
+  {
+   code: "universal_s",
+   name: "Universal S",
+   rarity: "S",
+   type: "universal",
+  },
+  amount
+ );
+}
+
 function addAmountEntry(list, payload, amount = 1) {
   const arr = Array.isArray(list) ? [...list] : [];
   const code = String(payload.code || payload.name || "").toLowerCase();
@@ -1800,8 +1896,14 @@ function giveRaidWinRewards(state) {
   ).toUpperCase();
 
   const config = getRaidRewardConfig(bossTier, boss, state.raidMode);
-  const linkedWeapon = pickRandomLinkedRaidItem(weaponsDb, boss);
-  const linkedFruit = findLinkedRaidItem(devilFruitsDb, boss);
+  const isMergeRaid = isMythicMergeRaid(state);
+  const linkedWeapon = isMergeRaid
+  ? pickRandomLinkedMergeRaidItem(weaponsDb, boss)
+  : pickRandomLinkedRaidItem(weaponsDb, boss);
+
+  const linkedFruit = isMergeRaid
+  ? pickRandomLinkedMergeRaidItem(devilFruitsDb, boss)
+  : findLinkedRaidItem(devilFruitsDb, boss);
   const hostId = String(state.hostId || "");
 
   const rewards = [];
@@ -1816,7 +1918,8 @@ function giveRaidWinRewards(state) {
     const isHost = hostId && userId === hostId;
     const berries = Number(config.berries || 0);
     const gems = Number(config.gems || 0);
-    const fragments = isHost ? Number(config.fragments || 0) : 0;
+    const fragments = isHost && !isMergeRaid ? Number(config.fragments || 0) : 0;
+    const universalS = isHost && isMergeRaid ? Number(config.universalS || 0) : 0;
     const gotWeapon = Boolean(isHost && linkedWeapon && randomChance(config.weaponChance));
     const gotFruit = Boolean(isHost && linkedFruit && randomChance(config.fruitChance));
 
@@ -1828,21 +1931,26 @@ function giveRaidWinRewards(state) {
         username = member.username || fresh.username || "Unknown";
 
         return {
-          ...fresh,
-          berries: Number(fresh.berries || 0) + berries,
-          gems: Number(fresh.gems || 0) + gems,
-          fragments: isHost
-            ? gotWeapon
-              ? addRaidWeaponFragment(
-                  addRaidBossFragment(fresh.fragments, boss, fragments),
-                  linkedWeapon,
-                  1
-                )
-              : addRaidBossFragment(fresh.fragments, boss, fragments)
-            : fresh.fragments,
-          devilFruits: gotFruit
-            ? addRaidFruit(fresh.devilFruits, linkedFruit)
-            : fresh.devilFruits,
+        ...fresh,
+        berries: Number(fresh.berries || 0) + berries,
+        gems: Number(fresh.gems || 0) + gems,
+        fragments: isHost
+          ? gotWeapon
+          ? addRaidWeaponFragment(
+              isMergeRaid
+              ? fresh.fragments
+              : addRaidBossFragment(fresh.fragments, boss, fragments),
+              linkedWeapon,
+              1
+            )
+          : isMergeRaid
+            ? fresh.fragments
+            : addRaidBossFragment(fresh.fragments, boss, fragments)
+          : fresh.fragments,
+          items: isHost && isMergeRaid && universalS > 0
+            ? addUniversalSReward(fresh.items, universalS)
+            : fresh.items,
+        devilFruits: gotFruit ? addRaidFruit(fresh.devilFruits, linkedFruit) : fresh.devilFruits,
         };
       },
       member.username || "Unknown"
@@ -1855,6 +1963,7 @@ function giveRaidWinRewards(state) {
       berries,
       gems,
       fragments,
+      universalS,
       bossName: boss.name || boss.bossName || "Raid Boss",
       weapon: gotWeapon ? linkedWeapon.name : null,
       fruit: gotFruit ? linkedFruit.name : null,
@@ -1880,6 +1989,10 @@ function formatRaidWinRewardLines(state) {
 
     if (reward.isHost && Number(reward.fragments || 0) > 0) {
       lines.push(`+${Number(reward.fragments || 0)} ${reward.bossName} fragment`);
+    }
+
+    if (reward.isHost && Number(reward.universalS || 0) > 0) {
+    lines.push(`+Universal S x${Number(reward.universalS || 0)}`);
     }
 
     const extras = [];
@@ -2258,7 +2371,7 @@ module.exports = {
     if (usedCommandRaw === "raidcount") {
       return handleRaidCountCommand(message, args);
     }
-    const usedCommand = ["craid", "raid", "graid", "throne"].includes(usedCommandRaw)
+    const usedCommand = ["craid", "raid", "graid", "throne", "mraid"].includes(usedCommandRaw)
       ? usedCommandRaw
       : "raid";
 
@@ -2267,7 +2380,7 @@ module.exports = {
 
     if (!query) {
       return message.reply(
-        "Usage: `op craid <boss>` / `op raid <boss>` / `op graid <boss>` / `op throne`"
+        "Usage: `op craid <boss>` / `op raid <boss>` / `op graid <boss>` / `op throne` / `op mraid <merge boss>`"
       );
     }
 
