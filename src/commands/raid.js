@@ -913,9 +913,9 @@ function getRaidBossModeMultiplier(raidMode = {}) {
 
   if (ticketCode === "mythic_raid_ticket" || modeName.includes("mythic")) {
     return {
-      hp: 2.0,
-      speed: 1.3,
-      atk: 1.45,
+      hp: 3.2,
+      speed: 1.5,
+      atk: 2.2,
     };
   }
 
@@ -1041,7 +1041,7 @@ function buildLobbyEmbed(hostName, room, ended = false, bossStats = null) {
         "",
         "**Rules**",
         isThroneRoom(room)
-          ? "• Throne Raid max 4 users total including host"
+          ? "• Throne Raid max 4 users total: 1 host + 3 crew"
           : "• Max 10 users total including host",
         isThroneRoom(room)
           ? "• Each user joins directly with 3 battle cards from team slots"
@@ -1133,6 +1133,30 @@ function isThroneRoom(room) {
 
 function getMaxRaidUsers(room) {
   return isThroneRoom(room) ? 4 : 10;
+}
+
+function getThroneNonHostJoinedCount(room) {
+  const hostId = String(room?.hostId || "");
+
+  return ensureArray(room?.participants).filter(
+    (participant) =>
+      String(participant.userId || "") !== hostId &&
+      ensureArray(participant.selectedCards).length > 0
+  ).length;
+}
+
+function hasReservedHostSlotAvailable(room, userId) {
+  if (!isThroneRoom(room)) return true;
+
+  const hostId = String(room?.hostId || "");
+  const isHost = String(userId || "") === hostId;
+
+  if (isHost) return true;
+
+  const maxUsers = getMaxRaidUsers(room);
+  const nonHostLimit = Math.max(0, maxUsers - 1);
+
+  return getThroneNonHostJoinedCount(room) < nonHostLimit;
 }
 
 function getSelectedParticipantCount(room) {
@@ -2565,10 +2589,10 @@ module.exports = {
         const maxRaidUsers = getMaxRaidUsers(activeRoom);
         const joinedCount = getSelectedParticipantCount(activeRoom);
 
-        if (joinedCount >= maxRaidUsers) {
+        if (joinedCount >= maxRaidUsers || !hasReservedHostSlotAvailable(activeRoom, userId)) {
           return safeReplyOrEdit(interaction, {
             content: isThroneRoom(activeRoom)
-              ? "This Throne Raid is already full. Max 4 users / 12 cards."
+              ? "This Throne Raid is already full for non-host players. The last slot is reserved for the host."
               : "This raid room is already full.",
           });
         }
@@ -2635,9 +2659,12 @@ module.exports = {
             const latestMaxRaidUsers = getMaxRaidUsers(latestRoom);
             const latestJoinedCount = getSelectedParticipantCount(latestRoom);
 
-            if (latestJoinedCount >= latestMaxRaidUsers) {
+            if (
+              latestJoinedCount >= latestMaxRaidUsers ||
+              !hasReservedHostSlotAvailable(latestRoom, userId)
+            ) {
               return safeInteractionUpdate(confirmInteraction, {
-                content: "This Throne Raid is already full. Max 4 users / 12 cards.",
+                content: "This Throne Raid is already full for non-host players. The last slot is reserved for the host.",
                 components: [],
               });
             }
