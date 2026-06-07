@@ -541,6 +541,16 @@ function applyBoostedRaidDisplayStats(card, boosts = {}) {
 function getRaidModeConfig(commandName) {
   const cmd = String(commandName || "").toLowerCase();
 
+  if (cmd === "mraid") {
+  return {
+    allowed: new Set(["M"]),
+    ticketCode: "mythic_raid_ticket",
+    ticketName: "Mythic Raid Ticket",
+    label: "Mythic Raid Ticket",
+    modeName: "Mythic Merge Raid",
+  };
+  }
+
   if (cmd === "throne") {
     return {
       allowed: new Set(["S"]),
@@ -2226,7 +2236,7 @@ async function handleRaidCountCommand(message, args) {
 
 module.exports = {
   name: "raid",
-  aliases: ["craid", "graid", "throne", "raidcount"],
+  aliases: ["craid", "graid", "throne", "mraid", "raidcount"],
 
   async execute(message, args) {
     const raw = String(message.content || "").trim().split(/\s+/);

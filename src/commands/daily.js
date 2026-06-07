@@ -71,24 +71,24 @@ function normalizeDailyText(value) {
 }
 
 function hasBaccaratDailyDevilFruit(player) {
-  const cards = Array.isArray(player?.cards) ? player.cards : [];
+ const cards = Array.isArray(player?.cards) ? player.cards : [];
 
-  return cards.some((card) => {
-    const fruitValues = [
-      card?.equippedDevilFruit,
-      card?.equippedDevilFruitName,
-      card?.displayFruitName,
-      card?.devilFruit,
-      card?.devilFruitName,
-    ].map(normalizeDailyText);
+ return cards.some((card) => {
+  const fruitValues = [
+   card?.equippedDevilFruit,
+   card?.equippedDevilFruitCode,
+   card?.equippedDevilFruitName,
+   card?.displayFruitName,
+  ].map(normalizeDailyText);
 
-    return fruitValues.some(
-      (value) =>
-        value === "raki raki no mi" ||
-        value === "baccarat" ||
-        value.includes("raki raki")
-    );
-  });
+  return fruitValues.some(
+   (value) =>
+    value === "raki raki no mi" ||
+    value === "raki raki" ||
+    value === "baccarat" ||
+    value.includes("raki raki")
+  );
+ });
 }
 
 function applyBaccaratDailyBonus(player, rewards) {

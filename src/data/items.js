@@ -62,6 +62,15 @@ const ITEMS = {
     description: "A better random material box with improved material rewards.",
   },
 
+  mythicRaidTicket: {
+  name: "Mythic Raid Ticket",
+  amount: 1,
+  rarity: "UR",
+  code: "mythic_raid_ticket",
+  type: "Ticket",
+  description: "Used to create a Mythic Merge Raid room.",
+  },
+
   emptyThroneRaidWrit: {
     name: "Empty Throne Raid Writ",
     amount: 1,

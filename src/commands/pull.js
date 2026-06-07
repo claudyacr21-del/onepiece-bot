@@ -203,6 +203,15 @@ function getTicketPool() {
       image:
         "https://cdn.discordapp.com/attachments/1493204525975076944/1503039261551624302/content.png?ex=6a01e5e5&is=6a009465&hm=d1c5a4e761f84b982572f211b9d5cbb202129e75226665b278ff6608fe94ea41",
     },
+    {
+      code: "mythic_raid_ticket",
+      name: "Mythic Raid Ticket",
+      rarity: "UR",
+      type: "Ticket",
+      weight: 0.5,
+      image:
+        "https://cdn.discordapp.com/attachments/1493204525975076944/1513072518498353162/content.png?ex=6a266617&is=6a251497&hm=e3a300a1a63dae89865fb29e0dc7742baacabd739e1534cc519a19114d3d660f",
+    },
   ];
 }
 

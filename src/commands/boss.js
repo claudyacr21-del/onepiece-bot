@@ -56,6 +56,9 @@ function isIgnorableDiscordInteractionError(error) {
   const requestCode = String(error?.requestBody?.code || "");
 
   return (
+    error?.name === "InteractionCollectorError" ||
+    error?.code === "InteractionCollectorError" ||
+    message.includes("Collector received no interactions before ending") ||
     code === 10062 ||
     code === 40060 ||
     status === 429 ||
@@ -1008,7 +1011,7 @@ async function chooseBossPhase(message, player, island) {
     const code = error?.code;
     const messageText = String(error?.message || "");
 
-    if (code !== 10062 && code !== 40060 && !messageText.includes("Unknown interaction")) {
+    if (!isIgnorableDiscordInteractionError(error)) {
       console.error("[BOSS PHASE SELECT ERROR]", error);
     }
 

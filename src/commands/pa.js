@@ -132,6 +132,13 @@ function getTicketPool() {
       type: "Ticket",
       weight: 5,
     },
+    {
+      code: "mythic_raid_ticket",
+      name: "Mythic Raid Ticket",
+      rarity: "UR",
+      type: "Ticket",
+      weight: 1.5,
+    },
   ];
 }
 
