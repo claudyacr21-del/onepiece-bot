@@ -1,7 +1,7 @@
 const { readPlayers, writePlayers } = require("../playerStore");
 
 const LUCKY_WEEK_STORE_KEY = "__lucky_week_event__";
-const LUCKY_WEEK_MULTIPLIER = 1.5;
+const LUCKY_WEEK_MULTIPLIER = 2;
 
 function getLuckyWeekState() {
   const players = readPlayers();
