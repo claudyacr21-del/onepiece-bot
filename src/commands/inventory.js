@@ -158,9 +158,25 @@ function cleanList(items) {
     : [];
 }
 
+function isTicketItem(item) {
+  const code = String(item?.code || "").toLowerCase().trim();
+  const type = String(item?.type || "").toLowerCase().trim();
+  const name = getItemName(item).toLowerCase();
+
+  return (
+    type === "ticket" ||
+    code.endsWith("_ticket") ||
+    code === "pull_reset_ticket" ||
+    code === "raid_ticket" ||
+    code === "gold_raid_ticket" ||
+    code === "common_raid_ticket" ||
+    code === "mythic_raid_ticket" ||
+    name.includes("ticket")
+  );
+}
+
 function isConsumable(item) {
   const code = String(item?.code || "").toLowerCase().trim();
-
   // Only real consumable items go here.
   // Universal fragments must stay in Items, not Consumables.
   return code === "rum_beer";
@@ -168,14 +184,16 @@ function isConsumable(item) {
 
 function getInventoryLists(player) {
   const items = cleanList(player.items);
+  const itemTickets = items.filter(isTicketItem);
+  const realItems = items.filter((item) => !isConsumable(item) && !isTicketItem(item));
 
   return {
     fruit: cleanList(player.devilFruits),
-    ticket: cleanList(player.tickets),
+    ticket: cleanList([...(player.tickets || []), ...itemTickets]),
     box: cleanList(player.boxes),
     consum: cleanList(items.filter(isConsumable)),
     material: cleanList(player.materials),
-    item: cleanList(items.filter((item) => !isConsumable(item))),
+    item: cleanList(realItems),
   };
 }
 
