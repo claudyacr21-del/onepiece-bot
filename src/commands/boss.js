@@ -1372,34 +1372,38 @@ if (lobbyProcessing) {
         }
 
         if (confirmInteraction.customId === "boss_join_cancel") {
-          return confirmInteraction.update({
-            content: "Join cancelled.",
-            embeds: [],
-            components: [],
-          });
+        await safeDeferUpdate(confirmInteraction);
+        return replyBossJoin({
+          content: "Join cancelled.",
+          embeds: [],
+          components: [],
+        });
         }
+
+        const confirmAckOk = await safeDeferUpdate(confirmInteraction);
+        if (!confirmAckOk) return;
 
         const finalParticipants = await getJoinedParticipantsPreview(userId, joiningPlayer, username);
         const finalDuplicates = getDuplicatePartyCards(finalParticipants);
 
         if (finalDuplicates.length) {
-          return confirmInteraction.update({
-            content: [
-              "Join failed because another party member already uses the same card.",
-              "",
-              ...finalDuplicates.map((dup) => `- ${dup.name} used by ${dup.users.join(" and ")}`),
-            ].join("\n"),
-            embeds: [],
-            components: [],
-          });
+        return replyBossJoin({
+          content: [
+          "Join failed because another party member already uses the same card.",
+          "",
+          ...finalDuplicates.map((dup) => `- ${dup.name} used by ${dup.users.join(" and ")}`),
+          ].join("\n"),
+          embeds: [],
+          components: [],
+        });
         }
 
         joinedIds.add(userId);
 
-        await confirmInteraction.update({
-          content: `Joined Boss Phase 2 raid with:\n${formatTeamPreview(teamCards)}`,
-          embeds: [],
-          components: [],
+        await replyBossJoin({
+        content: `Joined Boss Phase 2 raid with:\n${formatTeamPreview(teamCards)}`,
+        embeds: [],
+        components: [],
         });
 
         const updatedParticipants = await getJoinedParticipantsPreview();
