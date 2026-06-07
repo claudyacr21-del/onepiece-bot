@@ -1,8 +1,10 @@
 const DEFAULT_RELOAD_MINUTE = 0;
 
 const {
-  flushPlayerStoreNow,
+  readPlayers,
+  writePlayers,
   drainPlayerStoreSaves,
+  flushPlayerStoreNow,
 } = require("../playerStore");
 
 let autoReloadStarted = false;
@@ -63,31 +65,30 @@ function getBotToken() {
 async function flushBeforeReload() {
   const timeoutMs = Number(process.env.AUTO_RELOAD_SAVE_TIMEOUT_MS || 30000);
 
-  console.log("[AUTO RELOAD] Saving player data before reload...");
-
   try {
+    console.log("[AUTO RELOAD] Saving player data before reload...");
+
     if (typeof flushPlayerStoreNow === "function") {
       const ok = await flushPlayerStoreNow(timeoutMs);
-
       if (ok) {
         console.log("[AUTO RELOAD] Player data flushed before reload.");
       } else {
         console.warn("[AUTO RELOAD] Player data flush returned false.");
       }
-
       return ok;
     }
 
+    const players = readPlayers();
+    writePlayers(players);
+
     if (typeof drainPlayerStoreSaves === "function") {
       await drainPlayerStoreSaves(timeoutMs);
-      console.log("[AUTO RELOAD] Pending player saves drained before reload.");
-      return true;
     }
 
-    console.warn("[AUTO RELOAD] No player save flush function available.");
-    return false;
+    console.log("[AUTO RELOAD] Pending player saves drained before reload.");
+    return true;
   } catch (error) {
-    console.error("[AUTO RELOAD] Failed to flush player data before reload:", error);
+    console.error("[AUTO RELOAD] Failed to save player data before reload:", error);
     return false;
   }
 }

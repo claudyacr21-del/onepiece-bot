@@ -299,6 +299,78 @@ function getCurrentStage(card) {
   return Math.max(1, Math.min(3, Number.isFinite(stage) ? Math.floor(stage) : 1));
 }
 
+const AWAKEN_GEMS_COST_BY_BASE_TIER = {
+  S: {
+    2: 750,
+    3: 1500,
+  },
+  A: {
+    2: 500,
+    3: 1000,
+  },
+  B: {
+    2: 350,
+    3: 700,
+  },
+  C: {
+    2: 250,
+    3: 500,
+  },
+};
+
+function getAwakenCostBaseTierForAwaken(card, template) {
+  const role = String(card?.cardRole || template?.cardRole || card?.role || template?.role || "")
+    .toLowerCase();
+
+  const tierCandidates =
+    role === "boost"
+      ? [
+          card?.baseTier,
+          template?.baseTier,
+          card?.rarity,
+          template?.rarity,
+          card?.currentTier,
+          template?.currentTier,
+          card?.originalTier,
+          template?.originalTier,
+          card?.baseRarity,
+          template?.baseRarity,
+        ]
+      : [
+          card?.baseTier,
+          template?.baseTier,
+          card?.originalTier,
+          template?.originalTier,
+          card?.baseRarity,
+          template?.baseRarity,
+          card?.rarity,
+          template?.rarity,
+          card?.currentTier,
+          template?.currentTier,
+        ];
+
+  const tier = String(tierCandidates.find(Boolean) || "C").toUpperCase();
+
+  if (tier === "UR" || tier === "SS") return "S";
+  if (["S", "A", "B", "C"].includes(tier)) return tier;
+
+  return "C";
+}
+
+function getAwakenGemsCostForAwaken(req, nextStage, card, template) {
+  const direct = Number(req?.gems || 0);
+  if (direct > 0) return direct;
+
+  if (isMergeCardTemplate(template)) {
+    return Number(req?.gems || 2000);
+  }
+
+  const baseTier = getAwakenCostBaseTierForAwaken(card, template);
+  const costs = AWAKEN_GEMS_COST_BY_BASE_TIER[baseTier] || AWAKEN_GEMS_COST_BY_BASE_TIER.C;
+
+  return Number(costs[Number(nextStage || 1)] || 0);
+}
+
 function getOwnedFragmentAmount(player, target) {
   const code = normalizeCode(target?.code);
   const name = normalizeName(target?.displayName || target?.name || target?.title);
@@ -500,7 +572,9 @@ function validateRequirement(player, targetIndex, targetCard, req) {
     );
   }
 
-  const gemsNeed = Number(req?.gems || 0);
+  const template = findTemplateByNameOnly(targetCard, targetCard?.displayName || targetCard?.name || "");
+  const nextStage = Math.min(3, getCurrentStage(targetCard) + 1);
+  const gemsNeed = getAwakenGemsCostForAwaken(req, nextStage, targetCard, template);
   const gemsOwned = Number(player?.gems || 0);
 
   if (gemsOwned < gemsNeed) {
@@ -657,7 +731,7 @@ function runAwaken(player, query) {
   validateRequirement(validationPlayer, targetIndex, targetCard, req);
 
   const berriesNeed = Number(req?.berries || 0);
-  const gemsNeed = Number(req?.gems || 0);
+  const gemsNeed = getAwakenGemsCostForAwaken(req, nextStage, targetCard, template);
 
   const afterSelfFragments = consumeFragmentAmount(
     validationPlayer,

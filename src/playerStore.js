@@ -393,47 +393,56 @@ function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
   const preserveMissingCards = Boolean(options.preserveMissingCards);
   const preserveMissingItems = Boolean(options.preserveMissingItems);
 
+  const shouldPreserveCards =
+    preserveMissingCards && !Array.isArray(incomingPlayer.cards);
+
+  function shouldPreserveStack(key) {
+    return preserveMissingItems && !Array.isArray(incomingPlayer?.[key]);
+  }
+
   return syncRaidPrestigeBankToCards({
     ...incomingPlayer,
 
     cards: mergeCardsNoRollback(
       incomingPlayer.cards,
       persistedPlayer.cards,
-      { preserveMissingCards }
+      {
+        preserveMissingCards: shouldPreserveCards,
+      }
     ),
 
     weapons: mergeStackNoRollback(incomingPlayer.weapons, persistedPlayer.weapons, {
-      preserveMissingItems,
+      preserveMissingItems: shouldPreserveStack("weapons"),
       preserveHigherAmount: false,
     }),
 
     devilFruits: mergeStackNoRollback(incomingPlayer.devilFruits, persistedPlayer.devilFruits, {
-      preserveMissingItems,
+      preserveMissingItems: shouldPreserveStack("devilFruits"),
       preserveHigherAmount: false,
     }),
 
     tickets: mergeStackNoRollback(incomingPlayer.tickets, persistedPlayer.tickets, {
-      preserveMissingItems: false,
+      preserveMissingItems: shouldPreserveStack("tickets"),
       preserveHigherAmount: false,
     }),
 
     boxes: mergeStackNoRollback(incomingPlayer.boxes, persistedPlayer.boxes, {
-      preserveMissingItems: false,
+      preserveMissingItems: shouldPreserveStack("boxes"),
       preserveHigherAmount: false,
     }),
 
     items: mergeStackNoRollback(incomingPlayer.items, persistedPlayer.items, {
-      preserveMissingItems: false,
+      preserveMissingItems: shouldPreserveStack("items"),
       preserveHigherAmount: false,
     }),
 
     materials: mergeStackNoRollback(incomingPlayer.materials, persistedPlayer.materials, {
-      preserveMissingItems: false,
+      preserveMissingItems: shouldPreserveStack("materials"),
       preserveHigherAmount: false,
     }),
 
     fragments: mergeStackNoRollback(incomingPlayer.fragments, persistedPlayer.fragments, {
-      preserveMissingItems: false,
+      preserveMissingItems: shouldPreserveStack("fragments"),
       preserveHigherAmount: false,
     }),
 
@@ -1895,8 +1904,8 @@ function updateTwoPlayersAtomic(userIdA, userIdB, mutator, usernameA = "Unknown"
   };
 }
 
-async function flushPlayerStoreNow(timeoutMs = 25000) {
-  const safeTimeout = Math.max(1000, Number(timeoutMs || 25000));
+async function flushPlayerStoreNow(timeoutMs = 30000) {
+  const safeTimeout = Math.max(1000, Number(timeoutMs || 30000));
 
   try {
     const players = readPlayers();
