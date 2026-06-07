@@ -911,6 +911,14 @@ function getRaidBossModeMultiplier(raidMode = {}) {
     };
   }
 
+  if (ticketCode === "mythic_raid_ticket" || modeName.includes("mythic")) {
+    return {
+      hp: 2.0,
+      speed: 1.3,
+      atk: 1.45,
+    };
+  }
+
   return {
     hp: 1,
     speed: 1,
@@ -948,6 +956,12 @@ function deriveRaidBossStats(template, raidMode = {}) {
         speed: 660,
         atkMin: 700,
         atkMax: 1200,
+      },
+      M: {
+        hp: 36000,
+        speed: 760,
+        atkMin: 950,
+        atkMax: 1600,
       },
     }[tier] || {
       hp: 12500,
