@@ -24,12 +24,22 @@ const {
 const { syncArenaRankRoles } = require("../utils/arenaRankRoles");
 const { ITEMS, cloneItem } = require("../data/items");
 
-const ARENA_PLAYERS_CACHE_TTL_MS = 60 * 1000;
+const ARENA_PLAYERS_CACHE_TTL_MS = Number(process.env.ARENA_CACHE_TTL_MS || 5 * 60 * 1000);
+const ARENA_ROLE_SYNC_ENABLED = String(process.env.ARENA_ROLE_SYNC_ENABLED || "false").toLowerCase() === "true";
+const ARENA_ROLE_SYNC_DELAY_MS = Number(process.env.ARENA_ROLE_SYNC_DELAY_MS || 15000);
+const ARENA_MAX_OPPONENT_SCAN = Number(process.env.ARENA_MAX_OPPONENT_SCAN || 120);
 
 let arenaPlayersCache = {
   updatedAt: 0,
   players: null,
 };
+
+function invalidateArenaPlayersCache() {
+  arenaPlayersCache = {
+    updatedAt: 0,
+    players: null,
+  };
+}
 
 function getCachedArenaPlayers() {
   const now = Date.now();
@@ -196,6 +206,7 @@ async function safeEditInteractionMessage(interaction, payload) {
 }
 
 function queueArenaRankRoleSync(message) {
+  if (!ARENA_ROLE_SYNC_ENABLED) return;
   if (!message?.client || !message?.guild) return;
 
   setTimeout(() => {
@@ -210,7 +221,7 @@ function queueArenaRankRoleSync(message) {
     } catch (error) {
       console.error("[ARENA RANK ROLES SNAPSHOT ERROR]", error);
     }
-  }, 1000);
+  }, ARENA_ROLE_SYNC_DELAY_MS);
 }
 
 function getDateKey() {
@@ -458,17 +469,24 @@ function getRealArenaEntries(message) {
   return Object.entries(allPlayers)
     .filter(([userId]) => String(userId) !== String(message?.client?.user?.id || ""))
     .map(([userId, raw]) => {
+      const cards = Array.isArray(raw?.cards) ? raw.cards : [];
+      const slots = Array.isArray(raw?.team?.slots) ? raw.team.slots : [null, null, null];
+
+      // Skip cepat sebelum hydrate team. Ini ngurangin beban besar.
+      if (slots.filter(Boolean).length < 3 || cards.length < 3) return null;
+
       const player = {
         userId,
         ...raw,
-        username: getArenaDisplayName(message, userId, raw),
-        cards: Array.isArray(raw?.cards) ? raw.cards : [],
+        username: raw?.username || "Unknown",
+        cards,
         team: raw?.team || {
           slots: [null, null, null],
         },
       };
 
       const teamUnits = getTeamUnits(player, "opponent");
+      if (teamUnits.length !== 3) return null;
 
       return {
         ...player,
@@ -483,7 +501,7 @@ function getRealArenaEntries(message) {
         teamPower: getArenaTeamPower(teamUnits),
       };
     })
-    .filter((entry) => entry.teamUnits.length === 3);
+    .filter(Boolean);
 }
 
 function buildArenaVirtualLeaderboard(message) {
@@ -510,11 +528,14 @@ function buildOpponentPoolFromLeaderboard(leaderboard, message, player) {
 
   return ensureArray(leaderboard)
     .filter((entry) => String(entry.userId) !== String(message.author.id))
+    .map((entry) => ({
+      ...entry,
+      pointDiff: Math.abs(Number(entry.points || 0) - playerPoints),
+    }))
     .sort((a, b) => {
-      const diffA = Math.abs(Number(a.points || 0) - playerPoints);
-      const diffB = Math.abs(Number(b.points || 0) - playerPoints);
-
-      if (diffA !== diffB) return diffA - diffB;
+      if (Number(a.pointDiff || 0) !== Number(b.pointDiff || 0)) {
+        return Number(a.pointDiff || 0) - Number(b.pointDiff || 0);
+      }
 
       if (Number(a.rank || 999) !== Number(b.rank || 999)) {
         return Number(a.rank || 999) - Number(b.rank || 999);
@@ -525,8 +546,8 @@ function buildOpponentPoolFromLeaderboard(leaderboard, message, player) {
     .slice(0, 25);
 }
 
-function getArenaRankForUser(message, userId) {
-  const leaderboard = buildArenaVirtualLeaderboard(message);
+function getArenaRankForUser(message, userId, prebuiltLeaderboard = null) {
+  const leaderboard = prebuiltLeaderboard || buildArenaVirtualLeaderboard(message);
   const found = leaderboard.find((entry) => String(entry.userId) === String(userId));
 
   return found?.rank || Math.min(ARENA_TOTAL_RANK_SLOTS, leaderboard.length + 1);
@@ -534,23 +555,7 @@ function getArenaRankForUser(message, userId) {
 
 function buildOpponentPool(message, player) {
   const leaderboard = buildArenaVirtualLeaderboard(message);
-  const playerPoints = Number(player?.arena?.points || 0);
-
-  return leaderboard
-    .filter((entry) => String(entry.userId) !== String(message.author.id))
-    .sort((a, b) => {
-      const diffA = Math.abs(Number(a.points || 0) - playerPoints);
-      const diffB = Math.abs(Number(b.points || 0) - playerPoints);
-
-      if (diffA !== diffB) return diffA - diffB;
-
-      if (Number(a.rank || 999) !== Number(b.rank || 999)) {
-        return Number(a.rank || 999) - Number(b.rank || 999);
-      }
-
-      return compareArenaEntries(a, b);
-    })
-    .slice(0, 25);
+  return buildOpponentPoolFromLeaderboard(leaderboard, message, player);
 }
 
 function addOrIncreaseInventory(list, item) {
@@ -691,11 +696,12 @@ function applyArenaResult(arena, result, context = {}) {
   return current;
 }
 
-function updateArenaPlayer(message, result, opponent = null) {
+function updateArenaPlayer(message, result, opponent = null, prebuiltLeaderboard = null) {
   let finalArena = null;
   let streakRewardLine = null;
 
-  const playerRankBefore = getArenaRankForUser(message, message.author.id);
+  const leaderboard = prebuiltLeaderboard || buildArenaVirtualLeaderboard(message);
+  const playerRankBefore = getArenaRankForUser(message, message.author.id, leaderboard);
   const opponentRank = Number(opponent?.rank || ARENA_TOTAL_RANK_SLOTS);
 
   updatePlayerAtomic(
@@ -769,7 +775,9 @@ function updateArenaPlayer(message, result, opponent = null) {
     message.author.username
   );
 
-  const arenaRank = getArenaRankForUser(message, message.author.id);
+  invalidateArenaPlayersCache();
+
+  const arenaRank = getArenaRankForUser(message, message.author.id, leaderboard);
 
   return {
     ...(finalArena || {}),
@@ -859,6 +867,8 @@ function updateArenaOpponentAfterBattle(opponent, result, context = {}) {
     },
     opponent.username || "Unknown"
   );
+
+  invalidateArenaPlayersCache();
 
   return updatedArena;
 }
