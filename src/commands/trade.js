@@ -1281,6 +1281,7 @@ module.exports = {
     const state = {
       ownerConfirmed: false,
       targetConfirmed: false,
+      processing: false,
       done: false,
     };
 
@@ -1326,9 +1327,11 @@ module.exports = {
         });
       }
 
-      if (state.done) {
+      if (state.done || state.processing) {
         return interaction.reply({
-          content: "This trade session is already closed.",
+          content: state.processing
+            ? "This trade is already being processed. Please wait."
+            : "This trade session is already closed.",
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -1401,7 +1404,42 @@ module.exports = {
         });
       }
 
-      await interaction.deferUpdate().catch(() => null);
+      state.processing = true;
+
+      await interaction
+        .update({
+          embeds: [
+            tradeEmbed(
+              owner,
+              target,
+              parsed.ownerOffer,
+              parsed.targetOffer,
+              "pending",
+              initialResolved
+            ).setFooter({
+              text: "Processing trade... do not click again.",
+            }),
+          ],
+          components: [],
+        })
+        .catch(async () => {
+          await interaction.deferUpdate().catch(() => null);
+          await sent.edit({
+            embeds: [
+              tradeEmbed(
+                owner,
+                target,
+                parsed.ownerOffer,
+                parsed.targetOffer,
+                "pending",
+                initialResolved
+              ).setFooter({
+                text: "Processing trade... do not click again.",
+              }),
+            ],
+            components: [],
+          }).catch(() => null);
+        });
 
       try {
         let freshOwner = null;
@@ -1452,6 +1490,7 @@ module.exports = {
 
         collector.stop("done");
       } catch (error) {
+        state.processing = false;
         state.done = true;
 
         await sent.edit({
