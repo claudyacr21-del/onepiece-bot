@@ -8,6 +8,7 @@ const {
 
 const { getPlayer, updateTwoPlayersAtomic } = require("../playerStore");
 const rawCards = require("../data/cards");
+
 const SESSION_MS = 10 * 60 * 1000;
 const MAX_ITEMS = 5;
 
@@ -92,6 +93,7 @@ function normalizeTradeAliasCode(value) {
     craid: "common_raid_ticket",
     raid: "raid_ticket",
     graid: "gold_raid_ticket",
+    mraid: "mythic_raid_ticket",
     throne: "empty_throne_raid_writ",
 
     cola_part: "cola_engine_part",
@@ -163,7 +165,6 @@ function fmtResolvedEntry(entry) {
 
 function parseOfferBlock(raw) {
   const text = String(raw || "").trim();
-
   if (!text) return [];
 
   const parts = text
@@ -186,7 +187,6 @@ function parseOfferBlock(raw) {
     }
 
     const match = part.match(/^(.+?)_(\d+)$/);
-
     if (!match) {
       throw new Error(`Invalid trade entry: ${part}`);
     }
@@ -221,9 +221,7 @@ function parseTradeContent(content) {
 }
 
 function getTeamIds(player) {
-  return new Set(
-    Array.isArray(player?.team?.slots) ? player.team.slots.filter(Boolean) : []
-  );
+  return new Set(Array.isArray(player?.team?.slots) ? player.team.slots.filter(Boolean) : []);
 }
 
 function isCardTradable(card, teamIds) {
@@ -231,6 +229,7 @@ function isCardTradable(card, teamIds) {
   if (teamIds.has(card.instanceId)) return false;
   if (card.slot_locked) return false;
   if (card.equippedWeapon || card.equippedDevilFruit) return false;
+
   if (Array.isArray(card.equippedWeapons) && card.equippedWeapons.length > 0) {
     return false;
   }
@@ -300,6 +299,7 @@ function getStackFields(entry) {
     entry?.cardCode,
     entry?.characterCode,
     entry?.boostCode,
+    entry?.scrollCode,
     entry?.sourceCode,
     entry?.sourceType,
   ];
@@ -329,7 +329,8 @@ function isExplicitScrollFragmentQuery(query) {
     text.endsWith(" scroll") ||
     text.includes(" scroll ") ||
     text.endsWith(" boost") ||
-    text.includes(" boost ")
+    text.includes(" boost ") ||
+    text.includes(" will")
   );
 }
 
@@ -359,26 +360,30 @@ function findCardTemplateForFragmentQuery(query) {
 function isWeaponFragmentEntry(entry) {
   const code = slug(entry?.code || "");
   const name = normalize(entry?.name || entry?.displayName || "");
+  const category = normalize(entry?.category || entry?.type || entry?.kind || entry?.sourceType || "");
 
   return (
     Boolean(entry?.weaponCode || entry?.sourceWeaponCode) ||
     code.startsWith("weapon_fragment_") ||
     code.includes("_weapon_fragment") ||
-    name.includes("weapon fragment")
+    name.includes("weapon fragment") ||
+    category.includes("weapon")
   );
 }
 
 function isScrollFragmentEntry(entry) {
   const code = slug(entry?.code || "");
   const name = normalize(entry?.name || entry?.displayName || "");
-  const type = normalize(entry?.type || entry?.category || "");
+  const type = normalize(entry?.type || entry?.category || entry?.kind || entry?.sourceType || "");
 
   return (
     Boolean(entry?.boostCode || entry?.scrollCode || entry?.sourceBoostCode) ||
     code.includes("scroll") ||
     code.includes("boost") ||
+    code.includes("will") ||
     name.includes("scroll") ||
     name.includes("boost") ||
+    name.includes("will") ||
     type.includes("scroll") ||
     type.includes("boost")
   );
@@ -395,8 +400,6 @@ function getCardFragmentMatchKeys(card) {
 
 function isCardFragmentEntryForTemplate(entry, card) {
   if (!entry || !card) return false;
-
-  // Card fragment normal tidak boleh ketarik weapon/scroll.
   if (isWeaponFragmentEntry(entry) || isScrollFragmentEntry(entry)) return false;
 
   const cardKeys = getCardFragmentMatchKeys(card);
@@ -447,10 +450,14 @@ function getCardFragmentMatchesForTrade(fragments, card) {
     }))
     .filter((hit) => hit.amount > 0 && isCardFragmentEntryForTemplate(hit.entry, card))
     .sort((a, b) => {
-      const aExact = slug(a.entry?.cardCode || a.entry?.sourceCode || a.entry?.code || "") === slug(card?.code || "") ? 1 : 0;
-      const bExact = slug(b.entry?.cardCode || b.entry?.sourceCode || b.entry?.code || "") === slug(card?.code || "") ? 1 : 0;
+      const aExact =
+        slug(a.entry?.cardCode || a.entry?.sourceCode || a.entry?.code || "") ===
+        slug(card?.code || "");
+      const bExact =
+        slug(b.entry?.cardCode || b.entry?.sourceCode || b.entry?.code || "") ===
+        slug(card?.code || "");
 
-      if (bExact !== aExact) return bExact - aExact;
+      if (Number(bExact) !== Number(aExact)) return Number(bExact) - Number(aExact);
       if (b.score !== a.score) return b.score - a.score;
       return a.index - b.index;
     });
@@ -466,10 +473,9 @@ function getCardFragmentTotalForTrade(fragments, card) {
 function removeCardFragmentsForTrade(fragments, card, amount) {
   const arr = Array.isArray(fragments) ? [...fragments] : [];
   let remaining = Number(amount || 0);
-
   const matches = getCardFragmentMatchesForTrade(arr, card);
-  const totalHave = matches.reduce((total, hit) => total + Number(hit.amount || 0), 0);
 
+  const totalHave = matches.reduce((total, hit) => total + Number(hit.amount || 0), 0);
   if (totalHave < remaining) {
     throw new Error(`Not enough ${getDisplayName(card)} Fragment.`);
   }
@@ -483,7 +489,6 @@ function removeCardFragmentsForTrade(fragments, card, amount) {
     const currentAmount = getStackAmount(arr[currentIndex]);
     const take = Math.min(currentAmount, remaining);
     const left = currentAmount - take;
-
     remaining -= take;
 
     if (left <= 0) {
@@ -502,6 +507,7 @@ function removeCardFragmentsForTrade(fragments, card, amount) {
 function resolveCardFragmentEntry(player, entry) {
   const rawQuery = entry.raw || entry.code;
   const cardTemplate = findCardTemplateForFragmentQuery(rawQuery);
+
   if (!cardTemplate) return null;
 
   const matches = getCardFragmentMatchesForTrade(player.fragments, cardTemplate);
@@ -529,30 +535,22 @@ function resolveCardFragmentEntry(player, entry) {
 
 function normalizeFragmentCategory(value = "") {
   const text = normalize(value);
-
   if (!text) return "";
 
-  if (
-    text.includes("weapon") ||
-    text.includes("sword") ||
-    text.includes("blade")
-  ) {
+  if (text.includes("weapon") || text.includes("sword") || text.includes("blade")) {
     return "weapon";
   }
 
   if (
     text.includes("boost") ||
     text.includes("scroll") ||
-    text.includes("skill")
+    text.includes("skill") ||
+    text.includes("will")
   ) {
     return "boost";
   }
 
-  if (
-    text.includes("battle") ||
-    text.includes("card") ||
-    text.includes("character")
-  ) {
+  if (text.includes("battle") || text.includes("card") || text.includes("character")) {
     return "battle";
   }
 
@@ -577,6 +575,7 @@ function getFragmentCategory(entry) {
       entry?.sourceCode,
       entry?.weaponCode,
       entry?.boostCode,
+      entry?.scrollCode,
       entry?.cardCode,
       entry?.characterCode,
     ]
@@ -586,12 +585,12 @@ function getFragmentCategory(entry) {
 
   if (text.includes("scroll")) return "boost";
   if (text.includes("boost")) return "boost";
+  if (text.includes("will")) return "boost";
   if (text.includes("weapon")) return "weapon";
   if (text.includes("sword")) return "weapon";
   if (text.includes("blade")) return "weapon";
-
   if (entry?.weaponCode) return "weapon";
-  if (entry?.boostCode) return "boost";
+  if (entry?.boostCode || entry?.scrollCode) return "boost";
   if (entry?.cardCode || entry?.characterCode) return "battle";
 
   return "";
@@ -600,27 +599,20 @@ function getFragmentCategory(entry) {
 function getFragmentQueryCategory(query = "") {
   const q = normalize(query);
 
-  if (
-    q.includes("weapon") ||
-    q.includes("sword") ||
-    q.includes("blade")
-  ) {
+  if (q.includes("weapon") || q.includes("sword") || q.includes("blade")) {
     return "weapon";
   }
 
   if (
     q.includes("scroll") ||
     q.includes("boost") ||
-    q.includes("skill")
+    q.includes("skill") ||
+    q.includes("will")
   ) {
     return "boost";
   }
 
-  if (
-    q.includes("battle") ||
-    q.includes("card") ||
-    q.includes("character")
-  ) {
+  if (q.includes("battle") || q.includes("card") || q.includes("character")) {
     return "battle";
   }
 
@@ -644,9 +636,8 @@ function findStackMatches(list, query) {
     .filter((hit) => hit.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return String(getDisplayName(a.entry)).localeCompare(
-        String(getDisplayName(b.entry))
-      );
+
+      return String(getDisplayName(a.entry)).localeCompare(String(getDisplayName(b.entry)));
     });
 }
 
@@ -688,7 +679,7 @@ function getMatchingFragmentEntries(list, codeOrQuery, forcedCategory = "") {
       return normalizeTradeAliasCode(entry?.code || "") === normalizedCode;
     });
 
-  const hits = exactMatches.length
+  let hits = exactMatches.length
     ? exactMatches
     : findStackMatches(arr, codeOrQuery).filter((hit) => {
         if (!requestedCategory) return true;
@@ -696,15 +687,74 @@ function getMatchingFragmentEntries(list, codeOrQuery, forcedCategory = "") {
       });
 
   if (!requestedCategory && hits.length > 1) {
-    const categories = new Set(
-      hits.map((hit) => getFragmentCategory(hit.entry)).filter(Boolean)
-    );
+    const query = normalize(codeOrQuery);
+    const querySlug = slug(codeOrQuery);
 
-    if (categories.size > 1) {
-      throw new Error(
-        `Fragment query \`${codeOrQuery}\` is ambiguous. Use \`${codeOrQuery} weapon_<amount>\` for weapon fragments or \`${codeOrQuery} scroll_<amount>\` for scroll/boost fragments.`
-      );
+    const exactNameHits = hits.filter((hit) => {
+      const entryName = normalize(hit.entry?.name || hit.entry?.displayName || hit.entry?.title || "");
+      const entryCode = slug(hit.entry?.code || "");
+
+      return entryName === query || entryCode === querySlug;
+    });
+
+    if (exactNameHits.length === 1) {
+      return exactNameHits;
     }
+
+    const boostWordHits = hits.filter((hit) => {
+      const text = normalize(
+        [
+          hit.entry?.code,
+          hit.entry?.name,
+          hit.entry?.displayName,
+          hit.entry?.title,
+          hit.entry?.boostCode,
+          hit.entry?.scrollCode,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      );
+
+      return text.includes(query) && getFragmentCategory(hit.entry) === "boost";
+    });
+
+    if (boostWordHits.length === 1) {
+      return boostWordHits;
+    }
+
+    const weaponWordHits = hits.filter((hit) => {
+      const text = normalize(
+        [
+          hit.entry?.code,
+          hit.entry?.name,
+          hit.entry?.displayName,
+          hit.entry?.title,
+          hit.entry?.weaponCode,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      );
+
+      return text.includes(query) && getFragmentCategory(hit.entry) === "weapon";
+    });
+
+    if (weaponWordHits.length === 1) {
+      return weaponWordHits;
+    }
+
+    const sorted = [...hits].sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.index - b.index;
+    });
+
+    const topScore = sorted[0]?.score || 0;
+    const topHits = sorted.filter((hit) => hit.score === topScore);
+
+    if (topHits.length === 1) {
+      return [topHits[0]];
+    }
+
+    hits = sorted;
   }
 
   return hits;
@@ -739,7 +789,6 @@ function findExactStackIndexByCode(list, code) {
 
 function findExactStackEntryByCode(list, code) {
   const index = findExactStackIndexByCode(list, code);
-
   if (index < 0) return null;
 
   return {
@@ -762,9 +811,8 @@ function getTradableCardMatches(player, query) {
     .filter((hit) => hit.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return String(getDisplayName(a.card)).localeCompare(
-        String(getDisplayName(b.card))
-      );
+
+      return String(getDisplayName(a.card)).localeCompare(String(getDisplayName(b.card)));
     })
     .map((hit) => hit.card);
 }
@@ -785,9 +833,7 @@ function resolveTicketEntry(player, query) {
   const code = normalizeTradeAliasCode(hit.entry?.code || normalizedQuery);
 
   if (isBlockedTradeEntry(hit.entry, code)) {
-    throw new Error(
-      `Ticket item \`${getDisplayName(hit.entry, query)}\` is untradeable.`
-    );
+    throw new Error(`Ticket item \`${getDisplayName(hit.entry, query)}\` is untradeable.`);
   }
 
   return {
@@ -806,7 +852,6 @@ function resolveCardEntry(player, entry) {
   const rawQuery = entry.raw || entry.code;
   const normalizedCode = normalizeTradeAliasCode(rawQuery);
   const isCardFirst = CARD_FIRST_QUERIES.has(normalizedCode);
-
   const matches = getTradableCardMatches(player, rawQuery);
 
   if (matches.length >= entry.amount) {
@@ -823,9 +868,7 @@ function resolveCardEntry(player, entry) {
   }
 
   if (isCardFirst) {
-    throw new Error(
-      `${player.username} lacks ${getCardFirstDisplayName(rawQuery)} x${entry.amount}.`
-    );
+    throw new Error(`${player.username} lacks ${getCardFirstDisplayName(rawQuery)} x${entry.amount}.`);
   }
 
   return null;
@@ -846,27 +889,22 @@ function resolveEntry(player, entry) {
   }
 
   const normalizedCode = normalizeTradeAliasCode(entry.code || entry.raw);
+
   if (isBlockedTradeItemCode(normalizedCode)) {
     throw new Error(`Item \`${entry.raw || entry.code}\` is untradeable.`);
   }
 
-  // IMPORTANT:
-  // Franky_55 / Luffy_10 / Zoro_20 default = CARD fragments.
-  // Weapon/scroll fragments must use explicit query like Franky_weapon_55 or Franky_scroll_55.
   const cardFragmentEntry = resolveCardFragmentEntry(player, entry);
   if (cardFragmentEntry) {
     return cardFragmentEntry;
   }
 
   const ticketEntry = resolveTicketEntry(player, entry.code || entry.raw);
-
   if (ticketEntry) {
     const totalHave = getStackTotal(player.tickets, entry.code || entry.raw);
 
     if (totalHave < entry.amount) {
-      throw new Error(
-        `${player.username} lacks ${ticketEntry.displayName} x${entry.amount}.`
-      );
+      throw new Error(`${player.username} lacks ${ticketEntry.displayName} x${entry.amount}.`);
     }
 
     return {
@@ -875,15 +913,11 @@ function resolveEntry(player, entry) {
     };
   }
 
-  // IMPORTANT:
-  // Battle card / boost card trade uses fragments from finv.js.
-  // So fragments must be checked BEFORE player.cards.
   const stores = ["fragments", "weapons", "devilFruits", "materials", "items", "boxes"];
   let insufficient = null;
 
   for (const store of stores) {
     const query = entry.raw || entry.code;
-
     const hits =
       store === "fragments"
         ? getMatchingFragmentEntries(player[store], query)
@@ -892,9 +926,7 @@ function resolveEntry(player, entry) {
     if (!hits.length) continue;
 
     const displayEntry = hits[0].entry;
-    const fragmentCategory =
-      store === "fragments" ? getFragmentCategory(displayEntry) : "";
-
+    const fragmentCategory = store === "fragments" ? getFragmentCategory(displayEntry) : "";
     const totalHave =
       store === "fragments"
         ? getFragmentStackTotal(player[store], query, fragmentCategory)
@@ -903,9 +935,7 @@ function resolveEntry(player, entry) {
     const displayName = getDisplayName(displayEntry, entry.code);
 
     if (isBlockedTradeEntry(displayEntry, displayEntry?.code || entry.code)) {
-      throw new Error(
-        `${STORE_LABELS[store] || store} item \`${displayName}\` is untradeable.`
-      );
+      throw new Error(`${STORE_LABELS[store] || store} item \`${displayName}\` is untradeable.`);
     }
 
     if (totalHave < entry.amount) {
@@ -933,25 +963,18 @@ function resolveEntry(player, entry) {
   }
 
   if (insufficient) {
-    throw new Error(
-      `${player.username} lacks ${insufficient.displayName} x${entry.amount}.`
-    );
+    throw new Error(`${player.username} lacks ${insufficient.displayName} x${entry.amount}.`);
   }
 
-  // Actual card trading is fallback only.
-  // Normal card/boost quantity trade should already be handled by fragments above.
   const cardResolved = resolveCardEntry(player, entry);
   if (cardResolved) return cardResolved;
 
-  throw new Error(
-    `${player.username} does not own tradable ${entry.raw || entry.code}_${entry.amount}.`
-  );
+  throw new Error(`${player.username} does not own tradable ${entry.raw || entry.code}_${entry.amount}.`);
 }
 
 function removeStack(list, codeOrQuery, amount, options = {}) {
   const arr = Array.isArray(list) ? [...list] : [];
   let remaining = Number(amount || 0);
-
   const isFragmentStore = options.store === "fragments";
   const forcedCategory = options.fragmentCategory || "";
 
@@ -964,10 +987,7 @@ function removeStack(list, codeOrQuery, amount, options = {}) {
     return a.index - b.index;
   });
 
-  const totalHave = hits.reduce(
-    (total, hit) => total + getStackAmount(hit.entry),
-    0
-  );
+  const totalHave = hits.reduce((total, hit) => total + getStackAmount(hit.entry), 0);
 
   if (totalHave < remaining) {
     throw new Error(`Not enough ${getDisplayName(hits[0]?.entry, codeOrQuery)}.`);
@@ -982,7 +1002,6 @@ function removeStack(list, codeOrQuery, amount, options = {}) {
     const currentAmount = getStackAmount(arr[currentIndex]);
     const take = Math.min(currentAmount, remaining);
     const left = currentAmount - take;
-
     remaining -= take;
 
     if (left <= 0) {
@@ -1019,22 +1038,21 @@ function consumeResolvedForValidation(player, resolved) {
     next[resolved.store] = removeStack(
       next[resolved.store],
       resolved.query || resolved.code,
-      resolved.amount
+      resolved.amount,
+      {
+        store: resolved.store,
+        fragmentCategory: resolved.fragmentCategory || "",
+      }
     );
     return next;
   }
 
   if (resolved.kind === "cards") {
     const movingIds = new Set(
-      resolved.cards
-        .map((card) => String(card.instanceId || ""))
-        .filter(Boolean)
+      resolved.cards.map((card) => String(card.instanceId || "")).filter(Boolean)
     );
 
-    next.cards = next.cards.filter(
-      (card) => !movingIds.has(String(card.instanceId || ""))
-    );
-
+    next.cards = next.cards.filter((card) => !movingIds.has(String(card.instanceId || "")));
     return next;
   }
 
@@ -1057,7 +1075,6 @@ function resolveOffer(player, offer) {
 function addStack(list, incoming, amount) {
   const arr = Array.isArray(list) ? [...list] : [];
   const code = normalizeTradeAliasCode(incoming?.code || slug(incoming?.name || ""));
-
   const exactIndex = findExactStackIndexByCode(arr, code);
 
   if (exactIndex < 0) {
@@ -1122,14 +1139,9 @@ function applyResolvedTrade(from, to, resolved) {
 
     if (entry.kind === "stack") {
       const query = entry.query || entry.code;
-
       const sourceHit =
         entry.store === "fragments"
-          ? getMatchingFragmentEntries(
-              fromNext[entry.store],
-              query,
-              entry.fragmentCategory || ""
-            )[0]
+          ? getMatchingFragmentEntries(fromNext[entry.store], query, entry.fragmentCategory || "")[0]
           : findExactStackEntryByCode(fromNext[entry.store], entry.code) ||
             getMatchingStackEntries(fromNext[entry.store], query)[0];
 
@@ -1153,9 +1165,7 @@ function applyResolvedTrade(from, to, resolved) {
 
     if (entry.kind === "cards") {
       const movingIds = new Set(
-        entry.cards
-          .map((card) => String(card.instanceId || ""))
-          .filter(Boolean)
+        entry.cards.map((card) => String(card.instanceId || "")).filter(Boolean)
       );
 
       const movingCards = fromNext.cards.filter((card) =>
@@ -1210,8 +1220,8 @@ function tradeEmbed(owner, target, ownerOffer, targetOffer, status = "pending", 
         status === "pending"
           ? "Both players must confirm."
           : status === "done"
-          ? "Trade completed successfully."
-          : "Trade cancelled.",
+            ? "Trade completed successfully."
+            : "Trade cancelled.",
       ].join("\n")
     );
 }
@@ -1398,7 +1408,9 @@ module.exports = {
               parsed.targetOffer,
               "pending",
               initialResolved
-            ).setFooter({ text: pendingText }),
+            ).setFooter({
+              text: pendingText,
+            }),
           ],
           components: [row],
         });
@@ -1406,40 +1418,7 @@ module.exports = {
 
       state.processing = true;
 
-      await interaction
-        .update({
-          embeds: [
-            tradeEmbed(
-              owner,
-              target,
-              parsed.ownerOffer,
-              parsed.targetOffer,
-              "pending",
-              initialResolved
-            ).setFooter({
-              text: "Processing trade... do not click again.",
-            }),
-          ],
-          components: [],
-        })
-        .catch(async () => {
-          await interaction.deferUpdate().catch(() => null);
-          await sent.edit({
-            embeds: [
-              tradeEmbed(
-                owner,
-                target,
-                parsed.ownerOffer,
-                parsed.targetOffer,
-                "pending",
-                initialResolved
-              ).setFooter({
-                text: "Processing trade... do not click again.",
-              }),
-            ],
-            components: [],
-          }).catch(() => null);
-        });
+      await interaction.deferUpdate().catch(() => null);
 
       try {
         let freshOwner = null;
@@ -1447,7 +1426,7 @@ module.exports = {
         let ownerResolved = null;
         let targetResolved = null;
 
-        updateTwoPlayersAtomic(
+        const updatedTrade = await updateTwoPlayersAtomic(
           message.author.id,
           targetUser.id,
           (ownerFresh, targetFresh) => {
@@ -1469,7 +1448,15 @@ module.exports = {
           targetUser.username
         );
 
+        if (!updatedTrade) {
+          throw new Error("Trade save failed. No item was moved.");
+        }
+
+        freshOwner = updatedTrade.playerA || freshOwner || owner;
+        freshTarget = updatedTrade.playerB || freshTarget || target;
+
         state.done = true;
+        state.processing = false;
 
         await sent.edit({
           embeds: [
