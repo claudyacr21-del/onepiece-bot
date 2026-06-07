@@ -13,18 +13,23 @@ function normalize(text) {
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const code = String(item?.code || "").trim();
+  const code = String(item?.code || "").trim().toLowerCase();
   const name = String(item?.name || "").trim();
 
   const index = arr.findIndex((entry) => {
-    if (code && entry.code) return String(entry.code) === code;
-    return normalize(entry.name) === normalize(name);
+    const entryCode = String(entry?.code || "").trim().toLowerCase();
+
+    if (code && entryCode) return entryCode === code;
+
+    return normalize(entry?.name) === normalize(name);
   });
 
   if (index !== -1) {
     arr[index] = {
       ...arr[index],
       ...item,
+      code: item.code || arr[index].code,
+      name: item.name || arr[index].name,
       amount: Number(arr[index].amount || 0) + Number(item.amount || 1),
     };
 
@@ -290,6 +295,69 @@ function isUniversalFragment(item) {
   );
 }
 
+function isTicketReward(item) {
+  const code = String(item?.code || "").toLowerCase().trim();
+  const type = String(item?.type || "").toLowerCase().trim();
+
+  return (
+    type === "ticket" ||
+    code === "pull_reset_ticket" ||
+    code === "raid_ticket" ||
+    code === "gold_raid_ticket"
+  );
+}
+
+function normalizeTicketReward(item, amount) {
+  const code = String(item?.code || "").toLowerCase().trim();
+
+  if (code === "pull_reset_ticket") {
+    return {
+      code: "pull_reset_ticket",
+      name: "Pull Reset Ticket",
+      type: "Ticket",
+      amount,
+    };
+  }
+
+  if (code === "raid_ticket") {
+    return {
+      code: "raid_ticket",
+      name: "Raid Ticket",
+      type: "Ticket",
+      amount,
+    };
+  }
+
+  if (code === "gold_raid_ticket") {
+    return {
+      code: "gold_raid_ticket",
+      name: "Gold Raid Ticket",
+      type: "Ticket",
+      amount,
+    };
+  }
+
+  return {
+    ...item,
+    type: "Ticket",
+    amount,
+  };
+}
+
+function normalizeUniversalReward(item, amount) {
+  const code = String(item?.code || "").toLowerCase().trim();
+  const name = String(item?.name || "").trim();
+
+  return {
+    ...item,
+    code: code || item?.code,
+    name: name || item?.name || "Universal Fragment",
+    type: "Consumable",
+    category: "universal",
+    amount,
+  };
+}
+
 function getRewardStorageKey(item) {
   const type = String(item?.type || "").toLowerCase();
   const code = String(item?.code || "").toLowerCase();
@@ -323,7 +391,7 @@ function grantRewardItem(state, rewardMap, item, qty, boxAmount) {
   const reward = normalizeRewardItem(item, totalAmount);
   const type = getRewardType(reward);
 
-  let nextState = {
+  const nextState = {
     ...state,
     materials: [...(state.materials || [])],
     items: [...(state.items || [])],
@@ -332,41 +400,28 @@ function grantRewardItem(state, rewardMap, item, qty, boxAmount) {
     boxes: [...(state.boxes || [])],
   };
 
-  if (type === "fragment") {
-    if (isUniversalFragment(reward)) {
-      nextState.items = addOrIncrease(nextState.items, {
-        ...reward,
-        type: "Consumable",
-        category: "universal",
-      });
-    } else {
-      nextState.fragments = addOrIncrease(nextState.fragments, {
-        ...reward,
-        category: reward.category || "fragment",
-      });
-    }
-
-    addRewardLine(rewardMap, reward.name || "Unknown Reward", totalAmount);
-    return moveMisplacedConsumablesToItems(nextState);
-  }
-
-  const storageKey = getRewardStorageKey(reward);
-
-  if (storageKey === "materials") {
+  if (isTicketReward(reward)) {
+    const ticketReward = normalizeTicketReward(reward, totalAmount);
+    nextState.tickets = addOrIncrease(nextState.tickets, ticketReward);
+  } else if (isUniversalFragment(reward)) {
+    const universalReward = normalizeUniversalReward(reward, totalAmount);
+    nextState.items = addOrIncrease(nextState.items, universalReward);
+  } else if (type === "material") {
     nextState.materials = addOrIncrease(nextState.materials, reward);
-  } else if (storageKey === "tickets") {
-    nextState.tickets = addOrIncrease(nextState.tickets, reward);
-  } else if (storageKey === "boxes") {
+  } else if (type === "fragment") {
+    nextState.fragments = addOrIncrease(nextState.fragments, {
+      ...reward,
+      category: reward.category || "fragment",
+    });
+  } else if (type === "box") {
     nextState.boxes = addOrIncrease(nextState.boxes, reward);
   } else {
-    nextState.items = addOrIncrease(nextState.items, {
-      ...reward,
-      type: reward.type || "Consumable",
-    });
+    nextState.items = addOrIncrease(nextState.items, reward);
   }
 
   addRewardLine(rewardMap, reward.name || "Unknown Reward", totalAmount);
-  return moveMisplacedConsumablesToItems(nextState);
+
+  return nextState;
 }
 
 function addRandomUniversalFragment(state, rewardMap, pool, qty, boxAmount) {
@@ -528,14 +583,15 @@ function grantOpenableItemRewards(item, amount, state, rewardMap) {
         rewardMap,
         {
           ...reward,
-          type: "Fragment",
+          type: "Consumable",
+          category: "universal",
         },
         1,
         1
       );
     }
 
-    return moveMisplacedConsumablesToItems(nextState);
+    return nextState;
   }
 
   return null;
