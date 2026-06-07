@@ -51,9 +51,21 @@ function installPlayerStoreShutdownDrain() {
   process.once("SIGINT", () => drainAndExit("SIGINT"));
 }
 
+function isSystemStoreKey(userId) {
+  return String(userId || "").startsWith("__");
+}
+
+function normalizeStoreRecord(userId, data, username = "Unknown") {
+  if (isSystemStoreKey(userId)) {
+    return cloneJson(data || {});
+  }
+
+  return normalizePlayer(data || {}, username || data?.username || "Unknown");
+}
+
 function enqueuePlayerSnapshotSave(userId, player) {
   const id = String(userId);
-  const snapshot = normalizePlayer(player, player?.username || "Unknown");
+  const snapshot = normalizeStoreRecord(id, player, player?.username || "Unknown");
 
   const previous = playerSaveQueues.get(id) || Promise.resolve();
 
@@ -557,7 +569,7 @@ async function upsertOnePlayerToPostgres(userId, data) {
   await ensurePlayersTable();
 
   const id = String(userId);
-  const safeData = normalizePlayer(data || {}, data?.username || "Unknown");
+  const safeData = normalizeStoreRecord(id, data || {}, data?.username || "Unknown");
 
   await pool.query(
     `
@@ -754,7 +766,7 @@ async function flushChangedPlayersToPostgres(data) {
   const changed = [];
 
   for (const [userId, player] of Object.entries(safeData)) {
-    const normalized = normalizePlayer(player, player?.username || "Unknown");
+    const normalized = normalizeStoreRecord(userId, player, player?.username || "Unknown");
     const before = JSON.stringify(persistedCache?.[userId] || null);
     const after = JSON.stringify(normalized || null);
 
@@ -880,7 +892,7 @@ function writePlayers(data) {
     const pending = [];
 
     for (const [userId, player] of Object.entries(safeData)) {
-      const normalized = normalizePlayer(player, player?.username || "Unknown");
+      const normalized = normalizeStoreRecord(userId, player, player?.username || "Unknown");
       const before = JSON.stringify(persistedCache?.[userId] || null);
       const after = JSON.stringify(normalized || null);
 
