@@ -29,6 +29,10 @@ const {
   rollPremiumDevilFruitTier,
   rollPremiumWeaponTier,
 } = require("../utils/pullRates");
+const {
+  getLuckyWeekPullMultiplier,
+  getLuckyWeekBonusLine,
+} = require("../utils/luckyWeekStore");
 const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 
 const PREMIUM_PITY_TARGET = 100;
@@ -88,12 +92,23 @@ function rollThroneEquivalentCardTier(baseTier) {
   return baseTier;
 }
 
-function getPremiumRewardTier(contentType, triggeredPity, pullChanceBonus = 0) {
-  if (contentType === "devilFruit") return rollPremiumDevilFruitTier();
-  if (contentType === "weapon") return rollPremiumWeaponTier();
+function getPremiumRewardTier(
+  contentType,
+  triggeredPity,
+  pullChanceBonus = 0,
+  luckyMultiplier = 1
+) {
+  if (contentType === "devilFruit") {
+    return rollPremiumDevilFruitTier(luckyMultiplier);
+  }
+
+  if (contentType === "weapon") {
+    return rollPremiumWeaponTier(luckyMultiplier);
+  }
+
   if (triggeredPity) return "S";
 
-  const baseTier = rollPremiumBaseTier(pullChanceBonus);
+  const baseTier = rollPremiumBaseTier(pullChanceBonus, luckyMultiplier);
 
   if (contentType === "boostCard") {
     return rollThroneEquivalentCardTier(baseTier);
@@ -1066,6 +1081,7 @@ module.exports = {
     let updatedTickets = [...(player.tickets || [])];
     let pityCounter = getSharedPity(player);
     const pirateLuckBoost = getPirateLuckBoost(message.author.id);
+    const luckyWeekMultiplier = getLuckyWeekPullMultiplier();
     let convertedBerries = 0;
     let convertedCount = 0;
     let cardsPulledThisRun = 0;
@@ -1107,7 +1123,12 @@ module.exports = {
 
       const pool = getRewardPool(contentType);
 
-      const rarity = getPremiumRewardTier(contentType, triggeredPity, pirateLuckBoost);
+      const rarity = getPremiumRewardTier(
+        contentType,
+        triggeredPity,
+        pirateLuckBoost,
+        luckyWeekMultiplier
+      );
 
       const reward =
         contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, rarity);
@@ -1322,6 +1343,12 @@ module.exports = {
     }, message.author.username);
 
     const groupedLines = [];
+    const luckyWeekLine = getLuckyWeekBonusLine();
+
+    if (luckyWeekLine) {
+      groupedLines.push(luckyWeekLine);
+      groupedLines.push("");
+    }
 
     if (pullGroups.cards.length) {
       groupedLines.push("## Cards");

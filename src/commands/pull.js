@@ -31,7 +31,10 @@ const {
   rollVivreWeaponTier,
   rollPremiumWeaponTier,
 } = require("../utils/pullRates");
-
+const {
+  getLuckyWeekPullMultiplier,
+  getLuckyWeekBonusLine,
+} = require("../utils/luckyWeekStore");
 const { getPremiumTier } = require("../utils/premiumAccess");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const {
@@ -122,27 +125,33 @@ function rollThroneEquivalentCardTier(baseTier) {
   return baseTier;
 }
 
-function pickBaseTier(tier, contentType, triggeredPity, pullChanceBonus = 0) {
+function pickBaseTier(
+  tier,
+  contentType,
+  triggeredPity,
+  pullChanceBonus = 0,
+  luckyMultiplier = 1
+) {
   if (contentType === "devilFruit") {
-    if (tier === "motherFlame") return rollPremiumDevilFruitTier();
-    if (tier === "vivreCard") return rollVivreDevilFruitTier();
-    return rollStandardDevilFruitTier();
+    if (tier === "motherFlame") return rollPremiumDevilFruitTier(luckyMultiplier);
+    if (tier === "vivreCard") return rollVivreDevilFruitTier(luckyMultiplier);
+    return rollStandardDevilFruitTier(luckyMultiplier);
   }
 
   if (contentType === "weapon") {
-    if (tier === "motherFlame") return rollPremiumWeaponTier();
-    if (tier === "vivreCard") return rollVivreWeaponTier();
-    return rollStandardWeaponTier();
+    if (tier === "motherFlame") return rollPremiumWeaponTier(luckyMultiplier);
+    if (tier === "vivreCard") return rollVivreWeaponTier(luckyMultiplier);
+    return rollStandardWeaponTier(luckyMultiplier);
   }
 
   if (triggeredPity) return getPityGuarantee(tier);
 
   const baseTier =
     tier === "motherFlame"
-      ? rollPremiumBaseTier(pullChanceBonus)
+      ? rollPremiumBaseTier(pullChanceBonus, luckyMultiplier)
       : tier === "vivreCard"
-      ? rollVivreBaseTier(pullChanceBonus)
-      : rollStandardBaseTier(pullChanceBonus);
+      ? rollVivreBaseTier(pullChanceBonus, luckyMultiplier)
+      : rollStandardBaseTier(pullChanceBonus, luckyMultiplier);
 
   if (contentType === "boostCard") {
     return rollThroneEquivalentCardTier(baseTier);
@@ -1129,10 +1138,17 @@ module.exports = {
       : rolledContentType;
 
     const pirateLuckBoost = getPirateLuckBoost(message.author.id);
+    const luckyWeekMultiplier = getLuckyWeekPullMultiplier();
 
     const baseTier = triggeredPity
       ? pityGuarantee
-      : pickBaseTier(premiumTier, contentType, false, pirateLuckBoost);
+      : pickBaseTier(
+          premiumTier,
+          contentType,
+          false,
+          pirateLuckBoost,
+          luckyWeekMultiplier
+        );
 
     const pool = getRewardPool(contentType);
     const picked =
@@ -1295,6 +1311,7 @@ module.exports = {
           `**Slot Used:** ${prettySlotName(pullKey)}`,
           `**Remaining Pulls:** ${available - 1}/${totalMax}`,
           `**${pityText}**`,
+          getLuckyWeekBonusLine(),
           "",
           duplicateLine || `**${rewardName}**`,
           duplicateLine ? null : `**Type:** ${getTypeLabel(contentType)}`,
