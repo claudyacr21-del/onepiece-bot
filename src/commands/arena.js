@@ -463,40 +463,86 @@ function compareArenaEntries(a, b) {
   return String(a?.username || "").localeCompare(String(b?.username || ""));
 }
 
+function getFastArenaTeamCards(raw) {
+  const cards = Array.isArray(raw?.cards) ? raw.cards : [];
+  const slots = Array.isArray(raw?.team?.slots) ? raw.team.slots.slice(0, 3) : [];
+
+  if (slots.filter(Boolean).length < 3 || cards.length < 3) return [];
+
+  return slots
+    .map((instanceId) =>
+      cards.find(
+        (card) =>
+          String(card?.instanceId || "") === String(instanceId || "") &&
+          String(card?.cardRole || "").toLowerCase() !== "boost"
+      )
+    )
+    .filter(Boolean);
+}
+
+function getFastArenaTeamPower(cards) {
+  return ensureArray(cards).reduce((total, card) => {
+    const power = Number(
+      card?.currentPower ||
+        card?.power ||
+        card?.powerCaps?.M3 ||
+        Math.floor(
+          Number(card?.atk || 0) * 1.4 +
+            Number(card?.hp || 0) * 0.22 +
+            Number(card?.speed || 0) * 9
+        )
+    );
+
+    return total + power;
+  }, 0);
+}
+
 function getRealArenaEntries(message) {
   const allPlayers = getCachedArenaPlayers();
+  const maxScan = Math.max(
+    ARENA_TOTAL_RANK_SLOTS,
+    Number(ARENA_MAX_OPPONENT_SCAN || 650)
+  );
 
-  return Object.entries(allPlayers)
-    .filter(([userId]) => String(userId) !== String(message?.client?.user?.id || ""))
+  const quickEntries = Object.entries(allPlayers)
+    .filter(([userId]) => {
+      const id = String(userId || "");
+      if (!id || id.startsWith("__")) return false;
+      return id !== String(message?.client?.user?.id || "");
+    })
     .map(([userId, raw]) => {
-      const cards = Array.isArray(raw?.cards) ? raw.cards : [];
-      const slots = Array.isArray(raw?.team?.slots) ? raw.team.slots : [null, null, null];
+      const teamCards = getFastArenaTeamCards(raw);
+      if (teamCards.length !== 3) return null;
 
-      // Skip cepat sebelum hydrate team. Ini ngurangin beban besar.
-      if (slots.filter(Boolean).length < 3 || cards.length < 3) return null;
+      const arena = raw?.arena || {};
 
-      const player = {
+      return {
         userId,
         ...raw,
         username: raw?.username || "Unknown",
-        cards,
-        team: raw?.team || {
-          slots: [null, null, null],
-        },
+        points: Number(arena?.points || 0),
+        wins: Number(arena?.wins || 0),
+        losses: Number(arena?.losses || 0),
+        draws: Number(arena?.draws || 0),
+        matches: Number(arena?.matches || 0),
+        streak: Number(arena?.streak || 0),
+        isBot: false,
+        teamPower: getFastArenaTeamPower(teamCards),
+        __teamCardsReady: true,
       };
+    })
+    .filter(Boolean)
+    .sort(compareArenaEntries)
+    .slice(0, maxScan);
 
+  return quickEntries
+    .map((player) => {
       const teamUnits = getTeamUnits(player, "opponent");
       if (teamUnits.length !== 3) return null;
 
       return {
         ...player,
-        points: Number(player?.arena?.points || 0),
-        wins: Number(player?.arena?.wins || 0),
-        losses: Number(player?.arena?.losses || 0),
-        draws: Number(player?.arena?.draws || 0),
-        matches: Number(player?.arena?.matches || 0),
-        streak: Number(player?.arena?.streak || 0),
-        isBot: false,
+        username: getArenaDisplayName(message, player.userId, player),
         teamUnits,
         teamPower: getArenaTeamPower(teamUnits),
       };
@@ -1569,28 +1615,66 @@ module.exports = {
       return message.reply(`You already used all **${ARENA_DAILY_LIMIT}/5** arena battles today.`);
     }
 
-    const leaderboardSnapshot = buildArenaVirtualLeaderboard(message);
-    const playerArenaRank = getArenaRankFromLeaderboard(
-      leaderboardSnapshot,
-      message.author.id
-    );
+    const loadingMessage = await message.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle("Global Arena")
+          .setDescription("Loading arena opponents...\nPlease wait a moment.")
+          .setFooter({ text: "One Piece Bot • Arena Loading" }),
+      ],
+      allowedMentions: { repliedUser: false },
+    });
 
-    const rankedPlayer = {
-      ...player,
-      arenaRank: playerArenaRank,
-    };
+    let leaderboardSnapshot = [];
+    let playerArenaRank = ARENA_TOTAL_RANK_SLOTS;
+    let rankedPlayer = null;
+    let opponents = [];
 
-    const opponents = buildOpponentPoolFromLeaderboard(
-      leaderboardSnapshot,
-      message,
-      rankedPlayer
-    );
+    try {
+      leaderboardSnapshot = buildArenaVirtualLeaderboard(message);
+      playerArenaRank = getArenaRankFromLeaderboard(
+        leaderboardSnapshot,
+        message.author.id
+      );
 
-    if (!opponents.length) {
-      return message.reply("No arena opponent was found.");
+      rankedPlayer = {
+        ...player,
+        arenaRank: playerArenaRank,
+      };
+
+      opponents = buildOpponentPoolFromLeaderboard(
+        leaderboardSnapshot,
+        message,
+        rankedPlayer
+      );
+    } catch (error) {
+      console.error("[ARENA LOBBY BUILD ERROR]", error);
+
+      return loadingMessage.edit({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle("Arena Error")
+            .setDescription("Arena failed to load opponents. Please try again later."),
+        ],
+        components: [],
+      });
     }
 
-    const lobbyMessage = await message.reply({
+    if (!opponents.length) {
+      return loadingMessage.edit({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle("Global Arena")
+            .setDescription("No arena opponent was found."),
+        ],
+        components: [],
+      });
+    }
+
+    const lobbyMessage = await loadingMessage.edit({
       embeds: [buildArenaLobbyEmbed(rankedPlayer, opponents)],
       components: buildOpponentMenu(opponents),
     });
@@ -1600,7 +1684,7 @@ module.exports = {
     });
 
     lobbyCollector.on("collect", async (interaction) => {
-if (interaction.user.id !== message.author.id) {
+      if (interaction.user.id !== message.author.id) {
         await safeEphemeralReply(
           interaction,
           "Only the command user can select an arena opponent."
@@ -1631,7 +1715,6 @@ if (interaction.user.id !== message.author.id) {
       }
 
       lobbyCollector.stop("selected");
-
       await safeDeferUpdate(interaction);
 
       await startArenaBattle({
