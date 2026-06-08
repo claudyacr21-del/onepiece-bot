@@ -776,7 +776,12 @@ async function flushChangedPlayersToPostgres(data) {
   const changed = [];
 
   for (const [userId, player] of Object.entries(safeData)) {
-    const normalized = normalizeStoreRecord(userId, player, player?.username || "Unknown");
+    const normalized = normalizeStoreRecord(
+      userId,
+      player,
+      player?.username || "Unknown"
+    );
+
     const before = JSON.stringify(persistedCache?.[userId] || null);
     const after = JSON.stringify(normalized || null);
 
@@ -788,8 +793,20 @@ async function flushChangedPlayersToPostgres(data) {
   if (!changed.length) return;
 
   for (const [userId, normalized] of changed) {
-    await upsertOnePlayerToPostgres(userId, normalized);
-    persistedCache[userId] = cloneJson(normalized);
+    const dbPlayer = await getPlayerFromPostgres(userId).catch(() => null);
+    const persistedPlayer = dbPlayer || persistedCache?.[userId] || normalized;
+
+    const safeNormalized = normalizeStoreRecord(
+      userId,
+      mergePlayerNoRollback(normalized, persistedPlayer, {
+        preserveMissingCards: true,
+        preserveMissingItems: true,
+      }),
+      normalized?.username || persistedPlayer?.username || "Unknown"
+    );
+
+    await upsertOnePlayerToPostgres(userId, safeNormalized);
+    persistedCache[userId] = cloneJson(safeNormalized);
   }
 }
 
@@ -1538,6 +1555,12 @@ function normalizePlayer(player = {}, username = "Unknown") {
     username: player.username || username,
     berries: typeof player.berries === "number" ? player.berries : 1000,
     gems: typeof player.gems === "number" ? player.gems : 100,
+
+    pirateTokens: Math.max(
+      0,
+      Math.floor(Number(player.pirateTokens || 0))
+    ),
+
     currentIsland,
     messageMilestones: normalizeMessageMilestones(player.messageMilestones),
     dailyLastClaim: player.dailyLastClaim || null,
@@ -1588,6 +1611,7 @@ function getDefaultPlayer(username) {
       username,
       berries: 1000,
       gems: 100,
+      pirateTokens: 0,
       currentIsland: "Foosha Village",
       messageMilestones: {
         messages: 0,
