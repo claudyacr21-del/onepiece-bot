@@ -1,5 +1,5 @@
 const { readPirateState, writePirateState } = require("./pirateStore");
-const { updatePlayerAtomic } = require("../playerStore");
+const { updatePlayerAtomic, flushPlayerStoreNow } = require("../playerStore");
 
 const WEEKLY_RESET_TZ_OFFSET_HOURS = 7;
 
@@ -58,7 +58,7 @@ function resetPirateRaidState(pirate) {
   };
 }
 
-function addPirateTokens(userId, amount) {
+async function addPirateTokens(userId, amount) {
   const safeAmount = Math.max(0, Math.floor(Number(amount || 0)));
   if (!safeAmount) return;
 
@@ -77,7 +77,7 @@ function addPirateTokens(userId, amount) {
   );
 }
 
-function runPirateWeeklyResetIfNeeded() {
+async function runPirateWeeklyResetIfNeeded() {
   const state = readPirateState();
   const currentBucket = getWeeklyResetBucket();
 

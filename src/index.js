@@ -18,6 +18,7 @@ const {
   syncExpiredPatreonRoles,
 } = require("./utils/patreonRoleStore");
 const { initPirateStore } = require("./utils/pirateStore");
+const { runPirateWeeklyResetIfNeeded } = require("./utils/pirateWeekly");
 const { startResetReminderService } = require("./utils/resetReminderService");
 const { startAutoReloadService } = require("./utils/autoReload");
 const { initRedeemCodeStore } = require("./utils/redeemCodeStore");
@@ -59,6 +60,51 @@ const ONEPIECE_MAIN_GUILD_ID =
 
 const commandCooldowns = new Map();
 const processedMessageIds = new Set();
+
+let pirateWeeklyResetRunning = false;
+
+async function checkPirateWeeklyReset(reason = "interval") {
+  if (pirateWeeklyResetRunning) return;
+  pirateWeeklyResetRunning = true;
+
+  try {
+    const result = await runPirateWeeklyResetIfNeeded();
+
+    if (result?.didReset) {
+      console.log(
+        `[PIRATE WEEKLY RESET] Completed via ${reason}. Bucket: ${result.currentBucket}. Rewards: ${Array.isArray(result.rewards) ? result.rewards.length : 0}`
+      );
+    } else if (result?.initialized) {
+      console.log(
+        `[PIRATE WEEKLY RESET] Initialized bucket via ${reason}: ${result.currentBucket}`
+      );
+    }
+  } catch (error) {
+    console.error("[PIRATE WEEKLY RESET ERROR]", error);
+  } finally {
+    pirateWeeklyResetRunning = false;
+  }
+}
+
+function startPirateWeeklyResetScheduler() {
+  const intervalMs = Math.max(
+    60_000,
+    Number(process.env.PIRATE_WEEKLY_RESET_CHECK_MS || 300000)
+  );
+
+  checkPirateWeeklyReset("startup").catch((error) => {
+    console.error("[PIRATE WEEKLY RESET STARTUP ERROR]", error);
+  });
+
+  setInterval(() => {
+    checkPirateWeeklyReset("interval").catch((error) => {
+      console.error("[PIRATE WEEKLY RESET INTERVAL ERROR]", error);
+    });
+  }, intervalMs);
+
+  console.log(`[PIRATE WEEKLY RESET] Scheduler active. Check every ${intervalMs}ms.`);
+}
+
 
 let readyStarted = false;
 let dedupePool = null;
@@ -438,6 +484,7 @@ client.once("clientReady", async () => {
   startTopggWebhookServer(client);
   startResetReminderService(client);
   startAutoReloadService(client);
+startPirateWeeklyResetScheduler();
   
   syncArenaRankRoles(client).catch((error) => {
     console.error("[ARENA RANK ROLES READY SYNC ERROR]", error);
