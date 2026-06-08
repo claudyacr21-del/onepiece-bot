@@ -153,7 +153,7 @@ function usageEmbed() {
     .setFooter({ text: "One Piece Bot • Pirate System Phase 1 + 2" });
 }
 
-function syncMergeCombatPlayer(player) {
+function getPlayer(players, userId, username) {
   const id = String(userId);
   if (!players[id]) {
     players[id] = {
@@ -351,7 +351,7 @@ function requireLeader(pirate, userId) {
 
 async function sendPirateInfo(message, pirate) {
   const players = readPlayers();
-  const player = syncMergeCombatPlayer(getPlayer(players, message.author.id, message.author.username));
+  const player = getPlayer(players, message.author.id, message.author.username);
 
   const rank = getPirateWeeklyRank(pirate.id);
   const userRole = getRole(pirate, message.author.id);
@@ -449,7 +449,7 @@ async function handleCreate(message, args) {
     }
 
     const players = readPlayers();
-    const player = syncMergeCombatPlayer(getPlayer(players, message.author.id, message.author.username));
+    const player = getPlayer(players, message.author.id, message.author.username);
 
     const currentBerries = Math.floor(Number(player.berries || 0));
     const currentGems = Math.floor(Number(player.gems || 0));
@@ -861,7 +861,7 @@ async function handleDepositBerries(message, args) {
   try {
     const pirate = requirePirate(message.author.id);
     const players = readPlayers();
-    const player = syncMergeCombatPlayer(getPlayer(players, message.author.id, message.author.username));
+    const player = getPlayer(players, message.author.id, message.author.username);
 
     if (Number(player.berries || 0) < amount) {
       return message.reply(makeError(`You only have **${fmt(player.berries)} berries**.`));
@@ -914,7 +914,7 @@ async function handleDepositMaterial(message, args) {
   try {
     const pirate = requirePirate(message.author.id);
     const players = readPlayers();
-    const player = syncMergeCombatPlayer(getPlayer(players, message.author.id, message.author.username));
+    const player = getPlayer(players, message.author.id, message.author.username);
     const found = findMaterialStack(player, query);
 
     if (!found) {
@@ -1410,7 +1410,7 @@ async function handlePirateShop(message) {
   try {
     const pirate = requirePirate(message.author.id);
     const players = readPlayers();
-    const player = syncMergeCombatPlayer(getPlayer(players, message.author.id, message.author.username));
+    const player = getPlayer(players, message.author.id, message.author.username);
 
     const discount = getPirateShopDiscountInfo(pirate);
 
@@ -1486,7 +1486,7 @@ async function handlePirateBuy(message, args) {
     requirePirate(message.author.id);
 
     const players = readPlayers();
-    let player = syncMergeCombatPlayer(getPlayer(players, message.author.id, message.author.username));
+    let player = getPlayer(players, message.author.id, message.author.username);
     const tokens = Math.max(0, Math.floor(Number(player.pirateTokens || 0)));
 
     const pirate = requirePirate(message.author.id);
@@ -1818,7 +1818,7 @@ function applyPirateRaidContributorRewards(message, boss, contributors) {
   const rewardLines = [];
 
   for (const [userId, data] of entries) {
-    const player = syncMergeCombatPlayer(getPlayer(players, userId, `User ${userId}`));
+    const player = getPlayer(players, userId, `User ${userId}`);
 
     player.berries =
       Math.max(0, Math.floor(Number(player.berries || 0))) +
@@ -2139,7 +2139,7 @@ async function handlePirateAttack(message, args) {
     }
 
     const players = readPlayers();
-    const player = syncMergeCombatPlayer(getPlayer(players, message.author.id, message.author.username));
+    const player = getPlayer(players, message.author.id, message.author.username);
     const selectedCards = getBestRaidCards(player, 3);
 
     if (selectedCards.length < 3) {

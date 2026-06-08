@@ -1,12 +1,12 @@
-const { syncMergeCombatPlayer, getMergeSafePower } = require("../utils/mergeCombatSync"); const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 
 function getPower(card) {
-  return getMergeSafePower(card, Number(
+  return Number(
     card.currentPower ||
       Math.floor(
-        Number(card.atk || 0)) * 1.4 +
+        Number(card.atk || 0) * 1.4 +
           Number(card.hp || 0) * 0.22 +
           Number(card.speed || 0) * 9
       )
@@ -59,7 +59,7 @@ module.exports = {
   name: "team",
 
   async execute(message) {
-    const player = syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username));
+    const player = getPlayer(message.author.id, message.author.username);
     const cards = (Array.isArray(player.cards) ? player.cards : [])
       .map(hydrateCard)
       .filter(Boolean);

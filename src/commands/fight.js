@@ -1,4 +1,4 @@
-const { syncMergeCombatPlayer, getMergeSafePower } = require("../utils/mergeCombatSync"); const {
+const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -893,7 +893,7 @@ module.exports = {
     const sessionKey = setActiveFightSession(message);
 
     try {
-      const player = syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username));
+      const player = getPlayer(message.author.id, message.author.username);
       const premiumTier = await getFightPremiumTier(message, player);
       const premiumMode = getFightModeLabel(premiumTier);
       const currentIsland = getPlayerFightIsland(player);

@@ -1,4 +1,4 @@
-const { syncMergeCombatPlayer, getMergeSafePower } = require("../utils/mergeCombatSync"); const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const {
   isLzsCard,
@@ -87,7 +87,7 @@ function resolveCurrentStageBaseStats(card) {
       atk: firstPositiveNumber(card?.finalAtk, card?.combatAtk, card?.displayAtk, card?.atk, card?.baseAtk),
       hp: firstPositiveNumber(card?.finalHp, card?.combatHp, card?.displayHp, card?.hp, card?.baseHp),
       speed: firstPositiveNumber(card?.finalSpeed, card?.combatSpeed, card?.displaySpeed, card?.speed, card?.spd, card?.baseSpeed),
-      power: firstPositivegetMergeSafePower(card, Number(card?.finalPower, card?.currentPower, card?.power, card?.basePower)),
+      power: firstPositiveNumber(card?.finalPower, card?.currentPower, card?.power, card?.basePower),
     };
   }
 
@@ -122,14 +122,14 @@ function resolveCurrentStageBaseStats(card) {
       stageStats.spd,
       stageStats.baseSpeed
     ),
-    power: firstPositivegetMergeSafePower(card, Number(
+    power: firstPositiveNumber(
       card?.currentPower,
       form.currentPower,
       form.power,
       stageStats.currentPower,
       stageStats.power,
       card?.powerCaps?.[stageKey]
-    )),
+    ),
   };
 }
 
@@ -152,7 +152,7 @@ function applyBoostedDisplayStats(card, boosts = {}) {
     combatAtk: boostedAtk,
     combatHp: boostedHp,
     combatSpeed: boostedSpeed,
-    currentPower: Math.max(getMergeSafePower(card, Number(card.currentPower || 0)), Number(base.power || 0)),
+    currentPower: Math.max(Number(card.currentPower || 0), Number(base.power || 0)),
   };
 }
 
@@ -601,7 +601,7 @@ function buildOwnedCardEmbed(ownerName, player, card) {
   const extraLines = card.cardRole === "boost" ? [
     `Form: ${card.evolutionKey || `M${stage}`}`,
     `Tier: ${card.currentTier || card.rarity}`,
-    `Power: ${getMergeSafePower(card, Number(card.currentPower || 0))}`,
+    `Power: ${Number(card.currentPower || 0)}`,
     `Effect: ${getRoadPoneglyphDisplayEffect(card || stageCard || form, stage || card?.evolutionStage || 1, card.effectText || "No effect text")}`,
     `Target: ${card.boostTarget || "team"}`,
     `Boost Type: ${card.boostType || "unknown"}`,
@@ -612,7 +612,7 @@ function buildOwnedCardEmbed(ownerName, player, card) {
           `Tier: ${card.currentTier || card.rarity}`,
           formatCardLevelLine(card),
           `Raid Prestige: ${Math.max(0, Math.min(200, Number(card.raidPrestige || 0)))}/200`,
-          `Power: ${getMergeSafePower(card, Number(card.currentPower || 0))}`,
+          `Power: ${Number(card.currentPower || 0)}`,
           `Health: ${Number(card.hp || 0)}`,
           `Speed: ${Number(card.speed || 0)}`,
           `Attack: ${atkRange}`,
@@ -647,7 +647,7 @@ module.exports = {
       return message.reply("Usage: `op mci <card/weapon/fruit name>`");
     }
 
-    const player = syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username));
+    const player = getPlayer(message.author.id, message.author.username);
     const boosts = getPassiveBoostSummary(player);
 
     const exactWeapon = findOwnedWeaponByExactNameOnly(player, query);

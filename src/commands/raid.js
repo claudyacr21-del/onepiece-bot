@@ -1,4 +1,4 @@
-const { syncMergeCombatPlayer, getMergeSafePower } = require("../utils/mergeCombatSync"); const {
+const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -507,11 +507,11 @@ function buildRaidCountEmbed(message, countState) {
 }
 
 function getRaidDisplayPower(card) {
-  return getMergeSafePower(card, Number(
+  return Number(
     card?.currentPower ||
       card?.power ||
       Math.floor(
-        Number(card?.atk || 0)) * 1.4 +
+        Number(card?.atk || 0) * 1.4 +
           Number(card?.hp || 0) * 0.22 +
           Number(card?.speed || 0) * 9
       )
@@ -793,7 +793,7 @@ function toRoomCard(card) {
 }
 
 function getFreshOwnedBattleCard(userId, username, picked) {
-  const player = syncMergeCombatPlayer(getPlayer(userId, username));
+  const player = getPlayer(userId, username);
   const cards = getRaidBaseBattleCards(player);
 
   const byInstance = cards.find(
@@ -848,7 +848,7 @@ function buildBattleRoster(room) {
           maxHp: Number(displayed.hp || 1),
           hp: Number(displayed.hp || 1),
           speed: Number(displayed.speed || 0),
-          currentPower: getMergeSafePower(card, Number(displayed.currentPower || getRaidDisplayPower(displayed))),
+          currentPower: Number(displayed.currentPower || getRaidDisplayPower(displayed)),
           currentTier: String(displayed.currentTier || displayed.rarity || ""),
           evolutionStage: Number(displayed.evolutionStage || 1),
           image: String(displayed.image || ""),
@@ -864,7 +864,7 @@ function buildBattleRoster(room) {
       })
     )
     .filter(Boolean)
-    .sort((a, b) => getMergeSafePower(card, Number(b.currentPower || 0)) - getMergeSafePower(card, Number(a.currentPower || 0)));
+    .sort((a, b) => Number(b.currentPower || 0) - Number(a.currentPower || 0));
 }
 
 function getRaidBossImage(code) {
@@ -973,9 +973,9 @@ function deriveRaidBossStats(template, raidMode = {}) {
   const baseAtk = Number(hydrated.atk || 120);
   const baseHp = Number(hydrated.hp || 900);
   const baseSpeed = Number(hydrated.speed || 60);
-  const basePower = getMergeSafePower(card, Number(
+  const basePower = Number(
     hydrated.powerCaps?.M3 || hydrated.currentPower || hydrated.basePower || 0
-  ));
+  );
 
   const rawMaxHp = Math.floor(profile.hp + baseHp * 2.8 + basePower * 1.2);
   const rawSpeed = Math.floor(profile.speed + baseSpeed * 0.9);
@@ -2323,7 +2323,7 @@ async function handleRaidCountCommand(message, args) {
   if (["status", "check", "info"].includes(sub)) {
     const userKey = getRaidCountUserKey(message.author.id);
     const runtimeState = activeRaidCountByUser.get(userKey);
-    const player = syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username));
+    const player = getPlayer(message.author.id, message.author.username);
     const state = getRaidCountState(
       runtimeState?.enabled ? { raidCountState: runtimeState } : player
     );
@@ -2409,7 +2409,7 @@ module.exports = {
     }
 
     const hostId = String(message.author.id);
-    const host = syncMergeCombatPlayer(getPlayer(hostId, message.author.username));
+    const host = getPlayer(hostId, message.author.username);
 
     if (hasActiveRoom(hostId)) {
       return message.reply("You already have an active raid/party room.");
@@ -2577,7 +2577,7 @@ module.exports = {
           });
         }
 
-        const joiningPlayer = syncMergeCombatPlayer(getPlayer(userId, interaction.user.username));
+        const joiningPlayer = getPlayer(userId, interaction.user.username);
         const teamCards = getBattleTeamCards(joiningPlayer);
 
         if (hasParticipantJoined(activeRoom, userId)) {

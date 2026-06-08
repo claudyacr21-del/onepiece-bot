@@ -1,4 +1,4 @@
-const { syncMergeCombatPlayer, getMergeSafePower } = require("../utils/mergeCombatSync"); const {
+const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -110,7 +110,7 @@ function normalize(text) {
 }
 
 function getPower(card) {
-  return getMergeSafePower(card, Number(card.currentPower || 0));
+  return Number(card.currentPower || 0);
 }
 
 function getFlatExp(card) {
@@ -202,14 +202,14 @@ function resolveCurrentStageBaseStats(card) {
       stageStats.spd,
       stageStats.baseSpeed
     ),
-    power: firstPositivegetMergeSafePower(card, Number(
+    power: firstPositiveNumber(
       card?.currentPower,
       form.currentPower,
       form.power,
       stageStats.currentPower,
       stageStats.power,
       card?.powerCaps?.[stageKey]
-    )),
+    ),
   };
 }
 
@@ -232,7 +232,7 @@ function applyBoostedDisplayStats(card, boosts = {}) {
     combatAtk: boostedAtk,
     combatHp: boostedHp,
     combatSpeed: boostedSpeed,
-    currentPower: Math.max(getMergeSafePower(card, Number(card.currentPower || 0)), Number(base.power || 0)),
+    currentPower: Math.max(Number(card.currentPower || 0), Number(base.power || 0)),
   };
 }
 
@@ -495,8 +495,8 @@ function isBetterDuplicateCard(candidate, current) {
     return candidateTier > currentTier;
   }
 
-  const candidatePower = getMergeSafePower(card, Number(candidate?.currentPower || 0));
-  const currentPower = getMergeSafePower(card, Number(current?.currentPower || 0));
+  const candidatePower = Number(candidate?.currentPower || 0);
+  const currentPower = Number(current?.currentPower || 0);
 
   if (candidatePower !== currentPower) {
     return candidatePower > currentPower;
@@ -977,7 +977,7 @@ module.exports = {
 
   async execute(message, args) {
     const player = syncMergedCardsInPlayer(
-      syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username))
+      getPlayer(message.author.id, message.author.username)
     );
 
     const boosts = getPassiveBoostSummary(player);
