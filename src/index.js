@@ -74,6 +74,7 @@ async function checkPirateWeeklyReset(reason = "interval") {
       console.log(
         `[PIRATE WEEKLY RESET] Completed via ${reason}. Bucket: ${result.currentBucket}. Rewards: ${Array.isArray(result.rewards) ? result.rewards.length : 0}`
       );
+      await sendPirateWeeklyResetNotification(result, reason);
     } else if (result?.initialized) {
       console.log(
         `[PIRATE WEEKLY RESET] Initialized bucket via ${reason}: ${result.currentBucket}`
@@ -83,6 +84,62 @@ async function checkPirateWeeklyReset(reason = "interval") {
     console.error("[PIRATE WEEKLY RESET ERROR]", error);
   } finally {
     pirateWeeklyResetRunning = false;
+  }
+}
+
+
+async function sendPirateWeeklyResetNotification(result, reason = "interval") {
+  const channelId = String(process.env.PIRATE_WEEKLY_RESET_LOG_CHANNEL_ID || "").trim();
+  if (!channelId || !result?.didReset) return;
+
+  try {
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel || typeof channel.send !== "function") {
+      console.warn("[PIRATE WEEKLY RESET] Log channel not found or cannot send:", channelId);
+      return;
+    }
+
+    const rewards = Array.isArray(result.rewards) ? result.rewards : [];
+    const rewardCount = rewards.length;
+
+    const topRewards = rewards
+      .slice(0, 10)
+      .map((reward, index) => {
+        const pirateName = reward.pirateName || "Unknown Pirate";
+        const rank = reward.rank || "?";
+        const userId = reward.userId || "Unknown";
+        const tokens = reward.tokens || 0;
+        const role = reward.role || "crew";
+
+        return `${index + 1}. **${pirateName}** • Rank #${rank} • <@${userId}> • ${role} • +${tokens} tokens`;
+      })
+      .join("\n");
+
+    await channel.send({
+      embeds: [
+        {
+          color: 0xf1c40f,
+          title: "🏴‍☠️ Pirate Weekly Reset Completed",
+          description: [
+            `**Bucket:** ${result.currentBucket || "Unknown"}`,
+            `**Triggered By:** ${reason}`,
+            `**Reward Entries:** ${rewardCount}`,
+            "",
+            topRewards || "No reward entries.",
+            rewardCount > 10 ? `\n...and **${rewardCount - 10}** more reward entries.` : "",
+          ].join("\n"),
+          footer: {
+            text: "One Piece Bot • Pirate Weekly Reset",
+          },
+          timestamp: new Date().toISOString(),
+        },
+      ],
+      allowedMentions: {
+        parse: [],
+      },
+    });
+  } catch (error) {
+    console.error("[PIRATE WEEKLY RESET NOTIFY ERROR]", error);
   }
 }
 
