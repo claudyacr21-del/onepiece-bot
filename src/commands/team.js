@@ -1,14 +1,20 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
-const { hydrateCard } = require("../utils/evolution"); const { isLzsCard, MERGE_FIXED_POWER } = require("../utils/mergeCards");
+const { hydrateCard } = require("../utils/evolution");
+const { isLzsCard, MERGE_FIXED_POWER } = require("../utils/mergeCards");
 
 function getPower(card) {
+  if (isLzsCard(card)) return MERGE_FIXED_POWER;
+
   return Number(
-    card.currentPower ||
+    card.teamPower ||
+      card.currentPower ||
+      card.finalPower ||
+      card.power ||
       Math.floor(
-        Number(card.atk || 0) * 1.4 +
-          Number(card.hp || 0) * 0.22 +
-          Number(card.speed || 0) * 9
+        Number(card.atk || card.finalAtk || card.displayAtk || 0) * 1.4 +
+          Number(card.hp || card.finalHp || card.displayHp || 0) * 0.22 +
+          Number(card.speed || card.spd || card.finalSpeed || card.displaySpeed || 0) * 9
       )
   );
 }
