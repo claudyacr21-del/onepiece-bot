@@ -10,7 +10,7 @@ const {
   getRaidPrestigeBadgeEmoji,
 } = require("../data/profileBadges");
 const { hydrateCard } = require("../utils/evolution");
-const { getPlayerCombatCards } = require("../utils/combatStats");
+const { getPlayerCombatCards } = require("../utils/combatStats"); const { isLzsCard, MERGE_FIXED_POWER } = require("../utils/mergeCards");
 const { getShipByCode, SHIPS } = require("../data/ships");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
@@ -108,6 +108,38 @@ function getHydratedCards(player) {
   return (Array.isArray(player.cards) ? player.cards : [])
     .map(hydrateCard)
     .filter(Boolean);
+}
+
+function isProfileMergeCard(card) {
+  const type = String(card?.type || "").toLowerCase().trim();
+
+  return Boolean(
+    card &&
+      (
+        isLzsCard(card) ||
+        card.mergeOnly === true ||
+        Array.isArray(card.mergeSourceCodes) ||
+        type === "merge"
+      )
+  );
+}
+
+function getProfileCardPower(card) {
+  if (isProfileMergeCard(card)) {
+    return Number(card.mergeFixedPower || card.fixedPower || MERGE_FIXED_POWER || 100000);
+  }
+
+  return Number(
+    card.teamPower ||
+      card.currentPower ||
+      card.finalPower ||
+      card.power ||
+      Math.floor(
+        Number(card.atk || card.finalAtk || card.displayAtk || 0) * 1.4 +
+          Number(card.hp || card.finalHp || card.displayHp || 0) * 0.22 +
+          Number(card.speed || card.spd || card.finalSpeed || card.displaySpeed || 0) * 9
+      )
+  );
 }
 
 function getRarityPower(rarity) {
