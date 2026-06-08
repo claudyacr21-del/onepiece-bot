@@ -612,12 +612,37 @@ function isNoneText(value) {
   return !text || text === "none" || text === "not equipped" || text === "null" || text === "undefined";
 }
 
+function getEquipmentBaseName(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s*\+\d+\s*$/g, "");
+}
+
+function getEquipmentUpgradeLevel(value) {
+  const match = String(value || "").match(/\+(\d+)\s*$/);
+  return match ? Number(match[1] || 0) : 0;
+}
+
 function pushUniqueDisplay(list, value) {
   const clean = String(value || "").trim();
   if (isNoneText(clean)) return;
 
-  if (!list.some((entry) => normalize(entry) === normalize(clean))) {
+  const base = normalize(getEquipmentBaseName(clean));
+  const level = getEquipmentUpgradeLevel(clean);
+
+  const existingIndex = list.findIndex((entry) => {
+    return normalize(getEquipmentBaseName(entry)) === base;
+  });
+
+  if (existingIndex === -1) {
     list.push(clean);
+    return;
+  }
+
+  const existingLevel = getEquipmentUpgradeLevel(list[existingIndex]);
+
+  if (level > existingLevel) {
+    list[existingIndex] = clean;
   }
 }
 
@@ -653,21 +678,34 @@ function getLiveWeaponsFromCard(card) {
     ? card.equippedWeapons
     : [];
 
+  // Prefer real equipped weapon data first.
   for (const entry of equippedWeapons) {
-    pushUniqueDisplay(
-      names,
+    const level = Math.max(0, Number(entry?.upgradeLevel || entry?.level || 0));
+    const baseName =
       entry?.displayName ||
-        entry?.name ||
-        entry?.weaponName ||
-        findTemplateNameByCode(weaponsDb, entry?.code || entry?.weaponCode)
-    );
+      entry?.name ||
+      entry?.weaponName ||
+      findTemplateNameByCode(weaponsDb, entry?.code || entry?.weaponCode);
+
+    if (!isNoneText(baseName)) {
+      pushUniqueDisplay(names, level > 0 ? `${baseName} +${level}` : baseName);
+    }
   }
 
-  pushUniqueDisplay(names, card?.displayWeaponName);
-  pushUniqueDisplay(names, card?.equippedWeaponName);
-  pushUniqueDisplay(names, findTemplateNameByCode(weaponsDb, card?.equippedWeaponCode || card?.equippedWeapon));
-  pushUniqueDisplay(names, card?.weaponSet);
-  pushUniqueDisplay(names, card?.weapon);
+  // Only use legacy/snapshot fields if no real equippedWeapons exist.
+  if (!names.length) {
+    pushUniqueDisplay(names, card?.displayWeaponName);
+    pushUniqueDisplay(names, card?.equippedWeaponName);
+    pushUniqueDisplay(
+      names,
+      findTemplateNameByCode(
+        weaponsDb,
+        card?.equippedWeaponCode || card?.equippedWeapon
+      )
+    );
+    pushUniqueDisplay(names, card?.weaponSet);
+    pushUniqueDisplay(names, card?.weapon);
+  }
 
   return names;
 }

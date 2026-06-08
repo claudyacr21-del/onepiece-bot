@@ -7,6 +7,7 @@ const {
 
 const { readPlayers } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
+const { isLzsCard, MERGE_FIXED_POWER } = require("../utils/mergeCards");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 
@@ -128,6 +129,38 @@ function getFruitPowerByRarity(rarity) {
   return getRarityPower(rarity);
 }
 
+function isLeaderboardMergeCard(card) {
+  const type = String(card?.type || "").toLowerCase().trim();
+
+  return Boolean(
+    card &&
+      (
+        isLzsCard(card) ||
+        card.mergeOnly === true ||
+        Array.isArray(card.mergeSourceCodes) ||
+        type === "merge"
+      )
+  );
+}
+
+function getLeaderboardCardPower(card) {
+  if (isLeaderboardMergeCard(card)) {
+    return Number(card.mergeFixedPower || card.fixedPower || MERGE_FIXED_POWER || 100000);
+  }
+
+  return Number(
+    card.teamPower ||
+      card.currentPower ||
+      card.finalPower ||
+      card.power ||
+      Math.floor(
+        Number(card.atk || card.finalAtk || card.displayAtk || 0) * 1.4 +
+          Number(card.hp || card.finalHp || card.displayHp || 0) * 0.22 +
+          Number(card.speed || card.spd || card.finalSpeed || card.displaySpeed || 0) * 9
+      )
+  );
+}
+
 function findWeaponTemplate(value) {
   const q = normalize(value);
   if (!q) return null;
@@ -160,7 +193,7 @@ function getAllOwnedCardsPower(player) {
     .filter(Boolean);
 
   return cards.reduce((sum, card) => {
-    return sum + Number(card.currentPower || 0);
+    return sum + getLeaderboardCardPower(card);
   }, 0);
 }
 
