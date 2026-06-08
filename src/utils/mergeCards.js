@@ -34,6 +34,67 @@ function isLzsCard(card) {
   return code === "lzs" || name === "monster trio";
 }
 
+function isMergeCard(card) {
+  const type = String(card?.type || "").toLowerCase().trim();
+
+  return Boolean(
+    card &&
+      (
+        isLzsCard(card) ||
+        card.mergeOnly === true ||
+        Array.isArray(card.mergeSourceCodes) ||
+        type === "merge"
+      )
+  );
+}
+
+function getMergeSourceCodes(card) {
+  if (Array.isArray(card?.mergeSourceCodes) && card.mergeSourceCodes.length) {
+    return card.mergeSourceCodes.map((code) => String(code || "").trim()).filter(Boolean);
+  }
+
+  if (isLzsCard(card)) {
+    return MERGE_SOURCE_CODES;
+  }
+
+  return [];
+}
+
+function getMergeRatio(card) {
+  const ratio = Number(card?.mergeStatRatio || card?.mergeRatio || MERGE_RATIO);
+
+  if (!Number.isFinite(ratio) || ratio <= 0) return MERGE_RATIO;
+
+  return ratio;
+}
+
+function getMergeFixedPower(card) {
+  const power = Number(
+    card?.mergeFixedPower ||
+      card?.fixedPower ||
+      card?.mergePower ||
+      MERGE_FIXED_POWER
+  );
+
+  if (!Number.isFinite(power) || power <= 0) return MERGE_FIXED_POWER;
+
+  return Math.floor(power);
+}
+
+function getMergeTemplateCode(card) {
+  return normalizeCode(card?.code || "");
+}
+
+function getMergeDisplayName(card, template = {}) {
+  return (
+    card?.displayName ||
+    card?.name ||
+    template?.displayName ||
+    template?.name ||
+    "Merge Card"
+  );
+}
+
 function getTemplateByCode(code) {
   const target = normalizeCode(code);
 
@@ -639,6 +700,43 @@ function buildLzsSources(player, stage, options = {}) {
   });
 }
 
+function buildMergeSources(player, mergeCard, stage, options = {}) {
+  const sourceCodes = getMergeSourceCodes(mergeCard);
+
+  const sourceStage = Math.max(
+    1,
+    Math.min(3, Number(options.sourceStage || options.displayStage || stage || 1))
+  );
+
+  const displayLevel = Number(options.displayLevel || getStageMaxLevel(sourceStage));
+  const templateOnly = Boolean(options.templateOnly);
+
+  return sourceCodes.map((code) => {
+    const source = templateOnly
+      ? buildTemplateSourceCard(code, sourceStage, displayLevel)
+      : buildLiveSourceCard(player, code);
+
+    return {
+      code,
+      card: source || {},
+      atk: templateOnly
+        ? getStageSpecificNumber(getTemplateByCode(code) || {}, source, sourceStage, "atk")
+        : getLiveNumber(source, code, "atk"),
+      hp: templateOnly
+        ? getStageSpecificNumber(getTemplateByCode(code) || {}, source, sourceStage, "hp")
+        : getLiveNumber(source, code, "hp"),
+      speed: templateOnly
+        ? getStageSpecificNumber(getTemplateByCode(code) || {}, source, sourceStage, "speed")
+        : getLiveNumber(source, code, "speed"),
+      power: templateOnly
+        ? getStageSpecificNumber(getTemplateByCode(code) || {}, source, sourceStage, "power")
+        : getLiveNumber(source, code, "power"),
+      weapon: getSourceWeaponText(source, code, sourceStage, templateOnly),
+      devilFruit: getSourceFruitText(source, code, sourceStage, templateOnly),
+    };
+  });
+}
+
 function sumMergedStat(sources, key) {
   return Math.floor(
     sources.reduce(
@@ -648,34 +746,59 @@ function sumMergedStat(sources, key) {
   );
 }
 
-function buildMergedLzsCard(player, baseCard = null, stageOverride = null, options = {}) {
-  const template = getTemplateByCode("lzs") || {};
+function buildMergedCard(player, baseCard = null, stageOverride = null, options = {}) {
+  const baseTemplateCode = getMergeTemplateCode(baseCard);
+  const template = getTemplateByCode(baseTemplateCode) || {};
+  const templateCard = {
+    ...template,
+    ...baseCard,
+  };
 
-  const ownedLzs =
-    baseCard && isLzsCard(baseCard)
+  if (!isMergeCard(templateCard)) {
+    return hydrateCard(baseCard) || baseCard;
+  }
+
+  const sourceCodes = getMergeSourceCodes(templateCard);
+  if (!sourceCodes.length) {
+    return hydrateCard(baseCard) || baseCard;
+  }
+
+  const ownedMerge =
+    baseCard && isMergeCard(baseCard)
       ? baseCard
-      : findOwnedSource(player, "lzs") || baseCard || template;
+      : findOwnedSource(player, templateCard.code) || baseCard || templateCard;
 
   const stage = Math.max(
     1,
-    Math.min(3, Number(stageOverride || getStage(ownedLzs) || 1))
+    Math.min(3, Number(stageOverride || getStage(ownedMerge) || 1))
   );
 
   const level = options.templateOnly
     ? Number(options.displayLevel || getStageMaxLevel(stage))
-    : getLevel(ownedLzs);
+    : getLevel(ownedMerge);
 
-  const prestige = options.templateOnly ? 0 : getRaidPrestige(ownedLzs);
+  const prestige = options.templateOnly ? 0 : getRaidPrestige(ownedMerge);
 
-  const sources = buildLzsSources(player, stage, {
+  const sources = buildMergeSources(player, templateCard, stage, {
     ...options,
     sourceStage: options.sourceStage || stage,
     displayLevel: options.displayLevel || getStageMaxLevel(stage),
   });
 
-  const mergedAtk = sumMergedStat(sources, "atk");
-  const mergedHp = sumMergedStat(sources, "hp");
-  const mergedSpeed = sumMergedStat(sources, "speed");
+  const ratio = getMergeRatio(templateCard);
+  const fixedPower = getMergeFixedPower(templateCard);
+
+  const mergedAtk = Math.floor(
+    sources.reduce((sum, source) => sum + Number(source?.atk || 0) * ratio, 0)
+  );
+
+  const mergedHp = Math.floor(
+    sources.reduce((sum, source) => sum + Number(source?.hp || 0) * ratio, 0)
+  );
+
+  const mergedSpeed = Math.floor(
+    sources.reduce((sum, source) => sum + Number(source?.speed || 0) * ratio, 0)
+  );
 
   const ownLevelFactor = options.templateOnly ? 1 : getOwnLevelFactor(stage, level);
 
@@ -701,21 +824,22 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
   const weapon = uniqueJoin(sources.map((source) => source.weapon));
   const devilFruit = uniqueJoin(sources.map((source) => source.devilFruit));
   const form = getForm(template, stage);
+  const displayName = getMergeDisplayName(ownedMerge, template);
 
   return {
     ...template,
     ...form,
-    ...ownedLzs,
+    ...ownedMerge,
 
-    code: "lzs",
-    name: "Monster Trio",
-    displayName: "Monster Trio",
-    title: "Monster Trio",
+    code: templateCard.code || ownedMerge.code,
+    name: displayName,
+    displayName,
+    title: ownedMerge.title || template.title || displayName,
 
-    rarity: "M",
-    baseTier: "M",
-    currentTier: "M",
-    tier: "M",
+    rarity: ownedMerge.rarity || template.rarity || "M",
+    baseTier: ownedMerge.baseTier || template.baseTier || "M",
+    currentTier: ownedMerge.currentTier || ownedMerge.rarity || template.currentTier || template.rarity || "M",
+    tier: ownedMerge.tier || ownedMerge.currentTier || ownedMerge.rarity || template.tier || "M",
 
     cardRole: "battle",
     role: "battle",
@@ -732,8 +856,9 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
     equipmentLocked: true,
     equipmentSyncOnly: true,
 
-    mergeSourceCodes: MERGE_SOURCE_CODES,
-    mergeStatRatio: MERGE_RATIO,
+    mergeSourceCodes: sourceCodes,
+    mergeStatRatio: ratio,
+    mergeFixedPower: fixedPower,
 
     evolutionStage: stage,
     evolutionKey: `M${stage}`,
@@ -755,6 +880,7 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
 
     atk: finalAtk,
     hp: finalHp,
+    maxHp: finalHp,
     speed: finalSpeed,
     spd: finalSpeed,
 
@@ -770,14 +896,37 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
     combatHp: finalHp,
     combatSpeed: finalSpeed,
 
-    basePower: MERGE_FIXED_POWER,
-    power: MERGE_FIXED_POWER,
-    currentPower: MERGE_FIXED_POWER,
-    finalPower: MERGE_FIXED_POWER,
+    battleAtk: finalAtk,
+    battleHp: finalHp,
+    battleSpeed: finalSpeed,
+
+    teamAtk: finalAtk,
+    teamHp: finalHp,
+    teamSpeed: finalSpeed,
+
+    totalAtk: finalAtk,
+    totalHp: finalHp,
+    totalSpeed: finalSpeed,
+
+    currentAtk: finalAtk,
+    currentHp: finalHp,
+    currentSpeed: finalSpeed,
+
+    basePower: fixedPower,
+    power: fixedPower,
+    currentPower: fixedPower,
+    finalPower: fixedPower,
+    displayPower: fixedPower,
+    combatPower: fixedPower,
+    teamPower: fixedPower,
+    battlePower: fixedPower,
+    totalPower: fixedPower,
+
     powerCaps: {
-      M1: MERGE_FIXED_POWER,
-      M2: MERGE_FIXED_POWER,
-      M3: MERGE_FIXED_POWER,
+      ...(ownedMerge.powerCaps || {}),
+      M1: fixedPower,
+      M2: fixedPower,
+      M3: fixedPower,
     },
 
     weapon,
@@ -797,16 +946,20 @@ function buildMergedLzsCard(player, baseCard = null, stageOverride = null, optio
         : "None",
 
     syncNote: options.templateOnly
-      ? "30% max mastery stats from Monkey D. Luffy + Roronoa Zoro + Sanji"
-      : "Live 30% owned stats from Monkey D. Luffy + Roronoa Zoro + Sanji",
+      ? `${Math.floor(ratio * 100)}% max mastery stats from ${sourceCodes.join(" + ")}`
+      : `Live ${Math.floor(ratio * 100)}% owned stats from ${sourceCodes.join(" + ")}`,
   };
+}
+
+function buildMergedLzsCard(player, baseCard = null, stageOverride = null, options = {}) {
+  return buildMergedCard(player, baseCard, stageOverride, options);
 }
 
 function syncMergedCardsInPlayer(player) {
   if (!player || typeof player !== "object") return player;
 
   const cards = Array.isArray(player.cards) ? player.cards : [];
-  if (!cards.some(isLzsCard)) return player;
+  if (!cards.some(isMergeCard)) return player;
 
   const basePlayer = {
     ...player,
@@ -816,7 +969,7 @@ function syncMergedCardsInPlayer(player) {
   return {
     ...player,
     cards: cards.map((card) =>
-      isLzsCard(card) ? buildMergedLzsCard(basePlayer, card) : card
+      isMergeCard(card) ? buildMergedCard(basePlayer, card) : card
     ),
   };
 }
@@ -850,8 +1003,17 @@ module.exports = {
   MERGE_SOURCE_CODES,
   MERGE_RATIO,
   MERGE_FIXED_POWER,
+
   isLzsCard,
+  isMergeCard,
+
+  getMergeSourceCodes,
+  getMergeRatio,
+  getMergeFixedPower,
+
+  buildMergedCard,
   buildMergedLzsCard,
+
   syncMergedCardsInPlayer,
   findOwnedCardByCodeOrName,
 };
