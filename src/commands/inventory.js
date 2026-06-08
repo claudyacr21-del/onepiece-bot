@@ -182,6 +182,86 @@ function isConsumable(item) {
   return code === "rum_beer";
 }
 
+
+function addLegacyTicketEntry(entries, player, keys, ticket) {
+  const amount = keys.reduce((total, key) => {
+    const raw = player?.[key];
+    if (typeof raw === "number") return total + raw;
+    if (typeof raw === "string" && raw.trim() && !Number.isNaN(Number(raw))) {
+      return total + Number(raw);
+    }
+    return total;
+  }, 0);
+
+  const safeAmount = Math.max(0, Math.floor(Number(amount || 0)));
+  if (safeAmount <= 0) return;
+
+  const existing = entries.find((entry) => String(entry.code || "") === ticket.code);
+  if (existing) {
+    existing.amount = Number(existing.amount || 0) + safeAmount;
+    return;
+  }
+
+  entries.push({
+    ...ticket,
+    amount: safeAmount,
+  });
+}
+
+function getLegacyTicketEntries(player) {
+  const entries = [];
+
+  addLegacyTicketEntry(entries, player, [
+    "raidTickets",
+    "raidTicket",
+    "raid_ticket",
+    "raid_ticket_count",
+  ], {
+    name: "Raid Ticket",
+    code: "raid_ticket",
+    rarity: "A",
+    type: "Ticket",
+  });
+
+  addLegacyTicketEntry(entries, player, [
+    "goldRaidTickets",
+    "goldRaidTicket",
+    "gold_raid_ticket",
+    "gold_raid_ticket_count",
+  ], {
+    name: "Gold Raid Ticket",
+    code: "gold_raid_ticket",
+    rarity: "S",
+    type: "Ticket",
+  });
+
+  addLegacyTicketEntry(entries, player, [
+    "commonRaidTickets",
+    "commonRaidTicket",
+    "common_raid_ticket",
+    "common_raid_ticket_count",
+  ], {
+    name: "Common Raid Ticket",
+    code: "common_raid_ticket",
+    rarity: "B",
+    type: "Ticket",
+  });
+
+  addLegacyTicketEntry(entries, player, [
+    "mythicRaidTickets",
+    "mythicRaidTicket",
+    "mythic_raid_ticket",
+    "mythic_raid_ticket_count",
+  ], {
+    name: "Mythic Raid Ticket",
+    code: "mythic_raid_ticket",
+    rarity: "UR",
+    type: "Ticket",
+  });
+
+  return entries;
+}
+
 function getInventoryLists(player) {
   const items = cleanList(player.items);
   const itemTickets = items.filter(isTicketItem);
@@ -189,7 +269,7 @@ function getInventoryLists(player) {
 
   return {
     fruit: cleanList(player.devilFruits),
-    ticket: cleanList([...(player.tickets || []), ...itemTickets]),
+    ticket: cleanList([...(player.tickets || []), ...itemTickets, ...getLegacyTicketEntries(player)]),
     box: cleanList(player.boxes),
     consum: cleanList(items.filter(isConsumable)),
     material: cleanList(player.materials),
