@@ -80,4 +80,5 @@ module.exports = {
   gunko_holy_knight: "https://cdn.discordapp.com/attachments/1493204525975076944/1498201488823160905/elbaph-elbaf.gif?ex=69f04c5e&is=69eefade&hm=094b39af7881feba5bf13629d6e06e12d0eb43ad81de360471612d71bed87fd3&",
   law_surgeon_of_death : "https://cdn.discordapp.com/attachments/1493204525975076944/1511225009845047437/trafalgar-law-trafalgar.gif?ex=6a1fad77&is=6a1e5bf7&hm=46557fe3f542993b921b7308695592ee048e157620d16fed58e300457a721421&",
   kid_captain: "https://cdn.discordapp.com/attachments/1493204525975076944/1511225009333469366/kid.gif?ex=6a1fad77&is=6a1e5bf7&hm=6e518e1abf4138874419051f81eaff433c6e34b8681104e6dc37c15a7741fb66&",
+  lzs: "https://cdn.discordapp.com/attachments/1493204525975076944/1513544660650426468/monster-trio-luffy-zoro-sanji.gif?ex=6a281dcf&is=6a26cc4f&hm=0df3cb590b16487e164298cb94a4e1e309caedbba6be1325312c456d2552baf9",
 };
