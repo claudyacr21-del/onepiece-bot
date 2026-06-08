@@ -4,6 +4,7 @@ const {
   isMergeCard,
   buildMergedCard,
   getMergeSourceCodes,
+  findOwnedCardByCodeOrName,
 } = require("../utils/mergeCards");
 const {
   hydrateCard,
@@ -82,7 +83,7 @@ function resolveCurrentStageBaseStats(card) {
     card?.masteryStats?.[stageKey] ||
     {};
 
-  if (isLzsCard(card)) {
+  if (isMergeCard(card)) {
     return {
       atk: firstPositiveNumber(card?.finalAtk, card?.combatAtk, card?.displayAtk, card?.atk, card?.baseAtk),
       hp: firstPositiveNumber(card?.finalHp, card?.combatHp, card?.displayHp, card?.hp, card?.baseHp),
@@ -718,17 +719,7 @@ function getLiveFruitsFromCard(card) {
 }
 
 function isMergeInfoCard(card) {
-  const type = String(card?.type || "").toLowerCase().trim();
-
-  return Boolean(
-    card &&
-      (
-        isLzsCard(card) ||
-        card.mergeOnly === true ||
-        Array.isArray(card.mergeSourceCodes) ||
-        type === "merge"
-      )
-  );
+  return isMergeCard(card);
 }
 
 function enrichMergedCardLiveEquipment(player, card) {
