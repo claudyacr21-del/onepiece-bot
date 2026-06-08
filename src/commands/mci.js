@@ -591,6 +591,127 @@ function buildOwnedWeaponEmbed(ownerName, player, weapon) {
 
 
 
+
+function findTemplateNameByCode(list, value) {
+  const q = normalize(value);
+  if (!q) return null;
+
+  const found = (Array.isArray(list) ? list : []).find((item) => {
+    return (
+      normalize(item?.code) === q ||
+      normalize(item?.name) === q ||
+      normalize(item?.displayName) === q
+    );
+  });
+
+  return found?.name || found?.displayName || null;
+}
+
+function isNoneText(value) {
+  const text = String(value || "").trim().toLowerCase();
+  return !text || text === "none" || text === "not equipped" || text === "null" || text === "undefined";
+}
+
+function pushUniqueDisplay(list, value) {
+  const clean = String(value || "").trim();
+  if (isNoneText(clean)) return;
+
+  if (!list.some((entry) => normalize(entry) === normalize(clean))) {
+    list.push(clean);
+  }
+}
+
+function getLiveSourceCardsForMerge(player, mergeCard) {
+  const ownedCards = Array.isArray(player?.cards)
+    ? player.cards.map((card) => hydrateCard(card)).filter(Boolean)
+    : [];
+
+  const sourceCodes = Array.isArray(mergeCard?.mergeSourceCodes) && mergeCard.mergeSourceCodes.length
+    ? mergeCard.mergeSourceCodes
+    : isLzsCard(mergeCard)
+      ? ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"]
+      : [];
+
+  return sourceCodes
+    .map((code) => {
+      const target = normalize(code);
+
+      return (
+        ownedCards.find((card) => normalize(card?.code) === target) ||
+        ownedCards.find((card) => normalize(card?.baseCode) === target) ||
+        ownedCards.find((card) => normalize(card?.displayName || card?.name).includes(target)) ||
+        null
+      );
+    })
+    .filter(Boolean);
+}
+
+function getLiveWeaponsFromCard(card) {
+  const names = [];
+
+  const equippedWeapons = Array.isArray(card?.equippedWeapons)
+    ? card.equippedWeapons
+    : [];
+
+  for (const entry of equippedWeapons) {
+    pushUniqueDisplay(
+      names,
+      entry?.displayName ||
+        entry?.name ||
+        entry?.weaponName ||
+        findTemplateNameByCode(weaponsDb, entry?.code || entry?.weaponCode)
+    );
+  }
+
+  pushUniqueDisplay(names, card?.displayWeaponName);
+  pushUniqueDisplay(names, card?.equippedWeaponName);
+  pushUniqueDisplay(names, findTemplateNameByCode(weaponsDb, card?.equippedWeaponCode || card?.equippedWeapon));
+  pushUniqueDisplay(names, card?.weaponSet);
+  pushUniqueDisplay(names, card?.weapon);
+
+  return names;
+}
+
+function getLiveFruitsFromCard(card) {
+  const names = [];
+
+  pushUniqueDisplay(names, card?.displayFruitName);
+  pushUniqueDisplay(names, card?.equippedDevilFruitName);
+  pushUniqueDisplay(names, findTemplateNameByCode(devilFruitsDb, card?.equippedDevilFruitCode || card?.equippedDevilFruit));
+  pushUniqueDisplay(names, card?.devilFruit);
+
+  return names;
+}
+
+function enrichMergedCardLiveEquipment(player, card) {
+  if (!card || !isLzsCard(card)) return card;
+
+  const sourceCards = getLiveSourceCardsForMerge(player, card);
+  const weaponNames = [];
+  const fruitNames = [];
+
+  for (const sourceCard of sourceCards) {
+    for (const name of getLiveWeaponsFromCard(sourceCard)) {
+      pushUniqueDisplay(weaponNames, name);
+    }
+
+    for (const name of getLiveFruitsFromCard(sourceCard)) {
+      pushUniqueDisplay(fruitNames, name);
+    }
+  }
+
+  return {
+    ...card,
+    displayWeaponName: weaponNames.length ? weaponNames.join(", ") : "None",
+    weaponSet: weaponNames.length ? weaponNames.join(", ") : "None",
+    weapon: weaponNames.length ? weaponNames.join(", ") : "None",
+
+    displayFruitName: fruitNames.length ? fruitNames.join(", ") : "None",
+    devilFruit: fruitNames.length ? fruitNames.join(", ") : "None",
+  };
+}
+
+
 function buildOwnedCardEmbed(ownerName, player, card) {
   const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
   const form = getCurrentForm(card);
