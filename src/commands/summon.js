@@ -379,8 +379,8 @@ function isLzsCard(card) {
 }
 
 function isLzsSummonDisabled(card) {
- // return isLzsCard(card);
- return false;
+ return isLzsCard(card);
+// return false;
 }
 
 function isGenericMergeSummonCard(card) {
