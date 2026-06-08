@@ -279,6 +279,91 @@ function formatExpResults(playerTeam, expResults) {
     .filter(Boolean);
 }
 
+
+function firstPositiveBossNumber(...values) {
+  for (const value of values) {
+    const n = Number(value || 0);
+    if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  }
+  return 0;
+}
+
+function getBossUnitName(card) {
+  return card?.displayName || card?.name || card?.cardName || card?.title || "Unknown";
+}
+
+function normalizeBossCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+}
+
+function isBossLzsCard(card) {
+  const code = normalizeBossCode(card?.code || card?.baseCode);
+  const name = String(card?.displayName || card?.name || "").toLowerCase().trim();
+  return code === "lzs" || name === "monster trio";
+}
+
+function resolveBossDisplayStats(card) {
+  const boosted = card || {};
+  const isLzs = isBossLzsCard(boosted);
+
+  const displayAtk = firstPositiveBossNumber(
+    boosted.atk,
+    boosted.displayAtk,
+    boosted.finalAtk,
+    boosted.combatAtk,
+    boosted.battleAtk,
+    boosted.totalAtk,
+    boosted.baseAtk
+  );
+
+  const displayHp = firstPositiveBossNumber(
+    boosted.hp,
+    boosted.maxHp,
+    boosted.displayHp,
+    boosted.finalHp,
+    boosted.combatHp,
+    boosted.battleHp,
+    boosted.totalHp,
+    boosted.baseHp
+  );
+
+  const displaySpeed = firstPositiveBossNumber(
+    boosted.speed,
+    boosted.spd,
+    boosted.displaySpeed,
+    boosted.finalSpeed,
+    boosted.combatSpeed,
+    boosted.battleSpeed,
+    boosted.totalSpeed,
+    boosted.baseSpeed
+  );
+
+  const displayPower = isLzs
+    ? 100000
+    : firstPositiveBossNumber(
+        boosted.currentPower,
+        boosted.power,
+        boosted.finalPower,
+        boosted.displayPower,
+        boosted.combatPower,
+        boosted.teamPower,
+        boosted.battlePower,
+        boosted.totalPower,
+        boosted.basePower
+      );
+
+  return {
+    name: getBossUnitName(boosted),
+    atk: Math.max(1, displayAtk),
+    hp: Math.max(1, displayHp),
+    speed: Math.max(1, displaySpeed),
+    power: Math.max(isLzs ? 100000 : 0, displayPower),
+  };
+}
+
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   const boosted = applyBoostedDisplayStats(card, combatBoosts);
 
@@ -292,7 +377,7 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     sourceIndex: Number.isInteger(boosted.sourceIndex) ? boosted.sourceIndex : null,
     instanceId: boosted.instanceId,
     code: boosted.code,
-    name: boosted.displayName || boosted.name || "Unknown",
+    name: resolvedStats.name,
     rarity: boosted.currentTier || boosted.rarity || "C",
 
     atk: displayAtk,
