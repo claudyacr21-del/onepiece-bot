@@ -15,6 +15,8 @@ const { getCardImage } = require("../config/assetLinks");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const rawCards = require("../data/cards");
 
+const MERGE_FIXED_POWER_FOR_AWAKEN = 100000;
+
 function cloneDeep(value) {
   if (value === undefined || value === null) return value;
   return JSON.parse(JSON.stringify(value));
@@ -218,6 +220,61 @@ function isMergeCardTemplate(template) {
         template.summonOnly === true && Array.isArray(template.mergeSourceCodes) ||
         type === "merge")
   );
+}
+
+function isAwakenMergeCard(card, template = null) {
+  const cardType = String(card?.type || "").toLowerCase().trim();
+  const templateType = String(template?.type || "").toLowerCase().trim();
+
+  return Boolean(
+    isLzsCard(card) ||
+      isLzsCard(template) ||
+      card?.mergeOnly === true ||
+      template?.mergeOnly === true ||
+      Array.isArray(card?.mergeSourceCodes) ||
+      Array.isArray(template?.mergeSourceCodes) ||
+      cardType === "merge" ||
+      templateType === "merge"
+  );
+}
+
+function getAwakenMergeFixedPower(card, template = null) {
+  return Number(
+    card?.mergeFixedPower ||
+      template?.mergeFixedPower ||
+      card?.fixedPower ||
+      template?.fixedPower ||
+      MERGE_FIXED_POWER_FOR_AWAKEN
+  );
+}
+
+function applyAwakenMergeFixedPower(card, template = null) {
+  if (!isAwakenMergeCard(card, template)) return card;
+
+  const fixedPower = getAwakenMergeFixedPower(card, template);
+
+  return {
+    ...card,
+    mergeOnly: card?.mergeOnly ?? template?.mergeOnly ?? true,
+    mergeFixedPower: fixedPower,
+
+    power: fixedPower,
+    basePower: fixedPower,
+    currentPower: fixedPower,
+    finalPower: fixedPower,
+    displayPower: fixedPower,
+    combatPower: fixedPower,
+    teamPower: fixedPower,
+    battlePower: fixedPower,
+    totalPower: fixedPower,
+
+    powerCaps: {
+      ...(card?.powerCaps || {}),
+      M1: fixedPower,
+      M2: fixedPower,
+      M3: fixedPower,
+    },
+  };
 }
 
 function uniqReqCardsForAwaken(cards = []) {
@@ -691,7 +748,7 @@ function makeAwakenedCard(rawCard, template, nextStage) {
     evolutionKey: getStageKey(nextStage),
   };
 
-  return stripOwnedTemplateFields(next);
+  return applyAwakenMergeFixedPower(stripOwnedTemplateFields(next), template);
 }
 
 
@@ -1046,7 +1103,9 @@ function buildSuccessEmbed(result, player) {
     `**${card.displayName || card.name}** reached **M${targetStage}**`,
     `**Form:** ${getFormName(card, targetStage)}`,
     `**Tier:** ${card.currentTier || card.rarity}`,
-    `**Power:** ${Number(card.currentPower || card.power || 0).toLocaleString("en-US")}`,
+    `**Power:** ${Number(
+      isAwakenMergeCard(card) ? getAwakenMergeFixedPower(card) : card.currentPower || card.power || 0
+    ).toLocaleString("en-US")}`,
     "",
   ];
 
