@@ -1,4 +1,13 @@
 const {
+  syncMergeCombatCard,
+  syncMergeCombatPlayer,
+  syncMergeCombatTeam,
+  getCombatPower,
+  getCombatAtk,
+  getCombatHp,
+  getCombatSpeed,
+} = require("../utils/mergeCombatResolver");
+const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -893,7 +902,7 @@ module.exports = {
     const sessionKey = setActiveFightSession(message);
 
     try {
-      const player = getPlayer(message.author.id, message.author.username);
+      const player = syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username));
       const premiumTier = await getFightPremiumTier(message, player);
       const premiumMode = getFightModeLabel(premiumTier);
       const currentIsland = getPlayerFightIsland(player);
@@ -931,7 +940,7 @@ module.exports = {
         ? player.team.slots
         : [null, null, null];
 
-      const teamCards = teamSlots
+      const teamCards = syncMergeCombatTeam(player, teamSlots
         .slice(0, 3)
         .map((instanceId, index) => {
           if (!instanceId) return null;
@@ -944,7 +953,7 @@ module.exports = {
 
           return found ? toBattleUnit(found, index, combatBoosts) : null;
         })
-        .filter(Boolean);
+        .filter(Boolean));
 
       if (teamCards.length < 3) {
         clearActiveFightSession(sessionKey);

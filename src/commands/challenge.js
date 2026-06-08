@@ -1,3 +1,12 @@
+const {
+  syncMergeCombatCard,
+  syncMergeCombatPlayer,
+  syncMergeCombatTeam,
+  getCombatPower,
+  getCombatAtk,
+  getCombatHp,
+  getCombatSpeed,
+} = require("../utils/mergeCombatResolver");
 const { EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -349,7 +358,7 @@ module.exports = {
       return message.reply("User not found. Please mention the user or use a valid user ID.");
     }
 
-    const player = getPlayer(message.author.id, message.author.username);
+    const player = syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username));
     const targetPlayer = getPlayer(targetUser.id, targetUser.username);
     const myTeam = getTeamUnits(player, "player");
     const enemyTeam = getTeamUnits(targetPlayer, "opponent");
