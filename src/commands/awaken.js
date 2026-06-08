@@ -694,9 +694,47 @@ function makeAwakenedCard(rawCard, template, nextStage) {
   return stripOwnedTemplateFields(next);
 }
 
-function runAwaken(player, query) {
+
+function findAwakenTargetIndex(cardsOwned, query, targetSelector = null) {
+  const list = safeArray(cardsOwned);
+
+  const instanceId = String(targetSelector?.instanceId || "").trim();
+  if (instanceId) {
+    const byInstance = list.findIndex((card) => String(card?.instanceId || "").trim() === instanceId);
+    if (byInstance !== -1) return byInstance;
+  }
+
+  const index = Number(targetSelector?.index);
+  if (Number.isInteger(index) && index >= 0 && index < list.length) {
+    const card = list[index];
+    if (scoreNameOnly(query, card) > 0) return index;
+  }
+
+  const scored = list
+    .map((card, cardIndex) => {
+      const hydrated = hydrateCard(card) || card;
+      const stage = getCurrentStage(hydrated);
+      return {
+        index: cardIndex,
+        score: scoreNameOnly(query, hydrated),
+        stage,
+        awakenable: stage < 3,
+      };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => {
+      if (a.awakenable !== b.awakenable) return a.awakenable ? -1 : 1;
+      if (b.score !== a.score) return b.score - a.score;
+      if (a.stage !== b.stage) return a.stage - b.stage;
+      return a.index - b.index;
+    });
+
+  return scored.length ? scored[0].index : -1;
+}
+
+function runAwaken(player, query, targetSelector = null) {
   const cardsOwned = safeArray(player?.cards);
-  const targetIndex = findOwnedIndexByNameOnly(cardsOwned, query);
+  const targetIndex = findAwakenTargetIndex(cardsOwned, query, targetSelector);
 
   if (targetIndex === -1) {
     throw new Error("You do not own that card.");
@@ -1076,7 +1114,7 @@ module.exports = {
     }
 
     try {
-      runAwaken(player, ciQueryText);
+      runAwaken(player, ciQueryText, { index: targetIndex, instanceId: ownedRaw?.instanceId || null });
     } catch (error) {
       return message.reply({
         embeds: [
@@ -1152,7 +1190,7 @@ module.exports = {
         updatePlayerAtomic(
           message.author.id,
           (fresh) => {
-            awakenResult = runAwaken(fresh, ciQueryText);
+            awakenResult = runAwaken(fresh, ciQueryText, { index: targetIndex, instanceId: ownedRaw?.instanceId || null });
             freshPlayerForDisplay = awakenResult.updatedPlayer;
             return awakenResult.updatedPlayer;
           },
