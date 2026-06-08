@@ -1,4 +1,4 @@
-const { updatePlayerAtomic } = require("../playerStore");
+const { syncMergeCombatPlayer, getMergeSafePower } = require("../utils/mergeCombatSync"); const { updatePlayerAtomic } = require("../playerStore");
 const { getRoom, addWhitelistUser } = require("../utils/partyRooms");
 
 function ensureArray(value) {

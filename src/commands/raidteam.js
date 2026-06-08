@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require("discord.js");
+const { syncMergeCombatPlayer, getMergeSafePower } = require("../utils/mergeCombatSync"); const { EmbedBuilder } = require("discord.js");
 const { readPlayers } = require("../playerStore");
 const { getRoom, listRooms } = require("../utils/partyRooms");
 

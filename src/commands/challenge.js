@@ -1,4 +1,4 @@
-const { EmbedBuilder,
+const { syncMergeCombatPlayer, getMergeSafePower } = require("../utils/mergeCombatSync"); const { EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle, MessageFlags } = require("discord.js");
@@ -82,10 +82,10 @@ function __endAction(key) {
 }
 
 function getPower(card) {
-  return Number(
+  return getMergeSafePower(card, Number(
     card.currentPower ||
       Math.floor(
-        Number(card.atk || 0) * 1.4 +
+        Number(card.atk || 0)) * 1.4 +
           Number(card.hp || 0) * 0.22 +
           Number(card.speed || 0) * 9
       )
@@ -349,8 +349,8 @@ module.exports = {
       return message.reply("User not found. Please mention the user or use a valid user ID.");
     }
 
-    const player = getPlayer(message.author.id, message.author.username);
-    const targetPlayer = getPlayer(targetUser.id, targetUser.username);
+    const player = syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username));
+    const targetPlayer = syncMergeCombatPlayer(getPlayer(targetUser.id, targetUser.username));
     const myTeam = getTeamUnits(player, "player");
     const enemyTeam = getTeamUnits(targetPlayer, "opponent");
 

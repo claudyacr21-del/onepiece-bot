@@ -1,4 +1,4 @@
-const {
+const { syncMergeCombatPlayer, getMergeSafePower } = require("../utils/mergeCombatSync"); const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -259,10 +259,10 @@ function formatArenaEntryRank(entry) {
 }
 
 function getPower(card) {
-  return Number(
+  return getMergeSafePower(card, Number(
     card.currentPower ||
       Math.floor(
-        Number(card.atk || 0) * 1.4 +
+        Number(card.atk || 0)) * 1.4 +
           Number(card.hp || 0) * 0.22 +
           Number(card.speed || 0) * 9
       )
@@ -432,7 +432,7 @@ function teamSummary(units) {
 
 function getArenaTeamPower(units) {
   return ensureArray(units).reduce(
-    (total, unit) => total + Number(unit?.power || unit?.currentPower || 0),
+    (total, unit) => total + getMergeSafePower(card, Number(unit?.power || unit?.currentPower || 0)),
     0
   );
 }
@@ -489,12 +489,12 @@ function getFastArenaTeamCards(raw) {
 
 function getFastArenaTeamPower(cards) {
   return ensureArray(cards).reduce((total, card) => {
-    const power = Number(
+    const power = getMergeSafePower(card, Number(
       card?.currentPower ||
         card?.power ||
         card?.powerCaps?.M3 ||
         Math.floor(
-          Number(card?.atk || 0) * 1.4 +
+          Number(card?.atk || 0)) * 1.4 +
             Number(card?.hp || 0) * 0.22 +
             Number(card?.speed || 0) * 9
         )
@@ -1756,7 +1756,7 @@ module.exports = {
   aliases: ["pvp", "ranked"],
 
   async execute(message) {
-    const player = getPlayer(message.author.id, message.author.username);
+    const player = syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username));
     player.userId = String(message.author.id);
     player.username = getArenaDisplayName(message, message.author.id, player);
 
@@ -1859,7 +1859,7 @@ module.exports = {
         return;
       }
 
-      const freshPlayer = getPlayer(message.author.id, message.author.username);
+      const freshPlayer = syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username));
       freshPlayer.userId = String(message.author.id);
       freshPlayer.username = getArenaDisplayName(message, message.author.id, freshPlayer);
 

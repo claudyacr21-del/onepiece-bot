@@ -1,4 +1,4 @@
-const {
+const { syncMergeCombatPlayer, getMergeSafePower } = require("../utils/mergeCombatSync"); const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -285,7 +285,7 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   const displayAtk = Number(boosted.atk || 0);
   const displayHp = Number(boosted.hp || 0);
   const displaySpeed = Number(boosted.speed || 0);
-  const displayPower = Number(boosted.currentPower || boosted.power || 0);
+  const displayPower = getMergeSafePower(card, Number(boosted.currentPower || boosted.power || 0));
 
   return {
     slot: slotIndex + 1,
@@ -1204,7 +1204,7 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
       const player =
         extraUserId && String(extraUserId) === String(userId) && extraPlayer
           ? extraPlayer
-          : getPlayer(userId, username);
+          : syncMergeCombatPlayer(getPlayer(userId, username));
 
       if (!player) continue;
 
@@ -1299,7 +1299,7 @@ if (lobbyProcessing) {
         }
 
         const username = await resolveUsernameSafe(message, userId);
-        const joiningPlayer = getPlayer(userId, username);
+        const joiningPlayer = syncMergeCombatPlayer(getPlayer(userId, username));
 
         if (!joiningPlayer) {
           await safeEphemeralReply(interaction, "This boss interaction is no longer available or already processed.");
@@ -1549,7 +1549,7 @@ lobbyProcessing = false;
 
 function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, ended) {
   const teamLines = playerTeam.map((unit) => {
-    return `**${unit.slot}. ${unit.name}** ❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)}`;
+    return `**${unit.slot}. ${unit.name}** ❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${getMergeSafePower(card, Number(unit.battlePower || unit.currentPower || 0)).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)}`;
   });
 
   const recentLogs = logs.slice(-BOSS_MAX_LOG_LINES);
@@ -1852,7 +1852,7 @@ async function buildRaidBossParticipantsFromJoinedIds(message, joinedIds) {
         ? message.author.username
         : await resolveUsernameSafe(message, userId);
 
-    const player = getPlayer(userId, username);
+    const player = syncMergeCombatPlayer(getPlayer(userId, username));
 
     if (!player) {
       rejected.push(`${username} has no player data.`);
@@ -2030,7 +2030,7 @@ function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, 
       const status = isDead ? "DEFEATED" : alreadyUsed ? "WAIT" : "READY";
 
       teamLines.push(
-        `**${unit.globalSlot + 1}. ${unit.name}**${alreadyUsed ? " ⏳" : ""} ❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)} | ${status}`
+        `**${unit.globalSlot + 1}. ${unit.name}**${alreadyUsed ? " ⏳" : ""} ❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${getMergeSafePower(card, Number(unit.battlePower || unit.currentPower || 0)).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)} | ${status}`
       );
     }
   }
@@ -2154,7 +2154,7 @@ function buildBossProcessingEmbed(playerName, island, phaseBoss, playerTeam, bos
         "",
         "## Your Team",
         ...playerTeam.map((unit) => {
-          return `**${unit.slot}. ${unit.name}** ❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)}`;
+          return `**${unit.slot}. ${unit.name}** ❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${getMergeSafePower(card, Number(unit.battlePower || unit.currentPower || 0)).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)}`;
         }),
       ].join("\n")
     )
@@ -2179,9 +2179,9 @@ function buildRaidBossProcessingEmbed(island, phaseBoss, participants, boss, log
         `**${unit.globalSlot + 1}. ${unit.name}** ❤️ ${Math.max(
           0,
           Number(unit.battleHp ?? unit.hp)
-        )}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(
+        )}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${getMergeSafePower(card, Number(
           unit.battlePower || unit.currentPower || 0
-        ).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(
+        )).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(
           unit.battleAtk || unit.atk
         )} | ${status}`
       );
@@ -2270,7 +2270,7 @@ module.exports = {
   name: "boss",
 
   async execute(message, args = []) {
-    const player = getPlayer(message.author.id, message.author.username);
+    const player = syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username));
     const bossCooldownUntil = Number(player?.cooldowns?.boss || 0);
 
     if (bossCooldownUntil > Date.now()) {
