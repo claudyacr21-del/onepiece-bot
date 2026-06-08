@@ -1,13 +1,4 @@
 const {
-  syncMergeCombatCard,
-  syncMergeCombatPlayer,
-  syncMergeCombatTeam,
-  getCombatPower,
-  getCombatAtk,
-  getCombatHp,
-  getCombatSpeed,
-} = require("../utils/mergeCombatResolver");
-const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -17,7 +8,6 @@ const {
 
 const { getPlayer, updatePlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
-const { isLzsCard, buildMergedLzsCard, syncMergedCardsInPlayer } = require("../utils/mergeCards");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
 const { getCurrentIsland, getIslandByCode } = require("../data/islands");
@@ -257,71 +247,6 @@ function formatAtkRange(atk) {
 
 function applyBoostToNumber(value, percent) {
   return Math.floor(Number(value || 0) * (1 + Number(percent || 0) / 100));
-}
-
-
-function firstPositiveNumber(...values) {
-  for (const value of values) {
-    const n = Number(value || 0);
-    if (Number.isFinite(n) && n > 0) return Math.floor(n);
-  }
-  return 0;
-}
-
-function resolveFightCardStats(card, player = null) {
-  const syncedPlayer = player ? syncMergedCardsInPlayer(player) : null;
-  let resolved = hydrateCard(card) || card;
-
-  if (resolved && isLzsCard(resolved)) {
-    resolved = buildMergedLzsCard(syncedPlayer || { cards: [] }, resolved);
-  }
-
-  const atk = firstPositiveNumber(
-    resolved?.combatAtk,
-    resolved?.battleAtk,
-    resolved?.finalAtk,
-    resolved?.displayAtk,
-    resolved?.atk,
-    resolved?.baseAtk
-  );
-
-  const hp = firstPositiveNumber(
-    resolved?.combatHp,
-    resolved?.battleHp,
-    resolved?.finalHp,
-    resolved?.displayHp,
-    resolved?.maxHp,
-    resolved?.hp,
-    resolved?.baseHp
-  );
-
-  const speed = firstPositiveNumber(
-    resolved?.combatSpeed,
-    resolved?.battleSpeed,
-    resolved?.finalSpeed,
-    resolved?.displaySpeed,
-    resolved?.speed,
-    resolved?.spd,
-    resolved?.baseSpeed
-  );
-
-  const safeAtk = Math.max(1, atk);
-  const safeHp = Math.max(1, hp);
-  const safeSpeed = Math.max(1, speed);
-
-  return {
-    ...(resolved || {}),
-    name: resolved?.displayName || resolved?.name || card?.displayName || card?.name || "Unknown",
-    displayName: resolved?.displayName || resolved?.name || card?.displayName || card?.name || "Unknown",
-    atk: safeAtk,
-    hp: safeHp,
-    maxHp: safeHp,
-    speed: safeSpeed,
-    spd: safeSpeed,
-    power: resolved && isLzsCard(resolved) ? 100000 : firstPositiveNumber(resolved?.power, resolved?.currentPower, resolved?.finalPower),
-    currentPower: resolved && isLzsCard(resolved) ? 100000 : firstPositiveNumber(resolved?.currentPower, resolved?.power, resolved?.finalPower),
-    finalPower: resolved && isLzsCard(resolved) ? 100000 : firstPositiveNumber(resolved?.finalPower, resolved?.currentPower, resolved?.power),
-  };
 }
 
 function mergeOwnedCardWithLatestTemplate(rawCard) {
@@ -968,7 +893,7 @@ module.exports = {
     const sessionKey = setActiveFightSession(message);
 
     try {
-      const player = syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username));
+      const player = getPlayer(message.author.id, message.author.username);
       const premiumTier = await getFightPremiumTier(message, player);
       const premiumMode = getFightModeLabel(premiumTier);
       const currentIsland = getPlayerFightIsland(player);
@@ -1006,7 +931,7 @@ module.exports = {
         ? player.team.slots
         : [null, null, null];
 
-      const teamCards = syncMergeCombatTeam(player, teamSlots
+      const teamCards = teamSlots
         .slice(0, 3)
         .map((instanceId, index) => {
           if (!instanceId) return null;
@@ -1019,7 +944,7 @@ module.exports = {
 
           return found ? toBattleUnit(found, index, combatBoosts) : null;
         })
-        .filter(Boolean));
+        .filter(Boolean);
 
       if (teamCards.length < 3) {
         clearActiveFightSession(sessionKey);

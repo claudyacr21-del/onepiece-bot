@@ -1,13 +1,4 @@
 const {
-  syncMergeCombatCard,
-  syncMergeCombatPlayer,
-  syncMergeCombatTeam,
-  getCombatPower,
-  getCombatAtk,
-  getCombatHp,
-  getCombatSpeed,
-} = require("../utils/mergeCombatResolver");
-const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -1812,7 +1803,7 @@ function getFullTeamFromPlayer(player) {
     ? player.team.slots.slice(0, 3)
     : [null, null, null];
 
-  const teamCards = syncMergeCombatTeam(player, teamSlots
+  const teamCards = teamSlots
     .map((instanceId, index) => {
       if (!instanceId) return null;
 
@@ -1824,7 +1815,7 @@ function getFullTeamFromPlayer(player) {
 
       return found ? toBattleUnit(found, index, combatBoosts) : null;
     })
-    .filter(Boolean));
+    .filter(Boolean);
 
   return {
     combatBoosts,
@@ -1861,7 +1852,7 @@ async function buildRaidBossParticipantsFromJoinedIds(message, joinedIds) {
         ? message.author.username
         : await resolveUsernameSafe(message, userId);
 
-    const player = syncMergeCombatPlayer(getPlayer(userId, username));
+    const player = getPlayer(userId, username);
 
     if (!player) {
       rejected.push(`${username} has no player data.`);
@@ -2279,7 +2270,7 @@ module.exports = {
   name: "boss",
 
   async execute(message, args = []) {
-    const player = syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username));
+    const player = getPlayer(message.author.id, message.author.username);
     const bossCooldownUntil = Number(player?.cooldowns?.boss || 0);
 
     if (bossCooldownUntil > Date.now()) {

@@ -2,7 +2,6 @@ const fs = require("fs");
 const path = require("path");
 const { Pool } = require("pg");
 const { syncMergedCardsInPlayer } = require("./utils/mergeCards");
-const { syncMergeCombatCard } = require("./utils/mergeCombatResolver");
 const persistentDir = process.env.PLAYER_DATA_DIR || path.join(__dirname, "data");
 const fallbackDir = path.join(__dirname, "data");
 
@@ -1532,9 +1531,7 @@ function normalizePlayer(player = {}, username = "Unknown") {
     currentIsland,
     messageMilestones: normalizeMessageMilestones(player.messageMilestones),
     dailyLastClaim: player.dailyLastClaim || null,
-    cards: syncMergedCardsInPlayer({ cards: normalizeCards(player.cards) }).cards.map((card) =>
-      syncMergeCombatCard({ cards: syncMergedCardsInPlayer({ cards: normalizeCards(player.cards) }).cards }, card)
-    ),
+    cards: syncMergedCardsInPlayer({ cards: normalizeCards(player.cards) }).cards,
     fragments: normalizeFragmentList(player.fragments),
     autoLevel: normalizeAutoLevel(player.autoLevel),
     autoSac: normalizeAutoSac(player.autoSac),

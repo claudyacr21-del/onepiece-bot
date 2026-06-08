@@ -1,13 +1,4 @@
 const {
-  syncMergeCombatCard,
-  syncMergeCombatPlayer,
-  syncMergeCombatTeam,
-  getCombatPower,
-  getCombatAtk,
-  getCombatHp,
-  getCombatSpeed,
-} = require("../utils/mergeCombatResolver");
-const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -518,7 +509,7 @@ function makeFastArenaEntry(message, userId, raw) {
   if (!id || id.startsWith("__")) return null;
   if (id === String(message?.client?.user?.id || "")) return null;
 
-  const teamCards = syncMergeCombatTeam(player, getFastArenaTeamCards(raw));
+  const teamCards = getFastArenaTeamCards(raw);
   if (teamCards.length !== 3) return null;
 
   const arena = raw?.arena || {};
@@ -628,7 +619,7 @@ function getRealArenaEntries(message, options = {}) {
       return id !== String(message?.client?.user?.id || "");
     })
     .map(([userId, raw]) => {
-      const teamCards = syncMergeCombatTeam(player, getFastArenaTeamCards(raw));
+      const teamCards = getFastArenaTeamCards(raw);
       if (teamCards.length !== 3) return null;
 
       const arena = raw?.arena || {};
@@ -1765,7 +1756,7 @@ module.exports = {
   aliases: ["pvp", "ranked"],
 
   async execute(message) {
-    const player = syncMergeCombatPlayer(getPlayer(message.author.id, message.author.username));
+    const player = getPlayer(message.author.id, message.author.username);
     player.userId = String(message.author.id);
     player.username = getArenaDisplayName(message, message.author.id, player);
 
