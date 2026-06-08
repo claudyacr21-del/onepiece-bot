@@ -140,6 +140,10 @@ function ensureArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function waitImmediate() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 function isIgnorableInteractionError(error) {
   const code = Number(error?.code || error?.rawError?.code || 0);
   const status = Number(error?.status || error?.rawError?.status || 0);
@@ -500,6 +504,104 @@ function getFastArenaTeamPower(cards) {
   }, 0);
 }
 
+function makeFastArenaEntry(message, userId, raw) {
+  const id = String(userId || "");
+  if (!id || id.startsWith("__")) return null;
+  if (id === String(message?.client?.user?.id || "")) return null;
+
+  const teamCards = getFastArenaTeamCards(raw);
+  if (teamCards.length !== 3) return null;
+
+  const arena = raw?.arena || {};
+
+  return {
+    userId: id,
+    username: raw?.username || "Unknown",
+    points: Number(arena?.points || 0),
+    wins: Number(arena?.wins || 0),
+    losses: Number(arena?.losses || 0),
+    draws: Number(arena?.draws || 0),
+    matches: Number(arena?.matches || 0),
+    streak: Number(arena?.streak || 0),
+    isBot: false,
+    teamPower: getFastArenaTeamPower(teamCards),
+    raw,
+  };
+}
+
+async function buildFastArenaLeaderboard(message) {
+  const allPlayers = getCachedArenaPlayers();
+  const entries = Object.entries(allPlayers || {});
+  const leaderboard = [];
+
+  for (let i = 0; i < entries.length; i++) {
+    const [userId, raw] = entries[i];
+    const entry = makeFastArenaEntry(message, userId, raw);
+
+    if (entry) leaderboard.push(entry);
+
+    // Biar bot tidak freeze kalau player banyak.
+    if (i > 0 && i % 100 === 0) {
+      await waitImmediate();
+    }
+  }
+
+  return leaderboard
+    .sort(compareArenaEntries)
+    .slice(0, ARENA_TOTAL_RANK_SLOTS)
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
+}
+
+function hydrateArenaOpponent(message, entry) {
+  if (!entry?.raw) return null;
+
+  const player = {
+    ...entry.raw,
+    userId: entry.userId,
+    username: getArenaDisplayName(message, entry.userId, entry.raw),
+  };
+
+  const teamUnits = getTeamUnits(player, "opponent");
+  if (teamUnits.length !== 3) return null;
+
+  return {
+    ...entry,
+    username: player.username,
+    teamUnits,
+    teamPower: getArenaTeamPower(teamUnits),
+    raw: undefined,
+  };
+}
+
+function getNearbyArenaOpponents(message, leaderboard, userId, range = 3) {
+  const currentIndex = leaderboard.findIndex(
+    (entry) => String(entry.userId) === String(userId)
+  );
+
+  if (currentIndex < 0) {
+    return leaderboard.slice(0, 6)
+      .map((entry) => hydrateArenaOpponent(message, entry))
+      .filter(Boolean);
+  }
+
+  const picks = [];
+
+  for (let i = currentIndex - range; i < currentIndex; i++) {
+    if (i >= 0 && leaderboard[i]) picks.push(leaderboard[i]);
+  }
+
+  for (let i = currentIndex + 1; i <= currentIndex + range; i++) {
+    if (i < leaderboard.length && leaderboard[i]) picks.push(leaderboard[i]);
+  }
+
+  return picks
+    .map((entry) => hydrateArenaOpponent(message, entry))
+    .filter(Boolean);
+}
+
 function getRealArenaEntries(message, options = {}) {
   const allPlayers = getCachedArenaPlayers();
   const limit = Math.max(
@@ -765,16 +867,22 @@ function applyArenaResult(arena, result, context = {}) {
   return current;
 }
 
-function updateArenaPlayer(message, result, opponent = null, prebuiltLeaderboard = null) {
+function updateArenaPlayer(
+  message,
+  result,
+  opponent = null,
+  prebuiltLeaderboard = null,
+  knownPlayerRank = null
+) {
   let finalArena = null;
   let streakRewardLine = null;
 
-  const leaderboard =
-    prebuiltLeaderboard ||
-    buildArenaVirtualLeaderboard(message, {
-      limit: ARENA_MAX_OPPONENT_SCAN,
-    });
-  const playerRankBefore = getArenaRankForUser(message, message.author.id, leaderboard);
+  const playerRankBefore =
+    Number(knownPlayerRank || 0) ||
+    (prebuiltLeaderboard
+      ? getArenaRankForUser(message, message.author.id, prebuiltLeaderboard)
+      : ARENA_TOTAL_RANK_SLOTS);
+
   const opponentRank = Number(opponent?.rank || ARENA_TOTAL_RANK_SLOTS);
 
   updatePlayerAtomic(
@@ -822,7 +930,7 @@ function updateArenaPlayer(message, result, opponent = null, prebuiltLeaderboard
 
       finalArena = {
         ...updatedArena,
-        arenaRank: null,
+        arenaRank: playerRankBefore,
         streakRewardLine: streakBoxReward.rewardLine,
       };
 
@@ -850,11 +958,9 @@ function updateArenaPlayer(message, result, opponent = null, prebuiltLeaderboard
 
   invalidateArenaPlayersCache();
 
-  const arenaRank = getArenaRankForUser(message, message.author.id, leaderboard);
-
   return {
     ...(finalArena || {}),
-    arenaRank,
+    arenaRank: playerRankBefore,
     streakRewardLine,
   };
 }
@@ -1386,7 +1492,13 @@ if (interaction.user.id !== message.author.id) {
         logs.length = 0;
         logs.push("🏳️ You forfeited the arena battle.");
 
-        currentArena = updateArenaPlayer(message, result, opponent);
+        currentArena = updateArenaPlayer(
+          message,
+          result,
+          opponent,
+          null,
+          player?.arenaRank || ARENA_TOTAL_RANK_SLOTS
+        );
         const expLines = applyArenaExp(message, myTeam, false);
 
         await safeEditInteractionMessage(interaction, {
@@ -1487,7 +1599,13 @@ if (interaction.user.id !== message.author.id) {
           components: disableArenaRows(buildActionRows(myTeam, true)),
         });
 
-        currentArena = updateArenaPlayer(message, result, opponent);
+        currentArena = updateArenaPlayer(
+          message,
+          result,
+          opponent,
+          null,
+          player?.arenaRank || ARENA_TOTAL_RANK_SLOTS
+        );
         updateArenaOpponentAfterBattle(opponent, result, {
           playerRank: player?.arenaRank || getArenaRankForUser(message, message.author.id),
           opponentRank: opponent?.rank || ARENA_TOTAL_RANK_SLOTS,
@@ -1533,7 +1651,13 @@ if (interaction.user.id !== message.author.id) {
           components: disableArenaRows(buildActionRows(myTeam, true)),
         });
 
-        currentArena = updateArenaPlayer(message, result, opponent);
+        currentArena = updateArenaPlayer(
+          message,
+          result,
+          opponent,
+          null,
+          player?.arenaRank || ARENA_TOTAL_RANK_SLOTS
+        );
         const expLines = applyArenaExp(message, myTeam, false);
 
         await safeEditInteractionMessage(interaction, {
@@ -1590,7 +1714,13 @@ if (interaction.user.id !== message.author.id) {
       logs.push("⌛ Arena battle timed out.");
       logs.push("Result decided by remaining HP.");
 
-      currentArena = updateArenaPlayer(message, result, opponent);
+      currentArena = updateArenaPlayer(
+        message,
+        result,
+        opponent,
+        null,
+        player?.arenaRank || ARENA_TOTAL_RANK_SLOTS
+      );
 
       if (result === "win") {
         updateArenaOpponentAfterBattle(opponent, result, {
@@ -1642,15 +1772,24 @@ module.exports = {
       return message.reply(`You already used all **${ARENA_DAILY_LIMIT}/5** arena battles today.`);
     }
 
+    const loadingMessage = await message.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle("Global Arena")
+          .setDescription("Loading nearby ranked opponents...")
+          .setFooter({ text: "One Piece Bot • Arena Ranking" }),
+      ],
+      allowedMentions: { repliedUser: false },
+    });
+
     let leaderboardSnapshot = [];
     let playerArenaRank = ARENA_TOTAL_RANK_SLOTS;
     let rankedPlayer = null;
     let opponents = [];
 
     try {
-      leaderboardSnapshot = buildArenaVirtualLeaderboard(message, {
-        limit: ARENA_MAX_OPPONENT_SCAN,
-      });
+      leaderboardSnapshot = await buildFastArenaLeaderboard(message);
 
       playerArenaRank = getArenaRankFromLeaderboard(
         leaderboardSnapshot,
@@ -1662,41 +1801,41 @@ module.exports = {
         arenaRank: playerArenaRank,
       };
 
-      opponents = buildOpponentPoolFromLeaderboard(
-        leaderboardSnapshot,
+      opponents = getNearbyArenaOpponents(
         message,
-        rankedPlayer
-      ).slice(0, ARENA_FAST_OPPONENT_LIMIT);
+        leaderboardSnapshot,
+        message.author.id,
+        3
+      );
     } catch (error) {
-      console.error("[ARENA LOBBY BUILD ERROR]", error);
+      console.error("[ARENA FAST LOBBY BUILD ERROR]", error);
 
-      return message.reply({
+      return loadingMessage.edit({
         embeds: [
           new EmbedBuilder()
             .setColor(0xe74c3c)
             .setTitle("Arena Error")
-            .setDescription("Arena failed to load opponents. Please try again later."),
+            .setDescription("Arena failed to load nearby ranked opponents. Please try again later."),
         ],
-        allowedMentions: { repliedUser: false },
+        components: [],
       });
     }
 
     if (!opponents.length) {
-      return message.reply({
+      return loadingMessage.edit({
         embeds: [
           new EmbedBuilder()
             .setColor(0xe74c3c)
             .setTitle("Global Arena")
-            .setDescription("No arena opponent was found."),
+            .setDescription("No nearby ranked opponent was found."),
         ],
-        allowedMentions: { repliedUser: false },
+        components: [],
       });
     }
 
-    const lobbyMessage = await message.reply({
+    const lobbyMessage = await loadingMessage.edit({
       embeds: [buildArenaLobbyEmbed(rankedPlayer, opponents)],
       components: buildOpponentMenu(opponents),
-      allowedMentions: { repliedUser: false },
     });
 
     const lobbyCollector = lobbyMessage.createMessageComponentCollector({
