@@ -108,11 +108,12 @@ async function runPirateWeeklyResetIfNeeded() {
 
   const rewards = [];
 
-  pirates.forEach((pirate, index) => {
+  for (let index = 0; index < pirates.length; index++) {
+    const pirate = pirates[index];
     const rank = index + 1;
     const members = Array.isArray(pirate.members) ? pirate.members : [];
 
-    members.forEach((userId) => {
+    for (const userId of members) {
       const role = getPirateMemberRole(pirate, userId);
       const tokens = getRewardForRank(rank, role);
 
@@ -126,10 +127,10 @@ async function runPirateWeeklyResetIfNeeded() {
         role,
         tokens,
       });
-    });
+    }
 
     const current = state.pirates[pirate.id];
-    if (!current) return;
+    if (!current) continue;
 
     state.pirates[pirate.id] = resetPirateRaidState({
       ...current,
@@ -158,7 +159,11 @@ async function runPirateWeeklyResetIfNeeded() {
         },
       ].slice(-25),
     });
-  });
+  }
+
+  if (typeof flushPlayerStoreNow === "function") {
+    await flushPlayerStoreNow(30000);
+  }
 
   state.lastWeeklyResetBucket = currentBucket;
   state.lastWeeklyResetAt = Date.now();
