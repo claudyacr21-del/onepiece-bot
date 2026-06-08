@@ -2029,7 +2029,7 @@ function giveRaidWinRewards(state) {
     const berries = Number(config.berries || 0);
     const gems = Number(config.gems || 0);
     const fragments = isHost && !isMergeRaid ? Number(config.fragments || 0) : 0;
-    const universalS = isHost && isMergeRaid ? Number(config.universalS || 0) : 0;
+    const universalS = isMergeRaid ? Number(config.universalS || 0) : 0;
     const gotWeapon = Boolean(isHost && linkedWeapon && randomChance(config.weaponChance));
     const gotFruit = Boolean(isHost && linkedFruit && randomChance(config.fruitChance));
 
@@ -2057,7 +2057,7 @@ function giveRaidWinRewards(state) {
             ? fresh.fragments
             : addRaidBossFragment(fresh.fragments, boss, fragments)
           : fresh.fragments,
-          items: isHost && isMergeRaid && universalS > 0
+          items: isMergeRaid && universalS > 0
             ? addUniversalSReward(fresh.items, universalS)
             : fresh.items,
         devilFruits: gotFruit ? addRaidFruit(fresh.devilFruits, linkedFruit) : fresh.devilFruits,
@@ -2101,8 +2101,8 @@ function formatRaidWinRewardLines(state) {
       lines.push(`+${Number(reward.fragments || 0)} ${reward.bossName} fragment`);
     }
 
-    if (reward.isHost && Number(reward.universalS || 0) > 0) {
-    lines.push(`+Universal S x${Number(reward.universalS || 0)}`);
+    if (Number(reward.universalS || 0) > 0) {
+      lines.push(`+Universal S x${Number(reward.universalS || 0)}`);
     }
 
     const extras = [];
