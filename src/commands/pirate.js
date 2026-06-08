@@ -1,4 +1,4 @@
-const { syncMergeCombatPlayer, getMergeSafePower } = require("../utils/mergeCombatSync"); const {
+const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -153,7 +153,7 @@ function usageEmbed() {
     .setFooter({ text: "One Piece Bot • Pirate System Phase 1 + 2" });
 }
 
-function syncMergeCombatPlayer(getPlayer(players, userId, username)) {
+function syncMergeCombatPlayer(player) {
   const id = String(userId);
   if (!players[id]) {
     players[id] = {
