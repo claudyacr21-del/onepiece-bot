@@ -683,8 +683,22 @@ function getLiveFruitsFromCard(card) {
   return names;
 }
 
+function isMergeInfoCard(card) {
+  const type = String(card?.type || "").toLowerCase().trim();
+
+  return Boolean(
+    card &&
+      (
+        isLzsCard(card) ||
+        card.mergeOnly === true ||
+        Array.isArray(card.mergeSourceCodes) ||
+        type === "merge"
+      )
+  );
+}
+
 function enrichMergedCardLiveEquipment(player, card) {
-  if (!card || !isLzsCard(card)) return card;
+  if (!card || !isMergeInfoCard(card)) return card;
 
   const sourceCards = getLiveSourceCardsForMerge(player, card);
   const weaponNames = [];
@@ -702,6 +716,7 @@ function enrichMergedCardLiveEquipment(player, card) {
 
   return {
     ...card,
+
     displayWeaponName: weaponNames.length ? weaponNames.join(", ") : "None",
     weaponSet: weaponNames.length ? weaponNames.join(", ") : "None",
     weapon: weaponNames.length ? weaponNames.join(", ") : "None",
@@ -779,9 +794,14 @@ module.exports = {
     }
 
     const ownedCard = findOwnedCardByNameOnly(player, query);
-    const syncedOwnedCard = isLzsCard(ownedCard)
-      ? buildMergedLzsCard(player, ownedCard)
-      : ownedCard;
+
+    let syncedOwnedCard = ownedCard;
+
+    if (isLzsCard(ownedCard)) {
+      syncedOwnedCard = buildMergedLzsCard(player, ownedCard);
+    }
+
+    syncedOwnedCard = enrichMergedCardLiveEquipment(player, syncedOwnedCard);
 
     const card = applyBoostedDisplayStats(syncedOwnedCard, boosts);
 
