@@ -1,10 +1,10 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
-const { isLzsCard, MERGE_FIXED_POWER } = require("../utils/mergeCards");
+const { isMergeCard, getMergeFixedPower } = require("../utils/mergeCards");
 
 function getPower(card) {
-  if (isLzsCard(card)) return MERGE_FIXED_POWER;
+  if (isMergeCard(card)) return getMergeFixedPower(card);
 
   return Number(
     card.teamPower ||

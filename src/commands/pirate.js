@@ -7,7 +7,7 @@ const {
 } = require("discord.js");
 const { readPlayers, writePlayers } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
-const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
+const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
   MAX_MEMBERS,
@@ -1608,8 +1608,8 @@ function getPirateCardSpeed(card) {
 function syncPirateMergeCard(player, rawCard) {
   const hydrated = hydrateCard(rawCard) || rawCard || {};
 
-  if (isLzsCard(hydrated)) {
-    return buildMergedLzsCard(player || { cards: [] }, hydrated);
+  if (isMergeCard(hydrated)) {
+    return buildMergedCard(player || { cards: [] }, hydrated);
   }
 
   return hydrated;

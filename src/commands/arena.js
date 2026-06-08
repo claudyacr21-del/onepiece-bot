@@ -13,7 +13,7 @@ const {
   updatePlayerAtomic,
 } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
-const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
+const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { applyDamageBoost } = require("../utils/combatStats");
@@ -319,7 +319,7 @@ function getArenaCardSpeed(card) {
 }
 
 function getPower(card) {
-  if (isLzsCard(card)) return 100000;
+  if (isMergeCard(card)) return 100000;
 
   return Math.max(
     0,
@@ -430,8 +430,8 @@ function getTeamUnits(player, ownerTag = "player") {
       const hydrated = hydrateCard(rawCard);
       if (!hydrated) return null;
 
-      const synced = isLzsCard(hydrated)
-        ? buildMergedLzsCard(player || { cards: [] }, hydrated)
+      const synced = isMergeCard(hydrated)
+        ? buildMergedCard(player || { cards: [] }, hydrated)
         : hydrated;
 
       return {

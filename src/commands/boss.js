@@ -17,7 +17,7 @@ const { incrementQuestPayload } = require("../utils/questProgress");
 const { getCurrentIsland } = require("../data/islands");
 const cardsDb = require("../data/cards");
 const { hydrateCard } = require("../utils/evolution");
-const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
+const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
   getPirateExpBoostPercent,
@@ -295,7 +295,7 @@ function getBossCardSpeed(card) {
 }
 
 function getBossCardPower(card) {
-  if (isLzsCard(card)) return 100000;
+  if (isMergeCard(card)) return 100000;
 
   return Math.max(
     0,
@@ -1879,8 +1879,8 @@ function getFullTeamFromPlayer(player) {
       const card = hydrateCard(rawCard);
       if (!card) return null;
 
-      const mergedCard = isLzsCard(card)
-        ? buildMergedLzsCard(player, card)
+      const mergedCard = isMergeCard(card)
+        ? buildMergedCard(player, card)
         : card;
 
       return {

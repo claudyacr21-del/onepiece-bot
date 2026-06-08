@@ -8,7 +8,7 @@ const {
 
 const { getPlayer, updatePlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
-const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
+const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
 const { getCurrentIsland, getIslandByCode } = require("../data/islands");
@@ -310,8 +310,8 @@ function mergeOwnedCardWithLatestTemplate(rawCard, player = null) {
   const card = hydrateCard(rawCard);
   if (!card) return null;
 
-  if (isLzsCard(card)) {
-    return buildMergedLzsCard(player || { cards: [] }, card);
+  if (isMergeCard(card)) {
+    return buildMergedCard(player || { cards: [] }, card);
   }
 
   return card;

@@ -4,7 +4,7 @@ const { EmbedBuilder,
   ButtonStyle, MessageFlags } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
-const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
+const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { applyDamageBoost } = require("../utils/combatStats");
 
@@ -142,7 +142,7 @@ function getChallengeCardSpeed(card) {
 }
 
 function getPower(card) {
-  if (isLzsCard(card)) return 100000;
+  if (isMergeCard(card)) return 100000;
 
   return Math.max(
     0,
@@ -220,8 +220,8 @@ function getTeamUnits(player, ownerTag = "player") {
       const hydrated = hydrateCard(rawCard);
       if (!hydrated) return null;
 
-      if (isLzsCard(hydrated)) {
-        return buildMergedLzsCard(player || { cards: [] }, hydrated);
+      if (isMergeCard(hydrated)) {
+        return buildMergedCard(player || { cards: [] }, hydrated);
       }
 
       return hydrated;

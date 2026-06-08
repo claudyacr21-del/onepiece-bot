@@ -7,7 +7,7 @@ const {
 
 const { readPlayers } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
-const { isLzsCard, MERGE_FIXED_POWER } = require("../utils/mergeCards");
+const { isMergeCard, getMergeFixedPower } = require("../utils/mergeCards");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 
@@ -130,22 +130,12 @@ function getFruitPowerByRarity(rarity) {
 }
 
 function isLeaderboardMergeCard(card) {
-  const type = String(card?.type || "").toLowerCase().trim();
-
-  return Boolean(
-    card &&
-      (
-        isLzsCard(card) ||
-        card.mergeOnly === true ||
-        Array.isArray(card.mergeSourceCodes) ||
-        type === "merge"
-      )
-  );
+  return isMergeCard(card);
 }
 
 function getLeaderboardCardPower(card) {
   if (isLeaderboardMergeCard(card)) {
-    return Number(card.mergeFixedPower || card.fixedPower || MERGE_FIXED_POWER || 100000);
+    return getMergeFixedPower(card);
   }
 
   return Number(

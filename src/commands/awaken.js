@@ -13,9 +13,11 @@ const {
 } = require("../utils/evolution");
 const { getCardImage } = require("../config/assetLinks");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const {
+  isMergeCard,
+  getMergeFixedPower,
+} = require("../utils/mergeCards");
 const rawCards = require("../data/cards");
-
-const MERGE_FIXED_POWER_FOR_AWAKEN = 100000;
 
 function cloneDeep(value) {
   if (value === undefined || value === null) return value;
@@ -212,40 +214,18 @@ function getStageForm(template, stage) {
 }
 
 function isMergeCardTemplate(template) {
-  const type = String(template?.type || "").toLowerCase().trim();
-
-  return Boolean(
-    template &&
-      (template.mergeOnly === true ||
-        template.summonOnly === true && Array.isArray(template.mergeSourceCodes) ||
-        type === "merge")
-  );
+  return isMergeCard(template);
 }
 
 function isAwakenMergeCard(card, template = null) {
-  const cardType = String(card?.type || "").toLowerCase().trim();
-  const templateType = String(template?.type || "").toLowerCase().trim();
-
-  return Boolean(
-    isLzsCard(card) ||
-      isLzsCard(template) ||
-      card?.mergeOnly === true ||
-      template?.mergeOnly === true ||
-      Array.isArray(card?.mergeSourceCodes) ||
-      Array.isArray(template?.mergeSourceCodes) ||
-      cardType === "merge" ||
-      templateType === "merge"
-  );
+  return isMergeCard(card) || isMergeCard(template);
 }
 
 function getAwakenMergeFixedPower(card, template = null) {
-  return Number(
-    card?.mergeFixedPower ||
-      template?.mergeFixedPower ||
-      card?.fixedPower ||
-      template?.fixedPower ||
-      MERGE_FIXED_POWER_FOR_AWAKEN
-  );
+  return getMergeFixedPower({
+    ...(template || {}),
+    ...(card || {}),
+  });
 }
 
 function applyAwakenMergeFixedPower(card, template = null) {
@@ -1135,6 +1115,7 @@ function buildSuccessEmbed(result, player) {
 
 function getCiQueryText(card, query) {
   if (isLzsQuery(query) || isLzsCard(card)) return "lzs";
+  if (isMergeCard(card)) return card?.code || card?.displayName || card?.name || query;
   return card?.displayName || card?.name || card?.title || query;
 }
 

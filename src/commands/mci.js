@@ -1,9 +1,9 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const {
-  isLzsCard,
-  buildMergedLzsCard,
-  findOwnedCardByCodeOrName,
+  isMergeCard,
+  buildMergedCard,
+  getMergeSourceCodes,
 } = require("../utils/mergeCards");
 const {
   hydrateCard,
@@ -651,11 +651,7 @@ function getLiveSourceCardsForMerge(player, mergeCard) {
     ? player.cards.map((card) => hydrateCard(card)).filter(Boolean)
     : [];
 
-  const sourceCodes = Array.isArray(mergeCard?.mergeSourceCodes) && mergeCard.mergeSourceCodes.length
-    ? mergeCard.mergeSourceCodes
-    : isLzsCard(mergeCard)
-      ? ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"]
-      : [];
+  const sourceCodes = getMergeSourceCodes(mergeCard);
 
   return sourceCodes
     .map((code) => {
@@ -835,8 +831,8 @@ module.exports = {
 
     let syncedOwnedCard = ownedCard;
 
-    if (isLzsCard(ownedCard)) {
-      syncedOwnedCard = buildMergedLzsCard(player, ownedCard);
+    if (isMergeCard(ownedCard)) {
+      syncedOwnedCard = buildMergedCard(player, ownedCard);
     }
 
     syncedOwnedCard = enrichMergedCardLiveEquipment(player, syncedOwnedCard);

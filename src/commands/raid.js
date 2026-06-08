@@ -8,7 +8,7 @@ const {
 
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard, findCardTemplate } = require("../utils/evolution");
-const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
+const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const activeRaidReadyNotices = new Set();
 const {
   getPlayerCombatBoosts,
@@ -567,7 +567,7 @@ function getRaidCardSpeed(card) {
 }
 
 function getRaidDisplayPower(card) {
-  if (isLzsCard(card)) return 100000;
+  if (isMergeCard(card)) return 100000;
 
   return Math.max(
     0,
@@ -831,8 +831,8 @@ function getRaidBaseBattleCards(player) {
       const card = hydrateCard(rawCard);
       if (!card) return null;
 
-      if (isLzsCard(card)) {
-        return buildMergedLzsCard(player || { cards: [] }, card);
+      if (isMergeCard(card)) {
+        return buildMergedCard(player || { cards: [] }, card);
       }
 
       return card;

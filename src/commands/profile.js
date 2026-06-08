@@ -11,7 +11,7 @@ const {
 } = require("../data/profileBadges");
 const { hydrateCard } = require("../utils/evolution");
 const { getPlayerCombatCards } = require("../utils/combatStats");
-const { isLzsCard, MERGE_FIXED_POWER } = require("../utils/mergeCards");
+const { isMergeCard, getMergeFixedPower } = require("../utils/mergeCards");
 const { getShipByCode, SHIPS } = require("../data/ships");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
@@ -112,22 +112,12 @@ function getHydratedCards(player) {
 }
 
 function isProfileMergeCard(card) {
-  const type = String(card?.type || "").toLowerCase().trim();
-
-  return Boolean(
-    card &&
-      (
-        isLzsCard(card) ||
-        card.mergeOnly === true ||
-        Array.isArray(card.mergeSourceCodes) ||
-        type === "merge"
-      )
-  );
+  return isMergeCard(card);
 }
 
 function getProfileCardPower(card) {
   if (isProfileMergeCard(card)) {
-    return Number(card.mergeFixedPower || card.fixedPower || MERGE_FIXED_POWER || 100000);
+    return getMergeFixedPower(card);
   }
 
   return Number(
