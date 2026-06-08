@@ -27,6 +27,7 @@ const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 
 const RAID_ROOM_TIMEOUT_MS = 30 * 60 * 1000;
+const RAID_LOBBY_IDLE_REFUND_MS = 5 * 60 * 1000;
 const RAID_PICK_TIMEOUT_MS = 60 * 1000;
 const MAX_BATTLE_LOG_LINES = 2;
 
@@ -998,9 +999,9 @@ function getRaidBossModeMultiplier(raidMode = {}) {
 
   if (ticketCode === "mythic_raid_ticket" || modeName.includes("mythic")) {
     return {
-      hp: 3.2,
-      speed: 1.5,
-      atk: 2.2,
+      hp: 4,
+      speed: 2,
+      atk: 3,
     };
   }
 
@@ -2631,6 +2632,7 @@ module.exports = {
 
     const lobbyCollector = lobbyMessage.createMessageComponentCollector({
       time: RAID_ROOM_TIMEOUT_MS,
+      idle: RAID_LOBBY_IDLE_REFUND_MS,
     });
 
     let battleMessage = null;
@@ -3218,7 +3220,7 @@ module.exports = {
               bossPreviewStats
             ).setFooter({
               text: refunded
-                ? "Raid room closed • Ticket refunded because raid did not start"
+                ? "Raid room closed • Ticket refunded because raid did not start within 5 minutes"
                 : "Raid room closed",
             }),
           ],
@@ -3229,7 +3231,7 @@ module.exports = {
       if (refunded) {
         await message.channel
           .send({
-            content: `↩️ ${userMention(hostId)} raid did not start, so **${raidMode.label}** was refunded.`,
+            content: `↩️ ${userMention(hostId)} raid did not start within 5 minutes, so **${raidMode.label}** was refunded.`,
             allowedMentions: {
               users: [hostId],
               repliedUser: false,
