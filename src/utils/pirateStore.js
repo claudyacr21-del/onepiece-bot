@@ -248,7 +248,11 @@ function normalizeState(raw) {
     version: STORE_VERSION,
     pirates,
     invites,
+    lastWeeklyResetBucket: raw?.lastWeeklyResetBucket ? String(raw.lastWeeklyResetBucket) : null,
     lastWeeklyResetAt: Number(raw?.lastWeeklyResetAt || 0),
+    lastWeeklyRewards: Array.isArray(raw?.lastWeeklyRewards)
+      ? raw.lastWeeklyRewards.slice(-200)
+      : [],
   };
 }
 
