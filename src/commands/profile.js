@@ -10,7 +10,8 @@ const {
   getRaidPrestigeBadgeEmoji,
 } = require("../data/profileBadges");
 const { hydrateCard } = require("../utils/evolution");
-const { getPlayerCombatCards } = require("../utils/combatStats"); const { isLzsCard, MERGE_FIXED_POWER } = require("../utils/mergeCards");
+const { getPlayerCombatCards } = require("../utils/combatStats");
+const { isLzsCard, MERGE_FIXED_POWER } = require("../utils/mergeCards");
 const { getShipByCode, SHIPS } = require("../data/ships");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
@@ -193,7 +194,7 @@ function getAllOwnedCardsPower(player) {
   const cards = getHydratedCards(player);
 
   return cards.reduce((sum, card) => {
-    return sum + Number(card.currentPower || 0);
+    return sum + getProfileCardPower(card);
   }, 0);
 }
 
@@ -300,7 +301,7 @@ function getTeamUnits(player) {
 
 function getTeamPower(player) {
   return getTeamUnits(player).reduce(
-    (sum, card) => sum + Number(card?.currentPower || 0),
+    (sum, card) => sum + getProfileCardPower(card),
     0
   );
 }
