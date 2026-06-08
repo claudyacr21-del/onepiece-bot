@@ -13,6 +13,7 @@ const {
   updatePlayerAtomic,
 } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
+const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { applyDamageBoost } = require("../utils/combatStats");
@@ -258,14 +259,85 @@ function formatArenaEntryRank(entry) {
   return `#${Number(entry?.rank || ARENA_TOTAL_RANK_SLOTS)}`;
 }
 
+function firstPositiveArenaNumber(...values) {
+  for (const value of values) {
+    const n = Number(value || 0);
+    if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  }
+
+  return 0;
+}
+
+function getArenaCardAtk(card) {
+  return Math.max(
+    1,
+    firstPositiveArenaNumber(
+      card?.atk,
+      card?.displayAtk,
+      card?.combatAtk,
+      card?.finalAtk,
+      card?.battleAtk,
+      card?.teamAtk,
+      card?.totalAtk,
+      card?.baseAtk
+    )
+  );
+}
+
+function getArenaCardHp(card) {
+  return Math.max(
+    1,
+    firstPositiveArenaNumber(
+      card?.hp,
+      card?.maxHp,
+      card?.displayHp,
+      card?.combatHp,
+      card?.finalHp,
+      card?.battleHp,
+      card?.teamHp,
+      card?.totalHp,
+      card?.baseHp
+    )
+  );
+}
+
+function getArenaCardSpeed(card) {
+  return Math.max(
+    1,
+    firstPositiveArenaNumber(
+      card?.speed,
+      card?.spd,
+      card?.displaySpeed,
+      card?.combatSpeed,
+      card?.finalSpeed,
+      card?.battleSpeed,
+      card?.teamSpeed,
+      card?.totalSpeed,
+      card?.baseSpeed
+    )
+  );
+}
+
 function getPower(card) {
-  return Number(
-    card.currentPower ||
+  if (isLzsCard(card)) return 100000;
+
+  return Math.max(
+    0,
+    firstPositiveArenaNumber(
+      card?.battlePower,
+      card?.combatPower,
+      card?.teamPower,
+      card?.currentPower,
+      card?.finalPower,
+      card?.displayPower,
+      card?.power,
+      card?.basePower,
       Math.floor(
-        Number(card.atk || 0) * 1.4 +
-          Number(card.hp || 0) * 0.22 +
-          Number(card.speed || 0) * 9
+        getArenaCardAtk(card) * 1.4 +
+          getArenaCardHp(card) * 0.22 +
+          getArenaCardSpeed(card) * 9
       )
+    )
   );
 }
 
@@ -300,13 +372,22 @@ function formatDevilFruit(card) {
 function applyBoostedBattleStats(card, boosts = {}) {
   if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
 
+  const baseAtk = getArenaCardAtk(card);
+  const baseHp = getArenaCardHp(card);
+  const baseSpeed = getArenaCardSpeed(card);
+  const basePower = getPower(card);
+
   return {
     ...card,
-    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
-    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
-    speed: Math.floor(
-      Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)
-    ),
+    atk: Math.floor(baseAtk * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(baseHp * (1 + Number(boosts.hp || 0) / 100)),
+    maxHp: Math.floor(baseHp * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(baseSpeed * (1 + Number(boosts.spd || 0) / 100)),
+    currentPower: basePower,
+    power: basePower,
+    battlePower: basePower,
+    combatPower: basePower,
+    teamPower: basePower,
   };
 }
 
@@ -321,10 +402,10 @@ function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}) {
     instanceId: synced.instanceId || `${ownerTag}-${slot}-${Date.now()}`,
     name: synced.displayName || synced.name || "Unknown",
     rarity: synced.currentTier || synced.rarity || "C",
-    atk: Number(synced.atk || 0),
-    hp: Number(synced.hp || 0),
-    maxHp: Number(synced.hp || 0),
-    speed: Number(synced.speed || 0),
+    atk: getArenaCardAtk(synced),
+    hp: getArenaCardHp(synced),
+    maxHp: getArenaCardHp(synced),
+    speed: getArenaCardSpeed(synced),
     level: Number(synced.level || 1),
     levelCap: getCardLevelCap(synced),
     exp: getCardExp(synced),
@@ -347,7 +428,16 @@ function getTeamUnits(player, ownerTag = "player") {
   const cards = (Array.isArray(player.cards) ? player.cards : [])
     .map((rawCard, sourceIndex) => {
       const hydrated = hydrateCard(rawCard);
-      return hydrated ? { ...hydrated, sourceIndex } : null;
+      if (!hydrated) return null;
+
+      const synced = isLzsCard(hydrated)
+        ? buildMergedLzsCard(player || { cards: [] }, hydrated)
+        : hydrated;
+
+      return {
+        ...synced,
+        sourceIndex,
+      };
     })
     .filter(Boolean);
 
@@ -489,18 +579,8 @@ function getFastArenaTeamCards(raw) {
 
 function getFastArenaTeamPower(cards) {
   return ensureArray(cards).reduce((total, card) => {
-    const power = Number(
-      card?.currentPower ||
-        card?.power ||
-        card?.powerCaps?.M3 ||
-        Math.floor(
-          Number(card?.atk || 0) * 1.4 +
-            Number(card?.hp || 0) * 0.22 +
-            Number(card?.speed || 0) * 9
-        )
-    );
-
-    return total + power;
+    const hydrated = hydrateCard(card) || card;
+    return total + getPower(hydrated);
   }, 0);
 }
 

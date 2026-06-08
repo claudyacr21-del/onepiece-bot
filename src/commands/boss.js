@@ -17,6 +17,7 @@ const { incrementQuestPayload } = require("../utils/questProgress");
 const { getCurrentIsland } = require("../data/islands");
 const cardsDb = require("../data/cards");
 const { hydrateCard } = require("../utils/evolution");
+const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
   getPirateExpBoostPercent,
@@ -234,14 +235,100 @@ function applyGlobalBossStats(template) {
   };
 }
 
+function firstPositiveBossNumber(...values) {
+  for (const value of values) {
+    const n = Number(value || 0);
+    if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  }
+
+  return 0;
+}
+
+function getBossCardAtk(card) {
+  return Math.max(
+    1,
+    firstPositiveBossNumber(
+      card?.atk,
+      card?.displayAtk,
+      card?.combatAtk,
+      card?.finalAtk,
+      card?.battleAtk,
+      card?.teamAtk,
+      card?.totalAtk,
+      card?.baseAtk
+    )
+  );
+}
+
+function getBossCardHp(card) {
+  return Math.max(
+    1,
+    firstPositiveBossNumber(
+      card?.hp,
+      card?.maxHp,
+      card?.displayHp,
+      card?.combatHp,
+      card?.finalHp,
+      card?.battleHp,
+      card?.teamHp,
+      card?.totalHp,
+      card?.baseHp
+    )
+  );
+}
+
+function getBossCardSpeed(card) {
+  return Math.max(
+    1,
+    firstPositiveBossNumber(
+      card?.speed,
+      card?.spd,
+      card?.displaySpeed,
+      card?.combatSpeed,
+      card?.finalSpeed,
+      card?.battleSpeed,
+      card?.teamSpeed,
+      card?.totalSpeed,
+      card?.baseSpeed
+    )
+  );
+}
+
+function getBossCardPower(card) {
+  if (isLzsCard(card)) return 100000;
+
+  return Math.max(
+    0,
+    firstPositiveBossNumber(
+      card?.battlePower,
+      card?.combatPower,
+      card?.teamPower,
+      card?.currentPower,
+      card?.finalPower,
+      card?.displayPower,
+      card?.power,
+      card?.basePower
+    )
+  );
+}
+
 function applyBoostedDisplayStats(card, boosts = {}) {
   if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
 
+  const baseAtk = getBossCardAtk(card);
+  const baseHp = getBossCardHp(card);
+  const baseSpeed = getBossCardSpeed(card);
+  const basePower = getBossCardPower(card);
+
   return {
     ...card,
-    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
-    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
-    speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+    atk: Math.floor(baseAtk * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(baseHp * (1 + Number(boosts.hp || 0) / 100)),
+    maxHp: Math.floor(baseHp * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(baseSpeed * (1 + Number(boosts.spd || 0) / 100)),
+    currentPower: basePower,
+    power: basePower,
+    battlePower: basePower,
   };
 }
 
@@ -282,10 +369,10 @@ function formatExpResults(playerTeam, expResults) {
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   const boosted = applyBoostedDisplayStats(card, combatBoosts);
 
-  const displayAtk = Number(boosted.atk || 0);
-  const displayHp = Number(boosted.hp || 0);
-  const displaySpeed = Number(boosted.speed || 0);
-  const displayPower = Number(boosted.currentPower || boosted.power || 0);
+  const displayAtk = getBossCardAtk(boosted);
+  const displayHp = getBossCardHp(boosted);
+  const displaySpeed = getBossCardSpeed(boosted);
+  const displayPower = getBossCardPower(boosted);
 
   return {
     slot: slotIndex + 1,
@@ -1792,8 +1879,12 @@ function getFullTeamFromPlayer(player) {
       const card = hydrateCard(rawCard);
       if (!card) return null;
 
+      const mergedCard = isLzsCard(card)
+        ? buildMergedLzsCard(player, card)
+        : card;
+
       return {
-        ...card,
+        ...mergedCard,
         sourceIndex,
       };
     })

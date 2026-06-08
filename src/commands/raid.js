@@ -8,6 +8,7 @@ const {
 
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard, findCardTemplate } = require("../utils/evolution");
+const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
 const activeRaidReadyNotices = new Set();
 const {
   getPlayerCombatBoosts,
@@ -506,34 +507,109 @@ function buildRaidCountEmbed(message, countState) {
     );
 }
 
+function firstPositiveRaidNumber(...values) {
+  for (const value of values) {
+    const n = Number(value || 0);
+    if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  }
+
+  return 0;
+}
+
+function getRaidCardAtk(card) {
+  return Math.max(
+    1,
+    firstPositiveRaidNumber(
+      card?.atk,
+      card?.displayAtk,
+      card?.combatAtk,
+      card?.finalAtk,
+      card?.battleAtk,
+      card?.teamAtk,
+      card?.totalAtk,
+      card?.baseAtk
+    )
+  );
+}
+
+function getRaidCardHp(card) {
+  return Math.max(
+    1,
+    firstPositiveRaidNumber(
+      card?.hp,
+      card?.maxHp,
+      card?.displayHp,
+      card?.combatHp,
+      card?.finalHp,
+      card?.battleHp,
+      card?.teamHp,
+      card?.totalHp,
+      card?.baseHp
+    )
+  );
+}
+
+function getRaidCardSpeed(card) {
+  return Math.max(
+    1,
+    firstPositiveRaidNumber(
+      card?.speed,
+      card?.spd,
+      card?.displaySpeed,
+      card?.combatSpeed,
+      card?.finalSpeed,
+      card?.battleSpeed,
+      card?.teamSpeed,
+      card?.totalSpeed,
+      card?.baseSpeed
+    )
+  );
+}
+
 function getRaidDisplayPower(card) {
-  return Number(
-    card?.currentPower ||
-      card?.power ||
+  if (isLzsCard(card)) return 100000;
+
+  return Math.max(
+    0,
+    firstPositiveRaidNumber(
+      card?.battlePower,
+      card?.combatPower,
+      card?.teamPower,
+      card?.currentPower,
+      card?.finalPower,
+      card?.displayPower,
+      card?.power,
+      card?.basePower,
       Math.floor(
-        Number(card?.atk || 0) * 1.4 +
-          Number(card?.hp || 0) * 0.22 +
-          Number(card?.speed || 0) * 9
+        getRaidCardAtk(card) * 1.4 +
+          getRaidCardHp(card) * 0.22 +
+          getRaidCardSpeed(card) * 9
       )
+    )
   );
 }
 
 function applyBoostedRaidDisplayStats(card, boosts = {}) {
   if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
 
+  const baseAtk = getRaidCardAtk(card);
+  const baseHp = getRaidCardHp(card);
+  const baseSpeed = getRaidCardSpeed(card);
+  const basePower = getRaidDisplayPower(card);
+
   const boosted = {
     ...card,
-    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
-    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
-    speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+    atk: Math.floor(baseAtk * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(baseHp * (1 + Number(boosts.hp || 0) / 100)),
+    maxHp: Math.floor(baseHp * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(baseSpeed * (1 + Number(boosts.spd || 0) / 100)),
   };
 
-  boosted.currentPower = getRaidDisplayPower({
-    ...boosted,
-    currentPower: 0,
-    power: 0,
-  });
-  boosted.power = boosted.currentPower;
+  boosted.currentPower = basePower;
+  boosted.power = basePower;
+  boosted.battlePower = basePower;
+  boosted.combatPower = basePower;
+  boosted.teamPower = basePower;
 
   return boosted;
 }
@@ -751,7 +827,16 @@ function getSavedRaidTeam(player) {
 
 function getRaidBaseBattleCards(player) {
   return (Array.isArray(player?.cards) ? player.cards : [])
-    .map((card) => hydrateCard(card))
+    .map((rawCard) => {
+      const card = hydrateCard(rawCard);
+      if (!card) return null;
+
+      if (isLzsCard(card)) {
+        return buildMergedLzsCard(player || { cards: [] }, card);
+      }
+
+      return card;
+    })
     .filter(
       (card) =>
         card &&
@@ -844,11 +929,11 @@ function buildBattleRoster(room) {
           instanceId: String(displayed.instanceId || ""),
           code: String(displayed.code || ""),
           name: String(displayed.displayName || displayed.name || picked?.name || "Unknown"),
-          atk: Number(displayed.atk || 0),
-          maxHp: Number(displayed.hp || 1),
-          hp: Number(displayed.hp || 1),
-          speed: Number(displayed.speed || 0),
-          currentPower: Number(displayed.currentPower || getRaidDisplayPower(displayed)),
+          atk: getRaidCardAtk(displayed),
+          maxHp: getRaidCardHp(displayed),
+          hp: getRaidCardHp(displayed),
+          speed: getRaidCardSpeed(displayed),
+          currentPower: getRaidDisplayPower(displayed),
           currentTier: String(displayed.currentTier || displayed.rarity || ""),
           evolutionStage: Number(displayed.evolutionStage || 1),
           image: String(displayed.image || ""),

@@ -8,6 +8,7 @@ const {
 
 const { getPlayer, updatePlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
+const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
 const { getCurrentIsland, getIslandByCode } = require("../data/islands");
@@ -249,14 +250,77 @@ function applyBoostToNumber(value, percent) {
   return Math.floor(Number(value || 0) * (1 + Number(percent || 0) / 100));
 }
 
-function mergeOwnedCardWithLatestTemplate(rawCard) {
-  return hydrateCard(rawCard);
+function firstPositiveFightNumber(...values) {
+  for (const value of values) {
+    const n = Number(value || 0);
+    if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  }
+
+  return 0;
+}
+
+function getFightCardAtk(card) {
+  return Math.max(
+    1,
+    firstPositiveFightNumber(
+      card?.atk,
+      card?.displayAtk,
+      card?.combatAtk,
+      card?.finalAtk,
+      card?.battleAtk,
+      card?.totalAtk,
+      card?.baseAtk
+    )
+  );
+}
+
+function getFightCardHp(card) {
+  return Math.max(
+    1,
+    firstPositiveFightNumber(
+      card?.hp,
+      card?.maxHp,
+      card?.displayHp,
+      card?.combatHp,
+      card?.finalHp,
+      card?.battleHp,
+      card?.totalHp,
+      card?.baseHp
+    )
+  );
+}
+
+function getFightCardSpeed(card) {
+  return Math.max(
+    1,
+    firstPositiveFightNumber(
+      card?.speed,
+      card?.spd,
+      card?.displaySpeed,
+      card?.combatSpeed,
+      card?.finalSpeed,
+      card?.battleSpeed,
+      card?.totalSpeed,
+      card?.baseSpeed
+    )
+  );
+}
+
+function mergeOwnedCardWithLatestTemplate(rawCard, player = null) {
+  const card = hydrateCard(rawCard);
+  if (!card) return null;
+
+  if (isLzsCard(card)) {
+    return buildMergedLzsCard(player || { cards: [] }, card);
+  }
+
+  return card;
 }
 
 function toBattleUnit(card, slotIndex, combatBoosts = {}) {
-  const displayAtk = Number(card.atk || 0);
-  const displayHp = Number(card.hp || 0);
-  const displaySpeed = Number(card.speed || 0);
+  const displayAtk = getFightCardAtk(card);
+  const displayHp = getFightCardHp(card);
+  const displaySpeed = getFightCardSpeed(card);
 
   const battleAtk = applyBoostToNumber(displayAtk, combatBoosts.atk);
   const battleMaxHp = applyBoostToNumber(displayHp, combatBoosts.hp);
@@ -917,7 +981,7 @@ module.exports = {
 
       const cards = rawCards
         .map((rawCard, sourceIndex) => {
-          const merged = mergeOwnedCardWithLatestTemplate(rawCard);
+          const merged = mergeOwnedCardWithLatestTemplate(rawCard, player);
           if (!merged) return null;
 
           return {

@@ -7,6 +7,7 @@ const {
 } = require("discord.js");
 const { readPlayers, writePlayers } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
+const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
   MAX_MEMBERS,
@@ -1535,14 +1536,98 @@ async function handlePirateBuy(message, args) {
   }
 }
 
+function firstPositivePirateNumber(...values) {
+  for (const value of values) {
+    const n = Number(value || 0);
+    if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  }
+
+  return 0;
+}
+
+function getPirateCardAtk(card) {
+  return Math.max(
+    1,
+    firstPositivePirateNumber(
+      card?.atk,
+      card?.attack,
+      card?.displayAtk,
+      card?.combatAtk,
+      card?.finalAtk,
+      card?.battleAtk,
+      card?.teamAtk,
+      card?.totalAtk,
+      card?.currentAtk,
+      card?.baseAtk,
+      card?.stats?.atk,
+      card?.stats?.attack
+    )
+  );
+}
+
+function getPirateCardHp(card) {
+  return Math.max(
+    1,
+    firstPositivePirateNumber(
+      card?.hp,
+      card?.health,
+      card?.maxHp,
+      card?.displayHp,
+      card?.combatHp,
+      card?.finalHp,
+      card?.battleHp,
+      card?.teamHp,
+      card?.totalHp,
+      card?.currentHp,
+      card?.baseHp,
+      card?.stats?.hp,
+      card?.stats?.health
+    )
+  );
+}
+
+function getPirateCardSpeed(card) {
+  return Math.max(
+    1,
+    firstPositivePirateNumber(
+      card?.speed,
+      card?.spd,
+      card?.displaySpeed,
+      card?.combatSpeed,
+      card?.finalSpeed,
+      card?.battleSpeed,
+      card?.teamSpeed,
+      card?.totalSpeed,
+      card?.baseSpeed,
+      card?.stats?.speed,
+      card?.stats?.spd
+    )
+  );
+}
+
+function syncPirateMergeCard(player, rawCard) {
+  const hydrated = hydrateCard(rawCard) || rawCard || {};
+
+  if (isLzsCard(hydrated)) {
+    return buildMergedLzsCard(player || { cards: [] }, hydrated);
+  }
+
+  return hydrated;
+}
+
 function applyPirateRaidDisplayStats(card, boosts = {}) {
   if (!card || String(card.cardRole || "").toLowerCase() === "boost") return card;
 
+  const baseAtk = getPirateCardAtk(card);
+  const baseHp = getPirateCardHp(card);
+  const baseSpeed = getPirateCardSpeed(card);
+
   return {
     ...card,
-    atk: Math.floor(Number(card.atk || 0) * (1 + Number(boosts.atk || 0) / 100)),
-    hp: Math.floor(Number(card.hp || 0) * (1 + Number(boosts.hp || 0) / 100)),
-    speed: Math.floor(Number(card.speed || 0) * (1 + Number(boosts.spd || 0) / 100)),
+    atk: Math.floor(baseAtk * (1 + Number(boosts.atk || 0) / 100)),
+    hp: Math.floor(baseHp * (1 + Number(boosts.hp || 0) / 100)),
+    maxHp: Math.floor(baseHp * (1 + Number(boosts.hp || 0) / 100)),
+    speed: Math.floor(baseSpeed * (1 + Number(boosts.spd || 0) / 100)),
   };
 }
 
@@ -1566,26 +1651,7 @@ function getCardRaidDamage(rawCard, boosts = {}) {
   const hydrated = hydrateCard(rawCard) || rawCard || {};
   const card = applyPirateRaidDisplayStats(hydrated, boosts);
 
-  const atk = Math.max(
-    1,
-    Math.floor(
-      Number(
-        card?.atk ||
-          card?.attack ||
-          card?.battleAtk ||
-          card?.currentAtk ||
-          card?.finalAtk ||
-          card?.stats?.atk ||
-          card?.stats?.attack ||
-          rawCard?.atk ||
-          rawCard?.attack ||
-          rawCard?.battleAtk ||
-          rawCard?.currentAtk ||
-          rawCard?.finalAtk ||
-          1
-      )
-    )
-  );
+  const atk = getPirateCardAtk(card);
 
   return rollRaidAtkDamage(atk);
 }
@@ -1594,28 +1660,7 @@ function getCardRaidHp(rawCard, boosts = {}) {
   const hydrated = hydrateCard(rawCard) || rawCard || {};
   const card = applyPirateRaidDisplayStats(hydrated, boosts);
 
-  const hp = Math.max(
-    1,
-    Math.floor(
-      Number(
-        card?.hp ||
-          card?.health ||
-          card?.battleHp ||
-          card?.currentHp ||
-          card?.finalHp ||
-          card?.stats?.hp ||
-          card?.stats?.health ||
-          rawCard?.hp ||
-          rawCard?.health ||
-          rawCard?.battleHp ||
-          rawCard?.currentHp ||
-          rawCard?.finalHp ||
-          1
-      )
-    )
-  );
-
-  return hp;
+  return getPirateCardHp(card);
 }
 
 function getBossCounterDamage(boss) {
@@ -1640,18 +1685,18 @@ function getPirateTeamBattleCards(player) {
     .map((instanceId) => {
       if (!instanceId) return null;
 
-      return (
-        cards.find((card) => {
-          const hydrated = hydrateCard(card) || card;
+      const found = cards.find((card) => {
+        const hydrated = hydrateCard(card) || card;
 
-          return (
-            String(hydrated.instanceId || card.instanceId || "") ===
-              String(instanceId) &&
-            String(hydrated.cardRole || card.cardRole || "").toLowerCase() ===
-              "battle"
-          );
-        }) || null
-      );
+        return (
+          String(hydrated.instanceId || card.instanceId || "") ===
+            String(instanceId) &&
+          String(hydrated.cardRole || card.cardRole || "").toLowerCase() ===
+            "battle"
+        );
+      });
+
+      return found ? syncPirateMergeCard(player, found) : null;
     })
     .filter(Boolean);
 }
@@ -1663,10 +1708,10 @@ function getBestRaidCards(player, limit = 3) {
   return teamCards
     .slice(0, limit)
     .map((rawCard) => {
-      const hydrated = hydrateCard(rawCard) || rawCard;
+      const hydrated = syncPirateMergeCard(player, rawCard);
       const card = applyPirateRaidDisplayStats(hydrated, boosts);
-      const damage = getCardRaidDamage(rawCard, boosts);
-      const maxHp = getCardRaidHp(rawCard, boosts);
+      const damage = getCardRaidDamage(hydrated, boosts);
+      const maxHp = getCardRaidHp(hydrated, boosts);
 
       return {
         card,
