@@ -8,16 +8,25 @@ const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
-  const code = String(item?.code || "").trim();
+  const code = String(item?.code || "").trim().toLowerCase();
+  const name = String(item?.name || "").trim();
 
-  if (!code) return arr;
+  if (!code && !name) return arr;
 
-  const index = arr.findIndex((entry) => String(entry.code || "") === code);
+  const index = arr.findIndex((entry) => {
+    const entryCode = String(entry?.code || "").trim().toLowerCase();
+
+    if (code && entryCode) return entryCode === code;
+
+    return normalizeDailyText(entry?.name) === normalizeDailyText(name);
+  });
 
   if (index !== -1) {
     arr[index] = {
       ...arr[index],
       ...item,
+      code: item.code || arr[index].code,
+      name: item.name || arr[index].name,
       amount: Number(arr[index].amount || 0) + Number(item.amount || 1),
     };
     return arr;
@@ -25,6 +34,8 @@ function addOrIncrease(list, item) {
 
   arr.push({
     ...item,
+    code: item.code || code,
+    name: item.name || name,
     amount: Number(item.amount || 1),
   });
 
@@ -94,7 +105,7 @@ function hasBaccaratDailyDevilFruit(player) {
 function applyBaccaratDailyBonus(player, rewards) {
   if (!hasBaccaratDailyDevilFruit(player)) return false;
 
-  addReward(rewards, makeReward(ITEMS.pullResetTicket, 1));
+  addReward(rewards, makeReward(getDailyPullResetTicket(), 1));
   return true;
 }
 
@@ -111,6 +122,26 @@ function makeReward(item, amount = 1) {
     name: item.name || reward.name,
     amount: Number(amount || reward.amount || 1),
   };
+}
+
+function getCatalogItemByCode(code, fallback = {}) {
+  const target = String(code || "").toLowerCase().trim();
+
+  const found =
+    Object.values(ITEMS || {}).find(
+      (item) => String(item?.code || "").toLowerCase().trim() === target
+    ) || null;
+
+  return found || fallback || null;
+}
+
+function getDailyPullResetTicket() {
+  return getCatalogItemByCode("pull_reset_ticket", {
+    code: "pull_reset_ticket",
+    name: "Pull Reset Ticket",
+    type: "Ticket",
+    rarity: "S",
+  });
 }
 
 function formatRemaining(ms) {
@@ -163,7 +194,7 @@ function getDailyTierRewards(dailyTier) {
   const rumAmount = 2 + Math.floor(tier / 2);
   const ticketAmount = tier >= 26 ? 2 : 1;
 
-  addReward(rewards, makeReward(ITEMS.pullResetTicket, ticketAmount));
+  addReward(rewards, makeReward(getDailyPullResetTicket(), ticketAmount));
 
   if (tier === 1) {
     if (Math.random() < 0.35) {
@@ -297,17 +328,116 @@ function getDailyTierRewards(dailyTier) {
 }
 
 function getRewardType(reward) {
-  const code = String(reward?.code || "");
+  const code = String(reward?.code || "").toLowerCase().trim();
 
-  const catalogItem = Object.values(ITEMS).find((item) => item.code === code);
+  const catalogItem =
+    Object.values(ITEMS || {}).find(
+      (item) => String(item?.code || "").toLowerCase().trim() === code
+    ) || null;
 
-  return String(reward?.type || catalogItem?.type || "").toLowerCase();
+  return String(reward?.type || catalogItem?.type || "").toLowerCase().trim();
+}
+
+function isDailyTicketReward(reward) {
+  const code = String(reward?.code || "").toLowerCase().trim();
+  const type = getRewardType(reward);
+
+  return (
+    type === "ticket" ||
+    code === "pull_reset_ticket" ||
+    code === "raid_ticket" ||
+    code === "gold_raid_ticket" ||
+    code.endsWith("_ticket")
+  );
+}
+
+function isDailyBoxReward(reward) {
+  const code = String(reward?.code || "").toLowerCase().trim();
+  const type = getRewardType(reward);
+
+  return type === "box" || code.endsWith("_box");
+}
+
+function isDailyUniversalReward(reward) {
+  const code = String(reward?.code || "").toLowerCase().trim();
+  const name = String(reward?.name || "").toLowerCase().trim();
+  const category = String(reward?.category || "").toLowerCase().trim();
+
+  return (
+    category === "universal" ||
+    code.startsWith("universal_") ||
+    code.includes("universal") ||
+    name.includes("universal")
+  );
+}
+
+function isDailyConsumableReward(reward) {
+  const code = String(reward?.code || "").toLowerCase().trim();
+  const type = getRewardType(reward);
+
+  return (
+    type === "consumable" ||
+    type === "item" ||
+    code === "rum_beer" ||
+    code === "universal_random" ||
+    isDailyUniversalReward(reward)
+  );
+}
+
+function normalizeDailyTicketReward(reward) {
+  const code = String(reward?.code || "").toLowerCase().trim();
+
+  if (code === "pull_reset_ticket") {
+    return {
+      ...reward,
+      code: "pull_reset_ticket",
+      name: "Pull Reset Ticket",
+      type: "Ticket",
+    };
+  }
+
+  if (code === "raid_ticket") {
+    return {
+      ...reward,
+      code: "raid_ticket",
+      name: "Raid Ticket",
+      type: "Ticket",
+    };
+  }
+
+  if (code === "gold_raid_ticket") {
+    return {
+      ...reward,
+      code: "gold_raid_ticket",
+      name: "Gold Raid Ticket",
+      type: "Ticket",
+    };
+  }
+
+  return {
+    ...reward,
+    type: "Ticket",
+  };
+}
+
+function normalizeDailyItemReward(reward) {
+  return {
+    ...reward,
+    type: reward.type || "Consumable",
+    category: reward.category || (isDailyUniversalReward(reward) ? "universal" : reward.category),
+  };
 }
 
 function applyRewardToInventory(player, reward) {
-  const rewardType = getRewardType(reward);
+  if (!reward || !reward.code || !reward.name) return {};
 
-  if (rewardType === "box") {
+  if (isDailyTicketReward(reward)) {
+    return {
+      tickets: addOrIncrease(player.tickets, normalizeDailyTicketReward(reward)),
+    };
+  }
+
+  if (isDailyBoxReward(reward)) {
     return {
       boxes: addOrIncrease(player.boxes, {
         ...reward,
@@ -316,18 +446,9 @@ function applyRewardToInventory(player, reward) {
     };
   }
 
-  if (rewardType === "ticket") {
+  if (isDailyConsumableReward(reward)) {
     return {
-      tickets: addOrIncrease(player.tickets, {
-        ...reward,
-        type: "Ticket",
-      }),
-    };
-  }
-
-  if (rewardType === "consumable" || rewardType === "item") {
-    return {
-      items: addOrIncrease(player.items, reward),
+      items: addOrIncrease(player.items, normalizeDailyItemReward(reward)),
     };
   }
 

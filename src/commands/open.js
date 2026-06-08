@@ -11,6 +11,84 @@ function normalize(text) {
     .replace(/\s+/g, " ");
 }
 
+function getCatalogItemByCode(code, fallback = {}) {
+  const target = String(code || "").toLowerCase().trim();
+
+  const found =
+    Object.values(ITEMS || {}).find(
+      (item) => String(item?.code || "").toLowerCase().trim() === target
+    ) || null;
+
+  return found || fallback || null;
+}
+
+function getPullResetTicketItem() {
+  return getCatalogItemByCode("pull_reset_ticket", {
+    code: "pull_reset_ticket",
+    name: "Pull Reset Ticket",
+    type: "Ticket",
+    rarity: "S",
+  });
+}
+
+function getRaidTicketItem() {
+  return getCatalogItemByCode("raid_ticket", {
+    code: "raid_ticket",
+    name: "Raid Ticket",
+    type: "Ticket",
+    rarity: "S",
+  });
+}
+
+function getGoldRaidTicketItem() {
+  return getCatalogItemByCode("gold_raid_ticket", {
+    code: "gold_raid_ticket",
+    name: "Gold Raid Ticket",
+    type: "Ticket",
+    rarity: "S",
+  });
+}
+
+function getUniversalAFragmentItem() {
+  return getCatalogItemByCode("universal_a", {
+    code: "universal_a",
+    name: "Universal A Fragment",
+    type: "Consumable",
+    rarity: "A",
+    category: "universal",
+  });
+}
+
+function getUniversalSFragmentItem() {
+  return getCatalogItemByCode("universal_s", {
+    code: "universal_s",
+    name: "Universal S Fragment",
+    type: "Consumable",
+    rarity: "S",
+    category: "universal",
+  });
+}
+
+function getUniversalBFragmentItem() {
+  return getCatalogItemByCode("universal_b", {
+    code: "universal_b",
+    name: "Universal B Fragment",
+    type: "Consumable",
+    rarity: "B",
+    category: "universal",
+  });
+}
+
+function getUniversalCFragmentItem() {
+  return getCatalogItemByCode("universal_c", {
+    code: "universal_c",
+    name: "Universal C Fragment",
+    type: "Consumable",
+    rarity: "C",
+    category: "universal",
+  });
+}
+
 function addOrIncrease(list, item) {
   const arr = Array.isArray(list) ? [...list] : [];
   const code = String(item?.code || "").trim().toLowerCase();
@@ -197,8 +275,8 @@ function removeOwnedOpenableItem(state, code, amount) {
 }
 
 function pickUniversalRandomReward() {
-  const pool = [ITEMS.universalAFragment, ITEMS.universalSFragment].filter(Boolean);
-  return pool[Math.floor(Math.random() * pool.length)] || ITEMS.universalAFragment;
+  const pool = [getUniversalAFragmentItem(), getUniversalSFragmentItem()].filter(Boolean);
+  return pool[Math.floor(Math.random() * pool.length)] || getUniversalAFragmentItem();
 }
 
 function parseOpenArgs(args) {
@@ -303,7 +381,8 @@ function isTicketReward(item) {
     type === "ticket" ||
     code === "pull_reset_ticket" ||
     code === "raid_ticket" ||
-    code === "gold_raid_ticket"
+    code === "gold_raid_ticket" ||
+    code.endsWith("_ticket")
   );
 }
 
@@ -403,24 +482,49 @@ function grantRewardItem(state, rewardMap, item, qty, boxAmount) {
   if (isTicketReward(reward)) {
     const ticketReward = normalizeTicketReward(reward, totalAmount);
     nextState.tickets = addOrIncrease(nextState.tickets, ticketReward);
-  } else if (isUniversalFragment(reward)) {
+    addRewardLine(rewardMap, ticketReward.name || reward.name || "Ticket", totalAmount);
+    return nextState;
+  }
+
+  if (isUniversalFragment(reward)) {
     const universalReward = normalizeUniversalReward(reward, totalAmount);
     nextState.items = addOrIncrease(nextState.items, universalReward);
-  } else if (type === "material") {
-    nextState.materials = addOrIncrease(nextState.materials, reward);
-  } else if (type === "fragment") {
+    addRewardLine(rewardMap, universalReward.name || reward.name || "Universal Fragment", totalAmount);
+    return nextState;
+  }
+
+  if (type === "material") {
+    nextState.materials = addOrIncrease(nextState.materials, {
+      ...reward,
+      type: "Material",
+    });
+    addRewardLine(rewardMap, reward.name || "Material", totalAmount);
+    return nextState;
+  }
+
+  if (type === "fragment") {
     nextState.fragments = addOrIncrease(nextState.fragments, {
       ...reward,
       category: reward.category || "fragment",
     });
-  } else if (type === "box") {
-    nextState.boxes = addOrIncrease(nextState.boxes, reward);
-  } else {
-    nextState.items = addOrIncrease(nextState.items, reward);
+    addRewardLine(rewardMap, reward.name || "Fragment", totalAmount);
+    return nextState;
   }
 
-  addRewardLine(rewardMap, reward.name || "Unknown Reward", totalAmount);
+  if (type === "box") {
+    nextState.boxes = addOrIncrease(nextState.boxes, {
+      ...reward,
+      type: "Box",
+    });
+    addRewardLine(rewardMap, reward.name || "Box", totalAmount);
+    return nextState;
+  }
 
+  nextState.items = addOrIncrease(nextState.items, {
+    ...reward,
+    type: reward.type || "Consumable",
+  });
+  addRewardLine(rewardMap, reward.name || "Item", totalAmount);
   return nextState;
 }
 
@@ -490,7 +594,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     }
 
     if (Math.random() < 0.30) {
-      addRandomFragment([ITEMS.universalCFragment], 1);
+      addRandomFragment([getUniversalCFragmentItem()], 1);
     }
   } else if (box.code === "rare_resource_box") {
     addBerries(5000);
@@ -504,7 +608,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
 
     if (Math.random() < 0.35) {
       addRandomFragment(
-        [ITEMS.universalCFragment, ITEMS.universalBFragment],
+        [getUniversalCFragmentItem(), getUniversalBFragmentItem()],
         Math.random() < 0.5 ? 2 : 1
       );
     }
@@ -519,7 +623,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
 
     if (Math.random() < 0.55) {
       addRandomFragment(
-        [ITEMS.universalBFragment, ITEMS.universalAFragment],
+        [getUniversalBFragmentItem(), getUniversalAFragmentItem()],
         Math.random() < 0.5 ? 2 : 1
       );
     }
@@ -534,13 +638,13 @@ function grantBoxRewards(box, amount, state, rewardMap) {
 
     if (Math.random() < 0.60) {
       addRandomFragment(
-        [ITEMS.universalAFragment, ITEMS.universalSFragment],
+        [getUniversalAFragmentItem(), getUniversalSFragmentItem()],
         Math.random() < 0.35 ? 2 : 1
       );
     }
 
     if (Math.random() < 0.35) {
-      addReward(ITEMS.pullResetTicket, 1);
+      addReward(getPullResetTicketItem(), 1);
     }
   } else if (box.code === "mother_flame_treasure_box") {
     addBerries(50000);
@@ -552,7 +656,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
 
     if (Math.random() < 0.75) {
       addRandomFragment(
-        [ITEMS.universalAFragment, ITEMS.universalSFragment],
+        [getUniversalAFragmentItem(), getUniversalSFragmentItem()],
         Math.random() < 0.4 ? 3 : 2
       );
     }
