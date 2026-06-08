@@ -2621,7 +2621,7 @@ module.exports = {
   aliases: ["p"],
 
   async execute(message, args) {
-    const resetResult = runPirateWeeklyResetIfNeeded();
+    const resetResult = await runPirateWeeklyResetIfNeeded();
 
     const sub = String(args[0] || "help").toLowerCase();
     const rest = args.slice(1);

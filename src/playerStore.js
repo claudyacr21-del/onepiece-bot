@@ -415,6 +415,16 @@ function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
   return syncRaidPrestigeBankToCards({
     ...incomingPlayer,
 
+    pirateTokens: Math.max(
+      0,
+      Math.floor(
+        Math.max(
+          Number(incomingPlayer.pirateTokens || 0),
+          Number(persistedPlayer.pirateTokens || 0)
+        )
+      )
+    ),
+
     cards: mergeCardsNoRollback(
       incomingPlayer.cards,
       persistedPlayer.cards,

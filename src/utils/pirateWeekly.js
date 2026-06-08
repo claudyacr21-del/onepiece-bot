@@ -62,7 +62,7 @@ async function addPirateTokens(userId, amount) {
   const safeAmount = Math.max(0, Math.floor(Number(amount || 0)));
   if (!safeAmount) return;
 
-  updatePlayerAtomic(
+  await updatePlayerAtomic(
     String(userId),
     (fresh) => {
       const player = fresh || {};
@@ -116,7 +116,7 @@ async function runPirateWeeklyResetIfNeeded() {
       const role = getPirateMemberRole(pirate, userId);
       const tokens = getRewardForRank(rank, role);
 
-      addPirateTokens(userId, tokens);
+      await addPirateTokens(userId, tokens);
 
       rewards.push({
         pirateId: pirate.id,
