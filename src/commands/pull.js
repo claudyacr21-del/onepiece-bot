@@ -1001,12 +1001,27 @@ function mergeCardCollections(existingCards, nextCards) {
   return [...map.values()];
 }
 
-function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
-  const result = {
-    ...(existingPulls || {}),
-    ...(nextPulls || {}),
-  };
+function getPullResetBucketValue(pulls = {}) {
+  const raw = pulls?.lastResetBucket;
 
+  if (raw === null || raw === undefined || raw === "") return null;
+
+  const asNumber = Number(raw);
+  if (Number.isFinite(asNumber)) return asNumber;
+
+  return String(raw || "").trim();
+}
+
+function isDifferentPullResetBucket(existingPulls = {}, nextPulls = {}) {
+  const existingBucket = getPullResetBucketValue(existingPulls);
+  const nextBucket = getPullResetBucketValue(nextPulls);
+
+  if (existingBucket === null || nextBucket === null) return false;
+
+  return String(existingBucket) !== String(nextBucket);
+}
+
+function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
   const keys = [
     "base",
     "supportMember",
@@ -1018,9 +1033,27 @@ function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
     "baccaratFruit",
   ];
 
+  const bucketChanged = isDifferentPullResetBucket(existingPulls, nextPulls);
+
+  const result = {
+    ...(existingPulls || {}),
+    ...(nextPulls || {}),
+  };
+
   for (const key of keys) {
     const existing = existingPulls?.[key] || {};
     const next = nextPulls?.[key] || {};
+
+    if (bucketChanged) {
+      result[key] = {
+        ...existing,
+        ...next,
+        used: Math.max(0, Number(next.used || 0)),
+        max: Math.max(Number(existing.max || 0), Number(next.max || 0)),
+      };
+
+      continue;
+    }
 
     result[key] = {
       ...existing,
@@ -1031,8 +1064,8 @@ function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
   }
 
   result.lastResetBucket =
-    nextPulls?.lastResetBucket ||
-    existingPulls?.lastResetBucket ||
+    nextPulls?.lastResetBucket ??
+    existingPulls?.lastResetBucket ??
     result.lastResetBucket;
 
   result.slotSchemaVersion =
