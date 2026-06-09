@@ -1749,21 +1749,33 @@ function getPirateRaidState(pirate, tierKey) {
   };
 }
 
-function getPirateRaidPoints({ boss, damage, defeated, pirate }) {
-  const damageRatio = Math.min(1, Number(damage || 0) / Number(boss.hp || 1));
-  const base = Math.max(1, Math.floor(Number(boss.basePoints || 1) * damageRatio));
-  const clearBonus = defeated ? Math.floor(Number(boss.basePoints || 0) * 0.35) : 0;
+function getPirateRaidPoints({ boss, damage, pirate }) {
+  const bossHp = Math.max(1, Math.floor(Number(boss?.hp || 1)));
+  const bossPoints = Math.max(1, Math.floor(Number(boss?.basePoints || 1)));
+  const realDamage = Math.max(
+    0,
+    Math.min(bossHp, Math.floor(Number(damage || 0)))
+  );
+
+  const damageRatio = Math.max(0, Math.min(1, realDamage / bossHp));
+  const basePointsEarned = bossPoints * damageRatio;
 
   const raidPointLevel = Math.max(
     0,
     Math.floor(Number(pirate?.perks?.raidPointBoost || 0))
   );
 
-  const boosted = Math.floor((base + clearBonus) * (1 + raidPointLevel * 0.01));
+  const boostMultiplier = 1 + raidPointLevel * 0.01;
+  const boostedPoints = Math.floor(basePointsEarned * boostMultiplier);
 
   return {
-    points: Math.max(1, boosted),
+    points: realDamage > 0 ? Math.max(1, boostedPoints) : 0,
+    basePointsEarned,
     raidPointLevel,
+    boostMultiplier,
+    damageRatio,
+    bossPoints,
+    realDamage,
   };
 }
 
@@ -2314,151 +2326,163 @@ async function handlePirateAttack(message, args) {
         return;
       }
 
-      turnCount += 1;
+  turnCount += 1;
 
-      const damageCalc = calculateManualRaidCardDamage(selected);
+  const damageCalc = calculateManualRaidCardDamage(selected);
 
-      const damage = Math.min(latestRaid.hpLeft, damageCalc.finalDamage);
-      const nextHpLeft = Math.max(0, latestRaid.hpLeft - damage);
-      const nextDefeated = nextHpLeft <= 0;
+  let damage = 0;
+  let nextHpLeft = latestRaid.hpLeft;
+  let nextDefeated = false;
+  let pointResult = getPirateRaidPoints({
+    boss,
+    damage: 0,
+    pirate: latestPirate || pirate,
+  });
+  let bossCounterDamage = 0;
 
-      const pointResult = getPirateRaidPoints({
-        boss,
-        damage,
-        defeated: nextDefeated,
-        pirate: latestPirate || pirate,
-      });
+  const updated = updatePirate((latestPirate || pirate).id, (fresh) => {
+    const raids =
+      fresh.raids && typeof fresh.raids === "object" ? { ...fresh.raids } : {};
 
-      let bossCounterDamage = 0;
+    const oldRaid = getPirateRaidState(fresh, tierKey);
+    const userId = String(message.author.id);
 
-      if (!nextDefeated) {
-        bossCounterDamage = Math.min(
-          Number(selected.currentHp || 0),
-          getBossCounterDamage(boss)
-        );
+    const realHpLeft = Math.max(0, Math.floor(Number(oldRaid.hpLeft || 0)));
 
-        selected.currentHp = Math.max(
-          0,
-          Math.floor(Number(selected.currentHp || 0)) - bossCounterDamage
-        );
-      }
+    damage = Math.min(realHpLeft, Math.floor(Number(damageCalc.finalDamage || 0)));
+    nextHpLeft = Math.max(0, realHpLeft - damage);
+    nextDefeated = nextHpLeft <= 0;
 
-      const updated = updatePirate((latestPirate || pirate).id, (fresh) => {
-        const raids =
-          fresh.raids && typeof fresh.raids === "object" ? { ...fresh.raids } : {};
+    pointResult = getPirateRaidPoints({
+      boss,
+      damage,
+      pirate: fresh,
+    });
 
-        const oldRaid = getPirateRaidState(fresh, tierKey);
-        const userId = String(message.author.id);
+    const contributors =
+      oldRaid.contributors && typeof oldRaid.contributors === "object"
+        ? { ...oldRaid.contributors }
+        : {};
 
-        const contributors =
-          oldRaid.contributors && typeof oldRaid.contributors === "object"
-            ? { ...oldRaid.contributors }
-            : {};
+    const oldContributor = contributors[userId] || {
+      damage: 0,
+      points: 0,
+      attacks: 0,
+      lastAttackAt: 0,
+    };
 
-        const oldContributor = contributors[userId] || {
-          damage: 0,
-          points: 0,
-          attacks: 0,
-          lastAttackAt: 0,
-        };
+    contributors[userId] = {
+      damage:
+        Math.max(0, Math.floor(Number(oldContributor.damage || 0))) + damage,
+      points:
+        Math.max(0, Math.floor(Number(oldContributor.points || 0))) +
+        pointResult.points,
+      attacks:
+        Math.max(0, Math.floor(Number(oldContributor.attacks || 0))) + 1,
+      lastAttackAt: Date.now(),
+    };
 
-        contributors[userId] = {
-          damage:
-            Math.max(0, Math.floor(Number(oldContributor.damage || 0))) + damage,
-          points:
-            Math.max(0, Math.floor(Number(oldContributor.points || 0))) +
-            pointResult.points,
-          attacks:
-            Math.max(0, Math.floor(Number(oldContributor.attacks || 0))) + 1,
-          lastAttackAt: Date.now(),
-        };
+    raids[tierKey] = {
+      ...oldRaid,
+      hpLeft: nextHpLeft,
+      defeated: nextDefeated,
+      defeatedAt: nextDefeated ? Date.now() : oldRaid.defeatedAt || 0,
+      clearRewardedAt: nextDefeated
+        ? Date.now()
+        : Number(oldRaid.clearRewardedAt || 0),
+      totalDamage: Math.max(0, Number(oldRaid.totalDamage || 0)) + damage,
+      contributors,
+      lastAttackAt: {
+        ...(oldRaid.lastAttackAt || {}),
+        [userId]: Date.now(),
+      },
+    };
 
-        raids[tierKey] = {
-          ...oldRaid,
-          hpLeft: nextHpLeft,
-          defeated: nextDefeated,
-          defeatedAt: nextDefeated ? Date.now() : oldRaid.defeatedAt || 0,
-          clearRewardedAt: nextDefeated
-            ? Date.now()
-            : Number(oldRaid.clearRewardedAt || 0),
-          totalDamage: Math.max(0, Number(oldRaid.totalDamage || 0)) + damage,
-          contributors,
-          lastAttackAt: {
-            ...(oldRaid.lastAttackAt || {}),
-            [userId]: Date.now(),
-          },
-        };
-
-        return {
-          ...fresh,
-          raids,
-          weeklyPoints:
-            Math.max(0, Math.floor(Number(fresh.weeklyPoints || 0))) +
-            pointResult.points,
-          totalPoints:
-            Math.max(0, Math.floor(Number(fresh.totalPoints || 0))) +
-            pointResult.points,
-          logs: [
-            ...(fresh.logs || []),
-            {
-              at: Date.now(),
-              type: "pirate_raid_manual_attack",
-              tierKey,
-              userId,
-              card:
-                selected.card?.displayName ||
-                selected.card?.name ||
-                selected.card?.code ||
-                "Unknown",
-              damage,
-              bossCounterDamage,
-              points: pointResult.points,
-              defeated: nextDefeated,
-            },
-          ].slice(-25),
-        };
-      });
-
-      hpLeft = nextHpLeft;
-      defeated = nextDefeated;
-      totalDamage += damage;
-      totalPoints += pointResult.points;
-
-      battleLog.push(
-        `⚔️ ${
-          selected.card?.displayName ||
-          selected.card?.name ||
-          selected.card?.code ||
-          "Card"
-        } dealt **${fmt(damage)}** damage.`
-      );
-
-      if (bossCounterDamage > 0) {
-        battleLog.push(
-          `☠️ ${boss.name} countered for **${fmt(
-            bossCounterDamage
-          )}** damage.`
-        );
-      }
-
-      if (Number(selected.currentHp || 0) <= 0) {
-        battleLog.push(
-          `💀 ${
+    return {
+      ...fresh,
+      raids,
+      weeklyPoints:
+        Math.max(0, Math.floor(Number(fresh.weeklyPoints || 0))) +
+        pointResult.points,
+      totalPoints:
+        Math.max(0, Math.floor(Number(fresh.totalPoints || 0))) +
+        pointResult.points,
+      logs: [
+        ...(fresh.logs || []),
+        {
+          at: Date.now(),
+          type: "pirate_raid_manual_attack",
+          tierKey,
+          userId,
+          card:
             selected.card?.displayName ||
             selected.card?.name ||
             selected.card?.code ||
-            "Card"
-          } was defeated.`
-        );
-      }
+            "Unknown",
+          damage,
+          points: pointResult.points,
+          damagePercent: Math.floor(Number(pointResult.damageRatio || 0) * 100),
+          bossCounterDamage,
+          defeated: nextDefeated,
+        },
+      ].slice(-25),
+    };
+  });
 
-      if (defeated) {
-        clearRewardLines = applyPirateRaidContributorRewards(
-          message,
-          boss,
-          updated.raids?.[tierKey]?.contributors || {}
-        );
-      }
+  if (!nextDefeated) {
+    bossCounterDamage = Math.min(
+      Number(selected.currentHp || 0),
+      getBossCounterDamage(boss)
+    );
+
+    selected.currentHp = Math.max(
+      0,
+      Math.floor(Number(selected.currentHp || 0)) - bossCounterDamage
+    );
+  }
+
+  hpLeft = nextHpLeft;
+  defeated = nextDefeated;
+  totalDamage += damage;
+  totalPoints += pointResult.points;
+
+  battleLog.push(
+    `⚔️ ${
+      selected.card?.displayName ||
+      selected.card?.name ||
+      selected.card?.code ||
+      "Card"
+    } dealt **${fmt(damage)}** damage and earned **${fmt(
+      pointResult.points
+    )}** points (${Math.floor(Number(pointResult.damageRatio || 0) * 100)}%).`
+  );
+
+  if (bossCounterDamage > 0) {
+    battleLog.push(
+      `☠️ ${boss.name} countered for **${fmt(
+        bossCounterDamage
+      )}** damage.`
+    );
+  }
+
+  if (Number(selected.currentHp || 0) <= 0) {
+    battleLog.push(
+      `💀 ${
+        selected.card?.displayName ||
+        selected.card?.name ||
+        selected.card?.code ||
+        "Card"
+      } was defeated.`
+    );
+  }
+
+  if (defeated) {
+    clearRewardLines = applyPirateRaidContributorRewards(
+      message,
+      boss,
+      updated.raids?.[tierKey]?.contributors || {}
+    );
+  }
 
       const ended =
         defeated ||
