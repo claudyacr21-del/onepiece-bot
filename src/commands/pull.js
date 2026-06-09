@@ -645,19 +645,28 @@ function formatAtkRange(atk) {
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
+function getTicketUseText(ticket) {
+  const code = String(ticket?.code || "").toLowerCase().trim();
+  const rarity = String(ticket?.rarity || "").toUpperCase().trim();
+
+  if (code === "mythic_raid_ticket") return "M Mythic Raid";
+  if (code === "empty_throne_raid_writ") return "Imu Raid only";
+  if (code === "gold_raid_ticket") return "S Gold Raid";
+  if (code === "raid_ticket") return "A Raid";
+  if (code === "common_raid_ticket") return "C/B Common Raid";
+
+  if (rarity === "UR" || rarity === "M") return "M Mythic Raid";
+  if (rarity === "S") return "S Gold Raid";
+  if (rarity === "A") return "A Raid";
+
+  return "C/B Common Raid";
+}
+
 function buildRewardStatsText(contentType, reward) {
   if (contentType === "ticket") {
     return [
       `**Item:** ${reward.name}`,
-      `**Use:** ${
-        reward.code === "empty_throne_raid_writ"
-          ? "Imu Raid only"
-          : reward.code === "gold_raid_ticket"
-          ? "S Gold Raid"
-          : reward.code === "raid_ticket"
-          ? "A Raid"
-          : "C/B Common Raid"
-      }`,
+      `**Use:** ${getTicketUseText(reward)}`,
     ];
   }
 

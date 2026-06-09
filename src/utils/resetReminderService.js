@@ -198,7 +198,16 @@ async function claimReminderEventOnce(userId, reminderType, readyAt) {
 }
 
 function formatDiscordTimestamp(timestampMs, style = "R") {
-  return `<t:${Math.floor(Number(timestampMs || Date.now()) / 1000)}:${style}>`;
+  const ms = Number(timestampMs || 0);
+
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return "Unknown";
+  }
+
+  const seconds = Math.floor(ms / 1000);
+  const safeStyle = String(style || "R").replace(/[^tTdDfFR]/g, "") || "R";
+
+  return `<t:${seconds}:${safeStyle}>`;
 }
 
 function getCooldownTargets(player) {
@@ -378,6 +387,7 @@ async function sendGlobalPullResetNotification(client) {
     console.warn("[RESET REMINDER] Client token is not available. Skipping global reset notification.");
     return false;
   }
+
   if (!RESET_CHANNEL_ID) {
     console.warn("[RESET REMINDER] Missing RESET_CHANNEL_ID.");
     return false;
@@ -390,6 +400,8 @@ async function sendGlobalPullResetNotification(client) {
     return false;
   }
 
+  const now = Date.now();
+  const nextResetAt = getNextResetTime(now + 10 * 1000);
   const roleMention = RESET_PING_ROLE_ID ? `<@&${RESET_PING_ROLE_ID}>` : "@Reset Ping";
 
   const embed = new EmbedBuilder()
@@ -402,7 +414,7 @@ async function sendGlobalPullResetNotification(client) {
         "• Pull slots have been refreshed globally.",
         "• Use `op pull` or `op pa` if you have access.",
         "",
-        `⏳ Next reset: ${formatDiscordTimestamp(getNextResetTime(Date.now()), "R")}`,
+        `⏳ Next reset: ${formatDiscordTimestamp(nextResetAt, "R")}`,
       ].join("\n")
     )
     .setFooter({
