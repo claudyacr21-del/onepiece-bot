@@ -24,7 +24,12 @@ const { startAutoReloadService } = require("./utils/autoReload");
 const { initRedeemCodeStore } = require("./utils/redeemCodeStore");
 const { maybeSpawnMarineEvent } = require("./utils/marineEvent");
 const channelRules = require("./config/channelRules");
-const { readPlayers, writePlayers, initPlayerStore } = require("./playerStore");
+const {
+  readPlayers,
+  writePlayers,
+  initPlayerStore,
+  flushPlayerStoreNow,
+} = require("./playerStore");
 const { isMaintenanceActive } = require("./utils/maintenanceStore");
 const { createMaintenanceEmbed } = require("./commands/maintenance");
 const {
@@ -494,6 +499,7 @@ async function trackMessageMilestone(message) {
 
   players[userId] = result.player;
   writePlayers(players);
+  await flushPlayerStoreNow(Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 12000));
 
   if (Array.isArray(result.rewards) && result.rewards.length) {
     await message.channel
@@ -668,6 +674,7 @@ client.on("messageCreate", async (message) => {
     }
 
     await command.execute(message, args);
+    await flushPlayerStoreNow(Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 12000));
   } catch (error) {
     console.error("[COMMAND ERROR]", error);
 

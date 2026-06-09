@@ -22,39 +22,39 @@ function getPendingPlayerSavePromises() {
 }
 
 async function drainPlayerStoreSaves(timeoutMs = 60000) {
- const deadline = Date.now() + Math.max(1000, Number(timeoutMs || 60000));
+  const deadline = Date.now() + Math.max(1000, Number(timeoutMs || 60000));
 
- while (getPendingPlayerSavePromises().length && Date.now() < deadline) {
-  const pending = getPendingPlayerSavePromises();
-  const left = Math.max(1000, deadline - Date.now());
+  while (getPendingPlayerSavePromises().length && Date.now() < deadline) {
+    const pending = getPendingPlayerSavePromises();
+    const left = Math.max(1000, deadline - Date.now());
 
-  await Promise.race([
-   Promise.allSettled(pending),
-   new Promise((resolve) => setTimeout(resolve, Math.min(5000, left))),
-  ]);
- }
+    await Promise.race([
+      Promise.allSettled(pending),
+      new Promise((resolve) => setTimeout(resolve, Math.min(5000, left))),
+    ]);
+  }
 }
 
 function startPlayerStoreAutoFlush() {
- if (playerStoreFlushInterval) return;
+  if (playerStoreFlushInterval) return;
 
- const intervalMs = Math.max(
-  5000,
-  Number(process.env.PLAYER_DB_FLUSH_INTERVAL_MS || 15000)
- );
+  const intervalMs = Math.max(
+    1000,
+    Number(process.env.PLAYER_DB_FLUSH_INTERVAL_MS || 5000)
+  );
 
- playerStoreFlushInterval = setInterval(() => {
-  flushPlayerStoreNow(Number(process.env.PLAYER_DB_AUTO_FLUSH_TIMEOUT_MS || 30000))
-   .catch((error) => {
-    console.error("[PLAYER STORE AUTO FLUSH ERROR]", error);
-   });
- }, intervalMs);
+  playerStoreFlushInterval = setInterval(() => {
+    flushPlayerStoreNow(Number(process.env.PLAYER_DB_AUTO_FLUSH_TIMEOUT_MS || 30000))
+      .catch((error) => {
+        console.error("[PLAYER STORE AUTO FLUSH ERROR]", error);
+      });
+  }, intervalMs);
 
- if (typeof playerStoreFlushInterval.unref === "function") {
-  playerStoreFlushInterval.unref();
- }
+  if (typeof playerStoreFlushInterval.unref === "function") {
+    playerStoreFlushInterval.unref();
+  }
 
- console.log(`[PLAYER STORE] Auto flush active every ${intervalMs}ms.`);
+  console.log(`[PLAYER STORE] Auto flush active every ${intervalMs}ms.`);
 }
 
 function installPlayerStoreShutdownDrain() {
@@ -92,7 +92,11 @@ function normalizeStoreRecord(userId, data, username = "Unknown") {
 
 function enqueuePlayerSnapshotSave(userId, player) {
   const id = String(userId);
-  const snapshot = normalizeStoreRecord(id, player, player?.username || "Unknown");
+  const initialSnapshot = normalizeStoreRecord(
+    id,
+    player,
+    player?.username || "Unknown"
+  );
 
   const previous = playerSaveQueues.get(id) || Promise.resolve();
 
@@ -101,21 +105,28 @@ function enqueuePlayerSnapshotSave(userId, player) {
     .then(async () => {
       if (!USE_POSTGRES || !dbReady) return null;
 
+      const latestPlayers = playersCache || readPlayers();
+      const latestRaw = latestPlayers?.[id] || initialSnapshot;
+
+      const latestSnapshot = normalizeStoreRecord(
+        id,
+        latestRaw,
+        latestRaw?.username || initialSnapshot?.username || "Unknown"
+      );
+
       const dbPlayer = await getPlayerFromPostgres(id).catch(() => null);
-      const persistedPlayer = dbPlayer || persistedCache[id] || snapshot;
 
       const safeSnapshot = normalizePlayer(
-        mergePlayerNoRollback(snapshot, persistedPlayer, {
-          preserveMissingCards: true,
-          preserveMissingItems: true,
-        }),
-        snapshot?.username || persistedPlayer?.username || "Unknown"
+        latestSnapshot,
+        latestSnapshot?.username || dbPlayer?.username || "Unknown"
       );
 
       const saved = await upsertOnePlayerToPostgres(id, safeSnapshot);
+
       if (saved) {
         persistedCache[id] = cloneJson(safeSnapshot);
       }
+
       return safeSnapshot;
     })
     .catch((error) => {
@@ -803,10 +814,13 @@ async function flushChangedPlayersToPostgres(data) {
   const changed = [];
 
   for (const [userId, player] of Object.entries(safeData)) {
+    const latestPlayers = playersCache || safeData;
+    const latestRaw = latestPlayers?.[userId] || player;
+
     const normalized = normalizeStoreRecord(
       userId,
-      player,
-      player?.username || "Unknown"
+      latestRaw,
+      latestRaw?.username || player?.username || "Unknown"
     );
 
     const before = JSON.stringify(persistedCache?.[userId] || null);
@@ -820,20 +834,17 @@ async function flushChangedPlayersToPostgres(data) {
   if (!changed.length) return;
 
   for (const [userId, normalized] of changed) {
-    const dbPlayer = await getPlayerFromPostgres(userId).catch(() => null);
-    const persistedPlayer = dbPlayer || persistedCache?.[userId] || normalized;
+    const latestPlayers = playersCache || safeData;
+    const latestRaw = latestPlayers?.[userId] || normalized;
 
-    const safeNormalized = normalizeStoreRecord(
+    const latestNormalized = normalizeStoreRecord(
       userId,
-      mergePlayerNoRollback(normalized, persistedPlayer, {
-        preserveMissingCards: true,
-        preserveMissingItems: true,
-      }),
-      normalized?.username || persistedPlayer?.username || "Unknown"
+      latestRaw,
+      latestRaw?.username || normalized?.username || "Unknown"
     );
 
-    await upsertOnePlayerToPostgres(userId, safeNormalized);
-    persistedCache[userId] = cloneJson(safeNormalized);
+    await upsertOnePlayerToPostgres(userId, latestNormalized);
+    persistedCache[userId] = cloneJson(latestNormalized);
   }
 }
 
@@ -2037,6 +2048,54 @@ async function flushPlayerStoreNow(timeoutMs = 30000) {
   }
 }
 
+async function flushPlayerNow(userId, timeoutMs = 12000) {
+  const id = String(userId || "");
+  if (!id) return false;
+
+  const safeTimeout = Math.max(1000, Number(timeoutMs || 12000));
+
+  try {
+    if (!USE_POSTGRES || !dbReady) {
+      if (PLAYER_STORE_MODE === "postgres") {
+        console.error("[PLAYER STORE] Refusing single-player flush without postgres readiness.", {
+          userId: id,
+        });
+        return false;
+      }
+
+      writePlayersLocalBackupOnly(readPlayers());
+      return true;
+    }
+
+    const players = readPlayers();
+    const latestRaw = players?.[id];
+
+    if (!latestRaw) return true;
+
+    const latestNormalized = normalizeStoreRecord(
+      id,
+      latestRaw,
+      latestRaw?.username || "Unknown"
+    );
+
+    await Promise.race([
+      upsertOnePlayerToPostgres(id, latestNormalized),
+      new Promise((resolve) => setTimeout(resolve, safeTimeout)),
+    ]);
+
+    persistedCache[id] = cloneJson(latestNormalized);
+    await drainPlayerStoreSaves(safeTimeout);
+
+    return true;
+  } catch (error) {
+    console.error("[PLAYER STORE FLUSH PLAYER ERROR]", {
+      userId: id,
+      message: error?.message || error,
+    });
+    return false;
+  }
+}
+
 module.exports = {
   readPlayers,
   writePlayers,
@@ -2047,6 +2106,7 @@ module.exports = {
   normalizePlayer,
   initPlayerStore,
   flushPlayerStoreNow,
+  flushPlayerNow,
   drainPlayerStoreSaves,
   filePath,
 };
