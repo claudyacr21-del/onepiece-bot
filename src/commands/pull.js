@@ -1022,6 +1022,26 @@ function mergeCardCollections(existingCards, nextCards) {
   return [...map.values()];
 }
 
+function getPullResetBucketValue(pulls = {}) {
+  const raw = pulls?.lastResetBucket;
+
+  if (raw === null || raw === undefined || raw === "") return null;
+
+  const asNumber = Number(raw);
+  if (Number.isFinite(asNumber)) return asNumber;
+
+  return String(raw || "").trim();
+}
+
+function isDifferentPullResetBucket(existingPulls = {}, nextPulls = {}) {
+  const existingBucket = getPullResetBucketValue(existingPulls);
+  const nextBucket = getPullResetBucketValue(nextPulls);
+
+  if (existingBucket === null || nextBucket === null) return false;
+
+  return String(existingBucket) !== String(nextBucket);
+}
+
 function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
   const keys = [
     "base",
