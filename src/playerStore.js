@@ -39,14 +39,14 @@ function startPlayerStoreAutoFlush() {
   if (playerStoreFlushInterval) return;
 
   const intervalMs = Math.max(
-    1000,
-    Number(process.env.PLAYER_DB_FLUSH_INTERVAL_MS || 5000)
+    30000,
+    Number(process.env.PLAYER_DB_FLUSH_INTERVAL_MS || 60000)
   );
 
   playerStoreFlushInterval = setInterval(() => {
-    flushPlayerStoreNow(Number(process.env.PLAYER_DB_AUTO_FLUSH_TIMEOUT_MS || 30000))
+    drainPlayerStoreSaves(Number(process.env.PLAYER_DB_AUTO_FLUSH_TIMEOUT_MS || 15000))
       .catch((error) => {
-        console.error("[PLAYER STORE AUTO FLUSH ERROR]", error);
+        console.error("[PLAYER STORE AUTO DRAIN ERROR]", error);
       });
   }, intervalMs);
 
@@ -54,7 +54,7 @@ function startPlayerStoreAutoFlush() {
     playerStoreFlushInterval.unref();
   }
 
-  console.log(`[PLAYER STORE] Auto flush active every ${intervalMs}ms.`);
+  console.log(`[PLAYER STORE] Auto save drain active every ${intervalMs}ms.`);
 }
 
 function installPlayerStoreShutdownDrain() {
@@ -65,7 +65,6 @@ function installPlayerStoreShutdownDrain() {
     try {
       console.log(`[PLAYER STORE] ${signal} received. Draining pending player saves...`);
       await flushPlayerStoreNow(Number(process.env.PLAYER_DB_SHUTDOWN_DRAIN_MS || 60000));
-      await drainPlayerStoreSaves(Number(process.env.PLAYER_DB_SHUTDOWN_DRAIN_MS || 60000));
       console.log("[PLAYER STORE] Pending player saves drained.");
     } catch (error) {
       console.error("[PLAYER STORE] Failed while draining pending saves.", error);
@@ -990,25 +989,50 @@ function mergePlayerStoreForWrite(incomingData) {
 }
 
 function writePlayers(data) {
-  const safeData = mergePlayerStoreForWrite(data);
+  const incomingStore =
+    data && typeof data === "object" ? data : {};
+
+  const currentStore =
+    playersCache && typeof playersCache === "object" ? playersCache : {};
+
+  const safeData =
+    incomingStore === currentStore
+      ? currentStore
+      : mergePlayerStoreForWrite(incomingStore);
+
   setPlayersCache(safeData);
 
   if (USE_POSTGRES && dbReady) {
-    const pending = [];
+    const dirtyIds = new Set();
 
-    for (const [userId, player] of Object.entries(safeData)) {
-      const normalized = normalizeStoreRecord(
-        userId,
-        player,
-        player?.username || "Unknown"
+    if (incomingStore !== currentStore) {
+      for (const userId of Object.keys(incomingStore)) {
+        dirtyIds.add(String(userId));
+      }
+    } else {
+      const maxScan = Math.max(
+        0,
+        Number(process.env.PLAYER_DB_WRITE_SCAN_LIMIT || 0)
       );
 
-      const before = JSON.stringify(persistedCache?.[userId] || null);
-      const after = JSON.stringify(normalized || null);
-
-      if (before !== after) {
-        pending.push(enqueuePlayerSnapshotSave(userId, normalized));
+      if (maxScan > 0) {
+        for (const userId of Object.keys(safeData).slice(0, maxScan)) {
+          dirtyIds.add(String(userId));
+        }
       }
+    }
+
+    if (!dirtyIds.size) {
+      return;
+    }
+
+    const pending = [];
+
+    for (const userId of dirtyIds) {
+      const player = safeData[userId];
+      if (!player) continue;
+
+      pending.push(enqueuePlayerSnapshotSave(userId, player));
     }
 
     if (pending.length) {
@@ -2068,17 +2092,12 @@ async function flushPlayerStoreNow(timeoutMs = 30000) {
   const safeTimeout = Math.max(1000, Number(timeoutMs || 30000));
 
   try {
-    const players = readPlayers();
-
     if (USE_POSTGRES && dbReady) {
-      await Promise.race([
-        flushChangedPlayersToPostgres(players),
-        new Promise((resolve) => setTimeout(resolve, safeTimeout)),
-      ]);
-
       await drainPlayerStoreSaves(safeTimeout);
       return true;
     }
+
+    const players = readPlayers();
 
     if (PLAYER_STORE_MODE === "postgres") {
       console.error("[PLAYER STORE] Refusing flush file fallback while postgres mode is required.");

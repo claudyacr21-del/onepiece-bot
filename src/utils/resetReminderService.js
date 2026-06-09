@@ -356,6 +356,9 @@ async function handleReminderTarget(client, userId, target, now) {
 }
 
 async function checkUserCooldownReminders(client) {
+    if (String(process.env.RESET_REMINDER_USER_CHECK_ENABLED || "false").toLowerCase() !== "true") {
+      return;
+    }
   const players = readPlayers();
   const now = Date.now();
 
