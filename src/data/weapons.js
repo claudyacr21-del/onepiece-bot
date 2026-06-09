@@ -665,7 +665,7 @@ module.exports = [
   },
   {
     code: "yoru",
-    name: "Yoru",
+    name: "Yoruu",
     rarity: "UR",
     owners: ["mihawk_hawk_eyes"],
     type: "Black Blade",
