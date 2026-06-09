@@ -13,7 +13,7 @@ let playersCache = null;
 let persistedCache = {};
 let dbPool = null;
 let dbReady = false;
-
+let playerStoreFlushInterval = null;
 const playerSaveQueues = new Map();
 let playerStoreShutdownDrainInstalled = false;
 
@@ -21,14 +21,40 @@ function getPendingPlayerSavePromises() {
   return [...playerSaveQueues.values()].filter(Boolean);
 }
 
-async function drainPlayerStoreSaves(timeoutMs = 25000) {
+async function drainPlayerStoreSaves(timeoutMs = 60000) {
+ const deadline = Date.now() + Math.max(1000, Number(timeoutMs || 60000));
+
+ while (getPendingPlayerSavePromises().length && Date.now() < deadline) {
   const pending = getPendingPlayerSavePromises();
-  if (!pending.length) return;
+  const left = Math.max(1000, deadline - Date.now());
 
   await Promise.race([
-    Promise.allSettled(pending),
-    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+   Promise.allSettled(pending),
+   new Promise((resolve) => setTimeout(resolve, Math.min(5000, left))),
   ]);
+ }
+}
+
+function startPlayerStoreAutoFlush() {
+ if (playerStoreFlushInterval) return;
+
+ const intervalMs = Math.max(
+  5000,
+  Number(process.env.PLAYER_DB_FLUSH_INTERVAL_MS || 15000)
+ );
+
+ playerStoreFlushInterval = setInterval(() => {
+  flushPlayerStoreNow(Number(process.env.PLAYER_DB_AUTO_FLUSH_TIMEOUT_MS || 30000))
+   .catch((error) => {
+    console.error("[PLAYER STORE AUTO FLUSH ERROR]", error);
+   });
+ }, intervalMs);
+
+ if (typeof playerStoreFlushInterval.unref === "function") {
+  playerStoreFlushInterval.unref();
+ }
+
+ console.log(`[PLAYER STORE] Auto flush active every ${intervalMs}ms.`);
 }
 
 function installPlayerStoreShutdownDrain() {
@@ -38,7 +64,8 @@ function installPlayerStoreShutdownDrain() {
   const drainAndExit = async (signal) => {
     try {
       console.log(`[PLAYER STORE] ${signal} received. Draining pending player saves...`);
-      await drainPlayerStoreSaves(Number(process.env.PLAYER_DB_SHUTDOWN_DRAIN_MS || 25000));
+      await flushPlayerStoreNow(Number(process.env.PLAYER_DB_SHUTDOWN_DRAIN_MS || 60000));
+      await drainPlayerStoreSaves(Number(process.env.PLAYER_DB_SHUTDOWN_DRAIN_MS || 60000));
       console.log("[PLAYER STORE] Pending player saves drained.");
     } catch (error) {
       console.error("[PLAYER STORE] Failed while draining pending saves.", error);
@@ -937,6 +964,11 @@ function writePlayers(data) {
     return;
   }
 
+  if (PLAYER_STORE_MODE === "postgres") {
+    console.error("[PLAYER STORE] Refusing writePlayers file fallback while postgres mode is required.");
+    return;
+  }
+
   writePlayersLocalBackupOnly(safeData);
 }
 
@@ -958,6 +990,7 @@ async function initPlayerStore() {
       setPlayersCache(dbPlayers);
       setPersistedCache(dbPlayers);
       dbReady = true;
+      startPlayerStoreAutoFlush();
       console.log(`[PLAYER STORE] Postgres mode active. Loaded ${Object.keys(dbPlayers).length} players.`);
       return;
     }
@@ -972,6 +1005,7 @@ async function initPlayerStore() {
         setPlayersCache(filePlayers);
         setPersistedCache({});
         dbReady = true;
+        startPlayerStoreAutoFlush();
         await flushChangedPlayersToPostgres(filePlayers);
         setPersistedCache(filePlayers);
         console.log(`[PLAYER STORE] Postgres mode active. Seeded ${Object.keys(filePlayers).length} players from file.`);
@@ -982,19 +1016,20 @@ async function initPlayerStore() {
     setPlayersCache({});
     setPersistedCache({});
     dbReady = true;
+    startPlayerStoreAutoFlush();
     console.log("[PLAYER STORE] Postgres mode active. No players found yet.");
     return;
-
-    setPlayersCache({});
-    setPersistedCache({});
-    dbReady = true;
-
-    console.log("[PLAYER STORE] Postgres mode active. No players found yet.");
   } catch (error) {
-    console.error("[PLAYER STORE] Failed to initialize Postgres mode. Falling back to file mode.", error);
-    dbReady = false;
-    readPlayers();
-    setPersistedCache(playersCache || {});
+  console.error("[PLAYER STORE] Failed to initialize Postgres mode.", error);
+  dbReady = false;
+
+  if (PLAYER_STORE_MODE === "postgres") {
+    throw error;
+  }
+
+  console.error("[PLAYER STORE] Falling back to file mode.");
+  readPlayers();
+  setPersistedCache(playersCache || {});
   }
 }
 
@@ -1827,11 +1862,18 @@ function getPlayer(userId, username) {
     players[id] = createdPlayer;
     setPlayersCache(players);
 
-    if (USE_POSTGRES && dbReady) {
-      enqueuePlayerSnapshotSave(id, createdPlayer);
+  if (USE_POSTGRES && dbReady) {
+    enqueuePlayerSnapshotSave(id, createdPlayer);
+  } else {
+    if (PLAYER_STORE_MODE === "postgres") {
+      console.error("[PLAYER STORE] Refusing file fallback write while postgres mode is required.", {
+        userId: id,
+        action: "create_player",
+      });
     } else {
       writePlayersLocalBackupOnly(players);
     }
+  }
 
     return createdPlayer;
   }
@@ -1878,7 +1920,14 @@ function updatePlayerAtomic(userId, mutator, username = "Unknown") {
   if (USE_POSTGRES && dbReady) {
     enqueuePlayerSnapshotSave(id, nextPlayer);
   } else {
-    writePlayersLocalBackupOnly(players);
+    if (PLAYER_STORE_MODE === "postgres") {
+      console.error("[PLAYER STORE] Refusing file fallback write while postgres mode is required.", {
+        userId: id,
+        action: "update_player_atomic",
+      });
+    } else {
+      writePlayersLocalBackupOnly(players);
+    }
   }
 
   return nextPlayer;
@@ -1942,7 +1991,16 @@ function updateTwoPlayersAtomic(userIdA, userIdB, mutator, usernameA = "Unknown"
 
   players[idA] = nextA;
   players[idB] = nextB;
-  writePlayers(players);
+  setPlayersCache(players);
+
+  if (PLAYER_STORE_MODE === "postgres") {
+    console.error("[PLAYER STORE] Refusing two-player file fallback while postgres mode is required.", {
+      userIdA: idA,
+      userIdB: idB,
+    });
+  } else {
+    writePlayers(players);
+  }
 
   return {
     playerA: nextA,
@@ -1964,6 +2022,11 @@ async function flushPlayerStoreNow(timeoutMs = 30000) {
 
       await drainPlayerStoreSaves(safeTimeout);
       return true;
+    }
+
+    if (PLAYER_STORE_MODE === "postgres") {
+      console.error("[PLAYER STORE] Refusing flush file fallback while postgres mode is required.");
+      return false;
     }
 
     writePlayersLocalBackupOnly(players);
