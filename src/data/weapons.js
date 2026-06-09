@@ -241,7 +241,7 @@ module.exports = [
     owners: ["oden", "zoro_pirate_hunter"],
     type: "Great Grade Sword",
     statPercent: { atk: 8, hp: 6, speed: 4 },
-    ownerBonusPercent: { atk: 3, hp: 3, speed: 2 },
+    ownerBonusPercent: { atk: 2, hp: 2, speed: 2 },
     image: "",
     description: "A blade that draws out its wielder's haki."
   },
@@ -527,7 +527,7 @@ module.exports = [
     owners: ["zoro_pirate_hunter"],
     type: "Grade Sword",
     statPercent: { atk: 6, hp: 4, speed: 3 },
-    ownerBonusPercent: { atk: 2, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
     image: "",
     description: "A cursed blade with fierce cutting force."
   },
@@ -637,7 +637,7 @@ module.exports = [
     owners: ["zoro_pirate_hunter"],
     type: "Great Grade Sword",
     statPercent: { atk: 8, hp: 6, speed: 4 },
-    ownerBonusPercent: { atk: 2, hp: 1, speed: 1 },
+    ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
     image: "",
     description: "One of Zoro's treasured swords."
   },
