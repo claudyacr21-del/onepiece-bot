@@ -114,11 +114,9 @@ function enqueuePlayerSnapshotSave(userId, player) {
         latestRaw?.username || initialSnapshot?.username || "Unknown"
       );
 
-      const dbPlayer = await getPlayerFromPostgres(id).catch(() => null);
-
       const safeSnapshot = normalizePlayer(
         latestSnapshot,
-        latestSnapshot?.username || dbPlayer?.username || "Unknown"
+        latestSnapshot?.username || "Unknown"
       );
 
       const saved = await upsertOnePlayerToPostgres(id, safeSnapshot);
@@ -810,7 +808,7 @@ async function updateTwoPlayersInPostgresAtomic(
 async function flushChangedPlayersToPostgres(data) {
   if (!USE_POSTGRES || !dbReady) return;
 
-  const safeData = data && typeof data === "object" ? data : {};
+  const safeData = mergePlayerStoreForWrite(data);
   const changed = [];
 
   for (const [userId, player] of Object.entries(safeData)) {
@@ -949,15 +947,62 @@ function writePlayersLocalBackupOnly(data) {
   }
 }
 
+function mergePlayerStoreForWrite(incomingData) {
+  const incomingStore =
+    incomingData && typeof incomingData === "object" ? incomingData : {};
+
+  const currentStore =
+    playersCache && typeof playersCache === "object" ? playersCache : {};
+
+  const mergedStore = {
+    ...currentStore,
+  };
+
+  for (const [userId, incomingPlayer] of Object.entries(incomingStore)) {
+    const id = String(userId);
+
+    if (isSystemStoreKey(id)) {
+      mergedStore[id] = cloneJson(incomingPlayer || {});
+      continue;
+    }
+
+    const currentPlayer = currentStore[id] || {};
+    const username =
+      incomingPlayer?.username ||
+      currentPlayer?.username ||
+      "Unknown";
+
+    const safeIncoming = normalizePlayer(incomingPlayer || {}, username);
+    const safeCurrent = currentPlayer
+      ? normalizePlayer(currentPlayer, username)
+      : null;
+
+    mergedStore[id] = normalizePlayer(
+      mergePlayerNoRollback(safeIncoming, safeCurrent, {
+        preserveMissingCards: true,
+        preserveMissingItems: true,
+      }),
+      username
+    );
+  }
+
+  return mergedStore;
+}
+
 function writePlayers(data) {
-  const safeData = data && typeof data === "object" ? data : {};
+  const safeData = mergePlayerStoreForWrite(data);
   setPlayersCache(safeData);
 
   if (USE_POSTGRES && dbReady) {
     const pending = [];
 
     for (const [userId, player] of Object.entries(safeData)) {
-      const normalized = normalizeStoreRecord(userId, player, player?.username || "Unknown");
+      const normalized = normalizeStoreRecord(
+        userId,
+        player,
+        player?.username || "Unknown"
+      );
+
       const before = JSON.stringify(persistedCache?.[userId] || null);
       const after = JSON.stringify(normalized || null);
 

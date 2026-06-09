@@ -893,39 +893,53 @@ function pickBetterProgressCard(existing, incoming) {
 function mergeCardCollections(existingCards, nextCards) {
   const map = new Map();
 
-  for (const card of Array.isArray(existingCards) ? existingCards : []) {
-    if (!card) continue;
-    map.set(getCardMergeKey(card), { ...card });
-  }
-
-  for (const card of Array.isArray(nextCards) ? nextCards : []) {
-    if (!card) continue;
+  function addCard(card) {
+    if (!card) return;
 
     const key = getCardMergeKey(card);
+    if (!key) return;
+
     const existing = map.get(key);
 
     if (!existing) {
       map.set(key, { ...card });
-      continue;
+      return;
     }
 
     const better = pickBetterProgressCard(existing, card);
+    const weaker = better === existing ? card : existing;
+
+    const existingStage = getCardStageRank(existing);
+    const incomingStage = getCardStageRank(card);
+    const bestStage = Math.max(existingStage, incomingStage);
+
     const maxPrestige = Math.max(
       getCardPrestigeValue(existing),
       getCardPrestigeValue(card)
     );
 
     map.set(key, {
-      ...existing,
-      ...card,
+      ...weaker,
+      ...better,
 
-      // Prevent stale pull/pa snapshots from rolling back card progression.
-      evolutionStage: Math.max(
-        Number(existing.evolutionStage || 1),
-        Number(card.evolutionStage || 1)
-      ),
+      instanceId: existing.instanceId || card.instanceId,
+      code: existing.code || card.code,
+      name: better.name || existing.name || card.name,
+      displayName:
+        better.displayName ||
+        existing.displayName ||
+        card.displayName ||
+        better.name,
+
+      evolutionStage: bestStage,
+      evolutionKey:
+        bestStage === 3
+          ? "M3"
+          : bestStage === 2
+          ? "M2"
+          : better.evolutionKey || existing.evolutionKey || card.evolutionKey || "M1",
+
       level: Math.max(Number(existing.level || 1), Number(card.level || 1)),
-
       exp: Math.max(Number(existing.exp || 0), Number(card.exp || 0)),
       xp: Math.max(Number(existing.xp || 0), Number(card.xp || 0)),
 
@@ -939,10 +953,6 @@ function mergeCardCollections(existingCards, nextCards) {
         better.currentTier ||
         existing.rarity ||
         card.rarity,
-      evolutionKey:
-        better.evolutionKey ||
-        existing.evolutionKey ||
-        card.evolutionKey,
 
       currentPower: Math.max(
         Number(existing.currentPower || existing.power || 0),
@@ -959,8 +969,11 @@ function mergeCardCollections(existingCards, nextCards) {
 
       kills: Math.max(Number(existing.kills || 0), Number(card.kills || 0)),
 
-      // Prestige-safe fields.
-      prestige: Math.max(Number(existing.prestige || 0), Number(card.prestige || 0), maxPrestige),
+      prestige: Math.max(
+        Number(existing.prestige || 0),
+        Number(card.prestige || 0),
+        maxPrestige
+      ),
       raidPrestige: Math.max(
         Number(existing.raidPrestige || 0),
         Number(card.raidPrestige || 0),
@@ -998,27 +1011,15 @@ function mergeCardCollections(existingCards, nextCards) {
     });
   }
 
+  for (const card of Array.isArray(existingCards) ? existingCards : []) {
+    addCard(card);
+  }
+
+  for (const card of Array.isArray(nextCards) ? nextCards : []) {
+    addCard(card);
+  }
+
   return [...map.values()];
-}
-
-function getPullResetBucketValue(pulls = {}) {
-  const raw = pulls?.lastResetBucket;
-
-  if (raw === null || raw === undefined || raw === "") return null;
-
-  const asNumber = Number(raw);
-  if (Number.isFinite(asNumber)) return asNumber;
-
-  return String(raw || "").trim();
-}
-
-function isDifferentPullResetBucket(existingPulls = {}, nextPulls = {}) {
-  const existingBucket = getPullResetBucketValue(existingPulls);
-  const nextBucket = getPullResetBucketValue(nextPulls);
-
-  if (existingBucket === null || nextBucket === null) return false;
-
-  return String(existingBucket) !== String(nextBucket);
 }
 
 function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
