@@ -2093,11 +2093,11 @@ async function flushPlayerStoreNow(timeoutMs = 30000) {
   }
 }
 
-async function flushPlayerNow(userId, timeoutMs = 12000) {
+async function flushPlayerNow(userId, timeoutMs = 8000) {
   const id = String(userId || "");
   if (!id) return false;
 
-  const safeTimeout = Math.max(1000, Number(timeoutMs || 12000));
+  const safeTimeout = Math.max(1000, Number(timeoutMs || 8000));
 
   try {
     if (!USE_POSTGRES || !dbReady) {
@@ -2129,7 +2129,6 @@ async function flushPlayerNow(userId, timeoutMs = 12000) {
     ]);
 
     persistedCache[id] = cloneJson(latestNormalized);
-    await drainPlayerStoreSaves(safeTimeout);
 
     return true;
   } catch (error) {
