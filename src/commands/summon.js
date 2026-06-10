@@ -373,12 +373,6 @@ function hasOwnedCardStage(player, targetCode, minStage = 1) {
  });
 }
 
-function isLzsCard(card) {
- const code = normalize(card?.code).replace(/\s+/g, "_");
- const name = normalize(getCardName(card));
- return code === "lzs" || name === "monster trio";
-}
-
 function isGenericMergeSummonCard(card) {
   const type = String(card?.type || "").toLowerCase().trim();
 
