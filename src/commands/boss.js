@@ -35,10 +35,55 @@ const {
 
 const BOSS_COOLDOWN_MS = 10 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
-
 const BOSS_PHASE_JOIN_MIN = 2;
 const BOSS_PHASE_JOIN_MAX = 4;
 const BOSS_JOIN_LOBBY_MS = 2 * 60 * 1000;
+
+const activeBossSessions = new Map();
+
+function getBossSessionKey(userId) {
+  return String(userId || "");
+}
+
+function cleanupActiveBossSessions() {
+  const now = Date.now();
+
+  for (const [key, session] of activeBossSessions.entries()) {
+    if (Number(session?.expiresAt || 0) <= now) {
+      activeBossSessions.delete(key);
+    }
+  }
+}
+
+function startActiveBossSession(userId, ttlMs = SESSION_TIMEOUT_MS + BOSS_JOIN_LOBBY_MS) {
+  cleanupActiveBossSessions();
+
+  const key = getBossSessionKey(userId);
+  const current = activeBossSessions.get(key);
+  const now = Date.now();
+
+  if (current && Number(current.expiresAt || 0) > now) {
+    return {
+      ok: false,
+      remaining: Number(current.expiresAt || 0) - now,
+    };
+  }
+
+  activeBossSessions.set(key, {
+    userId: key,
+    startedAt: now,
+    expiresAt: now + ttlMs,
+  });
+
+  return {
+    ok: true,
+    remaining: ttlMs,
+  };
+}
+
+function clearActiveBossSession(userId) {
+  activeBossSessions.delete(getBossSessionKey(userId));
+}
 
 const BOSS_WIN_EXP_PER_CARD = 180;
 const BOSS_LOSE_EXP_PER_CARD = 95;
@@ -2436,9 +2481,22 @@ module.exports = {
     const phaseBoss = phaseBossResult;
 
     if (isBossPhaseTwoParty(currentIsland, phaseBoss)) {
+      const activeSession = startActiveBossSession(message.author.id);
+
+      if (!activeSession.ok) {
+        return message.reply(
+          `You already have an active boss UI. Finish it first or wait **${formatRemaining(
+            activeSession.remaining
+          )}**.`
+        );
+      }
+
       const lobby = await waitForBossJoinLobby(message, currentIsland, phaseBoss);
 
-      if (!lobby.approved || lobby.cancelled) return;
+      if (!lobby.approved || lobby.cancelled) {
+        clearActiveBossSession(message.author.id);
+        return;
+      }
 
       const { participants, rejected } = await buildRaidBossParticipantsFromJoinedIds(
         message,
@@ -2446,6 +2504,7 @@ module.exports = {
       );
 
       if (participants.length < 2) {
+        clearActiveBossSession(message.author.id);
         return message.reply(
           [
             "Boss Phase 2 requires at least **2 valid users**.",
@@ -2460,6 +2519,7 @@ module.exports = {
 
       const duplicates = getDuplicatePartyCards(participants);
       if (duplicates.length) {
+        clearActiveBossSession(message.author.id);
         return message.reply(
           [
             "Cannot start Boss Phase 2 because duplicate cards exist in the party:",
@@ -2516,7 +2576,10 @@ module.exports = {
 
       const reply = await sendRaidBossBattleMessage(message, raidStartPayload);
 
-      if (!reply) return;
+      if (!reply) {
+        clearActiveBossSession(message.author.id);
+        return;
+      }
 
       const collector = reply.createMessageComponentCollector({
         time: SESSION_TIMEOUT_MS,
@@ -2947,6 +3010,7 @@ if (interaction.customId === "boss_raid_run") {
       });
 
       collector.on("end", async (_collected, reason) => {
+        clearActiveBossSession(message.author.id);
         if (ended) return;
 
         if (reason === "time") {
@@ -2978,6 +3042,16 @@ if (interaction.customId === "boss_raid_run") {
 
     if (teamCards.length < 3) {
       return message.reply("You need a full battle team of 3 cards to challenge the island boss.");
+    }
+
+    const activeSession = startActiveBossSession(message.author.id);
+
+    if (!activeSession.ok) {
+      return message.reply(
+        `You already have an active boss UI. Finish it first or wait **${formatRemaining(
+          activeSession.remaining
+        )}**.`
+      );
     }
 
     startBossCooldownNow(message.author.id, message.author.username);
@@ -3364,6 +3438,7 @@ if (interaction.customId === "boss_run") {
     });
 
     collector.on("end", async (_collected, reason) => {
+      clearActiveBossSession(message.author.id);
       if (ended) return;
 
       if (reason === "time") {
