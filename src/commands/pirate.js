@@ -9,6 +9,7 @@ const { readPlayers, writePlayers } = require("../playerStore");
 const {
   applyPirateRewardBonuses,
   applyRaidGloryPoints,
+  getPerkPercent,
 } = require("../utils/rewardBonuses");
 const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
@@ -1766,19 +1767,21 @@ function getPirateRaidPoints({ boss, damage, pirate, userId }) {
   const basePoints =
     realDamage > 0 ? Math.max(1, Math.floor(basePointsEarned)) : 0;
 
+  const raidPointPercent = userId
+    ? getPerkPercent(userId, "raidPointBoost")
+    : Math.max(
+        0,
+        Math.floor(Number(pirate?.perks?.raidPointBoost || 0))
+      );
+
   const points = userId ? applyRaidGloryPoints(userId, basePoints) : basePoints;
-
-  const raidPointLevel = Math.max(
-    0,
-    Math.floor(Number(pirate?.perks?.raidPointBoost || 0))
-  );
-
-  const boostMultiplier = 1 + raidPointLevel * 0.01;
+  const boostMultiplier = 1 + raidPointPercent / 100;
 
   return {
     points,
     basePointsEarned,
-    raidPointLevel,
+    raidPointLevel: raidPointPercent,
+    raidPointPercent,
     boostMultiplier,
     damageRatio,
     bossPoints,
@@ -2478,6 +2481,11 @@ async function handlePirateAttack(message, args) {
   totalDamage += damage;
   totalPoints += pointResult.points;
 
+  const raidGloryPercent = Math.max(
+    0,
+    Math.floor(Number(pointResult.raidPointPercent || 0))
+  );
+
   battleLog.push(
     `⚔️ ${
       selected.card?.displayName ||
@@ -2486,7 +2494,7 @@ async function handlePirateAttack(message, args) {
       "Card"
     } dealt **${fmt(damage)}** damage and earned **${fmt(
       pointResult.points
-    )}** points (${Math.floor(Number(pointResult.damageRatio || 0) * 100)}%).`
+    )}** points (Raid Glory +${fmt(raidGloryPercent)}%).`
   );
 
   if (bossCounterDamage > 0) {
