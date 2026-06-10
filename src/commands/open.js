@@ -557,14 +557,6 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     nextState = grantRewardItem(nextState, rewardMap, item, qty, amount);
   }
 
-    function addRewardExact(item, qty) {
-    nextState = grantRewardItem(nextState, rewardMap, item, qty, 1);
-  }
-
-  function addRandomFragmentExact(pool, qty) {
-    nextState = addRandomUniversalFragment(nextState, rewardMap, pool, qty, 1);
-  }
-
   function addRandomFragment(pool, qty) {
     nextState = addRandomUniversalFragment(nextState, rewardMap, pool, qty, amount);
   }
@@ -649,14 +641,14 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addReward(ITEMS.rumBeer, 5 + Math.floor(Math.random() * 3));
 
     if (Math.random() < 0.60) {
-      addRandomFragmentExact(
+      addRandomFragment(
         [getUniversalAFragmentItem(), getUniversalSFragmentItem()],
         Math.random() < 0.35 ? 2 : 1
       );
     }
 
     if (Math.random() < 0.35) {
-      addRewardExact(getPullResetTicketItem(), 1);
+      addReward(getPullResetTicketItem(), 1);
     }
   } else if (box.code === "mother_flame_treasure_box") {
     addBerries(50000);
