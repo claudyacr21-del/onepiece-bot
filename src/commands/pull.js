@@ -217,7 +217,7 @@ function getTicketPool(pullTier = "normal") {
 
   const weights =
     tier === "motherFlame"
-      ? { common: 35, raid: 35, gold: 16, throne: 9, mythic: 5 }
+      ? { common: 25, raid: 30, gold: 25, throne: 15, mythic: 5 }
       : tier === "vivreCard"
         ? { common: 44, raid: 34, gold: 13, throne: 6, mythic: 3 }
         : { common: 52, raid: 35, gold: 8, throne: 4, mythic: 1 };
@@ -1221,7 +1221,9 @@ module.exports = {
 
     const pool = getRewardPool(contentType, premiumTier);
     const picked =
-      contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, baseTier);
+      contentType === "ticket"
+        ? pickWeightedTicket(premiumTier)
+        : pickRandomByRarity(pool, baseTier);
 
     if (!picked) {
       return message.reply(`Pull pool is empty for ${contentType} ${baseTier}.`);

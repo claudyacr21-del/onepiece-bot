@@ -124,35 +124,35 @@ function getTicketPool() {
       name: "Common Raid Ticket",
       rarity: "B",
       type: "Ticket",
-      weight: 45,
+      weight: 25,
     },
     {
       code: "raid_ticket",
       name: "Raid Ticket",
       rarity: "A",
       type: "Ticket",
-      weight: 32,
+      weight: 30,
     },
     {
       code: "gold_raid_ticket",
       name: "Gold Raid Ticket",
       rarity: "S",
       type: "Ticket",
-      weight: 18,
+      weight: 25,
     },
     {
       code: "empty_throne_raid_writ",
       name: "Empty Throne Raid Writ",
       rarity: "S",
       type: "Ticket",
-      weight: 5,
+      weight: 15,
     },
     {
       code: "mythic_raid_ticket",
       name: "Mythic Raid Ticket",
       rarity: "UR",
       type: "Ticket",
-      weight: 1.5,
+      weight: 5,
     },
   ];
 }
@@ -587,6 +587,7 @@ function addTicketSummary(summary, reward) {
   if (reward.code === "raid_ticket") summary.raidTicket += 1;
   if (reward.code === "gold_raid_ticket") summary.goldRaidTicket += 1;
   if (reward.code === "empty_throne_raid_writ") summary.emptyThroneRaidWrit += 1;
+  if (reward.code === "mythic_raid_ticket") summary.mythicRaidTicket += 1;
 }
 
 function getCardMergeKey(card) {
@@ -1102,6 +1103,7 @@ module.exports = {
       raidTicket: 0,
       goldRaidTicket: 0,
       emptyThroneRaidWrit: 0,
+      mythicRaidTicket: 0,
     };
 
     const pullGroups = {
