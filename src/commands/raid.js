@@ -983,32 +983,32 @@ function getRaidBossModeMultiplier(raidMode = {}) {
     modeName.includes("throne")
   ) {
     return {
-      hp: 2.4,
-      speed: 1.35,
-      atk: 1.65,
-    };
-  }
-
-  if (ticketCode === "gold_raid_ticket" || modeName.includes("gold")) {
-    return {
-      hp: 1.4,
-      speed: 1.2,
-      atk: 1.1,
-    };
-  }
-
-  if (ticketCode === "mythic_raid_ticket" || modeName.includes("mythic")) {
-    return {
-      hp: 4,
+      hp: 3,
       speed: 2,
       atk: 3,
     };
   }
 
+  if (ticketCode === "gold_raid_ticket" || modeName.includes("gold")) {
+    return {
+      hp: 1.5,
+      speed: 1.5,
+      atk: 2,
+    };
+  }
+
+  if (ticketCode === "mythic_raid_ticket" || modeName.includes("mythic")) {
+    return {
+      hp: 5,
+      speed: 2,
+      atk: 4.5,
+    };
+  }
+
   return {
-    hp: 1,
-    speed: 1,
-    atk: 1,
+    hp: 3,
+    speed: 3,
+    atk: 3,
   };
 }
 
