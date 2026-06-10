@@ -149,8 +149,8 @@ function findWeaponTemplate(query) {
   if (!q) return null;
 
   return (
-    weaponsDb.find((item) => normalize(getWeaponDisplayOnly(item)) === q) ||
-    weaponsDb.find((item) => normalize(getWeaponDisplayOnly(item)).includes(q)) ||
+    weaponsDb.find((item) => normalize(item.name) === q) ||
+    weaponsDb.find((item) => normalize(item.name).includes(q)) ||
     null
   );
 }
@@ -196,11 +196,13 @@ function getInventoryWeaponMatches(player, query) {
 
   return list
     .map((entry, index) => {
-      const template = findWeaponTemplate(entry.displayName || entry.name || query);
+      const template =
+        findWeaponTemplate(entry.name || query) ||
+        weaponsDb.find((item) => normalize(item.code) === normalize(entry.code));
 
       const score = scoreWeaponQuery(query, [
-        getWeaponDisplayOnly(entry),
-        getWeaponDisplayOnly(template),
+        entry.name,
+        template?.name,
       ]);
 
       return {
@@ -225,11 +227,13 @@ function getEquippedWeaponMatches(player, query) {
       : [];
 
     equipped.forEach((entry, weaponIndex) => {
-      const template = findWeaponTemplate(entry.displayName || entry.name || query);
+      const template =
+        findWeaponTemplate(entry.name || query) ||
+        weaponsDb.find((item) => normalize(item.code) === normalize(entry.code));
 
       const score = scoreWeaponQuery(query, [
-        getWeaponDisplayOnly(entry),
-        getWeaponDisplayOnly(template),
+        entry.name,
+        template?.name,
       ]);
 
       if (score <= 0) return;
@@ -251,16 +255,16 @@ function getEquippedWeaponMatches(player, query) {
       false;
 
     if (hasLegacySingle) {
-      const template = findWeaponTemplate(
-        card.equippedWeaponDisplayName ||
-          card.equippedWeaponName ||
-          card.equippedWeapon ||
-          query
-      );
+      const template =
+        findWeaponTemplate(card.equippedWeaponName || card.equippedWeapon || query) ||
+        weaponsDb.find(
+          (item) => normalize(item.code) === normalize(card.equippedWeaponCode)
+        );
 
       const score = scoreWeaponQuery(query, [
-        card.equippedWeaponDisplayName,
-        getWeaponDisplayOnly(template),
+        card.equippedWeaponName,
+        card.equippedWeapon,
+        template?.name,
       ]);
 
       if (score > 0) {
@@ -271,8 +275,7 @@ function getEquippedWeaponMatches(player, query) {
           cardName: card.displayName || card.name || card.code || "Unknown Card",
           entry: {
             code: card.equippedWeaponCode || template?.code,
-            name: getWeaponDisplayOnly(template),
-            displayName: getWeaponDisplayOnly(template),
+            name: card.equippedWeaponName || card.equippedWeapon || template?.name,
             upgradeLevel: Number(card.equippedWeaponLevel || 0),
           },
           template,
@@ -338,7 +341,9 @@ function getWeaponDisplayName(template, level) {
 
 function updateInventoryWeaponLevels(weapons, template, newLevel) {
   return (Array.isArray(weapons) ? weapons : []).map((entry) => {
-    const entryTemplate = findWeaponTemplate(entry.code || entry.name);
+    const entryTemplate =
+      findWeaponTemplate(entry.name) ||
+      weaponsDb.find((item) => normalize(item.code) === normalize(entry.code));
 
     if (normalize(entryTemplate?.code || entry.code) !== normalize(template.code)) {
       return entry;
@@ -346,8 +351,7 @@ function updateInventoryWeaponLevels(weapons, template, newLevel) {
 
     return {
       ...entry,
-      name: getWeaponDisplayOnly(template),
-      displayName: getWeaponDisplayOnly(template),
+      name: template.name,
       code: template.code,
       rarity: template.rarity,
       type: template.type,
@@ -375,7 +379,9 @@ function syncEquippedWeaponLevels(cards, template, newLevel) {
     let touched = false;
 
     let nextEquipped = equipped.map((weapon) => {
-      const weaponTemplate = findWeaponTemplate(weapon.code || weapon.name);
+      const weaponTemplate =
+        findWeaponTemplate(weapon.name) ||
+        weaponsDb.find((item) => normalize(item.code) === normalize(weapon.code));
 
       if (normalize(weaponTemplate?.code || weapon.code) !== normalize(template.code)) {
         return weapon;
@@ -408,9 +414,11 @@ function syncEquippedWeaponLevels(cards, template, newLevel) {
     });
 
     if (!nextEquipped.length && (raw.equippedWeapon || raw.equippedWeaponCode)) {
-      const legacyTemplate = findWeaponTemplate(
-        raw.equippedWeaponCode || raw.equippedWeaponName || raw.equippedWeapon
-      );
+      const legacyTemplate =
+        findWeaponTemplate(raw.equippedWeaponName || raw.equippedWeapon) ||
+        weaponsDb.find(
+          (item) => normalize(item.code) === normalize(raw.equippedWeaponCode)
+        );
 
       if (normalize(legacyTemplate?.code) === normalize(template.code)) {
         touched = true;
@@ -465,12 +473,18 @@ function getEquippedOwners(cards, weaponCode) {
     const equipped = Array.isArray(raw.equippedWeapons) ? raw.equippedWeapons : [];
 
     const hasWeapon = equipped.some((weapon) => {
-      const template = findWeaponTemplate(weapon.code || weapon.name);
+      const template =
+        findWeaponTemplate(weapon.name) ||
+        weaponsDb.find((item) => normalize(item.code) === normalize(weapon.code));
       return normalize(template?.code || weapon.code) === normalize(weaponCode);
     });
 
     const legacyCodeOrName = raw.equippedWeaponCode || raw.equippedWeaponName || raw.equippedWeapon;
-    const legacyTemplate = findWeaponTemplate(legacyCodeOrName);
+    const legacyTemplate =
+      findWeaponTemplate(raw.equippedWeaponName || raw.equippedWeapon) ||
+      weaponsDb.find(
+        (item) => normalize(item.code) === normalize(raw.equippedWeaponCode)
+      );
 
     const hasLegacy =
       !equipped.length &&
@@ -647,7 +661,7 @@ module.exports = {
       let freshEquippedOwners = [];
 
       try {
-        updatePlayerAtomic(
+        await updatePlayerAtomic(
           message.author.id,
           (fresh) => {
             const freshMatch = findOwnedOrEquippedWeapon(fresh, weaponQuery);
