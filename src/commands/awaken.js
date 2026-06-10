@@ -999,23 +999,37 @@ async function safeStopCollector(collector, reason) {
 }
 
 function getStageImage(card, stage) {
-  const stageKey = getStageKey(stage);
-  const template = findTemplateByNameOnly(card, card?.displayName || card?.name || "");
+  const targetStage = Math.max(1, Math.min(3, Math.floor(Number(stage || 1))));
+  const stageKey = getStageKey(targetStage);
 
-  const form = getStageForm(template, stage);
+  const template =
+    findTemplateByNameOnly(card, card?.displayName || card?.name || "") || card;
+
+  const form = getStageForm(template, targetStage);
+
   const image =
     form?.image ||
+    form?.img ||
+    form?.url ||
     template?.stageImages?.[stageKey] ||
     template?.images?.[stageKey] ||
     template?.forms?.[stageKey]?.image ||
+    template?.forms?.[stageKey]?.img ||
     card?.stageImages?.[stageKey] ||
-    card?.image ||
+    card?.images?.[stageKey] ||
+    card?.forms?.[stageKey]?.image ||
     "";
 
   if (image) return image;
 
   const code = String(template?.code || card?.code || "").trim();
-  return code ? getCardImage(code, stageKey, "") : "";
+
+  if (code) {
+    const linkedImage = getCardImage(code, stageKey, "");
+    if (linkedImage) return linkedImage;
+  }
+
+  return "";
 }
 
 function getFormName(card, stage) {
@@ -1118,8 +1132,17 @@ function applyBoostedDisplayStats(card, boosts = {}) {
   };
 }
 
+function buildAwakenPreviewCard(owned, nextStage) {
+  const template =
+    findTemplateByNameOnly(owned, owned?.displayName || owned?.name || "") ||
+    owned;
+
+  return makeAwakenedCard(owned, template, nextStage);
+}
+
 function buildConfirmEmbed(owned, currentStage, nextStage) {
-  const nextImage = getStageImage(owned, nextStage);
+  const previewCard = buildAwakenPreviewCard(owned, nextStage);
+  const nextImage = getStageImage(previewCard, nextStage);
 
   const embed = new EmbedBuilder()
     .setColor(0xf1c40f)
@@ -1127,7 +1150,7 @@ function buildConfirmEmbed(owned, currentStage, nextStage) {
     .setDescription(
       [
         `Current: **M${currentStage}**`,
-        `Next: **M${nextStage}** • ${getFormName(owned, nextStage)}`,
+        `Next: **M${nextStage}** • ${getFormName(previewCard, nextStage)}`,
         "",
         "All requirements are ready.",
         "Press **Yes** to awaken or **Cancel** to stop.",
