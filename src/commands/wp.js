@@ -1,5 +1,9 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayerAtomic } = require("../playerStore");
+const {
+  getPlayer,
+  updatePlayerAtomic,
+  flushPlayerNow,
+} = require("../playerStore");
 const weaponsDb = require("../data/weapons");
 const { hydrateCard } = require("../utils/evolution");
 const { getRarityBadge, getWeaponImage } = require("../config/assetLinks");
@@ -53,10 +57,6 @@ function scoreNameOnly(query, names) {
   }
 
   return best;
-}
-
-function getWeaponDisplayName(weapon) {
-  return String(weapon?.displayName || "").trim();
 }
 
 function findBestWeaponMatch(query) {
@@ -179,7 +179,7 @@ function splitCardAndWeaponInput(rawArgs) {
 
     return {
       cardName,
-      weaponName: weapon.displayName,
+      weaponName: weapon.name,
       weaponQuery,
     };
   }
@@ -393,7 +393,7 @@ module.exports = {
 
     if (!previewOwnedEntry) {
       return message.reply({
-        content: `You do not own \`${previewWeaponTemplate.displayName || previewWeaponTemplate.name}\`.`,
+        content: `You do not own \`${previewWeaponTemplate.name}\`.`,
         allowedMentions: { repliedUser: false },
       });
     }
@@ -544,6 +544,11 @@ module.exports = {
           };
         },
         message.author.username
+      );
+
+      await flushPlayerNow(
+        message.author.id,
+        Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 8000)
       );
     } catch (error) {
       return message.reply({
