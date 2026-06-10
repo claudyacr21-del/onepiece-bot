@@ -57,6 +57,7 @@ module.exports = {
     "1497584870812291294": [
       "trade",
       "convert",
+      "rum",
       "mci",
       "mc",
       "finv",
@@ -86,6 +87,7 @@ module.exports = {
     "1502220117331804250": [
       "trade",
       "convert",
+      "rum",
       "mci",
       "marines",
       "mc",
