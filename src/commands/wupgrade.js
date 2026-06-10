@@ -74,25 +74,29 @@ function consumeStones(materials, amount) {
   return arr;
 }
 
+function getWeaponDisplayOnly(template) {
+  return String(template?.displayName || "").trim();
+}
+
 function getWeaponFragmentCode(template) {
   return `weapon_fragment_${String(template?.code || "").toLowerCase()}`;
 }
 
 function getWeaponFragmentAmount(fragments, template) {
   const fragmentCode = normalize(getWeaponFragmentCode(template));
-  const weaponCode = normalize(template?.code);
-  const weaponName = normalize(template?.name);
+  const weaponDisplayName = normalize(getWeaponDisplayOnly(template));
 
   const found = (Array.isArray(fragments) ? fragments : []).find((entry) => {
     const entryCode = normalize(entry.code);
     const entryName = normalize(entry.name || entry.displayName);
-    const entryWeaponCode = normalize(entry.weaponCode);
+    const entryWeaponDisplayName = normalize(
+      entry.weaponDisplayName || entry.displayName
+    );
 
     return (
       entryCode === fragmentCode ||
-      entryWeaponCode === weaponCode ||
-      entryName === normalize(`${template.name} Fragment`) ||
-      entryName === weaponName
+      entryWeaponDisplayName === weaponDisplayName ||
+      entryName === normalize(`${getWeaponDisplayOnly(template)} Fragment`)
     );
   });
 
@@ -102,30 +106,30 @@ function getWeaponFragmentAmount(fragments, template) {
 function consumeWeaponFragments(fragments, template, amount) {
   const arr = [...(Array.isArray(fragments) ? fragments : [])];
   const fragmentCode = normalize(getWeaponFragmentCode(template));
-  const weaponCode = normalize(template?.code);
-  const weaponName = normalize(template?.name);
+  const weaponDisplayName = normalize(getWeaponDisplayOnly(template));
 
   const idx = arr.findIndex((entry) => {
     const entryCode = normalize(entry.code);
     const entryName = normalize(entry.name || entry.displayName);
-    const entryWeaponCode = normalize(entry.weaponCode);
+    const entryWeaponDisplayName = normalize(
+      entry.weaponDisplayName || entry.displayName
+    );
 
     return (
       entryCode === fragmentCode ||
-      entryWeaponCode === weaponCode ||
-      entryName === normalize(`${template.name} Fragment`) ||
-      entryName === weaponName
+      entryWeaponDisplayName === weaponDisplayName ||
+      entryName === normalize(`${getWeaponDisplayOnly(template)} Fragment`)
     );
   });
 
   if (idx === -1) {
-    throw new Error(`${template.name} Fragment not found.`);
+    throw new Error(`${getWeaponDisplayOnly(template)} Fragment not found.`);
   }
 
   const current = Number(arr[idx].amount || 0);
 
   if (current < amount) {
-    throw new Error(`You need ${amount} ${template.name} Fragment.`);
+    throw new Error(`You need ${amount} ${getWeaponDisplayOnly(template)} Fragment.`);
   }
 
   if (current === amount) {
@@ -145,12 +149,8 @@ function findWeaponTemplate(query) {
   if (!q) return null;
 
   return (
-    weaponsDb.find((item) => normalize(item.code) === q) ||
-    weaponsDb.find((item) => normalize(item.name) === q) ||
-    weaponsDb.find((item) => normalize(item.type) === q) ||
-    weaponsDb.find((item) => normalize(item.code).includes(q)) ||
-    weaponsDb.find((item) => normalize(item.name).includes(q)) ||
-    weaponsDb.find((item) => normalize(item.type).includes(q)) ||
+    weaponsDb.find((item) => normalize(getWeaponDisplayOnly(item)) === q) ||
+    weaponsDb.find((item) => normalize(getWeaponDisplayOnly(item)).includes(q)) ||
     null
   );
 }
@@ -196,15 +196,11 @@ function getInventoryWeaponMatches(player, query) {
 
   return list
     .map((entry, index) => {
-      const template = findWeaponTemplate(entry.code || entry.name || query);
+      const template = findWeaponTemplate(entry.displayName || entry.name || query);
 
       const score = scoreWeaponQuery(query, [
-        entry.code,
-        entry.name,
-        entry.type,
-        template?.code,
-        template?.name,
-        template?.type,
+        getWeaponDisplayOnly(entry),
+        getWeaponDisplayOnly(template),
       ]);
 
       return {
@@ -224,20 +220,16 @@ function getEquippedWeaponMatches(player, query) {
   const matches = [];
 
   cards.forEach((card, cardIndex) => {
-    const equipped = Array.isArray(card.equippedWeapons) ? card.equippedWeapons : [];
+    const equipped = Array.isArray(card.equippedWeapons)
+      ? card.equippedWeapons
+      : [];
 
     equipped.forEach((entry, weaponIndex) => {
-      const template = findWeaponTemplate(entry.code || entry.name || query);
+      const template = findWeaponTemplate(entry.displayName || entry.name || query);
 
       const score = scoreWeaponQuery(query, [
-        entry.code,
-        entry.name,
-        entry.type,
-        card.equippedWeapon,
-        card.equippedWeaponName,
-        template?.code,
-        template?.name,
-        template?.type,
+        getWeaponDisplayOnly(entry),
+        getWeaponDisplayOnly(template),
       ]);
 
       if (score <= 0) return;
@@ -260,16 +252,15 @@ function getEquippedWeaponMatches(player, query) {
 
     if (hasLegacySingle) {
       const template = findWeaponTemplate(
-        card.equippedWeaponCode || card.equippedWeaponName || card.equippedWeapon || query
+        card.equippedWeaponDisplayName ||
+          card.equippedWeaponName ||
+          card.equippedWeapon ||
+          query
       );
 
       const score = scoreWeaponQuery(query, [
-        card.equippedWeaponCode,
-        card.equippedWeaponName,
-        card.equippedWeapon,
-        template?.code,
-        template?.name,
-        template?.type,
+        card.equippedWeaponDisplayName,
+        getWeaponDisplayOnly(template),
       ]);
 
       if (score > 0) {
@@ -280,7 +271,8 @@ function getEquippedWeaponMatches(player, query) {
           cardName: card.displayName || card.name || card.code || "Unknown Card",
           entry: {
             code: card.equippedWeaponCode || template?.code,
-            name: card.equippedWeaponName || card.equippedWeapon || template?.name,
+            name: getWeaponDisplayOnly(template),
+            displayName: getWeaponDisplayOnly(template),
             upgradeLevel: Number(card.equippedWeaponLevel || 0),
           },
           template,
@@ -340,7 +332,8 @@ function getWeaponPercentAtLevel(basePercent, level) {
 }
 
 function getWeaponDisplayName(template, level) {
-  return `${template.name}${Number(level || 0) > 0 ? ` +${level}` : ""}`;
+  const baseName = getWeaponDisplayOnly(template) || template.name || template.code || "Weapon";
+  return `${baseName}${Number(level || 0) > 0 ? ` +${level}` : ""}`;
 }
 
 function updateInventoryWeaponLevels(weapons, template, newLevel) {
@@ -353,7 +346,8 @@ function updateInventoryWeaponLevels(weapons, template, newLevel) {
 
     return {
       ...entry,
-      name: template.name,
+      name: getWeaponDisplayOnly(template),
+      displayName: getWeaponDisplayOnly(template),
       code: template.code,
       rarity: template.rarity,
       type: template.type,
@@ -392,7 +386,8 @@ function syncEquippedWeaponLevels(cards, template, newLevel) {
       return {
         ...weapon,
         code: template.code,
-        name: template.name,
+        name: getWeaponDisplayOnly(template),
+        displayName: getWeaponDisplayOnly(template),
         rarity: template.rarity,
         type: template.type,
         statPercent: template.statPercent || weapon.statPercent || {
@@ -423,7 +418,8 @@ function syncEquippedWeaponLevels(cards, template, newLevel) {
         nextEquipped = [
           {
             code: template.code,
-            name: template.name,
+            name: getWeaponDisplayOnly(template),
+            displayName: getWeaponDisplayOnly(template),
             rarity: template.rarity,
             type: template.type,
             statPercent: template.statPercent || {
@@ -519,10 +515,10 @@ function buildUpgradeConfirmEmbed({
     .setTitle("⚒️ Confirm Weapon Upgrade")
     .setDescription(
       [
-        `**Weapon:** ${template.name}`,
+        `**Weapon:** ${getWeaponDisplayOnly(template)}`,
         `**Current Level:** +${currentLevel}`,
         `**Next Level:** +${nextLevel}`,
-        `**Cost:** ${stoneCost} Enhancement Stones + ${fragmentCost} ${template.name} Fragment`,
+        `**Cost:** ${stoneCost} Enhancement Stones + ${fragmentCost} ${getWeaponDisplayOnly(template)} Fragment`,
         `**Your Stones:** ${currentStone}`,
         `**Your Fragments:** ${currentFragment}`,
         "",
@@ -579,9 +575,9 @@ module.exports = {
     if (currentStone < stoneCost || currentFragment < fragmentCost) {
       return message.reply(
         [
-          `You need these materials to upgrade **${template.name}** to **+${nextLevel}**:`,
+          `You need these materials to upgrade **${getWeaponDisplayOnly(template)}** to **+${nextLevel}**:`,
           `• Enhancement Stone: **${currentStone}/${stoneCost}**`,
-          `• ${template.name} Fragment: **${currentFragment}/${fragmentCost}**`,
+          `• ${getWeaponDisplayOnly(template)} Fragment: **${currentFragment}/${fragmentCost}**`,
         ].join("\n")
       );
     }
@@ -677,9 +673,9 @@ module.exports = {
             if (freshStone < freshStoneCost || freshFragment < freshFragmentCost) {
               throw new Error(
                 [
-                  `You need these materials to upgrade **${freshTemplate.name}** to **+${freshNextLevel}**:`,
+                  `You need these materials to upgrade **${getWeaponDisplayOnly(freshTemplate)}** to **+${freshNextLevel}**:`,
                   `• Enhancement Stone: **${freshStone}/${freshStoneCost}**`,
-                  `• ${freshTemplate.name} Fragment: **${freshFragment}/${freshFragmentCost}**`,
+                  `• ${getWeaponDisplayOnly(freshTemplate)} Fragment: **${freshFragment}/${freshFragmentCost}**`,
                 ].join("\n")
               );
             }
@@ -745,9 +741,9 @@ module.exports = {
             .setTitle("🗡️ Weapon Upgrade Success")
             .setDescription(
               [
-                `**Weapon:** ${freshTemplate.name}`,
+                `**Weapon:** ${getWeaponDisplayOnly(freshTemplate)}`,
                 `**Weapon Level:** +${freshNextLevel}`,
-                `**Cost:** ${freshStoneCost} Enhancement Stones + ${freshFragmentCost} ${freshTemplate.name} Fragment`,
+                `**Cost:** ${freshStoneCost} Enhancement Stones + ${freshFragmentCost} ${getWeaponDisplayOnly(freshTemplate)} Fragment`,
                 "",
                 "**Weapon Percent Now**",
                 `ATK: +${freshShownPercent.atk}%`,

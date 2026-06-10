@@ -51,19 +51,26 @@ function scoreNameOnly(query, names) {
   return best;
 }
 
+function getWeaponDisplayName(weapon) {
+  return String(weapon?.displayName || "").trim();
+}
+
 function findBestWeaponMatch(query) {
   const scored = weapons
-    .map((weapon) => ({
-      weapon,
-      score: scoreNameOnly(query, [
-        weapon.displayName,
-        weapon.name,
-      ]),
-    }))
+    .map((weapon) => {
+      const displayName = getWeaponDisplayName(weapon);
+
+      return {
+        weapon,
+        displayName,
+        score: scoreNameOnly(query, [displayName]),
+      };
+    })
+    .filter((entry) => entry.displayName)
     .filter((entry) => entry.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return normalize(a.weapon.name || a.weapon.displayName).length - normalize(b.weapon.name || b.weapon.displayName).length;
+      return normalize(a.displayName).length - normalize(b.displayName).length;
     });
 
   return scored.length ? scored[0].weapon : null;
@@ -168,7 +175,7 @@ function splitCardAndWeaponInput(rawArgs) {
 
     return {
       cardName,
-      weaponName: weapon.name,
+      weaponName: weapon.displayName,
       weaponQuery,
     };
   }
@@ -373,7 +380,7 @@ module.exports = {
 
     if (!previewOwnedEntry) {
       return message.reply({
-        content: `You do not own \`${previewWeaponTemplate.name}\`.`,
+        content: `You do not own \`${previewWeaponTemplate.displayName || previewWeaponTemplate.name}\`.`,
         allowedMentions: { repliedUser: false },
       });
     }
@@ -550,7 +557,7 @@ module.exports = {
           .setDescription(
             [
               `**Card:** ${synced.displayName || synced.name}`,
-              `**Added Weapon:** ${weaponTemplate.name}`,
+              `**Added Weapon:** ${weaponTemplate.displayName || weaponTemplate.name}`,
               `**Weapon Rarity:** ${String(
                 weaponTemplate.rarity || "B"
               ).toUpperCase()}`,
