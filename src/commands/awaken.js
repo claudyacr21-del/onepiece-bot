@@ -16,6 +16,7 @@ const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
   isMergeCard,
   getMergeFixedPower,
+  buildMergedCard,
 } = require("../utils/mergeCards");
 const rawCards = require("../data/cards");
 
@@ -255,6 +256,61 @@ function applyAwakenMergeFixedPower(card, template = null) {
       M3: fixedPower,
     },
   };
+}
+
+function buildAwakenedMergeCardForDisplay(player, card, template = null, stage = null) {
+  if (!isAwakenMergeCard(card, template)) return card;
+
+  const targetStage = Math.max(
+    1,
+    Math.min(3, Number(stage || card?.evolutionStage || 1))
+  );
+
+  const merged = buildMergedCard(player || { cards: [] }, {
+    ...(template || {}),
+    ...(card || {}),
+    evolutionStage: targetStage,
+    evolutionKey: getStageKey(targetStage),
+  }, targetStage, {
+    sourceStage: targetStage,
+    displayLevel: targetStage === 1 ? 50 : targetStage === 2 ? 75 : 100,
+  });
+
+  return applyAwakenMergeFixedPower(
+    {
+      ...(card || {}),
+      ...(merged || {}),
+      evolutionStage: targetStage,
+      evolutionKey: getStageKey(targetStage),
+      image:
+        merged?.image ||
+        merged?.stageImages?.[getStageKey(targetStage)] ||
+        card?.image ||
+        template?.image ||
+        "",
+      atk: Number(merged?.atk || merged?.finalAtk || merged?.baseAtk || card?.atk || 0),
+      hp: Number(merged?.hp || merged?.finalHp || merged?.baseHp || card?.hp || 0),
+      speed: Number(
+        merged?.speed ||
+          merged?.spd ||
+          merged?.finalSpeed ||
+          merged?.baseSpeed ||
+          card?.speed ||
+          card?.spd ||
+          0
+      ),
+      spd: Number(
+        merged?.speed ||
+          merged?.spd ||
+          merged?.finalSpeed ||
+          merged?.baseSpeed ||
+          card?.speed ||
+          card?.spd ||
+          0
+      ),
+    },
+    template
+  );
 }
 
 function uniqReqCardsForAwaken(cards = []) {
@@ -728,7 +784,11 @@ function makeAwakenedCard(rawCard, template, nextStage) {
     evolutionKey: getStageKey(nextStage),
   };
 
-  return applyAwakenMergeFixedPower(stripOwnedTemplateFields(next), template);
+  const stripped = stripOwnedTemplateFields(next);
+
+  return isAwakenMergeCard(stripped, template)
+    ? buildAwakenedMergeCardForDisplay({ cards: [] }, stripped, template, nextStage)
+    : applyAwakenMergeFixedPower(stripped, template);
 }
 
 
@@ -838,7 +898,14 @@ function runAwaken(player, query, targetSelector = null) {
     gems: Number(player?.gems || 0) - gemsNeed,
   };
 
-  const resultTarget = hydrateCard(updatedCards[targetIndex]);
+  const resultTarget = isAwakenMergeCard(updatedCards[targetIndex], template)
+    ? buildAwakenedMergeCardForDisplay(
+        updatedPlayer,
+        updatedCards[targetIndex],
+        template,
+        nextStage
+      )
+    : hydrateCard(updatedCards[targetIndex]);
 
   return {
     updatedPlayer,
@@ -1073,11 +1140,30 @@ function buildConfirmEmbed(owned, currentStage, nextStage) {
 }
 
 function buildSuccessEmbed(result, player) {
-  const rawCard = hydrateCard(result.target);
+  const template = result.template || findTemplateByNameOnly(
+    result.target,
+    result.target?.displayName || result.target?.name || result.target?.code || ""
+  );
+
+  const rawCard = isAwakenMergeCard(result.target, template)
+    ? buildAwakenedMergeCardForDisplay(
+        player,
+        result.target,
+        template,
+        result.nextStage || result.target?.evolutionStage || 1
+      )
+    : hydrateCard(result.target);
+
   const boosts = getPassiveBoostSummary(player);
   const card = applyBoostedDisplayStats(rawCard, boosts);
-  const targetStage = Number(card.evolutionStage || 1);
-  const targetImage = getStageImage(card, targetStage);
+  const targetStage = Number(card.evolutionStage || result.nextStage || 1);
+
+  const targetImage =
+    isAwakenMergeCard(card, template)
+      ? card.image ||
+        card.stageImages?.[getStageKey(targetStage)] ||
+        getStageImage(card, targetStage)
+      : getStageImage(card, targetStage);
 
   const baseLines = [
     `**${card.displayName || card.name}** reached **M${targetStage}**`,

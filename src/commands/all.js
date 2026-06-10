@@ -1,4 +1,4 @@
-const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
+const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const {
   EmbedBuilder,
   ActionRowBuilder,
@@ -88,171 +88,86 @@ function getBaseCardStats(card, form = null) {
   };
 }
 
-const LZS_SOURCE_CODES_FOR_ALL = [
-  "luffy_straw_hat",
-  "zoro_pirate_hunter",
-  "sanji_black_leg",
-];
-
-function findAllCardTemplateByCode(code) {
-  const target = normalize(code);
-
-  return (
-    getAllCards().find((card) => normalize(card?.code) === target) || null
-  );
-}
-
-function getAllStageForm(card, stageKey = "M1") {
-  const stageIndex = Math.max(
-    0,
-    Math.min(2, Number(String(stageKey).replace("M", "")) - 1)
-  );
-
-  return Array.isArray(card?.evolutionForms)
-    ? card.evolutionForms[stageIndex] || null
-    : null;
-}
-
-function getLzsAllPower(card, form, stageKey = "M1") {
-  return Number(
-    form?.currentPower ||
-      form?.basePower ||
-      form?.power ||
-      form?.powerCaps?.[stageKey] ||
-      card?.powerCaps?.[stageKey] ||
-      card?.basePower ||
-      card?.power ||
-      card?.currentPower ||
-      0
-  );
-}
-
-function joinUniqueAllText(values) {
-  const seen = new Set();
-  const out = [];
-
-  for (const raw of values) {
-    const text = String(raw || "").trim();
-
-    if (!text || text.toLowerCase() === "none") continue;
-    if (text.toLowerCase().includes("synced from")) continue;
-
-    const parts = text
-      .split(/\s*[,/]\s*/)
-      .map((part) => part.trim())
-      .filter(Boolean);
-
-    for (const part of parts) {
-      const key = normalize(part);
-      if (!key || key === "none" || seen.has(key)) continue;
-
-      seen.add(key);
-      out.push(part);
-    }
-  }
-
-  return out.length ? out.join(", ") : "None";
-}
-
-function buildLzsAllDisplayCard(card, stageKey = "M1") {
+function buildAllMergeDisplayCard(player, card, stageKey = "M1") {
   const stageNumber = Math.max(
     1,
     Math.min(3, Number(String(stageKey).replace("M", "")) || 1)
   );
 
-  const sources = LZS_SOURCE_CODES_FOR_ALL.map((code) => {
-    const sourceCard = findAllCardTemplateByCode(code) || {};
-    const sourceForm = getAllStageForm(sourceCard, stageKey);
-    const stats = getBaseCardStats(sourceCard, sourceForm);
-
-    return {
-      card: sourceCard,
-      form: sourceForm,
-      atk: Number(stats.atk || 0),
-      hp: Number(stats.hp || 0),
-      speed: Number(stats.speed || 0),
-      power: getLzsAllPower(sourceCard, sourceForm, stageKey),
-      weapon:
-        sourceForm?.weaponSet ||
-        sourceForm?.weapon ||
-        sourceCard.weaponSet ||
-        sourceCard.weapon,
-      devilFruit:
-        sourceForm?.devilFruitName ||
-        sourceForm?.devilFruit ||
-        sourceCard.devilFruitName ||
-        sourceCard.devilFruit,
-    };
+  const merged = buildMergedCard(player || { cards: [] }, card, stageNumber, {
+    templateOnly: true,
+    sourceStage: stageNumber,
+    displayLevel: stageNumber === 1 ? 50 : stageNumber === 2 ? 75 : 100,
   });
 
-  const atk = Math.floor(
-    sources.reduce((total, source) => total + source.atk * 0.3, 0)
+  const mergedAtk = Number(
+    merged?.atk ||
+      merged?.finalAtk ||
+      merged?.baseAtk ||
+      merged?.stats?.atk ||
+      0
   );
 
-  const hp = Math.floor(
-    sources.reduce((total, source) => total + source.hp * 0.3, 0)
+  const mergedHp = Number(
+    merged?.hp ||
+      merged?.finalHp ||
+      merged?.baseHp ||
+      merged?.stats?.hp ||
+      0
   );
 
-  const speed = Math.floor(
-    sources.reduce((total, source) => total + source.speed * 0.3, 0)
+  const mergedSpeed = Number(
+    merged?.speed ||
+      merged?.spd ||
+      merged?.finalSpeed ||
+      merged?.baseSpeed ||
+      merged?.stats?.speed ||
+      merged?.stats?.spd ||
+      0
   );
 
-  const power = Math.floor(
-    sources.reduce((total, source) => total + source.power * 0.3, 0)
+  const fixedPower = Number(
+    merged?.currentPower ||
+      merged?.power ||
+      merged?.mergeFixedPower ||
+      card?.mergeFixedPower ||
+      0
   );
-
-  const weapon = joinUniqueAllText(sources.map((source) => source.weapon));
-  const devilFruit = joinUniqueAllText(
-    sources.map((source) => source.devilFruit)
-  );
-
-  const form = getAllStageForm(card, stageKey);
 
   return {
     ...card,
-    ...(form || {}),
-
-    code: "lzs",
-    name: "Monster Trio",
-    displayName: "Monster Trio",
-    title: "Monster Trio",
-
-    rarity: "M",
-    baseTier: "M",
-    currentTier: "M",
-    tier: "M",
-
-    cardRole: "battle",
-    role: "battle",
-    category: "battle",
-    type: "Merge",
+    ...(merged || {}),
 
     evolutionStage: stageNumber,
     evolutionKey: stageKey,
 
-    atk,
-    hp,
-    speed,
-    spd: speed,
+    atk: mergedAtk,
+    hp: mergedHp,
+    speed: mergedSpeed,
+    spd: mergedSpeed,
 
-    basePower: power,
-    power,
-    currentPower: power,
+    baseAtk: mergedAtk,
+    baseHp: mergedHp,
+    baseSpeed: mergedSpeed,
+
+    currentPower: fixedPower,
+    power: fixedPower,
+    basePower: fixedPower,
+
     powerCaps: {
-      [stageKey]: power,
+      ...(card?.powerCaps || {}),
+      ...(merged?.powerCaps || {}),
+      [stageKey]: fixedPower,
     },
 
-    weapon,
-    weaponSet: weapon,
-    devilFruit,
-    equipType:
-      weapon !== "None" && devilFruit !== "None"
-        ? "Devil Fruit / Weapon"
-        : devilFruit !== "None"
-        ? "Devil Fruit"
-        : weapon !== "None"
-        ? "Weapon"
-        : "None",
+    image:
+      merged?.image ||
+      merged?.stageImages?.[stageKey] ||
+      card?.stageImages?.[stageKey] ||
+      card?.image ||
+      "",
+
+    badgeImage: merged?.badgeImage || card?.badgeImage || "",
   };
 }
 
@@ -372,124 +287,142 @@ function sortCardsForAll(list, mode = "battle") {
   });
 }
 
-function buildCardEmbed(card, index, total, mode) {
+function buildCardEmbed(card, index, total, mode, player = null) {
   const stageIndex = 0;
   const stageKey = "M1";
-  const form = card.evolutionForms?.[stageIndex] || null;
-  const baseStats = isLzsCard(card)
-  ? {
-      atk: Number(card.atk || 0),
-      hp: Number(card.hp || 0),
-      speed: Number(card.speed || card.spd || 0),
-    }
-  : getBaseCardStats(card, form);
+
+  const displayCard = isMergeCard(card)
+    ? buildAllMergeDisplayCard(player, card, stageKey)
+    : card;
+
+  const form = displayCard.evolutionForms?.[stageIndex] || null;
+  const baseStats = getBaseCardStats(displayCard, form);
 
   const stageImage =
+    displayCard.image ||
     form?.image ||
-    card.stageImages?.[stageKey] ||
-    getCardImage(card.code, stageKey, card.image) ||
-    card.image ||
+    displayCard.stageImages?.[stageKey] ||
+    getCardImage(displayCard.code, stageKey, displayCard.image) ||
     "";
+
+  const power = getCardPower(displayCard, stageKey);
 
   const extraLines =
     mode === "boost"
       ? [
-          `Role: ${card.cardRole}`,
-          `Faction: ${card.faction || "Unknown"}`,
-          `Form: ${form?.name || "M1"}`,
-          `Effect: ${getRoadPoneglyphDisplayEffect(card, 1, form?.effectText || card.effectText || "No effect text")}`,
+          `Role: ${displayCard.cardRole}`,
+          `Faction: ${displayCard.faction || "Unknown"}`,
+          `Form: ${form?.name || displayCard.evolutionKey || "M1"}`,
+          `Effect: ${getRoadPoneglyphDisplayEffect(
+            displayCard,
+            1,
+            form?.effectText || displayCard.effectText || "No effect text"
+          )}`,
           "",
-          `Power: ${getCardPower(card, stageKey)}`,
+          `Power: ${power}`,
         ]
       : [
-          `Role: ${card.cardRole}`,
-          `Type: ${card.type || "Battle"}`,
-          `Form: ${form?.name || "M1"}`,
+          `Role: ${displayCard.cardRole}`,
+          `Type: ${displayCard.type || "Battle"}`,
+          `Form: ${form?.name || displayCard.evolutionKey || "M1"}`,
           `ATK: ${formatAtkRange(baseStats.atk)}`,
           `HP: ${baseStats.hp}`,
           `SPD: ${baseStats.speed}`,
           "",
-          `Power: ${getCardPower(card, stageKey)}`,
+          `Power: ${power}`,
         ];
 
   return buildCardStyleEmbed({
     color: mode === "boost" ? 0x9b59b6 : 0xe67e22,
     header: mode === "boost" ? "All Boost Cards" : "All Battle Cards",
     card: {
-      ...card,
+      ...displayCard,
       atk: baseStats.atk,
       hp: baseStats.hp,
       speed: baseStats.speed,
-      currentPower: getCardPower(card, stageKey),
-      badgeImage: form?.badgeImage || card.badgeImage || "",
+      currentPower: power,
+      power,
+      badgeImage: form?.badgeImage || displayCard.badgeImage || "",
     },
-    badgeImage: form?.badgeImage || card.badgeImage || "",
+    badgeImage: form?.badgeImage || displayCard.badgeImage || "",
     image: stageImage,
-    formName: form?.name || stageKey,
-    tier: form?.tier || card.baseTier || card.rarity,
+    formName: form?.name || displayCard.evolutionKey || stageKey,
+    tier: form?.tier || displayCard.baseTier || displayCard.rarity,
     footerText: `${mode === "boost" ? "Boost" : "Battle"} ${
       index + 1
-    }/${total} • Code: ${card.code}`,
+    }/${total} • Code: ${displayCard.code}`,
     extraLines,
   });
 }
 
-function buildMissingCardEmbed(card, index, total, progress) {
-  const role = String(card.cardRole || "battle").toLowerCase();
+function buildMissingCardEmbed(card, index, total, progress, player = null) {
   const stageKey = "M1";
-  const form = card.evolutionForms?.[0] || null;
-  const baseStats = getBaseCardStats(card, form);
+
+  const displayCard = isMergeCard(card)
+    ? buildAllMergeDisplayCard(player, card, stageKey)
+    : card;
+
+  const role = String(displayCard.cardRole || "battle").toLowerCase();
+  const form = displayCard.evolutionForms?.[0] || null;
+  const baseStats = getBaseCardStats(displayCard, form);
 
   const stageImage =
+    displayCard.image ||
     form?.image ||
-    card.stageImages?.[stageKey] ||
-    getCardImage(card.code, stageKey, card.image) ||
-    card.image ||
+    displayCard.stageImages?.[stageKey] ||
+    getCardImage(displayCard.code, stageKey, displayCard.image) ||
     "";
+
+  const power = getCardPower(displayCard, stageKey);
 
   const extraLines =
     role === "boost"
       ? [
           `Status: ❌ Missing`,
-          `Role: ${card.cardRole}`,
-          `Faction: ${card.faction || "Unknown"}`,
-          `Form: ${form?.name || "M1"}`,
-          `Effect: ${getRoadPoneglyphDisplayEffect(card, 1, form?.effectText || card.effectText || "No effect text")}`,
+          `Role: ${displayCard.cardRole}`,
+          `Faction: ${displayCard.faction || "Unknown"}`,
+          `Form: ${form?.name || displayCard.evolutionKey || "M1"}`,
+          `Effect: ${getRoadPoneglyphDisplayEffect(
+            displayCard,
+            1,
+            form?.effectText || displayCard.effectText || "No effect text"
+          )}`,
           "",
           `Collection: ${progress.owned}/${progress.total} owned`,
           `Missing: ${progress.missing}`,
-          `Power: ${getCardPower(card, stageKey)}`,
+          `Power: ${power}`,
         ]
       : [
           `Status: ❌ Missing`,
-          `Role: ${card.cardRole}`,
-          `Type: ${card.type || "Battle"}`,
-          `Form: ${form?.name || "M1"}`,
+          `Role: ${displayCard.cardRole}`,
+          `Type: ${displayCard.type || "Battle"}`,
+          `Form: ${form?.name || displayCard.evolutionKey || "M1"}`,
           `ATK: ${formatAtkRange(baseStats.atk)}`,
           `HP: ${baseStats.hp}`,
           `SPD: ${baseStats.speed}`,
           "",
           `Collection: ${progress.owned}/${progress.total} owned`,
           `Missing: ${progress.missing}`,
-          `Power: ${getCardPower(card, stageKey)}`,
+          `Power: ${power}`,
         ];
 
   return buildCardStyleEmbed({
     color: 0xe74c3c,
     header: "Missing Cards",
     card: {
-      ...card,
+      ...displayCard,
       atk: baseStats.atk,
       hp: baseStats.hp,
       speed: baseStats.speed,
-      currentPower: getCardPower(card, stageKey),
-      badgeImage: form?.badgeImage || card.badgeImage || "",
+      currentPower: power,
+      power,
+      badgeImage: form?.badgeImage || displayCard.badgeImage || "",
     },
-    badgeImage: form?.badgeImage || card.badgeImage || "",
+    badgeImage: form?.badgeImage || displayCard.badgeImage || "",
     image: stageImage,
-    formName: form?.name || stageKey,
-    tier: form?.tier || card.baseTier || card.rarity,
-    footerText: `Missing ${index + 1}/${total} • Code: ${card.code}`,
+    formName: form?.name || displayCard.evolutionKey || stageKey,
+    tier: form?.tier || displayCard.baseTier || displayCard.rarity,
+    footerText: `Missing ${index + 1}/${total} • Code: ${displayCard.code}`,
     extraLines,
   });
 }
@@ -654,7 +587,7 @@ module.exports = {
       });
 
       renderer = (item, index, total) =>
-        buildMissingCardEmbed(item, index, total, progress);
+        buildMissingCardEmbed(item, index, total, progress, player);
     }
 
     if (mode === "battle" || mode === "boost") {
@@ -664,19 +597,16 @@ module.exports = {
         getAllCards()
           .filter((c) => c.cardRole === mode)
           .map((card) =>
-            isLzsCard(card)
-              ? buildMergedLzsCard(player, card, 1, {
-                  templateOnly: true,
-                  sourceStage: 1,
-                  displayLevel: 50,
-                })
+            isMergeCard(card)
+              ? buildAllMergeDisplayCard(player, card, "M1")
               : card
           ),
         mode
       );
 
       list = normalCards;
-      renderer = (item, index, total) => buildCardEmbed(item, index, total, mode);
+      renderer = (item, index, total) =>
+        buildCardEmbed(item, index, total, mode, player);
     }
 
     if (mode === "weapon") {
@@ -716,6 +646,7 @@ module.exports = {
     const sent = await message.reply({
       embeds: [renderer(list[index], index, list.length)],
       components: rows(index, list.length),
+      allowedMentions: { repliedUser: false },
     });
 
     const collector = sent.createMessageComponentCollector({
