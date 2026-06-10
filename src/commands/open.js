@@ -1,5 +1,9 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayerAtomic } = require("../playerStore");
+const {
+  getPlayer,
+  updatePlayerAtomic,
+  flushPlayerNow,
+} = require("../playerStore");
 const { ITEMS } = require("../data/items");
 const { incrementQuestPayload } = require("../utils/questProgress");
 
@@ -553,6 +557,24 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     nextState = grantRewardItem(nextState, rewardMap, item, qty, amount);
   }
 
+    function addRewardExact(item, qty) {
+    nextState = grantRewardItem(nextState, rewardMap, item, qty, 1);
+  }
+
+  function addRandomFragmentExact(pool, qty) {
+    nextState = addRandomUniversalFragment(nextState, rewardMap, pool, qty, 1);
+  }
+
+  function rollEachBox(chance, callback) {
+    const boxCount = Math.max(1, Math.floor(Number(amount || 1)));
+
+    for (let i = 0; i < boxCount; i++) {
+      if (Math.random() < chance) {
+        callback();
+      }
+    }
+  }
+
   function addRandomFragment(pool, qty) {
     nextState = addRandomUniversalFragment(nextState, rewardMap, pool, qty, amount);
   }
@@ -634,17 +656,22 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addReward(ITEMS.hardwood, 1);
     addReward(ITEMS.colaEnginePart, 1);
     addReward(ITEMS.enhancementStone, 10);
-    addReward(ITEMS.rumBeer, 5 + Math.floor(Math.random() * 3));
 
-    if (Math.random() < 0.60) {
-      addRandomFragment(
-        [getUniversalAFragmentItem(), getUniversalSFragmentItem()],
-        Math.random() < 0.35 ? 2 : 1
-      );
-    }
+    const boxCount = Math.max(1, Math.floor(Number(amount || 1)));
 
-    if (Math.random() < 0.35) {
-      addReward(getPullResetTicketItem(), 1);
+    for (let i = 0; i < boxCount; i++) {
+      addRewardExact(ITEMS.rumBeer, 5 + Math.floor(Math.random() * 3));
+
+      if (Math.random() < 0.60) {
+        addRandomFragmentExact(
+          [getUniversalAFragmentItem(), getUniversalSFragmentItem()],
+          Math.random() < 0.35 ? 2 : 1
+        );
+      }
+
+      if (Math.random() < 0.35) {
+        addRewardExact(getPullResetTicketItem(), 1);
+      }
     }
   } else if (box.code === "mother_flame_treasure_box") {
     addBerries(50000);
@@ -777,7 +804,7 @@ module.exports = {
       const rewardMap = new Map();
 
       try {
-        updatePlayerAtomic(
+        await updatePlayerAtomic(
           message.author.id,
           (fresh) => {
             const fixedFresh = moveMisplacedConsumablesToItems({
@@ -850,7 +877,14 @@ module.exports = {
       } catch (error) {
         return message.reply(error.message || "Failed to open item.");
       }
-
+      try {
+        await flushPlayerNow(
+          message.author.id,
+          Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 8000)
+        );
+      } catch (error) {
+        console.error("[OPEN ITEM FORCE FLUSH ERROR]", error);
+      }
       const rewardLines = formatRewardLines(rewardMap);
 
       return message.reply({
@@ -954,7 +988,14 @@ module.exports = {
     } catch (error) {
       return message.reply(error.message || "Failed to open box.");
     }
-
+    try {
+      await flushPlayerNow(
+        message.author.id,
+        Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 8000)
+      );
+    } catch (error) {
+      console.error("[OPEN BOX FORCE FLUSH ERROR]", error);
+    }
     const rewardLines = formatRewardLines(rewardMap);
 
     return message.reply({
