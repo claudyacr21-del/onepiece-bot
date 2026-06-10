@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { updatePlayerAtomic } = require("../playerStore");
 const { createOwnedCard } = require("../utils/evolution");
+const { buildMergedCard } = require("../utils/mergeCards");
 const rawCards = require("../data/cards");
 const weaponsDb = require("../data/weapons");
 
@@ -423,13 +424,74 @@ function getCardTemplateByCode(code) {
 }
 
 function getSpecialSummonFragments(card) {
- if (!isLzsCard(card)) return null;
+  if (!isGenericMergeSummonCard(card)) return null;
 
- return [
-  { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 50 },
-  { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 50 },
-  { code: "sanji_black_leg", name: "Sanji", amount: 50 },
- ];
+  const directFragments = Array.isArray(card?.summonFragments)
+    ? card.summonFragments
+    : Array.isArray(card?.mergeSummonFragments)
+      ? card.mergeSummonFragments
+      : null;
+
+  if (directFragments?.length) {
+    return directFragments
+      .map((req) => {
+        const code = String(req.code || req.cardCode || req.sourceCode || "").trim();
+        const template = getCardTemplateByCode(code) || {};
+
+        return {
+          code,
+          name:
+            req.name ||
+            template.displayName ||
+            template.name ||
+            code.replace(/_/g, " "),
+          amount: Math.max(1, Math.floor(Number(req.amount || 50))),
+        };
+      })
+      .filter((req) => req.code);
+  }
+
+  const sourceCodes = Array.isArray(card?.mergeSourceCodes)
+    ? card.mergeSourceCodes
+    : [];
+
+  if (!sourceCodes.length) return null;
+
+  const defaultAmount = Math.max(
+    1,
+    Math.floor(
+      Number(
+        card?.mergeFragmentCost ||
+          card?.summonFragmentCost ||
+          card?.specialFragmentCost ||
+          50
+      )
+    )
+  );
+
+  const perSourceCost =
+    card?.mergeFragmentCosts && typeof card.mergeFragmentCosts === "object"
+      ? card.mergeFragmentCosts
+      : {};
+
+  return sourceCodes
+    .map((code) => {
+      const sourceCode = String(code || "").trim();
+      const template = getCardTemplateByCode(sourceCode) || {};
+
+      return {
+        code: sourceCode,
+        name:
+          template.displayName ||
+          template.name ||
+          sourceCode.replace(/_/g, " "),
+        amount: Math.max(
+          1,
+          Math.floor(Number(perSourceCost[sourceCode] || defaultAmount))
+        ),
+      };
+    })
+    .filter((req) => req.code);
 }
 
 function getSpecialSummonRequirementError(player, card) {
@@ -599,58 +661,100 @@ module.exports = {
             
  const specialFragments = getSpecialSummonFragments(card);
 
- if (specialFragments) {
-  let nextFragments = fragments;
-  const remainingTexts = [];
+  if (specialFragments) {
+    let nextFragments = fragments;
+    const remainingTexts = [];
 
-  for (const req of specialFragments) {
-   const template = getCardTemplateByCode(req.code) || req;
-   const consumed = consumeCardFragments(nextFragments, template, req.amount);
+    for (const req of specialFragments) {
+      const template = getCardTemplateByCode(req.code) || req;
+      const ownedAmount = getTotalCardFragments(nextFragments, template);
 
-   if (!consumed) {
-    throw new Error(`Failed to consume **${req.amount}x ${req.name} Fragment**.`);
-   }
+      if (ownedAmount < req.amount) {
+        throw new Error(
+          [
+            `You need **${req.amount}x ${req.name} Fragment** to summon **${getCardName(
+              card
+            )}**.`,
+            `You currently have **${ownedAmount}x**.`,
+          ].join("\n")
+        );
+      }
 
-   nextFragments = consumed.fragments;
-   remainingTexts.push(`${req.name}: ${consumed.remaining}`);
+      const consumed = consumeCardFragments(nextFragments, template, req.amount);
+
+      if (!consumed) {
+        throw new Error(`Failed to consume **${req.amount}x ${req.name} Fragment**.`);
+      }
+
+      nextFragments = consumed.fragments;
+      remainingTexts.push(`${req.name}: ${consumed.remaining}`);
+    }
+
+    const mergeTemplate = {
+      ...card,
+      cardRole: "battle",
+      role: "battle",
+      category: "battle",
+      type: "Merge",
+      rarity: card.rarity || card.baseTier || card.currentTier || "M",
+      baseTier: card.baseTier || card.rarity || card.currentTier || "M",
+      currentTier: card.currentTier || card.baseTier || card.rarity || "M",
+      tier: card.tier || card.currentTier || card.baseTier || card.rarity || "M",
+      canPull: false,
+      canPA: false,
+      summonOnly: true,
+      mergeOnly: true,
+      canEquipWeapon: false,
+      canEquipDevilFruit: false,
+      equipmentLocked: true,
+      equipmentSyncOnly: true,
+      mergeSourceCodes: Array.isArray(card.mergeSourceCodes)
+        ? card.mergeSourceCodes
+        : specialFragments.map((req) => req.code),
+      mergeStatRatio: Number(card.mergeStatRatio || 0.5),
+      evolutionStage: Number(card.evolutionStage || 1),
+      evolutionKey: card.evolutionKey || "M1",
+      level: 1,
+      currentLevel: 1,
+      lvl: 1,
+    };
+
+    const baseOwnedCard = applyBankedRaidPrestigeToSummonedCard(
+      fresh,
+      createOwnedCard(mergeTemplate),
+      mergeTemplate
+    );
+
+    const mergedCard = buildMergedCard(fresh, baseOwnedCard);
+
+    ownedCard = {
+      ...baseOwnedCard,
+      ...mergedCard,
+      ...mergeTemplate,
+      instanceId: mergedCard.instanceId || baseOwnedCard.instanceId,
+      obtainedAt: mergedCard.obtainedAt || baseOwnedCard.obtainedAt || Date.now(),
+    };
+
+    summonedType = "card";
+    summonedName = getCardName(mergeTemplate);
+    summonedRarity = String(
+      mergeTemplate.currentTier ||
+        mergeTemplate.baseTier ||
+        mergeTemplate.rarity ||
+        "M"
+    ).toUpperCase();
+    remainingFragments = remainingTexts.join(", ");
+    summonCostText = specialFragments
+      .map((req) => `${req.amount}x ${req.name} Fragment`)
+      .join(", ");
+    cardRoleLabel = "Merge Battle Card";
+
+    return {
+      ...fresh,
+      cards: [...(fresh.cards || []), ownedCard],
+      fragments: nextFragments,
+    };
   }
-
-  ownedCard = applyBankedRaidPrestigeToSummonedCard(
-   fresh,
-   createOwnedCard(card),
-   card
-  );
-
-  ownedCard = {
-   ...ownedCard,
-   code: "lzs",
-   name: "Monster Trio",
-   displayName: "Monster Trio",
-   rarity: "M",
-   baseTier: "M",
-   currentTier: "M",
-   tier: "M",
-   summonOnly: true,
-   mergeOnly: true,
-   mergeSourceCodes: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
-   mergeStatRatio: 0.5,
-   evolutionStage: 1,
-   evolutionKey: "M1",
-  };
-
-  summonedType = "card";
-  summonedName = getCardName(card);
-  summonedRarity = "M";
-  remainingFragments = remainingTexts.join(", ");
-  summonCostText = specialFragments.map((req) => `${req.amount}x ${req.name} Fragment`).join(", ");
-  cardRoleLabel = getRoleLabel(card); summonCostText = `${SUMMON_FRAGMENT_COST}x ${summonedName} Fragment`;
-
-  return {
-   ...fresh,
-   cards: [...(fresh.cards || []), ownedCard],
-   fragments: nextFragments,
-  };
- }
  const ownedFragments = getTotalCardFragments(fragments, card);
 
             if (ownedFragments <= 0) {
