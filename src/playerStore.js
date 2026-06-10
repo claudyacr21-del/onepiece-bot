@@ -91,6 +91,7 @@ function normalizeStoreRecord(userId, data, username = "Unknown") {
 
 function enqueuePlayerSnapshotSave(userId, player) {
   const id = String(userId);
+
   const initialSnapshot = normalizeStoreRecord(
     id,
     player,
@@ -113,10 +114,12 @@ function enqueuePlayerSnapshotSave(userId, player) {
         latestRaw?.username || initialSnapshot?.username || "Unknown"
       );
 
-      const safeSnapshot = normalizePlayer(
-        latestSnapshot,
-        latestSnapshot?.username || "Unknown"
-      );
+      const safeSnapshot = isSystemStoreKey(id)
+        ? cloneJson(latestSnapshot || {})
+        : normalizePlayer(
+            latestSnapshot,
+            latestSnapshot?.username || "Unknown"
+          );
 
       const saved = await upsertOnePlayerToPostgres(id, safeSnapshot);
 

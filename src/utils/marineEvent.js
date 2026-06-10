@@ -151,15 +151,21 @@ function isAllowedGuild(guildId) {
 function getMarineConfigStore(players = null) {
   const data = players || readPlayers();
 
-  if (!data[MARINE_CHANNEL_STORE_KEY]) {
-    data[MARINE_CHANNEL_STORE_KEY] = {
-      guilds: {},
-    };
-  }
+  const current =
+    data[MARINE_CHANNEL_STORE_KEY] &&
+    typeof data[MARINE_CHANNEL_STORE_KEY] === "object"
+      ? data[MARINE_CHANNEL_STORE_KEY]
+      : {};
 
-  if (!data[MARINE_CHANNEL_STORE_KEY].guilds) {
-    data[MARINE_CHANNEL_STORE_KEY].guilds = {};
-  }
+  const guilds =
+    current.guilds && typeof current.guilds === "object"
+      ? current.guilds
+      : {};
+
+  data[MARINE_CHANNEL_STORE_KEY] = {
+    ...current,
+    guilds,
+  };
 
   return data[MARINE_CHANNEL_STORE_KEY];
 }
@@ -183,10 +189,11 @@ function isMarineChannelAllowed(guildId, channelId) {
 function setMarineChannelAllowed(guildId, channelId, allowed) {
   const players = readPlayers();
   const store = getMarineConfigStore(players);
+
   const guildKey = String(guildId);
   const channelKey = String(channelId);
 
-  if (!store.guilds[guildKey]) {
+  if (!store.guilds[guildKey] || typeof store.guilds[guildKey] !== "object") {
     store.guilds[guildKey] = {
       allowedChannels: [],
     };
@@ -200,9 +207,13 @@ function setMarineChannelAllowed(guildId, channelId, allowed) {
     ? [...new Set([...current, channelKey])]
     : current.filter((id) => id !== channelKey);
 
-  store.guilds[guildKey].allowedChannels = next;
-  players[MARINE_CHANNEL_STORE_KEY] = store;
+  store.guilds[guildKey] = {
+    ...store.guilds[guildKey],
+    allowedChannels: next,
+    updatedAt: Date.now(),
+  };
 
+  players[MARINE_CHANNEL_STORE_KEY] = store;
   writePlayers(players);
 
   return next;
