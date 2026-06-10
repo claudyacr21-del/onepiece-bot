@@ -378,11 +378,6 @@ function isLzsCard(card) {
  return code === "lzs" || name === "monster trio";
 }
 
-function isLzsSummonDisabled(card) {
- // return isLzsCard(card);
- return false;
-}
-
 function isGenericMergeSummonCard(card) {
   const type = String(card?.type || "").toLowerCase().trim();
 
@@ -593,16 +588,6 @@ module.exports = {
           if (card) {
             if (alreadyOwnsCard(fresh, card)) {
               throw new Error(`You already own **${getCardName(card)}**.`);
-            }
-
-            if (isLzsSummonDisabled(card)) {
-              throw new Error(
-              [
-                "**Monster Trio / LZS summon is temporarily disabled.**",
-                "",
-                "This merge card is still in testing and has not launched yet.",
-              ].join("\n")
-              );
             }
 
             const requirementError = getSpecialSummonRequirementError(fresh, card);
