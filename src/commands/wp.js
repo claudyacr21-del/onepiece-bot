@@ -29,6 +29,10 @@ const normalize = (s = "") =>
     .replace(/[^a-z0-9\s]+/g, "")
     .replace(/\s+/g, " ");
 
+function getWeaponNameOnly(weapon) {
+  return String(weapon?.name || "").trim();
+}
+
 function scoreNameOnly(query, names) {
   const q = normalize(query);
   if (!q) return 0;
@@ -58,19 +62,19 @@ function getWeaponDisplayName(weapon) {
 function findBestWeaponMatch(query) {
   const scored = weapons
     .map((weapon) => {
-      const displayName = getWeaponDisplayName(weapon);
+      const weaponName = getWeaponNameOnly(weapon);
 
       return {
         weapon,
-        displayName,
-        score: scoreNameOnly(query, [displayName]),
+        weaponName,
+        score: scoreNameOnly(query, [weaponName]),
       };
     })
-    .filter((entry) => entry.displayName)
+    .filter((entry) => entry.weaponName)
     .filter((entry) => entry.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return normalize(a.displayName).length - normalize(b.displayName).length;
+      return normalize(a.weaponName).length - normalize(b.weaponName).length;
     });
 
   return scored.length ? scored[0].weapon : null;
@@ -183,18 +187,22 @@ function splitCardAndWeaponInput(rawArgs) {
   return null;
 }
 
-function findOwnedWeaponEntry(ownedWeapons, weaponCode) {
-  const q = normalize(weaponCode);
+function findOwnedWeaponEntry(ownedWeapons, weaponTemplate) {
+  const weaponCode = normalize(weaponTemplate?.code);
+  const weaponName = normalize(getWeaponNameOnly(weaponTemplate));
 
   return (
     (Array.isArray(ownedWeapons) ? ownedWeapons : [])
-      .filter((x) => {
-        if (Number(x.amount || 0) <= 0) return false;
+      .filter((entry) => {
+        if (Number(entry.amount || 0) <= 0) return false;
 
-        const code = normalize(x.code);
-        const name = normalize(x.name);
+        const entryCode = normalize(entry.code);
+        const entryName = normalize(entry.name);
 
-        return code === q || name === q;
+        return (
+          entryCode === weaponCode ||
+          entryName === weaponName
+        );
       })
       .sort(
         (a, b) => Number(b.upgradeLevel || 0) - Number(a.upgradeLevel || 0)
@@ -202,21 +210,26 @@ function findOwnedWeaponEntry(ownedWeapons, weaponCode) {
   );
 }
 
-function consumeWeapon(list, weaponCode) {
+function consumeWeapon(list, weaponTemplate) {
   const arr = [...(Array.isArray(list) ? list : [])];
-  const q = normalize(weaponCode);
+  const weaponCode = normalize(weaponTemplate?.code);
+  const weaponName = normalize(getWeaponNameOnly(weaponTemplate));
 
   const candidates = arr
     .map((entry, index) => ({ entry, index }))
-    .filter(
-      ({ entry }) =>
-        normalize(entry.code || entry.name) === q &&
-        Number(entry.amount || 0) > 0
-    )
+    .filter(({ entry }) => {
+      if (Number(entry.amount || 0) <= 0) return false;
+
+      const entryCode = normalize(entry.code);
+      const entryName = normalize(entry.name);
+
+      return (
+        entryCode === weaponCode ||
+        entryName === weaponName
+      );
+    })
     .sort(
-      (a, b) =>
-        Number(b.entry.upgradeLevel || 0) -
-        Number(a.entry.upgradeLevel || 0)
+      (a, b) => Number(b.entry.upgradeLevel || 0) - Number(a.entry.upgradeLevel || 0)
     );
 
   if (!candidates.length) {
@@ -375,7 +388,7 @@ module.exports = {
 
     const previewOwnedEntry = findOwnedWeaponEntry(
       previewPlayer.weapons || [],
-      previewWeaponTemplate.code
+      previewWeaponTemplate
     );
 
     if (!previewOwnedEntry) {
@@ -396,7 +409,7 @@ module.exports = {
     let shownPercent = { atk: 0, hp: 0, speed: 0 };
 
     try {
-      updatePlayerAtomic(
+      await updatePlayerAtomic(
         message.author.id,
         (fresh) => {
           const card = findOwnedCardByName(fresh.cards || [], split.cardName);
@@ -419,7 +432,7 @@ module.exports = {
 
           const ownedEntry = findOwnedWeaponEntry(
             fresh.weapons || [],
-            weaponTemplate.code
+            weaponTemplate
           );
 
           if (!ownedEntry) {
@@ -443,7 +456,7 @@ module.exports = {
             throw new Error("That weapon is already equipped on this card.");
           }
 
-          const nextWeapons = consumeWeapon(fresh.weapons || [], weaponTemplate.code);
+          const nextWeapons = consumeWeapon(fresh.weapons || [], weaponTemplate);
           inheritedLevel = Math.max(0, Number(ownedEntry.upgradeLevel || 0));
 
           const equippedPayload = {
@@ -557,7 +570,7 @@ module.exports = {
           .setDescription(
             [
               `**Card:** ${synced.displayName || synced.name}`,
-              `**Added Weapon:** ${weaponTemplate.displayName || weaponTemplate.name}`,
+              `**Added Weapon:** ${weaponTemplate.name}`,
               `**Weapon Rarity:** ${String(
                 weaponTemplate.rarity || "B"
               ).toUpperCase()}`,
