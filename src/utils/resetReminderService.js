@@ -1,7 +1,10 @@
 const { Pool } = require("pg");
 const { EmbedBuilder } = require("discord.js");
 const { readPlayers } = require("../playerStore");
-const { getNextResetTime } = require("./pullReset");
+const {
+  getNextResetTime,
+  RESET_INTERVAL_HOURS,
+} = require("./pullReset");
 
 const RESET_CHANNEL_ID = process.env.RESET_CHANNEL_ID || "";
 const RESET_PING_ROLE_ID = process.env.RESET_PING_ROLE_ID || "";
@@ -195,6 +198,24 @@ async function claimReminderEventOnce(userId, reminderType, readyAt) {
   );
 
   return result.rowCount > 0;
+}
+
+function formatRemaining(targetTime, now = Date.now()) {
+  const diff = Math.max(0, Number(targetTime || 0) - Number(now || Date.now()));
+
+  if (diff <= 0) return "Now";
+
+  const totalSeconds = Math.ceil(diff / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+
+  return `${seconds}s`;
 }
 
 function formatDiscordTimestamp(timestampMs, style = "R") {
@@ -404,12 +425,14 @@ async function sendGlobalPullResetNotification(client) {
   }
 
   const now = Date.now();
-  const nextResetAt = getNextResetTime(now + 10 * 1000);
+  const nextResetAt = getNextResetTime(now);
+  const nextResetText = formatRemaining(nextResetAt, now);
+  const nextResetTimestamp = formatDiscordTimestamp(nextResetAt, "t");
   const roleMention = RESET_PING_ROLE_ID ? `<@&${RESET_PING_ROLE_ID}>` : "@Reset Ping";
 
   const embed = new EmbedBuilder()
     .setColor(0x9b59b6)
-    .setTitle("🔁 Pull Reset Is Now Live!")
+    .setTitle(" Pull Reset Is Now Live!")
     .setDescription(
       [
         "You can pull again in command channels!",
@@ -417,7 +440,9 @@ async function sendGlobalPullResetNotification(client) {
         "• Pull slots have been refreshed globally.",
         "• Use `op pull` or `op pa` if you have access.",
         "",
-        `⏳ Next reset: ${formatDiscordTimestamp(nextResetAt, "R")}`,
+        `⏳ Next reset: **${nextResetText}**`,
+        `🕒 Reset cycle: every **${RESET_INTERVAL_HOURS} hours**`,
+        `📌 Exact time: ${nextResetTimestamp}`,
       ].join("\n")
     )
     .setFooter({
@@ -453,15 +478,19 @@ function scheduleNextGlobalReset(client) {
   }
 
   globalResetTimer = setTimeout(async () => {
+    const firedAt = Date.now();
+
     try {
+      const currentResetAt = getNextResetTime(firedAt - RESET_SEND_DELAY_MS);
       const claimed = await claimReminderEventOnce(
         "__global__",
         "pull_reset",
-        Number(nextResetAt)
+        Number(currentResetAt)
       );
 
       if (claimed) {
         const sent = await sendGlobalPullResetNotification(client);
+
         if (!sent) {
           console.warn("[RESET REMINDER] Global reset notification skipped.");
         }
