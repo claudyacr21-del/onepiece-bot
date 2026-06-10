@@ -999,16 +999,16 @@ function getRaidBossModeMultiplier(raidMode = {}) {
 
   if (ticketCode === "mythic_raid_ticket" || modeName.includes("mythic")) {
     return {
-      hp: 5,
+      hp: 4.5,
       speed: 2,
       atk: 4.5,
     };
   }
 
   return {
-    hp: 3,
-    speed: 3,
-    atk: 3,
+    hp: 1,
+    speed: 1,
+    atk: 1,
   };
 }
 
