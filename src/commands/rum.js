@@ -1,5 +1,9 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayerAtomic } = require("../playerStore");
+const {
+  getPlayer,
+  updatePlayerAtomic,
+  flushPlayerNow,
+} = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestPayload } = require("../utils/questProgress");
 
@@ -48,25 +52,17 @@ function getStageLevelCap(card) {
 }
 
 function getCurrentExp(card) {
-  const xp = Number(card?.xp);
   const exp = Number(card?.exp);
+  const xp = Number(card?.xp);
 
-  if (Number.isFinite(xp) && xp >= 0) return xp;
-  if (Number.isFinite(exp) && exp >= 0) return exp;
+  if (Number.isFinite(exp) && exp >= 0) return Math.floor(exp);
+  if (Number.isFinite(xp) && xp >= 0) return Math.floor(xp);
 
   return 0;
 }
 
 function getExpNeededForNextLevel(card) {
-  const current = getCurrentExp(card);
-  const needed = Number(
-    card?.xpToNext ||
-      card?.expToNext ||
-      card?.nextLevelExp ||
-      EXP_PER_LEVEL
-  );
-
-  return Math.max(1, needed - current);
+  return EXP_PER_LEVEL;
 }
 
 function findOwnedCard(player, query) {
@@ -140,32 +136,33 @@ function removeRumBeer(items, amount) {
 }
 
 function applyExpToCard(card, expAmount) {
+  const levelCap = getStageLevelCap(card);
   const next = {
     ...card,
-    level: Number(card.level || 1),
+    level: Math.max(1, Math.floor(Number(card.level || card.currentLevel || card.lvl || 1))),
+    currentLevel: Math.max(1, Math.floor(Number(card.level || card.currentLevel || card.lvl || 1))),
+    lvl: Math.max(1, Math.floor(Number(card.level || card.currentLevel || card.lvl || 1))),
     exp: getCurrentExp(card),
     xp: getCurrentExp(card),
   };
 
-  let remainingExp = Number(expAmount || 0);
+  let remainingExp = Math.max(0, Math.floor(Number(expAmount || 0)));
   let levelsGained = 0;
 
   while (remainingExp > 0) {
-    const level = Number(next.level || 1);
-    const levelCap = getStageLevelCap(next);
+    const level = Math.max(1, Math.floor(Number(next.level || 1)));
 
     if (level >= levelCap) {
       break;
     }
 
-    const needed = getExpNeededForNextLevel(next);
+    const currentExp = getCurrentExp(next);
+    const needed = Math.max(1, EXP_PER_LEVEL - currentExp);
 
     if (remainingExp < needed) {
-      const newExp = getCurrentExp(next) + remainingExp;
-
+      const newExp = currentExp + remainingExp;
       next.exp = newExp;
       next.xp = newExp;
-
       remainingExp = 0;
       break;
     }
@@ -173,16 +170,20 @@ function applyExpToCard(card, expAmount) {
     remainingExp -= needed;
     levelsGained += 1;
 
-    next.level = level + 1;
+    const newLevel = level + 1;
+    next.level = newLevel;
+    next.currentLevel = newLevel;
+    next.lvl = newLevel;
     next.exp = 0;
     next.xp = 0;
   }
 
   return {
     card: next,
-    usedExp: Number(expAmount || 0) - remainingExp,
+    usedExp: Math.max(0, Math.floor(Number(expAmount || 0))) - remainingExp,
+    unusedExp: remainingExp,
     levelsGained,
-    blockedByCap: remainingExp > 0,
+    blockedByCap: remainingExp > 0 && Number(next.level || 1) >= levelCap,
   };
 }
 
@@ -288,7 +289,7 @@ module.exports = {
     let finalRemainingRum = Math.max(0, previewOwnedRum - previewAmountToUse);
 
     try {
-      updatePlayerAtomic(
+      await updatePlayerAtomic(
         message.author.id,
         (fresh) => {
           const ownedRum = getRumBeerAmount(fresh);
@@ -392,6 +393,10 @@ module.exports = {
           };
         },
         message.author.username
+      );
+      await flushPlayerNow(
+        message.author.id,
+        Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 8000)
       );
     } catch (error) {
       return message.reply({
