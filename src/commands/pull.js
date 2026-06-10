@@ -174,60 +174,66 @@ function prettySlotName(key) {
   return map[key] || key;
 }
 
-function getTicketPool() {
-  return [
-    {
+function getTicketPool(pullTier = "normal") {
+  const tier = String(pullTier || "normal");
+
+  const baseTickets = {
+    common: {
       code: "common_raid_ticket",
       name: "Common Raid Ticket",
       rarity: "B",
       type: "Ticket",
-      weight: 55,
-      image:
-        "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862086254712/content.png?ex=6a01d3d3&is=6a008253&hm=3adddcd707caa59db48cd9489b6eed6f5012b7a1725d7458a1c51ff1406b6621&",
+      image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862086254712/content.png?ex=6a01d3d3&is=6a008253&hm=3adddcd707caa59db48cd9489b6eed6f5012b7a1725d7458a1c51ff1406b6621&",
     },
-    {
+    raid: {
       code: "raid_ticket",
       name: "Raid Ticket",
       rarity: "A",
       type: "Ticket",
-      weight: 34,
-      image:
-        "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862694301907/content.png?ex=6a01d3d4&is=6a008254&hm=c46ef6d8f72ef586dc9817d629edbe23f8895613eeef5216ab80d026820e9ce2&",
+      image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503019862694301907/content.png?ex=6a01d3d4&is=6a008254&hm=c46ef6d8f72ef586dc9817d629edbe23f8895613eeef5216ab80d026820e9ce2&",
     },
-    {
+    gold: {
       code: "gold_raid_ticket",
       name: "Gold Raid Ticket",
       rarity: "S",
       type: "Ticket",
-      weight: 8,
-      image:
-        "https://cdn.discordapp.com/attachments/1493204525975076944/1503019863172448387/content.png?ex=6a01d3d4&is=6a008254&hm=cc387565f21d590a67bd120924c42e5b296f2acc7b12c1aa24f1d5713232f72e&",
+      image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503019863172448387/content.png?ex=6a01d3d4&is=6a008254&hm=cc387565f21d590a67bd120924c42e5b296f2acc7b12c1aa24f1d5713232f72e&",
     },
-    {
+    throne: {
       code: "empty_throne_raid_writ",
       name: "Empty Throne Raid Writ",
       rarity: "S",
       type: "Ticket",
-      weight: 3,
-      image:
-        "https://cdn.discordapp.com/attachments/1493204525975076944/1503039261551624302/content.png?ex=6a01e5e5&is=6a009465&hm=d1c5a4e761f84b982572f211b9d5cbb202129e75226665b278ff6608fe94ea41",
+      image: "https://cdn.discordapp.com/attachments/1493204525975076944/1503039261551624302/content.png?ex=6a01e5e5&is=6a009465&hm=d1c5a4e761f84b982572f211b9d5cbb202129e75226665b278ff6608fe94ea41",
     },
-    {
+    mythic: {
       code: "mythic_raid_ticket",
       name: "Mythic Raid Ticket",
       rarity: "UR",
       type: "Ticket",
-      weight: 0.5,
-      image:
-        "https://cdn.discordapp.com/attachments/1493204525975076944/1513072518498353162/content.png?ex=6a266617&is=6a251497&hm=e3a300a1a63dae89865fb29e0dc7742baacabd739e1534cc519a19114d3d660f",
+      image: "https://cdn.discordapp.com/attachments/1493204525975076944/1513072518498353162/content.png?ex=6a266617&is=6a251497&hm=e3a300a1a63dae89865fb29e0dc7742baacabd739e1534cc519a19114d3d660f",
     },
+  };
+
+  const weights =
+    tier === "motherFlame"
+      ? { common: 35, raid: 35, gold: 16, throne: 9, mythic: 5 }
+      : tier === "vivreCard"
+        ? { common: 44, raid: 34, gold: 13, throne: 6, mythic: 3 }
+        : { common: 52, raid: 35, gold: 8, throne: 4, mythic: 1 };
+
+  return [
+    { ...baseTickets.common, weight: weights.common },
+    { ...baseTickets.raid, weight: weights.raid },
+    { ...baseTickets.gold, weight: weights.gold },
+    { ...baseTickets.throne, weight: weights.throne },
+    { ...baseTickets.mythic, weight: weights.mythic },
   ];
 }
 
-function pickWeightedTicket() {
-  const pool = getTicketPool();
+function pickWeightedTicket(pullTier = "normal") {
+  const pool = getTicketPool(pullTier);
   const total = pool.reduce((sum, item) => sum + Number(item.weight || 0), 0);
-
   let roll = Math.random() * total;
 
   for (const item of pool) {
@@ -238,8 +244,8 @@ function pickWeightedTicket() {
   return pool[0];
 }
 
-function getRewardPool(contentType) {
-  if (contentType === "ticket") return getTicketPool();
+function getRewardPool(contentType, pullTier = "normal") {
+  if (contentType === "ticket") return getTicketPool(pullTier);
 
   if (contentType === "battleCard") {
     return rawCards.filter(
@@ -1213,7 +1219,7 @@ module.exports = {
           luckyWeekMultiplier
         );
 
-    const pool = getRewardPool(contentType);
+    const pool = getRewardPool(contentType, premiumTier);
     const picked =
       contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, baseTier);
 

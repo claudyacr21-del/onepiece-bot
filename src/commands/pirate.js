@@ -6,6 +6,10 @@ const {
   MessageFlags,
 } = require("discord.js");
 const { readPlayers, writePlayers } = require("../playerStore");
+const {
+  applyPirateRewardBonuses,
+  applyRaidGloryPoints,
+} = require("../utils/rewardBonuses");
 const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
@@ -1749,7 +1753,7 @@ function getPirateRaidState(pirate, tierKey) {
   };
 }
 
-function getPirateRaidPoints({ boss, damage, pirate }) {
+function getPirateRaidPoints({ boss, damage, pirate, userId }) {
   const bossHp = Math.max(1, Math.floor(Number(boss?.hp || 1)));
   const bossPoints = Math.max(1, Math.floor(Number(boss?.basePoints || 1)));
   const realDamage = Math.max(
@@ -1759,6 +1763,10 @@ function getPirateRaidPoints({ boss, damage, pirate }) {
 
   const damageRatio = Math.max(0, Math.min(1, realDamage / bossHp));
   const basePointsEarned = bossPoints * damageRatio;
+  const basePoints =
+    realDamage > 0 ? Math.max(1, Math.floor(basePointsEarned)) : 0;
+
+  const points = userId ? applyRaidGloryPoints(userId, basePoints) : basePoints;
 
   const raidPointLevel = Math.max(
     0,
@@ -1766,10 +1774,9 @@ function getPirateRaidPoints({ boss, damage, pirate }) {
   );
 
   const boostMultiplier = 1 + raidPointLevel * 0.01;
-  const boostedPoints = Math.floor(basePointsEarned * boostMultiplier);
 
   return {
-    points: realDamage > 0 ? Math.max(1, boostedPoints) : 0,
+    points,
     basePointsEarned,
     raidPointLevel,
     boostMultiplier,
@@ -1877,13 +1884,18 @@ function applyPirateRaidContributorRewards(message, boss, contributors) {
   for (const [userId, data] of entries) {
     const player = getPlayer(players, userId, `User ${userId}`);
 
+    const boostedReward = applyPirateRewardBonuses(userId, {
+      berries: reward.berries,
+      gems: reward.gems,
+    });
+
     player.berries =
       Math.max(0, Math.floor(Number(player.berries || 0))) +
-      Math.max(0, Math.floor(Number(reward.berries || 0)));
+      Math.max(0, Math.floor(Number(boostedReward.berries || 0)));
 
     player.gems =
       Math.max(0, Math.floor(Number(player.gems || 0))) +
-      Math.max(0, Math.floor(Number(reward.gems || 0)));
+      Math.max(0, Math.floor(Number(boostedReward.gems || 0)));
 
     for (const item of reward.items || []) {
       if (String(item.type || "").toLowerCase() === "ticket") {
@@ -1901,11 +1913,30 @@ function applyPirateRaidContributorRewards(message, boss, contributors) {
       .map((item) => `${item.name || item.code} x${fmt(item.amount || 1)}`)
       .join(", ");
 
+    const bonusBerry = Math.max(
+      0,
+      Math.floor(Number(boostedReward.berries || 0)) -
+        Math.floor(Number(reward.berries || 0))
+    );
+
+    const bonusGems = Math.max(
+      0,
+      Math.floor(Number(boostedReward.gems || 0)) -
+        Math.floor(Number(reward.gems || 0))
+    );
+
     rewardLines.push(
       [
-        `• <@${userId}> — +${fmt(reward.berries)} berries, +${fmt(reward.gems)} gems`,
-        itemText ? `  Rewards: ${itemText}` : null,
-        `  Damage: ${fmt(data.damage)}`,
+        `• <@${userId}> — +${fmt(boostedReward.berries)} berries, +${fmt(
+          boostedReward.gems
+        )} gems`,
+        bonusBerry || bonusGems
+          ? `Pirate Perk Bonus: +${fmt(bonusBerry)} berries, +${fmt(
+              bonusGems
+            )} gems`
+          : null,
+        itemText ? `Rewards: ${itemText}` : null,
+        `Damage: ${fmt(data.damage)}`,
       ]
         .filter(Boolean)
         .join("\n")
@@ -1913,7 +1944,6 @@ function applyPirateRaidContributorRewards(message, boss, contributors) {
   }
 
   writePlayers(players);
-
   return rewardLines;
 }
 
@@ -2337,6 +2367,7 @@ async function handlePirateAttack(message, args) {
     boss,
     damage: 0,
     pirate: latestPirate || pirate,
+    userId: message.author.id,
   });
   let bossCounterDamage = 0;
 
@@ -2357,6 +2388,7 @@ async function handlePirateAttack(message, args) {
       boss,
       damage,
       pirate: fresh,
+      userId: message.author.id,
     });
 
     const contributors =

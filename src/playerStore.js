@@ -925,73 +925,8 @@ function readPlayers() {
   }
 }
 
-function writePlayersLocalBackupOnly(data) {
-  ensureFile();
-
-  const safeData = data && typeof data === "object" ? data : {};
-  setPlayersCache(safeData);
-
-  const serialized = JSON.stringify(safeData, null, 2);
-  const tempPath = `${filePath}.${process.pid}.${Date.now()}.${Math.random()
-    .toString(16)
-    .slice(2)}.tmp`;
-
-  fs.writeFileSync(tempPath, serialized, "utf8");
-  fs.renameSync(tempPath, filePath);
-
-  try {
-    fs.writeFileSync(getLastGoodBackupPath(), serialized, "utf8");
-  } catch (error) {
-    console.error("Failed to write last-good players backup.", error);
-  }
-}
-
-function mergePlayerStoreForWrite(incomingData) {
-  const incomingStore =
-    incomingData && typeof incomingData === "object" ? incomingData : {};
-
-  const currentStore =
-    playersCache && typeof playersCache === "object" ? playersCache : {};
-
-  const mergedStore = {
-    ...currentStore,
-  };
-
-  for (const [userId, incomingPlayer] of Object.entries(incomingStore)) {
-    const id = String(userId);
-
-    if (isSystemStoreKey(id)) {
-      mergedStore[id] = cloneJson(incomingPlayer || {});
-      continue;
-    }
-
-    const currentPlayer = currentStore[id] || {};
-    const username =
-      incomingPlayer?.username ||
-      currentPlayer?.username ||
-      "Unknown";
-
-    const safeIncoming = normalizePlayer(incomingPlayer || {}, username);
-    const safeCurrent = currentPlayer
-      ? normalizePlayer(currentPlayer, username)
-      : null;
-
-    mergedStore[id] = normalizePlayer(
-      mergePlayerNoRollback(safeIncoming, safeCurrent, {
-        preserveMissingCards: true,
-        preserveMissingItems: true,
-      }),
-      username
-    );
-  }
-
-  return mergedStore;
-}
-
 function writePlayers(data) {
-  const incomingStore =
-    data && typeof data === "object" ? data : {};
-
+  const incomingStore = data && typeof data === "object" ? data : {};
   const currentStore =
     playersCache && typeof playersCache === "object" ? playersCache : {};
 
@@ -1005,20 +940,18 @@ function writePlayers(data) {
   if (USE_POSTGRES && dbReady) {
     const dirtyIds = new Set();
 
-    if (incomingStore !== currentStore) {
-      for (const userId of Object.keys(incomingStore)) {
-        dirtyIds.add(String(userId));
-      }
-    } else {
-      const maxScan = Math.max(
-        0,
-        Number(process.env.PLAYER_DB_WRITE_SCAN_LIMIT || 0)
+    for (const [userId, player] of Object.entries(safeData)) {
+      const normalized = normalizeStoreRecord(
+        userId,
+        player,
+        player?.username || "Unknown"
       );
 
-      if (maxScan > 0) {
-        for (const userId of Object.keys(safeData).slice(0, maxScan)) {
-          dirtyIds.add(String(userId));
-        }
+      const before = JSON.stringify(persistedCache?.[userId] || null);
+      const after = JSON.stringify(normalized || null);
+
+      if (before !== after) {
+        dirtyIds.add(String(userId));
       }
     }
 
@@ -1031,7 +964,6 @@ function writePlayers(data) {
     for (const userId of dirtyIds) {
       const player = safeData[userId];
       if (!player) continue;
-
       pending.push(enqueuePlayerSnapshotSave(userId, player));
     }
 
@@ -1045,7 +977,9 @@ function writePlayers(data) {
   }
 
   if (PLAYER_STORE_MODE === "postgres") {
-    console.error("[PLAYER STORE] Refusing writePlayers file fallback while postgres mode is required.");
+    console.error(
+      "[PLAYER STORE] Refusing writePlayers file fallback while postgres mode is required."
+    );
     return;
   }
 

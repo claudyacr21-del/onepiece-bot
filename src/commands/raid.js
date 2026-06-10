@@ -25,7 +25,7 @@ const {
 const raidBossImages = require("../config/raidBossImages");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
-
+const { applyPirateRewardBonuses } = require("../utils/rewardBonuses");
 const RAID_ROOM_TIMEOUT_MS = 30 * 60 * 1000;
 const RAID_LOBBY_IDLE_REFUND_MS = 5 * 60 * 1000;
 const RAID_PICK_TIMEOUT_MS = 60 * 1000;
@@ -1999,6 +1999,71 @@ function addRaidFruit(devilFruits, fruit) {
   );
 }
 
+function getHostRewardBossPool(state, fallbackBoss = {}) {
+  const hostId = String(state?.hostId || "");
+
+  const hostMember = ensureArray(state?.members).find(
+    (member) => String(member?.userId || "") === hostId
+  );
+
+  const hostCards = ensureArray(hostMember?.selectedCards)
+    .map((card) => ({
+      code: card.code || card.bossCode || card.cardCode || "",
+      bossCode: card.code || card.bossCode || card.cardCode || "",
+      name: card.name || card.displayName || card.bossName || "",
+      bossName: card.name || card.displayName || card.bossName || "",
+      rarity:
+        card.rarity ||
+        card.currentTier ||
+        fallbackBoss.rarity ||
+        fallbackBoss.currentTier ||
+        "C",
+      currentTier:
+        card.currentTier ||
+        card.rarity ||
+        fallbackBoss.currentTier ||
+        fallbackBoss.rarity ||
+        "C",
+      image: card.image || "",
+    }))
+    .filter((card) => card.code || card.name);
+
+  return hostCards.length ? hostCards.slice(0, 3) : [fallbackBoss];
+}
+
+function pickRandomRewardBoss(bossPool, fallbackBoss = {}) {
+  const pool = ensureArray(bossPool).filter(
+    (boss) => boss && (boss.code || boss.name || boss.bossCode || boss.bossName)
+  );
+
+  if (!pool.length) {
+    return fallbackBoss;
+  }
+
+  return pool[Math.floor(Math.random() * pool.length)] || fallbackBoss;
+}
+
+function pickRandomLinkedRaidItemFromBossPool(db, bossPool, fallbackBoss = {}) {
+  const pool = ensureArray(bossPool).flatMap((boss) =>
+    findLinkedRaidItems(db, boss)
+  );
+
+  const seen = new Set();
+
+  const unique = pool.filter((item) => {
+    const key = String(item?.code || item?.name || "").toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  if (unique.length) {
+    return unique[Math.floor(Math.random() * unique.length)] || null;
+  }
+
+  return pickRandomLinkedRaidItem(db, fallbackBoss);
+}
+
 function giveRaidWinRewards(state) {
   const boss = state.boss || {};
   const bossTier = String(
@@ -2007,13 +2072,20 @@ function giveRaidWinRewards(state) {
 
   const config = getRaidRewardConfig(bossTier, boss, state.raidMode);
   const isMergeRaid = isMythicMergeRaid(state);
+  const hostRewardBossPool = getHostRewardBossPool(state, boss);
+  const linkedFragmentBoss = pickRandomRewardBoss(hostRewardBossPool, boss);
+
   const linkedWeapon = isMergeRaid
-  ? pickRandomLinkedMergeRaidItem(weaponsDb, boss)
-  : pickRandomLinkedRaidItem(weaponsDb, boss);
+    ? pickRandomLinkedMergeRaidItem(weaponsDb, boss)
+    : pickRandomLinkedRaidItemFromBossPool(
+        weaponsDb,
+        hostRewardBossPool,
+        boss
+      );
 
   const linkedFruit = isMergeRaid
-  ? pickRandomLinkedMergeRaidItem(devilFruitsDb, boss)
-  : findLinkedRaidItem(devilFruitsDb, boss);
+    ? pickRandomLinkedMergeRaidItem(devilFruitsDb, boss)
+    : findLinkedRaidItem(devilFruitsDb, boss);
   const hostId = String(state.hostId || "");
 
   const rewards = [];
@@ -2026,8 +2098,13 @@ function giveRaidWinRewards(state) {
     rewardedUsers.add(userId);
 
     const isHost = hostId && userId === hostId;
-    const berries = Number(config.berries || 0);
-    const gems = Number(config.gems || 0);
+    const boostedRewards = applyPirateRewardBonuses(userId, {
+      berries: Number(config.berries || 0),
+      gems: Number(config.gems || 0),
+    });
+
+    const berries = boostedRewards.berries;
+    const gems = boostedRewards.gems;
     const fragments = isHost && !isMergeRaid ? Number(config.fragments || 0) : 0;
     const universalS = isMergeRaid ? Number(config.universalS || 0) : 0;
     const gotWeapon = Boolean(isHost && linkedWeapon && randomChance(config.weaponChance));
@@ -2049,13 +2126,13 @@ function giveRaidWinRewards(state) {
           ? addRaidWeaponFragment(
               isMergeRaid
               ? fresh.fragments
-              : addRaidBossFragment(fresh.fragments, boss, fragments),
+              : addRaidBossFragment(fresh.fragments, linkedFragmentBoss, fragments),
               linkedWeapon,
               1
             )
           : isMergeRaid
             ? fresh.fragments
-            : addRaidBossFragment(fresh.fragments, boss, fragments)
+            : addRaidBossFragment(fresh.fragments, linkedFragmentBoss, fragments)
           : fresh.fragments,
           items: isMergeRaid && universalS > 0
             ? addUniversalSReward(fresh.items, universalS)
@@ -2074,7 +2151,12 @@ function giveRaidWinRewards(state) {
       gems,
       fragments,
       universalS,
-      bossName: boss.name || boss.bossName || "Raid Boss",
+      bossName:
+        linkedFragmentBoss.name ||
+        linkedFragmentBoss.bossName ||
+        boss.name ||
+        boss.bossName ||
+        "Raid Boss",
       weapon: gotWeapon ? linkedWeapon.name : null,
       fruit: gotFruit ? linkedFruit.name : null,
     });
