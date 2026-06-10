@@ -61,18 +61,23 @@ function scoreQuery(query, candidates) {
 
 function findOwnedBattleCard(cards, query) {
   const scored = (Array.isArray(cards) ? cards : [])
-    .filter((card) => String(card.cardRole || "battle").toLowerCase() !== "boost")
-    .map((card, index) => ({
-      card,
-      index,
-      score: scoreQuery(query, [
-        card.code,
-        card.name,
-        card.displayName,
-        card.variant,
-        card.type,
-      ]),
-    }))
+    .map((card, index) => {
+      const role = String(card?.cardRole || "battle").toLowerCase();
+
+      return {
+        card,
+        index,
+        role,
+        score: scoreQuery(query, [
+          card?.code,
+          card?.name,
+          card?.displayName,
+          card?.variant,
+          card?.type,
+        ]),
+      };
+    })
+    .filter((entry) => entry.role !== "boost")
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
 
@@ -281,15 +286,17 @@ module.exports = {
         const freshNextLevel = freshCurrentLevel + freshPossibleGain;
         const freshUpdatedCards = [...(fresh.cards || [])];
 
+        if (!freshUpdatedCards[freshCardIndex]) {
+          throw new Error("Card index changed. Please try again.");
+        }
+
         freshUpdatedCards[freshCardIndex] = {
-          ...freshCard,
+          ...freshUpdatedCards[freshCardIndex],
           level: freshNextLevel,
-          exp: freshNextLevel >= freshLevelCap
-            ? 0
-            : Number(freshCard.exp || freshCard.xp || 0),
-          xp: freshNextLevel >= freshLevelCap
-            ? 0
-            : Number(freshCard.exp || freshCard.xp || 0),
+          currentLevel: freshNextLevel,
+          lvl: freshNextLevel,
+          exp: freshNextLevel >= freshLevelCap ? 0 : Number(freshCard.exp || freshCard.xp || 0),
+          xp: freshNextLevel >= freshLevelCap ? 0 : Number(freshCard.exp || freshCard.xp || 0),
         };
 
         freshFragments[freshFragmentIndex] = {
