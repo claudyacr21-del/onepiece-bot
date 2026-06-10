@@ -1,5 +1,9 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayerAtomic } = require("../playerStore");
+const {
+  getPlayer,
+  updatePlayerAtomic,
+  flushPlayerNow,
+} = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
 
 const SHOP_ITEMS = {
@@ -125,7 +129,7 @@ module.exports = {
     let rewardLines = [];
 
     try {
-      updatePlayerAtomic(
+      await updatePlayerAtomic(
         message.author.id,
         (fresh) => {
           const materials = Array.isArray(fresh.materials) ? [...fresh.materials] : [];
@@ -183,6 +187,15 @@ module.exports = {
         content: error.message || "Fruit Essence purchase failed.",
         allowedMentions: { repliedUser: false },
       });
+    }
+
+    try {
+      await flushPlayerNow(
+        message.author.id,
+        Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 8000)
+      );
+    } catch (error) {
+      console.error("[FBUY FORCE FLUSH ERROR]", error);
     }
 
     const embed = new EmbedBuilder()
