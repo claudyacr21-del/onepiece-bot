@@ -640,10 +640,10 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addReward(ITEMS.enhancementStone, 10);
     addReward(ITEMS.rumBeer, 5 + Math.floor(Math.random() * 3));
 
-    if (Math.random() < 0.60) {
+    if (Math.random() < 0.50) {
       addRandomFragment(
         [getUniversalAFragmentItem(), getUniversalSFragmentItem()],
-        Math.random() < 0.35 ? 2 : 1
+        Math.random() < 0.28 ? 2 : 1
       );
     }
 
