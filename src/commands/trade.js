@@ -111,6 +111,24 @@ function normalizeTradeAliasCode(value) {
     pull_ticket: "pull_reset_ticket",
     pullresetticket: "pull_reset_ticket",
     prt: "pull_reset_ticket",
+
+    woodenbox: "wooden_material_box",
+    wooden_box: "wooden_material_box",
+    ironbox: "iron_material_box",
+    iron_box: "iron_material_box",
+    royalbox: "royal_material_box",
+    royal_box: "royal_material_box",
+
+    basicbox: "basic_resource_box",
+    basic_box: "basic_resource_box",
+    rarebox: "rare_resource_box",
+    rare_box: "rare_resource_box",
+    elitebox: "elite_resource_box",
+    elite_box: "elite_resource_box",
+    legendbox: "legend_resource_box",
+    legend_box: "legend_resource_box",
+    motherflamebox: "mother_flame_treasure_box",
+    mother_flame_box: "mother_flame_treasure_box",
   };
 
   return aliases[code] || code;
@@ -124,6 +142,16 @@ function isBlockedTradeItemCode(code) {
     normalizedCode === "empty_throne_raid_writ" ||
     normalizedCode === "pull_reset_ticket" ||
     normalizedCode === "cola_engine_part" ||
+
+    normalizedCode === "wooden_material_box" ||
+    normalizedCode === "iron_material_box" ||
+    normalizedCode === "royal_material_box" ||
+    normalizedCode === "basic_resource_box" ||
+    normalizedCode === "rare_resource_box" ||
+    normalizedCode === "elite_resource_box" ||
+    normalizedCode === "legend_resource_box" ||
+    normalizedCode === "mother_flame_treasure_box" ||
+
     normalizedCode === "universal_c" ||
     normalizedCode === "universal_b" ||
     normalizedCode === "universal_a" ||
@@ -134,9 +162,21 @@ function isBlockedTradeItemCode(code) {
 
 function isBlockedTradeEntry(entry, fallbackCode = "") {
   const code = normalizeTradeAliasCode(entry?.code || fallbackCode);
+  const rawCode = slug(entry?.code || fallbackCode);
   const name = normalize(getDisplayName(entry, fallbackCode));
+  const type = normalize(entry?.type || entry?.category || entry?.kind || "");
+
+  const isAnyBox =
+    type === "box" ||
+    type.includes("box") ||
+    code.endsWith("_box") ||
+    rawCode.endsWith("_box") ||
+    name.includes("box");
 
   return (
+    isAnyBox ||
+    entry?.untradeable === true ||
+    entry?.tradeable === false ||
     isBlockedTradeItemCode(code) ||
     (name.includes("universal") && name.includes("fragment")) ||
     name === "pull reset ticket" ||
@@ -918,6 +958,18 @@ function resolveEntry(player, entry) {
   let insufficient = null;
 
   for (const store of stores) {
+    if (store === "boxes") {
+      const query = entry.raw || entry.code;
+      const boxHits = getMatchingStackEntries(player.boxes, query);
+
+      if (boxHits.length) {
+        const boxName = getDisplayName(boxHits[0].entry, entry.code);
+        throw new Error(`Box \`${boxName}\` is untradeable.`);
+      }
+
+      continue;
+    }
+
     const query = entry.raw || entry.code;
     const hits =
       store === "fragments"
@@ -936,7 +988,9 @@ function resolveEntry(player, entry) {
     const displayName = getDisplayName(displayEntry, entry.code);
 
     if (isBlockedTradeEntry(displayEntry, displayEntry?.code || entry.code)) {
-      throw new Error(`${STORE_LABELS[store] || store} item \`${displayName}\` is untradeable.`);
+      const label = store === "boxes" ? "Box" : STORE_LABELS[store] || store;
+
+      throw new Error(`${label} \`${displayName}\` is untradeable.`);
     }
 
     if (totalHave < entry.amount) {
