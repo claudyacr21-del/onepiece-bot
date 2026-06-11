@@ -13,15 +13,113 @@ const COLOR = 0x3498db;
 const PAGE_SIZE = 12;
 
 const RARITY_ORDER = {
-  UR: 8,
-  SS: 7,
-  S: 6,
-  A: 5,
-  B: 4,
-  C: 3,
-  D: 2,
-  E: 1,
+  UR: 6,
+  SS: 5,
+  S: 4,
+  A: 3,
+  B: 2,
+  C: 1,
 };
+
+const CANONICAL_ITEM_META = {
+  common_raid_ticket: {
+    name: "Common Raid Ticket",
+    rarity: "B",
+    type: "Ticket",
+    tradeable: true,
+    untradeable: false,
+  },
+  raid_ticket: {
+    name: "Raid Ticket",
+    rarity: "A",
+    type: "Ticket",
+    tradeable: true,
+    untradeable: false,
+  },
+  gold_raid_ticket: {
+    name: "Gold Raid Ticket",
+    rarity: "S",
+    type: "Ticket",
+    tradeable: true,
+    untradeable: false,
+  },
+  empty_throne_raid_writ: {
+    name: "Empty Throne Raid Writ",
+    rarity: "S",
+    type: "Ticket",
+    tradeable: true,
+    untradeable: false,
+  },
+  mythic_raid_ticket: {
+    name: "Mythic Raid Ticket",
+    rarity: "UR",
+    type: "Ticket",
+    tradeable: true,
+    untradeable: false,
+  },
+
+  rare_resource_box: {
+    name: "Rare Resource Box",
+    rarity: "A",
+    type: "Box",
+    tradeable: false,
+    untradeable: true,
+  },
+  elite_resource_box: {
+    name: "Elite Resource Box",
+    rarity: "S",
+    type: "Box",
+    tradeable: false,
+    untradeable: true,
+  },
+  legend_resource_box: {
+    name: "Legend Resource Box",
+    rarity: "UR",
+    type: "Box",
+    tradeable: false,
+    untradeable: true,
+  },
+};
+
+function getCanonicalItemMeta(item) {
+  const code = String(item?.code || "").toLowerCase().trim();
+  return CANONICAL_ITEM_META[code] || null;
+}
+
+function normalizeInventoryItem(item) {
+  if (!item || typeof item !== "object") return item;
+
+  const meta = getCanonicalItemMeta(item);
+  if (!meta) return item;
+
+  return {
+    ...item,
+    name: item.name || meta.name,
+    rarity: meta.rarity || item.rarity,
+    type: meta.type || item.type,
+    tradeable:
+      typeof meta.tradeable === "boolean" ? meta.tradeable : item.tradeable,
+    untradeable:
+      typeof meta.untradeable === "boolean" ? meta.untradeable : item.untradeable,
+  };
+}
+
+function normalizeInventoryList(items) {
+  return Array.isArray(items) ? items.map(normalizeInventoryItem) : [];
+}
+
+function normalizeBoxItem(item) {
+  if (!item || typeof item !== "object") return item;
+
+  const normalized = normalizeInventoryItem(item);
+
+  return {
+    ...normalized,
+    type: normalized.type || "Box",
+    tradeable: false,
+    untradeable: true,
+  };
+}
 
 const CATEGORY_CONFIG = {
   main: {
@@ -121,11 +219,22 @@ function getAvatar(message) {
 }
 
 function getItemName(item) {
-  return String(item?.name || item?.displayName || item?.code || "Unknown Item").trim();
+  const normalized = normalizeInventoryItem(item);
+
+  return String(
+    normalized?.name ||
+      normalized?.displayName ||
+      normalized?.code ||
+      "Unknown Item"
+  ).trim();
 }
 
 function getItemRarity(item) {
-  return String(item?.rarity || item?.tier || "C").toUpperCase().trim();
+  const normalized = normalizeInventoryItem(item);
+
+  return String(normalized?.rarity || normalized?.tier || "C")
+    .toUpperCase()
+    .trim();
 }
 
 function getRarityRank(item) {
@@ -142,8 +251,10 @@ function amountText(item) {
 }
 
 function cleanList(items) {
-  return Array.isArray(items)
-    ? items
+  const normalizedItems = normalizeInventoryList(items);
+
+  return Array.isArray(normalizedItems)
+    ? normalizedItems
         .filter((item) => item && Number(item?.amount || 0) > 0)
         .slice()
         .sort((a, b) => {
@@ -265,12 +376,22 @@ function getLegacyTicketEntries(player) {
 function getInventoryLists(player) {
   const items = cleanList(player.items);
   const itemTickets = items.filter(isTicketItem);
-  const realItems = items.filter((item) => !isConsumable(item) && !isTicketItem(item));
+  const realItems = items.filter(
+    (item) => !isConsumable(item) && !isTicketItem(item)
+  );
+
+  const tickets = cleanList([
+    ...(player.tickets || []),
+    ...itemTickets,
+    ...getLegacyTicketEntries(player),
+  ]);
+
+  const boxes = cleanList(player.boxes).map(normalizeBoxItem);
 
   return {
     fruit: cleanList(player.devilFruits),
-    ticket: cleanList([...(player.tickets || []), ...itemTickets, ...getLegacyTicketEntries(player)]),
-    box: cleanList(player.boxes),
+    ticket: tickets,
+    box: boxes,
     consum: cleanList(items.filter(isConsumable)),
     material: cleanList(player.materials),
     item: cleanList(realItems),
