@@ -1054,20 +1054,30 @@ function getBoostEffectText(card, stage = 1) {
   const template = findTemplateByNameOnly(card, card?.displayName || card?.name || "") || card;
   const form = getStageForm(template, stage);
 
-  const existingText =
-    form?.effectText ||
-    form?.boostDescription ||
-    template?.effectText ||
-    template?.boostDescription ||
-    card?.effectText ||
-    card?.boostDescription ||
-    "";
+  const boostType = String(
+    form?.boostType ||
+      template?.boostType ||
+      card?.boostType ||
+      ""
+  )
+    .toLowerCase()
+    .trim();
 
-  if (existingText) return existingText;
+  const target =
+    form?.boostTarget ||
+    template?.boostTarget ||
+    card?.boostTarget ||
+    "team";
 
-  const boostType = String(template?.boostType || card?.boostType || "").toLowerCase();
-  const target = template?.boostTarget || card?.boostTarget || "team";
-  const value = getBoostStageValue(template || card, stage);
+  const value = getBoostStageValue(
+    {
+      ...template,
+      ...card,
+      stageStats: template?.stageStats || card?.stageStats,
+      evolutionForms: template?.evolutionForms || card?.evolutionForms,
+    },
+    stage
+  );
 
   if (boostType === "fragmentstorage" || boostType === "fragment_storage") {
     return `Increase ${target} fragment storage by ${value}.`;
@@ -1085,7 +1095,18 @@ function getBoostEffectText(card, stage = 1) {
     ? "%"
     : "";
 
-  if (!boostType) return "No boost effect description.";
+  if (!boostType) {
+    const fallbackText =
+      form?.effectText ||
+      form?.boostDescription ||
+      template?.effectText ||
+      template?.boostDescription ||
+      card?.effectText ||
+      card?.boostDescription ||
+      "";
+
+    return fallbackText || "No boost effect description.";
+  }
 
   return `Increase ${target} ${boostType.toUpperCase()} by ${value}${suffix}.`;
 }
