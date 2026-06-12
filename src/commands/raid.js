@@ -826,8 +826,59 @@ function getSavedRaidTeam(player) {
     .filter(Boolean);
 }
 
+function getRaidCardIdentity(card) {
+  const instanceId = String(card?.instanceId || "").trim();
+
+  if (instanceId) {
+    return `instance:${instanceId}`;
+  }
+
+  const code = String(card?.code || card?.characterCode || "").toLowerCase().trim();
+  const name = String(card?.displayName || card?.name || "").toLowerCase().trim();
+
+  if (code) {
+    return `code:${code}`;
+  }
+
+  return `name:${name}`;
+}
+
+function dedupeRaidCards(cards) {
+  const seen = new Set();
+  const result = [];
+
+  for (const card of ensureArray(cards)) {
+    const key = getRaidCardIdentity(card);
+
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(card);
+  }
+
+  return result;
+}
+
+function isSameRaidCard(a, b) {
+  if (!a || !b) return false;
+
+  const aInstance = String(a.instanceId || "").trim();
+  const bInstance = String(b.instanceId || "").trim();
+
+  if (aInstance && bInstance && aInstance === bInstance) {
+    return true;
+  }
+
+  const aCode = String(a.code || a.characterCode || "").toLowerCase().trim();
+  const bCode = String(b.code || b.characterCode || "").toLowerCase().trim();
+
+  return Boolean(aCode && bCode && aCode === bCode);
+}
+
 function getRaidBaseBattleCards(player) {
-  return (Array.isArray(player?.cards) ? player.cards : [])
+  const cards = (Array.isArray(player?.cards) ? player.cards : [])
     .map((rawCard) => {
       const card = hydrateCard(rawCard);
       if (!card) return null;
@@ -843,13 +894,17 @@ function getRaidBaseBattleCards(player) {
         card &&
         String(card.cardRole || "").toLowerCase() === "battle"
     );
+
+  return dedupeRaidCards(cards);
 }
 
 function getBattleTeamCards(player) {
   const cards = getRaidBaseBattleCards(player);
-  const slots = Array.isArray(player?.team?.slots) ? player.team.slots.slice(0, 3) : [];
+  const slots = Array.isArray(player?.team?.slots)
+    ? player.team.slots.slice(0, 3)
+    : [];
 
-  return slots
+  const selected = slots
     .map((instanceId) => {
       if (!instanceId) return null;
 
@@ -862,6 +917,8 @@ function getBattleTeamCards(player) {
       );
     })
     .filter(Boolean);
+
+  return dedupeRaidCards(selected);
 }
 
 function toRoomCard(card) {
@@ -884,19 +941,29 @@ function getFreshOwnedBattleCard(userId, username, picked) {
 
   const byInstance = cards.find(
     (card) =>
-      String(card.instanceId) === String(picked?.instanceId || "") &&
+      String(card.instanceId || "") === String(picked?.instanceId || "") &&
       String(card.cardRole || "").toLowerCase() === "battle"
   );
 
-  if (byInstance) return byInstance;
+  if (byInstance) {
+    return byInstance;
+  }
 
-  const byCode = cards.find(
+  const pickedCode = String(picked?.code || "").toLowerCase().trim();
+
+  if (!pickedCode) {
+    return null;
+  }
+
+  const byCodeMatches = cards.filter(
     (card) =>
-      String(card.code || "").toLowerCase() === String(picked?.code || "").toLowerCase() &&
+      String(card.code || "").toLowerCase().trim() === pickedCode &&
       String(card.cardRole || "").toLowerCase() === "battle"
   );
 
-  if (byCode) return byCode;
+  if (byCodeMatches.length === 1) {
+    return byCodeMatches[0];
+  }
 
   return null;
 }
@@ -906,51 +973,67 @@ function buildBattleRoster(room) {
     (participant) => ensureArray(participant.selectedCards).length > 0
   );
 
-  return participants
-    .flatMap((participant) =>
-      ensureArray(participant.selectedCards).map((picked) => {
-        const fresh = getFreshOwnedBattleCard(
-          String(participant.userId),
-          String(participant.username || "Unknown"),
-          picked
-        );
+  const roster = [];
 
-        if (!fresh) return null;
+  for (const participant of participants) {
+    const pickedCards = dedupeRaidCards(ensureArray(participant.selectedCards));
 
-        const player = getPlayer(
-          String(participant.userId),
-          String(participant.username || "Unknown")
-        );
-        const boosts = getPlayerCombatBoosts(player);
-        const displayed = applyBoostedRaidDisplayStats(fresh, boosts);
+    for (const picked of pickedCards) {
+      const fresh = getFreshOwnedBattleCard(
+        String(participant.userId),
+        String(participant.username || "Unknown"),
+        picked
+      );
 
-        return {
-          userId: String(participant.userId),
-          username: String(participant.username || "Unknown"),
-          instanceId: String(displayed.instanceId || ""),
-          code: String(displayed.code || ""),
-          name: String(displayed.displayName || displayed.name || picked?.name || "Unknown"),
-          atk: getRaidCardAtk(displayed),
-          maxHp: getRaidCardHp(displayed),
-          hp: getRaidCardHp(displayed),
-          speed: getRaidCardSpeed(displayed),
-          currentPower: getRaidDisplayPower(displayed),
-          currentTier: String(displayed.currentTier || displayed.rarity || ""),
-          evolutionStage: Number(displayed.evolutionStage || 1),
-          image: String(displayed.image || ""),
-          passiveBoostsApplied: {
-            atk: Number(boosts.atk || 0),
-            hp: Number(boosts.hp || 0),
-            spd: Number(boosts.spd || 0),
-            dmg: Number(boosts.dmg || 0),
-            exp: Number(boosts.exp || 0),
-          },
-          alive: true,
-        };
-      })
-    )
-    .filter(Boolean)
-    .sort((a, b) => Number(b.currentPower || 0) - Number(a.currentPower || 0));
+      if (!fresh) continue;
+
+      const alreadyAdded = roster.some(
+        (member) =>
+          String(member.userId || "") === String(participant.userId || "") &&
+          isSameRaidCard(member, fresh)
+      );
+
+      if (alreadyAdded) {
+        continue;
+      }
+
+      const player = getPlayer(
+        String(participant.userId),
+        String(participant.username || "Unknown")
+      );
+
+      const boosts = getPlayerCombatBoosts(player);
+      const displayed = applyBoostedRaidDisplayStats(fresh, boosts);
+
+      roster.push({
+        userId: String(participant.userId),
+        username: String(participant.username || "Unknown"),
+        instanceId: String(displayed.instanceId || ""),
+        code: String(displayed.code || ""),
+        name: String(displayed.displayName || displayed.name || picked?.name || "Unknown"),
+        atk: getRaidCardAtk(displayed),
+        maxHp: getRaidCardHp(displayed),
+        hp: getRaidCardHp(displayed),
+        speed: getRaidCardSpeed(displayed),
+        currentPower: getRaidDisplayPower(displayed),
+        currentTier: String(displayed.currentTier || displayed.rarity || ""),
+        evolutionStage: Number(displayed.evolutionStage || 1),
+        image: String(displayed.image || ""),
+        passiveBoostsApplied: {
+          atk: Number(boosts.atk || 0),
+          hp: Number(boosts.hp || 0),
+          spd: Number(boosts.spd || 0),
+          dmg: Number(boosts.dmg || 0),
+          exp: Number(boosts.exp || 0),
+        },
+        alive: true,
+      });
+    }
+  }
+
+  return roster.sort(
+    (a, b) => Number(b.currentPower || 0) - Number(a.currentPower || 0)
+  );
 }
 
 function getRaidBossImage(code) {
