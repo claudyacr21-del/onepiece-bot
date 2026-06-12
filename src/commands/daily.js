@@ -122,20 +122,40 @@ function hasBaccaratDailyDevilFruit(player) {
   const cards = Array.isArray(player?.cards) ? player.cards : [];
 
   return cards.some((card) => {
-    const fruitTexts = [
-      ...getDailyFruitTexts(card?.equippedDevilFruit),
-      ...getDailyFruitTexts(card?.equippedDevilFruitName),
-      ...getDailyFruitTexts(card?.equippedDevilFruitCode),
-      ...getDailyFruitTexts(card?.displayFruitName),
-      ...getDailyFruitTexts(card?.devilFruit),
-      ...getDailyFruitTexts(card?.devilFruitName),
-      ...getDailyFruitTexts(card?.devilFruitCode),
-      ...getDailyFruitTexts(card?.fruit),
-      ...getDailyFruitTexts(card?.fruitName),
-      ...getDailyFruitTexts(card?.fruitCode),
+    const equippedFruitValues = [
+      card?.equippedDevilFruit,
+      card?.equippedDevilFruitCode,
+      card?.equippedDevilFruitName,
     ];
 
-    return fruitTexts.some(isBaccaratFruitText);
+    const fruitTexts = equippedFruitValues.flatMap((value) => {
+      if (!value) return [];
+
+      if (typeof value === "object") {
+        return [
+          value.code,
+          value.name,
+          value.displayName,
+          value.title,
+          value.fruitCode,
+          value.fruitName,
+          value.devilFruitCode,
+          value.devilFruitName,
+        ].map(normalizeDailyText);
+      }
+
+      return [normalizeDailyText(value)];
+    });
+
+    return fruitTexts.some(
+      (value) =>
+        value === "raki raki no mi" ||
+        value === "raki raki" ||
+        value === "baccarat" ||
+        value === "baccarat fruit" ||
+        value.includes("raki raki") ||
+        value.includes("baccarat")
+    );
   });
 }
 
@@ -229,9 +249,6 @@ function getDailyTierRewards(dailyTier) {
   const materialAmount = 2 + tier;
   const shipMaterialAmount = Math.max(1, Math.floor(1 + tier / 3));
   const rumAmount = 2 + Math.floor(tier / 2);
-  const ticketAmount = tier >= 26 ? 2 : 1;
-
-  addReward(rewards, makeReward(getDailyPullResetTicket(), ticketAmount));
 
   if (tier === 1) {
     if (Math.random() < 0.35) {
@@ -594,7 +611,7 @@ module.exports = {
       : ["↪ No extra reward this time"];
 
     if (baccaratBonusApplied) {
-      extraLines.push("↪ Baccarat Devil Fruit Bonus: +1 Pull Reset");
+      extraLines.push("↪ Baccarat / Raki Raki Bonus: +1 Pull Reset Ticket");
     }
 
     const embed = new EmbedBuilder()
