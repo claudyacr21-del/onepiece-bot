@@ -81,25 +81,62 @@ function normalizeDailyText(value) {
     .replace(/\s+/g, " ");
 }
 
-function hasBaccaratDailyDevilFruit(player) {
- const cards = Array.isArray(player?.cards) ? player.cards : [];
+function getDailyFruitTexts(value) {
+  if (!value) return [];
 
- return cards.some((card) => {
-  const fruitValues = [
-   card?.equippedDevilFruit,
-   card?.equippedDevilFruitCode,
-   card?.equippedDevilFruitName,
-   card?.displayFruitName,
-  ].map(normalizeDailyText);
+  if (typeof value === "string") {
+    return [normalizeDailyText(value)];
+  }
 
-  return fruitValues.some(
-   (value) =>
-    value === "raki raki no mi" ||
-    value === "raki raki" ||
-    value === "baccarat" ||
-    value.includes("raki raki")
+  if (typeof value === "object") {
+    return [
+      value.code,
+      value.name,
+      value.displayName,
+      value.title,
+      value.fruitCode,
+      value.fruitName,
+      value.devilFruitCode,
+      value.devilFruitName,
+    ].map(normalizeDailyText);
+  }
+
+  return [normalizeDailyText(value)];
+}
+
+function isBaccaratFruitText(value) {
+  const text = normalizeDailyText(value);
+
+  return (
+    text === "raki raki no mi" ||
+    text === "baccarat" ||
+    text === "baccarat fruit" ||
+    text === "raki raki" ||
+    text === "raki raki fruit" ||
+    text.includes("raki raki") ||
+    text.includes("baccarat")
   );
- });
+}
+
+function hasBaccaratDailyDevilFruit(player) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+
+  return cards.some((card) => {
+    const fruitTexts = [
+      ...getDailyFruitTexts(card?.equippedDevilFruit),
+      ...getDailyFruitTexts(card?.equippedDevilFruitName),
+      ...getDailyFruitTexts(card?.equippedDevilFruitCode),
+      ...getDailyFruitTexts(card?.displayFruitName),
+      ...getDailyFruitTexts(card?.devilFruit),
+      ...getDailyFruitTexts(card?.devilFruitName),
+      ...getDailyFruitTexts(card?.devilFruitCode),
+      ...getDailyFruitTexts(card?.fruit),
+      ...getDailyFruitTexts(card?.fruitName),
+      ...getDailyFruitTexts(card?.fruitCode),
+    ];
+
+    return fruitTexts.some(isBaccaratFruitText);
+  });
 }
 
 function applyBaccaratDailyBonus(player, rewards) {

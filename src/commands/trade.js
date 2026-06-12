@@ -379,6 +379,17 @@ function isExplicitNonCardFragmentQuery(query) {
   return isExplicitWeaponFragmentQuery(query) || isExplicitScrollFragmentQuery(query);
 }
 
+function isFragmentLikeTradeQuery(query = "") {
+  const code = slug(query);
+  const text = normalize(query);
+
+  return (
+    text.includes("fragment") ||
+    code.includes("fragment") ||
+    isExplicitNonCardFragmentQuery(query)
+  );
+}
+
 function findCardTemplateForFragmentQuery(query) {
   if (isExplicitNonCardFragmentQuery(query)) return null;
 
@@ -891,6 +902,11 @@ function resolveTicketEntry(player, query) {
 
 function resolveCardEntry(player, entry) {
   const rawQuery = entry.raw || entry.code;
+
+  if (isFragmentLikeTradeQuery(rawQuery)) {
+    return null;
+  }
+  
   const normalizedCode = normalizeTradeAliasCode(rawQuery);
   const isCardFirst = CARD_FIRST_QUERIES.has(normalizedCode);
   const matches = getTradableCardMatches(player, rawQuery);
@@ -1019,6 +1035,12 @@ function resolveEntry(player, entry) {
 
   if (insufficient) {
     throw new Error(`${player.username} lacks ${insufficient.displayName} x${entry.amount}.`);
+  }
+
+  if (isFragmentLikeTradeQuery(entry.raw || entry.code)) {
+    throw new Error(
+      `${player.username} does not own tradable fragment/item ${entry.raw || entry.code}_${entry.amount}.`
+    );
   }
 
   const cardResolved = resolveCardEntry(player, entry);
