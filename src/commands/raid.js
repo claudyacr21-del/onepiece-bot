@@ -1687,7 +1687,7 @@ function getRaidRewardConfig(tier, boss = null, raidMode = null) {
     M: {
       berries: 50000,
       gems: 40,
-      fragments: 0,
+      fragments: 1,
       universalS: 2,
       weaponChance: 35,
       fruitChance: 1,
@@ -2064,6 +2064,32 @@ function pickRandomLinkedRaidItemFromBossPool(db, bossPool, fallbackBoss = {}) {
   return pickRandomLinkedRaidItem(db, fallbackBoss);
 }
 
+function pickRandomRaidItemFromDb(db) {
+  const pool = flattenDb(db).filter((item) => item && (item.code || item.name));
+
+  if (!pool.length) {
+    return null;
+  }
+
+  return pool[Math.floor(Math.random() * pool.length)] || null;
+}
+
+function pickMythicRaidWeaponDrop(boss, hostRewardBossPool) {
+  return (
+    pickRandomLinkedMergeRaidItem(weaponsDb, boss) ||
+    pickRandomLinkedRaidItemFromBossPool(weaponsDb, hostRewardBossPool, boss) ||
+    pickRandomRaidItemFromDb(weaponsDb)
+  );
+}
+
+function pickMythicRaidFruitDrop(boss, hostRewardBossPool) {
+  return (
+    pickRandomLinkedMergeRaidItem(devilFruitsDb, boss) ||
+    pickRandomLinkedRaidItemFromBossPool(devilFruitsDb, hostRewardBossPool, boss) ||
+    pickRandomRaidItemFromDb(devilFruitsDb)
+  );
+}
+
 function giveRaidWinRewards(state) {
   const boss = state.boss || {};
   const bossTier = String(
@@ -2076,7 +2102,7 @@ function giveRaidWinRewards(state) {
   const linkedFragmentBoss = pickRandomRewardBoss(hostRewardBossPool, boss);
 
   const linkedWeapon = isMergeRaid
-    ? pickRandomLinkedMergeRaidItem(weaponsDb, boss)
+    ? pickMythicRaidWeaponDrop(boss, hostRewardBossPool)
     : pickRandomLinkedRaidItemFromBossPool(
         weaponsDb,
         hostRewardBossPool,
@@ -2084,7 +2110,7 @@ function giveRaidWinRewards(state) {
       );
 
   const linkedFruit = isMergeRaid
-    ? pickRandomLinkedMergeRaidItem(devilFruitsDb, boss)
+    ? pickMythicRaidFruitDrop(boss, hostRewardBossPool)
     : findLinkedRaidItem(devilFruitsDb, boss);
   const hostId = String(state.hostId || "");
 
@@ -2105,7 +2131,7 @@ function giveRaidWinRewards(state) {
 
     const berries = boostedRewards.berries;
     const gems = boostedRewards.gems;
-    const fragments = isHost && !isMergeRaid ? Number(config.fragments || 0) : 0;
+    const fragments = isHost ? Number(config.fragments || 0) : 0;
     const universalS = isMergeRaid ? Number(config.universalS || 0) : 0;
     const gotWeapon = Boolean(isHost && linkedWeapon && randomChance(config.weaponChance));
     const gotFruit = Boolean(isHost && linkedFruit && randomChance(config.fruitChance));
@@ -2123,15 +2149,11 @@ function giveRaidWinRewards(state) {
         gems: Number(fresh.gems || 0) + gems,
         fragments: isHost
           ? gotWeapon
-          ? addRaidWeaponFragment(
-              isMergeRaid
-              ? fresh.fragments
-              : addRaidBossFragment(fresh.fragments, linkedFragmentBoss, fragments),
-              linkedWeapon,
-              1
-            )
-          : isMergeRaid
-            ? fresh.fragments
+            ? addRaidWeaponFragment(
+                addRaidBossFragment(fresh.fragments, linkedFragmentBoss, fragments),
+                linkedWeapon,
+                1
+              )
             : addRaidBossFragment(fresh.fragments, linkedFragmentBoss, fragments)
           : fresh.fragments,
           items: isMergeRaid && universalS > 0
