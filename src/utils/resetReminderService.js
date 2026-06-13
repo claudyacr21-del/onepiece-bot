@@ -426,7 +426,6 @@ async function sendGlobalPullResetNotification(client) {
 
   const now = Date.now();
   const nextResetAt = getNextResetTime(now);
-  const nextResetText = formatRemaining(nextResetAt, now);
   const nextResetTimestamp = formatDiscordTimestamp(nextResetAt, "t");
   const roleMention = RESET_PING_ROLE_ID ? `<@&${RESET_PING_ROLE_ID}>` : "@Reset Ping";
 
@@ -440,7 +439,6 @@ async function sendGlobalPullResetNotification(client) {
         "• Pull slots have been refreshed globally.",
         "• Use `op pull` or `op pa` if you have access.",
         "",
-        `⏳ Next reset: **${nextResetText}**`,
         `🕒 Reset cycle: every **${RESET_INTERVAL_HOURS} hours**`,
         `📌 Exact time: ${nextResetTimestamp}`,
       ].join("\n")
