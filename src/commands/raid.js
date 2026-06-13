@@ -1346,6 +1346,52 @@ function getThroneTeamCards(player) {
   return getBattleTeamCards(player).slice(0, 3);
 }
 
+function getRoomCardConflictKey(card) {
+  const code = String(card?.code || card?.characterCode || "").toLowerCase().trim();
+  const name = String(card?.name || card?.displayName || "").toLowerCase().trim();
+  const instanceId = String(card?.instanceId || "").trim();
+
+  if (code) return `code:${code}`;
+  if (name) return `name:${name}`;
+  if (instanceId) return `instance:${instanceId}`;
+
+  return "";
+}
+
+function findRaidRoomCardConflict(room, cards, userId = null) {
+  const incomingCards = ensureArray(cards);
+  const incomingKeys = new Map();
+
+  for (const card of incomingCards) {
+    const key = getRoomCardConflictKey(card);
+    if (!key) continue;
+
+    incomingKeys.set(key, card);
+  }
+
+  if (!incomingKeys.size) return null;
+
+  for (const participant of ensureArray(room?.participants)) {
+    if (userId && String(participant.userId || "") === String(userId || "")) {
+      continue;
+    }
+
+    for (const existingCard of ensureArray(participant.selectedCards)) {
+      const key = getRoomCardConflictKey(existingCard);
+
+      if (key && incomingKeys.has(key)) {
+        return {
+          existingCard,
+          incomingCard: incomingKeys.get(key),
+          participant,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 function buildBattleState(room, bossTemplate, raidMode = {}) {
   const members = buildBattleRoster(room).map((member) => ({
     ...member,
@@ -2881,6 +2927,25 @@ module.exports = {
             });
           }
 
+          const thronePreviewConflict = findRaidRoomCardConflict(
+            activeRoom,
+            throneCards,
+            userId
+          );
+
+          if (thronePreviewConflict) {
+            const conflictName =
+              thronePreviewConflict.existingCard?.name ||
+              thronePreviewConflict.existingCard?.displayName ||
+              thronePreviewConflict.incomingCard?.name ||
+              thronePreviewConflict.incomingCard?.displayName ||
+              "this card";
+
+            return safeReplyOrEdit(interaction, {
+              content: `**${conflictName}** is already used in this Throne Raid room. Please change your team first.`,
+            });
+          }
+
           await safeReplyOrEdit(interaction, {
             content: [
               `${interaction.user.username}, this is the team that will be deployed for this battle, press button to confirm`,
@@ -2943,16 +3008,45 @@ module.exports = {
               });
             }
 
+            const latestThroneCards = getThroneTeamCards(getPlayer(userId, interaction.user.username));
+
+            if (latestThroneCards.length < 3) {
+              return safeInteractionUpdate(confirmInteraction, {
+                content: "Throne Raid requires **3 battle cards** in your current team slots.",
+                components: [],
+              });
+            }
+
+            const throneConfirmConflict = findRaidRoomCardConflict(
+              latestRoom,
+              latestThroneCards,
+              userId
+            );
+
+            if (throneConfirmConflict) {
+              const conflictName =
+                throneConfirmConflict.existingCard?.name ||
+                throneConfirmConflict.existingCard?.displayName ||
+                throneConfirmConflict.incomingCard?.name ||
+                throneConfirmConflict.incomingCard?.displayName ||
+                "this card";
+
+              return safeInteractionUpdate(confirmInteraction, {
+                content: `**${conflictName}** is already used in this Throne Raid room. Please change your team first.`,
+                components: [],
+              });
+            }
+
             const updatedRoom = addParticipant(hostId, {
               userId,
               username: interaction.user.username,
-              selectedCards: throneCards.map(toRoomCard),
+              selectedCards: latestThroneCards.map(toRoomCard),
             });
 
             await safeInteractionUpdate(confirmInteraction, {
               content: [
                 `${interaction.user.username} joined the raid with`,
-                formatThroneTeamPreview(throneCards),
+                formatThroneTeamPreview(latestThroneCards),
               ].join("\n"),
               components: [],
             });
@@ -2973,7 +3067,7 @@ module.exports = {
               .send(
                 [
                   `${interaction.user.username} joined the raid with`,
-                  formatThroneTeamPreview(throneCards),
+                  formatThroneTeamPreview(latestThroneCards),
                 ].join("\n")
               )
               .catch(() => null);

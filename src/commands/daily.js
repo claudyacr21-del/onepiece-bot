@@ -118,44 +118,25 @@ function isBaccaratFruitText(value) {
   );
 }
 
+function getEquippedDailyFruitTexts(card) {
+  const equippedFruitValues = [
+    card?.equippedDevilFruit,
+    card?.equippedDevilFruitCode,
+    card?.equippedDevilFruitName,
+    card?.equippedFruit,
+    card?.equippedFruitCode,
+    card?.equippedFruitName,
+  ];
+
+  return equippedFruitValues.flatMap((value) => getDailyFruitTexts(value));
+}
+
 function hasBaccaratDailyDevilFruit(player) {
   const cards = Array.isArray(player?.cards) ? player.cards : [];
 
   return cards.some((card) => {
-    const equippedFruitValues = [
-      card?.equippedDevilFruit,
-      card?.equippedDevilFruitCode,
-      card?.equippedDevilFruitName,
-    ];
-
-    const fruitTexts = equippedFruitValues.flatMap((value) => {
-      if (!value) return [];
-
-      if (typeof value === "object") {
-        return [
-          value.code,
-          value.name,
-          value.displayName,
-          value.title,
-          value.fruitCode,
-          value.fruitName,
-          value.devilFruitCode,
-          value.devilFruitName,
-        ].map(normalizeDailyText);
-      }
-
-      return [normalizeDailyText(value)];
-    });
-
-    return fruitTexts.some(
-      (value) =>
-        value === "raki raki no mi" ||
-        value === "raki raki" ||
-        value === "baccarat" ||
-        value === "baccarat fruit" ||
-        value.includes("raki raki") ||
-        value.includes("baccarat")
-    );
+    const fruitTexts = getEquippedDailyFruitTexts(card);
+    return fruitTexts.some(isBaccaratFruitText);
   });
 }
 
@@ -548,20 +529,26 @@ module.exports = {
     }
 
     const rewardBundle = getDailyTierRewards(dailyTier);
-    const baccaratBonusApplied = applyBaccaratDailyBonus(player, rewardBundle.rewards);
     const nextReadyAt = now + DAILY_COOLDOWN_MS;
 
+    let baccaratBonusApplied = false;
+    let appliedRewards = [];
     let updatedSnapshot = null;
 
     updatePlayerAtomic(
       message.author.id,
       (fresh) => {
+        const rewardsToApply = [...rewardBundle.rewards];
+
+        baccaratBonusApplied = applyBaccaratDailyBonus(fresh, rewardsToApply);
+        appliedRewards = rewardsToApply;
+
         let updatedBoxes = [...(fresh.boxes || [])];
         let updatedTickets = [...(fresh.tickets || [])];
         let updatedMaterials = [...(fresh.materials || [])];
         let updatedItems = [...(fresh.items || [])];
 
-        for (const reward of rewardBundle.rewards) {
+        for (const reward of rewardsToApply) {
           const result = applyRewardToInventory(
             {
               boxes: updatedBoxes,
@@ -604,14 +591,14 @@ module.exports = {
       message.author.username
     );
 
-    const extraLines = rewardBundle.rewards.length
-      ? rewardBundle.rewards.map(
-          (reward) => `↪ ${reward.name} x${reward.amount}`
-        )
+    const displayRewards = appliedRewards.length ? appliedRewards : rewardBundle.rewards;
+
+    const extraLines = displayRewards.length
+      ? displayRewards.map((reward) => `↪ ${reward.name} x${reward.amount}`)
       : ["↪ No extra reward this time"];
 
     if (baccaratBonusApplied) {
-      extraLines.push("↪ Baccarat / Raki Raki Bonus: +1 Pull Reset Ticket");
+      extraLines.push("↪ Baccarat / Raki Raki Bonus Applied");
     }
 
     const embed = new EmbedBuilder()
