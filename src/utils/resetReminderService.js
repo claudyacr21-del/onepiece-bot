@@ -18,6 +18,7 @@ const RESET_SEND_DELAY_MS = 3 * 1000;
 let serviceStarted = false;
 let globalResetTimer = null;
 let userReminderInterval = null;
+let lastGlobalResetNoticeAt = 0;
 
 let reminderPool = null;
 let reminderDbReady = false;
@@ -198,6 +199,40 @@ async function claimReminderEventOnce(userId, reminderType, readyAt) {
   );
 
   return result.rowCount > 0;
+}
+
+async function shouldSendGlobalResetNotification(resetAt) {
+  const readyAt = Number(resetAt || 0);
+
+  if (!readyAt) {
+    return false;
+  }
+
+  if (lastGlobalResetNoticeAt === readyAt) {
+    return false;
+  }
+
+  let claimed = false;
+
+  try {
+    claimed = await claimReminderEventOnce("__global__", "pull_reset", readyAt);
+  } catch (error) {
+    console.error("[GLOBAL RESET CLAIM ERROR]", error);
+  }
+
+  /*
+    Global reset ping must not fully depend on Supabase.
+    If Supabase lock fails, keep a runtime fallback so the bot still sends
+    the reset ping every 8 hours from pullReset.js / cd.js.
+  */
+  if (!claimed) {
+    console.warn(
+      `[RESET REMINDER] Supabase global reset claim was not available for ${readyAt}. Using runtime fallback.`
+    );
+  }
+
+  lastGlobalResetNoticeAt = readyAt;
+  return true;
 }
 
 function formatRemaining(targetTime, now = Date.now()) {
@@ -468,7 +503,10 @@ async function sendGlobalPullResetNotification(client) {
 function scheduleNextGlobalReset(client) {
   const now = Date.now();
   const nextResetAt = getNextResetTime(now);
-  const delay = Math.max(RESET_SEND_DELAY_MS, nextResetAt - now + RESET_SEND_DELAY_MS);
+  const delay = Math.max(
+    RESET_SEND_DELAY_MS,
+    nextResetAt - now + RESET_SEND_DELAY_MS
+  );
 
   if (globalResetTimer) {
     clearTimeout(globalResetTimer);
@@ -479,14 +517,13 @@ function scheduleNextGlobalReset(client) {
     const firedAt = Date.now();
 
     try {
-      const currentResetAt = getNextResetTime(firedAt - RESET_SEND_DELAY_MS);
-      const claimed = await claimReminderEventOnce(
-        "__global__",
-        "pull_reset",
+      const currentResetAt = getNextResetTime(firedAt - RESET_INTERVAL_HOURS * 60 * 60 * 1000);
+
+      const shouldSend = await shouldSendGlobalResetNotification(
         Number(currentResetAt)
       );
 
-      if (claimed) {
+      if (shouldSend) {
         const sent = await sendGlobalPullResetNotification(client);
 
         if (!sent) {
