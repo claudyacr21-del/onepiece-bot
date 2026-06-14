@@ -60,21 +60,21 @@ const CANONICAL_ITEM_META = {
 
   rare_resource_box: {
     name: "Rare Resource Box",
-    rarity: "A",
+    rarity: "B",
     type: "Box",
     tradeable: false,
     untradeable: true,
   },
   elite_resource_box: {
     name: "Elite Resource Box",
-    rarity: "S",
+    rarity: "A",
     type: "Box",
     tradeable: false,
     untradeable: true,
   },
   legend_resource_box: {
     name: "Legend Resource Box",
-    rarity: "UR",
+    rarity: "S",
     type: "Box",
     tradeable: false,
     untradeable: true,
