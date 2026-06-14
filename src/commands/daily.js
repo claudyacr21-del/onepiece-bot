@@ -140,11 +140,8 @@ function hasBaccaratDailyDevilFruit(player) {
   });
 }
 
-function applyBaccaratDailyBonus(player, rewards) {
-  if (!hasBaccaratDailyDevilFruit(player)) return false;
-
-  addReward(rewards, makeReward(getDailyPullResetTicket(), 1));
-  return true;
+function applyBaccaratDailyBonus(player) {
+  return hasBaccaratDailyDevilFruit(player);
 }
 
 function makeReward(item, amount = 1) {
@@ -540,8 +537,7 @@ module.exports = {
       (fresh) => {
         const rewardsToApply = [...rewardBundle.rewards];
 
-        baccaratBonusApplied = applyBaccaratDailyBonus(fresh, rewardsToApply);
-        appliedRewards = rewardsToApply;
+        baccaratBonusApplied = applyBaccaratDailyBonus(fresh);
 
         let updatedBoxes = [...(fresh.boxes || [])];
         let updatedTickets = [...(fresh.tickets || [])];
@@ -564,6 +560,17 @@ module.exports = {
           if (result.materials) updatedMaterials = result.materials;
           if (result.items) updatedItems = result.items;
         }
+
+        if (baccaratBonusApplied) {
+          const pullResetTicket = normalizeDailyTicketReward(
+            makeReward(getDailyPullResetTicket(), 1)
+          );
+
+          updatedTickets = addOrIncrease(updatedTickets, pullResetTicket);
+          rewardsToApply.push(pullResetTicket);
+        }
+
+        appliedRewards = rewardsToApply;
 
         const updatedDailyState = incrementQuestCounter(fresh, "dailyClaims", 1);
 
@@ -598,7 +605,7 @@ module.exports = {
       : ["↪ No extra reward this time"];
 
     if (baccaratBonusApplied) {
-      extraLines.push("↪ Baccarat / Raki Raki Bonus Applied");
+      extraLines.push("↪ Baccarat / Raki Raki Bonus: +1 Pull Reset Ticket");
     }
 
     const embed = new EmbedBuilder()
