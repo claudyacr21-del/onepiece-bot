@@ -2,6 +2,7 @@ const { Pool } = require("pg");
 const { EmbedBuilder } = require("discord.js");
 const { readPlayers } = require("../playerStore");
 const {
+  getCurrentResetStartTime,
   getNextResetTime,
   RESET_INTERVAL_HOURS,
 } = require("./pullReset");
@@ -17,6 +18,7 @@ const RESET_SEND_DELAY_MS = 3 * 1000;
 
 let serviceStarted = false;
 let globalResetTimer = null;
+let globalResetCheckInterval = null;
 let userReminderInterval = null;
 let lastGlobalResetNoticeAt = 0;
 
@@ -500,6 +502,58 @@ async function sendGlobalPullResetNotification(client) {
   return true;
 }
 
+async function checkAndSendGlobalResetNotification(client, reason = "interval") {
+  const now = Date.now();
+  const currentResetAt = getCurrentResetStartTime(now);
+  const resetAgeMs = now - currentResetAt;
+
+  /*
+    Only send near the reset window.
+    This prevents the bot from sending an old reset ping hours after startup,
+    but still catches timer drift/restarts around reset time.
+  */
+  const RESET_PING_GRACE_MS = 10 * 60 * 1000;
+
+  if (resetAgeMs < RESET_SEND_DELAY_MS || resetAgeMs > RESET_PING_GRACE_MS) {
+    return false;
+  }
+
+  const shouldSend = await shouldSendGlobalResetNotification(
+    Number(currentResetAt)
+  );
+
+  if (!shouldSend) {
+    return false;
+  }
+
+  const sent = await sendGlobalPullResetNotification(client);
+
+  if (!sent) {
+    console.warn(
+      `[RESET REMINDER] Global reset notification skipped via ${reason}.`
+    );
+  }
+
+  return sent;
+}
+
+function startGlobalResetChecker(client) {
+  if (globalResetCheckInterval) {
+    clearInterval(globalResetCheckInterval);
+    globalResetCheckInterval = null;
+  }
+
+  checkAndSendGlobalResetNotification(client, "startup").catch((error) => {
+    console.error("[GLOBAL RESET STARTUP CHECK ERROR]", error);
+  });
+
+  globalResetCheckInterval = setInterval(() => {
+    checkAndSendGlobalResetNotification(client, "interval").catch((error) => {
+      console.error("[GLOBAL RESET INTERVAL CHECK ERROR]", error);
+    });
+  }, 60 * 1000);
+}
+
 function scheduleNextGlobalReset(client) {
   const now = Date.now();
   const nextResetAt = getNextResetTime(now);
@@ -514,22 +568,8 @@ function scheduleNextGlobalReset(client) {
   }
 
   globalResetTimer = setTimeout(async () => {
-    const firedAt = Date.now();
-
     try {
-      const currentResetAt = getNextResetTime(firedAt - RESET_INTERVAL_HOURS * 60 * 60 * 1000);
-
-      const shouldSend = await shouldSendGlobalResetNotification(
-        Number(currentResetAt)
-      );
-
-      if (shouldSend) {
-        const sent = await sendGlobalPullResetNotification(client);
-
-        if (!sent) {
-          console.warn("[RESET REMINDER] Global reset notification skipped.");
-        }
-      }
+      await checkAndSendGlobalResetNotification(client, "timer");
     } catch (error) {
       console.error("[GLOBAL RESET NOTIFICATION ERROR]", error);
     } finally {
@@ -551,6 +591,7 @@ function startResetReminderService(client) {
   });
 
   scheduleNextGlobalReset(client);
+  startGlobalResetChecker(client);
 
   checkUserCooldownReminders(client).catch((error) => {
     console.error("[COOLDOWN REMINDER READY CHECK ERROR]", error);
