@@ -438,14 +438,9 @@ async function checkUserCooldownReminders(client) {
   }
 }
 
-async function sendGlobalPullResetNotification(client) {
+async function sendGlobalPullResetNotification(client, resetAt = Date.now()) {
   if (!client || !client.isReady || !client.isReady()) {
     console.warn("[RESET REMINDER] Client is not ready. Skipping global reset notification.");
-    return false;
-  }
-
-  if (!client.token) {
-    console.warn("[RESET REMINDER] Client token is not available. Skipping global reset notification.");
     return false;
   }
 
@@ -454,21 +449,24 @@ async function sendGlobalPullResetNotification(client) {
     return false;
   }
 
-  const channel = await client.channels.fetch(RESET_CHANNEL_ID).catch(() => null);
+  const channel = await client.channels.fetch(RESET_CHANNEL_ID).catch((error) => {
+    console.error("[RESET REMINDER] Failed to fetch reset channel:", error?.message || error);
+    return null;
+  });
 
   if (!channel || !channel.isTextBased()) {
-    console.warn("[RESET REMINDER] Reset channel was not found.");
+    console.warn(
+      `[RESET REMINDER] Reset channel was not found or is not text based: ${RESET_CHANNEL_ID}`
+    );
     return false;
   }
 
-  const now = Date.now();
-  const nextResetAt = getNextResetTime(now);
-  const nextResetTimestamp = formatDiscordTimestamp(nextResetAt, "t");
+  const resetTimestamp = formatDiscordTimestamp(resetAt, "t");
   const roleMention = RESET_PING_ROLE_ID ? `<@&${RESET_PING_ROLE_ID}>` : "@Reset Ping";
 
   const embed = new EmbedBuilder()
     .setColor(0x9b59b6)
-    .setTitle(" Pull Reset Is Now Live!")
+    .setTitle("🔁 Pull Reset Is Now Live!")
     .setDescription(
       [
         "You can pull again in command channels!",
@@ -477,13 +475,13 @@ async function sendGlobalPullResetNotification(client) {
         "• Use `op pull` or `op pa` if you have access.",
         "",
         `🕒 Reset cycle: every **${RESET_INTERVAL_HOURS} hours**`,
-        `📌 Exact time: ${nextResetTimestamp}`,
+        `📌 Reset time: ${resetTimestamp}`,
       ].join("\n")
     )
     .setFooter({
       text: "One Piece Bot • Global Pull Reset",
     })
-    .setTimestamp();
+    .setTimestamp(new Date(resetAt));
 
   await channel.send({
     content: `${roleMention} Reset is now live! You can pull in command channels!`,
@@ -499,34 +497,41 @@ async function sendGlobalPullResetNotification(client) {
         },
   });
 
+  console.log(
+    `[RESET REMINDER] Global pull reset notification sent. channel=${RESET_CHANNEL_ID} resetAt=${resetAt}`
+  );
+
   return true;
 }
 
-async function checkAndSendGlobalResetNotification(client, reason = "interval") {
+async function checkAndSendGlobalResetNotification(
+  client,
+  reason = "interval",
+  forcedResetAt = null
+) {
   const now = Date.now();
-  const currentResetAt = getCurrentResetStartTime(now);
+  const currentResetAt = Number(forcedResetAt || getCurrentResetStartTime(now));
   const resetAgeMs = now - currentResetAt;
 
   /*
-    Only send near the reset window.
-    This prevents the bot from sending an old reset ping hours after startup,
-    but still catches timer drift/restarts around reset time.
+    Keep this wider than 10 minutes because Render can restart or delay.
+    The Supabase/runtime lock still prevents duplicate ping for the same resetAt.
   */
-  const RESET_PING_GRACE_MS = 10 * 60 * 1000;
+  const RESET_PING_GRACE_MS = Number(
+    process.env.RESET_PING_GRACE_MS || 2 * 60 * 60 * 1000
+  );
 
   if (resetAgeMs < RESET_SEND_DELAY_MS || resetAgeMs > RESET_PING_GRACE_MS) {
     return false;
   }
 
-  const shouldSend = await shouldSendGlobalResetNotification(
-    Number(currentResetAt)
-  );
+  const shouldSend = await shouldSendGlobalResetNotification(currentResetAt);
 
   if (!shouldSend) {
     return false;
   }
 
-  const sent = await sendGlobalPullResetNotification(client);
+  const sent = await sendGlobalPullResetNotification(client, currentResetAt);
 
   if (!sent) {
     console.warn(
@@ -567,9 +572,19 @@ function scheduleNextGlobalReset(client) {
     globalResetTimer = null;
   }
 
+  console.log(
+    `[RESET REMINDER] Next global reset ping scheduled in ${Math.round(
+      delay / 1000
+    )}s for ${new Date(nextResetAt).toISOString()}.`
+  );
+
   globalResetTimer = setTimeout(async () => {
     try {
-      await checkAndSendGlobalResetNotification(client, "timer");
+      await checkAndSendGlobalResetNotification(
+        client,
+        "timer",
+        Number(nextResetAt)
+      );
     } catch (error) {
       console.error("[GLOBAL RESET NOTIFICATION ERROR]", error);
     } finally {
@@ -606,6 +621,11 @@ function startResetReminderService(client) {
   console.log("[RESET REMINDER] User cooldown reminders enabled for daily/vote/treasure only.");
   console.log("[RESET REMINDER] Reminder triggers only once after a tracked cooldown finishes.");
   console.log("[RESET REMINDER] Service started.");
+  console.log(
+    `[RESET REMINDER] Global channel=${RESET_CHANNEL_ID || "missing"} role=${
+      RESET_PING_ROLE_ID || "missing"
+    } interval=${RESET_INTERVAL_HOURS}h.`
+  );
 }
 
 module.exports = {
