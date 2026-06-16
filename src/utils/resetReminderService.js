@@ -20,7 +20,7 @@ const RESET_CHECK_INTERVAL_MS = Number(
   process.env.RESET_GLOBAL_CHECK_INTERVAL_MS || 60 * 1000
 );
 const RESET_PING_GRACE_MS = Number(
-  process.env.RESET_PING_GRACE_MS || 20 * 60 * 1000
+  process.env.RESET_PING_GRACE_MS || 60 * 60 * 1000
 );
 
 function getCurrentGlobalResetAt(now = Date.now()) {
@@ -262,17 +262,16 @@ async function shouldSendGlobalResetNotification(resetAt) {
   }
 
   /*
-    Global reset ping must not fully depend on Supabase.
-    If Supabase lock fails, keep a runtime fallback so the bot still sends
-    the reset ping every 8 hours from pullReset.js / cd.js.
+    Do not mark this reset as sent here.
+    Auto reload can make Discord client/channel unavailable exactly at reset time.
+    Mark it as sent only after channel.send() succeeds.
   */
   if (!claimed) {
     console.warn(
-      `[RESET REMINDER] Supabase global reset claim was not available for ${readyAt}. Using runtime fallback.`
+      `[RESET REMINDER] Supabase global reset claim was not available for ${readyAt}. Retrying with runtime send guard.`
     );
   }
 
-  lastGlobalResetNoticeAt = readyAt;
   return true;
 }
 
@@ -558,11 +557,18 @@ async function checkAndSendGlobalResetNotification(
 
   if (!sent) {
     console.warn(
-      `[RESET REMINDER] Global reset notification skipped via ${reason}.`
+      `[RESET REMINDER] Global reset notification not sent via ${reason}. Will keep retrying during grace window.`
     );
+    return false;
   }
 
-  return sent;
+  lastGlobalResetNoticeAt = currentResetAt;
+
+  console.log(
+    `[RESET REMINDER] Global reset notification marked sent. resetAt=${currentResetAt} reason=${reason}`
+  );
+
+  return true;
 }
 
 function startGlobalResetChecker(client) {
@@ -601,10 +607,16 @@ function scheduleNextGlobalReset(client) {
     globalResetTimer = null;
   }
 
+  const nextResetWib = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    dateStyle: "short",
+    timeStyle: "medium",
+  }).format(new Date(nextResetAt));
+
   console.log(
     `[RESET REMINDER] Next global reset ping scheduled in ${Math.round(
       delay / 1000
-    )}s for ${new Date(nextResetAt).toISOString()} every ${RESET_INTERVAL_HOURS}h.`
+    )}s for ${new Date(nextResetAt).toISOString()} / ${nextResetWib} WIB every ${RESET_INTERVAL_HOURS}h.`
   );
 
   globalResetTimer = setTimeout(async () => {
