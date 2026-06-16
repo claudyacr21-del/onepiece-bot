@@ -3,7 +3,6 @@ const { EmbedBuilder } = require("discord.js");
 const { readPlayers } = require("../playerStore");
 const {
   getCurrentResetStartTime,
-  getNextResetTime,
   RESET_INTERVAL_HOURS,
 } = require("./pullReset");
 
@@ -15,6 +14,46 @@ const USER_REMINDER_CHECK_INTERVAL_MS = Number(
 );
 
 const RESET_SEND_DELAY_MS = 3 * 1000;
+
+const RESET_INTERVAL_MS = RESET_INTERVAL_HOURS * 60 * 60 * 1000;
+const RESET_CHECK_INTERVAL_MS = Number(
+  process.env.RESET_GLOBAL_CHECK_INTERVAL_MS || 60 * 1000
+);
+const RESET_PING_GRACE_MS = Number(
+  process.env.RESET_PING_GRACE_MS || 20 * 60 * 1000
+);
+
+function getCurrentGlobalResetAt(now = Date.now()) {
+  const current = Number(getCurrentResetStartTime(now) || 0);
+
+  if (!current || !Number.isFinite(current)) {
+    return 0;
+  }
+
+  let resetAt = current;
+
+  while (resetAt + RESET_INTERVAL_MS <= now) {
+    resetAt += RESET_INTERVAL_MS;
+  }
+
+  return resetAt;
+}
+
+function getNextGlobalResetAt(now = Date.now()) {
+  const current = getCurrentGlobalResetAt(now);
+
+  if (!current) {
+    return Date.now() + RESET_INTERVAL_MS;
+  }
+
+  let next = current + RESET_INTERVAL_MS;
+
+  while (next <= now) {
+    next += RESET_INTERVAL_MS;
+  }
+
+  return next;
+}
 
 let serviceStarted = false;
 let globalResetTimer = null;
@@ -235,24 +274,6 @@ async function shouldSendGlobalResetNotification(resetAt) {
 
   lastGlobalResetNoticeAt = readyAt;
   return true;
-}
-
-function formatRemaining(targetTime, now = Date.now()) {
-  const diff = Math.max(0, Number(targetTime || 0) - Number(now || Date.now()));
-
-  if (diff <= 0) return "Now";
-
-  const totalSeconds = Math.ceil(diff / 1000);
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-
-  return `${seconds}s`;
 }
 
 function formatDiscordTimestamp(timestampMs, style = "R") {
@@ -510,18 +531,20 @@ async function checkAndSendGlobalResetNotification(
   forcedResetAt = null
 ) {
   const now = Date.now();
-  const currentResetAt = Number(forcedResetAt || getCurrentResetStartTime(now));
+  const currentResetAt = Number(forcedResetAt || getCurrentGlobalResetAt(now));
+
+  if (!currentResetAt) {
+    console.warn("[RESET REMINDER] Could not resolve current global reset time.");
+    return false;
+  }
+
   const resetAgeMs = now - currentResetAt;
 
-  /*
-    Keep this wider than 10 minutes because Render can restart or delay.
-    The Supabase/runtime lock still prevents duplicate ping for the same resetAt.
-  */
-  const RESET_PING_GRACE_MS = Number(
-    process.env.RESET_PING_GRACE_MS || 2 * 60 * 60 * 1000
-  );
+  if (resetAgeMs < RESET_SEND_DELAY_MS) {
+    return false;
+  }
 
-  if (resetAgeMs < RESET_SEND_DELAY_MS || resetAgeMs > RESET_PING_GRACE_MS) {
+  if (resetAgeMs > RESET_PING_GRACE_MS && !forcedResetAt) {
     return false;
   }
 
@@ -556,12 +579,18 @@ function startGlobalResetChecker(client) {
     checkAndSendGlobalResetNotification(client, "interval").catch((error) => {
       console.error("[GLOBAL RESET INTERVAL CHECK ERROR]", error);
     });
-  }, 60 * 1000);
+  }, RESET_CHECK_INTERVAL_MS);
+
+  console.log(
+    `[RESET REMINDER] Global reset checker started. checkEvery=${Math.round(
+      RESET_CHECK_INTERVAL_MS / 1000
+    )}s grace=${Math.round(RESET_PING_GRACE_MS / 1000)}s.`
+  );
 }
 
 function scheduleNextGlobalReset(client) {
   const now = Date.now();
-  const nextResetAt = getNextResetTime(now);
+  const nextResetAt = getNextGlobalResetAt(now);
   const delay = Math.max(
     RESET_SEND_DELAY_MS,
     nextResetAt - now + RESET_SEND_DELAY_MS
@@ -575,7 +604,7 @@ function scheduleNextGlobalReset(client) {
   console.log(
     `[RESET REMINDER] Next global reset ping scheduled in ${Math.round(
       delay / 1000
-    )}s for ${new Date(nextResetAt).toISOString()}.`
+    )}s for ${new Date(nextResetAt).toISOString()} every ${RESET_INTERVAL_HOURS}h.`
   );
 
   globalResetTimer = setTimeout(async () => {
@@ -624,7 +653,7 @@ function startResetReminderService(client) {
   console.log(
     `[RESET REMINDER] Global channel=${RESET_CHANNEL_ID || "missing"} role=${
       RESET_PING_ROLE_ID || "missing"
-    } interval=${RESET_INTERVAL_HOURS}h.`
+    } interval=${RESET_INTERVAL_HOURS}h schedule=00:00/08:00/16:00 WIB.`
   );
 }
 
