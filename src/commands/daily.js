@@ -179,6 +179,20 @@ function getDailyPullResetTicket() {
   });
 }
 
+function makePullResetTicketReward(amount = 1) {
+  return {
+    code: "pull_reset_ticket",
+    name: "Pull Reset Ticket",
+    type: "Ticket",
+    rarity: "S",
+    amount: Math.max(1, Math.floor(Number(amount || 1))),
+  };
+}
+
+function addPullResetTicketToTickets(tickets, amount = 1) {
+  return addOrIncrease(tickets, makePullResetTicketReward(amount));
+}
+
 function formatRemaining(ms) {
   if (ms <= 0) return "Now";
 
@@ -562,12 +576,14 @@ module.exports = {
         }
 
         if (baccaratBonusApplied) {
-          const pullResetTicket = normalizeDailyTicketReward(
-            makeReward(getDailyPullResetTicket(), 1)
-          );
+          const pullResetTicket = makePullResetTicketReward(1);
 
-          updatedTickets = addOrIncrease(updatedTickets, pullResetTicket);
+          updatedTickets = addPullResetTicketToTickets(updatedTickets, 1);
           rewardsToApply.push(pullResetTicket);
+
+          console.log(
+            `[DAILY BACCARAT] Added Pull Reset Ticket to tickets for ${message.author.id}.`
+          );
         }
 
         appliedRewards = rewardsToApply;
@@ -605,7 +621,7 @@ module.exports = {
       : ["↪ No extra reward this time"];
 
     if (baccaratBonusApplied) {
-      extraLines.push("↪ Baccarat / Raki Raki Bonus: +1 Pull Reset Ticket");
+      extraLines.push("↪ Baccarat / Raki Raki Bonus Applied");
     }
 
     const embed = new EmbedBuilder()
