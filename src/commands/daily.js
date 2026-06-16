@@ -175,7 +175,7 @@ function getDailyPullResetTicket() {
     code: "pull_reset_ticket",
     name: "Pull Reset Ticket",
     type: "Ticket",
-    rarity: "S",
+    rarity: "A",
   });
 }
 
@@ -184,7 +184,7 @@ function makePullResetTicketReward(amount = 1) {
     code: "pull_reset_ticket",
     name: "Pull Reset Ticket",
     type: "Ticket",
-    rarity: "S",
+    rarity: "A",
     amount: Math.max(1, Math.floor(Number(amount || 1))),
   };
 }
