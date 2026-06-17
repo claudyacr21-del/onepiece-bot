@@ -454,8 +454,8 @@ async function checkUserCooldownReminders(client) {
 }
 
 async function sendGlobalPullResetNotification(client, resetAt = Date.now()) {
-  if (!client || !client.isReady || !client.isReady()) {
-    console.warn("[RESET REMINDER] Client is not ready. Skipping global reset notification.");
+  if (!client) {
+    console.warn("[RESET REMINDER] Missing Discord client.");
     return false;
   }
 
@@ -464,10 +464,29 @@ async function sendGlobalPullResetNotification(client, resetAt = Date.now()) {
     return false;
   }
 
-  const channel = await client.channels.fetch(RESET_CHANNEL_ID).catch((error) => {
-    console.error("[RESET REMINDER] Failed to fetch reset channel:", error?.message || error);
-    return null;
-  });
+  const readyState = {
+    readyAt: client.readyAt ? client.readyAt.toISOString?.() || String(client.readyAt) : "null",
+    wsStatus: client.ws?.status ?? "unknown",
+    uptime: client.uptime ?? 0,
+  };
+
+  if (typeof client.isReady === "function" && !client.isReady()) {
+    console.warn(
+      `[RESET REMINDER] Client isReady=false, but will try channel fetch anyway. readyAt=${readyState.readyAt} wsStatus=${readyState.wsStatus} uptime=${readyState.uptime}`
+    );
+  }
+
+  const channel = await client.channels
+    .fetch(RESET_CHANNEL_ID, {
+      force: true,
+    })
+    .catch((error) => {
+      console.error(
+        "[RESET REMINDER] Failed to fetch reset channel:",
+        error?.message || error
+      );
+      return null;
+    });
 
   if (!channel || !channel.isTextBased()) {
     console.warn(
