@@ -126,6 +126,27 @@ function getEquippedDailyFruitTexts(card) {
     card?.equippedFruit,
     card?.equippedFruitCode,
     card?.equippedFruitName,
+
+    card?.equipment?.devilFruit,
+    card?.equipment?.devilFruitCode,
+    card?.equipment?.devilFruitName,
+    card?.equipment?.fruit,
+    card?.equipment?.fruitCode,
+    card?.equipment?.fruitName,
+
+    card?.equipped?.devilFruit,
+    card?.equipped?.devilFruitCode,
+    card?.equipped?.devilFruitName,
+    card?.equipped?.fruit,
+    card?.equipped?.fruitCode,
+    card?.equipped?.fruitName,
+
+    card?.loadout?.devilFruit,
+    card?.loadout?.devilFruitCode,
+    card?.loadout?.devilFruitName,
+    card?.loadout?.fruit,
+    card?.loadout?.fruitCode,
+    card?.loadout?.fruitName,
   ];
 
   return equippedFruitValues.flatMap((value) => getDailyFruitTexts(value));
@@ -552,6 +573,10 @@ module.exports = {
         const rewardsToApply = [...rewardBundle.rewards];
 
         baccaratBonusApplied = applyBaccaratDailyBonus(fresh);
+
+        console.log(
+          `[DAILY BACCARAT] user=${message.author.id} equipped=${baccaratBonusApplied}`
+        );
 
         let updatedBoxes = [...(fresh.boxes || [])];
         let updatedTickets = [...(fresh.tickets || [])];

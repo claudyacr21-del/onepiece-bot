@@ -261,11 +261,6 @@ async function shouldSendGlobalResetNotification(resetAt) {
     console.error("[GLOBAL RESET CLAIM ERROR]", error);
   }
 
-  /*
-    Do not mark this reset as sent here.
-    Auto reload can make Discord client/channel unavailable exactly at reset time.
-    Mark it as sent only after channel.send() succeeds.
-  */
   if (!claimed) {
     console.warn(
       `[RESET REMINDER] Supabase global reset claim was not available for ${readyAt}. Retrying with runtime send guard.`
