@@ -824,6 +824,131 @@ const CARD_IMAGES = {
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1509772346851069983/content.png?ex=6a239f11&is=6a224d91&hm=f968664bc0f44cda1f4b91c076750783e0e610e3156524b2a7584eeeafba9624&",
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1509772347354251284/content.png?ex=6a239f11&is=6a224d91&hm=59b24f1b48a7d59e5beb001a0f255ce89718448572003f16ec56f387dec1a793&",
   },
+  mr2: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515693837560058070/content.png?ex=6a329263&is=6a3140e3&hm=27c6b1c65a02f871c82ccae30ad7c63b5f42035dc011cfcfaa152a7ab1db15c7&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1515693838121959646/content.png?ex=6a329263&is=6a3140e3&hm=7b8fb262d909bf42f40bc369defa4573bc13e46a5d24e1c6d5cfa52f71d826b0&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1515693838784663743/content.png?ex=6a329263&is=6a3140e3&hm=34e7833e213a3e8fb8d8925109b5dfe27a36521550ae7d5bfe2c8ab2b1865034&",
+  },
+  higuma: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515693872297283594/content.png?ex=6a31e9ab&is=6a30982b&hm=d1413ba08e343873c74c4c8a89041017ea6e76320d252d79fa24c451c3f675dc&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1515693872909516992/content.png?ex=6a31e9ab&is=6a30982b&hm=f1a6cb9df4ae479d02d63a0cf2c8524634b41351269385f723c2593f441ba249&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1515693873471684749/content.png?ex=6a31e9ab&is=6a30982b&hm=edaa6aea96e8a8b1f9ed52d54cc091e52a487076f0ad1703ef5fc17d278b5c38&",
+  },
+  x_drake: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515696037220712619/content.png?ex=6a31ebaf&is=6a309a2f&hm=1269a88bbd9366621fbd8dfa4aa8817fe66888d0d0ee8ccd86f2b10097943003&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1515696037635817564/content.png?ex=6a31ebaf&is=6a309a2f&hm=858455764a1e417acacf0df60b8c31227438eb00bf7c2d3d452557092f431288&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1515696038156173383/content.png?ex=6a31ebaf&is=6a309a2f&hm=d32055be4615ed401f18419f6c855653d63e1ffd802d2af6b9616c6a9a3d3a0b&",
+  },
+  scratchmen_apoo: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515696761585402006/content.png?ex=6a31ec5c&is=6a309adc&hm=74b23cea971d62d38cd96fe8582d55291e630483a0e16de50f1c08634041d0cb&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1515696762235392050/content.png?ex=6a31ec5c&is=6a309adc&hm=0bd5913b7f32890f1fe376e7f7a4c1928c418eefa09c7cf567bd8212cbccfd48&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1515696762789036072/content.png?ex=6a31ec5c&is=6a309adc&hm=46032542236dd9b18cf2d69db23507c558b762704ae61a8e1fe7eba90b72794d&",
+  },
+  charlotte_daifuku: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515699540735557763/content.png?ex=6a31eef2&is=6a309d72&hm=64d137f20bc19daf727f47ed0c81e74d39e0798cb499625c44e5645a67179a50&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1515699541217771571/content.png?ex=6a31eef2&is=6a309d72&hm=8528e3bce4e1fff86a4a5184b47eed5faef3a3ed340e70f00d64c5e70c8803e8&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1515699541674823721/content.png?ex=6a31eef3&is=6a309d73&hm=15b4d46a2f803ae34eb91b3e649350a59d16dbaa520762b06d3e04545b8cc680&",
+  },
+  charlotte_oven: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515701426553094244/content.png?ex=6a31f0b4&is=6a309f34&hm=97f2ec4b1b67134fab7030c9fe9eae6e91fe71a62d025cfa4b1155d781c64f19&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1515701426972528662/content.png?ex=6a31f0b4&is=6a309f34&hm=0f5b4e82dbf8e9962202f98b47e9b42cb5bbc7ea0a61309f61be32b8d3f80dc3&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1515701427388022944/content.png?ex=6a31f0b4&is=6a309f34&hm=061e8394654a7b96a98e26560618dcb9bd52f6fcfc245a06276c4aa1eff4e8fd&",
+  },
+  charlotte_brulee: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515708921057378464/content.png?ex=6a31f7af&is=6a30a62f&hm=f3fdac90a1458e32c7ec6b7be4cc96c86964197cb53fd264012f7e58fe3ba4d1&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1515708921514426378/content.png?ex=6a31f7af&is=6a30a62f&hm=82628cda9e109048bdbc9c6c75f447fff47de0c0e67b260a06db58bfde27626d&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1515708921996906588/content.png?ex=6a31f7af&is=6a30a62f&hm=ac8c4357af39fc40247158c63059dc55be25ef168c3403bbfddf7c39c6766ae5&",
+  },
+  basil_hawkins: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515709101814845601/content.png?ex=6a31f7da&is=6a30a65a&hm=d2cbf6bbfa463cb9a91c3969949d67a126f5431458ebcc89cb446d990694c5ed&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1515709102523941005/content.png?ex=6a31f7da&is=6a30a65a&hm=3776d574f0a4ab2944fa3b4fa8528cfebbb13b12e8644b47aa23dc72781fb1dd&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1515709103153086657/content.png?ex=6a31f7da&is=6a30a65a&hm=5f28e0a5e3924b73f3c96368a49c8222f84753c481d411120b16d97f91050a4a&",
+  },
+  capone_bege: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515710204162085014/content.png?ex=6a31f8e1&is=6a30a761&hm=faac8c6d23b9bede4e419736269ab335499a4f7a51c51377071e8abff48728e0&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1515710204702888058/content.png?ex=6a31f8e1&is=6a30a761&hm=34c6c7ae3a1adf63e3575bdf255030abf041679435542875f04fa040b67080b7&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1515710205122449428/content.png?ex=6a31f8e1&is=6a30a761&hm=4c7a6f01198c86fcd8be7702800951e5401b779387e570547cfee1b8f539add8&",
+  },
+  neptune: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516282274822357062/content.png?ex=6a321369&is=6a30c1e9&hm=3e0cada16c682d9089997340f2f4f645c70b32d6a48649854ec27fe4425c7603&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516282275384524872/content.png?ex=6a321369&is=6a30c1e9&hm=73273f26f68f10bea736e9f941d6d51de4de0fd4ee7feb56bca4db58c6aa4364&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516282275900424222/content.png?ex=6a321369&is=6a30c1e9&hm=b96547b2548d5c41e3707a76edf3a8a77af700b13152c8b3b46e71e4b952e485&",
+  },
+  dorry: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516429297764536481/content.png?ex=6a329c56&is=6a314ad6&hm=4bc92e453e6b2e20968c8ec1d4e78b170fe9841c1eab4288acbdd6263ebf5969&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516429298515443752/content.png?ex=6a329c56&is=6a314ad6&hm=8bcd6f3f48df9216266bd4239c4d87260911e62248fcc4ae07f3b2478b3e7b7b&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516429299089936414/content.png?ex=6a329c56&is=6a314ad6&hm=13c7bef4b7aadd27921190a4561b03240e35f279f143e706e0c8f8d869d58e79&",
+  },
+  brogy: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516430832800104448/content.png?ex=6a329dc4&is=6a314c44&hm=9adae2087bade362e15565124a998f0d06d34fe6a8bbec24077cfb48d0e27d4d&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516430833265803431/content.png?ex=6a329dc4&is=6a314c44&hm=e27201cda9053f932aeb89d9fbed764420dd3cd18f161dc8c2375bf1575d0555&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516430833752215594/content.png?ex=6a329dc4&is=6a314c44&hm=ae4bc4221de85804a52dcc25250b5f3ee71c40a8ba4e21a3a72830b80af074ae&",
+  },
+  emporio_ivankov: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516432598694625441/content.png?ex=6a329f69&is=6a314de9&hm=8ba195d8c1555eeac363e18004271dc01938896220ed2728b6fc7c91a5c05cc0&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516432599139225690/content.png?ex=6a329f69&is=6a314de9&hm=19bfc03b41fe1b8c189acb8d50cee7aeeac7cfcf63f8178e463c7133ec591878&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516432599604789389/content.png?ex=6a329f69&is=6a314de9&hm=e4d04f9d6236ca5c5d98ed6bb151991bae607e2c03a0405a6faf52958609e3a8&",
+  },
+  karasu: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516433707760877668/content.png?ex=6a32a071&is=6a314ef1&hm=a3b84d65aa44ce74631369eb29b6d90943d601f47f74d59b4525a2faf690bfd3&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516433708289363968/content.png?ex=6a32a072&is=6a314ef2&hm=6f1ca11fa416166153e9d103e5334969c609f40cfd033838fa68450ccd31d9e4&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516433708754800641/content.png?ex=6a32a072&is=6a314ef2&hm=5b90e420523e09749d08eec2aeb160641728e5eeb72582fae010b1d9f88edd81&",
+  },
+  belo_betty: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516437580713951453/content.png?ex=6a32a40d&is=6a31528d&hm=5d3327cc97659bc1ffb42ede62294e039fd087ade8a0c8a435dd657369ffb28b&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516437581288444044/content.png?ex=6a32a40d&is=6a31528d&hm=36e8cf3d4904cb5ca2b9e913cff77575efaa3044425c424370aef82cc33c3945&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516437581829505134/content.png?ex=6a32a40d&is=6a31528d&hm=8cff7fe31f4dc6014436c1952f6383e18b6b2fd588f0b45d8402402396d2d0bb&",
+  },
+  inazuma: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516441791379800204/content.png?ex=6a32a7f9&is=6a315679&hm=5a9257f49d3a2d24181bf6a7e01c17a9dcc5d1acfb8f2369bc7411c932088d8e&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516441792021794918/content.png?ex=6a32a7f9&is=6a315679&hm=8bfed90b81d41fece261cf19a4ac272506d4d3502b13b689b9c2543b6bba1170&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516441792688422975/content.png?ex=6a32a7f9&is=6a315679&hm=ccca7703a00961952de0dfa1a5e45f5e26b93f8403013a0ef5a74af7084311c7&",
+  },
+  jewelry_bonney: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516442761283375114/content.png?ex=6a32a8e0&is=6a315760&hm=f1be14457af04859d9c2607ed019108c8753818f455c662dab3425cf12ae64dd&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516442761841344744/content.png?ex=6a32a8e0&is=6a315760&hm=ec02afa96823abb4334dc03bfc19048f2acad1e4d46468c4009a17f22bd9c63f&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516442762449260735/content.png?ex=6a32a8e0&is=6a315760&hm=abd9dca1dcc8b4cba8b3dba6be14fb073bf9cc65e78ae61d53abecd1b6616025&",
+  },
+  figarland_shamrock: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516443583593316432/content.png?ex=6a32a9a4&is=6a315824&hm=6b81673373a11758ad1944f0878394fc88ca320de630c1c437b22bf86284d202&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516443584079859732/content.png?ex=6a32a9a4&is=6a315824&hm=d4da7823fc58bdfd0ee148e12f3cf25f32d408e9cf09330dce026886e759c687&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516443584520523947/content.png?ex=6a32a9a4&is=6a315824&hm=af454ce5448fa436848eb3e5e0f687d389d5940dd73c175d5497f7540f6f13b6&",
+  },
+  jesus_burgess: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516444707809394708/content.png?ex=6a32aab0&is=6a315930&hm=78da6f74b2cef6320d7d4a4d6845ca001c389eeed4858636a954e8c43a727ca8&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516444708203794432/content.png?ex=6a32aab0&is=6a315930&hm=59a99d1f1f819adb0bd017397026f286ce5a0404babd03845b15930f130d1a08&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516444708606316604/content.png?ex=6a32aab0&is=6a315930&hm=08312543bf2062a7c2beef3c7adf9f1c809731c26efe57ea43c0a5b360222749&",
+  },
+  catarina_devon: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516445540068626545/content.png?ex=6a32ab76&is=6a3159f6&hm=87eac49caa50f5618e74c4df7be00ea303b386780cf74b151498e9a084da9aad&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516445540580065351/content.png?ex=6a32ab77&is=6a3159f7&hm=30c767085b09e351df01d15cdd93d0601dd3caf1d30f11fbc41f28c5d7bdb28d&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516445541104619571/content.png?ex=6a32ab77&is=6a3159f7&hm=59cb067699042e55fe5301b264f06982677c0683201c72896cf3569187b5a2e2&",
+  },
+  scopper_gaban: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516450027722244147/content.png?ex=6a32afa4&is=6a315e24&hm=00f0272d9bcd736f684276d6e40dbde30e4e1dce36b1af3e9463fbe1cb272d7e&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516450028150067461/content.png?ex=6a32afa4&is=6a315e24&hm=51428ea55208e2cba30effd4dade891507dfd0a3f4a1d34ea18756c9bf9e3c3e&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516450028586012803/content.png?ex=6a32afa5&is=6a315e25&hm=db4a99635219ee0c9430a4646a3796867265f8b5cfd8816c1d91aec25c1fa8c9&",
+  },
+  chew: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516663093973745714/content.png?ex=6a337613&is=6a322493&hm=c666ec648753c9810846ffb03183e8d0723d304af2f714ef4e16ae470080de94&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516663094468804700/content.png?ex=6a337613&is=6a322493&hm=c1ecf20faf34fb5526a17c91ecce773d11db5f6e071c45d61a2732f281dbbadb&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516663095068459048/content.png?ex=6a337614&is=6a322494&hm=98bc33e3c06e0d5e0177be520323cabe14aed806390ecec58f612291392409a9&",
+  },
+  kuroobi: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516665204128088195/content.png?ex=6a33780a&is=6a32268a&hm=a0d96d53e101e04eb90a88b685a5f4968642f27a1d312853db3d54d462393af6&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516665204715425923/content.png?ex=6a33780b&is=6a32268b&hm=6232ad795dde3dd85c26aa1d3ba69ae1d1e930445b4d0d6401467c9bc4c709a5&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516665205252165712/content.png?ex=6a33780b&is=6a32268b&hm=1319330437f9b57f36a1577e073ce22b2fca053752bfea958c9b6f7a94c9b633&",
+  },
+  dogra: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516698509913620480/content.png?ex=6a33970f&is=6a32458f&hm=a9cf54f9239243d0c53cf3b192ab753244b8739c08ee0dcfb42b491d45d80ace&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516698510483783772/content.png?ex=6a33970f&is=6a32458f&hm=c01d7cf9841397fc1509a56df8c7c32f191ff34742323f4ebf709c375546554f&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516698510966259882/content.png?ex=6a33970f&is=6a32458f&hm=9af309bd48d55579e6af816b187cd41635b55f615ee7631dbc7b8b9d738c4d62&",
+  },
+  magra: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1516734093205704744/content.png?ex=6a33b833&is=6a3266b3&hm=568a0f87969327f3c6622d9b932d49d8dcb8a134e436838572763efe3ceb5965&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516734093730123867/content.png?ex=6a33b833&is=6a3266b3&hm=ec2f90049517f1475f2ec369f5a7c6af8d424a39b406a7213acd48c05bc6cb16&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516734094216790026/content.png?ex=6a33b833&is=6a3266b3&hm=7e7d4b4582abf1b8a6a3d3da1e22935724bcbeef84fe04921636be7973b1e627&",
+  },
 };
 
 const WEAPON_IMAGES = {
@@ -893,6 +1018,19 @@ const WEAPON_IMAGES = {
   kikoku: "https://cdn.discordapp.com/attachments/1493204525975076944/1504790662707544124/content.png?ex=6a084503&is=6a06f383&hm=f5b9878fcc41743c685878c8db0a676a4652d2481595e3838b33f4d30dad9b2e&",
   nemesis: "https://cdn.discordapp.com/attachments/1493204525975076944/1508419830292807761/content.png?ex=6a1578f0&is=6a142770&hm=441eb98a9ee1ae91dd0692cf3c70d8e63b2092b85a66c50f694732290e4ad5ad&",
   sandals: "https://cdn.discordapp.com/attachments/1493204525975076944/1508419830871490704/content.png?ex=6a1578f0&is=6a142770&hm=6bc392ebc1cdbce81be29b41467a3a1467618b54a27178bf0272b8cc37226d31&",
+  okama_kenpo: "https://cdn.discordapp.com/attachments/1493204525975076944/1515361982570565682/content.png?ex=6a2f6312&is=6a2e1192&hm=c224c8f0a3cd95298dcf53c97cd42544932ae489fa9a58c1fdb031fdb90b5354&",
+  saber_and_axe: "https://cdn.discordapp.com/attachments/1493204525975076944/1515361983396970527/content.png?ex=6a2f6312&is=6a2e1192&hm=2bdb537ee73a3851e4c8f098b5985150d87ed750672e6471120ddfe131da2596&",
+  scythe: "https://cdn.discordapp.com/attachments/1493204525975076944/1515361984294682845/content.png?ex=6a2f6313&is=6a2e1193&hm=cfa7417e9110a765b7e75e8b462d952e2af5b5424ddaf1c11822a6c70e772312&",
+  straw_sword: "https://cdn.discordapp.com/attachments/1493204525975076944/1515361985238270122/content.png?ex=6a2f6313&is=6a2e1193&hm=d8b1f083fb5c2f2aadddd3b5de769eb981a627a208af339191d3b52193e20974&",
+  fire_tank_arsenal: "https://cdn.discordapp.com/attachments/1493204525975076944/1515361986135724142/content.png?ex=6a2f6313&is=6a2e1193&hm=a2a490ca651420068803fceb984eabd93aabc21bc316014acfe85f0f2b4ac685&",
+  sea_spear: "https://cdn.discordapp.com/attachments/1493204525975076944/1515361987087962192/content.png?ex=6a2f6313&is=6a2e1193&hm=9dd8715be519319502f8a36cac424a5cae6ae149d1b93fbf850e447b149e7062&",
+  terry_sword: "https://cdn.discordapp.com/attachments/1493204525975076944/1515361989298229299/content.png?ex=6a2f6314&is=6a2e1194&hm=b3f6275a6c160d938159971c818dd381cfc21b0d05f2f73e7a83f6bef6e2f1d2&",
+  bruiser_axe: "https://cdn.discordapp.com/attachments/1493204525975076944/1515361990392938700/content.png?ex=6a2f6314&is=6a2e1194&hm=083ad86a68ada9700b486ff9af0c0c1db62e364593de295dc3164394f5d846f1&",
+  cerberus: "https://cdn.discordapp.com/attachments/1493204525975076944/1515582408206979072/content.png?ex=6a2f879c&is=6a2e361c&hm=c3b56e4de77092299802b9506d6257f3498c9018bb11551eef38e66b2b5725be&",
+  twin_axes: "https://cdn.discordapp.com/attachments/1493204525975076944/1515583188339261450/content.png?ex=6a2f8856&is=6a2e36d6&hm=a3854de7249bf0052aa51031289f446a0e635c564716f617acadf1b251cb50c2",
+  water_bullets: "https://cdn.discordapp.com/attachments/1493204525975076944/1515582408819216404/content.png?ex=6a2f879c&is=6a2e361c&hm=804f331cf60d0ebb26a11e0e71e37e46dbf10d67443e01bad61fd056f1e37f42&",
+  bandit_club: "https://cdn.discordapp.com/attachments/1493204525975076944/1515582409192505539/content.png?ex=6a2f879c&is=6a2e361c&hm=985b16ac65c9f057d3b88515567ab981ac93c1cf25b2f30d2315c75ae0d71f73&",
+  bandit_knife: "https://cdn.discordapp.com/attachments/1493204525975076944/1515582409654145165/content.png?ex=6a2f879c&is=6a2e361c&hm=05687845afb0c6387dbf9f1f35d45fee4c06eab119ffd6c3893ce7ca59657b15&",
 };
 
 const DEVIL_FRUIT_IMAGES = {
@@ -956,6 +1094,21 @@ const DEVIL_FRUIT_IMAGES = {
   zushi_zushi_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1495024512276889630/Zushi_Zushi_no_Mi.png?ex=69e4bd93&is=69e36c13&hm=fdeae4b2a64b7c73ffa770fcb65570506ea1d24262ec9febafed808e0618708a&",
   aro_aro_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1495336991309434881/content.png?ex=69e5e098&is=69e48f18&hm=24bcc663fb4ddd9a24ecd3a813c18f79593e2167f2480efe836936d6ab61087e",
   jiki_jiki_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1499048654135230564/content.png?ex=69f3615a&is=69f20fda&hm=4f7e8c0c8daaea4b15538024dcbe23b288d925011dd0d292a39ec498c7b9852a",
+  mane_mane_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1515619133461500015/content.png?ex=6a2fa9d0&is=6a2e5850&hm=d930dbfc73feaadc4896b9c09fdcc90fe94eb340ccb5af611f11e44148ac0f6d&",
+  ryu_ryu_no_mi_model_allosaurus: "https://cdn.discordapp.com/attachments/1493204525975076944/1515619133956554862/content.png?ex=6a2fa9d0&is=6a2e5850&hm=ca54136d937d56489507bf03221e0906d1a64d22b664b65263e3d1c04e9883b2&",
+  oto_oto_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1515619134464069713/content.png?ex=6a2fa9d0&is=6a2e5850&hm=6c523be02adca29138eb7aa2438c3971007cdf3fdf68e6e6358f64a118e6f97d&",
+  hoya_hoya_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1515619134866718813/content.png?ex=6a2fa9d0&is=6a2e5850&hm=c2a692ebbce6579c7415cc9e12267e303604d4e4d933c16b9c4d5799e2ac44f1&",
+  netsu_netsu_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1515619135395070052/content.png?ex=6a2fa9d0&is=6a2e5850&hm=6857ad326625e63fae2f4dd4510b105e992209a74b72ce122b2ccf461a585732&",
+  mira_mira_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1515619135860510841/content.png?ex=6a2fa9d0&is=6a2e5850&hm=e6b6a355736343fc5499a5fd4cd1d79f047662ce48c394e329db9ee37e2996ca&",
+  wara_wara_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1515619136343117915/content.png?ex=6a2fa9d0&is=6a2e5850&hm=e09751381a907e330a525bfc6c8df973e8b747639cf953b8fd95f19ffc5f9f93&",
+  shiro_shiro_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1515619136930189462/content.png?ex=6a2fa9d1&is=6a2e5851&hm=051095aea35b26164725a21aaa4bb10f34af34f81bc9130f6657a10f75c41a80&",
+  horu_horu_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1515619137328644148/content.png?ex=6a2fa9d1&is=6a2e5851&hm=46b481256e18abb5c15577d052f8c0057ef2e03b7225866bea25d7cce5bb2400&",
+  susu_susu_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1515619137743884378/content.png?ex=6a2fa9d1&is=6a2e5851&hm=d5729a4550cf61c95b7965421b1e92132e1579ba94e12b75731dd155b8b6ebc2&",
+  kobu_kobu_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1515677657482657912/content.png?ex=6a2fe051&is=6a2e8ed1&hm=59ba3bae06502c741613aa05343a65c82f1c563bf53ba10c456dfc87daa1cb39&",
+  choki_choki_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1515677658074189904/content.png?ex=6a2fe051&is=6a2e8ed1&hm=1612c52d4a6d6b104b129c0f426aff3b427868231907adaf05ba26d91c8dc09b&",
+  toshi_toshi_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1515677658678296657/content.png?ex=6a2fe051&is=6a2e8ed1&hm=2e16159ca8b94bd7792e83b1ca4db94c59b5e53070008eeb2a9d4cc2a340862f&",
+  riki_riki_no_mi: "https://cdn.discordapp.com/attachments/1493204525975076944/1515677659110051990/content.png?ex=6a2fe051&is=6a2e8ed1&hm=088056e2aec013f3339410733b9af075a6ec6f216d4d25b66de50afdd28230e2&",
+  inu_inu_no_mi_model_kyubi_no_kitsune: "https://cdn.discordapp.com/attachments/1493204525975076944/1515677659806433401/content.png?ex=6a2fe052&is=6a2e8ed2&hm=7d0d21068135ff37b6c82e290d6078ead92eee58988c0f9dae90f8505344ba64&",
 };
 
 const SHIP_IMAGES = {

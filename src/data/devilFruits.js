@@ -599,5 +599,154 @@ module.exports = [
   statPercent: { atk: 7, hp: 6, speed: 4 },
   image: "",
   description: "A magnetic devil fruit that lets the user control metal, create massive constructs, and unleash powerful electromagnetic attacks."
+  },
+  {
+    code: "mane_mane_no_mi",
+    name: "Mane Mane no Mi",
+    rarity: "B",
+    owners: ["mr2"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 3, hp: 3, speed: 2 },
+    image: "",
+    description: "Allows the user to copy another person's appearance by touching their face."
+  },
+  {
+    code: "ryu_ryu_no_mi_model_allosaurus",
+    name: "Ryu Ryu no Mi, Model: Allosaurus",
+    rarity: "A",
+    owners: ["x_drake"],
+    type: "Ancient Zoan Fruit",
+    statPercent: { atk: 5, hp: 4, speed: 3 },
+    image: "",
+    description: "Transforms the user into an allosaurus with ancient zoan power."
+  },
+  {
+    code: "oto_oto_no_mi",
+    name: "Oto Oto no Mi",
+    rarity: "A",
+    owners: ["scratchmen_apoo"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 5, hp: 4, speed: 3 },
+    image: "",
+    description: "Turns the user's body into musical instruments that create damaging sound attacks."
+  },
+  {
+    code: "hoya_hoya_no_mi",
+    name: "Hoya Hoya no Mi",
+    rarity: "A",
+    owners: ["charlotte_daifuku"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 5, hp: 4, speed: 3 },
+    image: "",
+    description: "Summons a powerful genie from the user's body."
+  },
+  {
+    code: "netsu_netsu_no_mi",
+    name: "Netsu Netsu no Mi",
+    rarity: "A",
+    owners: ["charlotte_oven"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 5, hp: 4, speed: 3 },
+    image: "",
+    description: "Allows the user to produce and control intense heat."
+  },
+  {
+    code: "mira_mira_no_mi",
+    name: "Mira Mira no Mi",
+    rarity: "B",
+    owners: ["charlotte_brulee"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 3, hp: 3, speed: 2 },
+    image: "",
+    description: "Creates mirrors and allows travel through the mirror world."
+  },
+  {
+    code: "wara_wara_no_mi",
+    name: "Wara Wara no Mi",
+    rarity: "A",
+    owners: ["basil_hawkins"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 5, hp: 4, speed: 3 },
+    image: "",
+    description: "Allows the user to manipulate straw, create straw constructs, and redirect damage through straw dolls."
+  },
+  {
+    code: "shiro_shiro_no_mi",
+    name: "Shiro Shiro no Mi",
+    rarity: "A",
+    owners: ["capone_bege"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 5, hp: 4, speed: 3 },
+    image: "",
+    description: "Turns the user's body into a fortress with soldiers, weapons, and rooms inside."
+  },
+  {
+    code: "horu_horu_no_mi",
+    name: "Horu Horu no Mi",
+    rarity: "A",
+    owners: ["emporio_ivankov"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 5, hp: 4, speed: 3 },
+    image: "",
+    description: "Allows the user to control hormones and alter bodies in powerful ways."
+  },
+  {
+    code: "susu_susu_no_mi",
+    name: "Susu Susu no Mi",
+    rarity: "S",
+    owners: ["karasu"],
+    type: "Logia Fruit",
+    statPercent: { atk: 7, hp: 6, speed: 4 },
+    image: "",
+    description: "Allows the user to create, control, and transform into soot."
+  },
+  {
+    code: "kobu_kobu_no_mi",
+    name: "Kobu Kobu no Mi",
+    rarity: "S",
+    owners: ["belo_betty"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 7, hp: 6, speed: 4 },
+    image: "",
+    description: "Encourages and strengthens allies by awakening their fighting spirit."
+  },
+  {
+    code: "choki_choki_no_mi",
+    name: "Choki Choki no Mi",
+    rarity: "A",
+    owners: ["inazuma"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 5, hp: 4, speed: 3 },
+    image: "",
+    description: "Allows the user's hands to become scissors that can cut and reshape solid objects."
+  },
+  {
+    code: "toshi_toshi_no_mi",
+    name: "Toshi Toshi no Mi",
+    rarity: "A",
+    owners: ["jewelry_bonney"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 5, hp: 4, speed: 3 },
+    image: "",
+    description: "Allows the user to manipulate age and create distorted future forms."
+  },
+  {
+    code: "riki_riki_no_mi",
+    name: "Riki Riki no Mi",
+    rarity: "S",
+    owners: ["jesus_burgess"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 7, hp: 6, speed: 4 },
+    image: "",
+    description: "Grants overwhelming physical strength."
+  },
+  {
+    code: "inu_inu_no_mi_model_kyubi_no_kitsune",
+    name: "Inu Inu no Mi, Model: Kyubi no Kitsune",
+    rarity: "S", owners: ["catarina_devon"],
+    type: "Mythical Zoan Fruit",
+    statPercent: { atk: 7, hp: 6, speed: 4 },
+    image: "",
+    description: "A mythical nine-tailed fox fruit that allows transformation and deception."
   }
 ];
