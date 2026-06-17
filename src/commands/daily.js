@@ -604,10 +604,19 @@ module.exports = {
           const pullResetTicket = makePullResetTicketReward(1);
 
           updatedTickets = addPullResetTicketToTickets(updatedTickets, 1);
+
+          // Compatibility fallback:
+          // Some older inventory / item flows may still read Pull Reset Ticket from items
+          // or legacy numeric counters. Keep all three in sync.
+          updatedItems = addOrIncrease(updatedItems, {
+            ...pullResetTicket,
+            category: "ticket",
+          });
+
           rewardsToApply.push(pullResetTicket);
 
           console.log(
-            `[DAILY BACCARAT] Added Pull Reset Ticket to tickets for ${message.author.id}.`
+            `[DAILY BACCARAT] Added Pull Reset Ticket to tickets/items for ${message.author.id}.`
           );
         }
 
@@ -623,6 +632,9 @@ module.exports = {
           tickets: updatedTickets,
           materials: updatedMaterials,
           items: updatedItems,
+          pullResetTickets: Number(fresh.pullResetTickets || 0) + (baccaratBonusApplied ? 1 : 0),
+          pull_reset_ticket_count:
+            Number(fresh.pull_reset_ticket_count || 0) + (baccaratBonusApplied ? 1 : 0),
           dailyLastClaim: now,
           quests: {
             ...(fresh.quests || {}),

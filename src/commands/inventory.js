@@ -58,6 +58,14 @@ const CANONICAL_ITEM_META = {
     untradeable: false,
   },
 
+  pull_reset_ticket: {
+    name: "Pull Reset Ticket",
+    rarity: "A",
+    type: "Ticket",
+    tradeable: true,
+    untradeable: false,
+  },
+
   rare_resource_box: {
     name: "Rare Resource Box",
     rarity: "B",
@@ -367,6 +375,18 @@ function getLegacyTicketEntries(player) {
     name: "Mythic Raid Ticket",
     code: "mythic_raid_ticket",
     rarity: "UR",
+    type: "Ticket",
+  });
+
+  addLegacyTicketEntry(entries, player, [
+    "pullResetTickets",
+    "pullResetTicket",
+    "pull_reset_ticket",
+    "pull_reset_ticket_count",
+  ], {
+    name: "Pull Reset Ticket",
+    code: "pull_reset_ticket",
+    rarity: "A",
     type: "Ticket",
   });
 
