@@ -1432,7 +1432,6 @@ function applyLzsFinalRules() {
  lzs.summonOnly = true;
  lzs.mergeOnly = true;
  lzs.mergeSourceCodes = ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"];
- lzs.mergeStatRatio = 0.5;
  lzs.cardRole = "battle";
  lzs.role = "battle";
  lzs.category = "battle";
