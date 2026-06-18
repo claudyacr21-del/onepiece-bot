@@ -48,6 +48,23 @@ function normalizeCode(value) {
     .replace(/^_+|_+$/g, "");
 }
 
+function isExactRawCardCodeMatch(card, query) {
+  const q = normalizeCode(query);
+  if (!q) return false;
+
+  return [
+    card?.code,
+    card?.baseCode,
+    card?.cardCode,
+    card?.sourceCode,
+    card?.instanceId,
+    card?.id,
+    card?.key,
+  ]
+    .filter(Boolean)
+    .some((value) => normalizeCode(value) === q);
+}
+
 function isLzsQuery(query) {
   const q = normalizeName(query).replace(/\s+/g, "_");
   return q === "lzs" || q === "monster_trio";
@@ -794,7 +811,11 @@ function makeAwakenedCard(rawCard, template, nextStage) {
 
 function findAwakenTargetIndex(cardsOwned, query, targetSelector = null) {
   const list = safeArray(cardsOwned);
+  const exactCodeIndex = list.findIndex((card) =>
+    isExactRawCardCodeMatch(hydrateCard(card) || card, query)
+  );
 
+  if (exactCodeIndex !== -1) return exactCodeIndex;
   const instanceId = String(targetSelector?.instanceId || "").trim();
   if (instanceId) {
     const byInstance = list.findIndex((card) => String(card?.instanceId || "").trim() === instanceId);

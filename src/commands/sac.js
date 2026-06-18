@@ -64,24 +64,8 @@ function getFragmentCategory(fragment) {
   return "battle";
 }
 
-function getFragmentSearchFields(fragment) {
-  const rawName = String(fragment?.name || fragment?.displayName || "").trim();
-  const rawCode = String(fragment?.code || "").trim();
-  const cleanName = rawName.replace(/\s+fragment$/i, "").trim();
-
-  const cleanWeaponCode = rawCode
-    .replace(/^weapon_fragment_/i, "")
-    .replace(/_fragment$/i, "")
-    .trim();
-
+function getFragmentExactCodeFields(fragment) {
   return [
-    rawName,
-    cleanName,
-    rawCode,
-    cleanWeaponCode,
-    fragment?.displayName,
-    fragment?.cardName,
-    fragment?.title,
     fragment?.code,
     fragment?.cardCode,
     fragment?.baseCode,
@@ -90,6 +74,30 @@ function getFragmentSearchFields(fragment) {
     fragment?.sourceCode,
     fragment?.id,
     fragment?.key,
+  ].filter(Boolean);
+}
+
+function getFragmentFuzzySearchFields(fragment) {
+  const rawName = String(fragment?.name || fragment?.displayName || "").trim();
+  const rawCode = String(fragment?.code || "").trim();
+
+  const cleanName = rawName.replace(/\s+fragment$/i, "").trim();
+
+  // Keep this only for LOW priority fuzzy searching.
+  // Never use this as an exact code match, because:
+  // weapon_fragment_soul_solid must not equal soul_solid.
+  const cleanWeaponCode = rawCode
+    .replace(/^weapon_fragment_/i, "")
+    .replace(/_fragment$/i, "")
+    .trim();
+
+  return [
+    rawName,
+    cleanName,
+    fragment?.displayName,
+    fragment?.cardName,
+    fragment?.title,
+    cleanWeaponCode,
   ].filter(Boolean);
 }
 
@@ -102,25 +110,30 @@ function scoreFragment(fragment, query) {
 
   let best = 0;
 
-  for (const field of getFragmentSearchFields(fragment)) {
+  // 1) Exact raw code match has the highest priority.
+  // This keeps weapon_fragment_soul_solid different from soul_solid.
+  for (const field of getFragmentExactCodeFields(fragment)) {
+    const fc = normalizeCode(field);
+    const fCompact = normalizeCompact(field);
+
+    if (!fc && !fCompact) continue;
+
+    if (fc === qc || fCompact === qCompact) {
+      return 10000;
+    }
+  }
+
+  // 2) Fuzzy/name matching is lower priority.
+  // This can still show multiple matches when the name is genuinely ambiguous.
+  for (const field of getFragmentFuzzySearchFields(fragment)) {
     const f = normalize(field);
     const fc = normalizeCode(field);
     const fCompact = normalizeCompact(field);
 
     if (!f && !fc && !fCompact) continue;
 
-    if (fc === qc || fCompact === qCompact) {
-      best = Math.max(best, 3000);
-      continue;
-    }
-
     if (f === q) {
       best = Math.max(best, 2500);
-      continue;
-    }
-
-    if (fc.startsWith(qc) || fCompact.startsWith(qCompact)) {
-      best = Math.max(best, 1800 + qCompact.length);
       continue;
     }
 
@@ -129,8 +142,8 @@ function scoreFragment(fragment, query) {
       continue;
     }
 
-    if (fc.includes(qc) || fCompact.includes(qCompact)) {
-      best = Math.max(best, 900 + qCompact.length);
+    if (fc.startsWith(qc) || fCompact.startsWith(qCompact)) {
+      best = Math.max(best, 1200 + qCompact.length);
       continue;
     }
 
@@ -139,7 +152,13 @@ function scoreFragment(fragment, query) {
       continue;
     }
 
+    if (fc.includes(qc) || fCompact.includes(qCompact)) {
+      best = Math.max(best, 600 + qCompact.length);
+      continue;
+    }
+
     const qWords = q.split(" ").filter(Boolean);
+
     if (qWords.length && qWords.every((word) => f.includes(word))) {
       best = Math.max(best, 500 + qWords.join("").length);
     }
@@ -234,11 +253,12 @@ function parseAmount(amountText, ownedAmount) {
 }
 
 function formatFragmentLine(fragment, index) {
+  const category = getFragmentCategory(fragment);
+  const exactCode = fragment?.code || "none";
+
   return `${index + 1}. **${getFragmentName(fragment)}** x${getFragmentAmount(
     fragment
-  )} • ${formatRarity(fragment?.rarity)} • ${getFragmentCategory(fragment)} • code: \`${
-    fragment?.code || "none"
-  }\``;
+  )} • ${formatRarity(fragment?.rarity)} • ${category} fragment • exact code: \`${exactCode}\``;
 }
 
 function getFragmentSample(fragments) {
@@ -361,7 +381,7 @@ module.exports = {
       if (error.message === "MULTIPLE_FRAGMENT_MATCHES") {
         return message.reply({
           content: [
-            "Multiple fragments matched that query. Use exact code.",
+            "Multiple fragments matched that query. Use the exact code below.",
             "",
             ...multipleMatches
               .slice(0, 10)

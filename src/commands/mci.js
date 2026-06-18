@@ -212,6 +212,37 @@ function scoreQuery(query, candidates) {
   return best;
 }
 
+function normalizeCodeOnly(text) {
+  return String(text || "")
+    .toLowerCase()
+    .trim()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function findExactOwnedCardByRawCode(cards, query) {
+  const q = normalizeCodeOnly(query);
+  if (!q) return null;
+
+  const matches = cards.filter((card) => {
+    return [
+      card?.code,
+      card?.baseCode,
+      card?.cardCode,
+      card?.sourceCode,
+      card?.instanceId,
+      card?.id,
+      card?.key,
+    ]
+      .filter(Boolean)
+      .some((value) => normalizeCodeOnly(value) === q);
+  });
+
+  return matches.length === 1 ? matches[0] : null;
+}
+
 function getOwnedCards(player) {
   return (Array.isArray(player.cards) ? player.cards : [])
     .map((rawCard, sourceIndex) => {
@@ -228,7 +259,8 @@ function getOwnedCards(player) {
 
 function findOwnedCardByNameOnly(player, query) {
   const cards = getOwnedCards(player);
-
+  const exactCode = findExactOwnedCardByRawCode(cards, query);
+  if (exactCode) return exactCode;
   const direct = findOwnedCardByCodeOrName(cards, query);
   if (direct) return direct;
 

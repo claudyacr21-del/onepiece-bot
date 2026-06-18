@@ -117,11 +117,9 @@ function getCompareKeys(cardOrFragment) {
     .replace(/\s+fragment$/i, "")
     .trim();
 
-  const cleanWeaponCode = String(code || "")
-    .replace(/^weapon_fragment_/i, "")
-    .replace(/_fragment$/i, "")
-    .trim();
-
+  // IMPORTANT:
+  // Do not strip "weapon_fragment_" here.
+  // weapon_fragment_soul_solid must stay different from soul_solid.
   return [
     code,
     name,
@@ -129,7 +127,6 @@ function getCompareKeys(cardOrFragment) {
     weaponCode,
     cardCode,
     sourceCode,
-    cleanWeaponCode,
   ]
     .flatMap((value) => [normalize(value), normalizeCode(value)])
     .filter(Boolean);
@@ -269,16 +266,26 @@ function addFragmentWithAutoSac(player, fragments, cardOrFragment, amount = 1) {
 
 function findFragmentByName(fragments, query) {
   const q = normalize(query);
-  if (!q) return null;
+  const qc = normalizeCode(query);
+
+  if (!q && !qc) return null;
 
   const list = Array.isArray(fragments) ? fragments : [];
 
-  return (
-    list.find((item) => normalize(item.code) === q) ||
-    list.find((item) => normalize(item.name) === q) ||
-    list.find((item) => normalize(item.name).includes(q)) ||
-    null
-  );
+  // 1) Exact raw code first.
+  // This keeps weapon_fragment_soul_solid different from soul_solid.
+  const exactCode = list.filter((item) => normalizeCode(item.code) === qc);
+  if (exactCode.length === 1) return exactCode[0];
+
+  // 2) Exact name second.
+  const exactName = list.filter((item) => normalize(item.name) === q);
+  if (exactName.length === 1) return exactName[0];
+
+  // 3) Fuzzy name only after exact checks fail.
+  const fuzzyName = list.filter((item) => normalize(item.name).includes(q));
+  if (fuzzyName.length === 1) return fuzzyName[0];
+
+  return null;
 }
 
 function sacrificeFragment(player, query, amountText) {
