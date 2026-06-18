@@ -78,10 +78,15 @@ function getNameFields(card) {
 
 function scoreNameOnly(query, card) {
   const q = normalizeName(query);
+
   if (!q) return 0;
 
   if (isExactRawCardCodeMatch(card, query)) {
     return 999999;
+  }
+
+  if (isLzsQuery(query) && isLzsCard(card)) {
+    return 999998;
   }
 
   let best = 0;
@@ -131,8 +136,27 @@ function findTemplateByNameOnly(ownedCard, query) {
 
   if (exactTemplate) return exactTemplate;
 
+  if (isLzsQuery(query) || isLzsCard(ownedCard)) {
+    return (
+      templates.find((card) => isLzsCard(card)) ||
+      null
+    );
+  }
+
   if (isMergeCard(ownedCard)) {
-    return templates.find((card) => isMergeCard(card) && normalizeCode(card?.code) === normalizeCode(ownedCard?.code)) || null;
+    const ownedCode = normalizeCode(ownedCard?.code);
+
+    const mergeTemplate =
+      templates.find((card) => {
+        if (!isMergeCard(card)) return false;
+
+        const templateCode = normalizeCode(card?.code);
+        return ownedCode && templateCode && ownedCode === templateCode;
+      }) ||
+      templates.find((card) => isMergeCard(card) && scoreNameOnly(query, card) > 0) ||
+      null;
+
+    if (mergeTemplate) return mergeTemplate;
   }
 
   const target =
@@ -144,7 +168,10 @@ function findTemplateByNameOnly(ownedCard, query) {
   const scored = templates
     .map((card) => ({
       card,
-      score: scoreNameOnly(target, card),
+      score: Math.max(
+        scoreNameOnly(target, card),
+        scoreNameOnly(query, card)
+      ),
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -803,39 +830,59 @@ function makeAwakenedCard(rawCard, template, nextStage) {
 
 function findAwakenTargetIndex(cardsOwned, query, targetSelector = null) {
   const list = safeArray(cardsOwned);
-  const exactCodeIndex = list.findIndex((card) =>
-    isExactRawCardCodeMatch(hydrateCard(card) || card, query)
-  );
 
-  if (exactCodeIndex !== -1) return exactCodeIndex;
   const instanceId = String(targetSelector?.instanceId || "").trim();
+
   if (instanceId) {
     const byInstance = list.findIndex((card) => String(card?.instanceId || "").trim() === instanceId);
+
     if (byInstance !== -1) return byInstance;
   }
 
+  const exactCodeIndex = list.findIndex((card) => {
+    const hydrated = hydrateCard(card) || card;
+    return isExactRawCardCodeMatch(card, query) || isExactRawCardCodeMatch(hydrated, query);
+  });
+
+  if (exactCodeIndex !== -1) return exactCodeIndex;
+
   const index = Number(targetSelector?.index);
+
   if (Number.isInteger(index) && index >= 0 && index < list.length) {
     const card = list[index];
+
     if (scoreNameOnly(query, card) > 0) return index;
   }
 
   const scored = list
     .map((card, cardIndex) => {
       const hydrated = hydrateCard(card) || card;
+
       const stage = getCurrentStage(hydrated);
+
       return {
         index: cardIndex,
-        score: scoreNameOnly(query, hydrated),
+
+        score: Math.max(
+          scoreNameOnly(query, hydrated),
+          scoreNameOnly(query, card)
+        ),
+
         stage,
+
         awakenable: stage < 3,
       };
     })
+
     .filter((entry) => entry.score > 0)
+
     .sort((a, b) => {
       if (a.awakenable !== b.awakenable) return a.awakenable ? -1 : 1;
+
       if (b.score !== a.score) return b.score - a.score;
+
       if (a.stage !== b.stage) return a.stage - b.stage;
+
       return a.index - b.index;
     });
 
@@ -851,7 +898,18 @@ function runAwaken(player, query, targetSelector = null) {
   }
 
   const originalCard = cardsOwned[targetIndex];
-  const template = findTemplateByNameOnly(originalCard, query);
+  const hydratedOriginal = hydrateCard(originalCard) || originalCard;
+
+  const template =
+    findTemplateByNameOnly(originalCard, query) ||
+    findTemplateByNameOnly(hydratedOriginal, query);
+
+  if (!template) {
+    throw new Error(
+      `Card template could not be loaded for ${hydratedOriginal?.displayName || hydratedOriginal?.name || hydratedOriginal?.code || query}.`
+    );
+  }
+
   const targetCard = hydrateCard(mergeOwnedWithTemplateForAwaken(originalCard, template));
 
   if (!targetCard) {
