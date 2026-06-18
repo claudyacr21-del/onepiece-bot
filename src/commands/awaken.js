@@ -106,6 +106,39 @@ function getNameFields(card) {
     .filter(Boolean);
 }
 
+function getMainNameFields(card) {
+  return [
+    card?.displayName,
+    card?.name,
+    card?.title,
+  ]
+    .map(normalizeName)
+    .filter(Boolean);
+}
+
+function isExplicitMergeSearchQuery(query, card) {
+  const qName = normalizeName(query);
+  const qCode = normalizeCode(query);
+
+  if (!qName && !qCode) return false;
+
+  if (isExactRawCardCodeMatch(card, query)) return true;
+
+  if (isLzsQuery(query) && isLzsCard(card)) return true;
+
+  const mainFields = getMainNameFields(card);
+
+  return mainFields.some((field) => {
+    if (!field) return false;
+
+    return (
+      field === qName ||
+      field.startsWith(qName) ||
+      qName === field.replace(/\s+/g, "")
+    );
+  });
+}
+
 function scoreNameOnly(query, card) {
   const q = normalizeName(query);
 
@@ -117,6 +150,14 @@ function scoreNameOnly(query, card) {
 
   if (isLzsQuery(query) && isLzsCard(card)) {
     return 999998;
+  }
+
+  // Merge cards must not be selected by component names like:
+  // "luffy", "zoro", or "sanji".
+  // They should only be selected by explicit merge query:
+  // "lzs", "monster trio", exact code, or main merge card name.
+  if ((isMergeCard(card) || isLzsCard(card)) && !isExplicitMergeSearchQuery(query, card)) {
+    return 0;
   }
 
   let best = 0;
