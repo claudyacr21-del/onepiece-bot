@@ -10,7 +10,7 @@ const {
   flushPlayerNow,
 } = require("../playerStore");
 const { incrementQuestCounter } = require("../utils/questProgress");
-
+const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const LEVEL_CAPS_BY_STAGE = {
   1: 50,
   2: 85,
@@ -93,6 +93,51 @@ function applyLevelStats(card, levelGain) {
     ...nextCard,
     currentPower: nextPower,
     power: nextPower,
+  };
+}
+
+function applyLevelStatsWithMergeSupport(player, cardIndex, card, levelGain) {
+  if (!card) return card;
+
+  if (!isMergeCard(card)) {
+    return applyLevelStats(card, levelGain);
+  }
+
+  const stage = getCardStage(card);
+  const cards = Array.isArray(player?.cards) ? [...player.cards] : [];
+
+  if (cardIndex >= 0 && cardIndex < cards.length) {
+    cards[cardIndex] = card;
+  }
+
+  const rebuilt = buildMergedCard(
+    {
+      ...(player || {}),
+      cards,
+    },
+    card,
+    stage
+  );
+
+  return {
+    ...(rebuilt || card),
+
+    // Keep the level state from the level command.
+    level: card.level,
+    currentLevel: card.currentLevel,
+    lvl: card.lvl,
+    exp: card.exp,
+    xp: card.xp,
+
+    // Merge card power stays fixed by design.
+    power: rebuilt?.power || card.power,
+    currentPower: rebuilt?.currentPower || card.currentPower,
+    finalPower: rebuilt?.finalPower || card.finalPower,
+    displayPower: rebuilt?.displayPower || card.displayPower,
+    combatPower: rebuilt?.combatPower || card.combatPower,
+    teamPower: rebuilt?.teamPower || card.teamPower,
+    battlePower: rebuilt?.battlePower || card.battlePower,
+    totalPower: rebuilt?.totalPower || card.totalPower,
   };
 }
 
@@ -352,15 +397,24 @@ module.exports = {
           throw new Error("Card index changed. Please try again.");
         }
 
-        const leveledCard = applyLevelStats(
+        const baseLeveledCard = {
+          ...freshUpdatedCards[freshCardIndex],
+          level: freshNextLevel,
+          currentLevel: freshNextLevel,
+          lvl: freshNextLevel,
+          exp: freshNextLevel >= freshLevelCap ? 0 : Number(freshCard.exp || freshCard.xp || 0),
+          xp: freshNextLevel >= freshLevelCap ? 0 : Number(freshCard.exp || freshCard.xp || 0),
+        };
+
+        freshUpdatedCards[freshCardIndex] = baseLeveledCard;
+
+        const leveledCard = applyLevelStatsWithMergeSupport(
           {
-            ...freshUpdatedCards[freshCardIndex],
-            level: freshNextLevel,
-            currentLevel: freshNextLevel,
-            lvl: freshNextLevel,
-            exp: freshNextLevel >= freshLevelCap ? 0 : Number(freshCard.exp || freshCard.xp || 0),
-            xp: freshNextLevel >= freshLevelCap ? 0 : Number(freshCard.exp || freshCard.xp || 0),
+            ...fresh,
+            cards: freshUpdatedCards,
           },
+          freshCardIndex,
+          baseLeveledCard,
           freshPossibleGain
         );
 
