@@ -152,22 +152,34 @@ function getRaidPrestige(card) {
   return Math.max(0, Math.min(RAID_PRESTIGE_CAP, Math.floor(prestige)));
 }
 
+function lerpMergeLevelFactor(startLevel, endLevel, startFactor, endFactor, level) {
+  const safeStart = Number(startLevel || 1);
+  const safeEnd = Number(endLevel || safeStart);
+  const safeLevel = Number(level || safeStart);
+
+  if (safeEnd <= safeStart) return endFactor;
+
+  const clampedLevel = Math.max(safeStart, Math.min(safeEnd, safeLevel));
+  const progress = (clampedLevel - safeStart) / (safeEnd - safeStart);
+
+  return startFactor + progress * (endFactor - startFactor);
+}
+
 function getOwnLevelFactor(stage, level) {
   const s = Math.max(1, Math.min(3, Number(stage || 1)));
   const lvl = Math.max(1, Math.min(100, Number(level || 1)));
-  const maxLevel = getStageMaxLevel(s);
 
-  if (lvl >= maxLevel) return 1;
-
+  // Merge card level scaling must never reset downward after awaken.
+  // M1 Lv50 is the baseline, M2 continues from Lv50, and M3 continues from Lv85.
   if (s === 1) {
-    return 0.45 + ((Math.max(1, lvl) - 1) / 49) * 0.55;
+    return lerpMergeLevelFactor(1, 50, 0.45, 1.0, lvl);
   }
 
   if (s === 2) {
-    return 0.78 + ((Math.max(50, lvl) - 50) / 35) * 0.22;
+    return lerpMergeLevelFactor(50, 85, 1.0, 1.22, lvl);
   }
 
-  return 0.88 + ((Math.max(85, lvl) - 85) / 15) * 0.12;
+  return lerpMergeLevelFactor(85, 100, 1.22, 1.35, lvl);
 }
 
 function applyPrestige(value, percent) {
