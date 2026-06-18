@@ -94,10 +94,30 @@ async function safeComponentUpdate(interaction, payload) {
   }
 }
 
+function isDiscordEmojiValue(value) {
+  const raw = String(value || "").trim();
+
+  if (!raw) return false;
+
+  // Custom Discord emoji format:
+  // <:name:id> or <a:name:id>
+  if (/^<a?:[a-zA-Z0-9_~]+:\d{15,25}>$/.test(raw)) return true;
+
+  // Unicode emoji fallback.
+  // This keeps normal emoji usable, but rejects plain text like :M_Rarity:.
+  return /\p{Extended_Pictographic}/u.test(raw);
+}
+
 function getRarityEmoji(rarity) {
   const tier = String(rarity || "C").toUpperCase();
 
-  return RARITY_EMOJIS[tier] || tier;
+  const badge = getRarityBadge(tier);
+  if (isDiscordEmojiValue(badge)) return badge;
+
+  const envEmoji = RARITY_EMOJIS[tier];
+  if (isDiscordEmojiValue(envEmoji)) return envEmoji;
+
+  return tier;
 }
 
 function normalize(text) {
