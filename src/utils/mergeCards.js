@@ -7,7 +7,7 @@ const MERGE_SOURCE_CODES = [
   "sanji_black_leg",
 ];
 
-const MERGE_RATIO = 0.35;
+const MERGE_RATIO = 0.4;
 const MERGE_FIXED_POWER = 100000;
 
 const RAID_PRESTIGE_CAP = 200;
