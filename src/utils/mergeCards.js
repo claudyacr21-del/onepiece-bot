@@ -60,10 +60,12 @@ function getMergeSourceCodes(card) {
   return [];
 }
 
-function getMergeRatio(card) {
-  const ratio = Number(card?.mergeStatRatio || card?.mergeRatio || MERGE_RATIO);
+function getMergeRatio() {
+  const ratio = Number(MERGE_RATIO);
 
-  if (!Number.isFinite(ratio) || ratio <= 0) return MERGE_RATIO;
+  if (!Number.isFinite(ratio) || ratio <= 0) {
+    return 0.35;
+  }
 
   return ratio;
 }
@@ -677,41 +679,6 @@ function uniqueJoin(values) {
   return out.length ? out.join(", ") : "None";
 }
 
-function buildLzsSources(player, stage, options = {}) {
-  const sourceStage = Math.max(
-    1,
-    Math.min(3, Number(options.sourceStage || options.displayStage || stage || 1))
-  );
-
-  const displayLevel = Number(options.displayLevel || getStageMaxLevel(sourceStage));
-  const templateOnly = Boolean(options.templateOnly);
-
-  return MERGE_SOURCE_CODES.map((code) => {
-    const source = templateOnly
-      ? buildTemplateSourceCard(code, sourceStage, displayLevel)
-      : buildLiveSourceCard(player, code);
-
-    return {
-      code,
-      card: source || {},
-      atk: templateOnly
-        ? getStageSpecificNumber(getTemplateByCode(code) || {}, source, sourceStage, "atk")
-        : getLiveNumber(source, code, "atk"),
-      hp: templateOnly
-        ? getStageSpecificNumber(getTemplateByCode(code) || {}, source, sourceStage, "hp")
-        : getLiveNumber(source, code, "hp"),
-      speed: templateOnly
-        ? getStageSpecificNumber(getTemplateByCode(code) || {}, source, sourceStage, "speed")
-        : getLiveNumber(source, code, "speed"),
-      power: templateOnly
-        ? getStageSpecificNumber(getTemplateByCode(code) || {}, source, sourceStage, "power")
-        : getLiveNumber(source, code, "power"),
-      weapon: getSourceWeaponText(source, code, sourceStage, templateOnly),
-      devilFruit: getSourceFruitText(source, code, sourceStage, templateOnly),
-    };
-  });
-}
-
 function buildMergeSources(player, mergeCard, stage, options = {}) {
   const sourceCodes = getMergeSourceCodes(mergeCard);
 
@@ -747,15 +714,6 @@ function buildMergeSources(player, mergeCard, stage, options = {}) {
       devilFruit: getSourceFruitText(source, code, sourceStage, templateOnly),
     };
   });
-}
-
-function sumMergedStat(sources, key) {
-  return Math.floor(
-    sources.reduce(
-      (sum, source) => sum + Number(source?.[key] || 0) * MERGE_RATIO,
-      0
-    )
-  );
 }
 
 function buildMergedCard(player, baseCard = null, stageOverride = null, options = {}) {
@@ -797,7 +755,7 @@ function buildMergedCard(player, baseCard = null, stageOverride = null, options 
     displayLevel: options.displayLevel || getStageMaxLevel(stage),
   });
 
-  const ratio = getMergeRatio(templateCard);
+  const ratio = getMergeRatio();
   const fixedPower = getMergeFixedPower(templateCard);
 
   const mergedAtk = Math.floor(
