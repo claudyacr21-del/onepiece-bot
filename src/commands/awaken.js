@@ -65,6 +65,36 @@ function isExactRawCardCodeMatch(card, query) {
     .some((value) => normalizeCode(value) === q);
 }
 
+function isLzsQuery(query) {
+  const q = normalizeCode(query);
+
+  return [
+    "lzs",
+    "monster_trio",
+    "monstertrio",
+    "luffy_zoro_sanji",
+    "luffy_zoro_sanji_combined",
+  ].includes(q);
+}
+
+function isLzsCard(card) {
+  const code = normalizeCode(card?.code);
+  const baseCode = normalizeCode(card?.baseCode);
+  const cardCode = normalizeCode(card?.cardCode);
+  const sourceCode = normalizeCode(card?.sourceCode);
+  const name = normalizeName(card?.displayName || card?.name || card?.title);
+  const compactName = name.replace(/\s+/g, "");
+
+  return (
+    code === "lzs" ||
+    baseCode === "lzs" ||
+    cardCode === "lzs" ||
+    sourceCode === "lzs" ||
+    name === "monster trio" ||
+    compactName === "monstertrio"
+  );
+}
+
 function getNameFields(card) {
   return [
     card?.displayName,
