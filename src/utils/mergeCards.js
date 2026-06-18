@@ -61,13 +61,7 @@ function getMergeSourceCodes(card) {
 }
 
 function getMergeRatio() {
-  const ratio = Number(MERGE_RATIO);
-
-  if (!Number.isFinite(ratio) || ratio <= 0) {
-    return 0.35;
-  }
-
-  return ratio;
+  return MERGE_RATIO;
 }
 
 function getMergeFixedPower(card) {
