@@ -240,7 +240,7 @@ function addFragmentWithAutoSac(player, fragments, cardOrFragment, amount = 1) {
   } else if (freeSlots <= 0) {
     sacAmount = addAmount;
     fragmentAddAmount = 0;
-    reason = "Storage Full";
+    reason = "Fragment Storage Full";
   } else if (fragmentAddAmount > freeSlots) {
     sacAmount = fragmentAddAmount - freeSlots;
     fragmentAddAmount = freeSlots;

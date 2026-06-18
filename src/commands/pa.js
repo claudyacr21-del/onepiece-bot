@@ -1172,7 +1172,7 @@ module.exports = {
             : pullGroups.cards;
 
         targetGroup.push(
-          `${targetGroup.length + 1}. [${rewardRarity}] ${rewardName}${pityLabel} → Storage Full (+${berryValue.toLocaleString("en-US")} berries)`
+          `${targetGroup.length + 1}. [${rewardRarity}] ${rewardName}${pityLabel} → Collection Storage Full (+${berryValue.toLocaleString("en-US")} berries)`
         );
 
         if (triggeredPity) {
