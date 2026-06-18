@@ -3,6 +3,7 @@ const PIRATE_SHOP_ITEMS = {
     key: "rum",
     name: "Rum",
     price: 2,
+    amount: 50,
     type: "item",
     code: "rum",
     rarity: "B",

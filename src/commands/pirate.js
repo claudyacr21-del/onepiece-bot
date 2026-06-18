@@ -1331,6 +1331,7 @@ async function handleUpgradePerk(message, args) {
 
 function addPirateShopItem(player, item) {
   const next = { ...(player || {}) };
+  const amountToAdd = Math.max(1, Math.floor(Number(item?.amount || 1)));
 
   if (item.type === "ticket") {
     const tickets = Array.isArray(next.tickets) ? [...next.tickets] : [];
@@ -1342,14 +1343,14 @@ function addPirateShopItem(player, item) {
       tickets.push({
         code: item.code,
         name: item.name,
-        amount: 1,
+        amount: amountToAdd,
         rarity: item.rarity,
         type: "Ticket",
       });
     } else {
       tickets[idx] = {
         ...tickets[idx],
-        amount: Number(tickets[idx].amount || 0) + 1,
+        amount: Number(tickets[idx].amount || 0) + amountToAdd,
       };
     }
 
@@ -1366,7 +1367,7 @@ function addPirateShopItem(player, item) {
     items.push({
       code: item.code,
       name: item.name,
-      amount: 1,
+      amount: amountToAdd,
       rarity: item.rarity,
       type: "Pirate Shop",
       description: item.description || "",
@@ -1374,7 +1375,7 @@ function addPirateShopItem(player, item) {
   } else {
     items[idx] = {
       ...items[idx],
-      amount: Number(items[idx].amount || 0) + 1,
+      amount: Number(items[idx].amount || 0) + amountToAdd,
     };
   }
 
@@ -1422,13 +1423,14 @@ async function handlePirateShop(message) {
 
     const lines = Object.values(PIRATE_SHOP_ITEMS).map((item) => {
       const price = getDiscountedPirateShopPrice(item, pirate);
-      const priceText =
-        price.saved > 0
-          ? `~~${fmt(price.basePrice)}~~ ${fmt(price.finalPrice)} pirate tokens`
-          : `${fmt(price.finalPrice)} pirate tokens`;
+      const priceText = price.saved > 0
+        ? `~~${fmt(price.basePrice)}~~ ${fmt(price.finalPrice)} pirate tokens`
+        : `${fmt(price.finalPrice)} pirate tokens`;
+      const amount = Math.max(1, Math.floor(Number(item?.amount || 1)));
+      const itemName = amount > 1 ? `${item.name} x${fmt(amount)}` : item.name;
 
       return [
-        `**${item.name}** — ${priceText}`,
+        `**${itemName}** — ${priceText}`,
         `Code: \`${item.key}\``,
         `_${item.description}_`,
       ].join("\n");
@@ -1522,14 +1524,15 @@ async function handlePirateBuy(message, args) {
     players[String(message.author.id)] = player;
     writePlayers(players);
 
+    const amountBought = Math.max(1, Math.floor(Number(item?.amount || 1)));
+    const boughtName = amountBought > 1 ? `${item.name} x${fmt(amountBought)}` : item.name;
+
     return message.reply(
       makeSuccess(
         "Pirate Shop Purchase",
         [
-          `You bought **${item.name}** for **${fmt(price.finalPrice)} pirate tokens**.`,
-          price.saved > 0
-            ? `Shop Discount Lv.${price.discountLevel}: saved **${fmt(price.saved)} token(s)**.`
-            : null,
+          `You bought **${boughtName}** for **${fmt(price.finalPrice)} pirate tokens**.`,
+          price.saved > 0 ? `Shop Discount Lv.${price.discountLevel}: saved **${fmt(price.saved)} token(s)**.` : null,
           `Remaining Pirate Tokens: **${fmt(player.pirateTokens)}**`,
         ]
           .filter(Boolean)
