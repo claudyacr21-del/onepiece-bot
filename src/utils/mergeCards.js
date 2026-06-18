@@ -1,13 +1,7 @@
 const rawCards = require("../data/cards");
 const { hydrateCard } = require("./evolution");
 
-const MERGE_SOURCE_CODES = [
-  "luffy_straw_hat",
-  "zoro_pirate_hunter",
-  "sanji_black_leg",
-];
-
-const MERGE_RATIO = 0.4;
+const MERGE_RATIO = 0.5;
 const MERGE_FIXED_POWER = 100000;
 
 const RAID_PRESTIGE_CAP = 200;
@@ -49,19 +43,23 @@ function isMergeCard(card) {
 }
 
 function getMergeSourceCodes(card) {
-  if (Array.isArray(card?.mergeSourceCodes) && card.mergeSourceCodes.length) {
-    return card.mergeSourceCodes.map((code) => String(code || "").trim()).filter(Boolean);
+  if (!Array.isArray(card?.mergeSourceCodes)) {
+    return [];
   }
 
-  if (isLzsCard(card)) {
-    return MERGE_SOURCE_CODES;
-  }
-
-  return [];
+  return card.mergeSourceCodes
+    .map((code) => String(code || "").trim())
+    .filter(Boolean);
 }
 
-function getMergeRatio() {
-  return MERGE_RATIO;
+function getMergeRatio(template = {}) {
+  const ratio = Number(template?.mergeStatRatio ?? template?.mergeRatio ?? MERGE_RATIO);
+
+  if (!Number.isFinite(ratio) || ratio <= 0) {
+    return MERGE_RATIO;
+  }
+
+  return ratio;
 }
 
 function getMergeFixedPower(card) {
@@ -749,7 +747,7 @@ function buildMergedCard(player, baseCard = null, stageOverride = null, options 
     displayLevel: options.displayLevel || getStageMaxLevel(stage),
   });
 
-  const ratio = getMergeRatio();
+  const ratio = getMergeRatio(template);
   const fixedPower = getMergeFixedPower(templateCard);
 
   const mergedAtk = Math.floor(
@@ -964,7 +962,6 @@ function findOwnedCardByCodeOrName(cards, query) {
 }
 
 module.exports = {
-  MERGE_SOURCE_CODES,
   MERGE_RATIO,
   MERGE_FIXED_POWER,
 
