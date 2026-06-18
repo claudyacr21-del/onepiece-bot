@@ -310,39 +310,104 @@ function getStoryProgress(player) {
   return `${cleared} bosses • ${currentIsland}`;
 }
 
-function getBotName(index) {
-  const base = BOT_NAMES[index % BOT_NAMES.length];
-  const cycle = Math.floor(index / BOT_NAMES.length);
+function getFastProfileArenaTeamCards(raw) {
+  const cards = Array.isArray(raw?.cards) ? raw.cards : [];
+  const slots = Array.isArray(raw?.team?.slots)
+    ? raw.team.slots.slice(0, 3)
+    : [];
 
-  return cycle === 0 ? base : `${base} ${cycle + 1}`;
+  if (slots.filter(Boolean).length < 3 || cards.length < 3) return [];
+
+  return slots
+    .map((instanceId) =>
+      cards.find(
+        (card) =>
+          String(card?.instanceId || "") === String(instanceId || "") &&
+          String(card?.cardRole || "").toLowerCase() !== "boost"
+      )
+    )
+    .filter(Boolean);
 }
 
-function getBotPoints(index) {
-  return Math.max(0, ARENA_TOP_BOT_POINTS - index * ARENA_POINT_STEP);
+function getFastProfileArenaTeamPower(cards) {
+  return (Array.isArray(cards) ? cards : []).reduce((total, card) => {
+    const power = Number(
+      card?.currentPower ||
+        card?.power ||
+        card?.powerCaps?.M3 ||
+        Math.floor(
+          Number(card?.atk || 0) * 1.4 +
+            Number(card?.hp || 0) * 0.22 +
+            Number(card?.speed || 0) * 9
+        )
+    );
+
+    return total + power;
+  }, 0);
 }
 
-function getBotWins(points) {
-  return Math.max(0, Math.floor(Number(points || 0) / 10));
+function compareProfileArenaEntries(a, b) {
+  const pointsA = Number(a?.points || 0);
+  const pointsB = Number(b?.points || 0);
+
+  if (pointsB !== pointsA) return pointsB - pointsA;
+
+  const winsA = Number(a?.wins || 0);
+  const winsB = Number(b?.wins || 0);
+
+  if (winsB !== winsA) return winsB - winsA;
+
+  const lossesA = Number(a?.losses || 0);
+  const lossesB = Number(b?.losses || 0);
+
+  if (lossesA !== lossesB) return lossesA - lossesB;
+
+  const streakA = Number(a?.streak || 0);
+  const streakB = Number(b?.streak || 0);
+
+  if (streakB !== streakA) return streakB - streakA;
+
+  const teamPowerA = Number(a?.teamPower || 0);
+  const teamPowerB = Number(b?.teamPower || 0);
+
+  if (teamPowerB !== teamPowerA) return teamPowerB - teamPowerA;
+
+  return String(a?.username || "").localeCompare(String(b?.username || ""));
 }
 
-function getBotLosses(index) {
-  return Math.floor(index / 25);
-}
+function getArenaLeaderboardRankForUser(userId, playersMap) {
+  const rows = Object.entries(playersMap || {})
+    .map(([id, player]) => {
+      const safeId = String(id || "");
 
-function buildProfileArenaBots(count = ARENA_TOTAL_RANKS) {
-  return Array.from({ length: count }, (_, index) => {
-    const points = getBotPoints(index);
+      if (!safeId || safeId.startsWith("__")) return null;
 
-    return {
-      id: `arena_bot_${String(index + 1).padStart(3, "0")}`,
-      username: getBotName(index),
-      points,
-      wins: getBotWins(points),
-      losses: getBotLosses(index),
-      matches: getBotWins(points) + getBotLosses(index),
-      isBot: true,
-    };
-  });
+      const teamCards = getFastProfileArenaTeamCards(player);
+      if (teamCards.length !== 3) return null;
+
+      const arena = player?.arena || {};
+
+      return {
+        id: safeId,
+        username: player.username || "Unknown",
+        points: Number(arena?.points || 0),
+        wins: Number(arena?.wins || 0),
+        losses: Number(arena?.losses || 0),
+        draws: Number(arena?.draws || 0),
+        matches: Number(arena?.matches || 0),
+        streak: Number(arena?.streak || 0),
+        teamPower: getFastProfileArenaTeamPower(teamCards),
+      };
+    })
+    .filter(Boolean)
+    .sort(compareProfileArenaEntries)
+    .slice(0, ARENA_TOTAL_RANKS)
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
+
+  return rows.find((row) => String(row.id) === String(userId))?.rank || null;
 }
 
 function getArenaRankFromPoints(points) {
@@ -352,45 +417,6 @@ function getArenaRankFromPoints(points) {
     1,
     ARENA_START_RANK - Math.floor(safePoints / ARENA_POINTS_PER_RANK)
   );
-}
-
-function getArenaLeaderboardRankForUser(userId, playersMap) {
-  const realPlayers = Object.entries(playersMap || {})
-    .map(([id, player]) => ({
-      id,
-      username: player.username || "Unknown",
-      points: Number(player?.arena?.points || 0),
-      wins: Number(player?.arena?.wins || 0),
-      losses: Number(player?.arena?.losses || 0),
-      matches: Number(player?.arena?.matches || 0),
-      isBot: false,
-    }))
-    .filter((entry) => {
-      return (
-        entry.matches > 0 ||
-        entry.points > 0 ||
-        entry.wins > 0 ||
-        entry.losses > 0
-      );
-    });
-
-  const botCount = Math.max(0, ARENA_TOTAL_RANKS - realPlayers.length);
-
-  const rows = [...buildProfileArenaBots(botCount), ...realPlayers]
-    .sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      if (a.losses !== b.losses) return a.losses - b.losses;
-      if (a.isBot !== b.isBot) return a.isBot ? -1 : 1;
-
-      return String(a.username).localeCompare(String(b.username));
-    })
-    .map((entry, index) => ({
-      ...entry,
-      rank: index + 1,
-    }));
-
-  return rows.find((row) => String(row.id) === String(userId))?.rank || null;
 }
 
 function formatArenaRank(points, userId = null) {
