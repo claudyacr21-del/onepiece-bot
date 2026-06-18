@@ -118,10 +118,10 @@ function pickContentType(tier) {
 }
 
 function rollThroneEquivalentCardTier(baseTier) {
-  // Road Poneglyph special chance: 2%.
+  // Road Poneglyph special chance: 2.5%.
   // If it fails, keep the original rolled tier.
   const roll = Math.random() * 100;
-  if (roll < 5) return "THRONE";
+  if (roll < 2.5) return "THRONE";
   return baseTier;
 }
 
