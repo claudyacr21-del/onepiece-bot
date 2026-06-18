@@ -65,17 +65,6 @@ function isExactRawCardCodeMatch(card, query) {
     .some((value) => normalizeCode(value) === q);
 }
 
-function isLzsQuery(query) {
-  const q = normalizeName(query).replace(/\s+/g, "_");
-  return q === "lzs" || q === "monster_trio";
-}
-
-function isLzsCard(card) {
-  const code = String(card?.code || "").toLowerCase().trim();
-  const name = normalizeName(card?.displayName || card?.name || card?.title);
-  return code === "lzs" || name === "monster trio";
-}
-
 function getNameFields(card) {
   return [
     card?.displayName,
@@ -91,7 +80,7 @@ function scoreNameOnly(query, card) {
   const q = normalizeName(query);
   if (!q) return 0;
 
-  if (isLzsQuery(query) && isLzsCard(card)) {
+  if (isExactRawCardCodeMatch(card, query)) {
     return 999999;
   }
 
@@ -136,11 +125,14 @@ function findOwnedIndexByNameOnly(cardsOwned, query) {
 function findTemplateByNameOnly(ownedCard, query) {
   const templates = safeArray(rawCards);
 
-  if (isLzsQuery(query) || isLzsCard(ownedCard)) {
-    return (
-      templates.find((card) => isLzsCard(card)) ||
-      null
-    );
+  const exactTemplate = templates.find((card) =>
+    isExactRawCardCodeMatch(card, ownedCard?.code || query)
+  );
+
+  if (exactTemplate) return exactTemplate;
+
+  if (isMergeCard(ownedCard)) {
+    return templates.find((card) => isMergeCard(card) && normalizeCode(card?.code) === normalizeCode(ownedCard?.code)) || null;
   }
 
   const target =
