@@ -310,6 +310,125 @@ function getStoryProgress(player) {
   return `${cleared} bosses • ${currentIsland}`;
 }
 
+function looksLikeDiscordUserId(value) {
+  return /^\d{15,25}$/.test(String(value || "").trim());
+}
+
+function cleanArenaUsername(value) {
+  const text = String(value || "").trim();
+
+  if (!text || looksLikeDiscordUserId(text)) return null;
+  if (/^<@!?\d{15,25}>$/.test(text)) return null;
+
+  return text;
+}
+
+function getProfileArenaDisplayName(message, userId, raw = {}) {
+  const id = String(userId || "");
+
+  const memberName = cleanArenaUsername(
+    message?.guild?.members?.cache?.get(id)?.displayName
+  );
+
+  const userName = cleanArenaUsername(
+    message?.client?.users?.cache?.get(id)?.username
+  );
+
+  const storedName =
+    cleanArenaUsername(raw?.displayName) ||
+    cleanArenaUsername(raw?.globalName) ||
+    cleanArenaUsername(raw?.username) ||
+    cleanArenaUsername(raw?.name) ||
+    cleanArenaUsername(raw?.tag);
+
+  return memberName || userName || storedName || `Player ${id.slice(-4)}`;
+}
+
+function firstPositiveProfileArenaNumber(...values) {
+  for (const value of values) {
+    const n = Number(value || 0);
+
+    if (Number.isFinite(n) && n > 0) {
+      return Math.floor(n);
+    }
+  }
+
+  return 0;
+}
+
+function getProfileArenaCardAtk(card) {
+  return Math.max(
+    1,
+    firstPositiveProfileArenaNumber(
+      card?.atk,
+      card?.displayAtk,
+      card?.combatAtk,
+      card?.finalAtk,
+      card?.battleAtk,
+      card?.teamAtk,
+      card?.totalAtk,
+      card?.baseAtk
+    )
+  );
+}
+
+function getProfileArenaCardHp(card) {
+  return Math.max(
+    1,
+    firstPositiveProfileArenaNumber(
+      card?.hp,
+      card?.maxHp,
+      card?.displayHp,
+      card?.combatHp,
+      card?.finalHp,
+      card?.battleHp,
+      card?.teamHp,
+      card?.totalHp,
+      card?.baseHp
+    )
+  );
+}
+
+function getProfileArenaCardSpeed(card) {
+  return Math.max(
+    1,
+    firstPositiveProfileArenaNumber(
+      card?.speed,
+      card?.spd,
+      card?.displaySpeed,
+      card?.combatSpeed,
+      card?.finalSpeed,
+      card?.battleSpeed,
+      card?.teamSpeed,
+      card?.totalSpeed,
+      card?.baseSpeed
+    )
+  );
+}
+
+function getProfileArenaPower(card) {
+  if (isMergeCard(card)) return 100000;
+
+  return Math.max(
+    0,
+    firstPositiveProfileArenaNumber(
+      card?.battlePower,
+      card?.combatPower,
+      card?.teamPower,
+      card?.currentPower,
+      card?.finalPower,
+      card?.displayPower,
+      card?.power,
+      card?.basePower,
+      Math.floor(
+        getProfileArenaCardAtk(card) * 1.4 +
+          getProfileArenaCardHp(card) * 0.22 +
+          getProfileArenaCardSpeed(card) * 9
+      )
+    )
+  );
+}
+
 function getFastProfileArenaTeamCards(raw) {
   const cards = Array.isArray(raw?.cards) ? raw.cards : [];
   const slots = Array.isArray(raw?.team?.slots)
@@ -331,18 +450,8 @@ function getFastProfileArenaTeamCards(raw) {
 
 function getFastProfileArenaTeamPower(cards) {
   return (Array.isArray(cards) ? cards : []).reduce((total, card) => {
-    const power = Number(
-      card?.currentPower ||
-        card?.power ||
-        card?.powerCaps?.M3 ||
-        Math.floor(
-          Number(card?.atk || 0) * 1.4 +
-            Number(card?.hp || 0) * 0.22 +
-            Number(card?.speed || 0) * 9
-        )
-    );
-
-    return total + power;
+    const hydrated = hydrateCard(card) || card;
+    return total + getProfileArenaPower(hydrated);
   }, 0);
 }
 
@@ -372,30 +481,38 @@ function compareProfileArenaEntries(a, b) {
 
   if (teamPowerB !== teamPowerA) return teamPowerB - teamPowerA;
 
+  if (Boolean(a?.isBot) !== Boolean(b?.isBot)) {
+    return a?.isBot ? 1 : -1;
+  }
+
   return String(a?.username || "").localeCompare(String(b?.username || ""));
 }
 
-function getArenaLeaderboardRankForUser(userId, playersMap) {
-  const rows = Object.entries(playersMap || {})
-    .map(([id, player]) => {
-      const safeId = String(id || "");
+function buildProfileFastArenaLeaderboard(message) {
+  const allPlayers = readPlayers() || {};
 
-      if (!safeId || safeId.startsWith("__")) return null;
+  return Object.entries(allPlayers || {})
+    .map(([userId, raw]) => {
+      const id = String(userId || "");
 
-      const teamCards = getFastProfileArenaTeamCards(player);
+      if (!id || id.startsWith("__")) return null;
+      if (id === String(message?.client?.user?.id || "")) return null;
+
+      const teamCards = getFastProfileArenaTeamCards(raw);
       if (teamCards.length !== 3) return null;
 
-      const arena = player?.arena || {};
+      const arena = raw?.arena || {};
 
       return {
-        id: safeId,
-        username: player.username || "Unknown",
+        userId: id,
+        username: getProfileArenaDisplayName(message, id, raw),
         points: Number(arena?.points || 0),
         wins: Number(arena?.wins || 0),
         losses: Number(arena?.losses || 0),
         draws: Number(arena?.draws || 0),
         matches: Number(arena?.matches || 0),
         streak: Number(arena?.streak || 0),
+        isBot: false,
         teamPower: getFastProfileArenaTeamPower(teamCards),
       };
     })
@@ -406,8 +523,17 @@ function getArenaLeaderboardRankForUser(userId, playersMap) {
       ...entry,
       rank: index + 1,
     }));
+}
 
-  return rows.find((row) => String(row.id) === String(userId))?.rank || null;
+function getArenaRankFromLeaderboard(leaderboard, userId) {
+  const found = (Array.isArray(leaderboard) ? leaderboard : []).find(
+    (entry) => String(entry.userId) === String(userId)
+  );
+
+  return found?.rank || Math.min(
+    ARENA_TOTAL_RANKS,
+    (Array.isArray(leaderboard) ? leaderboard.length : 0) + 1
+  );
 }
 
 function getArenaRankFromPoints(points) {
@@ -419,21 +545,25 @@ function getArenaRankFromPoints(points) {
   );
 }
 
-function formatArenaRank(points, userId = null) {
-  const rank = userId
-    ? getArenaLeaderboardRankForUser(userId, readPlayers() || {})
-    : null;
+function formatArenaRank(points, userId = null, message = null) {
+  const rank =
+    userId && message
+      ? getArenaRankFromLeaderboard(
+          buildProfileFastArenaLeaderboard(message),
+          userId
+        )
+      : null;
 
   return `#${rank || getArenaRankFromPoints(points)}`;
 }
 
-function getArenaSummary(player, userId = null) {
+function getArenaSummary(player, userId = null, message = null) {
   const arena = player?.arena || {};
   const points = Number(arena.points || 0);
 
   return {
     points,
-    rank: formatArenaRank(points, userId),
+    rank: formatArenaRank(points, userId, message),
     wins: Number(arena.wins || 0),
     losses: Number(arena.losses || 0),
     streak: Number(arena.streak || 0),
@@ -579,7 +709,7 @@ module.exports = {
       const totalPower = getTotalPower(player);
       const teamPower = getTeamPower(player);
       const storyProgress = getStoryProgress(player);
-      const arena = getArenaSummary(player, message.author.id);
+      const arena = getArenaSummary(player, message.author.id, message);
       const ship = getShipSummary(player);
       const cardStats = getCardStatistics(player);
       const pirateName = getProfilePirateName(message.author.id);
