@@ -243,7 +243,17 @@ module.exports = [
     code: "mero_mero_no_mi",
     name: "Mero Mero no Mi",
     rarity: "S",
-    owners: ["boa_hancock", "boa_seraphim"],
+    owners: ["boa_hancock"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 7, hp: 6, speed: 4 },
+    image: "",
+    description: "Petrifies targets through irresistible charm and beam attacks."
+  },
+    {
+    code: "mero_replica",
+    name: "Mero Replica",
+    rarity: "S",
+    owners: ["boa_seraphim"],
     type: "Paramecia Fruit",
     statPercent: { atk: 7, hp: 6, speed: 4 },
     image: "",
