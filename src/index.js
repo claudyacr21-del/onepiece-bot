@@ -152,7 +152,7 @@ async function sendPirateWeeklyResetNotification(result, reason = "interval") {
 function startPirateWeeklyResetScheduler() {
   const intervalMs = Math.max(
     60_000,
-    Number(process.env.PIRATE_WEEKLY_RESET_CHECK_MS || 300000)
+    Number(process.env.PIRATE_WEEKLY_RESET_CHECK_MS || 60000)
   );
 
   checkPirateWeeklyReset("startup").catch((error) => {
