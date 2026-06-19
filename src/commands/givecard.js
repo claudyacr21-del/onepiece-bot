@@ -4,6 +4,7 @@ const cardsData = require("../data/cards");
 function getAdminIds() {
   return String(
     process.env.ADMIN_USER_IDS ||
+      process.env.ADMIN_ROLE_IDS ||
       process.env.DISCORD_OWNER_ID ||
       process.env.BOT_OWNER_ID ||
       ""

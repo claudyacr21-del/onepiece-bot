@@ -7,6 +7,7 @@ const {
 function getOwnerIds() {
   return String(
     process.env.BOT_OWNER_IDS ||
+      process.env.ADMIN_ROLE_IDS ||
       process.env.OWNER_IDS ||
       process.env.BOT_OWNER_ID ||
       process.env.ADMIN_USER_IDS ||

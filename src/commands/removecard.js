@@ -2,7 +2,7 @@ const { EmbedBuilder } = require("discord.js");
 const { readPlayers, writePlayers } = require("../playerStore");
 
 function getAdminIds() {
-  return String(process.env.ADMIN_USER_IDS || process.env.DISCORD_OWNER_ID || process.env.BOT_OWNER_ID || "")
+  return String(process.env.ADMIN_USER_IDS || process.env.ADMIN_ROLE_IDS || process.env.DISCORD_OWNER_ID || process.env.BOT_OWNER_ID || "")
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean);

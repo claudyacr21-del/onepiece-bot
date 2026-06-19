@@ -4,6 +4,7 @@ const { updatePlayerAtomic } = require("../playerStore");
 function getAdminIds() {
   return String(
     process.env.ADMIN_USER_IDS ||
+      process.env.ADMIN_ROLE_IDS ||
       process.env.DISCORD_OWNER_ID ||
       process.env.BOT_OWNER_ID ||
       ""
@@ -318,7 +319,8 @@ module.exports = {
           `**Target:** <@${userId}>`,
           `**User ID:** \`${userId}\``,
           `**Boost:** ${getCardLabel(removed)}`,
-          `**Code:** \`${removed.code || "none"}\``,
+          `**Code:** \`${removed.code || "none"}\``,
+
         ].join("\n")
       )
       .setFooter({
