@@ -143,7 +143,7 @@ function findCardTemplateByNameOnly(query) {
   const scored = getAllCards()
     .map((card) => ({
       card,
-      score: scoreNameOnly(query, [card.displayName, card.name, card.title]),
+      score: scoreNameOnly(query, [card.displayName, card.name]),
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -959,6 +959,7 @@ function doesEntryMatchRequirement(entry, requirement) {
     entry?.name,
     entry?.displayName,
     entry?.cardName,
+    entry?.title,
   ]
     .map(normalizeCompare)
     .filter(Boolean);
