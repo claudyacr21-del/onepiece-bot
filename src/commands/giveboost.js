@@ -2,11 +2,24 @@ const { updatePlayerAtomic } = require("../playerStore");
 const cardsData = require("../data/cards");
 const { hydrateCard } = require("../utils/evolution");
 
+function parseEnvIds(...values) {
+  return values
+    .flatMap((value) => String(value || "").split(","))
+    .map((value) =>
+      value
+        .replace(/[<@&>]/g, "")
+        .trim()
+    )
+    .filter(Boolean);
+}
+
 function getAdminUserIds() {
   return parseEnvIds(
     process.env.ADMIN_USER_IDS,
     process.env.DISCORD_OWNER_ID,
     process.env.BOT_OWNER_ID,
+    process.env.BOT_OWNER_IDS,
+    process.env.OWNER_IDS
   );
 }
 
@@ -14,26 +27,34 @@ function getAdminRoleIds() {
   return parseEnvIds(process.env.ADMIN_ROLE_IDS);
 }
 
-function memberHasAdminRole(message) {
+async function getCommandMember(message) {
+  if (!message?.guild || !message?.author?.id) return null;
+
+  return (
+    message?.resolvedMember ||
+    message?.mainMember ||
+    message?.member ||
+    message.guild.members.cache.get(message.author.id) ||
+    (await message.guild.members.fetch(message.author.id).catch(() => null))
+  );
+}
+
+async function memberHasAdminRole(message) {
   const roleIds = getAdminRoleIds();
 
   if (!roleIds.length) return false;
 
-  const member =
-    message?.resolvedMember ||
-    message?.mainMember ||
-    message?.member ||
-    null;
+  const member = await getCommandMember(message);
 
   if (!member?.roles?.cache) return false;
 
   return roleIds.some((roleId) => member.roles.cache.has(roleId));
 }
 
-function isAdmin(message) {
+async function isAdmin(message) {
   const userId = String(message?.author?.id || "");
 
-  return getAdminUserIds().includes(userId) || memberHasAdminRole(message);
+  return getAdminUserIds().includes(userId) || await memberHasAdminRole(message);
 }
 
 function normalize(value) {
@@ -286,7 +307,7 @@ module.exports = {
   aliases: [],
 
   async execute(message, args) {
-    if (!isAdmin(message)) {
+    if (!(await isAdmin(message))) {
       return message.reply({
         content: "Owner only command.",
         allowedMentions: { repliedUser: false },

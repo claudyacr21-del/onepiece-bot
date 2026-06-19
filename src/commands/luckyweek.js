@@ -5,20 +5,44 @@ const {
   LUCKY_WEEK_MULTIPLIER,
 } = require("../utils/luckyWeekStore");
 
-function getOwnerIds() {
-  return String(
-    process.env.BOT_OWNER_IDS ||
-      process.env.OWNER_IDS ||
-      process.env.BOT_OWNER_ID ||
-      process.env.ADMIN_USER_IDS ||
-      ""
-  )
-    .split(",")
-    .map((id) => id.trim())
+function parseEnvIds(...values) {
+  return values
+    .flatMap((value) => String(value || "").split(","))
+    .map((value) =>
+      value
+        .replace(/[<@&>]/g, "")
+        .trim()
+    )
     .filter(Boolean);
 }
 
-function canManageLuckyWeek(message) {
+function getOwnerIds() {
+  return parseEnvIds(
+    process.env.BOT_OWNER_IDS,
+    process.env.OWNER_IDS,
+    process.env.BOT_OWNER_ID,
+    process.env.ADMIN_USER_IDS,
+    process.env.DISCORD_OWNER_ID
+  );
+}
+
+function getAdminRoleIds() {
+  return parseEnvIds(process.env.ADMIN_ROLE_IDS);
+}
+
+async function getCommandMember(message) {
+  if (!message?.guild || !message?.author?.id) return null;
+
+  return (
+    message?.resolvedMember ||
+    message?.mainMember ||
+    message?.member ||
+    message.guild.members.cache.get(message.author.id) ||
+    (await message.guild.members.fetch(message.author.id).catch(() => null))
+  );
+}
+
+async function canManageLuckyWeek(message) {
   const ownerIds = getOwnerIds();
 
   if (ownerIds.includes(String(message.author.id))) return true;
@@ -27,7 +51,14 @@ function canManageLuckyWeek(message) {
     return true;
   }
 
-  if (message.member?.permissions?.has(PermissionsBitField.Flags.Administrator)) {
+  const member = await getCommandMember(message);
+
+  const roleIds = getAdminRoleIds();
+  if (roleIds.length && member?.roles?.cache) {
+    if (roleIds.some((roleId) => member.roles.cache.has(roleId))) return true;
+  }
+
+  if (member?.permissions?.has(PermissionsBitField.Flags.Administrator)) {
     return true;
   }
 
@@ -80,7 +111,7 @@ module.exports = {
   aliases: ["lw"],
 
   async execute(message, args) {
-    if (!canManageLuckyWeek(message)) {
+    if (!(await canManageLuckyWeek(message))) {
       return message.reply({
         content: "Only bot owner / server owner / administrator can manage Lucky Week.",
         allowedMentions: { repliedUser: false },
