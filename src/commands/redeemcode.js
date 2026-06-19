@@ -3,21 +3,38 @@ const { updatePlayerAtomic } = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
 const { readRedeemCodes, writeRedeemCodes } = require("../utils/redeemCodeStore");
 
-function getAdminIds() {
-  return String(
-    process.env.ADMIN_USER_IDS ||
-      process.env.ADMIN_ROLE_IDS ||
-      process.env.DISCORD_OWNER_ID ||
-      process.env.BOT_OWNER_ID ||
-      ""
-  )
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
+function getAdminUserIds() {
+  return parseEnvIds(
+    process.env.ADMIN_USER_IDS,
+    process.env.DISCORD_OWNER_ID,
+    process.env.BOT_OWNER_ID,
+  );
 }
 
-function isAdmin(userId) {
-  return getAdminIds().includes(String(userId));
+function getAdminRoleIds() {
+  return parseEnvIds(process.env.ADMIN_ROLE_IDS);
+}
+
+function memberHasAdminRole(message) {
+  const roleIds = getAdminRoleIds();
+
+  if (!roleIds.length) return false;
+
+  const member =
+    message?.resolvedMember ||
+    message?.mainMember ||
+    message?.member ||
+    null;
+
+  if (!member?.roles?.cache) return false;
+
+  return roleIds.some((roleId) => member.roles.cache.has(roleId));
+}
+
+function isAdmin(message) {
+  const userId = String(message?.author?.id || "");
+
+  return getAdminUserIds().includes(userId) || memberHasAdminRole(message);
 }
 
 function normalize(value) {
@@ -341,7 +358,7 @@ module.exports = {
     const subcommand = String(args[0] || "").toLowerCase();
 
     if (subcommand === "add") {
-      if (!isAdmin(message.author.id)) {
+      if (!isAdmin(message)) {
         return message.reply({
           content: "Owner only command.",
           allowedMentions: { repliedUser: false },
@@ -384,7 +401,7 @@ module.exports = {
         expiresAt: expiresInDays > 0 ? now + expiresInDays * 86400000 : 0,
         rewards,
         usedBy: Array.isArray(data.codes[code]?.usedBy) ? data.codes[code].usedBy : [],
-        createdBy: message.author.id,
+        createdBy: message,
         createdAt: data.codes[code]?.createdAt || now,
         updatedAt: now,
       };
@@ -412,7 +429,7 @@ module.exports = {
     }
 
     if (subcommand === "remove" || subcommand === "delete") {
-      if (!isAdmin(message.author.id)) {
+      if (!isAdmin(message)) {
         return message.reply({
           content: "Owner only command.",
           allowedMentions: { repliedUser: false },
@@ -448,7 +465,7 @@ module.exports = {
     }
 
     if (subcommand === "enable" || subcommand === "disable") {
-      if (!isAdmin(message.author.id)) {
+      if (!isAdmin(message)) {
         return message.reply({
           content: "Owner only command.",
           allowedMentions: { repliedUser: false },
@@ -493,13 +510,13 @@ module.exports = {
 
     if (subcommand === "list") {
       const data = readRedeemCodes();
-      const adminView = isAdmin(message.author.id);
+      const adminView = isAdmin(message);
 
       return message.reply({
         embeds: [
           buildListEmbed(data, {
             isAdminView: adminView,
-            viewerId: message.author.id,
+            viewerId: message,
           }),
         ],
         allowedMentions: { repliedUser: false },
@@ -509,7 +526,7 @@ module.exports = {
     const code = normalizeCode(args[0]);
 
     if (!code) {
-      if (!isAdmin(message.author.id)) {
+      if (!isAdmin(message)) {
         return message.reply({
           content: "Usage: `op redeemcode <code>`\nUse `op redeemcode list` to view available codes.",
           allowedMentions: { repliedUser: false },

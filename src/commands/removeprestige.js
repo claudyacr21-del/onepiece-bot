@@ -3,21 +3,38 @@ const { updatePlayerAtomic } = require("../playerStore");
 
 const MAX_PRESTIGE = 200;
 
-function getAdminIds() {
-  return String(
-    process.env.ADMIN_USER_IDS ||
-      process.env.ADMIN_ROLE_IDS ||
-      process.env.DISCORD_OWNER_ID ||
-      process.env.BOT_OWNER_ID ||
-      ""
-  )
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
+function getAdminUserIds() {
+  return parseEnvIds(
+    process.env.ADMIN_USER_IDS,
+    process.env.DISCORD_OWNER_ID,
+    process.env.BOT_OWNER_ID,
+  );
 }
 
-function isAdmin(userId) {
-  return getAdminIds().includes(String(userId));
+function getAdminRoleIds() {
+  return parseEnvIds(process.env.ADMIN_ROLE_IDS);
+}
+
+function memberHasAdminRole(message) {
+  const roleIds = getAdminRoleIds();
+
+  if (!roleIds.length) return false;
+
+  const member =
+    message?.resolvedMember ||
+    message?.mainMember ||
+    message?.member ||
+    null;
+
+  if (!member?.roles?.cache) return false;
+
+  return roleIds.some((roleId) => member.roles.cache.has(roleId));
+}
+
+function isAdmin(message) {
+  const userId = String(message?.author?.id || "");
+
+  return getAdminUserIds().includes(userId) || memberHasAdminRole(message);
 }
 
 function parseUserId(value) {
@@ -106,7 +123,7 @@ module.exports = {
   aliases: ["rmprestige"],
 
   async execute(message, args) {
-    if (!isAdmin(message.author.id)) {
+    if (!isAdmin(message)) {
       return message.reply({
         content: "Owner only command.",
         allowedMentions: { repliedUser: false },
