@@ -959,7 +959,6 @@ function doesEntryMatchRequirement(entry, requirement) {
     entry?.name,
     entry?.displayName,
     entry?.cardName,
-    entry?.title,
   ]
     .map(normalizeCompare)
     .filter(Boolean);
