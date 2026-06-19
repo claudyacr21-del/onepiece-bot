@@ -578,16 +578,16 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addReward(ITEMS.sailCloth, 2);
     addReward(ITEMS.enhancementStone, 3);
   } else if (box.code === "iron_material_box") {
-    addReward(ITEMS.hardwood, 4);
-    addReward(ITEMS.ironPlating, 1);
-    addReward(ITEMS.sailCloth, 2);
-    addReward(ITEMS.enhancementStone, 6);
+    addReward(ITEMS.hardwood, 7);
+    addReward(ITEMS.ironPlating, 3);
+    addReward(ITEMS.sailCloth, 6);
+    addReward(ITEMS.enhancementStone, 12);
   } else if (box.code === "royal_material_box") {
-    addReward(ITEMS.hardwood, 5);
-    addReward(ITEMS.ironPlating, 2);
-    addReward(ITEMS.sailCloth, 3);
-    addReward(ITEMS.colaEnginePart, 1);
-    addReward(ITEMS.enhancementStone, 10);
+    addReward(ITEMS.hardwood, 10);
+    addReward(ITEMS.ironPlating, 6);
+    addReward(ITEMS.sailCloth, 8);
+    addReward(ITEMS.colaEnginePart, 3);
+    addReward(ITEMS.enhancementStone, 25);
   } else if (box.code === "basic_resource_box") {
     addBerries(2000);
     addGems(10);
