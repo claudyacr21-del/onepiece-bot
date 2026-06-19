@@ -271,7 +271,6 @@ function findOwnedCardByNameOnly(player, query) {
         card.code,
         card.name,
         card.displayName,
-        card.title,
       ]),
     }))
     .filter((entry) => entry.score > 0)
