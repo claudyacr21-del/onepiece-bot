@@ -733,10 +733,10 @@ module.exports = [
   {
     code: "toshi_toshi_no_mi",
     name: "Toshi Toshi no Mi",
-    rarity: "A",
+    rarity: "UR",
     owners: ["jewelry_bonney"],
     type: "Paramecia Fruit",
-    statPercent: { atk: 5, hp: 4, speed: 3 },
+    statPercent: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "Allows the user to manipulate age and create distorted future forms."
   },
