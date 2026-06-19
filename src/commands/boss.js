@@ -1447,9 +1447,24 @@ if (lobbyProcessing) {
 
         const previewParticipants = await getJoinedParticipantsPreview(userId, joiningPlayer, username);
         const duplicates = getDuplicatePartyCards(previewParticipants);
+        if (duplicates.length) {
+          await replyBossJoin({
+            content: [
+              "You cannot join Boss Phase 2 while the party has duplicate card codes.",
+              "",
+              "Duplicate card detected:",
+              ...duplicates.map((dup) => `- ${dup.name} used by ${dup.users.join(" and ")}`),
+              "",
+              "Change your team card, then press **Join** again.",
+            ].join("\n"),
+            embeds: [],
+            components: [],
+          });
 
+          return;
+        }
         const confirmEmbed = new EmbedBuilder()
-          .setColor(duplicates.length ? 0xe74c3c : 0x2ecc71)
+          .setColor(0x2ecc71)
           .setTitle("Confirm Boss Phase 2 Join")
           .setDescription(
             [
@@ -1472,8 +1487,7 @@ if (lobbyProcessing) {
           new ButtonBuilder()
             .setCustomId("boss_join_confirm")
             .setLabel("Confirm Join")
-            .setStyle(ButtonStyle.Success)
-            .setDisabled(Boolean(duplicates.length)),
+            .setStyle(ButtonStyle.Success),
           new ButtonBuilder()
             .setCustomId("boss_join_cancel")
             .setLabel("Cancel")
