@@ -373,25 +373,40 @@ function buildAwakenedMergeCardForDisplay(player, card, template = null, stage =
     Math.min(3, Number(stage || card?.evolutionStage || 1))
   );
 
-  const merged = buildMergedCard(player || { cards: [] }, {
-    ...(template || {}),
-    ...(card || {}),
-    evolutionStage: targetStage,
-    evolutionKey: getStageKey(targetStage),
-  }, targetStage, {
-    sourceStage: targetStage,
-    displayLevel: targetStage === 1 ? 50 : targetStage === 2 ? 75 : 100,
-  });
+  const stageKey = getStageKey(targetStage);
+  const stageForm = getStageForm(template, targetStage);
+
+  const merged = buildMergedCard(
+    player || { cards: [] },
+    {
+      ...(template || {}),
+      ...(card || {}),
+      evolutionStage: targetStage,
+      evolutionKey: stageKey,
+    },
+    targetStage,
+    {
+      sourceStage: targetStage,
+      displayLevel: targetStage === 1 ? 50 : targetStage === 2 ? 85 : 100,
+    }
+  );
+
+  const stageImage =
+    stageForm?.image ||
+    merged?.stageImages?.[stageKey] ||
+    card?.stageImages?.[stageKey] ||
+    template?.stageImages?.[stageKey] ||
+    "";
 
   return applyAwakenMergeFixedPower(
     {
       ...(card || {}),
       ...(merged || {}),
       evolutionStage: targetStage,
-      evolutionKey: getStageKey(targetStage),
+      evolutionKey: stageKey,
       image:
+        stageImage ||
         merged?.image ||
-        merged?.stageImages?.[getStageKey(targetStage)] ||
         card?.image ||
         template?.image ||
         "",
