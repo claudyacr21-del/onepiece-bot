@@ -88,7 +88,7 @@ const RAID_PRESTIGE_BADGE_EMOJIS = {
   jango_hypnotist: "<:jango:1504117734798135446>",
   alvida_iron_club: "<:alvida:1504117744759603380>",
   helmeppo_spoiled_brat: "<:helmeppo:1504117755744620645>",
-  lzs: "<:lzs:1517133206401581287>",
+  lzs: "<:lzs:1517815021118296185>",
   mr2: "<:mr2:1517134614118928464>",
   higuma: "<:higuma:1517135495388336279>",
   x_drake: "<:drake:1517136390071128218>",
