@@ -498,6 +498,97 @@ function joinUniqueCiText(values) {
   return out.length ? out.join(", ") : "None";
 }
 
+function getCiSignatureWeaponText(...sources) {
+  const values = [];
+
+  for (const source of sources) {
+    if (!source || typeof source !== "object") continue;
+
+    values.push(
+      source.displayWeaponName,
+      source.weaponSet,
+      source.weapon,
+      source.weaponName,
+      source.signatureWeapon,
+      source.signatureWeaponName
+    );
+  }
+
+  return joinUniqueCiText(values);
+}
+
+function getCiSignatureFruitText(...sources) {
+  return (
+    getDirectDevilFruitName(...sources) ||
+    joinUniqueCiText(
+      sources.flatMap((source) => {
+        if (!source || typeof source !== "object") return [];
+
+        return [
+          source.displayFruitName,
+          source.devilFruitName,
+          source.devilFruit,
+          source.fruitName,
+          source.fruit,
+          source.signatureDevilFruit,
+          source.signatureDevilFruitName,
+        ];
+      })
+    )
+  );
+}
+
+function getCiMergeSourceCodes(card) {
+  return Array.isArray(card?.mergeSourceCodes)
+    ? card.mergeSourceCodes
+        .map((code) => String(code || "").trim())
+        .filter(Boolean)
+    : [];
+}
+
+function getCiGlobalSignatureFromSource(sourceTemplate, stage, type) {
+  const sourceStageCard = getStageCard(sourceTemplate, stage);
+  const form =
+    sourceStageCard?.evolutionForms?.[stage - 1] ||
+    sourceTemplate?.evolutionForms?.[stage - 1] ||
+    {};
+
+  const sources = [
+    form,
+    sourceStageCard,
+    sourceTemplate,
+    ...(Array.isArray(sourceStageCard?.evolutionForms)
+      ? sourceStageCard.evolutionForms
+      : []),
+    ...(Array.isArray(sourceTemplate?.evolutionForms)
+      ? sourceTemplate.evolutionForms
+      : []),
+  ];
+
+  return type === "weapon"
+    ? getCiSignatureWeaponText(...sources)
+    : getCiSignatureFruitText(...sources);
+}
+
+function getCiMergeGlobalSignatureText(card, stage, type) {
+  const sourceCodes = getCiMergeSourceCodes(card);
+
+  if (!sourceCodes.length) {
+    return type === "weapon"
+      ? getCiSignatureWeaponText(card)
+      : getCiSignatureFruitText(card);
+  }
+
+  const values = sourceCodes.map((code) => {
+    const sourceTemplate = findTemplateByCodeForCi(code);
+    if (!sourceTemplate) return "";
+
+    return getCiGlobalSignatureFromSource(sourceTemplate, stage, type);
+  });
+
+  return joinUniqueCiText(values);
+}
+
 function getCiMergeDisplayStats(card) {
   return {
     source: card,
@@ -1288,11 +1379,12 @@ function buildReqEmbed(card, stage, player) {
 }
 
 function buildEmbed(card, owned, stage, player = null) {
+  const originalCard = card;
   const mergeCard = isMergeCard(card) || isMergeCard(owned);
 
   if (mergeCard) {
     card = buildMergedCard(player || { cards: [] }, card, stage, {
-      templateOnly: false,
+      templateOnly: true,
       sourceStage: stage,
       displayStage: stage,
       displayLevel: stage === 1 ? 50 : stage === 2 ? 85 : 100,
@@ -1315,6 +1407,14 @@ function buildEmbed(card, owned, stage, player = null) {
     : getStageDisplayStats(card, stageCard, stage);
 
   const statSource = displayStats.source || stageCard || card;
+
+  const mergeWeaponSet = mergeCard
+    ? getCiMergeGlobalSignatureText(originalCard, stage, "weapon")
+    : null;
+
+  const mergeDevilFruit = mergeCard
+    ? getCiMergeGlobalSignatureText(originalCard, stage, "fruit")
+    : null;
 
   if (isRoadPoneglyphCard(stageCard)) {
     stageCard.effectText = getRoadPoneglyphEffect(stage);
@@ -1353,8 +1453,8 @@ function buildEmbed(card, owned, stage, player = null) {
           `ATK: ${formatAtkRange(displayStats.atk)}`,
           `HP: ${Number(displayStats.hp || 0)}`,
           `SPD: ${Number(displayStats.speed || 0)}`,
-          `Weapon Set: ${statSource.weaponSet || statSource.weapon || "None"}`,
-          `Devil Fruit: ${statSource.devilFruit || statSource.displayFruitName || "None"}`,
+          `Weapon Set: ${mergeCard ? mergeWeaponSet : (statSource.weaponSet || statSource.weapon || "None")}`,
+          `Devil Fruit: ${mergeCard ? mergeDevilFruit : (statSource.devilFruit || statSource.displayFruitName || "None")}`,
         ];
 
   return buildCardStyleEmbed({
@@ -1472,7 +1572,7 @@ module.exports = {
       const freshPlayer = getPlayer(message.author.id, message.author.username);
       const freshOwned = isMergeCard(globalCard)
         ? buildMergedCard(freshPlayer || { cards: [] }, globalCard, stage, {
-            templateOnly: false,
+            templateOnly: true,
             sourceStage: stage,
             displayStage: stage,
             displayLevel: stage === 1 ? 50 : stage === 2 ? 85 : 100,
