@@ -21,23 +21,18 @@ function normalizeCode(value) {
   return normalize(value).replace(/\s+/g, "_");
 }
 
-function isLzsCard(card) {
-  const code = normalizeCode(card?.code);
-  const name = normalize(card?.displayName || card?.name || card?.title);
-
-  return code === "lzs" || name === "monster trio";
-}
-
 function isMergeCard(card) {
-  const type = String(card?.type || "").toLowerCase().trim();
+  const type = normalize(card?.type);
+  const pullTier = normalizeCode(card?.pullTier);
 
   return Boolean(
     card &&
       (
-        isLzsCard(card) ||
         card.mergeOnly === true ||
+        card.isMergeCard === true ||
         Array.isArray(card.mergeSourceCodes) ||
-        type === "merge"
+        type === "merge" ||
+        pullTier === "merge"
       )
   );
 }
@@ -965,7 +960,6 @@ module.exports = {
   MERGE_RATIO,
   MERGE_FIXED_POWER,
 
-  isLzsCard,
   isMergeCard,
 
   getMergeSourceCodes,
