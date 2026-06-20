@@ -551,13 +551,7 @@ function getSourceWeaponText(card, templateCode, forcedStage = null, templateOnl
   const form = getForm(template, stage);
 
   if (templateOnly) {
-    return (
-      form?.weaponSet ||
-      form?.weapon ||
-      template.weaponSet ||
-      template.weapon ||
-      "None"
-    );
+    return "None";
   }
 
   const equippedWeapons = Array.isArray(card?.equippedWeapons)
@@ -596,40 +590,23 @@ function getSourceWeaponText(card, templateCode, forcedStage = null, templateOnl
 }
 
 function getSourceFruitText(card, templateCode, forcedStage = null, templateOnly = false) {
-  const template = getTemplateByCode(templateCode) || {};
-  const stage = forcedStage || getStage(card);
-  const form = getForm(template, stage);
-
   if (templateOnly) {
-    return (
-      form?.devilFruitName ||
-      form?.devilFruit ||
-      template.devilFruitName ||
-      template.devilFruit ||
-      "None"
-    );
+    return "None";
   }
 
   const ownedFruit =
-    card?.displayFruitName ||
     card?.equippedDevilFruitName ||
     card?.equippedDevilFruitDisplayName ||
-    card?.equippedDevilFruit ||
-    card?.devilFruitName ||
-    card?.devilFruit;
+    card?.equippedDevilFruitCode ||
+    card?.equippedDevilFruit;
 
   if (ownedFruit && String(ownedFruit).trim().toLowerCase() !== "none") {
     return String(ownedFruit).trim();
   }
 
-  // Fruit bawaan canon masih boleh fallback dari form/template.
-  return (
-    form?.devilFruitName ||
-    form?.devilFruit ||
-    template.devilFruitName ||
-    template.devilFruit ||
-    "None"
-  );
+  // Live merge display must only follow real equipped fruit from the owned source card.
+  // Do not fallback to template/form/canon devil fruit here.
+  return "None";
 }
 
 function cleanValue(value) {

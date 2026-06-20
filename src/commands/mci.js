@@ -701,12 +701,9 @@ function getLiveSourceCardsForMerge(player, mergeCard) {
 
 function getLiveWeaponsFromCard(card) {
   const names = [];
+  const equippedWeapons = Array.isArray(card?.equippedWeapons) ? card.equippedWeapons : [];
 
-  const equippedWeapons = Array.isArray(card?.equippedWeapons)
-    ? card.equippedWeapons
-    : [];
-
-  // Prefer real equipped weapon data first.
+  // Merge equipment must follow real equipped weapons only.
   for (const entry of equippedWeapons) {
     const level = Math.max(0, Number(entry?.upgradeLevel || entry?.level || 0));
     const baseName =
@@ -720,10 +717,10 @@ function getLiveWeaponsFromCard(card) {
     }
   }
 
-  // Only use legacy/snapshot fields if no real equippedWeapons exist.
+  // Legacy equipped fields are allowed, but template/canon fields are not.
   if (!names.length) {
-    pushUniqueDisplay(names, card?.displayWeaponName);
     pushUniqueDisplay(names, card?.equippedWeaponName);
+    pushUniqueDisplay(names, card?.equippedWeaponDisplayName);
     pushUniqueDisplay(
       names,
       findTemplateNameByCode(
@@ -731,8 +728,6 @@ function getLiveWeaponsFromCard(card) {
         card?.equippedWeaponCode || card?.equippedWeapon
       )
     );
-    pushUniqueDisplay(names, card?.weaponSet);
-    pushUniqueDisplay(names, card?.weapon);
   }
 
   return names;
@@ -741,10 +736,17 @@ function getLiveWeaponsFromCard(card) {
 function getLiveFruitsFromCard(card) {
   const names = [];
 
-  pushUniqueDisplay(names, card?.displayFruitName);
+  // Merge fruit display must follow real equipped fruit only.
+  // Do not read displayFruitName/devilFruit because those can be template/canon fields after hydrateCard.
   pushUniqueDisplay(names, card?.equippedDevilFruitName);
-  pushUniqueDisplay(names, findTemplateNameByCode(devilFruitsDb, card?.equippedDevilFruitCode || card?.equippedDevilFruit));
-  pushUniqueDisplay(names, card?.devilFruit);
+  pushUniqueDisplay(names, card?.equippedDevilFruitDisplayName);
+  pushUniqueDisplay(
+    names,
+    findTemplateNameByCode(
+      devilFruitsDb,
+      card?.equippedDevilFruitCode || card?.equippedDevilFruit
+    )
+  );
 
   return names;
 }
