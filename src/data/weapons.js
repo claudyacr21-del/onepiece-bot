@@ -147,6 +147,17 @@ module.exports = [
     description: "High-performance shoes used for devastating kicking techniques."
   },
   {
+    code: "hat",
+    name: "Hat",
+    rarity: "S",
+    owners: ["ace_fire_fist"],
+    type: "Hat",
+    statPercent: { atk: 6, hp: 4, speed: 3 },
+    ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
+    image: "",
+    description: "Ace's iconic hat, carrying the fiery spirit and pride of the Whitebeard Pirates.",
+  },
+  {
     code: "burn_bazooka",
     name: "Burn Bazooka",
     rarity: "A",
