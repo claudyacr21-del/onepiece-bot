@@ -21,15 +21,6 @@ const SPECIAL_FORMS = cardsData.SPECIAL_FORMS || cardsData.specialForms || {
   luffy_straw_hat: ["The Beginning", "Revival", "Gear 5"],
 };
 
-const LZS_SOURCE_CODES = [
-  "luffy_straw_hat",
-  "zoro_pirate_hunter",
-  "sanji_black_leg",
-];
-
-const LZS_MERGE_RATIO = 0.5;
-const LZS_FIXED_POWER = 100000;
-
 function isRoadPoneglyphCard(card) {
   const code = String(card?.code || "").toLowerCase().trim();
   const name = String(card?.displayName || card?.name || card?.title || "")
@@ -122,11 +113,6 @@ function scoreNameOnly(query, names) {
   }
 
   return best;
-}
-
-function isLzsQuery(query) {
-  const q = normalizeNameSearch(query).replace(/\s+/g, "_");
-  return q === "lzs" || q === "monster_trio";
 }
 
 function findCardTemplateByNameOnly(query) {
@@ -512,251 +498,14 @@ function joinUniqueCiText(values) {
   return out.length ? out.join(", ") : "None";
 }
 
-function getSourceTextFromStage(sourceTemplate, sourceStageCard, stage, type) {
-  const form =
-    sourceStageCard?.evolutionForms?.[stage - 1] ||
-    sourceTemplate?.evolutionForms?.[stage - 1] ||
-    {};
-
-  const sources = [
-    form,
-    sourceStageCard,
-    sourceTemplate,
-    ...(Array.isArray(sourceStageCard?.evolutionForms) ? sourceStageCard.evolutionForms : []),
-    ...(Array.isArray(sourceTemplate?.evolutionForms) ? sourceTemplate.evolutionForms : []),
-  ];
-
-  if (type === "weapon") {
-    return (
-      sources
-        .map((source) => {
-          return (
-            source?.displayWeaponName ||
-            source?.weaponSet ||
-            source?.weapon ||
-            source?.equippedWeaponName ||
-            source?.equippedWeapon ||
-            source?.weaponName ||
-            ""
-          );
-        })
-        .find((value) => cleanCiText(value)) || "None"
-    );
-  }
-
-  return getDirectDevilFruitName(...sources) || "None";
-}
-
-function buildCiLzsFromSourceStats(stage = 1) {
-  const targetStage = Math.max(1, Math.min(3, Number(stage || 1)));
-  const stageKey = getStageKey(targetStage);
-  const template = findTemplateByCodeForCi("lzs") || {};
-  const form = getStageForm(template, targetStage);
-
-  const sourceRows = LZS_SOURCE_CODES.map((code) => {
-    const sourceTemplate = findTemplateByCodeForCi(code) || {};
-    const sourceStageCard = getStageCard(sourceTemplate, targetStage);
-    const stats = getStageDisplayStats(sourceTemplate, sourceStageCard, targetStage);
-
-    const atk = firstPositiveNumber(
-      stats.atk,
-      sourceStageCard.displayAtk,
-      sourceStageCard.combatAtk,
-      sourceStageCard.finalAtk,
-      sourceStageCard.atk,
-      sourceStageCard.baseAtk
-    );
-
-    const hp = firstPositiveNumber(
-      stats.hp,
-      sourceStageCard.displayHp,
-      sourceStageCard.combatHp,
-      sourceStageCard.finalHp,
-      sourceStageCard.hp,
-      sourceStageCard.baseHp
-    );
-
-    const speed = firstPositiveNumber(
-      stats.speed,
-      sourceStageCard.displaySpeed,
-      sourceStageCard.combatSpeed,
-      sourceStageCard.finalSpeed,
-      sourceStageCard.speed,
-      sourceStageCard.spd,
-      sourceStageCard.baseSpeed
-    );
-
-    return {
-      code,
-      template: sourceTemplate,
-      stageCard: sourceStageCard,
-      atk,
-      hp,
-      speed,
-      power: Number(stats.power || sourceStageCard.currentPower || sourceStageCard.power || 0),
-      weapon: getSourceTextFromStage(sourceTemplate, sourceStageCard, targetStage, "weapon"),
-      devilFruit: getSourceTextFromStage(sourceTemplate, sourceStageCard, targetStage, "fruit"),
-    };
-  });
-
-  const mergedAtk = Math.floor(
-    sourceRows.reduce((sum, source) => sum + Number(source.atk || 0) * LZS_MERGE_RATIO, 0)
-  );
-
-  const mergedHp = Math.floor(
-    sourceRows.reduce((sum, source) => sum + Number(source.hp || 0) * LZS_MERGE_RATIO, 0)
-  );
-
-  const mergedSpeed = Math.floor(
-    sourceRows.reduce((sum, source) => sum + Number(source.speed || 0) * LZS_MERGE_RATIO, 0)
-  );
-
-  const weapon = joinUniqueCiText(sourceRows.map((source) => source.weapon));
-  const devilFruit = joinUniqueCiText(sourceRows.map((source) => source.devilFruit));
-
-  return {
-    ...template,
-    ...form,
-
-    code: "lzs",
-    name: "Monster Trio",
-    displayName: "Monster Trio",
-    title: "Monster Trio",
-
-    rarity: "M",
-    currentTier: "M",
-    tier: "M",
-    baseTier: "M",
-
-    cardRole: "battle",
-    role: "battle",
-    category: "battle",
-    type: "Merge",
-
-    summonOnly: true,
-    mergeOnly: true,
-    canPull: false,
-    canPA: false,
-    mergeSourceCodes: LZS_SOURCE_CODES,
-    mergeStatRatio: LZS_MERGE_RATIO,
-
-    evolutionStage: targetStage,
-    evolutionKey: stageKey,
-
-    atk: mergedAtk,
-    baseAtk: mergedAtk,
-    displayAtk: mergedAtk,
-    combatAtk: mergedAtk,
-    finalAtk: mergedAtk,
-
-    hp: mergedHp,
-    baseHp: mergedHp,
-    displayHp: mergedHp,
-    combatHp: mergedHp,
-    finalHp: mergedHp,
-
-    speed: mergedSpeed,
-    spd: mergedSpeed,
-    baseSpeed: mergedSpeed,
-    displaySpeed: mergedSpeed,
-    combatSpeed: mergedSpeed,
-    finalSpeed: mergedSpeed,
-
-    power: LZS_FIXED_POWER,
-    basePower: LZS_FIXED_POWER,
-    currentPower: LZS_FIXED_POWER,
-    finalPower: LZS_FIXED_POWER,
-    powerCaps: {
-      M1: LZS_FIXED_POWER,
-      M2: LZS_FIXED_POWER,
-      M3: LZS_FIXED_POWER,
-    },
-
-    weapon,
-    weaponSet: weapon,
-    displayWeaponName: weapon,
-
-    devilFruit,
-    displayFruitName: devilFruit,
-  };
-}
-
-function getCiLzsDisplayStats(card) {
+function getCiMergeDisplayStats(card) {
   return {
     source: card,
-    atk: Number(card?.atk || card?.displayAtk || card?.combatAtk || card?.finalAtk || 0),
-    hp: Number(card?.hp || card?.displayHp || card?.combatHp || card?.finalHp || 0),
-    speed: Number(card?.speed || card?.spd || card?.displaySpeed || card?.combatSpeed || card?.finalSpeed || 0),
+    atk: Number(card?.atk || card?.displayAtk || card?.combatAtk || card?.finalAtk || card?.baseAtk || 0),
+    hp: Number(card?.hp || card?.displayHp || card?.combatHp || card?.finalHp || card?.baseHp || 0),
+    speed: Number(card?.speed || card?.spd || card?.displaySpeed || card?.combatSpeed || card?.finalSpeed || card?.baseSpeed || 0),
     power: Number(card?.currentPower || card?.power || card?.finalPower || card?.basePower || 0),
   };
-}
-
-function getLzsRequirementForCi(stage) {
-  const n = Number(stage || 1);
-
-  if (n === 2) {
-    return normalizeMergeRequirementForCi(
-      {
-        code: "lzs",
-        name: "Monster Trio",
-        displayName: "Monster Trio",
-        type: "Merge",
-        mergeOnly: true,
-        summonOnly: true,
-        mergeSourceCodes: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
-      },
-      2,
-      {
-        berries: 2000000,
-        gems: 2000,
-        selfFragments: 0,
-        fragments: [
-          { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 75 },
-          { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 75 },
-          { code: "sanji_black_leg", name: "Sanji", amount: 75 },
-        ],
-        cards: [
-          { code: "luffy_straw_hat", name: "Monkey D. Luffy", stage: 3 },
-          { code: "zoro_pirate_hunter", name: "Roronoa Zoro", stage: 3 },
-          { code: "sanji_black_leg", name: "Sanji", stage: 3 },
-        ],
-        boosts: [],
-      }
-    );
-  }
-
-  if (n === 3) {
-    return normalizeMergeRequirementForCi(
-      {
-        code: "lzs",
-        name: "Monster Trio",
-        displayName: "Monster Trio",
-        type: "Merge",
-        mergeOnly: true,
-        summonOnly: true,
-        mergeSourceCodes: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
-      },
-      3,
-      {
-        berries: 2000000,
-        gems: 2000,
-        selfFragments: 0,
-        fragments: [
-          { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 100 },
-          { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 100 },
-          { code: "sanji_black_leg", name: "Sanji", amount: 100 },
-        ],
-        cards: [
-          { code: "luffy_straw_hat", name: "Monkey D. Luffy", stage: 3 },
-          { code: "zoro_pirate_hunter", name: "Roronoa Zoro", stage: 3 },
-          { code: "sanji_black_leg", name: "Sanji", stage: 3 },
-        ],
-        boosts: [],
-      }
-    );
-  }
-
-  return null;
 }
 
 function prettifyCode(value) {
@@ -1562,7 +1311,7 @@ function buildEmbed(card, owned, stage, player = null) {
   const stageImage = getStageImage(card, stageCard, stage);
   const stageBadge = getStageBadge(card, stageCard, stage);
   const displayStats = mergeCard
-    ? getCiLzsDisplayStats(stageCard)
+    ? getCiMergeDisplayStats(stageCard)
     : getStageDisplayStats(card, stageCard, stage);
 
   const statSource = displayStats.source || stageCard || card;
