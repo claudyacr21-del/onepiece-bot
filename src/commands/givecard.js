@@ -8,24 +8,11 @@ function parseEnvIds(...values) {
     .filter(Boolean);
 }
 
-function parseEnvIds(...values) {
-  return values
-    .flatMap((value) => String(value || "").split(","))
-    .map((value) =>
-      value
-        .replace(/[<@&>]/g, "")
-        .trim()
-    )
-    .filter(Boolean);
-}
-
 function getAdminUserIds() {
   return parseEnvIds(
     process.env.ADMIN_USER_IDS,
     process.env.DISCORD_OWNER_ID,
     process.env.BOT_OWNER_ID,
-    process.env.BOT_OWNER_IDS,
-    process.env.OWNER_IDS
   );
 }
 
@@ -33,34 +20,19 @@ function getAdminRoleIds() {
   return parseEnvIds(process.env.ADMIN_ROLE_IDS);
 }
 
-async function getCommandMember(message) {
-  if (!message?.guild || !message?.author?.id) return null;
-
-  return (
-    message?.resolvedMember ||
-    message?.mainMember ||
-    message?.member ||
-    message.guild.members.cache.get(message.author.id) ||
-    (await message.guild.members.fetch(message.author.id).catch(() => null))
-  );
-}
-
-async function memberHasAdminRole(message) {
+function memberHasAdminRole(message) {
   const roleIds = getAdminRoleIds();
-
   if (!roleIds.length) return false;
 
-  const member = await getCommandMember(message);
-
+  const member = message?.resolvedMember || message?.mainMember || message?.member || null;
   if (!member?.roles?.cache) return false;
 
   return roleIds.some((roleId) => member.roles.cache.has(roleId));
 }
 
-async function isAdmin(message) {
+function isAdmin(message) {
   const userId = String(message?.author?.id || "");
-
-  return getAdminUserIds().includes(userId) || await memberHasAdminRole(message);
+  return getAdminUserIds().includes(userId) || memberHasAdminRole(message);
 }
 
 function ensureArray(value) {
@@ -79,19 +51,21 @@ function normalizeName(value) {
     .replace(/\s+/g, " ");
 }
 
+function normalizeCode(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
 function toPositiveInt(value, fallback = 1) {
   const n = Math.floor(Number(value));
-
   if (!Number.isFinite(n) || n <= 0) return fallback;
-
   return n;
 }
 
 function isPositiveNumberText(value) {
   const text = String(value || "").trim();
-
   if (!/^\d+$/.test(text)) return false;
-
   return Number(text) > 0;
 }
 
@@ -128,14 +102,12 @@ function parseGiveArgs(args, message = null) {
 
 function scoreNameOnly(query, names) {
   const q = normalizeName(query);
-
   if (!q) return 0;
 
   let best = 0;
 
   for (const raw of names) {
     const name = normalizeName(raw);
-
     if (!name) continue;
 
     if (name === q) {
@@ -163,27 +135,53 @@ function scoreNameOnly(query, names) {
   return best;
 }
 
-function getBattleCards() {
-  return ensureArray(cardsData).filter(
-    (card) => String(card?.cardRole || "").toLowerCase() === "battle"
-  );
+function scoreCodeOnly(query, code) {
+  const q = normalizeCode(query);
+  const cardCode = normalizeCode(code);
+
+  if (!q || !cardCode) return 0;
+
+  if (cardCode === q) return 2000 + cardCode.length;
+  if (cardCode.startsWith(q)) return 1500 + q.length;
+  if (cardCode.includes(q)) return 1000 + q.length;
+
+  return 0;
 }
 
-function findBattleCardByNameOnly(query) {
-  const scored = getBattleCards()
-    .map((card) => ({
-      card,
-      score: scoreNameOnly(query, [
+function isMergeCard(template) {
+  return String(template?.cardRole || "").toLowerCase() === "mergecard";
+}
+
+function getGiveCardTemplates() {
+  return ensureArray(cardsData).filter((card) => {
+    const role = String(card?.cardRole || "").toLowerCase();
+    return role === "battle" || role === "mergecard";
+  });
+}
+
+function findGiveCardTemplate(query) {
+  const scored = getGiveCardTemplates()
+    .map((card) => {
+      const nameScore = scoreNameOnly(query, [
         card.displayName,
         card.name,
-      ]),
-    }))
+      ]);
+
+      const codeScore = isMergeCard(card)
+        ? scoreCodeOnly(query, card.code)
+        : 0;
+
+      return {
+        card,
+        score: Math.max(nameScore, codeScore),
+      };
+    })
     .filter((entry) => entry.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
 
-      const aName = normalizeName(a.card.displayName || a.card.name);
-      const bName = normalizeName(b.card.displayName || b.card.name);
+      const aName = normalizeName(a.card.displayName || a.card.name || a.card.code);
+      const bName = normalizeName(b.card.displayName || b.card.name || b.card.code);
 
       return aName.length - bName.length;
     });
@@ -198,17 +196,13 @@ function makeInstanceId(cardCode) {
 
 function clampStage(stage) {
   const n = Number(stage || 1);
-
   if (!Number.isFinite(n)) return 1;
-
   return Math.max(1, Math.min(3, Math.floor(n)));
 }
 
 function clampLevel(level) {
   const n = Number(level || 1);
-
   if (!Number.isFinite(n)) return 1;
-
   return Math.max(1, Math.floor(n));
 }
 
@@ -251,13 +245,11 @@ function getStageMultiplier(template, stage) {
 
   if (stage === 1) return 1;
   if (stage === 2) return 1.2;
-
   return 1.45;
 }
 
 function scaleStat(base, stageMultiplier, level) {
   const lvlBonus = Math.max(0, level - 1) * 2;
-
   return Math.floor(Number(base || 0) * stageMultiplier) + lvlBonus;
 }
 
@@ -274,9 +266,11 @@ function makeOwnedBattleCard(template, level = 1, stage = 1) {
   const stageKey = `M${finalStage}`;
   const currentTier = getStageTier(template, finalStage);
   const stageMultiplier = getStageMultiplier(template, finalStage);
+
   const baseAtk = Number(template.baseAtk ?? template.atk ?? 0);
   const baseHp = Number(template.baseHp ?? template.hp ?? 0);
   const baseSpeed = Number(template.baseSpeed ?? template.speed ?? 0);
+
   const atk = scaleStat(baseAtk, stageMultiplier, finalLevel);
   const hp = scaleStat(baseHp, stageMultiplier, finalLevel);
   const speed = scaleStat(baseSpeed, stageMultiplier, finalLevel);
@@ -314,11 +308,14 @@ function makeOwnedBattleCard(template, level = 1, stage = 1) {
 }
 
 function alreadyOwnsCard(player, template) {
+  const targetCode = normalizeCode(template.code);
   const targetName = normalizeName(template.displayName || template.name);
 
   return ensureArray(player.cards).some((card) => {
+    const cardCode = normalizeCode(card.code);
     const cardName = normalizeName(card.displayName || card.name);
 
+    if (targetCode && cardCode && cardCode === targetCode) return true;
     return targetName && cardName === targetName;
   });
 }
@@ -326,11 +323,14 @@ function alreadyOwnsCard(player, template) {
 function addFragment(player, template, amount = 1) {
   const fragments = ensureArray(player.fragments);
   const finalAmount = toPositiveInt(amount, 1);
+  const targetCode = normalizeCode(template.code);
   const targetName = normalizeName(template.displayName || template.name);
 
   const existing = fragments.find((entry) => {
+    const code = normalizeCode(entry.code);
     const name = normalizeName(entry.name || entry.displayName);
 
+    if (targetCode && code && code === targetCode) return true;
     return targetName && name === targetName;
   });
 
@@ -341,7 +341,6 @@ function addFragment(player, template, amount = 1) {
     existing.category = existing.category || template.cardRole || "battle";
     existing.code = existing.code || template.code;
     existing.image = existing.image || template.image || "";
-
     return fragments;
   }
 
@@ -362,7 +361,7 @@ module.exports = {
   aliases: [],
 
   async execute(message, args) {
-    if (!(await isAdmin(message))) {
+    if (!isAdmin(message)) {
       return message.reply({
         content: "Owner only command.",
         allowedMentions: { repliedUser: false },
@@ -374,18 +373,22 @@ module.exports = {
     if (!userId || !query) {
       return message.reply({
         content:
-          "Usage: `op givecard <@user/userId> <battle card name> [level/fragment amount] [stage]`\nExample: `op givecard 697763966650417193 saturn 1`",
+          "Usage: `op givecard <@user/userId> <card name/code> [level/fragment amount] [stage]`\n" +
+          "Example: `op givecard 697763966650417193 saturn 1`\n" +
+          "Merge card code example: `op givecard 697763966650417193 lzs 1`",
         allowedMentions: { repliedUser: false },
       });
     }
 
-    const template = findBattleCardByNameOnly(query);
+    const template = findGiveCardTemplate(query);
 
     if (!template) {
       return message.reply({
         content:
-          `Invalid battle card: \`${query}\`\n` +
-          "Search only uses the battle card display name. Example: `saturn`, `luffy`, `zoro`.",
+          `Invalid card: \`${query}\`\n` +
+          "Battle cards use the battle card display name.\n" +
+          "Merge cards can use display name or code.\n" +
+          "Example: `saturn`, `luffy`, `zoro`, `lzs`.",
         allowedMentions: { repliedUser: false },
       });
     }
@@ -398,6 +401,7 @@ module.exports = {
       (fresh) => {
         const cards = ensureArray(fresh.cards).map((card) => ({ ...card }));
         const fragments = ensureArray(fresh.fragments).map((frag) => ({ ...frag }));
+
         const draft = {
           ...fresh,
           cards,
@@ -406,6 +410,7 @@ module.exports = {
 
         if (alreadyOwnsCard(draft, template)) {
           convertedToFragment = true;
+
           return {
             ...draft,
             fragments: addFragment(draft, template, levelOrAmount),
@@ -426,16 +431,14 @@ module.exports = {
       return message.reply({
         content:
           `User already owns \`${template.displayName || template.name}\`.\n` +
-          `Converted admin give into **${levelOrAmount} Fragment${
-            levelOrAmount > 1 ? "s" : ""
-          }** for \`${userId}\`.`,
+          `Converted admin give into **${levelOrAmount} Fragment${levelOrAmount > 1 ? "s" : ""}** for \`${userId}\`.`,
         allowedMentions: { repliedUser: false },
       });
     }
 
     return message.reply({
       content:
-        `Added battle card \`${addedCard.displayName || addedCard.name}\` to \`${userId}\`` +
+        `Added ${addedCard.cardRole || "battle"} card \`${addedCard.displayName || addedCard.name}\` to \`${userId}\`` +
         ` • Level ${addedCard.level} • ${addedCard.evolutionKey} • ${addedCard.currentTier}`,
       allowedMentions: { repliedUser: false },
     });
