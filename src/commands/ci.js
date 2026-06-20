@@ -1155,26 +1155,29 @@ function normalizeMergeRequirementForCi(card, stage, req) {
   const nextStage = Number(stage || 1);
   if (nextStage < 2) return req;
 
+  const baseReq = req || {};
+
   const sourceCodes = Array.isArray(card?.mergeSourceCodes)
     ? card.mergeSourceCodes.map((code) => String(code || "").trim()).filter(Boolean)
     : [];
 
   const fragmentAmount =
     nextStage === 2
-      ? Number(card?.mergeM2FragmentAmount ?? 75)
-      : Number(card?.mergeM3FragmentAmount ?? 100);
+      ? Number(card?.mergeM2FragmentAmount ?? card?.mergeFragmentAmount ?? 75)
+      : Number(card?.mergeM3FragmentAmount ?? card?.mergeFragmentAmount ?? 100);
 
+  // All merge card awaken requirements use the same fixed cost:
+  // M2: 2,000,000 berries + 2,000 gems
+  // M3: 2,000,000 berries + 2,000 gems
   const berries =
     nextStage === 2
-      ? Number(card?.mergeM2Berries ?? req?.berries ?? 0)
-      : Number(card?.mergeM3Berries ?? req?.berries ?? 0);
+      ? Number(card?.mergeM2Berries ?? card?.mergeBerries ?? baseReq.berries ?? 2000000)
+      : Number(card?.mergeM3Berries ?? card?.mergeBerries ?? baseReq.berries ?? 2000000);
 
   const gems =
     nextStage === 2
-      ? Number(card?.mergeM2Gems ?? req?.gems ?? 0)
-      : Number(card?.mergeM3Gems ?? req?.gems ?? 0);
-
-  const baseReq = req || {};
+      ? Number(card?.mergeM2Gems ?? card?.mergeGems ?? baseReq.gems ?? 2000)
+      : Number(card?.mergeM3Gems ?? card?.mergeGems ?? baseReq.gems ?? 2000);
 
   const sourceCards = sourceCodes.map((code) => ({
     code,
@@ -1221,6 +1224,7 @@ function normalizeMergeRequirementForCi(card, stage, req) {
 }
 
 function buildReqEmbed(card, stage, player) {
+  const originalCard = card;
   const mergeCard = isMergeCard(card);
 
   if (mergeCard) {
@@ -1233,14 +1237,15 @@ function buildReqEmbed(card, stage, player) {
   }
 
   const stageCard = mergeCard ? card : getStageCard(card, stage);
-  const isMergeCardForReq = isGenericMergeCardForCi(card);
+  const requirementCard = mergeCard ? originalCard : card;
+  const isMergeCardForReq = isGenericMergeCardForCi(requirementCard);
 
   let req =
     stageCard.awakenRequirements?.[`M${stage}`] ||
-    card.awakenRequirements?.[`M${stage}`];
+    requirementCard.awakenRequirements?.[`M${stage}`];
 
-  req = mergeCanonRequirementsIntoReq(req, card, stage);
-  req = normalizeMergeRequirementForCi(card, stage, req);
+  req = mergeCanonRequirementsIntoReq(req, requirementCard, stage);
+  req = normalizeMergeRequirementForCi(requirementCard, stage, req);
 
   if (!req) {
     return new EmbedBuilder()
@@ -1264,11 +1269,13 @@ function buildReqEmbed(card, stage, player) {
       0
   );
 
-  const requiredBerries = Number(req.berries || 0);
+  const requiredBerries = isMergeCardForReq
+    ? Number(req.berries || 2000000)
+    : Number(req.berries || 0);
 
   const requiredGems = isMergeCardForReq
-    ? Number(req.gems || 0)
-    : getDisplayAwakenGemsCost(req, stage, card, stageCard);
+    ? Number(req.gems || 2000)
+    : getDisplayAwakenGemsCost(req, stage, requirementCard, stageCard);
 
   const requiredFragments = isMergeCardForReq ? 0 : Number(req.selfFragments || 0);
 
