@@ -1,4 +1,4 @@
-const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
+const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const {
   EmbedBuilder,
   ActionRowBuilder,
@@ -130,15 +130,22 @@ function isLzsQuery(query) {
 }
 
 function findCardTemplateByNameOnly(query) {
-  if (isLzsQuery(query)) {
-    const lzs = getAllCards().find((card) => {
-      const code = String(card?.code || "").toLowerCase().trim();
-      const name = normalizeNameSearch(card?.displayName || card?.name || card?.title);
-      return code === "lzs" || name === "monster trio";
-    });
+  const qCode = normalizeCiCode(query);
+  const qName = normalizeNameSearch(query);
 
-    if (lzs) return lzs;
-  }
+  const exact = getAllCards().find((card) => {
+    const code = normalizeCiCode(card?.code);
+    const name = normalizeNameSearch(card?.displayName || card?.name);
+    const title = normalizeNameSearch(card?.title);
+
+    return (
+      code === qCode ||
+      name === qName ||
+      title === qName
+    );
+  });
+
+  if (exact) return exact;
 
   const scored = getAllCards()
     .map((card) => ({
@@ -1308,47 +1315,91 @@ function normalizeMergeRequirementForCi(card, stage, req) {
   const nextStage = Number(stage || 1);
   if (nextStage < 2) return req;
 
+  const sourceCodes = Array.isArray(card?.mergeSourceCodes)
+    ? card.mergeSourceCodes.map((code) => String(code || "").trim()).filter(Boolean)
+    : [];
+
+  const fragmentAmount =
+    nextStage === 2
+      ? Number(card?.mergeM2FragmentAmount ?? 75)
+      : Number(card?.mergeM3FragmentAmount ?? 100);
+
+  const berries =
+    nextStage === 2
+      ? Number(card?.mergeM2Berries ?? req?.berries ?? 0)
+      : Number(card?.mergeM3Berries ?? req?.berries ?? 0);
+
+  const gems =
+    nextStage === 2
+      ? Number(card?.mergeM2Gems ?? req?.gems ?? 0)
+      : Number(card?.mergeM3Gems ?? req?.gems ?? 0);
+
   const baseReq = req || {};
-  const roadStage = nextStage;
+
+  const sourceCards = sourceCodes.map((code) => ({
+    code,
+    name: prettifyCode(code),
+    stage: 3,
+    minStage: 3,
+    evolutionStage: 3,
+  }));
+
+  const sourceFragments = sourceCodes.map((code) => ({
+    code,
+    name: prettifyCode(code),
+    amount: fragmentAmount,
+  }));
+
+  const cards = Array.isArray(baseReq.cards) && baseReq.cards.length
+    ? baseReq.cards
+    : sourceCards;
+
+  const fragments = Array.isArray(baseReq.fragments) && baseReq.fragments.length
+    ? baseReq.fragments
+    : sourceFragments;
+
+  const cardsText = Array.isArray(baseReq.cardsText) && baseReq.cardsText.length
+    ? baseReq.cardsText
+    : sourceCards.map((entry) => `${entry.name} M3`);
+
+  const fragmentsText = Array.isArray(baseReq.fragmentsText) && baseReq.fragmentsText.length
+    ? baseReq.fragmentsText
+    : sourceFragments.map((entry) => `${entry.amount}x ${entry.name} Fragment`);
 
   return {
     ...baseReq,
-    berries: 2000000,
-    gems: 2000,
+    berries,
+    gems,
     selfFragments: 0,
-    cards: uniqCiRequirementCards([
-      ...(Array.isArray(baseReq.cards) ? baseReq.cards : []),
-      makeRoadPoneglyphRequirementForCi(roadStage),
-    ]),
-    cardsText: [
-      ...(Array.isArray(baseReq.cardsText) ? baseReq.cardsText : []),
-      `Road Poneglyph M${roadStage}`,
-    ].filter((value, index, arr) => arr.indexOf(value) === index),
-    fragments: Array.isArray(baseReq.fragments) ? baseReq.fragments : [],
+    cards: uniqCiRequirementCards(cards),
+    cardsText,
+    fragments,
+    fragmentsText,
     boosts: Array.isArray(baseReq.boosts) ? baseReq.boosts : [],
     boostsText: Array.isArray(baseReq.boostsText) ? baseReq.boostsText : [],
   };
 }
 
 function buildReqEmbed(card, stage, player) {
-  const isLzs = isLzsCard(card);
+  const mergeCard = isMergeCard(card);
 
-  if (isLzs) {
-    card = buildCiLzsFromSourceStats(stage);
+  if (mergeCard) {
+    card = buildMergedCard(player || { cards: [] }, card, stage, {
+      templateOnly: true,
+      sourceStage: stage,
+      displayStage: stage,
+      displayLevel: stage === 1 ? 50 : stage === 2 ? 85 : 100,
+    });
   }
 
-  const stageCard = getStageCard(card, stage);
-  const isMergeCard = isGenericMergeCardForCi(card);
+  const stageCard = mergeCard ? card : getStageCard(card, stage);
+  const isMergeCardForReq = isGenericMergeCardForCi(card);
 
-  let req = isLzs
-    ? getLzsRequirementForCi(stage)
-    : stageCard.awakenRequirements?.[`M${stage}`] ||
-      card.awakenRequirements?.[`M${stage}`];
+  let req =
+    stageCard.awakenRequirements?.[`M${stage}`] ||
+    card.awakenRequirements?.[`M${stage}`];
 
-  if (!isLzs) {
-    req = mergeCanonRequirementsIntoReq(req, card, stage);
-  }
-
+  req = mergeCanonRequirementsIntoReq(req, card, stage);
   req = normalizeMergeRequirementForCi(card, stage, req);
 
   if (!req) {
@@ -1488,10 +1539,10 @@ function buildReqEmbed(card, stage, player) {
 }
 
 function buildEmbed(card, owned, stage, player = null) {
-  const isLzs = isLzsCard(card) || isLzsCard(owned);
+  const mergeCard = isMergeCard(card) || isMergeCard(owned);
 
-  if (isLzs) {
-    card = buildMergedLzsCard(player || { cards: [] }, card, stage, {
+  if (mergeCard) {
+    card = buildMergedCard(player || { cards: [] }, card, stage, {
       templateOnly: true,
       sourceStage: stage,
       displayStage: stage,
@@ -1500,7 +1551,7 @@ function buildEmbed(card, owned, stage, player = null) {
     owned = card;
   }
 
-  const stageCard = isLzs ? card : getStageCard(card, stage);
+  const stageCard = mergeCard ? card : getStageCard(card, stage);
   const form =
     stageCard.evolutionForms?.[stage - 1] ||
     card.evolutionForms?.[stage - 1] ||
@@ -1510,7 +1561,7 @@ function buildEmbed(card, owned, stage, player = null) {
   const specialFormName = getSpecialFormName(card, stageCard, form, stage);
   const stageImage = getStageImage(card, stageCard, stage);
   const stageBadge = getStageBadge(card, stageCard, stage);
-  const displayStats = isLzs
+  const displayStats = mergeCard
     ? getCiLzsDisplayStats(stageCard)
     : getStageDisplayStats(card, stageCard, stage);
 
@@ -1670,8 +1721,8 @@ module.exports = {
       }
 
       const freshPlayer = getPlayer(message.author.id, message.author.username);
-      const freshOwned = isLzsCard(globalCard)
-        ? buildMergedLzsCard(freshPlayer || { cards: [] }, globalCard, stage, {
+      const freshOwned = isMergeCard(globalCard)
+        ? buildMergedCard(freshPlayer || { cards: [] }, globalCard, stage, {
             templateOnly: true,
             sourceStage: stage,
             displayStage: stage,
