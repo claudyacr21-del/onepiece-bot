@@ -1292,7 +1292,7 @@ function buildEmbed(card, owned, stage, player = null) {
 
   if (mergeCard) {
     card = buildMergedCard(player || { cards: [] }, card, stage, {
-      templateOnly: true,
+      templateOnly: false,
       sourceStage: stage,
       displayStage: stage,
       displayLevel: stage === 1 ? 50 : stage === 2 ? 85 : 100,
@@ -1472,7 +1472,7 @@ module.exports = {
       const freshPlayer = getPlayer(message.author.id, message.author.username);
       const freshOwned = isMergeCard(globalCard)
         ? buildMergedCard(freshPlayer || { cards: [] }, globalCard, stage, {
-            templateOnly: true,
+            templateOnly: false,
             sourceStage: stage,
             displayStage: stage,
             displayLevel: stage === 1 ? 50 : stage === 2 ? 85 : 100,
