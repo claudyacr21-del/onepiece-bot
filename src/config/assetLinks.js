@@ -949,6 +949,21 @@ const CARD_IMAGES = {
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516734093730123867/content.png?ex=6a33b833&is=6a3266b3&hm=ec2f90049517f1475f2ec369f5a7c6af8d424a39b406a7213acd48c05bc6cb16&",
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1516734094216790026/content.png?ex=6a33b833&is=6a3266b3&hm=7e7d4b4582abf1b8a6a3d3da1e22935724bcbeef84fe04921636be7973b1e627&",
   },
+  gvl: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1517835454693638325/content.png?ex=6a37b9ec&is=6a36686c&hm=c131219df385860163fc1ea50be67e31275d164a617a72b5037b08c2972c7c2a&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1517835455230382080/content.png?ex=6a37b9ec&is=6a36686c&hm=6af2a4866f5d927591ce372190bf2be992587389df2b643265686ee24dc46761&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1517835455691882637/content.png?ex=6a37b9ec&is=6a36686c&hm=958694107ed0ad9ec5e711f31d82a33ffb7d715fad17ee4649669bf5aac28f23&",
+  },
+  tfb: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1517837532841246731/content.png?ex=6a37bbdb&is=6a366a5b&hm=806780c2e2b090d22ddf0350698bfd301b50c7e40100094ade83b2bd9c99767f&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1517837533315076288/content.png?ex=6a37bbdc&is=6a366a5c&hm=43c2a203f2b7eaf6e28eb7d536f0f694c28df65b8b2e7c633fb5d9a543f45938&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1517837533902405672/content.png?ex=6a37bbdc&is=6a366a5c&hm=70c7d390e77dd3c855b566948d7bfe4423d7153151046d9bfa41985046da9259&",
+  },
+  wgd: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1517845479264620657/content.png?ex=6a37c342&is=6a3671c2&hm=2640647037c86d68377e4140ca99b59ff0157ad08a4b1ace711dee52d682a55a&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1517845479923388466/content.png?ex=6a37c342&is=6a3671c2&hm=c460fbe09ff7cb780ec6a1124cecc7e39ac8ce8edd0cc4884ffab5e8563a8fee&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1517845480493682812/content.png?ex=6a37c342&is=6a3671c2&hm=0fa7242c7eda917f78e794fd5884618af716ce7fdfb1867cf1b9427c0af055b2&",
+  },
 };
 
 const WEAPON_IMAGES = {

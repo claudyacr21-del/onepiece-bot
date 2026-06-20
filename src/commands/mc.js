@@ -6,8 +6,8 @@ const {
   MessageFlags,
 } = require("discord.js");
 const {
-  isLzsCard,
-  buildMergedLzsCard,
+  isMergeCard,
+  buildMergedCard,
   syncMergedCardsInPlayer,
 } = require("../utils/mergeCards");
 const { getPlayer } = require("../playerStore");
@@ -330,8 +330,8 @@ function mergeOwnedCardWithLatestTemplate(rawCard, sourceIndex = null, player = 
     sourceIndex: Number.isInteger(sourceIndex) ? sourceIndex : null,
   };
 
-  if (isLzsCard(merged) && player) {
-    return buildMergedLzsCard(player, merged);
+  if (isMergeCard(merged) && player) {
+    return buildMergedCard(player, merged);
   }
 
   return merged;
