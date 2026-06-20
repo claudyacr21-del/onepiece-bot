@@ -1,7 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
-const { isLzsCard, buildMergedLzsCard } = require("../utils/mergeCards");
+const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 
 function normalize(text) {
   return String(text || "")
@@ -20,18 +20,17 @@ function getDisplayName(card) {
   return String(card?.displayName || card?.name || card?.title || "").trim();
 }
 
-function isLzsQuery(query) {
-  const q = normalizeCode(query);
-  return q === "lzs" || q === "monster_trio";
-}
-
 function scoreCardQuery(card, query) {
   const q = normalize(query);
+  const qCode = normalizeCode(query);
+
   if (!q) return 0;
 
-  if (isLzsQuery(query) && isLzsCard(card)) {
-    return 999999;
-  }
+  const cardCode = normalizeCode(card?.code);
+  const cardName = normalize(card?.displayName || card?.name || card?.title);
+
+  if (cardCode && cardCode === qCode) return 999999;
+  if (cardName && cardName === q) return 999998;
 
   const fields = [
     card.displayName,
@@ -39,8 +38,6 @@ function scoreCardQuery(card, query) {
     card.title,
     card.code,
     String(card.code || "").replace(/_/g, " "),
-    card.variant,
-    card.arc,
     card.instanceId,
     card.ownedId,
     card.uid,
@@ -83,8 +80,8 @@ function getCardInstanceId(card) {
 function hydrateOwnedBattleCard(player, rawCard, sourceIndex) {
   const rawInstanceId = getCardInstanceId(rawCard);
 
-  const hydrated = isLzsCard(rawCard)
-    ? buildMergedLzsCard(player, rawCard)
+  const hydrated = isMergeCard(rawCard)
+    ? buildMergedCard(player, rawCard)
     : hydrateCard(rawCard);
 
   if (!hydrated) return null;

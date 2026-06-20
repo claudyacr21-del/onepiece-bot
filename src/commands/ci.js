@@ -1426,13 +1426,13 @@ function buildReqEmbed(card, stage, player) {
 
   const requiredBerries = Number(req.berries || 0);
 
-  const requiredGems = isMergeCard
+  const requiredGems = isMergeCardForReq
     ? Number(req.gems || 0)
     : getDisplayAwakenGemsCost(req, stage, card, stageCard);
 
-  const requiredFragments = isMergeCard ? 0 : Number(req.selfFragments || 0);
+  const requiredFragments = isMergeCardForReq ? 0 : Number(req.selfFragments || 0);
 
-  const requiredLevel = isMergeCard
+  const requiredLevel = isMergeCardForReq
     ? 0
     : stageCard.cardRole === "battle"
     ? Number(req.minLevel || 0)
@@ -1440,16 +1440,16 @@ function buildReqEmbed(card, stage, player) {
 
   const berriesOk = playerBerries >= requiredBerries;
   const gemsOk = playerGems >= requiredGems;
-  const fragmentsOk = isMergeCard ? true : ownedFragments >= requiredFragments;
+  const fragmentsOk = isMergeCardForReq ? true : ownedFragments >= requiredFragments;
 
-  const levelOk = isMergeCard
+  const levelOk = isMergeCardForReq
     ? true
     : stageCard.cardRole === "battle"
     ? ownedLevel >= requiredLevel
     : true;
 
   const fragmentRequiredLines =
-    isMergeCard && Array.isArray(req.fragments) && req.fragments.length
+    isMergeCardForReq && Array.isArray(req.fragments) && req.fragments.length
       ? req.fragments.map((entry) => {
           const owned = getOwnedSelfFragmentAmount(player, entry, null);
           const amount = Number(entry.amount || 0);
@@ -1491,7 +1491,7 @@ function buildReqEmbed(card, stage, player) {
     "",
   ];
 
-  if (isMergeCard) {
+  if (isMergeCardForReq) {
     descriptionLines.push(
       "**Fragments Required**",
       ...(fragmentRequiredLines.length ? fragmentRequiredLines : ["↪ None"]),

@@ -263,8 +263,9 @@ async function shouldSendGlobalResetNotification(resetAt) {
 
   if (!claimed) {
     console.warn(
-      `[RESET REMINDER] Supabase global reset claim was not available for ${readyAt}. Retrying with runtime send guard.`
+      `[RESET REMINDER] Global reset notification already claimed or DB lock unavailable for ${readyAt}. Skipping send to prevent reload spam.`
     );
+    return false;
   }
 
   return true;
@@ -551,6 +552,16 @@ async function checkAndSendGlobalResetNotification(
     return false;
   }
 
+  /*
+    Important:
+    - Startup / interval checks must NOT send old reset pings after bot reload.
+    - Only the scheduled timer is allowed to send the reset ping.
+    - If the reset time already passed while the bot was offline, skip it.
+  */
+  if (!forcedResetAt && reason !== "timer") {
+    return false;
+  }
+
   const resetAgeMs = now - currentResetAt;
 
   if (resetAgeMs < RESET_SEND_DELAY_MS) {
@@ -571,7 +582,7 @@ async function checkAndSendGlobalResetNotification(
 
   if (!sent) {
     console.warn(
-      `[RESET REMINDER] Global reset notification not sent via ${reason}. Will keep retrying during grace window.`
+      `[RESET REMINDER] Global reset notification not sent via ${reason}. It will not spam on reload.`
     );
     return false;
   }
@@ -591,10 +602,11 @@ function startGlobalResetChecker(client) {
     globalResetCheckInterval = null;
   }
 
-  checkAndSendGlobalResetNotification(client, "startup").catch((error) => {
-    console.error("[GLOBAL RESET STARTUP CHECK ERROR]", error);
-  });
-
+  /*
+    Do not send global reset ping on startup.
+    Startup checks caused old reset pings to be sent again after bot reload.
+    Future reset pings are handled by scheduleNextGlobalReset().
+  */
   globalResetCheckInterval = setInterval(() => {
     checkAndSendGlobalResetNotification(client, "interval").catch((error) => {
       console.error("[GLOBAL RESET INTERVAL CHECK ERROR]", error);
@@ -604,7 +616,7 @@ function startGlobalResetChecker(client) {
   console.log(
     `[RESET REMINDER] Global reset checker started. checkEvery=${Math.round(
       RESET_CHECK_INTERVAL_MS / 1000
-    )}s grace=${Math.round(RESET_PING_GRACE_MS / 1000)}s.`
+    )}s grace=${Math.round(RESET_PING_GRACE_MS / 1000)}s startupSend=false.`
   );
 }
 
