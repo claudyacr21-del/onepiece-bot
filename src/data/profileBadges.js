@@ -114,6 +114,9 @@ const RAID_PRESTIGE_BADGE_EMOJIS = {
   kuroobi: "<:kuroobi:1517501026087735296>",
   dogra: "<:dogra:1517501902374310071>",
   magra: "<:magra:1517502849750270104>",
+  gvl: "<:gvl:1517810661634211900",
+  tfb: "<:tfb:1517809339497185372",
+  wgd: "<:wgd:1517811474167234640",
 };
 
 function getRaidPrestigeBadgeEmoji(card) {

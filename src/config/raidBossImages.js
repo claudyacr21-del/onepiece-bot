@@ -104,4 +104,7 @@ module.exports = {
   kuroobi: "https://cdn.discordapp.com/attachments/1493204525975076944/1516749391543799980/sanji-vs-kuroobi-gyojin-karate.gif?ex=6a33c672&is=6a3274f2&hm=c0da4b02783f36d40199fd4e6ac4a6b7e03ace630ac6e42bccc2bc3430db625b&",
   dogra: "https://cdn.discordapp.com/attachments/1493204525975076944/1516755751786385408/dadan-dadan-one-piece.gif?ex=6a33cc5f&is=6a327adf&hm=b6bc94c202bdfde5a149c23468450b90a99aa9e044d363e3ffe04b1880c406fe",
   magra: "https://cdn.discordapp.com/attachments/1493204525975076944/1516755751786385408/dadan-dadan-one-piece.gif?ex=6a33cc5f&is=6a327adf&hm=b6bc94c202bdfde5a149c23468450b90a99aa9e044d363e3ffe04b1880c406fe",
+  gvl: "https://cdn.discordapp.com/attachments/1493204525975076944/1517820260680597524/one-piece-wano.gif?ex=6a37abc5&is=6a365a45&hm=48d872cc66fb8f16e6c443be8142bf37083028877712f7cfcb7820cc91cd9ec6",
+  tfb: "https://cdn.discordapp.com/attachments/1493204525975076944/1517791588380708914/acesabo.gif?ex=6a379111&is=6a363f91&hm=a982280dfd3c969be28ac67889b146d8e725c748ad7745016d05c008411eb7ff",
+  wgd: "https://cdn.discordapp.com/attachments/1493204525975076944/1517790407956758598/tenor.gif?ex=6a378ff8&is=6a363e78&hm=d0e8d211347427e375da9f037e1a9d9af1274b71d3ceaa08dd7bdbf44db4499d",
 };
