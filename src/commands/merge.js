@@ -13,7 +13,7 @@ const MERGE_RULES = {
   },
   S: {
     from: "A",
-    cost: 3,
+    cost: 30,
   },
 };
 
@@ -203,12 +203,12 @@ function getUsageText() {
     "Examples:",
     "`op merge b 1` → 5x Universal C Fragment = 1x Universal B Fragment",
     "`op merge a 2` → 30x Universal B Fragment = 2x Universal A Fragment",
-    "`op merge s 1` → 3x Universal A Fragment = 1x Universal S Fragment",
+    "`op merge s 1` → 30x Universal A Fragment = 1x Universal S Fragment",
     "",
     "Merge Rules:",
     "C → B: 5x Universal C Fragment",
     "B → A: 15x Universal B Fragment",
-    "A → S: 3x Universal A Fragment",
+    "A → S: 30x Universal A Fragment",
   ].join("\n");
 }
 
