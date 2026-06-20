@@ -32,7 +32,7 @@ module.exports = {
   ace_fire_fist: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233850248040520/onepiece-ace.gif?ex=69f06a81&is=69ef1901&hm=ed9ba4faa79fe8532bf72e9acee0f04d539033e695cfd17206ce10ce53cfee6b&",
   whitebeard_strongest_man: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233849908563988/one-piece-whitebeard.gif?ex=69f06a81&is=69ef1901&hm=3916fecee0ebc1db76bfe1c4eeeaf8ceca2e4da1e5fdecafb56474eb5b1ca385&",
   blackbeard_emperor_of_darkness: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233849455312967/one-piece-blackbeard.gif?ex=69f06a81&is=69ef1901&hm=95236540c05cd7dbce891788f7ce969737736aefb59f7e49a2de68c06d343dec&",
-  garp_hero_of_the_marines: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233849140744262/garp-chujou-vice-admiral-monkey-d-garp.gif?ex=69f06a81&is=69ef1901&hm=5a63e05d6e9b2e256b46ad16a161f349d59737a42abec660ae3fd97208c646d3&",
+  garp_hero_of_the_marines: "https://cdn.discordapp.com/attachments/1493204525975076944/1517801836273471619/garp.gif?ex=6a379a9d&is=6a36491d&hm=9902dfcb9bfb2aaab3fd339456250a160f1b8716493e1eee3996fa721e9728a0",
   sengoku_buddha: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233848788684901/sengoku.gif?ex=69f06a81&is=69ef1901&hm=162d863e10078d8b1f6dda5ee5c93997624713fbd3e1e73123be534e571a70c3&",
   akainu: "https://cdn.discordapp.com/attachments/1493204525975076944/1498201520951398530/one-piece-admiral.gif?ex=69f04c65&is=69eefae5&hm=ca6d8b1e99e9dc28adde37398aaf7d44dbd8b02daedfcfdd93e3846fb102dfbe&",
   aokiji: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233848444485722/aokiji-kuzan.gif?ex=69f06a81&is=69ef1901&hm=a5e6632c9e4c4190e6c83f02bade7337ae644f3ecb3cac6dc757a001f682946f&",

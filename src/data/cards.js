@@ -231,7 +231,8 @@ const EXTRA_CHARACTER_CARDS = [
   battleCard({ id: 188, code: "chew", name: "Chew", title: "Fish-Man Sniper", rarity: "C", arc: "East Blue", faction: "Arlong Pirates", variant: "Water Shot", type: "Ranged", atk: 70, hp: 620, speed: 58, basePower: 860, weapon: "Water Bullets", devilFruit: "None", equipType: "Weapon", image: "" }),
   battleCard({ id: 189, code: "kuroobi", name: "Kuroobi", title: "Fish-Man Karate Officer", rarity: "B", arc: "East Blue", faction: "Arlong Pirates", variant: "Fish-Man Karate", type: "Bruiser", atk: 106, hp: 860, speed: 54, basePower: 1250, weapon: "Fish-Man Karate", devilFruit: "None", equipType: "Weapon", image: "" }),
   battleCard({ id: 190, code: "dogra", name: "Dogra", title: "Gray Terminal Bandit", rarity: "C", arc: "Post-War", faction: "Dadan Family", variant: "Mountain Bandit", type: "Bruiser", atk: 62, hp: 640, speed: 50, basePower: 820, weapon: "Bandit Club", devilFruit: "None", equipType: "Weapon", image: "" }),
-  battleCard({ id: 191, code: "magra", name: "Magra", title: "Gray Terminal Bandit", rarity: "C", arc: "Post-War", faction: "Dadan Family", variant: "Mountain Bandit", type: "Support", atk: 60, hp: 620, speed: 54, basePower: 820, weapon: "Bandit Knife", devilFruit: "None", equipType: "Weapon", image: "" })
+  battleCard({ id: 191, code: "magra", name: "Magra", title: "Gray Terminal Bandit", rarity: "C", arc: "Post-War", faction: "Dadan Family", variant: "Mountain Bandit", type: "Support", atk: 60, hp: 620, speed: 54, basePower: 820, weapon: "Bandit Knife", devilFruit: "None", equipType: "Weapon", image: "" }),
+  battleCard({ id: 192, code: "rg", name: "God Valley Legends", title: "God Valley Legends", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["roger_king_of_the_pirates", "garp_hero_of_the_marines"], mergeStatRatio: 0.4, arc: "God Valley", faction: "Legends", variant: "Roger & Garp", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "None", devilFruit: "None", equipType: "Devil Fruit / Weapon", image: "" }),
 ];
 
 const SPECIAL_FORMS = {
@@ -1137,15 +1138,6 @@ const ALL_CARDS = [
   .filter((card) => card.code !== "joy_boy")
   .map(applyEvolution);
 
-// ============================================================
-// MONSTER TRIO / LZS - SUMMON ONLY BATTLE CARD
-// ============================================================
-
-
-
-// ============================================================
-// ROAD PONEGLYPH RULES PATCH
-// ============================================================
 function applyRoadPoneglyphRules() {
   const road = ALL_CARDS.find((card) => {
     const code = String(card?.code || "").toLowerCase().trim();
@@ -1388,150 +1380,6 @@ function applyRoadPoneglyphFinalRules() {
 }
 
 
-function applyLzsFinalRules() {
- const lzs = ALL_CARDS.find((card) => card.code === "lzs");
- if (!lzs) return;
-
- const effects = {
-  M1: "Monster Trio merge card. Stats, weapon, and devil fruit are synced live from owned Monkey D. Luffy, Roronoa Zoro, and Sanji.",
-  M2: "Monster Trio M2. The trio formation grows stronger while still syncing live from the three source cards.",
-  M3: "Monster Trio M3. Peak Monster Trio merge state, still rarity M and still synced from the three source cards.",
- };
-
- const trioM3Cards = [
-  { code: "luffy_straw_hat", name: "Monkey D. Luffy", stage: 3, minStage: 3, evolutionStage: 3 },
-  { code: "zoro_pirate_hunter", name: "Roronoa Zoro", stage: 3, minStage: 3, evolutionStage: 3 },
-  { code: "sanji_black_leg", name: "Sanji", stage: 3, minStage: 3, evolutionStage: 3 },
- ];
-
- const summonFragments = [
-  { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 50 },
-  { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 50 },
-  { code: "sanji_black_leg", name: "Sanji", amount: 50 },
- ];
-
- const m2Fragments = [
-  { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 75 },
-  { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 75 },
-  { code: "sanji_black_leg", name: "Sanji", amount: 75 },
- ];
-
- const m3Fragments = [
-  { code: "luffy_straw_hat", name: "Monkey D. Luffy", amount: 100 },
-  { code: "zoro_pirate_hunter", name: "Roronoa Zoro", amount: 100 },
-  { code: "sanji_black_leg", name: "Sanji", amount: 100 },
- ];
-
- const oldForms = Array.isArray(lzs.evolutionForms) ? lzs.evolutionForms : [];
-
- lzs.rarity = "M";
- lzs.baseTier = "M";
- lzs.currentTier = "M";
- lzs.canPull = false;
- lzs.canPA = false;
- lzs.summonOnly = true;
- lzs.mergeOnly = true;
- lzs.mergeSourceCodes = ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"];
- lzs.cardRole = "battle";
- lzs.role = "battle";
- lzs.category = "battle";
- lzs.effectText = effects.M1;
- lzs.description = effects.M1;
- lzs.weapon = "Synced from Monkey D. Luffy, Roronoa Zoro, and Sanji";
- lzs.devilFruit = "Synced from Monkey D. Luffy, Roronoa Zoro, and Sanji";
- lzs.equipType = "Devil Fruit / Weapon";
-
- lzs.summonRequirements = {
-  cards: trioM3Cards,
-  cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
-  fragments: summonFragments,
-  fragmentsText: [
-   "50x Monkey D. Luffy Fragment",
-   "50x Roronoa Zoro Fragment",
-   "50x Sanji Fragment",
-  ],
- };
-
- lzs.evolutionForms = [
-  {
-   ...(oldForms[0] || {}),
-   stage: 1,
-   key: "M1",
-   rarity: "M",
-   tier: "M",
-   currentTier: "M",
-   name: "Monster Trio",
-   formTitle: "Monster Trio",
-   specialName: "Monster Trio",
-   effectText: effects.M1,
-   description: effects.M1,
-   require: null,
-  },
-  {
-   ...(oldForms[1] || {}),
-   stage: 2,
-   key: "M2",
-   rarity: "M",
-   tier: "M",
-   currentTier: "M",
-   name: "Monster Trio",
-   formTitle: "Monster Trio",
-   specialName: "Monster Trio",
-   effectText: effects.M2,
-   description: effects.M2,
-    require: {
-      ...(oldForms[1]?.require || {}),
-      berries: 0,
-      gems: 0,
-      fragments: m2Fragments,
-      cards: trioM3Cards,
-      cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
-    },
-  },
-  {
-   ...(oldForms[2] || {}),
-   stage: 3,
-   key: "M3",
-   rarity: "M",
-   tier: "M",
-   currentTier: "M",
-   name: "Monster Trio",
-   formTitle: "Monster Trio",
-   specialName: "Monster Trio",
-   effectText: effects.M3,
-   description: effects.M3,
-    require: {
-      ...(oldForms[2]?.require || {}),
-      berries: 0,
-      gems: 0,
-      fragments: m3Fragments,
-      cards: trioM3Cards,
-      cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
-    },
-  },
- ];
-
-  lzs.awakenRequirements = {
-    ...(lzs.awakenRequirements || {}),
-    M2: {
-      ...(lzs.awakenRequirements?.M2 || {}),
-      berries: 0,
-      gems: 0,
-      fragments: m2Fragments,
-      cards: trioM3Cards,
-      cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
-    },
-    M3: {
-      ...(lzs.awakenRequirements?.M3 || {}),
-      berries: 0,
-      gems: 0,
-      fragments: m3Fragments,
-      cards: trioM3Cards,
-      cardsText: ["Monkey D. Luffy M3", "Roronoa Zoro M3", "Sanji M3"],
-    },
-  };
-}
-applyLzsFinalRules();
 function uniqRequirementCards(cards = []) {
   const out = [];
   const seen = new Set();
@@ -1545,6 +1393,7 @@ function uniqRequirementCards(cards = []) {
     const key = `${code || name}:m${stage}`;
 
     if (seen.has(key)) continue;
+
     seen.add(key);
     out.push(entry);
   }
@@ -1560,9 +1409,94 @@ function isGenericMergeCard(card) {
     card &&
       code &&
       (card.mergeOnly === true ||
-        card.summonOnly === true && Array.isArray(card.mergeSourceCodes) ||
+        (card.summonOnly === true && Array.isArray(card.mergeSourceCodes)) ||
         type === "merge")
   );
+}
+
+function getCardTemplateByCode(code) {
+  const target = String(code || "").toLowerCase().trim();
+  if (!target) return null;
+
+  return ALL_CARDS.find((card) => String(card?.code || "").toLowerCase().trim() === target) || null;
+}
+
+function getMergeSourceName(sourceCode) {
+  const source = getCardTemplateByCode(sourceCode);
+
+  return (
+    source?.displayName ||
+    source?.name ||
+    source?.title ||
+    String(sourceCode || "")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+  );
+}
+
+function makeMergeSourceCardReq(sourceCode, stage = 3) {
+  const name = getMergeSourceName(sourceCode);
+
+  return {
+    code: sourceCode,
+    name,
+    stage,
+    minStage: stage,
+    evolutionStage: stage,
+  };
+}
+
+function makeMergeFragmentReq(sourceCode, amount) {
+  return {
+    code: sourceCode,
+    name: getMergeSourceName(sourceCode),
+    amount,
+  };
+}
+
+function makeMergeCardText(sourceCode, stage = 3) {
+  return `${getMergeSourceName(sourceCode)} M${stage}`;
+}
+
+function makeMergeFragmentText(sourceCode, amount) {
+  return `${amount}x ${getMergeSourceName(sourceCode)} Fragment`;
+}
+
+function getMergeSourceCodes(card) {
+  return Array.isArray(card?.mergeSourceCodes)
+    ? card.mergeSourceCodes.map((code) => String(code || "").trim()).filter(Boolean)
+    : [];
+}
+
+function getMergeEffects(card) {
+  const name = card?.displayName || card?.name || "Merge Card";
+
+  return {
+    M1:
+      card?.mergeEffects?.M1 ||
+      `${name} merge card. Stats, weapon, and devil fruit are synced live from owned source cards.`,
+    M2:
+      card?.mergeEffects?.M2 ||
+      `${name} M2. The merge formation grows stronger while still syncing live from source cards.`,
+    M3:
+      card?.mergeEffects?.M3 ||
+      `${name} M3. Peak merge state, still rarity M and still synced from source cards.`,
+  };
+}
+
+function getMergeRuleConfig(card) {
+  return {
+    summonFragmentAmount: Number(card?.mergeSummonFragmentAmount ?? 50),
+    m2FragmentAmount: Number(card?.mergeM2FragmentAmount ?? 75),
+    m3FragmentAmount: Number(card?.mergeM3FragmentAmount ?? 100),
+    summonSourceStage: Number(card?.mergeSummonSourceStage ?? 3),
+    awakenSourceStage: Number(card?.mergeAwakenSourceStage ?? 3),
+    m2Berries: Number(card?.mergeM2Berries ?? 0),
+    m2Gems: Number(card?.mergeM2Gems ?? 0),
+    m3Berries: Number(card?.mergeM3Berries ?? 0),
+    m3Gems: Number(card?.mergeM3Gems ?? 0),
+    requireRoadPoneglyph: card?.requireRoadPoneglyph === true,
+  };
 }
 
 function makeRoadPoneglyphReq(stage) {
@@ -1579,10 +1513,69 @@ function applyGenericMergeCardRules() {
   const mergeCards = ALL_CARDS.filter(isGenericMergeCard);
 
   for (const card of mergeCards) {
+    const sourceCodes = getMergeSourceCodes(card);
+    if (!sourceCodes.length) continue;
+
+    const name = card.displayName || card.name || card.title || "Merge Card";
+    const effects = getMergeEffects(card);
+    const config = getMergeRuleConfig(card);
+    const oldForms = Array.isArray(card.evolutionForms) ? card.evolutionForms : [];
+
+    const summonCards = sourceCodes.map((code) =>
+      makeMergeSourceCardReq(code, config.summonSourceStage)
+    );
+
+    const awakenCards = sourceCodes.map((code) =>
+      makeMergeSourceCardReq(code, config.awakenSourceStage)
+    );
+
+    const summonFragments = sourceCodes.map((code) =>
+      makeMergeFragmentReq(code, config.summonFragmentAmount)
+    );
+
+    const m2Fragments = sourceCodes.map((code) =>
+      makeMergeFragmentReq(code, config.m2FragmentAmount)
+    );
+
+    const m3Fragments = sourceCodes.map((code) =>
+      makeMergeFragmentReq(code, config.m3FragmentAmount)
+    );
+
+    const summonCardsText = sourceCodes.map((code) =>
+      makeMergeCardText(code, config.summonSourceStage)
+    );
+
+    const awakenCardsText = sourceCodes.map((code) =>
+      makeMergeCardText(code, config.awakenSourceStage)
+    );
+
+    const summonFragmentsText = sourceCodes.map((code) =>
+      makeMergeFragmentText(code, config.summonFragmentAmount)
+    );
+
+    const m2Cards = config.requireRoadPoneglyph
+      ? uniqRequirementCards([...awakenCards, makeRoadPoneglyphReq(2)])
+      : awakenCards;
+
+    const m3Cards = config.requireRoadPoneglyph
+      ? uniqRequirementCards([...awakenCards, makeRoadPoneglyphReq(3)])
+      : awakenCards;
+
+    const m2CardsText = config.requireRoadPoneglyph
+      ? [...awakenCardsText, "Road Poneglyph M2"]
+      : awakenCardsText;
+
+    const m3CardsText = config.requireRoadPoneglyph
+      ? [...awakenCardsText, "Road Poneglyph M3"]
+      : awakenCardsText;
+
+    const summonReq = card.summonRequirements || {};
+
     card.rarity = "M";
     card.baseTier = "M";
     card.currentTier = "M";
     card.tier = "M";
+    card.pullTier = "MERGE";
     card.canPull = false;
     card.canPA = false;
     card.summonOnly = true;
@@ -1590,111 +1583,107 @@ function applyGenericMergeCardRules() {
     card.cardRole = "battle";
     card.role = "battle";
     card.category = "battle";
+    card.mergeFixedPower = Number(card.mergeFixedPower || 100000);
+    card.mergeStatRatio = Number(card.mergeStatRatio || 0.4);
 
-    const summonReq = card.summonRequirements || {};
     card.summonRequirements = {
       ...summonReq,
       cards: uniqRequirementCards([
         ...(Array.isArray(summonReq.cards) ? summonReq.cards : []),
-        makeRoadPoneglyphReq(1),
+        ...summonCards,
       ]),
       cardsText: [
         ...(Array.isArray(summonReq.cardsText) ? summonReq.cardsText : []),
-        "Road Poneglyph M1",
+        ...summonCardsText,
       ].filter((value, index, arr) => arr.indexOf(value) === index),
-      fragments: Array.isArray(summonReq.fragments) ? summonReq.fragments : [],
-      fragmentsText: Array.isArray(summonReq.fragmentsText)
+      fragments: Array.isArray(summonReq.fragments) && summonReq.fragments.length
+        ? summonReq.fragments
+        : summonFragments,
+      fragmentsText: Array.isArray(summonReq.fragmentsText) && summonReq.fragmentsText.length
         ? summonReq.fragmentsText
-        : [],
+        : summonFragmentsText,
     };
 
-    if (Array.isArray(card.evolutionForms)) {
-      card.evolutionForms = card.evolutionForms.map((form, index) => {
-        const stage = index + 1;
-
-        if (stage === 1) {
-          return {
-            ...form,
-            rarity: "M",
-            tier: "M",
-            currentTier: "M",
-            require: null,
-          };
-        }
-
-        const oldReq = form?.require || {};
-        const roadStage = stage;
-        const cost = {
-          berries: 2000000,
-          gems: 2000,
-        };
-
-        return {
-          ...form,
-          rarity: "M",
-          tier: "M",
-          currentTier: "M",
-          require: {
-            ...oldReq,
-            berries: cost.berries,
-            gems: cost.gems,
-            selfFragments: 0,
-            cards: uniqRequirementCards([
-              ...(Array.isArray(oldReq.cards) ? oldReq.cards : []),
-              makeRoadPoneglyphReq(roadStage),
-            ]),
-            cardsText: [
-              ...(Array.isArray(oldReq.cardsText) ? oldReq.cardsText : []),
-              `Road Poneglyph M${roadStage}`,
-            ].filter((value, index, arr) => arr.indexOf(value) === index),
-            fragments: Array.isArray(oldReq.fragments) ? oldReq.fragments : [],
-            boosts: Array.isArray(oldReq.boosts) ? oldReq.boosts : [],
-            boostsText: Array.isArray(oldReq.boostsText)
-              ? oldReq.boostsText
-              : [],
-          },
-        };
-      });
-    }
-
-    const m2Old = card.awakenRequirements?.M2 || card.evolutionForms?.[1]?.require || {};
-    const m3Old = card.awakenRequirements?.M3 || card.evolutionForms?.[2]?.require || {};
+    card.evolutionForms = [
+      {
+        ...(oldForms[0] || {}),
+        stage: 1,
+        key: "M1",
+        rarity: "M",
+        tier: "M",
+        currentTier: "M",
+        name,
+        formTitle: name,
+        specialName: name,
+        effectText: effects.M1,
+        description: effects.M1,
+        require: null,
+      },
+      {
+        ...(oldForms[1] || {}),
+        stage: 2,
+        key: "M2",
+        rarity: "M",
+        tier: "M",
+        currentTier: "M",
+        name,
+        formTitle: name,
+        specialName: name,
+        effectText: effects.M2,
+        description: effects.M2,
+        require: {
+          ...(oldForms[1]?.require || {}),
+          berries: config.m2Berries,
+          gems: config.m2Gems,
+          selfFragments: 0,
+          fragments: m2Fragments,
+          cards: m2Cards,
+          cardsText: m2CardsText,
+        },
+      },
+      {
+        ...(oldForms[2] || {}),
+        stage: 3,
+        key: "M3",
+        rarity: "M",
+        tier: "M",
+        currentTier: "M",
+        name,
+        formTitle: name,
+        specialName: name,
+        effectText: effects.M3,
+        description: effects.M3,
+        require: {
+          ...(oldForms[2]?.require || {}),
+          berries: config.m3Berries,
+          gems: config.m3Gems,
+          selfFragments: 0,
+          fragments: m3Fragments,
+          cards: m3Cards,
+          cardsText: m3CardsText,
+        },
+      },
+    ];
 
     card.awakenRequirements = {
       ...(card.awakenRequirements || {}),
       M2: {
-        ...m2Old,
-        berries: 2000000,
-        gems: 2000,
+        ...(card.awakenRequirements?.M2 || {}),
+        berries: config.m2Berries,
+        gems: config.m2Gems,
         selfFragments: 0,
-        cards: uniqRequirementCards([
-          ...(Array.isArray(m2Old.cards) ? m2Old.cards : []),
-          makeRoadPoneglyphReq(2),
-        ]),
-        cardsText: [
-          ...(Array.isArray(m2Old.cardsText) ? m2Old.cardsText : []),
-          "Road Poneglyph M2",
-        ].filter((value, index, arr) => arr.indexOf(value) === index),
-        fragments: Array.isArray(m2Old.fragments) ? m2Old.fragments : [],
-        boosts: Array.isArray(m2Old.boosts) ? m2Old.boosts : [],
-        boostsText: Array.isArray(m2Old.boostsText) ? m2Old.boostsText : [],
+        fragments: m2Fragments,
+        cards: m2Cards,
+        cardsText: m2CardsText,
       },
       M3: {
-        ...m3Old,
-        berries: 2000000,
-        gems: 2000,
+        ...(card.awakenRequirements?.M3 || {}),
+        berries: config.m3Berries,
+        gems: config.m3Gems,
         selfFragments: 0,
-        cards: uniqRequirementCards([
-          ...(Array.isArray(m3Old.cards) ? m3Old.cards : []),
-          makeRoadPoneglyphReq(3),
-        ]),
-        cardsText: [
-          ...(Array.isArray(m3Old.cardsText) ? m3Old.cardsText : []),
-          "Road Poneglyph M3",
-        ].filter((value, index, arr) => arr.indexOf(value) === index),
-        fragments: Array.isArray(m3Old.fragments) ? m3Old.fragments : [],
-        boosts: Array.isArray(m3Old.boosts) ? m3Old.boosts : [],
-        boostsText: Array.isArray(m3Old.boostsText) ? m3Old.boostsText : [],
+        fragments: m3Fragments,
+        cards: m3Cards,
+        cardsText: m3CardsText,
       },
     };
   }
