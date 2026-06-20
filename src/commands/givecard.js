@@ -149,7 +149,12 @@ function scoreCodeOnly(query, code) {
 }
 
 function isMergeCard(template) {
-  return String(template?.cardRole || "").toLowerCase() === "mergecard";
+  return (
+    String(template?.cardRole || "").toLowerCase() === "mergecard" ||
+    template?.mergeOnly === true ||
+    String(template?.pullTier || "").toUpperCase() === "MERGE" ||
+    String(template?.type || "").toLowerCase() === "merge"
+  );
 }
 
 function getGiveCardTemplates() {
@@ -375,7 +380,7 @@ module.exports = {
         content:
           "Usage: `op givecard <@user/userId> <card name/code> [level/fragment amount] [stage]`\n" +
           "Example: `op givecard 697763966650417193 saturn 1`\n" +
-          "Merge card code example: `op givecard 697763966650417193 lzs 1`",
+          "Merge card code example: `op givecard 697763966650417193 lzs 1`, `op givecard 697763966650417193 gvl 1`, `op givecard 697763966650417193 tfb 1`, `op givecard 697763966650417193 wgd 1`",
         allowedMentions: { repliedUser: false },
       });
     }
@@ -388,7 +393,7 @@ module.exports = {
           `Invalid card: \`${query}\`\n` +
           "Battle cards use the battle card display name.\n" +
           "Merge cards can use display name or code.\n" +
-          "Example: `saturn`, `luffy`, `zoro`, `lzs`.",
+          "Example: `saturn`, `luffy`, `zoro`, `lzs`, `gvl`, `tfb`, `wgd`.",
         allowedMentions: { repliedUser: false },
       });
     }
@@ -438,7 +443,7 @@ module.exports = {
 
     return message.reply({
       content:
-        `Added ${addedCard.cardRole || "battle"} card \`${addedCard.displayName || addedCard.name}\` to \`${userId}\`` +
+        `Added ${isMergeCard(addedCard) ? "merge" : (addedCard.cardRole || "battle")} card \`${addedCard.displayName || addedCard.name}\` to \`${userId}\`` +
         ` • Level ${addedCard.level} • ${addedCard.evolutionKey} • ${addedCard.currentTier}`,
       allowedMentions: { repliedUser: false },
     });
