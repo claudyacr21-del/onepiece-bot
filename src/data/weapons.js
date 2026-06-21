@@ -269,7 +269,7 @@ module.exports = [
   },
   {
     code: "fists",
-    name: "Fist",
+    name: "Fistss",
     rarity: "UR",
     owners: ["garp_hero_of_the_marines"],
     type: "Martial Art",
