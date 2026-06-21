@@ -1022,7 +1022,7 @@ const WEAPON_IMAGES = {
   silencer_handgun: "https://cdn.discordapp.com/attachments/1493204525975076944/1501228142872891412/content.png?ex=69fb4f28&is=69f9fda8&hm=ee778e688793668bc0665e7a580998d5b041a8a8bb43530db37acbc0d45c107b&",
   six_swords: "https://cdn.discordapp.com/attachments/1493204525975076944/1501440883579555850/content.png?ex=69fc154a&is=69fac3ca&hm=81d04f9569d63a67ed144d6cd5dea900c3917472b962c4a4c51bc65066485419",
   sky_lance: "https://cdn.discordapp.com/attachments/1493204525975076944/1501228144122794317/content.png?ex=69fb4f29&is=69f9fda9&hm=15ee3d579226c1c22273f87e695a688e53b26238348d1b566f9ef61d9f99d7f0&",
-  soul_solid: "https://cdn.discordapp.com/attachments/1493204525975076944/1501228144655339550/content.png?ex=69fb4f29&is=69f9fda9&hm=f6e87243f4de8b8091ee8c76e7fb7d6d0298fccbbbbcba19678d388897d9f0e0&",
+  soul_solidd: "https://cdn.discordapp.com/attachments/1493204525975076944/1501228144655339550/content.png?ex=69fb4f29&is=69f9fda9&hm=f6e87243f4de8b8091ee8c76e7fb7d6d0298fccbbbbcba19678d388897d9f0e0&",
   tonfa: "https://cdn.discordapp.com/attachments/1493204525975076944/1501434940775202866/content.png?ex=69fc0fc1&is=69fabe41&hm=2529c4907f2c5274481406f8ad6c902c30f2c28b067aeb5977748f0202526df7&",
   twin_blades: "https://cdn.discordapp.com/attachments/1493204525975076944/1501434941337112626/content.png?ex=69fc0fc1&is=69fabe41&hm=0dbfe41ebeb9be276b3116b70f39c5a178b6689c5fbdd2442c00c84790ddfd60&",
   wado_ichimonji: "https://cdn.discordapp.com/attachments/1493204525975076944/1501434941911601163/content.png?ex=69fc0fc1&is=69fabe41&hm=eaad2b723a9ec1713b2b372365d1a47b9c8e51f2c5cd5199c5f80811d0f45f60&",
