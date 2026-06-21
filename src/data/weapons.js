@@ -609,7 +609,7 @@ module.exports = [
     description: "A sturdy sky knight lance."
   },
   {
-    code: "soul_solid",
+    code: "soul_solidd",
     name: "Soul Solidd",
     rarity: "A",
     owners: ["brook_soul_king"],
