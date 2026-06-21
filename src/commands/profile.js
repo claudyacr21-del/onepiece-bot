@@ -679,16 +679,68 @@ function getLiveProfileCardStage(card) {
   return 1;
 }
 
+function getProfileCardUniqueKey(card, index = 0, source = "cards") {
+  return String(
+    card?.instanceId ||
+      card?.id ||
+      card?.cardId ||
+      card?.code ||
+      card?.cardCode ||
+      card?.name ||
+      card?.displayName ||
+      `${source}_${index}`
+  )
+    .toLowerCase()
+    .trim();
+}
+
+function getAllLiveProfileCards(player) {
+  const rawSources = [
+    ...(Array.isArray(player?.cards) ? player.cards : []),
+    ...(Array.isArray(player?.boostCards) ? player.boostCards : []),
+    ...(Array.isArray(player?.boosts) ? player.boosts : []),
+  ];
+
+  const seen = new Set();
+  const cards = [];
+
+  for (const [index, rawCard] of rawSources.entries()) {
+    if (!rawCard) continue;
+
+    const key = getProfileCardUniqueKey(rawCard, index, "profile");
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    cards.push(hydrateCard(rawCard) || rawCard);
+  }
+
+  return cards;
+}
+
+function getProfileCardStage(card) {
+  const directStage = Number(card?.evolutionStage || 0);
+  if (Number.isFinite(directStage) && directStage >= 1 && directStage <= 3) {
+    return directStage;
+  }
+
+  const key = String(card?.evolutionKey || card?.form || card?.stage || "")
+    .toUpperCase()
+    .trim();
+
+  const matched = key.match(/M([123])/);
+  if (matched) return Number(matched[1]);
+
+  return 1;
+}
+
 function getCardStatistics(player) {
-  const battleCards = getLiveProfileBattleCards(player);
-  const boostCards = getLiveProfileBoostCards(player);
+  const cards = getAllLiveProfileCards(player);
 
   return {
-    totalCards: battleCards.length,
-    mastery1Cards: battleCards.filter((card) => getLiveProfileCardStage(card) === 1).length,
-    mastery2Cards: battleCards.filter((card) => getLiveProfileCardStage(card) === 2).length,
-    mastery3Cards: battleCards.filter((card) => getLiveProfileCardStage(card) === 3).length,
-    boostCards: boostCards.length,
+    totalCards: cards.length,
+    mastery1Cards: cards.filter((card) => getProfileCardStage(card) === 1).length,
+    mastery2Cards: cards.filter((card) => getProfileCardStage(card) === 2).length,
+    mastery3Cards: cards.filter((card) => getProfileCardStage(card) === 3).length,
   };
 }
 
@@ -826,7 +878,6 @@ module.exports = {
             line("Mastery 1 Cards", cardStats.mastery1Cards),
             line("Mastery 2 Cards", cardStats.mastery2Cards),
             line("Mastery 3 Cards", cardStats.mastery3Cards),
-            line("Boost Cards", cardStats.boostCards),
             line("Fragments", totalFragments),
             "",
             "🧩 **Progress**",
