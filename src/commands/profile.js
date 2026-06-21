@@ -733,8 +733,96 @@ function getProfileCardStage(card) {
   return 1;
 }
 
+function getProfileTierRank(tier) {
+  const order = {
+    C: 1,
+    B: 2,
+    A: 3,
+    S: 4,
+    SS: 5,
+    UR: 6,
+    M: 7,
+  };
+
+  return order[String(tier || "C").toUpperCase()] || 0;
+}
+
+function getProfileCardUniqueKey(card) {
+  const role = String(card?.cardRole || "battle").toLowerCase();
+  const code = String(card?.code || card?.name || card?.displayName || "")
+    .toLowerCase()
+    .trim();
+
+  return `${role}:${code}`;
+}
+
+function isBetterProfileDuplicateCard(candidate, current) {
+  if (!current) return true;
+
+  const candidateStage = Number(candidate?.evolutionStage || 1);
+  const currentStage = Number(current?.evolutionStage || 1);
+
+  if (candidateStage !== currentStage) {
+    return candidateStage > currentStage;
+  }
+
+  const candidateTier = getProfileTierRank(candidate?.currentTier || candidate?.rarity);
+  const currentTier = getProfileTierRank(current?.currentTier || current?.rarity);
+
+  if (candidateTier !== currentTier) {
+    return candidateTier > currentTier;
+  }
+
+  const candidatePower = Number(candidate?.currentPower || 0);
+  const currentPower = Number(current?.currentPower || 0);
+
+  if (candidatePower !== currentPower) {
+    return candidatePower > currentPower;
+  }
+
+  const candidateLevel = Number(candidate?.level || 1);
+  const currentLevel = Number(current?.level || 1);
+
+  if (candidateLevel !== currentLevel) {
+    return candidateLevel > currentLevel;
+  }
+
+  const candidateKills = Number(candidate?.kills || 0);
+  const currentKills = Number(current?.kills || 0);
+
+  if (candidateKills !== currentKills) {
+    return candidateKills > currentKills;
+  }
+
+  return false;
+}
+
+function dedupeProfileCollection(cards) {
+  const map = new Map();
+
+  for (const card of Array.isArray(cards) ? cards : []) {
+    if (!card) continue;
+
+    const key = getProfileCardUniqueKey(card);
+    if (!key || key === "battle:") continue;
+
+    const existing = map.get(key);
+
+    if (isBetterProfileDuplicateCard(card, existing)) {
+      map.set(key, card);
+    }
+  }
+
+  return [...map.values()];
+}
+
+function getProfileCardStage(card) {
+  const stage = Number(card?.evolutionStage || 1);
+  return Math.max(1, Math.min(3, Number.isFinite(stage) ? stage : 1));
+}
+
 function getCardStatistics(player) {
-  const cards = getAllLiveProfileCards(player);
+  const cards = dedupeProfileCollection(getHydratedCards(player));
 
   return {
     totalCards: cards.length,
