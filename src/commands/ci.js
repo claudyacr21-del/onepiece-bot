@@ -760,11 +760,32 @@ function getSpecialFormName(card, stageCard, form, stage) {
 function getOwnedEvolutionStage(item) {
   if (!item) return 1;
 
-  if (Number.isFinite(Number(item.evolutionStage)) && Number(item.evolutionStage) > 0) {
-    return Number(item.evolutionStage);
+  const hydrated = getCiHydratedRequirementEntry(item);
+
+  const directStage = Number(
+    item.evolutionStage ||
+      item.mastery ||
+      item.masteryLevel ||
+      hydrated?.evolutionStage ||
+      hydrated?.mastery ||
+      hydrated?.masteryLevel ||
+      0
+  );
+
+  if (Number.isFinite(directStage) && directStage > 0) {
+    return Math.max(1, Math.min(3, directStage));
   }
 
-  const evoKey = String(item.evolutionKey || item.form || item.stage || "").toUpperCase();
+  const evoKey = String(
+    item.evolutionKey ||
+      item.form ||
+      item.stage ||
+      hydrated?.evolutionKey ||
+      hydrated?.form ||
+      hydrated?.stage ||
+      ""
+  ).toUpperCase();
+
   const matched = evoKey.match(/M([123])/);
 
   if (matched) return Number(matched[1]);
@@ -791,25 +812,50 @@ function getPlayerBoostRequirementPool(player) {
   });
 }
 
+function getCiHydratedRequirementEntry(entry) {
+  if (!entry || typeof entry !== "object") return entry;
+
+  try {
+    return hydrateCard(entry) || entry;
+  } catch (_) {
+    return entry;
+  }
+}
+
+function getCiRequirementMatchValues(entry) {
+  const hydrated = getCiHydratedRequirementEntry(entry);
+
+  return [
+    entry?.code,
+    entry?.name,
+    entry?.displayName,
+    entry?.cardName,
+    entry?.title,
+    entry?.variant,
+
+    hydrated?.code,
+    hydrated?.name,
+    hydrated?.displayName,
+    hydrated?.cardName,
+    hydrated?.title,
+    hydrated?.variant,
+  ]
+    .map(normalizeCompare)
+    .filter(Boolean);
+}
+
 function doesEntryMatchRequirement(entry, requirement) {
   const requirementNames = [
     requirement?.code,
     requirement?.name,
     requirement?.displayName,
     requirement?.cardName,
+    requirement?.title,
   ]
     .map(normalizeCompare)
     .filter(Boolean);
 
-  const entryNames = [
-    entry?.code,
-    entry?.name,
-    entry?.displayName,
-    entry?.cardName,
-    entry?.title,
-  ]
-    .map(normalizeCompare)
-    .filter(Boolean);
+  const entryNames = getCiRequirementMatchValues(entry);
 
   if (!requirementNames.length || !entryNames.length) return false;
 
