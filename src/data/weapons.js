@@ -610,7 +610,7 @@ module.exports = [
   },
   {
     code: "soul_solid",
-    name: "Soul Solid",
+    name: "Soul Solidd",
     rarity: "A",
     owners: ["brook_soul_king"],
     type: "Sword",
