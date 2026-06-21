@@ -837,28 +837,71 @@ function getOwnedBaseCard(player, card) {
 }
 
 function getFragmentAmount(fragment) {
-  const amount = Number(fragment?.amount ?? fragment?.count ?? fragment?.quantity ?? 0);
+  const amount = Number(
+    fragment?.amount ??
+      fragment?.count ??
+      fragment?.quantity ??
+      fragment?.qty ??
+      fragment?.total ??
+      fragment?.value ??
+      0
+  );
+
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
 }
 
+function normalizeFragmentKeyForCi(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/['".]/g, "")
+    .replace(/\s+fragment$/i, "")
+    .replace(/^fragment[_\s-]*/i, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeFragmentCodeForCi(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/['".]/g, "")
+    .replace(/^fragment[_\s-]*/i, "")
+    .replace(/[_\s-]*fragment$/i, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 function getFragmentMatchKeys(source) {
-  return [
+  const rawValues = [
     source?.code,
     source?.name,
     source?.displayName,
     source?.cardName,
     source?.title,
+    source?.variant,
     source?.baseCode,
     source?.cardCode,
     source?.characterCode,
     source?.sourceCode,
+    source?.fragmentCode,
     source?.key,
     source?.id,
-    String(source?.code || "").replace(/^fragment_/i, ""),
-    String(source?.code || "").replace(/_fragment$/i, ""),
-  ]
-    .map(normalizeCompare)
-    .filter(Boolean);
+  ];
+
+  const keys = [];
+
+  for (const value of rawValues) {
+    if (!value) continue;
+
+    keys.push(normalizeFragmentKeyForCi(value));
+    keys.push(normalizeFragmentCodeForCi(value));
+  }
+
+  return [...new Set(keys.filter(Boolean))];
 }
 
 function doesFragmentMatchCard(fragment, card) {
@@ -868,12 +911,7 @@ function doesFragmentMatchCard(fragment, card) {
   if (!fragmentKeys.length || !cardKeys.length) return false;
 
   return cardKeys.some((cardKey) =>
-    fragmentKeys.some((fragmentKey) => {
-      if (fragmentKey === cardKey) return true;
-      if (fragmentKey.includes(cardKey)) return true;
-      if (cardKey.includes(fragmentKey)) return true;
-      return false;
-    })
+    fragmentKeys.some((fragmentKey) => fragmentKey === cardKey)
   );
 }
 
@@ -884,7 +922,7 @@ function getOwnedSelfFragmentAmount(player, card, ownedBaseCard = null) {
     .filter((fragment) => doesFragmentMatchCard(fragment, card))
     .reduce((total, fragment) => total + getFragmentAmount(fragment), 0);
 
-  if (fragments.length) return inventoryAmount;
+  if (inventoryAmount > 0) return inventoryAmount;
 
   return Number(ownedBaseCard?.fragments || 0);
 }
