@@ -588,23 +588,107 @@ function getShipSummary(player) {
   };
 }
 
+function isProfileBoostEntry(entry) {
+  const role = String(entry?.cardRole || entry?.role || "").toLowerCase();
+  const category = String(entry?.category || "").toLowerCase();
+
+  return (
+    role === "boost" ||
+    category === "boost" ||
+    Boolean(entry?.boostType) ||
+    Boolean(entry?.boostTarget) ||
+    Boolean(entry?.effectText)
+  );
+}
+
+function getProfileEntryKey(entry, fallbackIndex = 0) {
+  return String(
+    entry?.instanceId ||
+      entry?.id ||
+      entry?.code ||
+      entry?.cardCode ||
+      entry?.name ||
+      entry?.displayName ||
+      `unknown_${fallbackIndex}`
+  )
+    .toLowerCase()
+    .trim();
+}
+
+function uniqueProfileEntries(entries) {
+  const seen = new Set();
+  const out = [];
+
+  for (const [index, entry] of (Array.isArray(entries) ? entries : []).entries()) {
+    if (!entry) continue;
+
+    const key = getProfileEntryKey(entry, index);
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    out.push(entry);
+  }
+
+  return out;
+}
+
+function getLiveProfileBattleCards(player) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+
+  return cards.filter((card) => !isProfileBoostEntry(card));
+}
+
+function getLiveProfileBoostCards(player) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+  const boostCards = Array.isArray(player?.boostCards) ? player.boostCards : [];
+  const boosts = Array.isArray(player?.boosts) ? player.boosts : [];
+
+  return uniqueProfileEntries([
+    ...cards.filter(isProfileBoostEntry),
+    ...boostCards,
+    ...boosts,
+  ]);
+}
+
+function getLiveProfileCardStage(card) {
+  const rawStage = Number(card?.evolutionStage || 0);
+  if (Number.isFinite(rawStage) && rawStage >= 1 && rawStage <= 3) {
+    return rawStage;
+  }
+
+  const rawKey = String(card?.evolutionKey || card?.form || card?.stage || "").toUpperCase();
+  const matched = rawKey.match(/M([123])/);
+  if (matched) return Number(matched[1]);
+
+  const hydrated = hydrateCard(card) || card;
+  const hydratedStage = Number(hydrated?.evolutionStage || 0);
+  if (Number.isFinite(hydratedStage) && hydratedStage >= 1 && hydratedStage <= 3) {
+    return hydratedStage;
+  }
+
+  const hydratedKey = String(
+    hydrated?.evolutionKey ||
+      hydrated?.form ||
+      hydrated?.stage ||
+      ""
+  ).toUpperCase();
+
+  const hydratedMatched = hydratedKey.match(/M([123])/);
+  if (hydratedMatched) return Number(hydratedMatched[1]);
+
+  return 1;
+}
+
 function getCardStatistics(player) {
-  const cards = getHydratedCards(player);
+  const battleCards = getLiveProfileBattleCards(player);
+  const boostCards = getLiveProfileBoostCards(player);
 
   return {
-    totalCards: cards.length,
-    mastery1Cards: cards.filter(
-      (card) => Number(card?.evolutionStage || 1) === 1
-    ).length,
-    mastery2Cards: cards.filter(
-      (card) => Number(card?.evolutionStage || 1) === 2
-    ).length,
-    mastery3Cards: cards.filter(
-      (card) => Number(card?.evolutionStage || 1) === 3
-    ).length,
-    boostCards: cards.filter(
-      (card) => String(card?.cardRole || "").toLowerCase() === "boost"
-    ).length,
+    totalCards: battleCards.length,
+    mastery1Cards: battleCards.filter((card) => getLiveProfileCardStage(card) === 1).length,
+    mastery2Cards: battleCards.filter((card) => getLiveProfileCardStage(card) === 2).length,
+    mastery3Cards: battleCards.filter((card) => getLiveProfileCardStage(card) === 3).length,
+    boostCards: boostCards.length,
   };
 }
 
