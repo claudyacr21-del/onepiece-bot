@@ -2292,9 +2292,13 @@ function giveRaidWinRewards(state) {
         boss
       );
 
-  const linkedFruit = isMergeRaid
-    ? pickMythicRaidFruitDrop(boss)
-    : findLinkedRaidItem(devilFruitsDb, boss);
+const linkedFruit = isMergeRaid
+  ? pickMythicRaidFruitDrop(boss)
+  : pickRandomLinkedRaidItemFromBossPool(
+      devilFruitsDb,
+      hostRewardBossPool,
+      boss
+    );
   const hostId = String(state.hostId || "");
 
   const rewards = [];
