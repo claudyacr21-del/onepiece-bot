@@ -38,11 +38,11 @@ function getWeeklyResetBucket(date = new Date()) {
 function getRewardForRank(rank, role) {
   const isLeader = role === "leader";
 
-  if (rank === 1) return isLeader ? 18 : 18;
-  if (rank === 2) return isLeader ? 15: 15;
-  if (rank === 3) return isLeader ? 12 : 12;
+  if (rank === 1) return isLeader ? 30 : 30;
+  if (rank === 2) return isLeader ? 25: 25;
+  if (rank === 3) return isLeader ? 20 : 20;
 
-  return isLeader ? 10 : 10;
+  return isLeader ? 15 : 15;
 }
 
 function getPirateMemberRole(pirate, userId) {
