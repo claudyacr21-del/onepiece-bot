@@ -1303,6 +1303,92 @@ function tradeEmbed(owner, target, ownerOffer, targetOffer, status = "pending", 
     );
 }
 
+function getTradeLogChannelId() {
+  return (
+    process.env.TRADE_LOG_CHANNEL_ID ||
+    process.env.TRADE_LOGS_CHANNEL_ID ||
+    process.env.LOG_TRADE_CHANNEL_ID ||
+    ""
+  )
+    .replace(/[<#>]/g, "")
+    .trim();
+}
+
+function cleanTradeLogText(value) {
+  return String(value || "")
+    .replace(/`/g, "'")
+    .trim();
+}
+
+function formatTradeLogItem(offer, resolved) {
+  const source = resolved || offer || {};
+
+  const type = cleanTradeLogText(
+    source.type ||
+      source.category ||
+      source.kind ||
+      offer?.type ||
+      offer?.category ||
+      "item"
+  );
+
+  const name = cleanTradeLogText(
+    source.name ||
+      source.displayName ||
+      source.cardName ||
+      source.itemName ||
+      source.weaponName ||
+      source.fruitName ||
+      offer?.name ||
+      offer?.displayName ||
+      offer?.query ||
+      "Unknown"
+  );
+
+  const amount = Number(
+    source.amount ||
+      source.count ||
+      source.quantity ||
+      offer?.amount ||
+      offer?.count ||
+      offer?.quantity ||
+      1
+  );
+
+  return `${amount > 1 ? `${amount}x ` : ""}${name}${type ? ` (${type})` : ""}`;
+}
+
+async function sendTradeLog(message, ownerUser, targetUser, ownerOffer, targetOffer, ownerResolved, targetResolved) {
+  const channelId = getTradeLogChannelId();
+  if (!channelId) return;
+
+  const channel =
+    message.client?.channels?.cache?.get(channelId) ||
+    (await message.client?.channels?.fetch?.(channelId).catch(() => null));
+
+  if (!channel?.send) return;
+
+  const ownerItem = formatTradeLogItem(ownerOffer, ownerResolved);
+  const targetItem = formatTradeLogItem(targetOffer, targetResolved);
+
+  await channel
+    .send({
+      content: [
+        "🔁 **Trade Log**",
+        `**From:** ${ownerUser} → **Gave:** \`${ownerItem}\``,
+        `**To:** ${targetUser} → **Gave:** \`${targetItem}\``,
+      ].join("\n"),
+      allowedMentions: {
+        users: [],
+        roles: [],
+        repliedUser: false,
+      },
+    })
+    .catch((error) => {
+      console.error("[TRADE LOG ERROR]", error?.message || error);
+    });
+}
+
 module.exports = {
   name: "trade",
 
@@ -1551,6 +1637,16 @@ module.exports = {
           ],
           components: [],
         });
+
+        await sendTradeLog(
+          message,
+          message.author,
+          targetUser,
+          parsed.ownerOffer,
+          parsed.targetOffer,
+          ownerResolved,
+          targetResolved
+        );
 
         collector.stop("done");
       } catch (error) {
