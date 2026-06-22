@@ -33,19 +33,70 @@ const normalize = (s = "") =>
     .replace(/[^a-z0-9\s]+/g, "")
     .replace(/\s+/g, " ");
 
+function normalizeWeaponLookup(value = "") {
+  return normalize(value)
+    .replace(/\bsolidd\b/g, "solid")
+    .replace(/\bsoul\s+solidd\b/g, "soul solid")
+    .trim();
+}
+
+function getWeaponAmount(entry) {
+  const amount = Number(
+    entry?.amount ??
+      entry?.count ??
+      entry?.quantity ??
+      entry?.qty ??
+      1
+  );
+
+  return Number.isFinite(amount) ? amount : 1;
+}
+
+function getWeaponSearchNames(weapon) {
+  return [
+    weapon?.code,
+    weapon?.name,
+    weapon?.displayName,
+    weapon?.title,
+    weapon?.type,
+    ...(Array.isArray(weapon?.aliases) ? weapon.aliases : []),
+  ]
+    .map(normalizeWeaponLookup)
+    .filter(Boolean);
+}
+
+function doesWeaponMatchTemplate(entry, weaponTemplate) {
+  const templateKeys = getWeaponSearchNames(weaponTemplate);
+  const entryKeys = [
+    entry?.code,
+    entry?.name,
+    entry?.displayName,
+    entry?.title,
+    entry?.weaponCode,
+  ]
+    .map(normalizeWeaponLookup)
+    .filter(Boolean);
+
+  if (!templateKeys.length || !entryKeys.length) return false;
+
+  return templateKeys.some((templateKey) =>
+    entryKeys.some((entryKey) => entryKey === templateKey)
+  );
+}
+
 function getWeaponNameOnly(weapon) {
   return String(weapon?.name || "").trim();
 }
 
 function scoreNameOnly(query, names) {
-  const q = normalize(query);
+  const q = normalizeWeaponLookup(query);
   if (!q) return 0;
 
   let best = 0;
   const qWords = q.split(" ").filter(Boolean);
 
   for (const raw of names.filter(Boolean)) {
-    const n = normalize(raw);
+    const n = normalizeWeaponLookup(raw);
     if (!n) continue;
 
     if (n === q) best = Math.max(best, 1000 + n.length);
@@ -63,18 +114,19 @@ function findBestWeaponMatch(query) {
   const scored = weapons
     .map((weapon) => {
       const weaponName = getWeaponNameOnly(weapon);
+      const searchNames = getWeaponSearchNames(weapon);
 
       return {
         weapon,
         weaponName,
-        score: scoreNameOnly(query, [weaponName]),
+        score: scoreNameOnly(query, searchNames),
       };
     })
     .filter((entry) => entry.weaponName)
     .filter((entry) => entry.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return normalize(a.weaponName).length - normalize(b.weaponName).length;
+      return normalizeWeaponLookup(a.weaponName).length - normalizeWeaponLookup(b.weaponName).length;
     });
 
   return scored.length ? scored[0].weapon : null;
@@ -188,21 +240,11 @@ function splitCardAndWeaponInput(rawArgs) {
 }
 
 function findOwnedWeaponEntry(ownedWeapons, weaponTemplate) {
-  const weaponCode = normalize(weaponTemplate?.code);
-  const weaponName = normalize(getWeaponNameOnly(weaponTemplate));
-
   return (
     (Array.isArray(ownedWeapons) ? ownedWeapons : [])
       .filter((entry) => {
-        if (Number(entry.amount || 0) <= 0) return false;
-
-        const entryCode = normalize(entry.code);
-        const entryName = normalize(entry.name);
-
-        return (
-          entryCode === weaponCode ||
-          entryName === weaponName
-        );
+        if (getWeaponAmount(entry) <= 0) return false;
+        return doesWeaponMatchTemplate(entry, weaponTemplate);
       })
       .sort(
         (a, b) => Number(b.upgradeLevel || 0) - Number(a.upgradeLevel || 0)
@@ -212,21 +254,12 @@ function findOwnedWeaponEntry(ownedWeapons, weaponTemplate) {
 
 function consumeWeapon(list, weaponTemplate) {
   const arr = [...(Array.isArray(list) ? list : [])];
-  const weaponCode = normalize(weaponTemplate?.code);
-  const weaponName = normalize(getWeaponNameOnly(weaponTemplate));
 
   const candidates = arr
     .map((entry, index) => ({ entry, index }))
     .filter(({ entry }) => {
-      if (Number(entry.amount || 0) <= 0) return false;
-
-      const entryCode = normalize(entry.code);
-      const entryName = normalize(entry.name);
-
-      return (
-        entryCode === weaponCode ||
-        entryName === weaponName
-      );
+      if (getWeaponAmount(entry) <= 0) return false;
+      return doesWeaponMatchTemplate(entry, weaponTemplate);
     })
     .sort(
       (a, b) => Number(b.entry.upgradeLevel || 0) - Number(a.entry.upgradeLevel || 0)
@@ -237,13 +270,14 @@ function consumeWeapon(list, weaponTemplate) {
   }
 
   const idx = candidates[0].index;
+  const currentAmount = getWeaponAmount(arr[idx]);
 
-  if (Number(arr[idx].amount || 0) <= 1) {
+  if (currentAmount <= 1) {
     arr.splice(idx, 1);
   } else {
     arr[idx] = {
       ...arr[idx],
-      amount: Number(arr[idx].amount || 0) - 1,
+      amount: currentAmount - 1,
     };
   }
 
