@@ -1314,51 +1314,63 @@ function getTradeLogChannelId() {
     .trim();
 }
 
-function cleanTradeLogText(value) {
+function cleanTradeLogValue(value) {
   return String(value || "")
     .replace(/`/g, "'")
     .trim();
 }
 
-function formatTradeLogItem(offer, resolved) {
-  const source = resolved || offer || {};
+function getTradeLogType(entry) {
+  if (!entry) return "Unknown";
 
-  const type = cleanTradeLogText(
-    source.type ||
-      source.category ||
-      source.kind ||
-      offer?.type ||
-      offer?.category ||
-      "item"
+  if (entry.kind === "berries") return "Berries";
+  if (entry.kind === "cards" || entry.store === "cards") return "Card";
+  if (entry.kind === "cardFragment") return "Card Fragment";
+
+  if (entry.storeLabel) return entry.storeLabel;
+
+  return (
+    STORE_LABELS?.[entry.store] ||
+    entry.kind ||
+    entry.store ||
+    "Asset"
   );
+}
 
-  const name = cleanTradeLogText(
-    source.name ||
-      source.displayName ||
-      source.cardName ||
-      source.itemName ||
-      source.weaponName ||
-      source.fruitName ||
-      offer?.name ||
-      offer?.displayName ||
-      offer?.query ||
+function formatTradeLogEntry(entry) {
+  if (!entry) return "Unknown";
+
+  if (entry.kind === "berries") {
+    return `${Number(entry.amount || 0).toLocaleString("en-US")} Berries`;
+  }
+
+  const type = cleanTradeLogValue(getTradeLogType(entry));
+  const name = cleanTradeLogValue(
+    entry.displayName ||
+      entry.name ||
+      entry.cardName ||
+      entry.itemName ||
+      entry.weaponName ||
+      entry.fruitName ||
+      entry.code ||
       "Unknown"
   );
 
-  const amount = Number(
-    source.amount ||
-      source.count ||
-      source.quantity ||
-      offer?.amount ||
-      offer?.count ||
-      offer?.quantity ||
-      1
-  );
+  const amount = Number(entry.amount || 1);
+  const amountText = amount > 1 ? ` x${amount}` : "";
 
-  return `${amount > 1 ? `${amount}x ` : ""}${name}${type ? ` (${type})` : ""}`;
+  return `${name}${amountText} (${type})`;
 }
 
-async function sendTradeLog(message, ownerUser, targetUser, ownerOffer, targetOffer, ownerResolved, targetResolved) {
+function formatTradeLogEntries(entries) {
+  const list = Array.isArray(entries) ? entries : [];
+
+  if (!list.length) return "Nothing";
+
+  return list.map(formatTradeLogEntry).join(", ");
+}
+
+async function sendTradeLog(message, ownerUser, targetUser, ownerResolvedEntries, targetResolvedEntries) {
   const channelId = getTradeLogChannelId();
   if (!channelId) return;
 
@@ -1368,15 +1380,12 @@ async function sendTradeLog(message, ownerUser, targetUser, ownerOffer, targetOf
 
   if (!channel?.send) return;
 
-  const ownerItem = formatTradeLogItem(ownerOffer, ownerResolved);
-  const targetItem = formatTradeLogItem(targetOffer, targetResolved);
-
   await channel
     .send({
       content: [
         "🔁 **Trade Log**",
-        `**From:** ${ownerUser} → **Gave:** \`${ownerItem}\``,
-        `**To:** ${targetUser} → **Gave:** \`${targetItem}\``,
+        `**Trader A:** ${ownerUser} gave \`${formatTradeLogEntries(ownerResolvedEntries)}\``,
+        `**Trader B:** ${targetUser} gave \`${formatTradeLogEntries(targetResolvedEntries)}\``,
       ].join("\n"),
       allowedMentions: {
         users: [],
