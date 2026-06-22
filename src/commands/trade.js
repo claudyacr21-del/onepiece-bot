@@ -1320,23 +1320,6 @@ function cleanTradeLogValue(value) {
     .trim();
 }
 
-function getTradeLogType(entry) {
-  if (!entry) return "Unknown";
-
-  if (entry.kind === "berries") return "Berries";
-  if (entry.kind === "cards" || entry.store === "cards") return "Card";
-  if (entry.kind === "cardFragment") return "Card Fragment";
-
-  if (entry.storeLabel) return entry.storeLabel;
-
-  return (
-    STORE_LABELS?.[entry.store] ||
-    entry.kind ||
-    entry.store ||
-    "Asset"
-  );
-}
-
 function isTradeLogBerries(entry) {
   const kind = String(entry?.kind || "").toLowerCase();
   const type = String(entry?.type || "").toLowerCase();
@@ -1433,7 +1416,7 @@ function formatTradeLogEntries(entries) {
   return list.map(formatTradeLogEntry).join(", ");
 }
 
-async function sendTradeLog(message, ownerUser, targetUser, ownerResolvedEntries, targetResolvedEntries) {
+async function sendTradeLog(message, ownerUser, targetUser, ownerResolved, targetResolved) {
   const channelId = getTradeLogChannelId();
   if (!channelId) return;
 
@@ -1446,8 +1429,8 @@ async function sendTradeLog(message, ownerUser, targetUser, ownerResolvedEntries
   await channel.send({
     content: [
       "🔁 **Trade Log**",
-      `**Trader A:** ${ownerUser} gave \`${formatTradeLogEntries(ownerResolvedEntries)}\``,
-      `**Trader B:** ${targetUser} gave \`${formatTradeLogEntries(targetResolvedEntries)}\``,
+      `**Trader A:** ${ownerUser} gave \`${formatTradeLogEntries(ownerResolved)}\``,
+      `**Trader B:** ${targetUser} gave \`${formatTradeLogEntries(targetResolved)}\``,
     ].join("\n"),
     allowedMentions: {
       users: [],
@@ -1708,13 +1691,17 @@ module.exports = {
           components: [],
         });
 
-        await sendTradeLog(
-          message,
-          message.author,
-          targetUser,
-          ownerResolvedEntries,
-          targetResolvedEntries
-        );
+        try {
+          await sendTradeLog(
+            message,
+            message.author,
+            targetUser,
+            ownerResolved,
+            targetResolved
+          );
+        } catch (logError) {
+          console.error("[TRADE LOG ERROR]", logError?.message || logError);
+        }
 
         collector.stop("done");
       } catch (error) {
