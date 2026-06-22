@@ -1337,15 +1337,78 @@ function getTradeLogType(entry) {
   );
 }
 
+function isTradeLogBerries(entry) {
+  const kind = String(entry?.kind || "").toLowerCase();
+  const type = String(entry?.type || "").toLowerCase();
+  const code = String(entry?.code || entry?.raw || entry?.displayName || "")
+    .toLowerCase()
+    .trim();
+
+  return (
+    kind === "berries" ||
+    type === "berries" ||
+    code === "berries" ||
+    code === "berry" ||
+    code === "beli" ||
+    code === "money"
+  );
+}
+
+function getTradeLogAmount(entry) {
+  const amount = Number(
+    entry?.amount ??
+      entry?.count ??
+      entry?.quantity ??
+      entry?.qty ??
+      0
+  );
+
+  if (Number.isFinite(amount) && amount > 0) return amount;
+
+  const raw = String(entry?.raw || entry?.query || "").trim();
+  if (/^\d+$/.test(raw)) return Number(raw);
+
+  return 1;
+}
+
+function getTradeLogType(entry) {
+  if (!entry) return "Unknown";
+  if (isTradeLogBerries(entry)) return "Berries";
+
+  if (entry.kind === "cards" || entry.store === "cards") return "Card";
+  if (entry.kind === "cardFragment") return "Card Fragment";
+  if (entry.storeLabel) return entry.storeLabel;
+
+  const storeLabels = {
+    weapons: "Weapon",
+    devilFruits: "Devil Fruit",
+    tickets: "Ticket",
+    fragments: "Fragment",
+    materials: "Material",
+    items: "Item",
+    cards: "Card",
+  };
+
+  return (
+    storeLabels[entry.store] ||
+    entry.kind ||
+    entry.store ||
+    entry.type ||
+    "Asset"
+  );
+}
+
 function formatTradeLogEntry(entry) {
   if (!entry) return "Unknown";
 
-  if (entry.kind === "berries") {
-    return `${Number(entry.amount || 0).toLocaleString("en-US")} Berries`;
+  const amount = getTradeLogAmount(entry);
+
+  if (isTradeLogBerries(entry)) {
+    return `${amount.toLocaleString("en-US")} Berries`;
   }
 
-  const type = cleanTradeLogValue(getTradeLogType(entry));
-  const name = cleanTradeLogValue(
+  const type = String(getTradeLogType(entry) || "Asset").trim();
+  const name = String(
     entry.displayName ||
       entry.name ||
       entry.cardName ||
@@ -1353,13 +1416,13 @@ function formatTradeLogEntry(entry) {
       entry.weaponName ||
       entry.fruitName ||
       entry.code ||
+      entry.raw ||
       "Unknown"
-  );
+  )
+    .replace(/`/g, "'")
+    .trim();
 
-  const amount = Number(entry.amount || 1);
-  const amountText = amount > 1 ? ` x${amount}` : "";
-
-  return `${name}${amountText} (${type})`;
+  return `${name}${amount > 1 ? ` x${amount}` : ""} (${type})`;
 }
 
 function formatTradeLogEntries(entries) {
@@ -1380,22 +1443,20 @@ async function sendTradeLog(message, ownerUser, targetUser, ownerResolvedEntries
 
   if (!channel?.send) return;
 
-  await channel
-    .send({
-      content: [
-        "🔁 **Trade Log**",
-        `**Trader A:** ${ownerUser} gave \`${formatTradeLogEntries(ownerResolvedEntries)}\``,
-        `**Trader B:** ${targetUser} gave \`${formatTradeLogEntries(targetResolvedEntries)}\``,
-      ].join("\n"),
-      allowedMentions: {
-        users: [],
-        roles: [],
-        repliedUser: false,
-      },
-    })
-    .catch((error) => {
-      console.error("[TRADE LOG ERROR]", error?.message || error);
-    });
+  await channel.send({
+    content: [
+      "🔁 **Trade Log**",
+      `**Trader A:** ${ownerUser} gave \`${formatTradeLogEntries(ownerResolvedEntries)}\``,
+      `**Trader B:** ${targetUser} gave \`${formatTradeLogEntries(targetResolvedEntries)}\``,
+    ].join("\n"),
+    allowedMentions: {
+      users: [],
+      roles: [],
+      repliedUser: false,
+    },
+  }).catch((error) => {
+    console.error("[TRADE LOG ERROR]", error?.message || error);
+  });
 }
 
 module.exports = {
@@ -1651,10 +1712,8 @@ module.exports = {
           message,
           message.author,
           targetUser,
-          parsed.ownerOffer,
-          parsed.targetOffer,
-          ownerResolved,
-          targetResolved
+          ownerResolvedEntries,
+          targetResolvedEntries
         );
 
         collector.stop("done");
