@@ -596,7 +596,7 @@ module.exports = [
   rarity: "UR",
   owners: ["gunko_holy_knight"],
   type: "Paramecia Fruit",
-  statPercent: { atk: 11, hp: 8, speed: 5 },
+  statPercent: { atk: 10, hp: 8, speed: 5 },
   image: "",
   description: "A paramecia fruit that lets the user create and manipulate arrow-like strips for offense, control, mobility, and restraint."
   },
