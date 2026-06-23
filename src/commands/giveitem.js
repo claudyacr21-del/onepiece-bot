@@ -552,9 +552,18 @@ module.exports = {
     const amount = Number(args.shift() || 0);
     const query = args.join(" ").trim();
 
-    if (!userId || !bucket || !Number.isFinite(amount) || amount <= 0 || !query) {
+    if (!userId || !bucket || !Number.isFinite(amount) || amount === 0 || !query) {
       return message.reply({
         content: getUsageText(),
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
+    if (bucket === "weapons" && amount < 0) {
+      return message.reply({
+        content: "Negative amount is not supported for weapons. Use `op removeitem` for weapons.",
         allowedMentions: {
           repliedUser: false,
         },

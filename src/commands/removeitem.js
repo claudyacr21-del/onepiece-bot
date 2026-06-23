@@ -325,6 +325,15 @@ function sameEntry(a, b) {
   return normalize(a?.name || a?.displayName) === normalize(b?.name || b?.displayName);
 }
 
+function buildNegativeEntry(bucket, catalogEntry, amount) {
+  const entry = buildSearchEntry(bucket, catalogEntry);
+  return {
+    ...entry,
+    displayName: entry.displayName || entry.name,
+    amount: -Math.abs(amount),
+  };
+}
+
 function buildSearchEntry(bucket, catalogEntry) {
   if (bucket === "fragments") {
     return {
@@ -498,23 +507,36 @@ module.exports = {
         }
 
         if (found.index < 0) {
-          status = "not_found";
-          return fresh;
+          const catalogEntry = found.catalogEntry || findCatalogEntry(bucket, query);
+
+          if (!catalogEntry) {
+            status = "not_found";
+            return fresh;
+          }
+
+          const negativeEntry = buildNegativeEntry(bucket, catalogEntry, amount);
+
+          ownedAmount = 0;
+          removedName = getDisplayName(negativeEntry);
+          removedCode = negativeEntry.code || "none";
+
+          list.push(negativeEntry);
+
+          return {
+            ...fresh,
+            [storageBucket]: list,
+          };
         }
 
         const entry = list[found.index];
+
         ownedAmount = Number(entry.amount || 0);
         removedName = getDisplayName(entry);
         removedCode = entry.code || "none";
 
-        if (ownedAmount < amount) {
-          status = "not_enough";
-          return fresh;
-        }
-
         const nextAmount = ownedAmount - amount;
 
-        if (nextAmount <= 0) {
+        if (nextAmount === 0) {
           list.splice(found.index, 1);
         } else {
           list[found.index] = {
@@ -556,15 +578,6 @@ module.exports = {
       });
     }
 
-    if (status === "not_enough") {
-      return message.reply({
-        content: `Not enough \`${removedName}\` in \`${bucket}\`.\nOwned: ${ownedAmount}, requested remove: ${amount}.`,
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
-
     const embed = new EmbedBuilder()
       .setColor(0xe74c3c)
       .setTitle("✅ Item Removed")
@@ -576,7 +589,7 @@ module.exports = {
           `**Item:** ${removedName}`,
           `**Code:** \`${removedCode}\``,
           `**Amount Removed:** ${amount}`,
-          `**Remaining:** ${Math.max(0, ownedAmount - amount)}`,
+          `**Remaining:** ${ownedAmount - amount}`,
         ].join("\n")
       )
       .setFooter({ text: "One Piece Bot • Admin Remove Item" });
