@@ -1109,7 +1109,6 @@ module.exports = {
             line("Mastery 1 Cards", cardStats.mastery1Cards),
             line("Mastery 2 Cards", cardStats.mastery2Cards),
             line("Mastery 3 Cards", cardStats.mastery3Cards),
-            line("Boost Cards", cardStats.boostCards),
             line("Fragments", totalFragments),
             "",
             " **Progress**",
