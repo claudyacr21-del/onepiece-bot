@@ -8,7 +8,7 @@ const {
 
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard, findCardTemplate } = require("../utils/evolution");
-const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
+const { isMergeCard, buildMergedCard, getMergeSourceCodes } = require("../utils/mergeCards");
 const activeRaidReadyNotices = new Set();
 const {
   getPlayerCombatBoosts,
@@ -1415,16 +1415,9 @@ function buildBattleState(room, bossTemplate, raidMode = {}) {
       ...deriveRaidBossStats(bossTemplate, raidMode),
       bossCode: bossTemplate.code,
       bossName: bossTemplate.displayName || bossTemplate.name,
-      rarity:
-        bossTemplate.rarity ||
-        bossTemplate.currentTier ||
-        bossTemplate.baseTier ||
-        "C",
-      currentTier:
-        bossTemplate.currentTier ||
-        bossTemplate.rarity ||
-        bossTemplate.baseTier ||
-        "C",
+      rarity: bossTemplate.rarity || bossTemplate.currentTier || bossTemplate.baseTier || "C",
+      currentTier: bossTemplate.currentTier || bossTemplate.rarity || bossTemplate.baseTier || "C",
+      mergeSourceCodes: getMergeSourceCodes(bossTemplate),
     },
     round: 1,
     turnCount: 0,
@@ -1982,52 +1975,60 @@ function isMythicMergeRaid(stateOrMode = {}) {
 }
 
 function getMergeRaidComponentBosses(boss = {}) {
- const code = String(boss.code || boss.bossCode || boss.cardCode || "").toLowerCase();
- const name = String(boss.name || boss.bossName || boss.displayName || "").toLowerCase();
+  const bossCode = String(boss.code || boss.bossCode || boss.cardCode || "").toLowerCase();
+  const bossName = String(boss.name || boss.bossName || boss.displayName || "").toLowerCase();
 
-  const manual = {
-    lzs: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
-    monstertrio: ["luffy_straw_hat", "zoro_pirate_hunter", "sanji_black_leg"],
-  };
+  const template =
+    findCardTemplate(bossCode) ||
+    findCardTemplate(bossName) ||
+    null;
 
- const key = code || name.replace(/[^a-z0-9]+/g, "");
- const mapped = manual[key];
+  const directSourceCodes = [
+    ...ensureArray(boss.mergeSourceCodes),
+    ...ensureArray(template?.mergeSourceCodes),
+  ]
+    .map((code) => String(code || "").trim())
+    .filter(Boolean);
 
- if (Array.isArray(mapped) && mapped.length) {
-  return mapped.map((componentCode) => ({
-   code: componentCode,
-   bossCode: componentCode,
-   name: componentCode,
-   bossName: componentCode,
-  }));
- }
+  if (directSourceCodes.length) {
+    return directSourceCodes.map((componentCode) => ({
+      code: componentCode,
+      bossCode: componentCode,
+      name: componentCode,
+      bossName: componentCode,
+    }));
+  }
 
- const rawComponents = [
-  ...(Array.isArray(boss.components) ? boss.components : []),
-  ...(Array.isArray(boss.mergeComponents) ? boss.mergeComponents : []),
-  ...(Array.isArray(boss.requiredCards) ? boss.requiredCards : []),
-  ...(Array.isArray(boss.materialCards) ? boss.materialCards : []),
- ];
+  const rawComponents = [
+    ...ensureArray(boss.components),
+    ...ensureArray(boss.mergeComponents),
+    ...ensureArray(boss.requiredCards),
+    ...ensureArray(boss.materialCards),
+    ...ensureArray(template?.components),
+    ...ensureArray(template?.mergeComponents),
+    ...ensureArray(template?.requiredCards),
+    ...ensureArray(template?.materialCards),
+  ];
 
- return rawComponents
-  .map((entry) => {
-   if (typeof entry === "string") {
-    return {
-     code: entry,
-     bossCode: entry,
-     name: entry,
-     bossName: entry,
-    };
-   }
+  return rawComponents
+    .map((entry) => {
+      if (typeof entry === "string") {
+        return {
+          code: entry,
+          bossCode: entry,
+          name: entry,
+          bossName: entry,
+        };
+      }
 
-   return {
-    code: entry?.code || entry?.cardCode || entry?.id || entry?.name || "",
-    bossCode: entry?.code || entry?.cardCode || entry?.id || entry?.name || "",
-    name: entry?.displayName || entry?.name || entry?.code || "",
-    bossName: entry?.displayName || entry?.name || entry?.code || "",
-   };
-  })
-  .filter((entry) => entry.code || entry.name);
+      return {
+        code: entry?.code || entry?.cardCode || entry?.id || entry?.name || "",
+        bossCode: entry?.code || entry?.cardCode || entry?.id || entry?.name || "",
+        name: entry?.displayName || entry?.name || entry?.code || "",
+        bossName: entry?.displayName || entry?.name || entry?.code || "",
+      };
+    })
+    .filter((entry) => entry.code || entry.name);
 }
 
 function getMergeRaidOriginalBossPool(boss = {}) {
@@ -2318,7 +2319,7 @@ const linkedFruit = isMergeRaid
 
     const berries = boostedRewards.berries;
     const gems = boostedRewards.gems;
-    const fragments = isHost ? Number(config.fragments || 0) : 0;
+    const fragments = isHost && !isMergeRaid ? Number(config.fragments || 0) : 0;
     const universalS = isMergeRaid ? Number(config.universalS || 0) : 0;
     const gotWeapon = Boolean(isHost && linkedWeapon && randomChance(config.weaponChance));
     const gotFruit = Boolean(isHost && linkedFruit && randomChance(config.fruitChance));
@@ -2337,11 +2338,15 @@ const linkedFruit = isMergeRaid
         fragments: isHost
           ? gotWeapon
             ? addRaidWeaponFragment(
-                addRaidBossFragment(fresh.fragments, linkedFragmentBoss, fragments),
+                fragments > 0
+                  ? addRaidBossFragment(fresh.fragments, linkedFragmentBoss, fragments)
+                  : fresh.fragments,
                 linkedWeapon,
                 1
               )
-            : addRaidBossFragment(fresh.fragments, linkedFragmentBoss, fragments)
+            : fragments > 0
+              ? addRaidBossFragment(fresh.fragments, linkedFragmentBoss, fragments)
+              : fresh.fragments
           : fresh.fragments,
           items: isMergeRaid && universalS > 0
             ? addUniversalSReward(fresh.items, universalS)
