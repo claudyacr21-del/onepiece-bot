@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const { getPlayer, readPlayers } = require("../playerStore");
 const { findPirateByUser, getRole } = require("../utils/pirateStore");
 const {
@@ -56,8 +56,10 @@ function countTotalAmount(list) {
   return list.reduce((sum, item) => sum + Number(item?.amount || 0), 0);
 }
 
-function getProfileImage(message) {
+function getProfileImage(message, targetUser = null, targetMember = null) {
   return (
+    targetMember?.displayAvatarURL?.({ extension: "png", size: 512 }) ||
+    targetUser?.displayAvatarURL?.({ extension: "png", size: 512 }) ||
     message.member?.displayAvatarURL?.({ extension: "png", size: 512 }) ||
     message.author.displayAvatarURL({ extension: "png", size: 512 })
   );
@@ -902,6 +904,108 @@ function safeLocaleNumber(value) {
   return Number(value || 0).toLocaleString("en-US");
 }
 
+function getEnvIdList(...keys) {
+  return keys
+    .flatMap((key) => String(process.env[key] || "").split(/[,\s]+/))
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
+function isProfileAdmin(message) {
+  const ownerIds = getEnvIdList(
+    "BOT_OWNER_ID",
+    "BOT_OWNER_IDS"
+  );
+
+  if (ownerIds.includes(String(message.author.id))) return true;
+
+  const adminRoleIds = getEnvIdList(
+    "ADMIN_ROLE_IDS",
+    "ADMIN_ROLE_ID",
+    "BOT_ADMIN_ROLE_IDS"
+  );
+
+  const memberRoles = message.member?.roles?.cache;
+  if (memberRoles && adminRoleIds.some((roleId) => memberRoles.has(roleId))) {
+    return true;
+  }
+
+  return Boolean(
+    message.member?.permissions?.has?.(PermissionFlagsBits.Administrator) ||
+      message.member?.permissions?.has?.(PermissionFlagsBits.ManageGuild)
+  );
+}
+
+function extractProfileTargetId(message, args = []) {
+  const mentionedUser = message.mentions?.users?.first?.();
+  if (mentionedUser?.id) return mentionedUser.id;
+
+  const rawArg = String(args?.[0] || "").trim();
+  if (!rawArg) return message.author.id;
+
+  const cleanId = rawArg.replace(/[<@!>]/g, "");
+  if (/^\d{15,25}$/.test(cleanId)) return cleanId;
+
+  return message.author.id;
+}
+
+async function resolveProfileTarget(message, args = []) {
+  const targetId = extractProfileTargetId(message, args);
+  const isSelf = String(targetId) === String(message.author.id);
+
+  if (!isSelf && !isProfileAdmin(message)) {
+    return {
+      error: "❌ Only admins can view another player's profile.",
+    };
+  }
+
+  let targetUser =
+    message.mentions?.users?.get?.(targetId) ||
+    (isSelf ? message.author : null);
+
+  if (!targetUser) {
+    targetUser = await message.client.users.fetch(targetId).catch(() => null);
+  }
+
+  if (!targetUser) {
+    return {
+      error: "❌ User not found.",
+    };
+  }
+
+  let targetMember = null;
+
+  if (message.guild) {
+    targetMember =
+      message.guild.members.cache.get(targetId) ||
+      (await message.guild.members.fetch(targetId).catch(() => null));
+  }
+
+  return {
+    targetId,
+    targetUser,
+    targetMember,
+    isSelf,
+  };
+}
+
+function getExistingOrSelfPlayer(targetId, targetUser, isSelf) {
+  if (isSelf) {
+    return getPlayer(targetId, targetUser.username);
+  }
+
+  const players = readPlayers() || {};
+  return players[String(targetId)] || null;
+}
+
+function createTargetProfileMessage(message, targetUser, targetMember) {
+  return {
+    ...message,
+    author: targetUser,
+    member: targetMember || message.member,
+  };
+}
+
 function getProfilePirateName(userId) {
   try {
     const pirate = findPirateByUser(userId);
@@ -913,16 +1017,48 @@ function getProfilePirateName(userId) {
 
 module.exports = {
   name: "profile",
-
-  async execute(message) {
+  async execute(message, args = []) {
     try {
-      const player = getPlayer(message.author.id, message.author.username);
-      const pirateProfileText = formatPirateProfileLine(message.author.id);
+      const resolvedTarget = await resolveProfileTarget(message, args);
+
+      if (resolvedTarget.error) {
+        return message.reply({
+          content: resolvedTarget.error,
+          allowedMentions: {
+            repliedUser: false,
+          },
+        });
+      }
+
+      const { targetId, targetUser, targetMember, isSelf } = resolvedTarget;
+
+      const player = getExistingOrSelfPlayer(targetId, targetUser, isSelf);
+
+      if (!player) {
+        return message.reply({
+          content: `❌ ${targetUser.username} does not have a profile yet.`,
+          allowedMentions: {
+            repliedUser: false,
+          },
+        });
+      }
+
+      const profileMessage = createTargetProfileMessage(
+        message,
+        targetUser,
+        targetMember
+      );
+
+      const pirateProfileText = formatPirateProfileLine(targetId);
       const totalFragments = countTotalAmount(player.fragments);
 
-      const isMotherFlame = await isPremiumUser(message).catch(() => false);
-      const isVivreCard = await isLitePremiumUser(message).catch(() => false);
-      const booster = await isServerBooster(message).catch(() => false);
+      const isMotherFlame = await isPremiumUser(profileMessage).catch(
+        () => false
+      );
+      const isVivreCard = await isLitePremiumUser(profileMessage).catch(
+        () => false
+      );
+      const booster = await isServerBooster(profileMessage).catch(() => false);
 
       const captainBadges = getCaptainBadges(player, {
         isMotherFlame,
@@ -933,42 +1069,50 @@ module.exports = {
       const totalPower = getTotalPower(player);
       const teamPower = getTeamPower(player);
       const storyProgress = getStoryProgress(player);
-      const arena = getArenaSummary(player, message.author.id, message);
+      const arena = getArenaSummary(player, targetId);
       const ship = getShipSummary(player);
       const cardStats = getCardStatistics(player);
-      const pirateName = getProfilePirateName(message.author.id);
-      const avatar = getProfileImage(message);
+      const avatar = getProfileImage(message, targetUser, targetMember);
+
+      const viewedByText = isSelf
+        ? "One Piece Bot • Profile"
+        : `One Piece Bot • Admin Profile View • Requested by ${message.author.username}`;
 
       const embed = new EmbedBuilder()
         .setColor(0x3498db)
         .setAuthor({
-          name: `${player.username || message.author.username}'s Profile`,
+          name: `${player.username || targetUser.username}'s Profile`,
           iconURL: avatar,
         })
         .setDescription(
           [
-            "🌊 **Captain**",
+            " **Captain**",
             line("Island", player.currentIsland || DEFAULT_START_ISLAND),
             line(
               "Premium",
-              isMotherFlame ? "Mother Flame" : isVivreCard ? "Vivre Card" : "Normal"
+              isMotherFlame
+                ? "Mother Flame"
+                : isVivreCard
+                  ? "Vivre Card"
+                  : "Normal"
             ),
             line("Pirates", pirateProfileText),
             line("Ship", `${ship.name} • Tier ${ship.tier}`),
             rawLine("Badges", captainBadges),
             "",
-            "💰 **Wallet**",
+            " **Wallet**",
             line("Berries", safeLocaleNumber(player.berries)),
             line("Gems", safeLocaleNumber(player.gems)),
             "",
-            "🃏 **Cards**",
+            " **Cards**",
             line("Cards Owned", cardStats.totalCards),
             line("Mastery 1 Cards", cardStats.mastery1Cards),
             line("Mastery 2 Cards", cardStats.mastery2Cards),
             line("Mastery 3 Cards", cardStats.mastery3Cards),
+            line("Boost Cards", cardStats.boostCards),
             line("Fragments", totalFragments),
             "",
-            "🧩 **Progress**",
+            " **Progress**",
             line("Total Power", safeLocaleNumber(totalPower)),
             line("Team Power", safeLocaleNumber(teamPower)),
             line("Story", storyProgress),
@@ -983,18 +1127,19 @@ module.exports = {
         )
         .setThumbnail(avatar)
         .setFooter({
-          text: "One Piece Bot • Profile",
+          text: viewedByText,
         });
 
       return message.reply({
         embeds: [embed],
         allowedMentions: {
           repliedUser: false,
+          users: [],
+          roles: [],
         },
       });
     } catch (error) {
       console.error("[PROFILE COMMAND ERROR]", error);
-
       return message.reply({
         content: `❌ Failed to load profile: \`${error.message || "Unknown error"}\``,
         allowedMentions: {
