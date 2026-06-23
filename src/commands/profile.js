@@ -1072,6 +1072,7 @@ module.exports = {
       const arena = getArenaSummary(player, targetId);
       const ship = getShipSummary(player);
       const cardStats = getCardStatistics(player);
+      const lifetimeCardsPulled = Number(player?.stats?.cardsPulled || 0);
       const avatar = getProfileImage(message, targetUser, targetMember);
 
       const viewedByText = isSelf
@@ -1114,6 +1115,7 @@ module.exports = {
             " **Progress**",
             line("Total Power", safeLocaleNumber(totalPower)),
             line("Team Power", safeLocaleNumber(teamPower)),
+            line("Lifetime Cards Pulled", safeLocaleNumber(lifetimeCardsPulled)),
             line("Story", storyProgress),
             "",
             "⚔️ **Arena**",
