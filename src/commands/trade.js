@@ -1416,29 +1416,135 @@ function formatTradeLogEntries(entries) {
   return list.map(formatTradeLogEntry).join(", ");
 }
 
+async function resolveTradeLogMember(message, userLike) {
+  const id = String(userLike?.id || userLike || "").replace(/\D/g, "");
+
+  if (!id) {
+    return {
+      id: "unknown",
+      mention: "Unknown User",
+      name: "Unknown User",
+      tag: "Unknown User",
+      line: "Unknown User",
+    };
+  }
+
+  const guild = message.guild || null;
+  const client = message.client || null;
+
+  let member = null;
+  let user = null;
+
+  if (guild?.members?.cache) {
+    member = guild.members.cache.get(id) || null;
+  }
+
+  if (!member && guild?.members?.fetch) {
+    member = await guild.members.fetch(id).catch(() => null);
+  }
+
+  if (member?.user) {
+    user = member.user;
+  }
+
+  if (!user && client?.users?.cache) {
+    user = client.users.cache.get(id) || null;
+  }
+
+  if (!user && client?.users?.fetch) {
+    user = await client.users.fetch(id).catch(() => null);
+  }
+
+  if (!user && userLike && typeof userLike === "object") {
+    user = userLike;
+  }
+
+  const mention = `<@${id}>`;
+
+  const name =
+    member?.displayName ||
+    user?.globalName ||
+    user?.username ||
+    userLike?.globalName ||
+    userLike?.username ||
+    `User ${id}`;
+
+  const tag =
+    user?.tag ||
+    user?.username ||
+    userLike?.tag ||
+    userLike?.username ||
+    name;
+
+  return {
+    id,
+    mention,
+    name,
+    tag,
+    line: `${mention}\n${name}\nID: ${id}`,
+  };
+}
+
 async function sendTradeLog(message, ownerUser, targetUser, ownerResolved, targetResolved) {
-  const channelId = getTradeLogChannelId();
+  const channelId =
+    process.env.TRADE_LOG_CHANNEL_ID ||
+    process.env.TRADE_LOG_CHANNEL ||
+    process.env.TRADE_LOGS_CHANNEL_ID;
+
   if (!channelId) return;
 
   const channel =
-    message.client?.channels?.cache?.get(channelId) ||
-    (await message.client?.channels?.fetch?.(channelId).catch(() => null));
+    message.client.channels.cache.get(channelId) ||
+    (await message.client.channels.fetch(channelId).catch(() => null));
 
   if (!channel?.send) return;
 
+  const ownerLog = await resolveTradeLogMember(message, ownerUser);
+  const targetLog = await resolveTradeLogMember(message, targetUser);
+
+  const ownerItems = Array.isArray(ownerResolved)
+    ? ownerResolved.map(fmtResolvedEntry).join("\n")
+    : "Nothing";
+
+  const targetItems = Array.isArray(targetResolved)
+    ? targetResolved.map(fmtResolvedEntry).join("\n")
+    : "Nothing";
+
+  const embed = new EmbedBuilder()
+    .setTitle("Trade Completed")
+    .setColor(0x2ecc71)
+    .setDescription(`${ownerLog.mention} traded with ${targetLog.mention}`)
+    .addFields(
+      {
+        name: "Trader 1",
+        value: ownerLog.line,
+        inline: true,
+      },
+      {
+        name: "Trader 2",
+        value: targetLog.line,
+        inline: true,
+      },
+      {
+        name: "Trader 1 Gave",
+        value: ownerItems || "Nothing",
+        inline: false,
+      },
+      {
+        name: "Trader 2 Gave",
+        value: targetItems || "Nothing",
+        inline: false,
+      }
+    )
+    .setTimestamp();
+
   await channel.send({
-    content: [
-      "🔁 **Trade Log**",
-      `**Trader A:** ${ownerUser} gave \`${formatTradeLogEntries(ownerResolved)}\``,
-      `**Trader B:** ${targetUser} gave \`${formatTradeLogEntries(targetResolved)}\``,
-    ].join("\n"),
+    embeds: [embed],
     allowedMentions: {
+      parse: [],
       users: [],
       roles: [],
-      repliedUser: false,
     },
-  }).catch((error) => {
-    console.error("[TRADE LOG ERROR]", error?.message || error);
   });
 }
 
