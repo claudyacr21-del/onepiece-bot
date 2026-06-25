@@ -1,7 +1,7 @@
 const PIRATE_SHOP_ITEMS = {
   rum: {
-    key: "rum",
-    name: "Rum",
+    key: "rum_beer",
+    name: "Rum Beer",
     price: 2,
     amount: 50,
     type: "item",
