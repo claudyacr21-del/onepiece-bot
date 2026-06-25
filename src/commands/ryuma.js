@@ -184,41 +184,23 @@ const SHOP_ITEMS = [
     },
   },
   {
-    key: "gems_5",
-    name: "5 Gems",
+    key: "gems_500",
+    name: "500 Gems",
     price: 350,
     limit: 8,
-    aliases: ["gems", "gem", "5 gems"],
+    aliases: ["gems", "gem", "500 gems"],
     rewards: {
-      gems: 5,
+      gems: 500,
     },
   },
   {
-    key: "gems_10",
-    name: "10 Gems",
+    key: "gems_1000",
+    name: "1,000 Gems",
     price: 650,
     limit: 4,
-    aliases: ["10 gems"],
+    aliases: ["1000 gems", "1k gems", "1000 gem", "1k gem"],
     rewards: {
-      gems: 10,
-    },
-  },
-  {
-    key: "materials_pack",
-    name: "Materials Pack",
-    price: 300,
-    limit: 10,
-    aliases: ["materials", "material", "mat", "mats", "materials pack"],
-    rewards: {
-      items: [
-        {
-          code: "materials_pack",
-          name: "Materials Pack",
-          amount: 1,
-          type: "Event Item",
-          description: "A material pack from the Ryuma Event Shop.",
-        },
-      ],
+      gems: 1000,
     },
   },
   {
@@ -249,6 +231,23 @@ const SHOP_ITEMS = [
         {
           code: "gold_raid_ticket",
           name: "Gold Raid Ticket",
+          amount: 1,
+          type: "Ticket",
+        },
+      ],
+    },
+  },
+  {
+    key: "mythic_raid_ticket",
+    name: "Mythic Raid Ticket",
+    price: 2500,
+    limit: 2,
+    aliases: ["mythic raid", "mythic raid ticket", "mythic raid tickets", "mrt"],
+    rewards: {
+      tickets: [
+        {
+          code: "mythic_raid_ticket",
+          name: "Mythic Raid Ticket",
           amount: 1,
           type: "Ticket",
         },
