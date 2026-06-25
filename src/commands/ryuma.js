@@ -308,10 +308,6 @@ function getDefaultGlobalState() {
   };
 }
 
-function isEventStarted(globalState) {
-  return now() >= Number(globalState.startedAt || 0);
-}
-
 function getGlobalState(players) {
   const raw = players[GLOBAL_STORE_ID] || {};
   const fallback = getDefaultGlobalState();
@@ -339,6 +335,10 @@ function saveGlobalState(players, state) {
 
 function getHpLeft(globalState) {
   return Math.max(0, MAX_HP - Math.max(0, Number(globalState.totalDamage || 0)));
+}
+
+function isEventStarted(globalState) {
+  return now() >= Number(globalState.startedAt || 0);
 }
 
 function isEventEnded(globalState) {
@@ -566,14 +566,14 @@ function getBonusClaims(eventData) {
   return claims;
 }
 
-function buildMainRows(disabled = false) {
+function buildMainRows(disabled = false, attackDisabled = disabled) {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("ryuma_attack")
         .setLabel("Attack")
         .setStyle(ButtonStyle.Danger)
-        .setDisabled(disabled),
+        .setDisabled(Boolean(attackDisabled)),
       new ButtonBuilder()
         .setCustomId("ryuma_rewards")
         .setLabel("Rewards")
@@ -602,17 +602,25 @@ function buildPanelEmbed(message) {
   const hpLeft = getHpLeft(globalState);
   const nextGlobal = getNextGlobalMilestone(globalState.totalDamage);
   const nextPersonal = getNextPersonalMilestone(eventData.damage);
-  const timeLeft = Math.max(0, Number(globalState.endsAt || 0) - now());
+  const eventStarted = isEventStarted(globalState);
+  const eventEnded = isEventEnded(globalState);
+
+  const timeText = !eventStarted
+    ? `Starts <t:${Math.floor(Number(globalState.startedAt || 0) / 1000)}:R>`
+    : eventEnded
+        ? "Event ended"
+        : formatDuration(Math.max(0, Number(globalState.endsAt || 0) - now()));
 
   const embed = new EmbedBuilder()
     .setColor(0x8e44ad)
     .setTitle(EVENT_NAME)
     .setDescription(
       [
+        `**Status:** ${!eventStarted ? "Not Started" : eventEnded ? "Ended" : "Active"}`,
         `**Boss:** ${BOSS_NAME}`,
         `**Boss HP:** ${fmt(hpLeft)} / ${fmt(MAX_HP)}`,
         `**Global Damage:** ${fmt(globalState.totalDamage)}`,
-        `**Time Left:** ${formatDuration(timeLeft)}`,
+        `**Time:** ${timeText}`,
         "",
         `**Your Damage:** ${fmt(eventData.damage)}`,
         `**Your Ryuma Tokens:** ${fmt(player.ryumaTokens || 0)}`,
