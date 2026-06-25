@@ -103,7 +103,7 @@ module.exports = [
     code: "gura_gura_no_mi",
     name: "Gura Gura no Mi",
     rarity: "UR",
-    owners: ["whitebeard_strongest_man", "blackbeard_emperor_of_darkness"],
+    owners: ["whitebeard_strongest_man"],
     type: "Paramecia Fruit",
     statPercent: { atk: 10, hp: 8, speed: 5 },
     image: "",
