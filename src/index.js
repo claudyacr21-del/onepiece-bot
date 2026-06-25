@@ -461,6 +461,68 @@ function isMaintenanceBypassUser(message) {
   return Boolean(isBotOwner || isServerOwner);
 }
 
+function isAdminBypassUser(message) {
+  const ownerIds = getOwnerIds();
+  const userId = String(message?.author?.id || "");
+  const guild = getCommandGuild(message);
+  const member = getCommandMember(message);
+
+  const isBotOwner = ownerIds.includes(userId);
+  const isServerOwner = guild && String(guild.ownerId) === userId;
+  const isAdminPerm = member?.permissions?.has?.("Administrator");
+
+  const roleIds = String(process.env.ADMIN_ROLE_IDS || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  const hasAdminRole = roleIds.length && member?.roles?.cache
+    ? roleIds.some((roleId) => member.roles.cache.has(roleId))
+    : false;
+
+  return Boolean(isBotOwner || isServerOwner || isAdminPerm || hasAdminRole);
+}
+
+function getPlayerAdminBan(player) {
+  const ban = player?.adminBan && typeof player.adminBan === "object" ? player.adminBan : null;
+  if (!ban || !ban.active) return null;
+
+  return {
+    active: true,
+    reason: String(ban.reason || "No reason provided."),
+    bannedBy: String(ban.bannedBy || ""),
+    bannedAt: Number(ban.bannedAt || 0),
+  };
+}
+
+function isBanBypassCommand(commandName, command) {
+  const allowed = new Set([
+    "banuser",
+    "unbanuser",
+    "baninfo",
+    "maintenance",
+    "help",
+  ]);
+
+  const typed = normalizeCommandName(commandName);
+  const real = normalizeCommandName(command?.name);
+
+  return allowed.has(typed) || allowed.has(real);
+}
+
+function createPlayerBanMessage(ban) {
+  const lines = [
+    "You are banned from using this bot.",
+    `Reason: ${ban.reason || "No reason provided."}`,
+  ];
+
+  if (ban.bannedAt) {
+    lines.push(`Banned At: <t:${Math.floor(Number(ban.bannedAt) / 1000)}:F>`);
+  }
+
+  return lines.join("\n");
+}
+
 function createDefaultPlayerForMilestone(message) {
   return {
     username: message.author.username,
@@ -626,6 +688,24 @@ client.on("messageCreate", async (message) => {
     }
 
     await attachMainServerContext(message);
+
+    const playersForBanCheck = readPlayers();
+    const commandUserForBanCheck = playersForBanCheck[String(message.author.id)];
+    const activeAdminBan = getPlayerAdminBan(commandUserForBanCheck);
+
+    if (
+      activeAdminBan &&
+      !isAdminBypassUser(message) &&
+      !isBanBypassCommand(commandName, command)
+    ) {
+      await message.reply({
+        content: createPlayerBanMessage(activeAdminBan),
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+      return;
+    }
 
     if (
       isMaintenanceActive() &&
