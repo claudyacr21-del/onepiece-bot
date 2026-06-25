@@ -11,7 +11,7 @@ const {
   writePlayers,
   getPlayer,
 } = require("../playerStore");
-
+const { getPlayerCombatCards } = require("../utils/combatStats");
 const EVENT_ID = "ryuma_global_boss";
 const GLOBAL_STORE_ID = "__ryuma_global_boss_event";
 
@@ -19,8 +19,51 @@ const EVENT_NAME = "Ryuma Global Boss Event";
 const BOSS_NAME = "Ryuma";
 
 const MAX_HP = 600000000;
-const DAMAGE_PER_ATTACK = 5000;
+const BOSS_DAMAGE = 5000;
 const ATTACK_LIMIT = 20;
+
+const CARD_DAMAGE_RATE = 0.35;
+const MIN_CARD_DAMAGE = 5000;
+const MAX_CARD_DAMAGE_BY_PHASE = {
+  1: 150000,
+  2: 200000,
+  3: 250000,
+  4: 350000,
+};
+
+const PHASE_DAMAGE_MULTIPLIER = {
+  1: 1,
+  2: 1.15,
+  3: 1.3,
+  4: 1.5,
+};
+
+const BOSS_PHASES = [
+  {
+    phase: 1,
+    name: "Shusui Awakening",
+    minHpExclusive: 450000000,
+    description: "Ryuma enters the battlefield with calm sword pressure.",
+  },
+  {
+    phase: 2,
+    name: "Dragon Slayer",
+    minHpExclusive: 300000000,
+    description: "Ryuma's sword aura grows stronger.",
+  },
+  {
+    phase: 3,
+    name: "Black Blade Legend",
+    minHpExclusive: 150000000,
+    description: "Ryuma unleashes the power of a legendary black blade.",
+  },
+  {
+    phase: 4,
+    name: "Final Samurai Spirit",
+    minHpExclusive: -1,
+    description: "Ryuma fights with his final legendary spirit.",
+  },
+];
 const ATTACK_WINDOW_MS = 6 * 60 * 60 * 1000;
 const EVENT_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -338,6 +381,195 @@ function getHpLeft(globalState) {
   return Math.max(0, MAX_HP - Math.max(0, Number(globalState.totalDamage || 0)));
 }
 
+function getBossPhase(globalState) {
+  const hpLeft = getHpLeft(globalState);
+
+  return (
+    BOSS_PHASES.find((phase) => hpLeft > phase.minHpExclusive) ||
+    BOSS_PHASES[BOSS_PHASES.length - 1]
+  );
+}
+
+function getRyumaTeamCards(player) {
+  const cards = getPlayerCombatCards(player);
+  const slots = Array.isArray(player?.team?.slots)
+    ? player.team.slots.slice(0, 3)
+    : [];
+
+  return slots
+    .map((instanceId) => {
+      if (!instanceId) return null;
+
+      return (
+        cards.find((card) => {
+          return (
+            String(card.instanceId || "") === String(instanceId || "") &&
+            String(card.cardRole || "").toLowerCase() !== "boost"
+          );
+        }) || null
+      );
+    })
+    .filter(Boolean);
+}
+
+function getRyumaCardName(card) {
+  return String(
+    card?.displayName ||
+      card?.name ||
+      card?.code ||
+      "Unknown Card"
+  );
+}
+
+function getRyumaCardKey(card, index = 0) {
+  return String(
+    card?.instanceId ||
+      card?.id ||
+      card?.cardId ||
+      card?.code ||
+      `${getRyumaCardName(card)}_${index}`
+  );
+}
+
+function getRyumaCardMaxHp(card) {
+  const hp = Number(
+    card?.teamHp ||
+      card?.combatHp ||
+      card?.battleHp ||
+      card?.maxHp ||
+      card?.finalHp ||
+      card?.displayHp ||
+      card?.hp ||
+      0
+  );
+
+  return Math.max(1, Math.floor(hp));
+}
+
+function getRyumaCardPower(card) {
+  const directPower = Number(
+    card?.teamPower ||
+      card?.currentPower ||
+      card?.finalPower ||
+      card?.power ||
+      card?.combatPower ||
+      card?.battlePower ||
+      0
+  );
+
+  if (Number.isFinite(directPower) && directPower > 0) {
+    return Math.floor(directPower);
+  }
+
+  const atk = Number(card?.atk || card?.finalAtk || card?.displayAtk || 0);
+  const hp = Number(card?.hp || card?.finalHp || card?.displayHp || 0);
+  const speed = Number(card?.speed || card?.spd || card?.finalSpeed || card?.displaySpeed || 0);
+
+  return Math.max(1, Math.floor((atk * 1.4) + (hp * 0.22) + (speed * 9)));
+}
+
+function getRyumaCardDamage(card, bossPhase) {
+  const phase = Number(bossPhase?.phase || 1);
+  const cardPower = getRyumaCardPower(card);
+  const multiplier = Number(PHASE_DAMAGE_MULTIPLIER[phase] || 1);
+  const maxDamage = Number(MAX_CARD_DAMAGE_BY_PHASE[phase] || 150000);
+
+  const damage = Math.floor(cardPower * CARD_DAMAGE_RATE * multiplier);
+
+  return Math.max(
+    MIN_CARD_DAMAGE,
+    Math.min(maxDamage, damage)
+  );
+}
+
+function normalizeRyumaCardHp(eventData, teamCards, attackWindow) {
+  const currentHp = eventData.cardHp && typeof eventData.cardHp === "object"
+    ? eventData.cardHp
+    : {};
+
+  const shouldReset =
+    Number(eventData.cardHpWindowStartedAt || 0) !== Number(attackWindow.attackWindowStartedAt || 0);
+
+  const nextHp = {};
+
+  for (const [index, card] of teamCards.entries()) {
+    const key = getRyumaCardKey(card, index);
+    const maxHp = getRyumaCardMaxHp(card);
+
+    nextHp[key] = shouldReset
+      ? maxHp
+      : Math.max(0, Math.min(maxHp, Number(currentHp[key] ?? maxHp)));
+  }
+
+  return {
+    cardHp: nextHp,
+    cardHpWindowStartedAt: attackWindow.attackWindowStartedAt,
+  };
+}
+
+function getAliveRyumaTeamCards(teamCards, cardHp) {
+  return teamCards.filter((card, index) => {
+    const key = getRyumaCardKey(card, index);
+    return Number(cardHp[key] || 0) > 0;
+  });
+}
+
+function buildRyumaCardRows(teamCards, cardHp) {
+  const buttons = teamCards.slice(0, 3).map((card, index) => {
+    const key = getRyumaCardKey(card, index);
+    const hp = Number(cardHp[key] || 0);
+
+    return new ButtonBuilder()
+      .setCustomId(`ryuma_card_${index}`)
+      .setLabel(getRyumaCardName(card).slice(0, 80))
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(hp <= 0);
+  });
+
+  return [
+    new ActionRowBuilder().addComponents(buttons),
+  ];
+}
+
+function buildRyumaCardSelectEmbed(globalState, teamCards, cardHp) {
+  const hpLeft = getHpLeft(globalState);
+  const bossPhase = getBossPhase(globalState);
+
+  const cardLines = teamCards.map((card, index) => {
+    const key = getRyumaCardKey(card, index);
+    const currentHp = Math.max(0, Number(cardHp[key] || 0));
+    const maxHp = getRyumaCardMaxHp(card);
+    const power = getRyumaCardPower(card);
+    const damage = getRyumaCardDamage(card, bossPhase);
+
+    return [
+      `**${index + 1}. ${getRyumaCardName(card)}**`,
+      `HP: ${fmt(currentHp)} / ${fmt(maxHp)}`,
+      `Power: ${fmt(power)}`,
+      `Estimated Damage: ${currentHp > 0 ? fmt(damage) : "K.O."}`,
+    ].join("\n");
+  });
+
+  return new EmbedBuilder()
+    .setColor(0xe74c3c)
+    .setTitle(`${BOSS_NAME} Battle`)
+    .setDescription(
+      [
+        `Choose one of your team cards to attack **${BOSS_NAME}**.`,
+        "",
+        `**Boss HP:** ${fmt(hpLeft)} / ${fmt(MAX_HP)}`,
+        `**Ryuma Counter Damage:** ${fmt(BOSS_DAMAGE)}`,
+        `**Phase:** ${bossPhase.phase}/4 — ${bossPhase.name}`,
+        "",
+        cardLines.join("\n\n"),
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One attack will be consumed after choosing a card. Team HP resets every 6 hours.",
+    })
+    .setTimestamp();
+}
+
 function isEventStarted(globalState) {
   return now() >= Number(globalState.startedAt || 0);
 }
@@ -394,6 +626,11 @@ function getEventData(player) {
       data.shopPurchases && typeof data.shopPurchases === "object"
         ? data.shopPurchases
         : {},
+    cardHp:
+      data.cardHp && typeof data.cardHp === "object"
+        ? data.cardHp
+        : {},
+    cardHpWindowStartedAt: Number(data.cardHpWindowStartedAt || 0),
   };
 }
 
@@ -616,6 +853,7 @@ function buildPanelEmbed(message) {
   const eventData = getEventData(player);
   const attackWindow = getAttackWindow(eventData);
   const hpLeft = getHpLeft(globalState);
+  const bossPhase = getBossPhase(globalState);
   const nextGlobal = getNextGlobalMilestone(globalState.totalDamage);
   const nextPersonal = getNextPersonalMilestone(eventData.damage);
   const eventStarted = isEventStarted(globalState);
@@ -635,6 +873,8 @@ function buildPanelEmbed(message) {
         `**Status:** ${!eventStarted ? "Not Started" : eventEnded ? "Ended" : "Active"}`,
         `**Boss:** ${BOSS_NAME}`,
         `**Boss HP:** ${fmt(hpLeft)} / ${fmt(MAX_HP)}`,
+        `**Boss Damage:** ${fmt(BOSS_DAMAGE)}`,
+        `**Phase:** ${bossPhase.phase}/4 — ${bossPhase.name}`,
         `**Global Damage:** ${fmt(globalState.totalDamage)}`,
         `**Time:** ${timeText}`,
         "",
@@ -782,10 +1022,6 @@ function buildShopEmbed(message) {
         "",
         "**Examples:**",
         "`op ryuma shop buy raid ticket 3`",
-        "`op ryuma shop buy gold raid ticket 2`",
-        "`op ryuma shop buy pull reset ticket 1`",
-        "`op ryuma shop buy berries 5`",
-        "`op ryuma shop buy gems 4`",
       ].join("\n")
     )
     .setFooter({
@@ -804,11 +1040,7 @@ async function buyShopItem(message, buyArgs = []) {
         "Invalid shop item.",
         "",
         "**Examples:**",
-        "`op ryuma shop buy raid ticket 3`",
         "`op ryuma shop buy gold raid ticket 2`",
-        "`op ryuma shop buy pull reset ticket 1`",
-        "`op ryuma shop buy berries 5`",
-        "`op ryuma shop buy gems 4`",
       ].join("\n"),
       allowedMentions: {
         repliedUser: false,
@@ -895,16 +1127,16 @@ async function buyShopItem(message, buyArgs = []) {
   });
 }
 
-async function performAttack(message, editableMessage = null) {
+async function performAttack(message) {
   const players = readPlayers();
   const globalState = getGlobalState(players);
 
   if (!isEventStarted(globalState)) {
     return message.reply({
-        content: `The Ryuma Global Boss Event has not started yet.\nStarts: ${RYUMA_EVENT_START_LABEL}`,
-        allowedMentions: {
+      content: `The Ryuma Global Boss Event has not started yet.\nStarts: ${RYUMA_EVENT_START_LABEL}`,
+      allowedMentions: {
         repliedUser: false,
-        },
+      },
     });
   }
 
@@ -918,7 +1150,7 @@ async function performAttack(message, editableMessage = null) {
   }
 
   let player = getPlayer(players, message.author.id, message.author.username);
-  const eventData = getEventData(player);
+  let eventData = getEventData(player);
   const attackWindow = getAttackWindow(eventData);
 
   if (attackWindow.attacksLeft <= 0) {
@@ -930,78 +1162,225 @@ async function performAttack(message, editableMessage = null) {
     });
   }
 
-  const nextEventData = {
+  const teamCards = getRyumaTeamCards(player);
+
+  if (!teamCards.length) {
+    return message.reply({
+      content: "You need at least 1 battle card in your team before attacking Ryuma.",
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
+
+  const hpState = normalizeRyumaCardHp(eventData, teamCards, attackWindow);
+
+  eventData = {
     ...eventData,
-    joinedAt: eventData.joinedAt || now(),
-    damage: eventData.damage + DAMAGE_PER_ATTACK,
-    attackWindowStartedAt: attackWindow.attackWindowStartedAt,
-    attacksUsed: attackWindow.attacksUsed + 1,
-    claimedPersonalMilestones: [...eventData.claimedPersonalMilestones],
-    claimedBonusMilestones: [...eventData.claimedBonusMilestones],
+    cardHp: hpState.cardHp,
+    cardHpWindowStartedAt: hpState.cardHpWindowStartedAt,
   };
 
-  const claimedLines = [];
-
-  for (const milestone of getPersonalClaims(nextEventData)) {
-    player = applyRewards(player, milestone.rewards);
-    nextEventData.claimedPersonalMilestones.push(milestone.damage);
-    claimedLines.push(`Personal ${fmt(milestone.damage)} damage: ${rewardLines(milestone.rewards).join(", ")}`);
-  }
-
-  for (const bonusDamage of getBonusClaims(nextEventData)) {
-    player = applyRewards(player, BONUS_REWARD);
-    nextEventData.claimedBonusMilestones.push(bonusDamage);
-    claimedLines.push(`Bonus ${fmt(bonusDamage)} damage: ${rewardLines(BONUS_REWARD).join(", ")}`);
-  }
-
-  player = setEventData(player, nextEventData);
-
-  globalState.totalDamage = Math.max(0, Number(globalState.totalDamage || 0)) + DAMAGE_PER_ATTACK;
-
-  players[GLOBAL_STORE_ID] = globalState;
+  player = setEventData(player, eventData);
   players[String(message.author.id)] = player;
   writePlayers(players);
 
-  const hpLeft = getHpLeft(globalState);
-
-  const embed = new EmbedBuilder()
-    .setColor(0xe74c3c)
-    .setTitle(`${BOSS_NAME} Attacked`)
-    .setDescription(
-      [
-        `You attacked **${BOSS_NAME}** and dealt **${fmt(DAMAGE_PER_ATTACK)} damage**.`,
-        "",
-        `**Boss HP:** ${fmt(hpLeft)} / ${fmt(MAX_HP)}`,
-        `**Global Damage:** ${fmt(globalState.totalDamage)}`,
-        `**Your Damage:** ${fmt(nextEventData.damage)}`,
-        "",
-        claimedLines.length
-          ? `**Rewards Auto-Claimed:**\n${claimedLines.map((line) => `- ${line}`).join("\n")}`
-          : "No new personal milestone reward unlocked.",
-      ].join("\n")
-    )
-    .setFooter({
-      text: "One Piece Bot • Ryuma Event",
-    })
-    .setTimestamp();
-
-  if (RYUMA_ATTACK_GIF) {
-    embed.setImage(RYUMA_ATTACK_GIF);
+  if (!getAliveRyumaTeamCards(teamCards, eventData.cardHp).length) {
+    return message.reply({
+      content: `All your team cards are knocked out. Your team HP resets <t:${Math.floor(attackWindow.resetAt / 1000)}:R>.`,
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
   }
 
-  const payload = {
-    embeds: [embed],
-    components: buildMainRows(false, !isEventStarted(getGlobalState(readPlayers()))),
+  const sent = await message.reply({
+    embeds: [buildRyumaCardSelectEmbed(globalState, teamCards, eventData.cardHp)],
+    components: buildRyumaCardRows(teamCards, eventData.cardHp),
     allowedMentions: {
       repliedUser: false,
     },
-  };
+  });
 
-  if (editableMessage?.edit) {
-    return editableMessage.edit(payload).catch(() => message.reply(payload));
-  }
+  const collector = sent.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    time: 60 * 1000,
+    max: 1,
+  });
 
-  return message.reply(payload);
+  collector.on("collect", async (interaction) => {
+    if (interaction.user.id !== message.author.id) {
+      return interaction.reply({
+        content: "This Ryuma battle is not yours.",
+        ephemeral: true,
+      });
+    }
+
+    await interaction.deferUpdate().catch(() => null);
+
+    const cardIndex = Number(String(interaction.customId || "").replace("ryuma_card_", ""));
+    const freshPlayers = readPlayers();
+    const freshGlobalState = getGlobalState(freshPlayers);
+
+    if (!isEventStarted(freshGlobalState)) {
+      return sent.edit({
+        content: `The Ryuma Global Boss Event has not started yet.\nStarts: ${RYUMA_EVENT_START_LABEL}`,
+        embeds: [],
+        components: [],
+      });
+    }
+
+    if (isEventEnded(freshGlobalState)) {
+      return sent.edit({
+        content: "The Ryuma Global Boss Event has ended.",
+        embeds: [],
+        components: [],
+      });
+    }
+
+    let freshPlayer = getPlayer(freshPlayers, message.author.id, message.author.username);
+    let freshEventData = getEventData(freshPlayer);
+    const freshAttackWindow = getAttackWindow(freshEventData);
+
+    if (freshAttackWindow.attacksLeft <= 0) {
+      return sent.edit({
+        content: `You have no attacks left. Your attacks reset <t:${Math.floor(freshAttackWindow.resetAt / 1000)}:R>.`,
+        embeds: [],
+        components: [],
+      });
+    }
+
+    const freshTeamCards = getRyumaTeamCards(freshPlayer);
+    const freshHpState = normalizeRyumaCardHp(freshEventData, freshTeamCards, freshAttackWindow);
+
+    freshEventData = {
+      ...freshEventData,
+      cardHp: freshHpState.cardHp,
+      cardHpWindowStartedAt: freshHpState.cardHpWindowStartedAt,
+    };
+
+    const selectedCard = freshTeamCards[cardIndex];
+
+    if (!selectedCard) {
+      return sent.edit({
+        content: "Selected card is no longer available in your team.",
+        embeds: [],
+        components: [],
+      });
+    }
+
+    const selectedCardKey = getRyumaCardKey(selectedCard, cardIndex);
+    const selectedCardHpBefore = Number(freshEventData.cardHp[selectedCardKey] || 0);
+    const selectedCardMaxHp = getRyumaCardMaxHp(selectedCard);
+
+    if (selectedCardHpBefore <= 0) {
+      return sent.edit({
+        content: `${getRyumaCardName(selectedCard)} is knocked out and cannot attack. Use \`op ryuma attack\` again and choose another card.`,
+        embeds: [],
+        components: [],
+      });
+    }
+
+    const bossPhaseBeforeAttack = getBossPhase(freshGlobalState);
+    const attackDamage = getRyumaCardDamage(selectedCard, bossPhaseBeforeAttack);
+    const selectedCardName = getRyumaCardName(selectedCard);
+    const selectedCardPower = getRyumaCardPower(selectedCard);
+    const selectedCardHpAfter = Math.max(0, selectedCardHpBefore - BOSS_DAMAGE);
+
+    const nextEventData = {
+      ...freshEventData,
+      joinedAt: freshEventData.joinedAt || now(),
+      damage: freshEventData.damage + attackDamage,
+      attackWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
+      attacksUsed: freshAttackWindow.attacksUsed + 1,
+      claimedPersonalMilestones: [...freshEventData.claimedPersonalMilestones],
+      claimedBonusMilestones: [...freshEventData.claimedBonusMilestones],
+      cardHp: {
+        ...(freshEventData.cardHp || {}),
+        [selectedCardKey]: selectedCardHpAfter,
+      },
+      cardHpWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
+    };
+
+    const claimedLines = [];
+
+    for (const milestone of getPersonalClaims(nextEventData)) {
+      freshPlayer = applyRewards(freshPlayer, milestone.rewards);
+      nextEventData.claimedPersonalMilestones.push(milestone.damage);
+      claimedLines.push(`Personal ${fmt(milestone.damage)} damage: ${rewardLines(milestone.rewards).join(", ")}`);
+    }
+
+    for (const bonusDamage of getBonusClaims(nextEventData)) {
+      freshPlayer = applyRewards(freshPlayer, BONUS_REWARD);
+      nextEventData.claimedBonusMilestones.push(bonusDamage);
+      claimedLines.push(`Bonus ${fmt(bonusDamage)} damage: ${rewardLines(BONUS_REWARD).join(", ")}`);
+    }
+
+    freshPlayer = setEventData(freshPlayer, nextEventData);
+
+    freshGlobalState.totalDamage = Math.max(0, Number(freshGlobalState.totalDamage || 0)) + attackDamage;
+
+    freshPlayers[GLOBAL_STORE_ID] = freshGlobalState;
+    freshPlayers[String(message.author.id)] = freshPlayer;
+    writePlayers(freshPlayers);
+
+    const hpLeft = getHpLeft(freshGlobalState);
+    const bossPhaseAfterAttack = getBossPhase(freshGlobalState);
+    const attacksLeft = Math.max(0, ATTACK_LIMIT - nextEventData.attacksUsed);
+    const cardStatus = selectedCardHpAfter <= 0
+      ? "K.O."
+      : `${fmt(selectedCardHpAfter)} / ${fmt(selectedCardMaxHp)}`;
+
+    const embed = new EmbedBuilder()
+      .setColor(0xe74c3c)
+      .setTitle(`${BOSS_NAME} Attacked`)
+      .setDescription(
+        [
+          `**${selectedCardName}** attacked **${BOSS_NAME}**.`,
+          "",
+          `**Card Power:** ${fmt(selectedCardPower)}`,
+          `**Damage Dealt:** ${fmt(attackDamage)}`,
+          `**Ryuma Counter Damage:** ${fmt(BOSS_DAMAGE)}`,
+          `**${selectedCardName} HP:** ${cardStatus}`,
+          "",
+          `**Boss HP:** ${fmt(hpLeft)} / ${fmt(MAX_HP)}`,
+          `**Phase:** ${bossPhaseAfterAttack.phase}/4 — ${bossPhaseAfterAttack.name}`,
+          `**Global Damage:** ${fmt(freshGlobalState.totalDamage)}`,
+          `**Your Damage:** ${fmt(nextEventData.damage)}`,
+          `**Your Attacks Left:** ${attacksLeft} / ${ATTACK_LIMIT}`,
+          "",
+          claimedLines.length
+            ? `**Rewards Auto-Claimed:**\n${claimedLines.map((line) => `- ${line}`).join("\n")}`
+            : "No new personal milestone reward unlocked.",
+        ].join("\n")
+      )
+      .setFooter({
+        text: "One Piece Bot • Ryuma Event",
+      })
+      .setTimestamp();
+
+    if (RYUMA_ATTACK_GIF) {
+      embed.setImage(RYUMA_ATTACK_GIF);
+    }
+
+    return sent.edit({
+      content: null,
+      embeds: [embed],
+      components: [],
+    });
+  });
+
+  collector.on("end", async (collected) => {
+    if (collected.size > 0) return;
+
+    await sent.edit({
+      content: "Ryuma battle timed out. Use `op ryuma attack` again.",
+      embeds: [],
+      components: [],
+    }).catch(() => null);
+  });
+
+  return sent;
 }
 
 async function claimGlobalRewards(message, editableMessage = null) {
@@ -1161,7 +1540,7 @@ async function sendPanel(message) {
     await interaction.deferUpdate().catch(() => null);
 
     if (interaction.customId === "ryuma_attack") {
-      return performAttack(message, sent);
+      return performAttack(message);
     }
 
     if (interaction.customId === "ryuma_rewards") {
@@ -1215,7 +1594,7 @@ module.exports = {
     }
 
     if (subcommand === "attack" || subcommand === "fight") {
-      return sendPanel(message);
+      return performAttack(message);
     }
 
     if (subcommand === "lb" || subcommand === "leaderboard") {
