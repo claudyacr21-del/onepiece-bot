@@ -399,28 +399,7 @@ module.exports = [
     image: "",
     description: "A heavy kanabo used in overwhelming close combat."
   },
-  {
-    code: "gauntlet",
-    name: "Gauntlet",
-    rarity: "S",
-    owners: ["gunko_holy_knight"],
-    type: "Gauntlet",
-    statPercent: { atk: 6, hp: 4, speed: 3, },
-    ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
-    image: "",
-    description: "Gunko's battle gauntlet, used with brutal Holy Knight combat and arrow-based execution techniques.",
-  },
-  {
-    code: "kagi",
-    name: "Kagi",
-    rarity: "S",
-    owners: ["blackbeard_emperor_of_darkness"],
-    type: "Claw",
-    statPercent: { atk: 6, hp: 4, speed: 3, },
-    ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
-    image: "",
-    description: "Teach's claw weapon, used before his rise as Blackbeard and tied to his ruthless close-range fighting style.",
-  },
+
   {
     code: "kiribachi",
     name: "Kiribachi",
