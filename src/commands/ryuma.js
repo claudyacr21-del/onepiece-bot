@@ -33,7 +33,9 @@ const EVENT_END_AT = process.env.RYUMA_EVENT_END_AT
   : 0;
 
 const RYUMA_ATTACK_GIF = process.env.RYUMA_ATTACK_GIF || "";
-
+const RYUMA_EVENT_TIME_ZONE = process.env.RYUMA_EVENT_TIME_ZONE || "Asia/Jakarta";
+const RYUMA_EVENT_START_LABEL =
+  process.env.RYUMA_EVENT_START_LABEL || "26 June 2026, 00:00 WIB";
 const GLOBAL_MILESTONES = [
   5000000,
   10000000,
@@ -356,6 +358,21 @@ function formatDuration(ms) {
   return `${minutes}m`;
 }
 
+function formatEventDateTime(timestamp) {
+  const value = Number(timestamp || 0);
+  if (!value) return "N/A";
+
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: RYUMA_EVENT_TIME_ZONE,
+    year: "numeric",
+    month: "long",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+}
+
 function getEventData(player) {
   const events = player?.events && typeof player.events === "object" ? player.events : {};
   const data = events[EVENT_ID] && typeof events[EVENT_ID] === "object" ? events[EVENT_ID] : {};
@@ -606,7 +623,7 @@ function buildPanelEmbed(message) {
   const eventEnded = isEventEnded(globalState);
 
   const timeText = !eventStarted
-    ? `Starts <t:${Math.floor(Number(globalState.startedAt || 0) / 1000)}:R>`
+    ? `Starts ${RYUMA_EVENT_START_LABEL}`
     : eventEnded
         ? "Event ended"
         : formatDuration(Math.max(0, Number(globalState.endsAt || 0) - now()));
@@ -883,14 +900,14 @@ async function performAttack(message, editableMessage = null) {
   const players = readPlayers();
   const globalState = getGlobalState(players);
 
-    if (!isEventStarted(globalState)) {
+  if (!isEventStarted(globalState)) {
     return message.reply({
-        content: `The Ryuma Global Boss Event has not started yet.\nStarts: <t:${Math.floor(globalState.startedAt / 1000)}:F>`,
+        content: `The Ryuma Global Boss Event has not started yet.\nStarts: ${RYUMA_EVENT_START_LABEL}`,
         allowedMentions: {
         repliedUser: false,
         },
     });
-    }
+  }
 
   if (isEventEnded(globalState)) {
     return message.reply({
@@ -975,7 +992,7 @@ async function performAttack(message, editableMessage = null) {
 
   const payload = {
     embeds: [embed],
-    components: buildMainRows(false),
+    components: buildMainRows(false, !isEventStarted(getGlobalState(readPlayers()))),
     allowedMentions: {
       repliedUser: false,
     },
@@ -1074,7 +1091,7 @@ async function claimGlobalRewards(message, editableMessage = null) {
 
   const payload = {
     embeds: [embed],
-    components: buildMainRows(false),
+    components: buildMainRows(false, !isEventStarted(getGlobalState(readPlayers()))),
     allowedMentions: {
       repliedUser: false,
     },
@@ -1123,7 +1140,7 @@ function buildLeaderboardEmbed() {
 async function sendPanel(message) {
   const sent = await message.reply({
     embeds: [buildPanelEmbed(message)],
-    components: buildMainRows(false),
+    components: buildMainRows(false, !isEventStarted(getGlobalState(readPlayers()))),
     allowedMentions: {
       repliedUser: false,
     },
@@ -1151,7 +1168,7 @@ async function sendPanel(message) {
     if (interaction.customId === "ryuma_rewards") {
       return sent.edit({
         embeds: [buildRewardsEmbed(message)],
-        components: buildMainRows(false),
+        components: buildMainRows(false, !isEventStarted(getGlobalState(readPlayers()))),
       });
     }
 
@@ -1162,7 +1179,7 @@ async function sendPanel(message) {
     if (interaction.customId === "ryuma_shop") {
       return sent.edit({
         embeds: [buildShopEmbed(message)],
-        components: buildMainRows(false),
+        components: buildMainRows(false, !isEventStarted(getGlobalState(readPlayers()))),
       });
     }
 
