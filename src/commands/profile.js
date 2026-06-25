@@ -65,7 +65,7 @@ function getProfileImage(message, targetUser = null, targetMember = null) {
   );
 }
 
-async function isServerBooster(message) {
+async function isServerBooster(message, targetUser = message.author, targetMember = message.member) {
   try {
     const mainGuildId =
       process.env.ONEPIECE_MAIN_GUILD_ID ||
@@ -74,15 +74,17 @@ async function isServerBooster(message) {
       process.env.SUPPORT_SERVER_ID ||
       null;
 
+    const targetId = String(targetUser?.id || message.author.id);
     let member = null;
 
     if (
       mainGuildId &&
       message.guild &&
       String(message.guild.id) === String(mainGuildId) &&
-      message.member
+      targetMember &&
+      String(targetMember.id) === targetId
     ) {
-      member = message.member;
+      member = targetMember;
     }
 
     if (!member && mainGuildId && message.client?.guilds) {
@@ -92,13 +94,13 @@ async function isServerBooster(message) {
 
       if (guild) {
         member =
-          guild.members.cache.get(String(message.author.id)) ||
-          (await guild.members.fetch(String(message.author.id)).catch(() => null));
+          guild.members.cache.get(targetId) ||
+          (await guild.members.fetch(targetId).catch(() => null));
       }
     }
 
-    if (!member && message.member) {
-      member = message.member;
+    if (!member && targetMember && String(targetMember.id) === targetId) {
+      member = targetMember;
     }
 
     return Boolean(member?.premiumSince || member?.premiumSinceTimestamp);
@@ -1001,8 +1003,10 @@ function getExistingOrSelfPlayer(targetId, targetUser, isSelf) {
 function createTargetProfileMessage(message, targetUser, targetMember) {
   return {
     ...message,
-    author: targetUser,
-    member: targetMember || message.member,
+    author: targetUser || message.author,
+    member: targetMember || null,
+    resolvedMember: targetMember || null,
+    mainMember: targetMember || null,
   };
 }
 
@@ -1058,7 +1062,11 @@ module.exports = {
       const isVivreCard = await isLitePremiumUser(profileMessage).catch(
         () => false
       );
-      const booster = await isServerBooster(profileMessage).catch(() => false);
+      const booster = await isServerBooster(
+        profileMessage,
+        targetUser,
+        targetMember
+      ).catch(() => false);
 
       const captainBadges = getCaptainBadges(player, {
         isMotherFlame,
