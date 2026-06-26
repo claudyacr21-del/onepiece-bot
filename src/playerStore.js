@@ -1159,8 +1159,10 @@ async function initPlayerStore() {
   }
 }
 
-function normalizeNamedList(value) {
+function normalizeNamedList(value, options = {}) {
   if (!Array.isArray(value)) return [];
+
+  const allowZeroAmount = Boolean(options.allowZeroAmount);
 
   return value
     .map((entry) => {
@@ -1173,10 +1175,17 @@ function normalizeNamedList(value) {
 
       if (!entry || typeof entry !== "object") return null;
 
+      const rawAmount = Number(entry.amount);
+      const amount = allowZeroAmount
+        ? Math.max(0, Number.isFinite(rawAmount) ? rawAmount : 0)
+        : Number.isFinite(rawAmount) && rawAmount > 0
+          ? rawAmount
+          : 1;
+
       return {
         ...entry,
         name: entry.name || "Unknown Item",
-        amount: Number(entry.amount) > 0 ? Number(entry.amount) : 1,
+        amount,
         rarity: entry.rarity || undefined,
         code: entry.code || undefined,
         image: entry.image || "",
@@ -1196,7 +1205,8 @@ function normalizeNamedList(value) {
         power: entry.power || undefined,
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((entry) => allowZeroAmount || Number(entry.amount || 0) > 0);
 }
 
 function normalizeFragmentList(value) {
@@ -1744,7 +1754,7 @@ function normalizePlayer(player = {}, username = "Unknown") {
     weapons: normalizeNamedList(player.weapons),
     devilFruits: normalizeNamedList(player.devilFruits),
     boxes: normalizeNamedList(player.boxes),
-    tickets: normalizeNamedList(player.tickets),
+    tickets: normalizeNamedList(player.tickets, { allowZeroAmount: true }),
     materials: normalizeNamedList(player.materials),
     events: normalizeEventStore(player.events),
     pity: {
@@ -1815,28 +1825,7 @@ function getDefaultPlayer(username) {
       devilFruits: [],
       boxes: [],
       materials: [],
-      tickets: [
-        {
-          code: "common_raid_ticket",
-          name: "Common Raid Ticket",
-          amount: 0,
-        },
-        {
-          code: "raid_ticket",
-          name: "Raid Ticket",
-          amount: 0,
-        },
-        {
-          code: "gold_raid_ticket",
-          name: "Gold Raid Ticket",
-          amount: 0,
-        },
-        {
-          code: "empty_throne_raid_writ",
-          name: "Empty Throne Raid Writ",
-          amount: 0,
-        },
-      ],
+      tickets: [],
       pity: {
         pullPity: 0,
         normalAPity: 0,
