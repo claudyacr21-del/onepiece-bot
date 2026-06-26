@@ -12,9 +12,19 @@ function normalizeCode(value) {
     .replace(/^_+|_+$/g, "");
 }
 
+function getSearchWords(value) {
+  return normalize(value)
+    .split(" ")
+    .map((word) => word.trim())
+    .filter(Boolean);
+}
+
 function scoreQuery(query, candidates) {
   const q = normalize(query);
   if (!q) return 0;
+
+  const queryWords = getSearchWords(q);
+  if (!queryWords.length) return 0;
 
   let best = 0;
 
@@ -22,14 +32,34 @@ function scoreQuery(query, candidates) {
     const value = normalize(raw);
     if (!value) continue;
 
-    if (value === q) best = Math.max(best, 1000 + value.length);
-    else if (value.startsWith(q)) best = Math.max(best, 700 + q.length);
-    else if (value.includes(q)) best = Math.max(best, 400 + q.length);
-    else {
-      const words = q.split(" ").filter(Boolean);
-      if (words.length && words.every((word) => value.includes(word))) {
-        best = Math.max(best, 250 + words.join("").length);
+    const valueWords = getSearchWords(value);
+    if (!valueWords.length) continue;
+
+    // Exact full name match: "fish karate" only matches "fish karate".
+    if (value === q) {
+      best = Math.max(best, 1000 + value.length);
+      continue;
+    }
+
+    // Single word must match a full word only.
+    // Example: "fish" can match names with word fish, but not partial text.
+    if (queryWords.length === 1) {
+      if (valueWords.includes(queryWords[0])) {
+        best = Math.max(best, 850 + queryWords[0].length);
       }
+
+      continue;
+    }
+
+    // Multiple words must match full words only and same amount of words.
+    // This prevents:
+    // "fish karate" matching "fishman karate"
+    // "fish karate" matching "fish man karate"
+    if (
+      queryWords.length === valueWords.length &&
+      queryWords.every((word, index) => valueWords[index] === word)
+    ) {
+      best = Math.max(best, 750 + queryWords.join("").length);
     }
   }
 
@@ -62,15 +92,19 @@ function findCardTemplate(query) {
     .map((card) => ({
       card,
       score: scoreQuery(query, [
-        card.code,
         card.name,
         card.displayName,
-        card.alias,
-        ...(Array.isArray(card.aliases) ? card.aliases : []),
       ]),
     }))
     .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+
+      const aName = normalize(a.card.displayName || a.card.name || "");
+      const bName = normalize(b.card.displayName || b.card.name || "");
+
+      return aName.length - bName.length;
+    });
 
   return scored.length ? toTargetFromCard(scored[0].card) : null;
 }
@@ -82,14 +116,18 @@ function findWeaponTemplate(query) {
     .map((weapon) => ({
       weapon,
       score: scoreQuery(query, [
-        weapon.code,
         weapon.name,
-        weapon.type,
-        ...(Array.isArray(weapon.aliases) ? weapon.aliases : []),
       ]),
     }))
     .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+
+      const aName = normalize(a.weapon.name || "");
+      const bName = normalize(b.weapon.name || "");
+
+      return aName.length - bName.length;
+    });
 
   return scored.length ? toTargetFromWeapon(scored[0].weapon) : null;
 }
