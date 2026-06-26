@@ -47,8 +47,22 @@ function getMergeSourceCodes(card) {
     .filter(Boolean);
 }
 
+function hasExplicitMergeRatio(card = {}) {
+  return (
+    card?.mergeStatRatio !== undefined &&
+    card?.mergeStatRatio !== null &&
+    card?.mergeStatRatio !== ""
+  ) || (
+    card?.mergeRatio !== undefined &&
+    card?.mergeRatio !== null &&
+    card?.mergeRatio !== ""
+  );
+}
+
 function getMergeRatio(template = {}) {
-  const ratio = Number(template?.mergeStatRatio ?? template?.mergeRatio ?? MERGE_RATIO);
+  const ratio = hasExplicitMergeRatio(template)
+    ? Number(template.mergeStatRatio ?? template.mergeRatio)
+    : MERGE_RATIO;
 
   if (!Number.isFinite(ratio) || ratio <= 0) {
     return MERGE_RATIO;
@@ -719,10 +733,12 @@ function buildMergedCard(player, baseCard = null, stageOverride = null, options 
     displayLevel: options.displayLevel || getStageMaxLevel(stage),
   });
 
-  const ratio = getMergeRatio({
-    ...ownedMerge,
-    ...template,
-  });
+  // IMPORTANT:
+  // Ratio hanya boleh dari template cards.js kalau memang template punya mergeStatRatio manual.
+  // Kalau template tidak punya mergeStatRatio, pakai MERGE_RATIO dari file ini.
+  // Jangan baca ratio dari ownedMerge/player data, karena old saved card bisa nyangkut 0.4.
+  const hasTemplateMergeRatio = hasExplicitMergeRatio(template);
+  const ratio = getMergeRatio(template);
   const fixedPower = getMergeFixedPower(templateCard);
 
   const mergedAtk = Math.floor(
@@ -763,7 +779,7 @@ function buildMergedCard(player, baseCard = null, stageOverride = null, options 
   const form = getForm(template, stage);
   const displayName = getMergeDisplayName(ownedMerge, template);
 
-  return {
+  const mergedCard = {
     ...template,
     ...form,
     ...ownedMerge,
@@ -794,7 +810,7 @@ function buildMergedCard(player, baseCard = null, stageOverride = null, options 
     equipmentSyncOnly: true,
 
     mergeSourceCodes: sourceCodes,
-    mergeStatRatio: ratio,
+    ...(hasTemplateMergeRatio ? { mergeStatRatio: ratio } : {}),
     mergeFixedPower: fixedPower,
 
     evolutionStage: stage,
@@ -886,6 +902,18 @@ function buildMergedCard(player, baseCard = null, stageOverride = null, options 
       ? `${Math.floor(ratio * 100)}% max mastery stats from ${sourceCodes.join(" + ")}`
       : `Live ${Math.floor(ratio * 100)}% owned stats from ${sourceCodes.join(" + ")}`,
   };
+
+  // IMPORTANT:
+  // Kalau template cards.js tidak punya mergeStatRatio manual,
+  // hapus ratio lama yang mungkin nyangkut di owned player card.
+  // Jadi GVL / TFB / WGD akan selalu ikut MERGE_RATIO terbaru.
+  // LZS tetap aman karena template LZS punya mergeStatRatio manual.
+  if (!hasTemplateMergeRatio) {
+    delete mergedCard.mergeStatRatio;
+    delete mergedCard.mergeRatio;
+  }
+
+  return mergedCard;
 }
 
 function buildMergedLzsCard(player, baseCard = null, stageOverride = null, options = {}) {
