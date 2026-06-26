@@ -5,6 +5,7 @@ const { EmbedBuilder,
 const { getPlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
+const { applyCustomSkinToCard } = require("../utils/customSkins");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { applyDamageBoost } = require("../utils/combatStats");
 
@@ -186,22 +187,41 @@ function applyBoostedDisplayStats(card, boosts = {}) {
   };
 }
 
-function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}) {
-  const synced = hydrateCard(card);
+function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}, player = null) {
+  const synced = hydrateCard(card) || card;
   const boosted = applyBoostedDisplayStats(synced, boosts);
+  const displayCard = player ? applyCustomSkinToCard(player, boosted) : boosted;
+
+  const hasCustomSkin = Boolean(displayCard?.hasCustomSkin);
+  const skinName = hasCustomSkin
+    ? String(displayCard.skinName || displayCard.displayName || displayCard.name || "")
+    : "";
 
   return {
     slot: slot + 1,
     ownerTag,
     instanceId: boosted.instanceId,
-    name: boosted.displayName || boosted.name || "Unknown",
+
+    name: hasCustomSkin
+      ? skinName || displayCard.displayName || boosted.displayName || boosted.name || "Unknown"
+      : boosted.displayName || boosted.name || "Unknown",
+
     rarity: boosted.currentTier || boosted.rarity || "C",
+
+    hasCustomSkin,
+    skinName,
+    skinTitle: String(displayCard.skinTitle || ""),
+    skinImage: String(displayCard.skinImage || ""),
+    originalDisplayName: String(displayCard.originalDisplayName || boosted.displayName || boosted.name || ""),
+    skinnedCharacter: String(displayCard.skinnedCharacter || displayCard.originalDisplayName || boosted.displayName || boosted.name || ""),
+
     atk: getChallengeCardAtk(boosted),
     hp: getChallengeCardHp(boosted),
     maxHp: getChallengeCardHp(boosted),
     speed: getChallengeCardSpeed(boosted),
     level: Number(boosted.level || 1),
     power: getPower(boosted),
+
     passiveBoostsApplied: {
       atk: Number(boosts.atk || 0),
       hp: Number(boosts.hp || 0),
@@ -242,7 +262,7 @@ function getTeamUnits(player, ownerTag = "player") {
           String(card.cardRole || "").toLowerCase() !== "boost"
       );
 
-      return found ? buildBattleUnit(found, index, ownerTag, boosts) : null;
+      return found ? buildBattleUnit(found, index, ownerTag, boosts, player) : null;
     })
     .filter(Boolean);
 }

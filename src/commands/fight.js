@@ -9,6 +9,7 @@ const {
 const { getPlayer, updatePlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
+const { applyCustomSkinToCard } = require("../utils/customSkins");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
 const { getCurrentIsland, getIslandByCode } = require("../data/islands");
@@ -317,7 +318,9 @@ function mergeOwnedCardWithLatestTemplate(rawCard, player = null) {
   return card;
 }
 
-function toBattleUnit(card, slotIndex, combatBoosts = {}) {
+function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
+  const displayCard = player ? applyCustomSkinToCard(player, card) : card;
+
   const displayAtk = getFightCardAtk(card);
   const displayHp = getFightCardHp(card);
   const displaySpeed = getFightCardSpeed(card);
@@ -326,12 +329,32 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
   const battleMaxHp = applyBoostToNumber(displayHp, combatBoosts.hp);
   const battleSpeed = applyBoostToNumber(displaySpeed, combatBoosts.spd);
 
+  const hasCustomSkin = Boolean(displayCard?.hasCustomSkin);
+  const skinName = hasCustomSkin
+    ? String(displayCard.skinName || displayCard.displayName || displayCard.name || "")
+    : "";
+
+  const skinImage = hasCustomSkin
+    ? String(displayCard.skinImage || displayCard.image || "")
+    : "";
+
   return {
     slot: slotIndex + 1,
     sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
     instanceId: card.instanceId,
-    name: card.displayName || card.name || "Unknown",
+
+    name: hasCustomSkin
+      ? skinName || displayCard.displayName || card.displayName || card.name || "Unknown"
+      : card.displayName || card.name || "Unknown",
+
     rarity: card.currentTier || card.rarity || "C",
+
+    hasCustomSkin,
+    skinName,
+    skinTitle: String(displayCard.skinTitle || ""),
+    skinImage,
+    originalDisplayName: String(displayCard.originalDisplayName || card.displayName || card.name || ""),
+    skinnedCharacter: String(displayCard.skinnedCharacter || displayCard.originalDisplayName || card.displayName || card.name || ""),
 
     atk: displayAtk,
     hp: displayHp,
@@ -347,7 +370,7 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     levelCap: getCardLevelCap(card),
     exp: getCardExp(card),
     kills: Number(card.kills || 0),
-    image: card.image || "",
+    image: hasCustomSkin ? skinImage || card.image || "" : card.image || "",
 
     passiveBoostsApplied: {
       atk: Number(combatBoosts.atk || 0),
@@ -1006,7 +1029,7 @@ module.exports = {
               String(card.cardRole || "").toLowerCase() !== "boost"
           );
 
-          return found ? toBattleUnit(found, index, combatBoosts) : null;
+          return found ? toBattleUnit(found, index, combatBoosts, player) : null;
         })
         .filter(Boolean);
 

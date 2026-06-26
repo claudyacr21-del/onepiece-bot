@@ -14,6 +14,7 @@ const {
 } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
+const { applyCustomSkinToCard } = require("../utils/customSkins");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { applyDamageBoost } = require("../utils/combatStats");
@@ -391,17 +392,35 @@ function applyBoostedBattleStats(card, boosts = {}) {
   };
 }
 
-function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}) {
-  const hydrated = hydrateCard(card);
+function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}, player = null) {
+  const hydrated = hydrateCard(card) || card;
   const synced = applyBoostedBattleStats(hydrated, boosts);
+  const displayCard = player ? applyCustomSkinToCard(player, synced) : synced;
+
+  const hasCustomSkin = Boolean(displayCard?.hasCustomSkin);
+  const skinName = hasCustomSkin
+    ? String(displayCard.skinName || displayCard.displayName || displayCard.name || "")
+    : "";
 
   return {
     slot: slot + 1,
     sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
     ownerTag,
     instanceId: synced.instanceId || `${ownerTag}-${slot}-${Date.now()}`,
-    name: synced.displayName || synced.name || "Unknown",
+
+    name: hasCustomSkin
+      ? skinName || displayCard.displayName || synced.displayName || synced.name || "Unknown"
+      : synced.displayName || synced.name || "Unknown",
+
     rarity: synced.currentTier || synced.rarity || "C",
+
+    hasCustomSkin,
+    skinName,
+    skinTitle: String(displayCard.skinTitle || ""),
+    skinImage: String(displayCard.skinImage || ""),
+    originalDisplayName: String(displayCard.originalDisplayName || synced.displayName || synced.name || ""),
+    skinnedCharacter: String(displayCard.skinnedCharacter || displayCard.originalDisplayName || synced.displayName || synced.name || ""),
+
     atk: getArenaCardAtk(synced),
     hp: getArenaCardHp(synced),
     maxHp: getArenaCardHp(synced),
@@ -412,6 +431,7 @@ function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}) {
     power: getPower(synced),
     equippedWeapon: formatWeapons(synced),
     equippedDevilFruit: formatDevilFruit(synced),
+
     passiveBoostsApplied: {
       atk: Number(boosts.atk || 0),
       hp: Number(boosts.hp || 0),
@@ -455,7 +475,7 @@ function getTeamUnits(player, ownerTag = "player") {
           String(card.cardRole || "").toLowerCase() !== "boost"
       );
 
-      return found ? buildBattleUnit(found, index, ownerTag, boosts) : null;
+      return found ? buildBattleUnit(found, index, ownerTag, boosts, player) : null;
     })
     .filter(Boolean);
 }
