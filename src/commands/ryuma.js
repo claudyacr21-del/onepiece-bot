@@ -1313,8 +1313,7 @@ async function performAttack(message) {
 
   const collector = sent.createMessageComponentCollector({
     componentType: ComponentType.Button,
-    time: 60 * 1000,
-    max: 1,
+    time: 10 * 60 * 1000,
   });
 
   collector.on("collect", async (interaction) => {
@@ -1332,6 +1331,7 @@ async function performAttack(message) {
     const freshGlobalState = getGlobalState(freshPlayers);
 
     if (!isEventStarted(freshGlobalState)) {
+      collector.stop("event_not_started");
       return sent.edit({
         content: `The Ryuma Global Boss Event has not started yet.\nStarts: ${RYUMA_EVENT_START_LABEL}`,
         embeds: [],
@@ -1340,6 +1340,7 @@ async function performAttack(message) {
     }
 
     if (isEventEnded(freshGlobalState)) {
+      collector.stop("event_ended");
       return sent.edit({
         content: "The Ryuma Global Boss Event has ended.",
         embeds: [],
@@ -1352,6 +1353,7 @@ async function performAttack(message) {
     const freshAttackWindow = getAttackWindow(freshEventData);
 
     if (freshAttackWindow.attacksLeft <= 0) {
+      collector.stop("no_attacks");
       return sent.edit({
         content: `You have no attacks left. Your attacks reset <t:${Math.floor(freshAttackWindow.resetAt / 1000)}:R>.`,
         embeds: [],
@@ -1384,9 +1386,8 @@ async function performAttack(message) {
 
     if (selectedCardHpBefore <= 0) {
       return sent.edit({
-        content: `${getRyumaCardName(selectedCard)} is knocked out and cannot attack. Use \`op ryuma attack\` again and choose another card.`,
-        embeds: [],
-        components: [],
+        embeds: [buildRyumaCardSelectEmbed(freshGlobalState, freshTeamCards, freshEventData.cardHp)],
+        components: buildRyumaCardRows(freshTeamCards, freshEventData.cardHp),
       });
     }
 
@@ -1440,9 +1441,28 @@ async function performAttack(message) {
       ? "K.O."
       : `${fmt(selectedCardHpAfter)} / ${fmt(selectedCardMaxHp)}`;
 
+    const updatedTeamCards = getRyumaTeamCards(freshPlayer);
+    const aliveCards = getAliveRyumaTeamCards(updatedTeamCards, nextEventData.cardHp);
+    const canContinue = attacksLeft > 0 && aliveCards.length > 0 && !isEventEnded(freshGlobalState);
+
+    const cardLines = updatedTeamCards.map((card, index) => {
+      const key = getRyumaCardKey(card, index);
+      const currentHp = Math.max(0, Number(nextEventData.cardHp[key] || 0));
+      const maxHp = getRyumaCardMaxHp(card);
+      const power = getRyumaCardPower(card);
+      const damage = getRyumaCardDamage(card, bossPhaseAfterAttack);
+
+      return [
+        `**${index + 1}. ${getRyumaCardName(card)}**`,
+        `HP: ${currentHp > 0 ? `${fmt(currentHp)} / ${fmt(maxHp)}` : "K.O."}`,
+        `Power: ${fmt(power)}`,
+        `Estimated Damage: ${currentHp > 0 ? fmt(damage) : "K.O."}`,
+      ].join("\n");
+    });
+
     const embed = new EmbedBuilder()
       .setColor(0xe74c3c)
-      .setTitle(`${BOSS_NAME} Attacked`)
+      .setTitle(`${BOSS_NAME} Battle`)
       .setDescription(
         [
           `**${selectedCardName}** attacked **${BOSS_NAME}**.`,
@@ -1461,10 +1481,19 @@ async function performAttack(message) {
           claimedLines.length
             ? `**Rewards Auto-Claimed:**\n${claimedLines.map((line) => `- ${line}`).join("\n")}`
             : "No new personal milestone reward unlocked.",
-        ].join("\n")
+          "",
+          canContinue
+            ? "**Choose your next card to continue attacking:**"
+            : attacksLeft <= 0
+              ? "**Battle ended:** You have no attacks left."
+              : "**Battle ended:** All your team cards are knocked out.",
+          canContinue ? cardLines.join("\n\n") : null,
+        ].filter(Boolean).join("\n")
       )
       .setFooter({
-        text: "One Piece Bot • Ryuma Event",
+        text: canContinue
+          ? "Keep choosing cards. No need to click Attack again."
+          : "One Piece Bot • Ryuma Event",
       })
       .setTimestamp();
 
@@ -1472,19 +1501,23 @@ async function performAttack(message) {
       embed.setImage(RYUMA_ATTACK_GIF);
     }
 
+    if (!canContinue) {
+      collector.stop("battle_done");
+    }
+
     return sent.edit({
       content: null,
       embeds: [embed],
-      components: [],
+      components: canContinue ? buildRyumaCardRows(updatedTeamCards, nextEventData.cardHp) : [],
     });
   });
 
-  collector.on("end", async (collected) => {
-    if (collected.size > 0) return;
+  collector.on("end", async (collected, reason) => {
+    if (["battle_done", "event_not_started", "event_ended", "no_attacks"].includes(reason)) {
+      return;
+    }
 
     await sent.edit({
-      content: "Ryuma battle timed out. Use `op ryuma attack` again.",
-      embeds: [],
       components: [],
     }).catch(() => null);
   });
