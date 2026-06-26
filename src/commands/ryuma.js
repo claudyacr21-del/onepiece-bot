@@ -332,13 +332,61 @@ function normalizeText(value) {
 function getRyumaPlayerFromStore(players, message) {
   const userId = String(message.author.id);
 
-  if (!players[userId]) {
-    players[userId] = getPlayer(message.author.id, message.author.username);
+  if (!players[userId] || typeof players[userId] !== "object") {
+    players[userId] = {
+      username: message.author.username || "Unknown",
+      berries: 0,
+      gems: 0,
+      ryumaTokens: 0,
+      cards: [],
+      fragments: [],
+      boxes: [],
+      tickets: [],
+      materials: [],
+      items: [],
+      weapons: [],
+      devilFruits: [],
+      events: {},
+    };
   }
 
   players[userId].username = message.author.username || players[userId].username || "Unknown";
+  players[userId].berries = Math.max(0, Math.floor(Number(players[userId].berries || 0)));
+  players[userId].gems = Math.max(0, Math.floor(Number(players[userId].gems || 0)));
+  players[userId].ryumaTokens = Math.max(0, Math.floor(Number(players[userId].ryumaTokens || 0)));
+  players[userId].cards = Array.isArray(players[userId].cards) ? players[userId].cards : [];
+  players[userId].fragments = Array.isArray(players[userId].fragments) ? players[userId].fragments : [];
+  players[userId].boxes = Array.isArray(players[userId].boxes) ? players[userId].boxes : [];
+  players[userId].tickets = Array.isArray(players[userId].tickets) ? players[userId].tickets : [];
+  players[userId].materials = Array.isArray(players[userId].materials) ? players[userId].materials : [];
+  players[userId].items = Array.isArray(players[userId].items) ? players[userId].items : [];
+  players[userId].weapons = Array.isArray(players[userId].weapons) ? players[userId].weapons : [];
+  players[userId].devilFruits = Array.isArray(players[userId].devilFruits) ? players[userId].devilFruits : [];
+  players[userId].events =
+    players[userId].events && typeof players[userId].events === "object"
+      ? players[userId].events
+      : {};
 
   return players[userId];
+}
+
+function isRyumaAttackDisabled(message) {
+  const players = readPlayers();
+  const globalState = getGlobalState(players);
+
+  if (!isEventStarted(globalState) || isEventEnded(globalState)) {
+    return true;
+  }
+
+  const player = getRyumaPlayerFromStore(players, message);
+  const eventData = getEventData(player);
+  const attackWindow = getAttackWindow(eventData);
+
+  return attackWindow.attacksLeft <= 0;
+}
+
+function buildMainRowsForMessage(message, disabled = false) {
+  return buildMainRows(disabled, disabled || isRyumaAttackDisabled(message));
 }
 
 function getDefaultGlobalState() {
@@ -1217,7 +1265,7 @@ function buildMainRows(disabled = false, attackDisabled = disabled) {
 function buildPanelEmbed(message) {
   const players = readPlayers();
   const globalState = getGlobalState(players);
-  const player = getPlayer(message.author.id, message.author.username);
+  const player = getRyumaPlayerFromStore(players, message);
   const eventData = getEventData(player);
   const attackWindow = getAttackWindow(eventData);
   const hpLeft = getHpLeft(globalState);
@@ -1270,7 +1318,7 @@ function buildPanelEmbed(message) {
 function buildRewardsEmbed(message) {
   const players = readPlayers();
   const globalState = getGlobalState(players);
-  const player = getPlayer(message.author.id, message.author.username);
+  const player = getRyumaPlayerFromStore(players, message);
   const eventData = getEventData(player);
 
   const unlockedGlobal = getUnlockedGlobalMilestones(globalState.totalDamage);
@@ -1366,7 +1414,7 @@ function parseBuyArgs(args) {
 
 function buildShopEmbed(message) {
   const players = readPlayers();
-  const player = getPlayer(message.author.id, message.author.username);
+  const player = getRyumaPlayerFromStore(players, message);
   const eventData = getEventData(player);
 
   const lines = SHOP_ITEMS.map((item) => {
@@ -1417,7 +1465,7 @@ async function buyShopItem(message, buyArgs = []) {
   }
 
   const players = readPlayers();
-  let player = getPlayer(message.author.id, message.author.username);
+  let player = getRyumaPlayerFromStore(players, message);
   const eventData = getEventData(player);
   const bought = Math.max(0, Number(eventData.shopPurchases?.[item.key] || 0));
   const remainingLimit = Math.max(0, item.limit - bought);
@@ -1854,7 +1902,7 @@ async function performAttack(message) {
 async function claimGlobalRewards(message, editableMessage = null) {
   const players = readPlayers();
   const globalState = getGlobalState(players);
-  let player = getPlayer(message.author.id, message.author.username);
+  let player = getRyumaPlayerFromStore(players, message);
   const eventData = getEventData(player);
 
   if (!eventData.joinedAt || eventData.damage < 25000) {
@@ -1937,7 +1985,7 @@ async function claimGlobalRewards(message, editableMessage = null) {
 
   const payload = {
     embeds: [embed],
-    components: buildMainRows(false, !isEventStarted(getGlobalState(readPlayers()))),
+    components: buildMainRowsForMessage(message),
     allowedMentions: {
       repliedUser: false,
     },
@@ -1986,7 +2034,7 @@ function buildLeaderboardEmbed() {
 async function sendPanel(message) {
   const sent = await message.reply({
     embeds: [buildPanelEmbed(message)],
-    components: buildMainRows(false, !isEventStarted(getGlobalState(readPlayers()))),
+    components: buildMainRowsForMessage(message),
     allowedMentions: {
       repliedUser: false,
     },
@@ -2014,7 +2062,7 @@ async function sendPanel(message) {
     if (interaction.customId === "ryuma_rewards") {
       return sent.edit({
         embeds: [buildRewardsEmbed(message)],
-        components: buildMainRows(false, !isEventStarted(getGlobalState(readPlayers()))),
+        components: buildMainRowsForMessage(message),
       });
     }
 
@@ -2025,7 +2073,7 @@ async function sendPanel(message) {
     if (interaction.customId === "ryuma_shop") {
       return sent.edit({
         embeds: [buildShopEmbed(message)],
-        components: buildMainRows(false, !isEventStarted(getGlobalState(readPlayers()))),
+        components: buildMainRowsForMessage(message),
       });
     }
 
