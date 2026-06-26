@@ -13,6 +13,7 @@ const {
 } = require("../playerStore");
 const { getPlayerCombatCards } = require("../utils/combatStats");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const EVENT_ID = "ryuma_global_boss";
 const GLOBAL_STORE_ID = "__ryuma_global_boss_event";
@@ -452,11 +453,13 @@ function getRyumaTeamCards(player) {
   const syncCard = (card) => {
     if (!card) return null;
 
-    if (isMergeCard(card)) {
-      return buildMergedCard(player, card);
+    const hydrated = hydrateCard(card) || card;
+
+    if (isMergeCard(hydrated)) {
+      return buildMergedCard(player, hydrated);
     }
 
-    return card;
+    return hydrated;
   };
 
   const result = [];
@@ -560,39 +563,87 @@ function firstPositiveRyumaNumber(...values) {
   return 0;
 }
 
-function getRyumaMciBaseStats(card) {
+function resolveRyumaCurrentStageBaseStats(card) {
+  const stage = Math.max(1, Math.min(3, Number(card?.evolutionStage || 1)));
+  const stageKey = `M${stage}`;
+  const form = card?.evolutionForms?.[stage - 1] || {};
+  const stageStats =
+    card?.stageStats?.[stageKey] ||
+    card?.stats?.[stageKey] ||
+    card?.masteryStats?.[stageKey] ||
+    {};
+
+  if (isMergeCard(card)) {
+    return {
+      atk: firstPositiveRyumaNumber(
+        card?.finalAtk,
+        card?.combatAtk,
+        card?.displayAtk,
+        card?.atk,
+        card?.baseAtk
+      ),
+      hp: firstPositiveRyumaNumber(
+        card?.finalHp,
+        card?.combatHp,
+        card?.displayHp,
+        card?.hp,
+        card?.baseHp
+      ),
+      speed: firstPositiveRyumaNumber(
+        card?.finalSpeed,
+        card?.combatSpeed,
+        card?.displaySpeed,
+        card?.speed,
+        card?.spd,
+        card?.baseSpeed
+      ),
+      power: firstPositiveRyumaNumber(
+        card?.finalPower,
+        card?.currentPower,
+        card?.power,
+        card?.basePower
+      ),
+    };
+  }
+
   return {
     atk: firstPositiveRyumaNumber(
       card?.atk,
       card?.displayAtk,
-      card?.finalAtk,
       card?.combatAtk,
-      card?.battleAtk,
-      card?.teamAtk,
-      card?.totalAtk,
-      card?.currentAtk
+      form.atk,
+      form.baseAtk,
+      stageStats.atk,
+      stageStats.baseAtk
     ),
     hp: firstPositiveRyumaNumber(
       card?.hp,
       card?.displayHp,
-      card?.finalHp,
       card?.combatHp,
-      card?.battleHp,
-      card?.teamHp,
-      card?.totalHp,
-      card?.currentHp,
-      card?.maxHp
+      form.hp,
+      form.baseHp,
+      stageStats.hp,
+      stageStats.baseHp
     ),
     speed: firstPositiveRyumaNumber(
       card?.speed,
       card?.spd,
       card?.displaySpeed,
-      card?.finalSpeed,
       card?.combatSpeed,
-      card?.battleSpeed,
-      card?.teamSpeed,
-      card?.totalSpeed,
-      card?.currentSpeed
+      form.speed,
+      form.spd,
+      form.baseSpeed,
+      stageStats.speed,
+      stageStats.spd,
+      stageStats.baseSpeed
+    ),
+    power: firstPositiveRyumaNumber(
+      card?.currentPower,
+      form.currentPower,
+      form.power,
+      stageStats.currentPower,
+      stageStats.power,
+      card?.powerCaps?.[stageKey]
     ),
   };
 }
@@ -602,22 +653,11 @@ function applyRyumaMciStats(card, boosts = {}) {
     return card;
   }
 
-  const base = getRyumaMciBaseStats(card);
+  const base = resolveRyumaCurrentStageBaseStats(card);
 
-  const boostedAtk = Math.max(
-    1,
-    Math.floor(Number(base.atk || 0) * (1 + Number(boosts.atk || 0) / 100))
-  );
-
-  const boostedHp = Math.max(
-    1,
-    Math.floor(Number(base.hp || 0) * (1 + Number(boosts.hp || 0) / 100))
-  );
-
-  const boostedSpeed = Math.max(
-    0,
-    Math.floor(Number(base.speed || 0) * (1 + Number(boosts.spd || 0) / 100))
-  );
+  const boostedAtk = Math.floor(base.atk * (1 + Number(boosts.atk || 0) / 100));
+  const boostedHp = Math.floor(base.hp * (1 + Number(boosts.hp || 0) / 100));
+  const boostedSpeed = Math.floor(base.speed * (1 + Number(boosts.spd || 0) / 100));
 
   return {
     ...card,
@@ -631,6 +671,7 @@ function applyRyumaMciStats(card, boosts = {}) {
     combatAtk: boostedAtk,
     combatHp: boostedHp,
     combatSpeed: boostedSpeed,
+    currentPower: Math.max(Number(card.currentPower || 0), Number(base.power || 0)),
   };
 }
 
