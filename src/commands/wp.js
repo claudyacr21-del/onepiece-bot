@@ -54,12 +54,7 @@ function getWeaponAmount(entry) {
 
 function getWeaponSearchNames(weapon) {
   return [
-    weapon?.code,
     weapon?.name,
-    weapon?.displayName,
-    weapon?.title,
-    weapon?.type,
-    ...(Array.isArray(weapon?.aliases) ? weapon.aliases : []),
   ]
     .map(normalizeWeaponLookup)
     .filter(Boolean);
@@ -84,26 +79,73 @@ function doesWeaponMatchTemplate(entry, weaponTemplate) {
   );
 }
 
+function getWeaponIdentityKeys(weapon) {
+  return [
+    weapon?.code,
+    weapon?.weaponCode,
+    weapon?.name,
+  ]
+    .map(normalizeWeaponLookup)
+    .filter(Boolean);
+}
+
+function isSameWeaponEntry(entry, weaponTemplate) {
+  const entryKeys = getWeaponIdentityKeys(entry);
+  const templateKeys = getWeaponIdentityKeys(weaponTemplate);
+
+  if (!entryKeys.length || !templateKeys.length) return false;
+
+  return entryKeys.some((entryKey) => templateKeys.includes(entryKey));
+}
+
 function getWeaponNameOnly(weapon) {
   return String(weapon?.name || "").trim();
+}
+
+function getSearchWords(value) {
+  return normalizeWeaponLookup(value)
+    .split(" ")
+    .map((word) => word.trim())
+    .filter(Boolean);
 }
 
 function scoreNameOnly(query, names) {
   const q = normalizeWeaponLookup(query);
   if (!q) return 0;
 
+  const queryWords = getSearchWords(q);
+  if (!queryWords.length) return 0;
+
   let best = 0;
-  const qWords = q.split(" ").filter(Boolean);
 
   for (const raw of names.filter(Boolean)) {
     const n = normalizeWeaponLookup(raw);
     if (!n) continue;
 
-    if (n === q) best = Math.max(best, 1000 + n.length);
-    else if (n.startsWith(q)) best = Math.max(best, 800 + q.length);
-    else if (n.includes(q)) best = Math.max(best, 650 + q.length);
-    else if (qWords.length && qWords.every((word) => n.includes(word))) {
-      best = Math.max(best, 500 + qWords.join("").length);
+    const nameWords = getSearchWords(n);
+    if (!nameWords.length) continue;
+
+    // Exact full name match.
+    if (n === q) {
+      best = Math.max(best, 1000 + n.length);
+      continue;
+    }
+
+    // Single word must match a full word only.
+    // Example: "hat" will not match "hatchan".
+    if (queryWords.length === 1) {
+      if (nameWords.includes(queryWords[0])) {
+        best = Math.max(best, 850 + queryWords[0].length);
+      }
+
+      continue;
+    }
+
+    // Multiple words must exist as full words.
+    const allWordsExist = queryWords.every((word) => nameWords.includes(word));
+
+    if (allWordsExist) {
+      best = Math.max(best, 700 + queryWords.join("").length);
     }
   }
 
@@ -138,10 +180,6 @@ function getCardSearchNames(card) {
   return [
     hydrated.displayName,
     hydrated.name,
-    hydrated.code,
-    hydrated.title,
-    hydrated.variant,
-    hydrated.instanceId,
   ]
     .map(normalize)
     .filter(Boolean);
@@ -482,11 +520,7 @@ module.exports = {
             );
           }
 
-          if (
-            existingEquipped.some(
-              (x) => normalize(x.code || x.name) === normalize(weaponTemplate.code)
-            )
-          ) {
+          if (existingEquipped.some((x) => isSameWeaponEntry(x, weaponTemplate))) {
             throw new Error("That weapon is already equipped on this card.");
           }
 
