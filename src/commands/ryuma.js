@@ -10,6 +10,8 @@ const {
   readPlayers,
   writePlayers,
   getPlayer,
+  flushPlayerNow,
+  flushPlayerStoreNow,
 } = require("../playerStore");
 const { getPlayerCombatCards } = require("../utils/combatStats");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
@@ -329,6 +331,27 @@ function normalizeText(value) {
     .trim();
 }
 
+async function persistRyumaState(players, userId = null, options = {}) {
+  writePlayers(players);
+
+  const timeoutMs = Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 10000);
+  const flushes = [];
+
+  if (userId) {
+    flushes.push(flushPlayerNow(String(userId), timeoutMs));
+  }
+
+  if (players[GLOBAL_STORE_ID]) {
+    flushes.push(flushPlayerNow(GLOBAL_STORE_ID, timeoutMs));
+  }
+
+  if (options.flushAll) {
+    flushes.push(flushPlayerStoreNow(Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 15000)));
+  }
+
+  await Promise.allSettled(flushes);
+}
+
 function getRyumaPlayerFromStore(players, message) {
   const userId = String(message.author.id);
 
@@ -426,12 +449,12 @@ function getGlobalState(players) {
   };
 }
 
-function saveGlobalState(players, state) {
+async function saveGlobalState(players, state) {
   players[GLOBAL_STORE_ID] = {
     ...getGlobalState(players),
     ...(state || {}),
   };
-  writePlayers(players);
+  await persistRyumaState(players, null);
 }
 
 function getHpLeft(globalState) {
@@ -1540,7 +1563,7 @@ async function buyShopItem(message, buyArgs = []) {
 
   player = setEventData(player, nextEventData);
   players[String(message.author.id)] = player;
-  writePlayers(players);
+  await persistRyumaState(players, message.author.id);
 
   const clippedText =
     requestedAmount > buyAmount
@@ -1640,7 +1663,7 @@ async function performAttack(message) {
 
     player = setEventData(player, nextEventData);
     players[userId] = player;
-    writePlayers(players);
+    await persistRyumaState(players, userId);
 
     return message.reply({
       content: `All your team cards are knocked out. Your attacks are now on cooldown until <t:${Math.floor(attackWindow.resetAt / 1000)}:R>.`,
@@ -1662,7 +1685,7 @@ async function performAttack(message) {
 
   player = setEventData(player, sessionEventData);
   players[userId] = player;
-  writePlayers(players);
+  await persistRyumaState(players, userId);
 
   let turnCount = Math.max(0, Number(sessionEventData.attacksUsed || 0));
   let totalDamage = 0;
@@ -1840,7 +1863,7 @@ async function performAttack(message) {
 
       freshPlayers[GLOBAL_STORE_ID] = freshGlobalState;
       freshPlayers[userId] = freshPlayer;
-      writePlayers(freshPlayers);
+      await persistRyumaState(freshPlayers, userId);
 
       turnCount = sessionEventData.attacksUsed;
       totalDamage += damage;
@@ -2013,7 +2036,7 @@ async function claimEventRewards(message, editableMessage = null) {
 
   player = setEventData(player, nextEventData);
   players[String(message.author.id)] = player;
-  writePlayers(players);
+  await persistRyumaState(players, message.author.id);
 
   const embed = new EmbedBuilder()
     .setColor(0x2ecc71)
@@ -2206,23 +2229,33 @@ module.exports = {
       }
 
       const players = readPlayers();
+      const resetAt = now();
 
-      delete players[GLOBAL_STORE_ID];
+      players[GLOBAL_STORE_ID] = {
+        ...getDefaultGlobalState(),
+        totalDamage: 0,
+        startedAt: Number.isFinite(EVENT_START_AT) && EVENT_START_AT > 0
+          ? EVENT_START_AT
+          : resetAt,
+        endsAt: Number.isFinite(EVENT_END_AT) && EVENT_END_AT > 0
+          ? EVENT_END_AT
+          : resetAt + EVENT_DURATION_MS,
+      };
 
-      for (const [userId, player] of Object.entries(players || {})) {
-        if (String(userId).startsWith("__")) continue;
+      for (const [targetUserId, player] of Object.entries(players || {})) {
+        if (String(targetUserId).startsWith("__")) continue;
 
         const nextEvents = { ...(player.events || {}) };
         delete nextEvents[EVENT_ID];
 
-        players[userId] = {
+        players[targetUserId] = {
           ...player,
           ryumaTokens: 0,
           events: nextEvents,
         };
       }
 
-      writePlayers(players);
+      await persistRyumaState(players, message.author.id, { flushAll: true });
 
       return message.reply({
         content: "Ryuma event has been reset. Boss HP, global damage, personal damage, attack count, team HP, claims, shop purchases, and Ryuma Tokens are now reset.",
