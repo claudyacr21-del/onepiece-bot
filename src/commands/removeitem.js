@@ -141,6 +141,29 @@ function ensureArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function getOwnedAmountForRemove(entry, bucket) {
+  const rawAmount = Number(
+    entry?.amount ??
+      entry?.count ??
+      entry?.quantity ??
+      entry?.qty
+  );
+
+  if (Number.isFinite(rawAmount)) {
+    return rawAmount;
+  }
+
+  if (bucket === "weapons" || bucket === "devilFruits") {
+    return 1;
+  }
+
+  return 0;
+}
+
+function shouldRemoveEntryWhenZeroOrBelow(bucket) {
+  return bucket === "weapons" || bucket === "devilFruits";
+}
+
 function collectCatalogEntries(source, out = [], seen = new Set()) {
   if (Array.isArray(source)) {
     for (const entry of source) collectCatalogEntries(entry, out, seen);
@@ -530,13 +553,16 @@ module.exports = {
 
         const entry = list[found.index];
 
-        ownedAmount = Number(entry.amount || 0);
+        ownedAmount = getOwnedAmountForRemove(entry, bucket);
         removedName = getDisplayName(entry);
         removedCode = entry.code || "none";
 
         const nextAmount = ownedAmount - amount;
 
-        if (nextAmount === 0) {
+        if (
+          nextAmount === 0 ||
+          (nextAmount < 0 && shouldRemoveEntryWhenZeroOrBelow(bucket))
+        ) {
           list.splice(found.index, 1);
         } else {
           list[found.index] = {
@@ -589,7 +615,7 @@ module.exports = {
           `**Item:** ${removedName}`,
           `**Code:** \`${removedCode}\``,
           `**Amount Removed:** ${amount}`,
-          `**Remaining:** ${ownedAmount - amount}`,
+          `**Remaining:** ${Math.max(0, ownedAmount - amount)}`,
         ].join("\n")
       )
       .setFooter({ text: "One Piece Bot • Admin Remove Item" });
