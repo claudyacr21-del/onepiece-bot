@@ -21,7 +21,7 @@ const BOSS_NAME = "Ryuma";
 const MAX_HP = 600000000;
 const BOSS_DAMAGE = 5000;
 const ATTACK_LIMIT = 20;
-
+const ACTIVE_RYUMA_BATTLES = new Set();
 const DAMAGE_VARIANCE_MIN = 0.85;
 const DAMAGE_VARIANCE_MAX = 1.15;
 
@@ -525,178 +525,298 @@ function getRyumaCardName(card) {
 }
 
 function getRyumaCardKey(card, index = 0) {
-  return String(
+  const raw =
     card?.instanceId ||
-      card?.id ||
-      card?.cardId ||
-      card?.code ||
-      `${getRyumaCardName(card)}_${index}`
+    card?.cardInstanceId ||
+    card?.id ||
+    card?.cardId ||
+    card?.code ||
+    getRyumaCardName(card);
+
+  return `${index}:${String(raw || "card").toLowerCase().trim()}`;
+}
+
+function getRawRyumaCardAtk(card) {
+  return Math.max(
+    1,
+    Math.floor(
+      Number(
+        card?.teamAtk ||
+          card?.combatAtk ||
+          card?.battleAtk ||
+          card?.finalAtk ||
+          card?.displayAtk ||
+          card?.atk ||
+          0
+      )
+    )
   );
 }
 
-function getRyumaCardMaxHp(card) {
-  const hp = Number(
-    card?.teamHp ||
-      card?.combatHp ||
-      card?.battleHp ||
-      card?.maxHp ||
-      card?.finalHp ||
-      card?.displayHp ||
-      card?.hp ||
-      0
+function getRawRyumaCardHp(card) {
+  return Math.max(
+    1,
+    Math.floor(
+      Number(
+        card?.teamHp ||
+          card?.combatHp ||
+          card?.battleHp ||
+          card?.maxHp ||
+          card?.finalHp ||
+          card?.displayHp ||
+          card?.hp ||
+          0
+      )
+    )
   );
-
-  return Math.max(1, Math.floor(hp));
 }
 
-function getRyumaCardPower(card) {
-  const directPower = Number(
-    card?.teamPower ||
-      card?.currentPower ||
-      card?.finalPower ||
-      card?.power ||
-      card?.combatPower ||
-      card?.battlePower ||
-      0
+function getRawRyumaCardSpeed(card) {
+  return Math.max(
+    0,
+    Math.floor(
+      Number(
+        card?.teamSpeed ||
+          card?.combatSpeed ||
+          card?.battleSpeed ||
+          card?.finalSpeed ||
+          card?.displaySpeed ||
+          card?.speed ||
+          card?.spd ||
+          0
+      )
+    )
   );
+}
 
-  if (Number.isFinite(directPower) && directPower > 0) {
-    return Math.floor(directPower);
+function normalizeRyumaBoostType(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_\-\s]+/g, "");
+}
+
+function getRyumaBoostCardPercent(boostCard) {
+  const result = {
+    atk: 0,
+    hp: 0,
+    spd: 0,
+  };
+
+  const stage = Math.max(1, Math.min(3, Math.floor(Number(boostCard?.evolutionStage || 1))));
+  const form =
+    Array.isArray(boostCard?.evolutionForms)
+      ? boostCard.evolutionForms[Math.max(0, stage - 1)]
+      : null;
+
+  const sources = [
+    boostCard?.boostBonus,
+    form?.boostBonus,
+    boostCard,
+    form,
+  ];
+
+  for (const source of sources) {
+    if (!source || typeof source !== "object") continue;
+
+    result.atk += Number(source.atk || source.attack || 0);
+    result.hp += Number(source.hp || source.health || 0);
+    result.spd += Number(source.spd || source.speed || 0);
+
+    const boostType = normalizeRyumaBoostType(source.boostType || source.boostTarget);
+    const boostValue = Number(source.boostValue ?? source.value ?? source.percent ?? 0);
+
+    if (!boostValue) continue;
+
+    if (["atk", "attack", "atkboost", "attackboost"].includes(boostType)) {
+      result.atk += boostValue;
+    }
+
+    if (["hp", "health", "hpboost", "healthboost"].includes(boostType)) {
+      result.hp += boostValue;
+    }
+
+    if (["spd", "speed", "spdboost", "speedboost"].includes(boostType)) {
+      result.spd += boostValue;
+    }
+
+    // intentionally ignore dmg/damage boost for Ryuma card stat scaling
   }
 
-  const atk = Number(card?.atk || card?.finalAtk || card?.displayAtk || 0);
-  const hp = Number(card?.hp || card?.finalHp || card?.displayHp || 0);
-  const speed = Number(card?.speed || card?.spd || card?.finalSpeed || card?.displaySpeed || 0);
-
-  return Math.max(1, Math.floor((atk * 1.4) + (hp * 0.22) + (speed * 9)));
+  return result;
 }
 
-function getRyumaCardAtk(card) {
-  const atk = Number(
-    card?.teamAtk ||
-      card?.combatAtk ||
-      card?.battleAtk ||
-      card?.finalAtk ||
-      card?.displayAtk ||
-      card?.atk ||
-      0
-  );
+function getRyumaTeamBoosts(player) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+  const boosts = {
+    atk: 0,
+    hp: 0,
+    spd: 0,
+  };
 
-  return Math.max(1, Math.floor(atk));
-}
+  for (const card of cards) {
+    if (String(card?.cardRole || "").toLowerCase() !== "boost") continue;
 
-function getRyumaCardSpeed(card) {
-  const speed = Number(
-    card?.teamSpeed ||
-      card?.combatSpeed ||
-      card?.battleSpeed ||
-      card?.finalSpeed ||
-      card?.displaySpeed ||
-      card?.speed ||
-      card?.spd ||
-      0
-  );
-
-  return Math.max(0, Math.floor(speed));
-}
-
-function rollRyumaCardDamage(card, bossPhase) {
-  const phase = Number(bossPhase?.phase || 1);
-  const atk = getRyumaCardAtk(card);
-  const phaseMultiplier = Number(PHASE_DAMAGE_MULTIPLIER[phase] || 1);
-  const variance =
-    DAMAGE_VARIANCE_MIN +
-    (Math.random() * (DAMAGE_VARIANCE_MAX - DAMAGE_VARIANCE_MIN));
-
-  return Math.max(1, Math.floor(atk * phaseMultiplier * variance));
-}
-
-function normalizeRyumaCardHp(eventData, teamCards, attackWindow) {
-  const currentHp = eventData.cardHp && typeof eventData.cardHp === "object"
-    ? eventData.cardHp
-    : {};
-
-  const shouldReset =
-    Number(eventData.cardHpWindowStartedAt || 0) !== Number(attackWindow.attackWindowStartedAt || 0);
-
-  const nextHp = {};
-
-  for (const [index, card] of teamCards.entries()) {
-    const key = getRyumaCardKey(card, index);
-    const maxHp = getRyumaCardMaxHp(card);
-
-    nextHp[key] = shouldReset
-      ? maxHp
-      : Math.max(0, Math.min(maxHp, Number(currentHp[key] ?? maxHp)));
+    const bonus = getRyumaBoostCardPercent(card);
+    boosts.atk += Number(bonus.atk || 0);
+    boosts.hp += Number(bonus.hp || 0);
+    boosts.spd += Number(bonus.spd || 0);
   }
+
+  return boosts;
+}
+
+function applyRyumaBoostedStats(card, boosts = {}) {
+  const rawAtk = getRawRyumaCardAtk(card);
+  const rawHp = getRawRyumaCardHp(card);
+  const rawSpeed = getRawRyumaCardSpeed(card);
 
   return {
-    cardHp: nextHp,
-    cardHpWindowStartedAt: attackWindow.attackWindowStartedAt,
+    atk: Math.max(1, Math.floor(rawAtk * (1 + Number(boosts.atk || 0) / 100))),
+    hp: Math.max(1, Math.floor(rawHp * (1 + Number(boosts.hp || 0) / 100))),
+    speed: Math.max(0, Math.floor(rawSpeed * (1 + Number(boosts.spd || 0) / 100))),
   };
 }
 
-function getAliveRyumaTeamCards(teamCards, cardHp) {
-  return teamCards.filter((card, index) => {
+function getRyumaDamageRange(card, bossPhase, boosts = {}) {
+  const stats = applyRyumaBoostedStats(card, boosts);
+  const phase = Number(bossPhase?.phase || 1);
+  const phaseMultiplier = Number(PHASE_DAMAGE_MULTIPLIER[phase] || 1);
+
+  const min = Math.max(1, Math.floor(stats.atk * phaseMultiplier * DAMAGE_VARIANCE_MIN));
+  const max = Math.max(min, Math.floor(stats.atk * phaseMultiplier * DAMAGE_VARIANCE_MAX));
+
+  return {
+    min,
+    max,
+    roll: min,
+  };
+}
+
+function rollRyumaEntryDamage(entry) {
+  const min = Math.max(1, Math.floor(Number(entry?.damage?.min || entry?.damage?.roll || 1)));
+  const max = Math.max(min, Math.floor(Number(entry?.damage?.max || min)));
+
+  return Math.max(
+    1,
+    Math.floor(min + Math.random() * Math.max(1, max - min + 1))
+  );
+}
+
+function snapshotRyumaCardHp(selectedCards) {
+  const hp = {};
+
+  for (const entry of selectedCards || []) {
+    hp[entry.key] = Math.max(0, Math.floor(Number(entry.currentHp || 0)));
+  }
+
+  return hp;
+}
+
+function buildRyumaBattleCards(player, eventData, attackWindow, globalState) {
+  const teamCards = getRyumaTeamCards(player);
+  const boosts = getRyumaTeamBoosts(player);
+  const bossPhase = getBossPhase(globalState);
+
+  const currentHp =
+    eventData.cardHp && typeof eventData.cardHp === "object"
+      ? eventData.cardHp
+      : {};
+
+  const shouldReset =
+    Number(eventData.cardHpWindowStartedAt || 0) !==
+    Number(attackWindow.attackWindowStartedAt || 0);
+
+  return teamCards.slice(0, 3).map((card, index) => {
     const key = getRyumaCardKey(card, index);
-    return Number(cardHp[key] || 0) > 0;
+    const stats = applyRyumaBoostedStats(card, boosts);
+    const savedHp = shouldReset ? stats.hp : Number(currentHp[key] ?? stats.hp);
+
+    return {
+      key,
+      card,
+      atk: stats.atk,
+      maxHp: stats.hp,
+      speed: stats.speed,
+      currentHp: Math.max(0, Math.min(stats.hp, Math.floor(Number(savedHp || 0)))),
+      damage: getRyumaDamageRange(card, bossPhase, boosts),
+    };
   });
 }
 
-function buildRyumaCardRows(teamCards, cardHp) {
-  const buttons = teamCards.slice(0, 3).map((card, index) => {
-    const key = getRyumaCardKey(card, index);
-    const hp = Number(cardHp[key] || 0);
-
-    return new ButtonBuilder()
-      .setCustomId(`ryuma_card_${index}`)
-      .setLabel(getRyumaCardName(card).slice(0, 80))
-      .setStyle(ButtonStyle.Danger)
-      .setDisabled(hp <= 0);
-  });
-
-  return [
-    new ActionRowBuilder().addComponents(buttons),
-  ];
+function areAllRyumaCardsDead(selectedCards) {
+  return selectedCards.every((entry) => Number(entry.currentHp || 0) <= 0);
 }
 
-function buildRyumaCardSelectEmbed(globalState, teamCards, cardHp) {
+function buildRyumaCardRows(selectedCards, disabled = false) {
+  const row = new ActionRowBuilder();
+
+  selectedCards.slice(0, 3).forEach((entry, index) => {
+    const card = entry.card;
+    const dead = Number(entry.currentHp || 0) <= 0;
+    const label = String(card?.displayName || card?.name || `Card ${index + 1}`).slice(0, 70);
+
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`ryuma_card_${index}`)
+        .setLabel(`${index + 1}. ${label}`)
+        .setStyle(dead ? ButtonStyle.Secondary : ButtonStyle.Danger)
+        .setDisabled(Boolean(disabled || dead))
+    );
+  });
+
+  return [row];
+}
+
+function buildRyumaCardSelectEmbed({
+  globalState,
+  selectedCards,
+  turnCount = 0,
+  totalDamage = 0,
+  battleLog = [],
+  ended = false,
+}) {
   const hpLeft = getHpLeft(globalState);
   const bossPhase = getBossPhase(globalState);
-  const phaseMultiplier = Number(PHASE_DAMAGE_MULTIPLIER[bossPhase.phase] || 1);
 
-  const cardLines = teamCards.map((card, index) => {
-    const key = getRyumaCardKey(card, index);
-    const currentHp = Math.max(0, Number(cardHp[key] || 0));
-    const maxHp = getRyumaCardMaxHp(card);
-    const atk = getRyumaCardAtk(card);
-    const speed = getRyumaCardSpeed(card);
+  const cardLines = selectedCards.map((entry, index) => {
+    const card = entry.card;
+    const dead = Number(entry.currentHp || 0) <= 0;
+    const atkText =
+      Number(entry.damage?.max || 0) > Number(entry.damage?.min || 0)
+        ? `${fmt(entry.damage.min)}-${fmt(entry.damage.max)}`
+        : fmt(entry.damage?.roll || entry.atk || 1);
 
-    return [
-      `**${index + 1}. ${getRyumaCardName(card)}**`,
-      `HP: ${currentHp > 0 ? `${fmt(currentHp)} / ${fmt(maxHp)}` : "K.O."}`,
-      `ATK: ${fmt(atk)}`,
-      `SPD: ${fmt(speed)}`,
-    ].join("\n");
+    return `${dead ? "💀" : "⚔️"} ${index + 1}. ${
+      card?.displayName || card?.name || card?.code || "Unknown"
+    } — ATK ${atkText} | HP ${fmt(entry.currentHp)}/${fmt(entry.maxHp)} | SPD ${fmt(entry.speed)}`;
   });
 
   return new EmbedBuilder()
-    .setColor(0xe74c3c)
-    .setTitle(`${BOSS_NAME} Battle`)
+    .setColor(ended ? 0x2ecc71 : 0xe74c3c)
+    .setTitle(`${BOSS_NAME} Manual Fight`)
     .setDescription(
       [
-        `Choose one of your team cards to attack **${BOSS_NAME}**.`,
-        "",
         `**Boss HP:** ${fmt(hpLeft)} / ${fmt(MAX_HP)}`,
-        `**Ryuma Counter Damage:** ${fmt(BOSS_DAMAGE)}`,
+        `**Boss ATK:** ${fmt(BOSS_DAMAGE)}`,
         `**Phase:** ${bossPhase.phase}/4 — ${bossPhase.name}`,
-        `**Phase Damage Scale:** x${phaseMultiplier}`,
+        `**Turn:** ${fmt(turnCount)}/${fmt(ATTACK_LIMIT)}`,
         "",
-        cardLines.join("\n\n"),
-      ].join("\n")
+        `**Total Damage This Session:** ${fmt(totalDamage)}`,
+        "",
+        "**Your Cards:**",
+        ...cardLines,
+        battleLog.length ? "" : null,
+        battleLog.length ? "**Battle Log:**" : null,
+        ...battleLog.slice(-4),
+      ]
+        .filter(Boolean)
+        .join("\n")
     )
     .setFooter({
-      text: "Choose a card to attack. Team HP and attack count update after every hit.",
+      text: ended
+        ? "Ryuma fight ended."
+        : "Choose a card to attack. Damage is randomly rolled from the card ATK range.",
     })
     .setTimestamp();
 }
@@ -1259,6 +1379,17 @@ async function buyShopItem(message, buyArgs = []) {
 }
 
 async function performAttack(message) {
+  const battleKey = String(message.author.id);
+
+  if (ACTIVE_RYUMA_BATTLES.has(battleKey)) {
+    return message.reply({
+      content: "You already have an active Ryuma fight. Finish that fight first.",
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
+
   const players = readPlayers();
   const globalState = getGlobalState(players);
 
@@ -1293,9 +1424,9 @@ async function performAttack(message) {
     });
   }
 
-  const teamCards = getRyumaTeamCards(player);
+  const selectedCards = buildRyumaBattleCards(player, eventData, attackWindow, globalState);
 
-  if (!teamCards.length) {
+  if (!selectedCards.length) {
     return message.reply({
       content: "You need at least 1 battle card in your team before attacking Ryuma.",
       allowedMentions: {
@@ -1304,19 +1435,7 @@ async function performAttack(message) {
     });
   }
 
-  const hpState = normalizeRyumaCardHp(eventData, teamCards, attackWindow);
-
-  eventData = {
-    ...eventData,
-    cardHp: hpState.cardHp,
-    cardHpWindowStartedAt: hpState.cardHpWindowStartedAt,
-  };
-
-  player = setEventData(player, eventData);
-  players[String(message.author.id)] = player;
-  writePlayers(players);
-
-  if (!getAliveRyumaTeamCards(teamCards, eventData.cardHp).length) {
+  if (areAllRyumaCardsDead(selectedCards)) {
     return message.reply({
       content: `All your team cards are knocked out. Your team HP resets <t:${Math.floor(attackWindow.resetAt / 1000)}:R>.`,
       allowedMentions: {
@@ -1325,15 +1444,40 @@ async function performAttack(message) {
     });
   }
 
+  ACTIVE_RYUMA_BATTLES.add(battleKey);
+
+  eventData = {
+    ...eventData,
+    attackWindowStartedAt: attackWindow.attackWindowStartedAt,
+    attacksUsed: attackWindow.attacksUsed,
+    cardHp: snapshotRyumaCardHp(selectedCards),
+    cardHpWindowStartedAt: attackWindow.attackWindowStartedAt,
+  };
+
+  player = setEventData(player, eventData);
+  players[String(message.author.id)] = player;
+  writePlayers(players);
+
+  let turnCount = Math.max(0, Number(eventData.attacksUsed || 0));
+  let totalDamage = 0;
+  let battleLog = [];
+  let ended = false;
+
   const sent = await message.reply({
-    embeds: [buildRyumaCardSelectEmbed(globalState, teamCards, eventData.cardHp)],
-    components: buildRyumaCardRows(teamCards, eventData.cardHp),
+    embeds: [
+      buildRyumaCardSelectEmbed({
+        globalState,
+        selectedCards,
+        turnCount,
+        totalDamage,
+        battleLog,
+      }),
+    ],
+    components: buildRyumaCardRows(selectedCards),
     allowedMentions: {
       repliedUser: false,
     },
   });
-
-  let battleBusy = false;
 
   const collector = sent.createMessageComponentCollector({
     componentType: ComponentType.Button,
@@ -1343,233 +1487,222 @@ async function performAttack(message) {
   collector.on("collect", async (interaction) => {
     if (interaction.user.id !== message.author.id) {
       return interaction.reply({
-        content: "This Ryuma battle is not yours.",
+        content: "Only the Ryuma attacker can use these buttons.",
         ephemeral: true,
       });
     }
 
-    if (battleBusy) {
+    const cardIndex = Number(String(interaction.customId || "").replace("ryuma_card_", ""));
+
+    if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= selectedCards.length) {
       return interaction.reply({
-        content: "Previous attack is still being processed. Please wait.",
+        content: "Invalid Ryuma battle button.",
         ephemeral: true,
       });
     }
 
-    battleBusy = true;
+    const selected = selectedCards[cardIndex];
 
-    try {
-      await interaction.deferUpdate().catch(() => null);
-
-      const cardIndex = Number(String(interaction.customId || "").replace("ryuma_card_", ""));
-      const freshPlayers = readPlayers();
-      const freshGlobalState = getGlobalState(freshPlayers);
-
-      if (!isEventStarted(freshGlobalState)) {
-        collector.stop("event_not_started");
-        return sent.edit({
-          content: `The Ryuma Global Boss Event has not started yet.\nStarts: ${RYUMA_EVENT_START_LABEL}`,
-          embeds: [],
-          components: [],
-        });
-      }
-
-      if (isEventEnded(freshGlobalState)) {
-        collector.stop("event_ended");
-        return sent.edit({
-          content: "The Ryuma Global Boss Event has ended.",
-          embeds: [],
-          components: [],
-        });
-      }
-
-      let freshPlayer = getPlayer(message.author.id, message.author.username);
-      let freshEventData = getEventData(freshPlayer);
-      const freshAttackWindow = getAttackWindow(freshEventData);
-
-      if (freshAttackWindow.attacksLeft <= 0) {
-        collector.stop("no_attacks");
-        return sent.edit({
-          content: `You have no attacks left. Your attacks reset <t:${Math.floor(freshAttackWindow.resetAt / 1000)}:R>.`,
-          embeds: [],
-          components: [],
-        });
-      }
-
-      const freshTeamCards = getRyumaTeamCards(freshPlayer);
-      const freshHpState = normalizeRyumaCardHp(freshEventData, freshTeamCards, freshAttackWindow);
-
-      freshEventData = {
-        ...freshEventData,
-        cardHp: freshHpState.cardHp,
-        cardHpWindowStartedAt: freshHpState.cardHpWindowStartedAt,
-      };
-
-      const selectedCard = freshTeamCards[cardIndex];
-
-      if (!selectedCard) {
-        return sent.edit({
-          content: "Selected card is no longer available in your team.",
-          embeds: [],
-          components: [],
-        });
-      }
-
-      const selectedCardKey = getRyumaCardKey(selectedCard, cardIndex);
-      const selectedCardHpBefore = Number(freshEventData.cardHp[selectedCardKey] || 0);
-      const selectedCardMaxHp = getRyumaCardMaxHp(selectedCard);
-
-      if (selectedCardHpBefore <= 0) {
-        return sent.edit({
-          content: null,
-          embeds: [buildRyumaCardSelectEmbed(freshGlobalState, freshTeamCards, freshEventData.cardHp)],
-          components: buildRyumaCardRows(freshTeamCards, freshEventData.cardHp),
-        });
-      }
-
-      const bossPhaseBeforeAttack = getBossPhase(freshGlobalState);
-      const attackDamage = rollRyumaCardDamage(selectedCard, bossPhaseBeforeAttack);
-      const selectedCardName = getRyumaCardName(selectedCard);
-      const selectedCardAtk = getRyumaCardAtk(selectedCard);
-      const selectedCardHpAfter = Math.max(0, selectedCardHpBefore - BOSS_DAMAGE);
-
-      const nextEventData = {
-        ...freshEventData,
-        joinedAt: freshEventData.joinedAt || now(),
-        damage: freshEventData.damage + attackDamage,
-        attackWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
-        attacksUsed: freshAttackWindow.attacksUsed + 1,
-        claimedPersonalMilestones: [...freshEventData.claimedPersonalMilestones],
-        claimedBonusMilestones: [...freshEventData.claimedBonusMilestones],
-        cardHp: {
-          ...(freshEventData.cardHp || {}),
-          [selectedCardKey]: selectedCardHpAfter,
-        },
-        cardHpWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
-      };
-
-      const claimedLines = [];
-
-      for (const milestone of getPersonalClaims(nextEventData)) {
-        freshPlayer = applyRewards(freshPlayer, milestone.rewards);
-        nextEventData.claimedPersonalMilestones.push(milestone.damage);
-        claimedLines.push(`Personal ${fmt(milestone.damage)} damage: ${rewardLines(milestone.rewards).join(", ")}`);
-      }
-
-      for (const bonusDamage of getBonusClaims(nextEventData)) {
-        freshPlayer = applyRewards(freshPlayer, BONUS_REWARD);
-        nextEventData.claimedBonusMilestones.push(bonusDamage);
-        claimedLines.push(`Bonus ${fmt(bonusDamage)} damage: ${rewardLines(BONUS_REWARD).join(", ")}`);
-      }
-
-      freshPlayer = setEventData(freshPlayer, nextEventData);
-
-      freshGlobalState.totalDamage = Math.max(0, Number(freshGlobalState.totalDamage || 0)) + attackDamage;
-
-      freshPlayers[GLOBAL_STORE_ID] = freshGlobalState;
-      freshPlayers[String(message.author.id)] = freshPlayer;
-      writePlayers(freshPlayers);
-
-      const hpLeft = getHpLeft(freshGlobalState);
-      const bossPhaseAfterAttack = getBossPhase(freshGlobalState);
-      const attacksLeft = Math.max(0, ATTACK_LIMIT - nextEventData.attacksUsed);
-      const cardStatus = selectedCardHpAfter <= 0
-        ? "K.O."
-        : `${fmt(selectedCardHpAfter)} / ${fmt(selectedCardMaxHp)}`;
-
-      const updatedPlayer = getPlayer(message.author.id, message.author.username);
-      const updatedTeamCards = getRyumaTeamCards(updatedPlayer);
-      const aliveCards = getAliveRyumaTeamCards(updatedTeamCards, nextEventData.cardHp);
-      const canContinue = attacksLeft > 0 && aliveCards.length > 0 && !isEventEnded(freshGlobalState);
-
-      const phaseMultiplier = Number(PHASE_DAMAGE_MULTIPLIER[bossPhaseAfterAttack.phase] || 1);
-
-      const cardLines = updatedTeamCards.map((card, index) => {
-        const key = getRyumaCardKey(card, index);
-        const currentHp = Math.max(0, Number(nextEventData.cardHp[key] || 0));
-        const maxHp = getRyumaCardMaxHp(card);
-        const atk = getRyumaCardAtk(card);
-        const speed = getRyumaCardSpeed(card);
-
-        return [
-          `**${index + 1}. ${getRyumaCardName(card)}**`,
-          `HP: ${currentHp > 0 ? `${fmt(currentHp)} / ${fmt(maxHp)}` : "K.O."}`,
-          `ATK: ${fmt(atk)}`,
-          `SPD: ${fmt(speed)}`,
-        ].join("\n");
+    if (Number(selected.currentHp || 0) <= 0) {
+      return interaction.reply({
+        content: "This card is already defeated.",
+        ephemeral: true,
       });
+    }
 
-      const embed = new EmbedBuilder()
-        .setColor(0xe74c3c)
-        .setTitle(`${BOSS_NAME} Battle`)
-        .setDescription(
-          [
-            `**${selectedCardName}** attacked **${BOSS_NAME}**.`,
-            "",
-            `**${selectedCardName} ATK:** ${fmt(selectedCardAtk)}`,
-            `**Damage Dealt:** ${fmt(attackDamage)}`,
-            `**Ryuma Counter Damage:** ${fmt(BOSS_DAMAGE)}`,
-            `**${selectedCardName} HP:** ${cardStatus}`,
-            "",
-            `**Boss HP:** ${fmt(hpLeft)} / ${fmt(MAX_HP)}`,
-            `**Phase:** ${bossPhaseAfterAttack.phase}/4 — ${bossPhaseAfterAttack.name}`,
-            `**Phase Damage Scale:** x${phaseMultiplier}`,
-            `**Global Damage:** ${fmt(freshGlobalState.totalDamage)}`,
-            `**Your Damage:** ${fmt(nextEventData.damage)}`,
-            `**Your Attacks Left:** ${attacksLeft} / ${ATTACK_LIMIT}`,
-            "",
-            claimedLines.length
-              ? `**Rewards Auto-Claimed:**\n${claimedLines.map((line) => `- ${line}`).join("\n")}`
-              : "No new personal milestone reward unlocked.",
-            "",
-            canContinue
-              ? "**Choose your next card to continue attacking:**"
-              : attacksLeft <= 0
-                ? "**Battle ended:** You have no attacks left."
-                : "**Battle ended:** All your team cards are knocked out.",
-            canContinue ? cardLines.join("\n\n") : null,
-          ].filter(Boolean).join("\n")
-        )
-        .setFooter({
-          text: canContinue
-            ? "Keep choosing cards. No need to click Attack again."
-            : "One Piece Bot • Ryuma Event",
-        })
-        .setTimestamp();
-
-      if (RYUMA_ATTACK_GIF) {
-        embed.setImage(RYUMA_ATTACK_GIF);
-      }
-
-      if (!canContinue) {
-        collector.stop("battle_done");
-      }
-
-      return sent.edit({
-        content: null,
-        embeds: [embed],
-        components: canContinue ? buildRyumaCardRows(updatedTeamCards, nextEventData.cardHp) : [],
+    if (ended) {
+      return interaction.reply({
+        content: "This Ryuma fight already ended.",
+        ephemeral: true,
       });
-    } catch (error) {
-      console.error("[Ryuma] attack failed:", error);
+    }
 
-      return sent.edit({
-        content: "Ryuma attack failed. Please try `op ryuma attack` again.",
+    const freshPlayers = readPlayers();
+    const freshGlobalState = getGlobalState(freshPlayers);
+
+    if (!isEventStarted(freshGlobalState)) {
+      ended = true;
+      collector.stop("event_not_started");
+
+      return interaction.update({
+        content: `The Ryuma Global Boss Event has not started yet.\nStarts: ${RYUMA_EVENT_START_LABEL}`,
         embeds: [],
         components: [],
-      }).catch(() => null);
-    } finally {
-      battleBusy = false;
+      });
+    }
+
+    if (isEventEnded(freshGlobalState)) {
+      ended = true;
+      collector.stop("event_ended");
+
+      return interaction.update({
+        content: "The Ryuma Global Boss Event has ended.",
+        embeds: [],
+        components: [],
+      });
+    }
+
+    let freshPlayer = getPlayer(message.author.id, message.author.username);
+    const freshEventData = getEventData(freshPlayer);
+    const freshAttackWindow = getAttackWindow(freshEventData);
+
+    if (freshAttackWindow.attacksLeft <= 0) {
+      ended = true;
+      collector.stop("no_attacks");
+
+      return interaction.update({
+        content: `You have no attacks left. Your attacks reset <t:${Math.floor(freshAttackWindow.resetAt / 1000)}:R>.`,
+        embeds: [],
+        components: [],
+      });
+    }
+
+    turnCount = Math.max(turnCount, Number(freshEventData.attacksUsed || 0));
+
+    if (turnCount >= ATTACK_LIMIT) {
+      ended = true;
+      collector.stop("turn_limit");
+
+      return interaction.update({
+        embeds: [
+          buildRyumaCardSelectEmbed({
+            globalState: freshGlobalState,
+            selectedCards,
+            turnCount,
+            totalDamage,
+            battleLog: [...battleLog, "The Ryuma fight has reached the attack limit."],
+            ended: true,
+          }),
+        ],
+        components: buildRyumaCardRows(selectedCards, true),
+      });
+    }
+
+    const bossPhaseBeforeAttack = getBossPhase(freshGlobalState);
+    const damage = Math.min(getHpLeft(freshGlobalState), rollRyumaEntryDamage(selected));
+    const nextBossDefeated = getHpLeft(freshGlobalState) - damage <= 0;
+
+    let bossCounterDamage = 0;
+
+    if (!nextBossDefeated) {
+      bossCounterDamage = Math.min(
+        Number(selected.currentHp || 0),
+        BOSS_DAMAGE
+      );
+
+      selected.currentHp = Math.max(
+        0,
+        Math.floor(Number(selected.currentHp || 0)) - bossCounterDamage
+      );
+    }
+
+    const nextEventData = {
+      ...freshEventData,
+      joinedAt: freshEventData.joinedAt || now(),
+      damage: Math.max(0, Number(freshEventData.damage || 0)) + damage,
+      attackWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
+      attacksUsed: Math.max(0, Number(freshEventData.attacksUsed || 0)) + 1,
+      claimedPersonalMilestones: [...freshEventData.claimedPersonalMilestones],
+      claimedBonusMilestones: [...freshEventData.claimedBonusMilestones],
+      cardHp: snapshotRyumaCardHp(selectedCards),
+      cardHpWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
+    };
+
+    const claimedLines = [];
+
+    for (const milestone of getPersonalClaims(nextEventData)) {
+      freshPlayer = applyRewards(freshPlayer, milestone.rewards);
+      nextEventData.claimedPersonalMilestones.push(milestone.damage);
+      claimedLines.push(`Personal ${fmt(milestone.damage)} damage: ${rewardLines(milestone.rewards).join(", ")}`);
+    }
+
+    for (const bonusDamage of getBonusClaims(nextEventData)) {
+      freshPlayer = applyRewards(freshPlayer, BONUS_REWARD);
+      nextEventData.claimedBonusMilestones.push(bonusDamage);
+      claimedLines.push(`Bonus ${fmt(bonusDamage)} damage: ${rewardLines(BONUS_REWARD).join(", ")}`);
+    }
+
+    freshPlayer = setEventData(freshPlayer, nextEventData);
+
+    freshGlobalState.totalDamage =
+      Math.max(0, Number(freshGlobalState.totalDamage || 0)) + damage;
+
+    freshPlayers[GLOBAL_STORE_ID] = freshGlobalState;
+    freshPlayers[String(message.author.id)] = freshPlayer;
+    writePlayers(freshPlayers);
+
+    turnCount = nextEventData.attacksUsed;
+    totalDamage += damage;
+
+    battleLog.push(
+      `⚔️ ${
+        selected.card?.displayName ||
+        selected.card?.name ||
+        selected.card?.code ||
+        "Card"
+      } dealt **${fmt(damage)}** damage.`
+    );
+
+    if (bossCounterDamage > 0) {
+      battleLog.push(
+        `☠️ ${BOSS_NAME} countered for **${fmt(bossCounterDamage)}** damage.`
+      );
+    }
+
+    if (Number(selected.currentHp || 0) <= 0) {
+      battleLog.push(
+        `💀 ${
+          selected.card?.displayName ||
+          selected.card?.name ||
+          selected.card?.code ||
+          "Card"
+        } was defeated.`
+      );
+    }
+
+    for (const line of claimedLines) {
+      battleLog.push(`🎁 ${line}`);
+    }
+
+    ended =
+      nextBossDefeated ||
+      areAllRyumaCardsDead(selectedCards) ||
+      turnCount >= ATTACK_LIMIT;
+
+    await interaction.update({
+      content: null,
+      embeds: [
+        buildRyumaCardSelectEmbed({
+          globalState: freshGlobalState,
+          selectedCards,
+          turnCount,
+          totalDamage,
+          battleLog,
+          ended,
+        }),
+      ],
+      components: buildRyumaCardRows(selectedCards, ended),
+    });
+
+    if (ended) {
+      collector.stop(
+        nextBossDefeated
+          ? "boss_defeated"
+          : areAllRyumaCardsDead(selectedCards)
+            ? "all_cards_dead"
+            : "turn_limit"
+      );
     }
   });
 
-  collector.on("end", async (collected, reason) => {
-    if (["battle_done", "event_not_started", "event_ended", "no_attacks"].includes(reason)) {
-      return;
-    }
+  collector.on("end", async () => {
+    ACTIVE_RYUMA_BATTLES.delete(battleKey);
 
-    await sent.edit({
-      components: [],
-    }).catch(() => null);
+    try {
+      await sent.edit({
+        components: buildRyumaCardRows(selectedCards, true),
+      });
+    } catch {}
   });
 
   return sent;
