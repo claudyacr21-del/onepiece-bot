@@ -637,6 +637,28 @@ function getFinalDisplayStats(card, boosts = {}) {
   };
 }
 
+function isMergeEquipmentLockedCard(card) {
+  const type = String(card?.type || card?.category || "").toLowerCase().trim();
+
+  return Boolean(
+    card &&
+      (
+        card.mergeOnly === true ||
+        Array.isArray(card.mergeSourceCodes) ||
+        type === "merge"
+      )
+  );
+}
+
+function getMergeEquipmentLockedMessage(card) {
+  return [
+    `**${card?.displayName || card?.name || "This card"}** is a merge card.`,
+    "",
+    "Merge cards cannot equip devil fruits manually.",
+    "Their devil fruit data is synced from the original/source cards.",
+  ].join("\n");
+}
+
 async function equipFruitToCard(message, player, card, fruit) {
   let syncedCard = null;
   let resolvedFruitData = null;
@@ -657,6 +679,14 @@ async function equipFruitToCard(message, player, card, fruit) {
         }
 
         const hydratedCard = hydrateCard(cards[cardIndex]) || cards[cardIndex];
+
+        if (
+          isMergeEquipmentLockedCard(card) ||
+          isMergeEquipmentLockedCard(cards[cardIndex]) ||
+          isMergeEquipmentLockedCard(hydratedCard)
+        ) {
+          throw new Error(getMergeEquipmentLockedMessage(hydratedCard));
+        }
 
         if (hydratedCard.equippedDevilFruit || cards[cardIndex].equippedDevilFruit) {
           throw new Error("This card already has a devil fruit equipped, and it cannot be removed.");

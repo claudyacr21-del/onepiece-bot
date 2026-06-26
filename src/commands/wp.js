@@ -253,6 +253,28 @@ function getWeaponSlotLimit(card) {
   return 1;
 }
 
+function isMergeEquipmentLockedCard(card) {
+  const type = String(card?.type || card?.category || "").toLowerCase().trim();
+
+  return Boolean(
+    card &&
+      (
+        card.mergeOnly === true ||
+        Array.isArray(card.mergeSourceCodes) ||
+        type === "merge"
+      )
+  );
+}
+
+function getMergeEquipmentLockedMessage(card) {
+  return [
+    `**${card?.displayName || card?.name || "This card"}** is a merge card.`,
+    "",
+    "Merge cards cannot equip weapons manually.",
+    "Their weapon data is synced from the original/source cards.",
+  ].join("\n");
+}
+
 function splitCardAndWeaponInput(rawArgs) {
   if (!rawArgs.length) return null;
 
@@ -449,6 +471,13 @@ module.exports = {
       });
     }
 
+    if (isMergeEquipmentLockedCard(previewCard)) {
+      return message.reply({
+        content: getMergeEquipmentLockedMessage(previewCard),
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
     const previewWeaponTemplate = findBestWeaponMatch(split.weaponName);
 
     if (!previewWeaponTemplate) {
@@ -494,6 +523,16 @@ module.exports = {
 
           if (!rawOwnedCard) {
             throw new Error("Owned card data was not found. Please try again.");
+          }
+
+          const freshHydratedCard = hydrateCard(rawOwnedCard) || rawOwnedCard;
+
+          if (
+            isMergeEquipmentLockedCard(card) ||
+            isMergeEquipmentLockedCard(rawOwnedCard) ||
+            isMergeEquipmentLockedCard(freshHydratedCard)
+          ) {
+            throw new Error(getMergeEquipmentLockedMessage(freshHydratedCard));
           }
 
           weaponTemplate = findBestWeaponMatch(split.weaponName);
