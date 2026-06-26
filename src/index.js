@@ -495,6 +495,43 @@ function getPlayerAdminBan(player) {
   };
 }
 
+function getDisabledCommandStore() {
+  const players = readPlayers();
+  const raw =
+    players.__disabled_commands && typeof players.__disabled_commands === "object"
+      ? players.__disabled_commands
+      : {};
+
+  return {
+    disabled: Array.isArray(raw.disabled)
+      ? raw.disabled.map(normalizeCommandName).filter(Boolean)
+      : [],
+  };
+}
+
+function isCommandDisabledByAdmin(commandName, command) {
+  const protectedCommands = new Set([
+    "disable",
+    "enable",
+    "disabledcmds",
+    "maintenance",
+    "banuser",
+    "unbanuser",
+    "baninfo",
+    "help",
+  ]);
+
+  const typed = normalizeCommandName(commandName);
+  const real = normalizeCommandName(command?.name);
+
+  if (protectedCommands.has(typed) || protectedCommands.has(real)) {
+    return false;
+  }
+
+  const store = getDisabledCommandStore();
+  return store.disabled.includes(typed) || store.disabled.includes(real);
+}
+
 function isBanBypassCommand(commandName, command) {
   const allowed = new Set([
     "banuser",
@@ -714,6 +751,16 @@ client.on("messageCreate", async (message) => {
     ) {
       await message.reply({
         embeds: [createMaintenanceEmbed()],
+      });
+      return;
+    }
+
+    if (isCommandDisabledByAdmin(commandName, command) && !isAdminBypassUser(message)) {
+      await message.reply({
+        content: `\`op ${commandName}\` is currently disabled by admins.`,
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
       return;
     }
