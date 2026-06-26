@@ -43,7 +43,6 @@ function isAdmin(message) {
 function formatTime(timestamp) {
   const value = Number(timestamp || 0);
   if (!value) return "N/A";
-
   return `<t:${Math.floor(value / 1000)}:R>`;
 }
 
