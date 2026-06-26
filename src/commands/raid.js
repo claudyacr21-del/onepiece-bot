@@ -925,11 +925,15 @@ function getBattleTeamCards(player) {
 }
 
 function toRoomCard(card) {
-  const synced = hydrateCard(card) || card || {};
+  const hydrated = hydrateCard(card) || {};
+  const synced = {
+    ...hydrated,
+    ...card,
+  };
 
   const hasCustomSkin = Boolean(synced.hasCustomSkin);
   const skinName = hasCustomSkin
-    ? String(synced.displayName || synced.skinName || synced.name || "")
+    ? String(synced.skinName || synced.displayName || synced.name || "")
     : "";
 
   const skinImage = hasCustomSkin
@@ -939,6 +943,8 @@ function toRoomCard(card) {
   const originalDisplayName = String(
     synced.originalDisplayName ||
       synced.skinnedCharacter ||
+      hydrated.displayName ||
+      hydrated.name ||
       synced.name ||
       synced.displayName ||
       ""
@@ -947,10 +953,14 @@ function toRoomCard(card) {
   return {
     instanceId: String(synced.instanceId || ""),
     code: String(synced.code || ""),
-    name: String(synced.displayName || synced.name || "Unknown"),
+    name: String(
+      hasCustomSkin
+        ? skinName || synced.displayName || synced.name || "Unknown"
+        : synced.displayName || synced.name || "Unknown"
+    ),
     evolutionStage: Number(synced.evolutionStage || 1),
     currentTier: String(synced.currentTier || synced.rarity || ""),
-    image: String(synced.image || ""),
+    image: String(hasCustomSkin ? skinImage || synced.image || "" : synced.image || ""),
     cardRole: String(synced.cardRole || "battle"),
 
     hasCustomSkin,
@@ -1045,11 +1055,14 @@ function buildBattleRoster(room) {
         instanceId: String(displayed.instanceId || ""),
         code: String(displayed.code || ""),
         name: String(
-          displayed.displayName ||
-            displayed.name ||
-            picked?.skinName ||
-            picked?.name ||
-            "Unknown"
+          hasCustomSkin
+            ? displayed.skinName ||
+                picked?.skinName ||
+                displayed.displayName ||
+                picked?.name ||
+                displayed.name ||
+                "Unknown"
+            : displayed.displayName || displayed.name || picked?.name || "Unknown"
         ),
         atk: getRaidCardAtk(displayed),
         maxHp: getRaidCardHp(displayed),
@@ -1231,7 +1244,7 @@ function buildLobbyEmbed(hostName, room, ended = false, bossStats = null) {
   const joinedLines = participants.length
     ? participants.map((participant, index) => {
         const picked = ensureArray(participant.selectedCards)
-          .map((card) => card.name || card.code)
+          .map((card) => card.skinName || card.name || card.code)
           .join(", ");
 
         return `${index + 1}. ${participant.username} • ${
@@ -1316,7 +1329,7 @@ function buildPickRows(roomId, cards) {
         )
         .setLabel(
           card
-            ? `${index + 1} ${card.displayName || card.name}`.slice(0, 80)
+            ? `${index + 1} ${card.skinName || card.displayName || card.name}`.slice(0, 80)
             : `Empty Slot ${index + 1}`
         )
         .setStyle(ButtonStyle.Secondary)

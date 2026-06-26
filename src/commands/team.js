@@ -2,6 +2,7 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, getMergeFixedPower } = require("../utils/mergeCards");
+const { applyCustomSkinToCard } = require("../utils/customSkins");
 
 function getPower(card) {
   if (isMergeCard(card)) return getMergeFixedPower(card);
@@ -41,6 +42,10 @@ function getMastery(card) {
 }
 
 function getCardName(card) {
+  if (card?.hasCustomSkin) {
+    return card.skinName || card.displayName || card.name || "Unknown";
+  }
+
   return card.displayName || card.name || "Unknown";
 }
 
@@ -77,13 +82,14 @@ module.exports = {
     const teamCards = team.slots.map((instanceId) => {
       if (!instanceId) return null;
 
-      return (
+      const found =
         cards.find(
           (entry) =>
             String(entry.instanceId) === String(instanceId) &&
             String(entry.cardRole || "").toLowerCase() !== "boost"
-        ) || null
-      );
+        ) || null;
+
+      return found ? applyCustomSkinToCard(player, found) : null;
     });
 
     const totalPower = teamCards

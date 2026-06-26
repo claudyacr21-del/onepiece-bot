@@ -36,8 +36,55 @@ function dedupeIds(list = []) {
   return out;
 }
 
+function getCardConflictKey(card) {
+  const explicitKey = String(card?.cardConflictKey || "").trim();
+  if (explicitKey) return explicitKey;
+
+  const originalCode = String(card?.code || card?.characterCode || card?.cardCode || "")
+    .toLowerCase()
+    .trim();
+
+  const skinName = String(card?.skinName || card?.customSkinName || "")
+    .toLowerCase()
+    .trim();
+
+  const skinImage = String(card?.skinImage || "")
+    .toLowerCase()
+    .trim();
+
+  const name = String(card?.name || card?.displayName || "")
+    .toLowerCase()
+    .trim();
+
+  const instanceId = String(card?.instanceId || "").trim();
+
+  // Same original code + different active custom skin = allowed.
+  // Same original code + same active custom skin = duplicate.
+  if (card?.hasCustomSkin && originalCode && (skinName || skinImage)) {
+    return ["skin", originalCode, skinName, skinImage]
+      .filter(Boolean)
+      .join(":");
+  }
+
+  if (originalCode) return `code:${originalCode}`;
+  if (name) return `name:${name}`;
+  if (instanceId) return `instance:${instanceId}`;
+
+  return "";
+}
+
 function sanitizeCard(card) {
-  return {
+  const hasCustomSkin = Boolean(card?.hasCustomSkin);
+
+  const skinName = hasCustomSkin
+    ? String(card?.skinName || card?.displayName || card?.name || "")
+    : "";
+
+  const skinImage = hasCustomSkin
+    ? String(card?.skinImage || card?.image || "")
+    : "";
+
+  const sanitized = {
     instanceId: String(card?.instanceId || ""),
     code: String(card?.code || ""),
     name: String(card?.displayName || card?.name || ""),
@@ -49,7 +96,20 @@ function sanitizeCard(card) {
     evolutionStage: Number(card?.evolutionStage || 1),
     image: String(card?.image || ""),
     cardRole: String(card?.cardRole || "battle"),
+
+    hasCustomSkin,
+    skinName,
+    skinTitle: String(card?.skinTitle || ""),
+    skinImage,
+    originalDisplayName: String(card?.originalDisplayName || ""),
+    skinnedCharacter: String(
+      card?.skinnedCharacter || card?.originalDisplayName || ""
+    ),
   };
+
+  sanitized.cardConflictKey = getCardConflictKey(sanitized);
+
+  return sanitized;
 }
 
 function getRoom(hostId) {
@@ -191,8 +251,8 @@ function getUsedCardCodes(room, excludeUserId = null) {
     }
 
     for (const card of ensureArray(participant.selectedCards)) {
-      const code = normalize(card?.code);
-      if (code) used.add(code);
+      const key = getCardConflictKey(card);
+      if (key) used.add(key);
     }
   }
 
@@ -257,13 +317,13 @@ function validateSelectedCards(room, selectedCards, opts = {}) {
     }
   }
 
-  const localCodes = cards.map((c) => normalize(c.code));
+  const localCodes = cards.map((c) => getCardConflictKey(c)).filter(Boolean);
   const localInstances = cards.map((c) => String(c.instanceId));
 
   if (new Set(localCodes).size !== localCodes.length) {
     return {
       ok: false,
-      reason: "Duplicate character in your own selection is not allowed.",
+      reason: "Duplicate character/skin in your own selection is not allowed.",
     };
   }
 
@@ -281,7 +341,7 @@ function validateSelectedCards(room, selectedCards, opts = {}) {
       if (usedCodes.has(code)) {
         return {
           ok: false,
-          reason: `Character already used in this room: ${code}`,
+          reason: `Character/skin already used in this room: ${code}`,
         };
       }
     }
