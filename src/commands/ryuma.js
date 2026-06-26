@@ -17,7 +17,6 @@ const { getPlayerCombatCards } = require("../utils/combatStats");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
-const { applyCustomSkinToCard } = require("../utils/customSkins");
 const EVENT_ID = "ryuma_global_boss";
 const GLOBAL_STORE_ID = "__ryuma_global_boss_event";
 
@@ -539,11 +538,11 @@ function getRyumaTeamCards(player) {
 
     const hydrated = hydrateCard(card) || card;
 
-    const synced = isMergeCard(hydrated)
-      ? buildMergedCard(player, hydrated)
-      : hydrated;
+    if (isMergeCard(hydrated)) {
+      return buildMergedCard(player, hydrated);
+    }
 
-    return applyCustomSkinToCard(player || {}, synced);
+    return hydrated;
   };
 
   const result = [];
@@ -618,16 +617,6 @@ function getRyumaTeamCards(player) {
 }
 
 function getRyumaCardName(card) {
-  if (card?.hasCustomSkin) {
-    return String(
-      card?.skinName ||
-        card?.displayName ||
-        card?.name ||
-        card?.code ||
-        "Unknown Card"
-    );
-  }
-
   return String(
     card?.displayName ||
       card?.name ||
