@@ -14,6 +14,12 @@ const {
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const {
+  applyCustomSkinToCard,
+  findSkinSetByQuery,
+  normalizeCode: normalizeSkinCode,
+  normalizeName: normalizeSkinName,
+} = require("../utils/customSkins");
+const {
   getCardImage,
   getDevilFruitImage,
   getWeaponImage,
@@ -277,6 +283,43 @@ function findOwnedCardByNameOnly(player, query) {
     .sort((a, b) => b.score - a.score);
 
   return scored.length ? scored[0].card : null;
+}
+
+function findOwnedCardBySkinQuery(player, query) {
+  const foundSkin = findSkinSetByQuery(player, query);
+
+  if (!foundSkin) return null;
+
+  const cards = getOwnedCards(player);
+
+  const targetCode = normalizeSkinCode(
+    foundSkin.skinSet?.cardCode || foundSkin.key || ""
+  );
+
+  const targetOriginalName = normalizeSkinName(
+    foundSkin.skinSet?.originalName || ""
+  );
+
+  return (
+    cards.find((card) => {
+      const code = normalizeSkinCode(card?.code || "");
+      const name = normalizeSkinName(card?.name || "");
+      const displayName = normalizeSkinName(card?.displayName || "");
+
+      return (
+        (targetCode && code === targetCode) ||
+        (targetOriginalName &&
+          (name === targetOriginalName || displayName === targetOriginalName))
+      );
+    }) || null
+  );
+}
+
+function findOwnedCardOrSkinByQuery(player, query) {
+  return (
+    findOwnedCardByNameOnly(player, query) ||
+    findOwnedCardBySkinQuery(player, query)
+  );
 }
 
 function findFruitTemplate(value) {
@@ -786,44 +829,58 @@ function enrichMergedCardLiveEquipment(player, card) {
 
 
 function buildOwnedCardEmbed(ownerName, player, card) {
+  const displayCard = applyCustomSkinToCard(player, card);
+
   const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
   const form = getCurrentForm(card);
-  const stageImage = getCurrentStageImage(card);
+
+  const stageImage = displayCard.hasCustomSkin && displayCard.skinImage
+    ? displayCard.skinImage
+    : getCurrentStageImage(card);
+
   const atkRange = formatAtkRange(card.atk);
   const syncedFragments = getFragmentAmount(player, card);
+
+  const skinLine = displayCard.hasCustomSkin
+    ? `Skinned Character: ${displayCard.skinnedCharacter || displayCard.originalDisplayName || card.displayName || card.name || "Unknown"}`
+    : null;
 
   const extraLines = card.cardRole === "boost" ? [
     `Form: ${card.evolutionKey || `M${stage}`}`,
     `Tier: ${card.currentTier || card.rarity}`,
+    skinLine,
     `Power: ${Number(card.currentPower || 0)}`,
-    `Effect: ${getRoadPoneglyphDisplayEffect(card || stageCard || form, stage || card?.evolutionStage || 1, card.effectText || "No effect text")}`,
+    `Effect: ${getRoadPoneglyphDisplayEffect(card || form, stage || card?.evolutionStage || 1, card.effectText || "No effect text")}`,
     `Target: ${card.boostTarget || "team"}`,
     `Boost Type: ${card.boostType || "unknown"}`,
     `Devil Fruit: ${card.displayFruitName || "None"}`,
     `Fragments: ${syncedFragments}`,
   ] : [
-          `Form: ${card.evolutionKey || `M${stage}`}`,
-          `Tier: ${card.currentTier || card.rarity}`,
-          formatCardLevelLine(card),
-          `Raid Prestige: ${Math.max(0, Math.min(200, Number(card.raidPrestige || 0)))}/200`,
-          `Power: ${Number(card.currentPower || 0)}`,
-          `Health: ${Number(card.hp || 0)}`,
-          `Speed: ${Number(card.speed || 0)}`,
-          `Attack: ${atkRange}`,
-          `Weapons: ${card.displayWeaponName || card.weaponSet || card.weapon || "None"}`,
-          `Devil Fruit: ${card.displayFruitName || card.devilFruit || "None"}`,
-          `Type: ${card.type || card.cardRole}`,
-          `Kills: ${Number(card.kills || 0)}`,
-          `Fragments: ${syncedFragments}`,
-        ];
+    `Form: ${card.evolutionKey || `M${stage}`}`,
+    `Tier: ${card.currentTier || card.rarity}`,
+    skinLine,
+    formatCardLevelLine(card),
+    `Raid Prestige: ${Math.max(0, Math.min(200, Number(card.raidPrestige || 0)))}/200`,
+    `Power: ${Number(card.currentPower || 0)}`,
+    `Health: ${Number(card.hp || 0)}`,
+    `Speed: ${Number(card.speed || 0)}`,
+    `Attack: ${atkRange}`,
+    `Weapons: ${card.displayWeaponName || card.weaponSet || card.weapon || "None"}`,
+    `Devil Fruit: ${card.displayFruitName || card.devilFruit || "None"}`,
+    `Type: ${card.type || card.cardRole}`,
+    `Kills: ${Number(card.kills || 0)}`,
+    `Fragments: ${syncedFragments}`,
+  ];
 
   return buildCardStyleEmbed({
     color: 0x1abc9c,
     ownerName,
-    card,
+    card: displayCard,
     image: stageImage,
     badgeImage: form?.badgeImage || card.badgeImage || "",
-    formName: form?.name || card.variant || "Unknown Form",
+    formName: displayCard.hasCustomSkin
+      ? displayCard.skinTitle
+      : form?.name || card.variant || "Unknown Form",
     tier: card.currentTier || card.rarity,
     footerText: `Owned card info • ${ownerName}`,
     extraLines,
@@ -851,7 +908,7 @@ module.exports = {
       });
     }
 
-    const ownedCard = findOwnedCardByNameOnly(player, query);
+    const ownedCard = findOwnedCardOrSkinByQuery(player, query);
 
     let syncedOwnedCard = ownedCard;
 
