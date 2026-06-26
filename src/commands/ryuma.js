@@ -2069,34 +2069,54 @@ async function claimEventRewards(message, editableMessage = null) {
   return message.reply(payload);
 }
 
-function buildLeaderboardEmbed() {
+function buildLeaderboardEmbed(message) {
   const players = readPlayers();
+  const currentUserId = String(message?.author?.id || "");
 
-  const rows = Object.entries(players || {})
+  const allRows = Object.entries(players || {})
     .filter(([userId]) => !String(userId).startsWith("__"))
     .map(([userId, player]) => {
       const eventData = getEventData(player);
 
       return {
-        userId,
+        userId: String(userId),
         username: player?.username || `User ${userId}`,
-        damage: eventData.damage,
+        damage: Math.max(0, Number(eventData.damage || 0)),
       };
     })
     .filter((entry) => entry.damage > 0)
-    .sort((a, b) => b.damage - a.damage)
-    .slice(0, 10);
+    .sort((a, b) => {
+      if (b.damage !== a.damage) return b.damage - a.damage;
+      return a.userId.localeCompare(b.userId);
+    });
 
-  const lines = rows.length
-    ? rows.map((entry, index) => {
+  const topRows = allRows.slice(0, 10);
+
+  const lines = topRows.length
+    ? topRows.map((entry, index) => {
         return `**${index + 1}.** <@${entry.userId}> — ${fmt(entry.damage)} damage`;
       })
     : ["No players have joined the event yet."];
 
+  const ownIndex = allRows.findIndex((entry) => entry.userId === currentUserId);
+  const ownEntry = ownIndex >= 0 ? allRows[ownIndex] : null;
+
+  const ownRankText = ownEntry
+    ? `**#${ownIndex + 1}** <@${ownEntry.userId}> — ${fmt(ownEntry.damage)} damage`
+    : "**Unranked** — You have not dealt Ryuma damage yet.";
+
   return new EmbedBuilder()
     .setColor(0xe67e22)
     .setTitle("Ryuma Damage Leaderboard")
-    .setDescription(lines.join("\n"))
+    .setDescription(
+      [
+        "**Top 10**",
+        lines.join("\n"),
+        "",
+        "**Your Rank**",
+        ownRankText,
+      ].join("\n")
+    )
     .setFooter({
       text: "One Piece Bot • Ryuma Event",
     });
@@ -2186,7 +2206,7 @@ module.exports = {
 
     if (subcommand === "lb" || subcommand === "leaderboard") {
       return message.reply({
-        embeds: [buildLeaderboardEmbed()],
+        embeds: [buildLeaderboardEmbed(message)],
         allowedMentions: {
           repliedUser: false,
           parse: [],
