@@ -433,10 +433,6 @@ function buildViewerEmbed(ownerName, player, card, index, total, label = "Collec
   const atkRange = formatAtkRange(card.atk);
   const syncedFragments = getFragmentAmount(player, card);
 
-  const skinLine = displayCard.hasCustomSkin
-    ? `Skinned Character: ${displayCard.skinnedCharacter || displayCard.originalDisplayName || card.displayName || card.name || "Unknown"}`
-    : null;
-
   const extraLines = card.cardRole === "boost" ? [
     `Form: ${card.evolutionKey || `M${form.stage}`}`,
     `Tier: ${card.currentTier || card.rarity || "C"}`,
