@@ -1358,6 +1358,47 @@ function addPirateShopItem(player, item) {
     return next;
   }
 
+  const itemCode = String(item?.code || item?.key || "").toLowerCase();
+  const itemName = String(item?.name || "").toLowerCase();
+
+  if (
+    itemCode === "rum" ||
+    itemCode === "rum_beer" ||
+    itemName === "rum" ||
+    itemName === "rum beer"
+  ) {
+    const items = Array.isArray(next.items) ? [...next.items] : [];
+    const code = "rum_beer";
+
+    const idx = items.findIndex((entry) => {
+      return String(entry.code || "").toLowerCase() === code ||
+        String(entry.name || "").toLowerCase() === "rum beer";
+    });
+
+    const payload = {
+      code,
+      name: "Rum Beer",
+      amount: amountToAdd,
+      rarity: item.rarity || "Rare",
+      type: "Item",
+      category: "pirate_shop",
+      description: item.description || "A pirate drink from the Pirate Shop.",
+    };
+
+    if (idx === -1) {
+      items.push(payload);
+    } else {
+      items[idx] = {
+        ...items[idx],
+        ...payload,
+        amount: Number(items[idx].amount || 0) + amountToAdd,
+      };
+    }
+
+    next.items = items;
+    return next;
+  }
+  
   const items = Array.isArray(next.items) ? [...next.items] : [];
   const idx = items.findIndex(
     (entry) => String(entry.code || "") === String(item.code)

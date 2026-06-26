@@ -35,7 +35,7 @@ const {
 
 const BOSS_COOLDOWN_MS = 10 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
-const BOSS_PHASE_JOIN_MIN = 2;
+const BOSS_PHASE_JOIN_MIN = 1;
 const BOSS_PHASE_JOIN_MAX = 4;
 const BOSS_JOIN_LOBBY_MS = 2 * 60 * 1000;
 
@@ -1058,7 +1058,7 @@ function buildPhaseSelectEmbed(island, player) {
         `**${phase2Text}**`,
         "",
         "Phase 2 uses raid-style party room.",
-        `Minimum **${BOSS_PHASE_JOIN_MIN} players**, maximum **${BOSS_PHASE_JOIN_MAX} players**.`,
+        `Minimum **${BOSS_PHASE_JOIN_MIN} player**, maximum **${BOSS_PHASE_JOIN_MAX} players**.`,
         "Each player joins with their current full **3-card team**.",
         `Max total party cards: **${BOSS_PHASE_JOIN_MAX * 3} cards**.`,
       ].join("\n")
@@ -1208,7 +1208,7 @@ function buildBossJoinEmbed(
         [
           `**Host:** <@${hostId}>`,
           `**Players:** ${joinedCount}/${BOSS_PHASE_JOIN_MAX}`,
-          `**Required:** ${BOSS_PHASE_JOIN_MIN}-${BOSS_PHASE_JOIN_MAX} players`,
+          `**Required:** ${BOSS_PHASE_JOIN_MIN}-${BOSS_PHASE_JOIN_MAX} player(s)`,
           `**Party Cards:** ${totalCards}/${BOSS_PHASE_JOIN_MAX * 3}`,
           "",
           "**Joined Party:**",
