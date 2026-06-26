@@ -550,6 +550,10 @@ function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
   return syncRaidPrestigeBankToCards({
     ...incomingPlayer,
 
+    customSkins: normalizeCustomSkins(
+      incomingPlayer.customSkins || persistedPlayer.customSkins
+    ),
+
     adminBan: normalizeAdminBan(
       incomingPlayer.adminBan || persistedPlayer.adminBan
     ),
@@ -1729,6 +1733,54 @@ function normalizeEventStore(events) {
     : {};
 }
 
+function normalizeCustomSkins(customSkins) {
+  const raw =
+    customSkins && typeof customSkins === "object" && !Array.isArray(customSkins)
+      ? customSkins
+      : {};
+
+  const result = {};
+
+  for (const [rawKey, rawEntry] of Object.entries(raw)) {
+    const key = String(rawKey || "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+
+    if (!key || !rawEntry || typeof rawEntry !== "object") continue;
+
+    const variants = Array.isArray(rawEntry.variants)
+      ? rawEntry.variants
+          .map((skin) => ({
+            name: String(skin?.name || "").trim(),
+            title: String(skin?.title || "").trim(),
+            image: String(skin?.image || "").trim(),
+            addedBy: skin?.addedBy ? String(skin.addedBy) : null,
+            addedAt: Number(skin?.addedAt || 0),
+          }))
+          .filter((skin) => skin.name && skin.image)
+          .slice(0, 20)
+      : [];
+
+    if (!variants.length) continue;
+
+    const activeIndex = Math.max(
+      0,
+      Math.min(Number(rawEntry.activeIndex || 0), variants.length - 1)
+    );
+
+    result[key] = {
+      cardCode: String(rawEntry.cardCode || key),
+      originalName: String(rawEntry.originalName || ""),
+      activeIndex,
+      variants,
+    };
+  }
+
+  return result;
+}
+
 function normalizeAdminBan(adminBan) {
   if (!adminBan || typeof adminBan !== "object" || Array.isArray(adminBan)) {
     return {
@@ -1760,6 +1812,7 @@ function normalizePlayer(player = {}, username = "Unknown") {
 
   return {
     username: player.username || username,
+    customSkins: normalizeCustomSkins(player.customSkins),
     adminBan: normalizeAdminBan(player.adminBan),
     berries: typeof player.berries === "number" ? player.berries : 1000,
     gems: typeof player.gems === "number" ? player.gems : 100,
@@ -1823,6 +1876,7 @@ function getDefaultPlayer(username) {
   return normalizePlayer(
     {
       username,
+      customSkins: {},
       adminBan: {
         active: false,
         reason: "",

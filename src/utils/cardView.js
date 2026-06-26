@@ -13,8 +13,18 @@ function buildCardStyleEmbed({
   footerText = "",
 }) {
   const title = ownerName ? `${ownerName}'s Card` : header;
-  const finalImage = image || card?.image || null;
+
+  const finalImage =
+    card?.hasCustomSkin && card?.skinImage
+      ? card.skinImage
+      : image || card?.image || null;
+
   const finalBadge = badgeImage || card?.badgeImage || null;
+
+  const subtitle =
+    card?.hasCustomSkin && card?.skinTitle
+      ? card.skinTitle
+      : formName || card?.title || card?.variant || "";
 
   return new EmbedBuilder()
     .setColor(color)
@@ -22,7 +32,7 @@ function buildCardStyleEmbed({
     .setDescription(
       [
         `**${card.displayName || card.name}**`,
-        formName || card.title || card.variant || "",
+        subtitle,
         "",
         ...extraLines.filter(Boolean),
       ].join("\n")
@@ -36,4 +46,6 @@ function buildCardStyleEmbed({
     });
 }
 
-module.exports = { buildCardStyleEmbed };
+module.exports = {
+  buildCardStyleEmbed,
+};

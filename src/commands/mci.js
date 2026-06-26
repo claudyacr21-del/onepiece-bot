@@ -14,6 +14,12 @@ const {
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const {
+  applyCustomSkinToCard,
+  findSkinSetByQuery,
+  normalizeCode: normalizeSkinCode,
+  normalizeName: normalizeSkinName,
+} = require("../utils/customSkins");
+const {
   getCardImage,
   getDevilFruitImage,
   getWeaponImage,
@@ -175,6 +181,10 @@ return card.evolutionForms?.[stage - 1] || null;
 }
 
 function getCurrentStageImage(card) {
+  if (card?.hasCustomSkin && card?.skinImage) {
+    return card.skinImage;
+  }
+
   const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
   const stageKey = `M${stage}`;
 
@@ -277,6 +287,43 @@ function findOwnedCardByNameOnly(player, query) {
     .sort((a, b) => b.score - a.score);
 
   return scored.length ? scored[0].card : null;
+}
+
+function findOwnedCardBySkinQuery(player, query) {
+  const foundSkin = findSkinSetByQuery(player, query);
+
+  if (!foundSkin) return null;
+
+  const cards = getOwnedCards(player);
+
+  const targetCode = normalizeSkinCode(
+    foundSkin.skinSet?.cardCode || foundSkin.key || ""
+  );
+
+  const targetOriginalName = normalizeSkinName(
+    foundSkin.skinSet?.originalName || ""
+  );
+
+  return (
+    cards.find((card) => {
+      const code = normalizeSkinCode(card?.code || "");
+      const name = normalizeSkinName(card?.name || "");
+      const displayName = normalizeSkinName(card?.displayName || "");
+
+      return (
+        (targetCode && code === targetCode) ||
+        (targetOriginalName &&
+          (name === targetOriginalName || displayName === targetOriginalName))
+      );
+    }) || null
+  );
+}
+
+function findOwnedCardOrSkinByQuery(player, query) {
+  return (
+    findOwnedCardByNameOnly(player, query) ||
+    findOwnedCardBySkinQuery(player, query)
+  );
 }
 
 function findFruitTemplate(value) {
@@ -786,6 +833,7 @@ function enrichMergedCardLiveEquipment(player, card) {
 
 
 function buildOwnedCardEmbed(ownerName, player, card) {
+  card = applyCustomSkinToCard(player, card);
   const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
   const form = getCurrentForm(card);
   const stageImage = getCurrentStageImage(card);
@@ -795,6 +843,9 @@ function buildOwnedCardEmbed(ownerName, player, card) {
   const extraLines = card.cardRole === "boost" ? [
     `Form: ${card.evolutionKey || `M${stage}`}`,
     `Tier: ${card.currentTier || card.rarity}`,
+    card.hasCustomSkin
+      ? `Skinned Character: ${card.skinnedCharacter || card.originalDisplayName || "Unknown"}`
+      : null,
     `Power: ${Number(card.currentPower || 0)}`,
     `Effect: ${getRoadPoneglyphDisplayEffect(card || stageCard || form, stage || card?.evolutionStage || 1, card.effectText || "No effect text")}`,
     `Target: ${card.boostTarget || "team"}`,
@@ -804,6 +855,9 @@ function buildOwnedCardEmbed(ownerName, player, card) {
   ] : [
           `Form: ${card.evolutionKey || `M${stage}`}`,
           `Tier: ${card.currentTier || card.rarity}`,
+          card.hasCustomSkin
+            ? `Skinned Character: ${card.skinnedCharacter || card.originalDisplayName || "Unknown"}`
+            : null,
           formatCardLevelLine(card),
           `Raid Prestige: ${Math.max(0, Math.min(200, Number(card.raidPrestige || 0)))}/200`,
           `Power: ${Number(card.currentPower || 0)}`,
@@ -823,7 +877,9 @@ function buildOwnedCardEmbed(ownerName, player, card) {
     card,
     image: stageImage,
     badgeImage: form?.badgeImage || card.badgeImage || "",
-    formName: form?.name || card.variant || "Unknown Form",
+    formName: card.hasCustomSkin
+      ? card.skinTitle
+      : form?.name || card.variant || "Unknown Form",
     tier: card.currentTier || card.rarity,
     footerText: `Owned card info • ${ownerName}`,
     extraLines,
@@ -851,7 +907,7 @@ module.exports = {
       });
     }
 
-    const ownedCard = findOwnedCardByNameOnly(player, query);
+    const ownedCard = findOwnedCardOrSkinByQuery(player, query);
 
     let syncedOwnedCard = ownedCard;
 
