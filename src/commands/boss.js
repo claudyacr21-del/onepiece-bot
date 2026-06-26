@@ -1058,8 +1058,8 @@ function buildPhaseSelectEmbed(island, player) {
         `**${phase2Text}**`,
         "",
         "Phase 2 uses raid-style party room.",
-        `Minimum **${BOSS_PHASE_JOIN_MIN} player**, maximum **${BOSS_PHASE_JOIN_MAX} players**.`,
-        "Each player joins with their current full **3-card team**.",
+        `Solo is allowed. Maximum **${BOSS_PHASE_JOIN_MAX} players**.`,
+        "Each player must use their current full **3-card team**.",
         `Max total party cards: **${BOSS_PHASE_JOIN_MAX * 3} cards**.`,
       ].join("\n")
     )
@@ -1208,7 +1208,7 @@ function buildBossJoinEmbed(
         [
           `**Host:** <@${hostId}>`,
           `**Players:** ${joinedCount}/${BOSS_PHASE_JOIN_MAX}`,
-          `**Required:** ${BOSS_PHASE_JOIN_MIN}-${BOSS_PHASE_JOIN_MAX} player(s)`,
+          `**Required:** ${BOSS_PHASE_JOIN_MIN === 1 ? "Solo allowed" : `${BOSS_PHASE_JOIN_MIN}-${BOSS_PHASE_JOIN_MAX} players`}`,
           `**Party Cards:** ${totalCards}/${BOSS_PHASE_JOIN_MAX * 3}`,
           "",
           "**Joined Party:**",
@@ -2517,11 +2517,11 @@ module.exports = {
         lobby.joinedIds
       );
 
-      if (participants.length < 2) {
+      if (participants.length < BOSS_PHASE_JOIN_MIN) {
         clearActiveBossSession(message.author.id);
         return message.reply(
           [
-            "Boss Phase 2 requires at least **2 valid users**.",
+            `Boss Phase 2 requires at least **${BOSS_PHASE_JOIN_MIN} valid user${BOSS_PHASE_JOIN_MIN === 1 ? "" : "s"}**.`,
             "Every joined user must have a full battle team of **3 cards**.",
             "",
             rejected.length ? `Rejected:\n${rejected.map((x) => `- ${x}`).join("\n")}` : "",
