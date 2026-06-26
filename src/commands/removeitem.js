@@ -1,5 +1,8 @@
 const { EmbedBuilder } = require("discord.js");
-const { updatePlayerAtomic } = require("../playerStore");
+const {
+  updatePlayerAtomic,
+  flushPlayerNow,
+} = require("../playerStore");
 const weaponsData = require("../data/weapons");
 const devilFruitsData = require("../data/devilFruits");
 const itemsData = require("../data/items");
@@ -162,6 +165,10 @@ function getOwnedAmountForRemove(entry, bucket) {
 
 function shouldRemoveEntryWhenZeroOrBelow(bucket) {
   return bucket === "weapons" || bucket === "devilFruits";
+}
+
+function canCreateNegativeEntry(bucket) {
+  return !["weapons", "devilFruits"].includes(bucket);
 }
 
 function collectCatalogEntries(source, out = [], seen = new Set()) {
@@ -532,7 +539,7 @@ module.exports = {
         if (found.index < 0) {
           const catalogEntry = found.catalogEntry || findCatalogEntry(bucket, query);
 
-          if (!catalogEntry) {
+          if (!catalogEntry || !canCreateNegativeEntry(bucket)) {
             status = "not_found";
             return fresh;
           }
@@ -560,9 +567,11 @@ module.exports = {
         const nextAmount = ownedAmount - amount;
 
         if (
-          nextAmount === 0 ||
-          (nextAmount < 0 && shouldRemoveEntryWhenZeroOrBelow(bucket))
+          nextAmount <= 0 &&
+          shouldRemoveEntryWhenZeroOrBelow(bucket)
         ) {
+          list.splice(found.index, 1);
+        } else if (nextAmount === 0) {
           list.splice(found.index, 1);
         } else {
           list[found.index] = {
@@ -577,6 +586,11 @@ module.exports = {
         };
       },
       mentionedUser?.username || `User ${userId}`
+    );
+
+    await flushPlayerNow(
+      userId,
+      Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 8000)
     );
 
     if (status === "ambiguous") {
