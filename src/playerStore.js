@@ -463,6 +463,16 @@ function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
       )
     ),
 
+    ryumaTokens: Math.max(
+      0,
+      Math.floor(
+        Math.max(
+          Number(incomingPlayer.ryumaTokens || 0),
+          Number(persistedPlayer.ryumaTokens || 0)
+        )
+      )
+    ),
+
     cards: mergeCardsNoRollback(
       incomingPlayer.cards,
       persistedPlayer.cards,

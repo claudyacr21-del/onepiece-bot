@@ -64,10 +64,38 @@ function getSharedPity(player) {
   );
 }
 
-function getPityLimit(tier) {
-  if (tier === "motherFlame") return PREMIUM_PITY_TARGET;
-  if (tier === "vivreCard") return VIVRE_PITY_TARGET;
-  return NORMAL_PITY_TARGET;
+function getRyumaPityCharmCount(player) {
+  const items = Array.isArray(player?.items) ? player.items : [];
+
+  const charm = items.find((item) => {
+    const code = String(item?.code || "").toLowerCase().trim();
+    const name = String(item?.name || "").toLowerCase().trim();
+
+    return code === "ryuma_pity_charm" || name === "ryuma pity charm";
+  });
+
+  return Math.max(0, Math.min(3, Math.floor(Number(charm?.amount || 0))));
+}
+
+function getRyumaPityLimit(player, defaultLimit) {
+  const charms = getRyumaPityCharmCount(player);
+
+  if (charms >= 3) return Math.min(defaultLimit, 130);
+  if (charms === 2) return Math.min(defaultLimit, 135);
+  if (charms === 1) return Math.min(defaultLimit, 140);
+
+  return defaultLimit;
+}
+
+function getPityLimit(tier, player = null) {
+  const baseLimit =
+    tier === "motherFlame"
+      ? PREMIUM_PITY_TARGET
+      : tier === "vivreCard"
+        ? VIVRE_PITY_TARGET
+        : NORMAL_PITY_TARGET;
+
+  return getRyumaPityLimit(player, baseLimit);
 }
 
 function getPityGuarantee(tier) {
@@ -1193,7 +1221,7 @@ module.exports = {
     }
 
     const premiumTier = getEffectivePullTierForSlot(roleTier, pullKey);
-    const pityLimit = getPityLimit(premiumTier);
+    const pityLimit = getPityLimit(premiumTier, player);
     const pityGuarantee = getPityGuarantee(premiumTier);
 
     let pityCounter = getSharedPity(player) + 1;
