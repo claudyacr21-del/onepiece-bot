@@ -550,6 +550,10 @@ function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
   return syncRaidPrestigeBankToCards({
     ...incomingPlayer,
 
+    adminBan: normalizeAdminBan(
+      incomingPlayer.adminBan || persistedPlayer.adminBan
+    ),
+
     pirateTokens: Math.max(
       0,
       Math.floor(
@@ -1725,11 +1729,38 @@ function normalizeEventStore(events) {
     : {};
 }
 
+function normalizeAdminBan(adminBan) {
+  if (!adminBan || typeof adminBan !== "object" || Array.isArray(adminBan)) {
+    return {
+      active: false,
+      reason: "",
+      bannedBy: null,
+      bannedAt: null,
+      unbannedBy: null,
+      unbannedAt: null,
+    };
+  }
+
+  return {
+    active: Boolean(adminBan.active),
+    reason: String(adminBan.reason || ""),
+    bannedBy: adminBan.bannedBy ? String(adminBan.bannedBy) : null,
+    bannedAt: Number.isFinite(Number(adminBan.bannedAt))
+      ? Number(adminBan.bannedAt)
+      : null,
+    unbannedBy: adminBan.unbannedBy ? String(adminBan.unbannedBy) : null,
+    unbannedAt: Number.isFinite(Number(adminBan.unbannedAt))
+      ? Number(adminBan.unbannedAt)
+      : null,
+  };
+}
+
 function normalizePlayer(player = {}, username = "Unknown") {
   const currentIsland = player.currentIsland || "Foosha Village";
 
   return {
     username: player.username || username,
+    adminBan: normalizeAdminBan(player.adminBan),
     berries: typeof player.berries === "number" ? player.berries : 1000,
     gems: typeof player.gems === "number" ? player.gems : 100,
 
@@ -1792,6 +1823,14 @@ function getDefaultPlayer(username) {
   return normalizePlayer(
     {
       username,
+      adminBan: {
+        active: false,
+        reason: "",
+        bannedBy: null,
+        bannedAt: null,
+        unbannedBy: null,
+        unbannedAt: null,
+      },
       berries: 1000,
       gems: 100,
       pirateTokens: 0,

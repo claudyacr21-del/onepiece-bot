@@ -1,5 +1,9 @@
 const { EmbedBuilder } = require("discord.js");
-const { readPlayers, writePlayers, flushPlayerNow } = require("../playerStore");
+const {
+  readPlayers,
+  writePlayers,
+  flushPlayerNow,
+} = require("../playerStore");
 
 function parseEnvIds(...values) {
   return values
@@ -116,7 +120,10 @@ module.exports = {
     };
 
     writePlayers(players);
-    await flushPlayerNow(String(targetUserId), Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 8000));
+    await flushPlayerNow(
+      String(targetUserId),
+      Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 8000)
+    );
 
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
