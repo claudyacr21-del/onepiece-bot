@@ -20,12 +20,6 @@ const {
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const {
-  applyCustomSkinToCard,
-  findSkinSetByQuery,
-  normalizeCode: normalizeSkinCode,
-  normalizeName: normalizeSkinName,
-} = require("../utils/customSkins");
-const {
   getCardImage,
   getWeaponImage,
   getDevilFruitImage,
@@ -315,10 +309,6 @@ const form = card.evolutionForms?.[stage - 1] || null;
 }
 
 function getStageImage(card) {
-  if (card?.hasCustomSkin && card?.skinImage) {
-    return card.skinImage;
-  }
-
   const stage = Math.max(1, Math.min(3, Number(card.evolutionStage || 1)));
   const stageKey = `M${stage}`;
 
@@ -426,7 +416,6 @@ function getOwnerSignature(item) {
 }
 
 function buildViewerEmbed(ownerName, player, card, index, total, label = "Collection") {
-  card = applyCustomSkinToCard(player, card);  
   const form = getSafeForm(card);
   const stageImage = getStageImage(card);
   const atkRange = formatAtkRange(card.atk);
@@ -462,7 +451,7 @@ function buildViewerEmbed(ownerName, player, card, index, total, label = "Collec
     card,
     badgeImage: form.badgeImage,
     image: stageImage,
-    formName: card.hasCustomSkin ? card.skinTitle : form.name,
+    formName: form.name,
     tier: form.tier,
     footerText: `${label} ${index + 1}/${total} • This card belongs to ${ownerName}`,
     extraLines,
@@ -922,41 +911,6 @@ function findOwnedCardByQuery(cards, query) {
   return scored.length ? scored[0].card : null;
 }
 
-function findOwnedCardBySkinQuery(player, cards, query) {
-  const foundSkin = findSkinSetByQuery(player, query);
-
-  if (!foundSkin) return null;
-
-  const targetCode = normalizeSkinCode(
-    foundSkin.skinSet?.cardCode || foundSkin.key || ""
-  );
-
-  const targetOriginalName = normalizeSkinName(
-    foundSkin.skinSet?.originalName || ""
-  );
-
-  return (
-    (Array.isArray(cards) ? cards : []).find((card) => {
-      const code = normalizeSkinCode(card?.code || "");
-      const name = normalizeSkinName(card?.name || "");
-      const displayName = normalizeSkinName(card?.displayName || "");
-
-      return (
-        (targetCode && code === targetCode) ||
-        (targetOriginalName &&
-          (name === targetOriginalName || displayName === targetOriginalName))
-      );
-    }) || null
-  );
-}
-
-function findOwnedCardOrSkinByQuery(player, cards, query) {
-  return (
-    findOwnedCardByQuery(cards, query) ||
-    findOwnedCardBySkinQuery(player, cards, query)
-  );
-}
-
 function buildWeaponEmbed(ownerName, player, weapon, index = 0, total = 1) {
   const percent = getWeaponPercentAtLevel(
     weapon.statPercent || weapon.statBonus || { atk: 0, hp: 0, speed: 0 },
@@ -1158,7 +1112,7 @@ module.exports = {
     let title = "Card Collection";
 
     if (sub1 === "search") {
-      const foundCard = findOwnedCardOrSkinByQuery(player, cards, query);
+      const foundCard = findOwnedCardByQuery(cards, query);
 
       if (!foundCard) {
         return message.reply(`Card not found in your collection: \`${query}\`.`);
