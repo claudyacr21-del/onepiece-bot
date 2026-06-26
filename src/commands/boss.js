@@ -2517,12 +2517,11 @@ module.exports = {
         lobby.joinedIds
       );
 
-      if (participants.length < BOSS_PHASE_JOIN_MIN) {
+      if (participants.length < 1) {
         clearActiveBossSession(message.author.id);
         return message.reply(
           [
-            `Boss Phase 2 requires at least **${BOSS_PHASE_JOIN_MIN} valid user${BOSS_PHASE_JOIN_MIN === 1 ? "" : "s"}**.`,
-            "Every joined user must have a full battle team of **3 cards**.",
+            "You need a full battle team of **3 cards** to start Boss Phase 2 solo.",
             "",
             rejected.length ? `Rejected:\n${rejected.map((x) => `- ${x}`).join("\n")}` : "",
           ]
