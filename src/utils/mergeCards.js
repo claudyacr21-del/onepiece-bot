@@ -1,7 +1,7 @@
 const rawCards = require("../data/cards");
 const { hydrateCard } = require("./evolution");
 
-const MERGE_RATIO = 0.5;
+const MERGE_RATIO = 0.6;
 const MERGE_FIXED_POWER = 100000;
 
 const RAID_PRESTIGE_CAP = 200;
@@ -719,7 +719,10 @@ function buildMergedCard(player, baseCard = null, stageOverride = null, options 
     displayLevel: options.displayLevel || getStageMaxLevel(stage),
   });
 
-  const ratio = getMergeRatio(template);
+  const ratio = getMergeRatio({
+    ...ownedMerge,
+    ...template,
+  });
   const fixedPower = getMergeFixedPower(templateCard);
 
   const mergedAtk = Math.floor(

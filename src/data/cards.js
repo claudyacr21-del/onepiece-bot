@@ -1586,7 +1586,16 @@ function applyGenericMergeCardRules() {
     card.role = "battle";
     card.category = "battle";
     card.mergeFixedPower = Number(card.mergeFixedPower || 100000);
-    card.mergeStatRatio = Number(card.mergeStatRatio || 0.4);
+
+    if (
+      card.mergeStatRatio !== undefined &&
+      card.mergeStatRatio !== null &&
+      card.mergeStatRatio !== ""
+    ) {
+      card.mergeStatRatio = Number(card.mergeStatRatio);
+    } else {
+      delete card.mergeStatRatio;
+    }
 
     card.summonRequirements = {
       ...summonReq,

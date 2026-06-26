@@ -731,7 +731,11 @@ module.exports = {
       mergeSourceCodes: Array.isArray(card.mergeSourceCodes)
         ? card.mergeSourceCodes
         : specialFragments.map((req) => req.code),
-      mergeStatRatio: Number(card.mergeStatRatio || 0.5),
+      ...(card.mergeStatRatio !== undefined &&
+      card.mergeStatRatio !== null &&
+      card.mergeStatRatio !== ""
+        ? { mergeStatRatio: Number(card.mergeStatRatio) }
+        : {}),
       evolutionStage: Number(card.evolutionStage || 1),
       evolutionKey: card.evolutionKey || "M1",
       level: 1,
