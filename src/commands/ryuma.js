@@ -329,6 +329,18 @@ function normalizeText(value) {
     .trim();
 }
 
+function getRyumaPlayerFromStore(players, message) {
+  const userId = String(message.author.id);
+
+  if (!players[userId]) {
+    players[userId] = getPlayer(message.author.id, message.author.username);
+  }
+
+  players[userId].username = message.author.username || players[userId].username || "Unknown";
+
+  return players[userId];
+}
+
 function getDefaultGlobalState() {
   const startedAt = Number.isFinite(EVENT_START_AT) && EVENT_START_AT > 0
     ? EVENT_START_AT
@@ -1484,7 +1496,8 @@ async function buyShopItem(message, buyArgs = []) {
 }
 
 async function performAttack(message) {
-  const battleKey = String(message.author.id);
+  const userId = String(message.author.id);
+  const battleKey = userId;
 
   if (ACTIVE_RYUMA_BATTLES.has(battleKey)) {
     return message.reply({
@@ -1516,7 +1529,7 @@ async function performAttack(message) {
     });
   }
 
-  let player = getPlayer(message.author.id, message.author.username);
+  let player = getRyumaPlayerFromStore(players, message);
   let eventData = getEventData(player);
   const attackWindow = getAttackWindow(eventData);
 
@@ -1551,7 +1564,7 @@ async function performAttack(message) {
 
   ACTIVE_RYUMA_BATTLES.add(battleKey);
 
-  eventData = {
+  let sessionEventData = {
     ...eventData,
     attackWindowStartedAt: attackWindow.attackWindowStartedAt,
     attacksUsed: attackWindow.attacksUsed,
@@ -1559,14 +1572,15 @@ async function performAttack(message) {
     cardHpWindowStartedAt: attackWindow.attackWindowStartedAt,
   };
 
-  player = setEventData(player, eventData);
-  players[String(message.author.id)] = player;
+  player = setEventData(player, sessionEventData);
+  players[userId] = player;
   writePlayers(players);
 
-  let turnCount = Math.max(0, Number(eventData.attacksUsed || 0));
+  let turnCount = Math.max(0, Number(sessionEventData.attacksUsed || 0));
   let totalDamage = 0;
   let battleLog = [];
   let ended = false;
+  let turnBusy = false;
 
   const sent = await message.reply({
     embeds: [
@@ -1597,206 +1611,230 @@ async function performAttack(message) {
       });
     }
 
-    const cardIndex = Number(String(interaction.customId || "").replace("ryuma_card_", ""));
-
-    if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= selectedCards.length) {
+    if (turnBusy) {
       return interaction.reply({
-        content: "Invalid Ryuma battle button.",
+        content: "Previous Ryuma attack is still being processed. Please wait.",
         ephemeral: true,
       });
     }
 
-    const selected = selectedCards[cardIndex];
+    turnBusy = true;
 
-    if (Number(selected.currentHp || 0) <= 0) {
-      return interaction.reply({
-        content: "This card is already defeated.",
-        ephemeral: true,
-      });
-    }
+    try {
+      const cardIndex = Number(String(interaction.customId || "").replace("ryuma_card_", ""));
 
-    if (ended) {
-      return interaction.reply({
-        content: "This Ryuma fight already ended.",
-        ephemeral: true,
-      });
-    }
+      if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= selectedCards.length) {
+        return interaction.reply({
+          content: "Invalid Ryuma battle button.",
+          ephemeral: true,
+        });
+      }
 
-    const freshPlayers = readPlayers();
-    const freshGlobalState = getGlobalState(freshPlayers);
+      const selected = selectedCards[cardIndex];
 
-    if (!isEventStarted(freshGlobalState)) {
-      ended = true;
-      collector.stop("event_not_started");
+      if (Number(selected.currentHp || 0) <= 0) {
+        return interaction.reply({
+          content: "This card is already defeated.",
+          ephemeral: true,
+        });
+      }
 
-      return interaction.update({
-        content: `The Ryuma Global Boss Event has not started yet.\nStarts: ${RYUMA_EVENT_START_LABEL}`,
-        embeds: [],
-        components: [],
-      });
-    }
+      if (ended) {
+        return interaction.reply({
+          content: "This Ryuma fight already ended.",
+          ephemeral: true,
+        });
+      }
 
-    if (isEventEnded(freshGlobalState)) {
-      ended = true;
-      collector.stop("event_ended");
+      const freshPlayers = readPlayers();
+      const freshGlobalState = getGlobalState(freshPlayers);
 
-      return interaction.update({
-        content: "The Ryuma Global Boss Event has ended.",
-        embeds: [],
-        components: [],
-      });
-    }
+      if (!isEventStarted(freshGlobalState)) {
+        ended = true;
+        collector.stop("event_not_started");
 
-    let freshPlayer = getPlayer(message.author.id, message.author.username);
-    const freshEventData = getEventData(freshPlayer);
-    const freshAttackWindow = getAttackWindow(freshEventData);
+        return interaction.update({
+          content: `The Ryuma Global Boss Event has not started yet.\nStarts: ${RYUMA_EVENT_START_LABEL}`,
+          embeds: [],
+          components: [],
+        });
+      }
 
-    if (freshAttackWindow.attacksLeft <= 0) {
-      ended = true;
-      collector.stop("no_attacks");
+      if (isEventEnded(freshGlobalState)) {
+        ended = true;
+        collector.stop("event_ended");
 
-      return interaction.update({
-        content: `You have no attacks left. Your attacks reset <t:${Math.floor(freshAttackWindow.resetAt / 1000)}:R>.`,
-        embeds: [],
-        components: [],
-      });
-    }
+        return interaction.update({
+          content: "The Ryuma Global Boss Event has ended.",
+          embeds: [],
+          components: [],
+        });
+      }
 
-    turnCount = Math.max(turnCount, Number(freshEventData.attacksUsed || 0));
+      let freshPlayer = getRyumaPlayerFromStore(freshPlayers, message);
+      const storedEventData = getEventData(freshPlayer);
+      const freshAttackWindow = getAttackWindow(storedEventData);
 
-    if (turnCount >= ATTACK_LIMIT) {
-      ended = true;
-      collector.stop("turn_limit");
+      if (
+        Number(sessionEventData.attackWindowStartedAt || 0) !==
+        Number(freshAttackWindow.attackWindowStartedAt || 0)
+      ) {
+        sessionEventData = {
+          ...storedEventData,
+          attackWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
+          attacksUsed: freshAttackWindow.attacksUsed,
+          cardHp: snapshotRyumaCardHp(selectedCards),
+          cardHpWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
+        };
 
-      return interaction.update({
+        turnCount = Math.max(0, Number(sessionEventData.attacksUsed || 0));
+      }
+
+      const currentUsed = Math.max(
+        Number(sessionEventData.attacksUsed || 0),
+        Number(storedEventData.attacksUsed || 0)
+      );
+
+      if (currentUsed >= ATTACK_LIMIT) {
+        ended = true;
+        collector.stop("no_attacks");
+
+        return interaction.update({
+          content: `You have no attacks left. Your attacks reset <t:${Math.floor(freshAttackWindow.resetAt / 1000)}:R>.`,
+          embeds: [],
+          components: [],
+        });
+      }
+
+      const bossPhaseBeforeAttack = getBossPhase(freshGlobalState);
+      const damage = Math.min(getHpLeft(freshGlobalState), rollRyumaEntryDamage(selected));
+      const nextBossDefeated = getHpLeft(freshGlobalState) - damage <= 0;
+
+      let bossCounterDamage = 0;
+
+      if (!nextBossDefeated) {
+        bossCounterDamage = Math.min(
+          Number(selected.currentHp || 0),
+          BOSS_DAMAGE
+        );
+
+        selected.currentHp = Math.max(
+          0,
+          Math.floor(Number(selected.currentHp || 0)) - bossCounterDamage
+        );
+      }
+
+      const nextEventData = {
+        ...sessionEventData,
+        joinedAt: sessionEventData.joinedAt || now(),
+        damage: Math.max(0, Number(sessionEventData.damage || 0)) + damage,
+        attackWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
+        attacksUsed: currentUsed + 1,
+        claimedPersonalMilestones: [...sessionEventData.claimedPersonalMilestones],
+        claimedBonusMilestones: [...sessionEventData.claimedBonusMilestones],
+        claimedGlobalMilestones: [...sessionEventData.claimedGlobalMilestones],
+        shopPurchases: {
+          ...(sessionEventData.shopPurchases || {}),
+        },
+        cardHp: snapshotRyumaCardHp(selectedCards),
+        cardHpWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
+      };
+
+      const claimedLines = [];
+
+      for (const milestone of getPersonalClaims(nextEventData)) {
+        freshPlayer = applyRewards(freshPlayer, milestone.rewards);
+        nextEventData.claimedPersonalMilestones.push(milestone.damage);
+        claimedLines.push(`Personal ${fmt(milestone.damage)} damage: ${rewardLines(milestone.rewards).join(", ")}`);
+      }
+
+      for (const bonusDamage of getBonusClaims(nextEventData)) {
+        freshPlayer = applyRewards(freshPlayer, BONUS_REWARD);
+        nextEventData.claimedBonusMilestones.push(bonusDamage);
+        claimedLines.push(`Bonus ${fmt(bonusDamage)} damage: ${rewardLines(BONUS_REWARD).join(", ")}`);
+      }
+
+      sessionEventData = nextEventData;
+      freshPlayer = setEventData(freshPlayer, sessionEventData);
+
+      freshGlobalState.totalDamage =
+        Math.max(0, Number(freshGlobalState.totalDamage || 0)) + damage;
+
+      freshPlayers[GLOBAL_STORE_ID] = freshGlobalState;
+      freshPlayers[userId] = freshPlayer;
+      writePlayers(freshPlayers);
+
+      turnCount = sessionEventData.attacksUsed;
+      totalDamage += damage;
+
+      battleLog.push(
+        `⚔️ ${
+          selected.card?.displayName ||
+          selected.card?.name ||
+          selected.card?.code ||
+          "Card"
+        } dealt **${fmt(damage)}** damage.`
+      );
+
+      if (bossCounterDamage > 0) {
+        battleLog.push(
+          `☠️ ${BOSS_NAME} countered for **${fmt(bossCounterDamage)}** damage.`
+        );
+      }
+
+      if (Number(selected.currentHp || 0) <= 0) {
+        battleLog.push(
+          `💀 ${
+            selected.card?.displayName ||
+            selected.card?.name ||
+            selected.card?.code ||
+            "Card"
+          } was defeated.`
+        );
+      }
+
+      for (const line of claimedLines) {
+        battleLog.push(`🎁 ${line}`);
+      }
+
+      ended =
+        nextBossDefeated ||
+        areAllRyumaCardsDead(selectedCards) ||
+        turnCount >= ATTACK_LIMIT;
+
+      await interaction.update({
+        content: null,
         embeds: [
           buildRyumaCardSelectEmbed({
             globalState: freshGlobalState,
             selectedCards,
             turnCount,
             totalDamage,
-            battleLog: [...battleLog, "The Ryuma fight has reached the attack limit."],
-            ended: true,
+            battleLog,
+            ended,
           }),
         ],
-        components: buildRyumaCardRows(selectedCards, true),
+        components: buildRyumaCardRows(selectedCards, ended),
       });
-    }
 
-    const bossPhaseBeforeAttack = getBossPhase(freshGlobalState);
-    const damage = Math.min(getHpLeft(freshGlobalState), rollRyumaEntryDamage(selected));
-    const nextBossDefeated = getHpLeft(freshGlobalState) - damage <= 0;
+      if (ended) {
+        collector.stop(
+          nextBossDefeated
+            ? "boss_defeated"
+            : areAllRyumaCardsDead(selectedCards)
+              ? "all_cards_dead"
+              : "turn_limit"
+        );
+      }
+    } catch (error) {
+      console.error("[Ryuma] attack failed:", error);
 
-    let bossCounterDamage = 0;
-
-    if (!nextBossDefeated) {
-      bossCounterDamage = Math.min(
-        Number(selected.currentHp || 0),
-        BOSS_DAMAGE
-      );
-
-      selected.currentHp = Math.max(
-        0,
-        Math.floor(Number(selected.currentHp || 0)) - bossCounterDamage
-      );
-    }
-
-    const nextEventData = {
-      ...freshEventData,
-      joinedAt: freshEventData.joinedAt || now(),
-      damage: Math.max(0, Number(freshEventData.damage || 0)) + damage,
-      attackWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
-      attacksUsed: Math.max(0, Number(freshEventData.attacksUsed || 0)) + 1,
-      claimedPersonalMilestones: [...freshEventData.claimedPersonalMilestones],
-      claimedBonusMilestones: [...freshEventData.claimedBonusMilestones],
-      cardHp: snapshotRyumaCardHp(selectedCards),
-      cardHpWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
-    };
-
-    const claimedLines = [];
-
-    for (const milestone of getPersonalClaims(nextEventData)) {
-      freshPlayer = applyRewards(freshPlayer, milestone.rewards);
-      nextEventData.claimedPersonalMilestones.push(milestone.damage);
-      claimedLines.push(`Personal ${fmt(milestone.damage)} damage: ${rewardLines(milestone.rewards).join(", ")}`);
-    }
-
-    for (const bonusDamage of getBonusClaims(nextEventData)) {
-      freshPlayer = applyRewards(freshPlayer, BONUS_REWARD);
-      nextEventData.claimedBonusMilestones.push(bonusDamage);
-      claimedLines.push(`Bonus ${fmt(bonusDamage)} damage: ${rewardLines(BONUS_REWARD).join(", ")}`);
-    }
-
-    freshPlayer = setEventData(freshPlayer, nextEventData);
-
-    freshGlobalState.totalDamage =
-      Math.max(0, Number(freshGlobalState.totalDamage || 0)) + damage;
-
-    freshPlayers[GLOBAL_STORE_ID] = freshGlobalState;
-    freshPlayers[String(message.author.id)] = freshPlayer;
-    writePlayers(freshPlayers);
-
-    turnCount = nextEventData.attacksUsed;
-    totalDamage += damage;
-
-    battleLog.push(
-      `⚔️ ${
-        selected.card?.displayName ||
-        selected.card?.name ||
-        selected.card?.code ||
-        "Card"
-      } dealt **${fmt(damage)}** damage.`
-    );
-
-    if (bossCounterDamage > 0) {
-      battleLog.push(
-        `☠️ ${BOSS_NAME} countered for **${fmt(bossCounterDamage)}** damage.`
-      );
-    }
-
-    if (Number(selected.currentHp || 0) <= 0) {
-      battleLog.push(
-        `💀 ${
-          selected.card?.displayName ||
-          selected.card?.name ||
-          selected.card?.code ||
-          "Card"
-        } was defeated.`
-      );
-    }
-
-    for (const line of claimedLines) {
-      battleLog.push(`🎁 ${line}`);
-    }
-
-    ended =
-      nextBossDefeated ||
-      areAllRyumaCardsDead(selectedCards) ||
-      turnCount >= ATTACK_LIMIT;
-
-    await interaction.update({
-      content: null,
-      embeds: [
-        buildRyumaCardSelectEmbed({
-          globalState: freshGlobalState,
-          selectedCards,
-          turnCount,
-          totalDamage,
-          battleLog,
-          ended,
-        }),
-      ],
-      components: buildRyumaCardRows(selectedCards, ended),
-    });
-
-    if (ended) {
-      collector.stop(
-        nextBossDefeated
-          ? "boss_defeated"
-          : areAllRyumaCardsDead(selectedCards)
-            ? "all_cards_dead"
-            : "turn_limit"
-      );
+      await interaction.reply({
+        content: "Ryuma attack failed. Please try again.",
+        ephemeral: true,
+      }).catch(() => null);
+    } finally {
+      turnBusy = false;
     }
   });
 
