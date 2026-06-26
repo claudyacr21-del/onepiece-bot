@@ -433,14 +433,9 @@ function buildViewerEmbed(ownerName, player, card, index, total, label = "Collec
   const atkRange = formatAtkRange(card.atk);
   const syncedFragments = getFragmentAmount(player, card);
 
-  const skinLine = displayCard.hasCustomSkin
-    ? `Skinned Character: ${displayCard.skinnedCharacter || displayCard.originalDisplayName || card.displayName || card.name || "Unknown"}`
-    : null;
-
   const extraLines = card.cardRole === "boost" ? [
     `Form: ${card.evolutionKey || `M${form.stage}`}`,
     `Tier: ${card.currentTier || card.rarity || "C"}`,
-    skinLine,
     `Power: ${getPower(card)}`,
     `Effect: ${getRoadPoneglyphDisplayEffect(card, form.stage || card?.evolutionStage || 1, card.effectText || "No effect text")}`,
     `Target: ${card.boostTarget || "team"}`,
@@ -450,7 +445,6 @@ function buildViewerEmbed(ownerName, player, card, index, total, label = "Collec
   ] : [
     `Form: ${card.evolutionKey || `M${form.stage}`}`,
     `Tier: ${card.currentTier || card.rarity || "C"}`,
-    skinLine,
     formatLevelExpLine(card),
     `Power: ${getPower(card)}`,
     `Health: ${card.hp || 0}`,

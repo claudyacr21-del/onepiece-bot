@@ -841,14 +841,9 @@ function buildOwnedCardEmbed(ownerName, player, card) {
   const atkRange = formatAtkRange(card.atk);
   const syncedFragments = getFragmentAmount(player, card);
 
-  const skinLine = displayCard.hasCustomSkin
-    ? `Skinned Character: ${displayCard.skinnedCharacter || displayCard.originalDisplayName || card.displayName || card.name || "Unknown"}`
-    : null;
-
   const extraLines = card.cardRole === "boost" ? [
     `Form: ${card.evolutionKey || `M${stage}`}`,
     `Tier: ${card.currentTier || card.rarity}`,
-    skinLine,
     `Power: ${Number(card.currentPower || 0)}`,
     `Effect: ${getRoadPoneglyphDisplayEffect(card || form, stage || card?.evolutionStage || 1, card.effectText || "No effect text")}`,
     `Target: ${card.boostTarget || "team"}`,
@@ -858,7 +853,6 @@ function buildOwnedCardEmbed(ownerName, player, card) {
   ] : [
     `Form: ${card.evolutionKey || `M${stage}`}`,
     `Tier: ${card.currentTier || card.rarity}`,
-    skinLine,
     formatCardLevelLine(card),
     `Raid Prestige: ${Math.max(0, Math.min(200, Number(card.raidPrestige || 0)))}/200`,
     `Power: ${Number(card.currentPower || 0)}`,
