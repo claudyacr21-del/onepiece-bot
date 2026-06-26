@@ -958,7 +958,7 @@ function buildMainRows(disabled = false, attackDisabled = disabled) {
 function buildPanelEmbed(message) {
   const players = readPlayers();
   const globalState = getGlobalState(players);
-  const player = getPlayer(players, message.author.id, message.author.username);
+  const player = getPlayer(message.author.id, message.author.username);
   const eventData = getEventData(player);
   const attackWindow = getAttackWindow(eventData);
   const hpLeft = getHpLeft(globalState);
@@ -1011,7 +1011,7 @@ function buildPanelEmbed(message) {
 function buildRewardsEmbed(message) {
   const players = readPlayers();
   const globalState = getGlobalState(players);
-  const player = getPlayer(players, message.author.id, message.author.username);
+  const player = getPlayer(message.author.id, message.author.username);
   const eventData = getEventData(player);
 
   const unlockedGlobal = getUnlockedGlobalMilestones(globalState.totalDamage);
@@ -1107,7 +1107,7 @@ function parseBuyArgs(args) {
 
 function buildShopEmbed(message) {
   const players = readPlayers();
-  const player = getPlayer(players, message.author.id, message.author.username);
+  const player = getPlayer(message.author.id, message.author.username);
   const eventData = getEventData(player);
 
   const lines = SHOP_ITEMS.map((item) => {
@@ -1158,7 +1158,7 @@ async function buyShopItem(message, buyArgs = []) {
   }
 
   const players = readPlayers();
-  let player = getPlayer(players, message.author.id, message.author.username);
+  let player = getPlayer(message.author.id, message.author.username);
   const eventData = getEventData(player);
   const bought = Math.max(0, Number(eventData.shopPurchases?.[item.key] || 0));
   const remainingLimit = Math.max(0, item.limit - bought);
@@ -1258,7 +1258,7 @@ async function performAttack(message) {
     });
   }
 
-  let player = getPlayer(players, message.author.id, message.author.username);
+  let player = getPlayer(message.author.id, message.author.username);
   let eventData = getEventData(player);
   const attackWindow = getAttackWindow(eventData);
 
@@ -1347,7 +1347,7 @@ async function performAttack(message) {
       });
     }
 
-    let freshPlayer = getPlayer(freshPlayers, message.author.id, message.author.username);
+    let freshPlayer = getPlayer(message.author.id, message.author.username);
     let freshEventData = getEventData(freshPlayer);
     const freshAttackWindow = getAttackWindow(freshEventData);
 
@@ -1495,7 +1495,7 @@ async function performAttack(message) {
 async function claimGlobalRewards(message, editableMessage = null) {
   const players = readPlayers();
   const globalState = getGlobalState(players);
-  let player = getPlayer(players, message.author.id, message.author.username);
+  let player = getPlayer(message.author.id, message.author.username);
   const eventData = getEventData(player);
 
   if (!eventData.joinedAt || eventData.damage < 25000) {
