@@ -436,6 +436,103 @@ function syncRaidPrestigeBankToCards(player) {
   };
 }
 
+function mergeEventStoreNoRollback(incomingEvents, persistedEvents) {
+  const incoming =
+    incomingEvents && typeof incomingEvents === "object" && !Array.isArray(incomingEvents)
+      ? incomingEvents
+      : {};
+
+  const persisted =
+    persistedEvents && typeof persistedEvents === "object" && !Array.isArray(persistedEvents)
+      ? persistedEvents
+      : {};
+
+  const merged = {
+    ...persisted,
+    ...incoming,
+  };
+
+  const ryumaKey = "ryuma_global_boss";
+
+  if (incoming[ryumaKey] || persisted[ryumaKey]) {
+    const oldRyuma =
+      persisted[ryumaKey] && typeof persisted[ryumaKey] === "object"
+        ? persisted[ryumaKey]
+        : {};
+
+    const newRyuma =
+      incoming[ryumaKey] && typeof incoming[ryumaKey] === "object"
+        ? incoming[ryumaKey]
+        : {};
+
+    const oldWindow = Number(oldRyuma.attackWindowStartedAt || 0);
+    const newWindow = Number(newRyuma.attackWindowStartedAt || 0);
+    const sameWindow = oldWindow && newWindow && oldWindow === newWindow;
+
+    const useNewWindow = newWindow >= oldWindow;
+
+    merged[ryumaKey] = {
+      ...oldRyuma,
+      ...newRyuma,
+
+      damage: Math.max(
+        Number(oldRyuma.damage || 0),
+        Number(newRyuma.damage || 0)
+      ),
+
+      joinedAt: Math.max(
+        Number(oldRyuma.joinedAt || 0),
+        Number(newRyuma.joinedAt || 0)
+      ),
+
+      attackWindowStartedAt: useNewWindow ? newWindow : oldWindow,
+
+      attacksUsed: sameWindow
+        ? Math.max(Number(oldRyuma.attacksUsed || 0), Number(newRyuma.attacksUsed || 0))
+        : useNewWindow
+          ? Number(newRyuma.attacksUsed || 0)
+          : Number(oldRyuma.attacksUsed || 0),
+
+      claimedPersonalMilestones: Array.from(new Set([
+        ...(Array.isArray(oldRyuma.claimedPersonalMilestones) ? oldRyuma.claimedPersonalMilestones : []),
+        ...(Array.isArray(newRyuma.claimedPersonalMilestones) ? newRyuma.claimedPersonalMilestones : []),
+      ])).map(Number),
+
+      claimedBonusMilestones: Array.from(new Set([
+        ...(Array.isArray(oldRyuma.claimedBonusMilestones) ? oldRyuma.claimedBonusMilestones : []),
+        ...(Array.isArray(newRyuma.claimedBonusMilestones) ? newRyuma.claimedBonusMilestones : []),
+      ])).map(Number),
+
+      claimedGlobalMilestones: Array.from(new Set([
+        ...(Array.isArray(oldRyuma.claimedGlobalMilestones) ? oldRyuma.claimedGlobalMilestones : []),
+        ...(Array.isArray(newRyuma.claimedGlobalMilestones) ? newRyuma.claimedGlobalMilestones : []),
+      ])).map(Number),
+
+      shopPurchases: {
+        ...(oldRyuma.shopPurchases || {}),
+        ...(newRyuma.shopPurchases || {}),
+      },
+
+      cardHp: useNewWindow
+        ? {
+            ...(oldRyuma.cardHp || {}),
+            ...(newRyuma.cardHp || {}),
+          }
+        : {
+            ...(newRyuma.cardHp || {}),
+            ...(oldRyuma.cardHp || {}),
+          },
+
+      cardHpWindowStartedAt: Math.max(
+        Number(oldRyuma.cardHpWindowStartedAt || 0),
+        Number(newRyuma.cardHpWindowStartedAt || 0)
+      ),
+    };
+  }
+
+  return merged;
+}
+
 function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
   if (!persistedPlayer) return incomingPlayer;
   if (!incomingPlayer) return persistedPlayer;
@@ -472,6 +569,8 @@ function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
         )
       )
     ),
+
+    events: mergeEventStoreNoRollback(incomingPlayer.events, persistedPlayer.events),
 
     cards: mergeCardsNoRollback(
       incomingPlayer.cards,
@@ -1610,6 +1709,12 @@ function normalizeStorage(storage, storageLimit) {
   };
 }
 
+function normalizeEventStore(events) {
+  return events && typeof events === "object" && !Array.isArray(events)
+    ? cloneJson(events)
+    : {};
+}
+
 function normalizePlayer(player = {}, username = "Unknown") {
   const currentIsland = player.currentIsland || "Foosha Village";
 
@@ -1621,6 +1726,11 @@ function normalizePlayer(player = {}, username = "Unknown") {
     pirateTokens: Math.max(
       0,
       Math.floor(Number(player.pirateTokens || 0))
+    ),
+
+    ryumaTokens: Math.max(
+      0,
+      Math.floor(Number(player.ryumaTokens || 0))
     ),
 
     currentIsland,
@@ -1636,6 +1746,7 @@ function normalizePlayer(player = {}, username = "Unknown") {
     boxes: normalizeNamedList(player.boxes),
     tickets: normalizeNamedList(player.tickets),
     materials: normalizeNamedList(player.materials),
+    events: normalizeEventStore(player.events),
     pity: {
       pullPity: Number(player?.pity?.pullPity) >= 0 ? Number(player.pity.pullPity) : 0,
       normalAPity:
@@ -1674,6 +1785,8 @@ function getDefaultPlayer(username) {
       berries: 1000,
       gems: 100,
       pirateTokens: 0,
+      ryumaTokens: 0,
+      events: {},
       currentIsland: "Foosha Village",
       messageMilestones: {
         messages: 0,
