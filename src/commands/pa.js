@@ -124,7 +124,7 @@ function getTicketPool() {
       name: "Common Raid Ticket",
       rarity: "B",
       type: "Ticket",
-      weight: 25,
+      weight: 30,
     },
     {
       code: "raid_ticket",
@@ -145,7 +145,7 @@ function getTicketPool() {
       name: "Empty Throne Raid Writ",
       rarity: "S",
       type: "Ticket",
-      weight: 15,
+      weight: 20,
     },
     {
       code: "mythic_raid_ticket",
