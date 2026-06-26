@@ -11,6 +11,7 @@ module.exports = {
       "pullinfo",
       "team",
       "convert",
+      "ryuma",
       "finv",
       "ci",
       "help",
