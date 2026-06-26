@@ -391,25 +391,134 @@ function getBossPhase(globalState) {
 }
 
 function getRyumaTeamCards(player) {
-  const cards = getPlayerCombatCards(player);
-  const slots = Array.isArray(player?.team?.slots)
-    ? player.team.slots.slice(0, 3)
+  const combatCards = Array.isArray(getPlayerCombatCards(player))
+    ? getPlayerCombatCards(player)
     : [];
 
-  return slots
-    .map((instanceId) => {
-      if (!instanceId) return null;
+  const rawTeam = player?.team;
+  const slotSources = [];
 
+  if (Array.isArray(rawTeam?.slots)) slotSources.push(...rawTeam.slots);
+  if (Array.isArray(rawTeam?.cards)) slotSources.push(...rawTeam.cards);
+  if (Array.isArray(rawTeam?.members)) slotSources.push(...rawTeam.members);
+  if (Array.isArray(rawTeam?.lineup)) slotSources.push(...rawTeam.lineup);
+  if (Array.isArray(rawTeam?.main)) slotSources.push(...rawTeam.main);
+  if (Array.isArray(rawTeam?.deck)) slotSources.push(...rawTeam.deck);
+  if (Array.isArray(rawTeam?.active)) slotSources.push(...rawTeam.active);
+  if (Array.isArray(rawTeam)) slotSources.push(...rawTeam);
+
+  if (Array.isArray(player?.teamSlots)) slotSources.push(...player.teamSlots);
+  if (Array.isArray(player?.teamCards)) slotSources.push(...player.teamCards);
+  if (Array.isArray(player?.teamCardIds)) slotSources.push(...player.teamCardIds);
+
+  const normalizeId = (value) => String(value || "").trim().toLowerCase();
+
+  const getSlotId = (slot) => {
+    if (!slot) return "";
+
+    if (typeof slot === "string" || typeof slot === "number") {
+      return normalizeId(slot);
+    }
+
+    return normalizeId(
+      slot.instanceId ||
+        slot.cardInstanceId ||
+        slot.cardId ||
+        slot.id ||
+        slot.code ||
+        slot.name
+    );
+  };
+
+  const getCardIds = (card) => {
+    return [
+      card?.instanceId,
+      card?.cardInstanceId,
+      card?.cardId,
+      card?.id,
+      card?.code,
+      card?.name,
+      card?.displayName,
+    ]
+      .map(normalizeId)
+      .filter(Boolean);
+  };
+
+  const isBattleCard = (card) => {
+    return String(card?.cardRole || "").toLowerCase() !== "boost";
+  };
+
+  const result = [];
+  const used = new Set();
+
+  for (const slot of slotSources) {
+    if (!slot || result.length >= 3) continue;
+
+    if (typeof slot === "object") {
+      const directIds = getCardIds(slot);
+      const directMatch = combatCards.find((card) => {
+        if (!isBattleCard(card)) return false;
+
+        const cardIds = getCardIds(card);
+        return directIds.some((id) => cardIds.includes(id));
+      });
+
+      if (directMatch) {
+        const key = normalizeId(directMatch.instanceId || directMatch.id || directMatch.code || directMatch.name);
+        if (!used.has(key)) {
+          used.add(key);
+          result.push(directMatch);
+        }
+        continue;
+      }
+    }
+
+    const slotId = getSlotId(slot);
+    if (!slotId) continue;
+
+    const matchedCard = combatCards.find((card) => {
+      if (!isBattleCard(card)) return false;
+
+      const cardIds = getCardIds(card);
+      return cardIds.includes(slotId);
+    });
+
+    if (!matchedCard) continue;
+
+    const key = normalizeId(matchedCard.instanceId || matchedCard.id || matchedCard.code || matchedCard.name);
+    if (used.has(key)) continue;
+
+    used.add(key);
+    result.push(matchedCard);
+  }
+
+  if (result.length) {
+    return result.slice(0, 3);
+  }
+
+  const equippedCards = combatCards
+    .filter(isBattleCard)
+    .filter((card) => {
       return (
-        cards.find((card) => {
-          return (
-            String(card.instanceId || "") === String(instanceId || "") &&
-            String(card.cardRole || "").toLowerCase() !== "boost"
-          );
-        }) || null
+        card?.inTeam === true ||
+        card?.equipped === true ||
+        card?.isTeam === true ||
+        card?.team === true ||
+        Number.isFinite(Number(card?.teamSlot)) ||
+        Number.isFinite(Number(card?.slot))
       );
     })
-    .filter(Boolean);
+    .sort((a, b) => {
+      const aSlot = Number(a?.teamSlot ?? a?.slot ?? 999);
+      const bSlot = Number(b?.teamSlot ?? b?.slot ?? 999);
+      return aSlot - bSlot;
+    });
+
+  if (equippedCards.length) {
+    return equippedCards.slice(0, 3);
+  }
+
+  return combatCards.filter(isBattleCard).slice(0, 3);
 }
 
 function getRyumaCardName(card) {
