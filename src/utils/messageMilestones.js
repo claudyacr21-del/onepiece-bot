@@ -5,7 +5,7 @@ const MESSAGE_MILESTONE_REWARDS = [
     label: "Gems",
     target: 75,
     reward: {
-      gems: 10,
+      gems: 500,
     },
   },
   {
