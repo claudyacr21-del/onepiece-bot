@@ -9,6 +9,7 @@ const {
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard, findCardTemplate } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard, getMergeSourceCodes } = require("../utils/mergeCards");
+const { applyCustomSkinToCard } = require("../utils/customSkins");
 const activeRaidReadyNotices = new Set();
 const {
   getPlayerCombatBoosts,
@@ -871,10 +872,10 @@ function isSameRaidCard(a, b) {
     return true;
   }
 
-  const aCode = String(a.code || a.characterCode || "").toLowerCase().trim();
-  const bCode = String(b.code || b.characterCode || "").toLowerCase().trim();
+  const aKey = getRoomCardConflictKey(a);
+  const bKey = getRoomCardConflictKey(b);
 
-  return Boolean(aCode && bCode && aCode === bCode);
+  return Boolean(aKey && bKey && aKey === bKey);
 }
 
 function getRaidBaseBattleCards(player) {
@@ -883,11 +884,13 @@ function getRaidBaseBattleCards(player) {
       const card = hydrateCard(rawCard);
       if (!card) return null;
 
-      if (isMergeCard(card)) {
-        return buildMergedCard(player || { cards: [] }, card);
-      }
+      const syncedCard = isMergeCard(card)
+        ? buildMergedCard(player || { cards: [] }, card)
+        : card;
 
-      return card;
+      // Skin dipasang setelah stat/merge selesai.
+      // Ini aman: stat tetap dari original card, skin cuma display.
+      return applyCustomSkinToCard(player || {}, syncedCard);
     })
     .filter(
       (card) =>
@@ -922,7 +925,24 @@ function getBattleTeamCards(player) {
 }
 
 function toRoomCard(card) {
-  const synced = hydrateCard(card);
+  const synced = hydrateCard(card) || card || {};
+
+  const hasCustomSkin = Boolean(synced.hasCustomSkin);
+  const skinName = hasCustomSkin
+    ? String(synced.displayName || synced.skinName || synced.name || "")
+    : "";
+
+  const skinImage = hasCustomSkin
+    ? String(synced.skinImage || synced.image || "")
+    : "";
+
+  const originalDisplayName = String(
+    synced.originalDisplayName ||
+      synced.skinnedCharacter ||
+      synced.name ||
+      synced.displayName ||
+      ""
+  );
 
   return {
     instanceId: String(synced.instanceId || ""),
@@ -932,6 +952,19 @@ function toRoomCard(card) {
     currentTier: String(synced.currentTier || synced.rarity || ""),
     image: String(synced.image || ""),
     cardRole: String(synced.cardRole || "battle"),
+
+    hasCustomSkin,
+    skinName,
+    skinTitle: String(synced.skinTitle || ""),
+    skinImage,
+    originalDisplayName,
+    skinnedCharacter: String(synced.skinnedCharacter || originalDisplayName || ""),
+    cardConflictKey: getRoomCardConflictKey({
+      ...synced,
+      hasCustomSkin,
+      skinName,
+      skinImage,
+    }),
   };
 }
 
@@ -1004,13 +1037,20 @@ function buildBattleRoster(room) {
 
       const boosts = getPlayerCombatBoosts(player);
       const displayed = applyBoostedRaidDisplayStats(fresh, boosts);
+      const hasCustomSkin = Boolean(displayed.hasCustomSkin || picked?.hasCustomSkin);
 
       roster.push({
         userId: String(participant.userId),
         username: String(participant.username || "Unknown"),
         instanceId: String(displayed.instanceId || ""),
         code: String(displayed.code || ""),
-        name: String(displayed.displayName || displayed.name || picked?.name || "Unknown"),
+        name: String(
+          displayed.displayName ||
+            displayed.name ||
+            picked?.skinName ||
+            picked?.name ||
+            "Unknown"
+        ),
         atk: getRaidCardAtk(displayed),
         maxHp: getRaidCardHp(displayed),
         hp: getRaidCardHp(displayed),
@@ -1018,7 +1058,23 @@ function buildBattleRoster(room) {
         currentPower: getRaidDisplayPower(displayed),
         currentTier: String(displayed.currentTier || displayed.rarity || ""),
         evolutionStage: Number(displayed.evolutionStage || 1),
-        image: String(displayed.image || ""),
+        image: String(
+          hasCustomSkin
+            ? displayed.skinImage || picked?.skinImage || displayed.image || ""
+            : displayed.image || ""
+        ),
+
+        hasCustomSkin,
+        skinName: String(displayed.skinName || picked?.skinName || ""),
+        skinTitle: String(displayed.skinTitle || picked?.skinTitle || ""),
+        skinImage: String(displayed.skinImage || picked?.skinImage || ""),
+        originalDisplayName: String(
+          displayed.originalDisplayName || picked?.originalDisplayName || ""
+        ),
+        skinnedCharacter: String(
+          displayed.skinnedCharacter || picked?.skinnedCharacter || ""
+        ),
+        cardConflictKey: getRoomCardConflictKey(displayed.hasCustomSkin ? displayed : picked),
         passiveBoostsApplied: {
           atk: Number(boosts.atk || 0),
           hp: Number(boosts.hp || 0),
@@ -1347,11 +1403,37 @@ function getThroneTeamCards(player) {
 }
 
 function getRoomCardConflictKey(card) {
-  const code = String(card?.code || card?.characterCode || "").toLowerCase().trim();
-  const name = String(card?.name || card?.displayName || "").toLowerCase().trim();
+  const explicitKey = String(card?.cardConflictKey || "").trim();
+  if (explicitKey) return explicitKey;
+
+  const originalCode = String(card?.code || card?.characterCode || card?.cardCode || "")
+    .toLowerCase()
+    .trim();
+
+  const skinName = String(card?.skinName || card?.customSkinName || "")
+    .toLowerCase()
+    .trim();
+
+  const skinImage = String(card?.skinImage || "")
+    .toLowerCase()
+    .trim();
+
+  const name = String(card?.name || card?.displayName || "")
+    .toLowerCase()
+    .trim();
+
   const instanceId = String(card?.instanceId || "").trim();
 
-  if (code) return `code:${code}`;
+  // Custom skin aktif:
+  // same card code + beda skin = boleh join bareng.
+  // same card code + same skin = duplicate.
+  if (card?.hasCustomSkin && originalCode && (skinName || skinImage)) {
+    return ["skin", originalCode, skinName, skinImage]
+      .filter(Boolean)
+      .join(":");
+  }
+
+  if (originalCode) return `code:${originalCode}`;
   if (name) return `name:${name}`;
   if (instanceId) return `instance:${instanceId}`;
 

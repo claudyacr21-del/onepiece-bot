@@ -19,6 +19,7 @@ const cardsDb = require("../data/cards");
 const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const { applyCustomSkinToCard } = require("../utils/customSkins");
 const {
   getPirateExpBoostPercent,
   applyPirateCurrencyBoosts,
@@ -411,22 +412,43 @@ function formatExpResults(playerTeam, expResults) {
     .filter(Boolean);
 }
 
-function toBattleUnit(card, slotIndex, combatBoosts = {}) {
+function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
   const boosted = applyBoostedDisplayStats(card, combatBoosts);
+  const displayCard = player ? applyCustomSkinToCard(player, boosted) : boosted;
 
   const displayAtk = getBossCardAtk(boosted);
   const displayHp = getBossCardHp(boosted);
   const displaySpeed = getBossCardSpeed(boosted);
   const displayPower = getBossCardPower(boosted);
 
+  const hasCustomSkin = Boolean(displayCard?.hasCustomSkin);
+  const skinName = hasCustomSkin
+    ? String(displayCard.displayName || displayCard.skinName || boosted.displayName || boosted.name || "")
+    : "";
+
+  const skinImage = hasCustomSkin
+    ? String(displayCard.skinImage || displayCard.image || "")
+    : "";
+
   return {
     slot: slotIndex + 1,
     sourceIndex: Number.isInteger(boosted.sourceIndex) ? boosted.sourceIndex : null,
     instanceId: boosted.instanceId,
     code: boosted.code,
-    name: boosted.displayName || boosted.name || "Unknown",
-    rarity: boosted.currentTier || boosted.rarity || "C",
 
+    // Display only.
+    name: displayCard.displayName || boosted.displayName || boosted.name || "Unknown",
+    rarity: boosted.currentTier || boosted.rarity || "C",
+    image: hasCustomSkin ? skinImage : boosted.image || "",
+
+    hasCustomSkin,
+    skinName,
+    skinTitle: String(displayCard.skinTitle || ""),
+    skinImage,
+    originalDisplayName: String(displayCard.originalDisplayName || boosted.displayName || boosted.name || ""),
+    skinnedCharacter: String(displayCard.skinnedCharacter || displayCard.originalDisplayName || boosted.displayName || boosted.name || ""),
+
+    // Stats tetap dari boosted/original card, bukan dari skin.
     atk: displayAtk,
     hp: displayHp,
     maxHp: displayHp,
@@ -443,7 +465,6 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}) {
     levelCap: getCardLevelCap(boosted),
     exp: getCardExp(boosted),
     kills: Number(boosted.kills || 0),
-    image: boosted.image || "",
 
     passiveBoostsApplied: {
       atk: Number(combatBoosts.atk || 0),
@@ -1259,17 +1280,60 @@ function formatTeamPreview(teamCards) {
     .join("\n");
 }
 
+function getBossPartyCardConflictKey(unit) {
+  const originalCode = String(unit?.code || unit?.characterCode || unit?.cardCode || "")
+    .toLowerCase()
+    .trim();
+
+  const skinName = String(unit?.skinName || unit?.customSkinName || "")
+    .toLowerCase()
+    .trim();
+
+  const skinImage = String(unit?.skinImage || "")
+    .toLowerCase()
+    .trim();
+
+  const name = String(unit?.name || unit?.displayName || "")
+    .toLowerCase()
+    .trim();
+
+  const instanceId = String(unit?.instanceId || "").trim();
+
+  // Custom skin aktif:
+  // same card code + beda skin = boleh join bareng.
+  // same card code + same skin = duplicate.
+  if (unit?.hasCustomSkin && originalCode && (skinName || skinImage)) {
+    return ["skin", originalCode, skinName, skinImage]
+      .filter(Boolean)
+      .join(":");
+  }
+
+  if (originalCode) return `code:${originalCode}`;
+  if (name) return `name:${name}`;
+  if (instanceId) return `instance:${instanceId}`;
+
+  return "";
+}
+
+function getBossPartyCardConflictName(unit) {
+  if (unit?.hasCustomSkin) {
+    return unit.skinName || unit.name || unit.displayName || "Unknown Skin";
+  }
+
+  return unit.name || unit.displayName || unit.code || "Unknown Card";
+}
+
 function getDuplicatePartyCards(participants) {
   const map = new Map();
 
   for (const participant of participants) {
     for (const unit of participant.units || []) {
-      const key = String(unit.code || unit.name || "").toLowerCase();
+      const key = getBossPartyCardConflictKey(unit);
       if (!key) continue;
 
       if (!map.has(key)) {
         map.set(key, {
-          name: unit.name,
+          name: getBossPartyCardConflictName(unit),
           users: [],
         });
       }
@@ -1963,7 +2027,7 @@ function getFullTeamFromPlayer(player) {
           String(card.cardRole || "").toLowerCase() !== "boost"
       );
 
-      return found ? toBattleUnit(found, index, combatBoosts) : null;
+      return found ? toBattleUnit(found, index, combatBoosts, player) : null;
     })
     .filter(Boolean);
 
