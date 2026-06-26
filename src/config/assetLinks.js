@@ -1047,6 +1047,7 @@ const WEAPON_IMAGES = {
   water_bullets: "https://cdn.discordapp.com/attachments/1493204525975076944/1515582408819216404/content.png?ex=6a2f879c&is=6a2e361c&hm=804f331cf60d0ebb26a11e0e71e37e46dbf10d67443e01bad61fd056f1e37f42&",
   bandit_club: "https://cdn.discordapp.com/attachments/1493204525975076944/1515582409192505539/content.png?ex=6a2f879c&is=6a2e361c&hm=985b16ac65c9f057d3b88515567ab981ac93c1cf25b2f30d2315c75ae0d71f73&",
   bandit_knife: "https://cdn.discordapp.com/attachments/1493204525975076944/1515582409654145165/content.png?ex=6a2f879c&is=6a2e361c&hm=05687845afb0c6387dbf9f1f35d45fee4c06eab119ffd6c3893ce7ca59657b15&",
+  fish_karate: "https://cdn.discordapp.com/attachments/1493204525975076944/1520029287497990185/content.png?ex=6a3fb516&is=6a3e6396&hm=d9cd71b89b671670913fb4b9876f49541b85d1c54e99b6c8b2942110427d4dd1",
 };
 
 const DEVIL_FRUIT_IMAGES = {

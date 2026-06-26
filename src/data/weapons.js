@@ -268,6 +268,17 @@ module.exports = [
     description: "A close-range martial art using water shockwaves."
   },
   {
+    code: "fish_karate",
+    name: "Fish Karate",
+    rarity: "B",
+    owners: [ "kuroobi"],
+    type: "Martial Art",
+    statPercent: { atk: 3, hp: 2, speed: 1 },
+    ownerBonusPercent: { atk: 3, hp: 3, speed: 2 },
+    image: "",
+    description: "A close-range martial art using water shockwaves."
+  },
+  {
     code: "fists",
     name: "Fistss",
     rarity: "UR",
