@@ -999,10 +999,12 @@ function formatDuration(ms) {
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
 
-  if (days > 0) return `${days}d ${hours}h`;
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
   if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
 }
 
 function formatEventDateTime(timestamp) {
@@ -1276,10 +1278,10 @@ function buildPanelEmbed(message) {
   const eventEnded = isEventEnded(globalState);
 
   const timeText = !eventStarted
-    ? `Starts ${RYUMA_EVENT_START_LABEL}`
+    ? `Starts <t:${Math.floor(Number(globalState.startedAt || 0) / 1000)}:R> • <t:${Math.floor(Number(globalState.startedAt || 0) / 1000)}:f>`
     : eventEnded
         ? "Event ended"
-        : formatDuration(Math.max(0, Number(globalState.endsAt || 0) - now()));
+        : `Ends <t:${Math.floor(Number(globalState.endsAt || 0) / 1000)}:R> • <t:${Math.floor(Number(globalState.endsAt || 0) / 1000)}:f>`;
 
   const embed = new EmbedBuilder()
     .setColor(0x8e44ad)
@@ -1297,7 +1299,9 @@ function buildPanelEmbed(message) {
         `**Your Damage:** ${fmt(eventData.damage)}`,
         `**Your Ryuma Tokens:** ${fmt(player.ryumaTokens || 0)}`,
         `**Your Attacks:** ${attackWindow.attacksLeft} / ${ATTACK_LIMIT}`,
-        `**Attack Reset:** <t:${Math.floor(attackWindow.resetAt / 1000)}:R>`,
+        attackWindow.attacksLeft > 0
+          ? `**Attack Status:** Available — ${attackWindow.attacksLeft} attack(s) left`
+          : `**Attack Reset:** <t:${Math.floor(attackWindow.resetAt / 1000)}:R>`,
         "",
         `**Next Global Milestone:** ${nextGlobal ? fmt(nextGlobal) : "All global milestones unlocked"}`,
         `**Next Personal Milestone:** ${fmt(nextPersonal)} damage`,
