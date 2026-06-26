@@ -26,15 +26,15 @@ const MESSAGE_MILESTONE_REWARDS = [
     },
   },
   {
-    key: "rareResourceBox",
+    key: "legendresourcebox",
     emoji: "🎁",
-    label: "Rare Resource Box",
+    label: "Legend Resource Box",
     target: 750,
     reward: {
       boxes: [
         {
-          code: "rare_resource_box",
-          name: "Rare Resource Box",
+          code: "legend_resource_box",
+          name: "Legend Resource Box",
           amount: 1,
           rarity: "B",
           type: "Box",
@@ -52,7 +52,7 @@ const MESSAGE_MILESTONE_REWARDS = [
         {
           code: "raid_ticket",
           name: "Raid Ticket",
-          amount: 1,
+          amount: 5,
           rarity: "A",
           type: "Ticket",
         },
@@ -69,7 +69,7 @@ const MESSAGE_MILESTONE_REWARDS = [
         {
           code: "gold_raid_ticket",
           name: "Gold Raid Ticket",
-          amount: 1,
+          amount: 3,
           rarity: "S",
           type: "Ticket",
         },
