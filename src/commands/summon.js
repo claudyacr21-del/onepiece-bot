@@ -38,9 +38,19 @@ return true;
   return SUMMONABLE_CARD_ROLES.has(getCardRole(card));
 }
 
+function getSearchWords(value) {
+  return normalize(value)
+    .split(" ")
+    .map((word) => word.trim())
+    .filter(Boolean);
+}
+
 function scoreNameOnly(query, names) {
   const q = normalize(query);
   if (!q) return 0;
+
+  const queryWords = getSearchWords(q);
+  if (!queryWords.length) return 0;
 
   let best = 0;
 
@@ -48,15 +58,31 @@ function scoreNameOnly(query, names) {
     const name = normalize(raw);
     if (!name) continue;
 
-    if (name === q) best = Math.max(best, 1000 + name.length);
-    else if (name.startsWith(q)) best = Math.max(best, 750 + q.length);
-    else if (name.includes(q)) best = Math.max(best, 500 + q.length);
-    else {
-      const words = q.split(" ").filter(Boolean);
+    const nameWords = getSearchWords(name);
+    if (!nameWords.length) continue;
 
-      if (words.length && words.every((word) => name.includes(word))) {
-        best = Math.max(best, 300 + words.join("").length);
+    // Exact full-name/code match: "hatchan" -> Hatchan
+    if (name === q) {
+      best = Math.max(best, 1000 + name.length);
+      continue;
+    }
+
+    // Single-word query must match a full word only.
+    // "hat" will NOT match "hatchan".
+    if (queryWords.length === 1) {
+      if (nameWords.includes(queryWords[0])) {
+        best = Math.max(best, 850 + queryWords[0].length);
       }
+
+      continue;
+    }
+
+    // Multi-word query must match full words, not partial words.
+    // "monkey d luffy" can match "Monkey D Luffy".
+    const allWordsExist = queryWords.every((word) => nameWords.includes(word));
+
+    if (allWordsExist) {
+      best = Math.max(best, 700 + queryWords.join("").length);
     }
   }
 
