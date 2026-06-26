@@ -1323,18 +1323,36 @@ function buildRewardsEmbed(message) {
 
   const unlockedGlobal = getUnlockedGlobalMilestones(globalState.totalDamage);
   const claimedGlobal = new Set(eventData.claimedGlobalMilestones || []);
+  const claimedPersonal = new Set(eventData.claimedPersonalMilestones || []);
+  const claimedBonus = new Set(eventData.claimedBonusMilestones || []);
 
   const personalLines = PERSONAL_MILESTONES.map((milestone) => {
-    const done = eventData.damage >= milestone.damage;
-    const claimed = eventData.claimedPersonalMilestones.includes(milestone.damage);
-    return `${done ? "✅" : "❌"} ${fmt(milestone.damage)} damage${claimed ? " — claimed" : ""}`;
+    const unlocked = eventData.damage >= milestone.damage;
+    const claimed = claimedPersonal.has(milestone.damage);
+
+    return `${claimed ? "✅" : unlocked ? "🟡" : "❌"} ${fmt(milestone.damage)} damage${
+      claimed ? " — claimed" : unlocked ? " — claimable" : ""
+    }`;
   });
+
+  const bonusCount = getUnlockedBonusCount(eventData.damage);
+  const bonusLines = [];
+
+  for (let index = 1; index <= bonusCount; index += 1) {
+    const milestoneDamage = BONUS_START_DAMAGE + (index * BONUS_STEP_DAMAGE);
+    const claimed = claimedBonus.has(milestoneDamage);
+
+    bonusLines.push(`${claimed ? "✅" : "🟡"} ${fmt(milestoneDamage)} bonus damage${claimed ? " — claimed" : " — claimable"}`);
+  }
 
   const globalLines = GLOBAL_MILESTONES.map((milestone) => {
     const unlocked = unlockedGlobal.includes(milestone);
     const claimed = claimedGlobal.has(milestone);
     const charm = PITY_CHARM_MILESTONES.has(milestone) ? " + Ryuma Pity Charm" : "";
-    return `${unlocked ? "✅" : "❌"} ${fmt(milestone)} global damage${charm}${claimed ? " — claimed" : ""}`;
+
+    return `${claimed ? "✅" : unlocked ? "🟡" : "❌"} ${fmt(milestone)} global damage${charm}${
+      claimed ? " — claimed" : unlocked ? " — claimable" : ""
+    }`;
   });
 
   return new EmbedBuilder()
@@ -1344,16 +1362,22 @@ function buildRewardsEmbed(message) {
       [
         `**Your Damage:** ${fmt(eventData.damage)}`,
         `**Global Damage:** ${fmt(globalState.totalDamage)}`,
+        `**Your Ryuma Tokens:** ${fmt(player.ryumaTokens || 0)}`,
         "",
         "**Personal Milestones**",
         personalLines.join("\n"),
+        bonusLines.length ? "" : null,
+        bonusLines.length ? "**Bonus Milestones**" : null,
+        bonusLines.length ? bonusLines.join("\n") : null,
         "",
         "**Global Milestones**",
         globalLines.join("\n"),
-      ].join("\n")
+        "",
+        "Use `op ryuma claim` or the Claim button to claim unlocked rewards.",
+      ].filter(Boolean).join("\n")
     )
     .setFooter({
-      text: "One Piece Bot • Ryuma Event",
+      text: "✅ claimed • 🟡 claimable • ❌ locked",
     });
 }
 
@@ -1602,8 +1626,20 @@ async function performAttack(message) {
   }
 
   if (areAllRyumaCardsDead(selectedCards)) {
+    const nextEventData = {
+      ...eventData,
+      attackWindowStartedAt: attackWindow.attackWindowStartedAt,
+      attacksUsed: ATTACK_LIMIT,
+      cardHp: snapshotRyumaCardHp(selectedCards),
+      cardHpWindowStartedAt: attackWindow.attackWindowStartedAt,
+    };
+
+    player = setEventData(player, nextEventData);
+    players[userId] = player;
+    writePlayers(players);
+
     return message.reply({
-      content: `All your team cards are knocked out. Your team HP resets <t:${Math.floor(attackWindow.resetAt / 1000)}:R>.`,
+      content: `All your team cards are knocked out. Your attacks are now on cooldown until <t:${Math.floor(attackWindow.resetAt / 1000)}:R>.`,
       allowedMentions: {
         repliedUser: false,
       },
@@ -1754,7 +1790,6 @@ async function performAttack(message) {
         });
       }
 
-      const bossPhaseBeforeAttack = getBossPhase(freshGlobalState);
       const damage = Math.min(getHpLeft(freshGlobalState), rollRyumaEntryDamage(selected));
       const nextBossDefeated = getHpLeft(freshGlobalState) - damage <= 0;
 
@@ -1772,12 +1807,17 @@ async function performAttack(message) {
         );
       }
 
+      const allCardsDeadAfterHit = areAllRyumaCardsDead(selectedCards);
+      const nextAttacksUsed = allCardsDeadAfterHit
+        ? ATTACK_LIMIT
+        : currentUsed + 1;
+
       const nextEventData = {
         ...sessionEventData,
         joinedAt: sessionEventData.joinedAt || now(),
         damage: Math.max(0, Number(sessionEventData.damage || 0)) + damage,
         attackWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
-        attacksUsed: currentUsed + 1,
+        attacksUsed: nextAttacksUsed,
         claimedPersonalMilestones: [...sessionEventData.claimedPersonalMilestones],
         claimedBonusMilestones: [...sessionEventData.claimedBonusMilestones],
         claimedGlobalMilestones: [...sessionEventData.claimedGlobalMilestones],
@@ -1787,20 +1827,6 @@ async function performAttack(message) {
         cardHp: snapshotRyumaCardHp(selectedCards),
         cardHpWindowStartedAt: freshAttackWindow.attackWindowStartedAt,
       };
-
-      const claimedLines = [];
-
-      for (const milestone of getPersonalClaims(nextEventData)) {
-        freshPlayer = applyRewards(freshPlayer, milestone.rewards);
-        nextEventData.claimedPersonalMilestones.push(milestone.damage);
-        claimedLines.push(`Personal ${fmt(milestone.damage)} damage: ${rewardLines(milestone.rewards).join(", ")}`);
-      }
-
-      for (const bonusDamage of getBonusClaims(nextEventData)) {
-        freshPlayer = applyRewards(freshPlayer, BONUS_REWARD);
-        nextEventData.claimedBonusMilestones.push(bonusDamage);
-        claimedLines.push(`Bonus ${fmt(bonusDamage)} damage: ${rewardLines(BONUS_REWARD).join(", ")}`);
-      }
 
       sessionEventData = nextEventData;
       freshPlayer = setEventData(freshPlayer, sessionEventData);
@@ -1841,13 +1867,13 @@ async function performAttack(message) {
         );
       }
 
-      for (const line of claimedLines) {
-        battleLog.push(`🎁 ${line}`);
+      if (allCardsDeadAfterHit) {
+        battleLog.push("⏳ All cards were defeated. Remaining attacks are consumed and cooldown has started.");
       }
 
       ended =
         nextBossDefeated ||
-        areAllRyumaCardsDead(selectedCards) ||
+        allCardsDeadAfterHit ||
         turnCount >= ATTACK_LIMIT;
 
       await interaction.update({
@@ -1869,7 +1895,7 @@ async function performAttack(message) {
         collector.stop(
           nextBossDefeated
             ? "boss_defeated"
-            : areAllRyumaCardsDead(selectedCards)
+            : allCardsDeadAfterHit
               ? "all_cards_dead"
               : "turn_limit"
         );
@@ -1899,46 +1925,56 @@ async function performAttack(message) {
   return sent;
 }
 
-async function claimGlobalRewards(message, editableMessage = null) {
+async function claimEventRewards(message, editableMessage = null) {
   const players = readPlayers();
   const globalState = getGlobalState(players);
   let player = getRyumaPlayerFromStore(players, message);
   const eventData = getEventData(player);
 
-  if (!eventData.joinedAt || eventData.damage < 25000) {
-    return message.reply({
-      content: `You need to join the event and deal at least **25,000 damage** first.\nYour damage: **${fmt(eventData.damage)}**`,
-      allowedMentions: {
-        repliedUser: false,
-      },
-    });
-  }
-
-  const unlocked = getUnlockedGlobalMilestones(globalState.totalDamage);
-  const claimed = new Set(eventData.claimedGlobalMilestones || []);
-  const claimable = unlocked.filter((milestone) => !claimed.has(milestone));
-
-  if (!claimable.length) {
-    return message.reply({
-      content: "You have no global milestone rewards to claim.",
-      allowedMentions: {
-        repliedUser: false,
-      },
-    });
-  }
-
-  let totalBerries = 0;
-  let totalTokens = 0;
-  let totalCharms = 0;
-
   const nextEventData = {
     ...eventData,
+    claimedPersonalMilestones: [...eventData.claimedPersonalMilestones],
+    claimedBonusMilestones: [...eventData.claimedBonusMilestones],
     claimedGlobalMilestones: [...eventData.claimedGlobalMilestones],
   };
 
-  for (const milestone of claimable) {
-    totalBerries += 1000000;
-    totalTokens += 50;
+  const personalClaims = getPersonalClaims(nextEventData);
+  const bonusClaims = getBonusClaims(nextEventData);
+
+  const unlockedGlobal = getUnlockedGlobalMilestones(globalState.totalDamage);
+  const claimedGlobal = new Set(nextEventData.claimedGlobalMilestones || []);
+  const globalClaims = unlockedGlobal.filter((milestone) => !claimedGlobal.has(milestone));
+
+  if (!personalClaims.length && !bonusClaims.length && !globalClaims.length) {
+    return message.reply({
+      content: "You have no Ryuma event rewards to claim.",
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
+
+  const claimedLines = [];
+
+  for (const milestone of personalClaims) {
+    player = applyRewards(player, milestone.rewards);
+    nextEventData.claimedPersonalMilestones.push(milestone.damage);
+    claimedLines.push(`Personal ${fmt(milestone.damage)} damage: ${rewardLines(milestone.rewards).join(", ")}`);
+  }
+
+  for (const bonusDamage of bonusClaims) {
+    player = applyRewards(player, BONUS_REWARD);
+    nextEventData.claimedBonusMilestones.push(bonusDamage);
+    claimedLines.push(`Bonus ${fmt(bonusDamage)} damage: ${rewardLines(BONUS_REWARD).join(", ")}`);
+  }
+
+  let totalGlobalBerries = 0;
+  let totalGlobalTokens = 0;
+  let totalCharms = 0;
+
+  for (const milestone of globalClaims) {
+    totalGlobalBerries += 1000000;
+    totalGlobalTokens += 50;
 
     if (PITY_CHARM_MILESTONES.has(milestone)) {
       totalCharms += 1;
@@ -1947,21 +1983,29 @@ async function claimGlobalRewards(message, editableMessage = null) {
     nextEventData.claimedGlobalMilestones.push(milestone);
   }
 
-  player = applyRewards(player, {
-    berries: totalBerries,
-    ryumaTokens: totalTokens,
-    items: totalCharms > 0
-      ? [
-          {
-            code: "ryuma_pity_charm",
-            name: "Ryuma Pity Charm",
-            amount: totalCharms,
-            type: "Event Item",
-            description: "Reduces pull pity requirement during the Ryuma event.",
-          },
-        ]
-      : [],
-  });
+  if (globalClaims.length) {
+    player = applyRewards(player, {
+      berries: totalGlobalBerries,
+      ryumaTokens: totalGlobalTokens,
+      items: totalCharms > 0
+        ? [
+            {
+              code: "ryuma_pity_charm",
+              name: "Ryuma Pity Charm",
+              amount: totalCharms,
+              type: "Event Item",
+              description: "Reduces pull pity requirement during the Ryuma event.",
+            },
+          ]
+        : [],
+    });
+
+    claimedLines.push(
+      `Global ${fmt(globalClaims.length)} milestone(s): +${fmt(totalGlobalBerries)} berries, +${fmt(totalGlobalTokens)} Ryuma Tokens${
+        totalCharms > 0 ? `, +${fmt(totalCharms)} Ryuma Pity Charm` : ""
+      }`
+    );
+  }
 
   player = setEventData(player, nextEventData);
   players[String(message.author.id)] = player;
@@ -1969,15 +2013,15 @@ async function claimGlobalRewards(message, editableMessage = null) {
 
   const embed = new EmbedBuilder()
     .setColor(0x2ecc71)
-    .setTitle("Global Rewards Claimed")
+    .setTitle("Ryuma Rewards Claimed")
     .setDescription(
       [
-        `You claimed **${claimable.length}** global milestone reward(s).`,
+        `You claimed **${fmt(personalClaims.length + bonusClaims.length + globalClaims.length)}** reward group(s).`,
         "",
-        `+${fmt(totalBerries)} berries`,
-        `+${fmt(totalTokens)} Ryuma Tokens`,
-        totalCharms > 0 ? `+${fmt(totalCharms)} Ryuma Pity Charm` : null,
-      ].filter(Boolean).join("\n")
+        claimedLines.map((line) => `- ${line}`).join("\n"),
+        "",
+        `Current Ryuma Tokens: **${fmt(player.ryumaTokens || 0)}**`,
+      ].join("\n")
     )
     .setFooter({
       text: "One Piece Bot • Ryuma Event",
@@ -2067,7 +2111,7 @@ async function sendPanel(message) {
     }
 
     if (interaction.customId === "ryuma_claim") {
-      return claimGlobalRewards(message, sent);
+      return claimEventRewards(message, sent);
     }
 
     if (interaction.customId === "ryuma_shop") {
@@ -2133,7 +2177,7 @@ module.exports = {
     }
 
     if (subcommand === "claim") {
-      return claimGlobalRewards(message);
+      return claimEventRewards(message);
     }
 
     if (subcommand === "reset") {
