@@ -85,6 +85,86 @@ function cleanText(value) {
   return String(value || "").trim();
 }
 
+function normalizeSkinCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function getActiveCustomSkinForCard(player, card) {
+  const key = normalizeSkinCode(card?.code || card?.cardCode || card?.baseCode || "");
+  if (!key) return null;
+
+  const customSkins =
+    player?.customSkins && typeof player.customSkins === "object"
+      ? player.customSkins
+      : {};
+
+  const skinSet = customSkins[key];
+  if (!skinSet || !Array.isArray(skinSet.variants) || !skinSet.variants.length) {
+    return null;
+  }
+
+  const activeIndex = Math.max(
+    0,
+    Math.min(Number(skinSet.activeIndex || 0), skinSet.variants.length - 1)
+  );
+
+  const skin = skinSet.variants[activeIndex];
+  if (!skin?.name) return null;
+
+  return {
+    skinSet,
+    skin,
+  };
+}
+
+function applyPirateSkinDisplayOnly(player, card) {
+  if (!card) return card;
+
+  const found = getActiveCustomSkinForCard(player, card);
+  if (!found) return card;
+
+  const originalName =
+    found.skinSet.originalName ||
+    card.originalDisplayName ||
+    card.displayName ||
+    card.name ||
+    card.code ||
+    "Unknown Card";
+
+  const skinName = String(found.skin.name || "").trim();
+  const skinImage = String(found.skin.image || "").trim();
+
+  return {
+    ...card,
+
+    // display only, jangan sentuh atk/hp/speed/power/damage
+    displayName: skinName || card.displayName || card.name,
+    name: skinName || card.name || card.displayName,
+    image: skinImage || card.image || "",
+
+    hasCustomSkin: true,
+    skinName: skinName || card.displayName || card.name || "",
+    skinTitle: String(found.skin.title || ""),
+    skinImage,
+    originalDisplayName: originalName,
+    skinnedCharacter: originalName,
+  };
+}
+
+function getPirateRaidCardName(card) {
+  return String(
+    card?.skinName ||
+      card?.displayName ||
+      card?.name ||
+      card?.code ||
+      "Card"
+  );
+}
+
 function getMentionId(value) {
   const raw = String(value || "").trim();
   const match = raw.match(/^<@!?(\d+)>$/);
@@ -1799,13 +1879,19 @@ function getBestRaidCards(player, limit = 3) {
   return teamCards
     .slice(0, limit)
     .map((rawCard) => {
+      // hydrated/synced ini buat stat asli
       const hydrated = syncPirateMergeCard(player, rawCard);
-      const card = applyPirateRaidDisplayStats(hydrated, boosts);
+
+      // stat card dihitung dulu
+      const statCard = applyPirateRaidDisplayStats(hydrated, boosts);
       const damage = getCardRaidDamage(hydrated, boosts);
       const maxHp = getCardRaidHp(hydrated, boosts);
 
+      // skin cuma display setelah stat selesai
+      const displayCard = applyPirateSkinDisplayOnly(player, statCard);
+
       return {
-        card,
+        card: displayCard,
         damage,
         maxHp,
         currentHp: maxHp,
@@ -2102,9 +2188,9 @@ function buildManualRaidEmbed({
         ? `${fmt(atk.min)}-${fmt(atk.max)}`
         : fmt(atk.roll);
 
-    return `${dead ? "💀" : "⚔️"} ${index + 1}. ${
-      card.displayName || card.name || card.code || "Unknown"
-    } — ATK ${atkText} | HP ${fmt(entry.currentHp)}/${fmt(entry.maxHp)}`;
+    return `${dead ? "💀" : "⚔️"} ${index + 1}. ${getPirateRaidCardName(
+      card
+    )} — ATK ${atkText} | HP ${fmt(entry.currentHp)}/${fmt(entry.maxHp)}`;
   });
 
   return new EmbedBuilder()
@@ -2145,8 +2231,7 @@ function buildManualRaidButtons(sessionId, selectedCards, disabled = false) {
     const card = entry.card;
     const dead = Number(entry.currentHp || 0) <= 0;
 
-    const label = String(card.displayName || card.name || `Card ${index + 1}`)
-      .slice(0, 70);
+    const label = getPirateRaidCardName(card).slice(0, 70);
 
     row.addComponents(
       new ButtonBuilder()
@@ -2573,12 +2658,9 @@ async function handlePirateAttack(message, args) {
   );
 
   battleLog.push(
-    `⚔️ ${
-      selected.card?.displayName ||
-      selected.card?.name ||
-      selected.card?.code ||
-      "Card"
-    } dealt **${fmt(damage)}** damage and earned **${fmt(
+    `⚔️ ${getPirateRaidCardName(selected.card)} dealt **${fmt(
+      damage
+    )}** damage and earned **${fmt(
       pointResult.points
     )}** points (Raid Glory +${fmt(raidGloryPercent)}%).`
   );
@@ -2593,12 +2675,7 @@ async function handlePirateAttack(message, args) {
 
   if (Number(selected.currentHp || 0) <= 0) {
     battleLog.push(
-      `💀 ${
-        selected.card?.displayName ||
-        selected.card?.name ||
-        selected.card?.code ||
-        "Card"
-      } was defeated.`
+      `💀 ${getPirateRaidCardName(selected.card)} was defeated.`
     );
   }
 

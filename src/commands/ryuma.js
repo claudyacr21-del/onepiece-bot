@@ -331,6 +331,76 @@ function normalizeText(value) {
     .trim();
 }
 
+function normalizeSkinCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function getActiveCustomSkinForCard(player, card) {
+  const key = normalizeSkinCode(card?.code || card?.cardCode || card?.baseCode || "");
+  if (!key) return null;
+
+  const customSkins =
+    player?.customSkins && typeof player.customSkins === "object"
+      ? player.customSkins
+      : {};
+
+  const skinSet = customSkins[key];
+  if (!skinSet || !Array.isArray(skinSet.variants) || !skinSet.variants.length) {
+    return null;
+  }
+
+  const activeIndex = Math.max(
+    0,
+    Math.min(Number(skinSet.activeIndex || 0), skinSet.variants.length - 1)
+  );
+
+  const skin = skinSet.variants[activeIndex];
+  if (!skin?.name) return null;
+
+  return {
+    skinSet,
+    skin,
+  };
+}
+
+function applyRyumaSkinDisplayOnly(player, card) {
+  if (!card) return card;
+
+  const found = getActiveCustomSkinForCard(player, card);
+  if (!found) return card;
+
+  const originalName =
+    found.skinSet.originalName ||
+    card.originalDisplayName ||
+    card.displayName ||
+    card.name ||
+    card.code ||
+    "Unknown Card";
+
+  const skinName = String(found.skin.name || "").trim();
+  const skinImage = String(found.skin.image || "").trim();
+
+  return {
+    ...card,
+
+    // display only, jangan sentuh atk/hp/speed/power
+    displayName: skinName || card.displayName || card.name,
+    name: skinName || card.name || card.displayName,
+    image: skinImage || card.image || "",
+
+    hasCustomSkin: true,
+    skinName: skinName || card.displayName || card.name || "",
+    skinTitle: String(found.skin.title || ""),
+    skinImage,
+    originalDisplayName: originalName,
+    skinnedCharacter: originalName,
+  };
+}
+
 async function persistRyumaState(players, userId = null, options = {}) {
   writePlayers(players);
 
@@ -538,11 +608,13 @@ function getRyumaTeamCards(player) {
 
     const hydrated = hydrateCard(card) || card;
 
-    if (isMergeCard(hydrated)) {
-      return buildMergedCard(player, hydrated);
-    }
+    const synced = isMergeCard(hydrated)
+      ? buildMergedCard(player, hydrated)
+      : hydrated;
 
-    return hydrated;
+    // Skin dipasang setelah merge/stat card selesai.
+    // Ini display-only, jadi merge card stat tidak akan jadi ATK 1.
+    return applyRyumaSkinDisplayOnly(player, synced);
   };
 
   const result = [];
@@ -618,7 +690,8 @@ function getRyumaTeamCards(player) {
 
 function getRyumaCardName(card) {
   return String(
-    card?.displayName ||
+    card?.skinName ||
+      card?.displayName ||
       card?.name ||
       card?.code ||
       "Unknown Card"
@@ -942,7 +1015,7 @@ function buildRyumaCardRows(selectedCards, disabled = false) {
   selectedCards.slice(0, 3).forEach((entry, index) => {
     const card = entry.card;
     const dead = Number(entry.currentHp || 0) <= 0;
-    const label = String(card?.displayName || card?.name || `Card ${index + 1}`).slice(0, 70);
+    const label = getRyumaCardName(card).slice(0, 70);
 
     row.addComponents(
       new ButtonBuilder()
@@ -1869,12 +1942,7 @@ async function performAttack(message) {
       totalDamage += damage;
 
       battleLog.push(
-        `⚔️ ${
-          selected.card?.displayName ||
-          selected.card?.name ||
-          selected.card?.code ||
-          "Card"
-        } dealt **${fmt(damage)}** damage.`
+        `⚔️ ${getRyumaCardName(selected.card)} dealt **${fmt(damage)}** damage.`
       );
 
       if (bossCounterDamage > 0) {
@@ -1885,12 +1953,7 @@ async function performAttack(message) {
 
       if (Number(selected.currentHp || 0) <= 0) {
         battleLog.push(
-          `💀 ${
-            selected.card?.displayName ||
-            selected.card?.name ||
-            selected.card?.code ||
-            "Card"
-          } was defeated.`
+          `💀 ${getRyumaCardName(selected.card)} was defeated.`
         );
       }
 
