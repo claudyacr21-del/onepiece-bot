@@ -35,6 +35,15 @@ const PIRATE_PERKS = {
     effect: "Increase guild raid points earned by all crew members.",
   },
 
+  pullAmountBoost: {
+    key: "pullAmountBoost",
+    name: "Pull Amount",
+    unlockGuildLevel: 25,
+    maxLevel: 3,
+    bonusPerLevel: 1,
+    effect: "Increase daily pull amount by +1 pull per level for all pirate members.",
+  },
+
   expBoost: {
     key: "expBoost",
     name: "Crew Training",
@@ -44,11 +53,20 @@ const PIRATE_PERKS = {
     effect: "Increase EXP gained by all crew members.",
   },
 
+  fragmentStorageBoost: {
+    key: "fragmentStorageBoost",
+    name: "Fragment Storage",
+    unlockGuildLevel: 35,
+    maxLevel: 4,
+    bonusPerLevel: 26,
+    effect: "Increase fragment inventory storage by +26 slots per level for all pirate members.",
+  },
+
   crewSlotBoost: {
     key: "crewSlotBoost",
     name: "Crew Slot",
     unlockGuildLevel: 40,
-    maxLevel: 4,
+    maxLevel: 5,
     bonusPerLevel: 1,
     effect: "Increase pirate/guild member capacity by +1 slot per level.",
   },
@@ -91,10 +109,18 @@ function normalizePerkKey(query) {
     gemsboost: "gemsBoost",
 
     luck: "luckBoost",
-    pull: "luckBoost",
     pullrate: "luckBoost",
     pullrates: "luckBoost",
     luckboost: "luckBoost",
+
+    pull: "pullAmountBoost",
+    pulls: "pullAmountBoost",
+    pullamount: "pullAmountBoost",
+    pullamountboost: "pullAmountBoost",
+    pullbonus: "pullAmountBoost",
+    pullslots: "pullAmountBoost",
+    extrapull: "pullAmountBoost",
+    extrapulls: "pullAmountBoost",
 
     raid: "raidPointBoost",
     point: "raidPointBoost",
@@ -129,6 +155,15 @@ function normalizePerkKey(query) {
     pirateslot: "crewSlotBoost",
     pirateslots: "crewSlotBoost",
     crewslotboost: "crewSlotBoost",
+
+    finv: "fragmentStorageBoost",
+    inventory: "fragmentStorageBoost",
+    storage: "fragmentStorageBoost",
+    fragment: "fragmentStorageBoost",
+    fragments: "fragmentStorageBoost",
+    fragmentstorage: "fragmentStorageBoost",
+    fragmentstorageboost: "fragmentStorageBoost",
+    finvstorage: "fragmentStorageBoost",
   };
 
   return aliases[raw] || Object.keys(PIRATE_PERKS).find((key) => key.toLowerCase() === raw) || null;
@@ -189,6 +224,18 @@ function getPerkRequirement(perkKey, currentPerkLevel) {
     addMaterial(materials, "enhancement_stone", 2 + Math.floor(nextLevel / 2));
   }
 
+  if (perkKey === "pullAmountBoost") {
+    addMaterial(materials, "cola_engine_part", 4 + nextLevel * 2);
+    addMaterial(materials, "enhancement_stone", 3 + nextLevel * 2);
+    addMaterial(materials, "sail_cloth", 2 + nextLevel);
+  }
+
+  if (perkKey === "fragmentStorageBoost") {
+    addMaterial(materials, "hardwood", 4 + nextLevel * 2);
+    addMaterial(materials, "iron_plating", 3 + nextLevel * 2);
+    addMaterial(materials, "sail_cloth", 3 + nextLevel);
+  }
+
   if (perkKey === "expBoost") {
     addMaterial(materials, "sail_cloth", 3 + nextLevel);
     addMaterial(materials, "hardwood", 2 + Math.floor(nextLevel / 2));
@@ -230,6 +277,15 @@ function getPerkEffectText(perkKey, level) {
   if (!perk) return "Unknown effect.";
   if (perkKey === "luckBoost") return `+${(lv * 0.1).toFixed(1)}% pull rate`;
   if (perkKey === "crewSlotBoost") return `+${lv} member slot${lv === 1 ? "" : "s"}`;
+
+  if (perkKey === "pullAmountBoost") {
+    return `+${lv} pull${lv === 1 ? "" : "s"} per reset`;
+  }
+
+  if (perkKey === "fragmentStorageBoost") {
+    return `+${lv * 26} fragment storage`;
+  }
+
   return `+${lv * perk.bonusPerLevel}% ${perk.name}`;
 }
 

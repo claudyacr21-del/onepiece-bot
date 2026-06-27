@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const BASE_MAX_MEMBERS = 6;
-const MAX_CREW_SLOT_PERK_LEVEL = 4;
+const MAX_CREW_SLOT_PERK_LEVEL = 5;
 const MAX_MEMBERS = BASE_MAX_MEMBERS + MAX_CREW_SLOT_PERK_LEVEL;
 
 function getPirateMemberLimit(raw) {

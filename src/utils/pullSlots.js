@@ -1,5 +1,5 @@
 const devilFruits = require("../data/devilFruits");
-
+const { getPiratePullAmountBonus } = require("./pirateBoosts");
 const SUPPORT_SERVER_ROLE = "Support Server";
 const BOOSTER_ROLE = "Server Booster";
 
@@ -317,6 +317,8 @@ function getPullSlotStatus(player, message) {
   const access = buildPullAccessSnapshot(player, message);
   const baccaratCardBonus = getBaccaratCardPullBonus(player);
   const baccaratFruitBonus = getBaccaratFruitPullBonus(player);
+  const userId = String(message?.author?.id || player?.id || player?.userId || "");
+  const piratePullAmountBonus = getPiratePullAmountBonus(userId);
 
   return {
     base: {
@@ -374,6 +376,12 @@ function getPullSlotStatus(player, message) {
       displayMax: Math.max(DEFAULT_BACCARAT_FRUIT_MAX_PULLS, baccaratFruitBonus),
       used: Number(pulls.baccaratFruit?.used || 0),
     },
+    piratePullAmount: {
+      enabled: piratePullAmountBonus > 0,
+      max: piratePullAmountBonus,
+      displayMax: 3,
+      used: Number(pulls.piratePullAmount?.used || 0),
+    },
   };
 }
 
@@ -401,6 +409,7 @@ function getNextAvailablePullKey(player, message) {
 
   const order = [
     "base",
+    "piratePullAmount",
     "supportMember",
     "booster",
     "owner",
@@ -516,6 +525,11 @@ function resetAllPullSlots(player) {
       ...(pulls.baccaratFruit || {}),
       used: 0,
       max: DEFAULT_BACCARAT_FRUIT_MAX_PULLS,
+    },
+    piratePullAmount: {
+      ...(pulls.piratePullAmount || {}),
+      used: 0,
+      max: 3,
     },
   };
 }

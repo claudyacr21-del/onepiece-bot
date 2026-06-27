@@ -7,6 +7,7 @@ const {
 const {
   getTotalPullUsage,
   buildPullAccessSnapshot,
+  getPullSlotStatus,
 } = require("../utils/pullSlots");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 const {
@@ -102,6 +103,7 @@ module.exports = {
 
     const boosts = getPassiveBoostSummary(player);
     const { totalUsed, totalMax } = getTotalPullUsage(player, message);
+    const pullSlots = getPullSlotStatus(player, message);
 
     const embed = new EmbedBuilder()
       .setColor(0x8e44ad)

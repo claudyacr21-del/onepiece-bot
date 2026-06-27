@@ -1,5 +1,32 @@
 const { findPirateByUser } = require("./pirateStore");
+const PIRATE_PULL_AMOUNT_MAX_LEVEL = 3;
+const PIRATE_FRAGMENT_STORAGE_MAX_LEVEL = 4;
+const PIRATE_FRAGMENT_STORAGE_PER_LEVEL = 26;
 
+function getClampedPiratePerkLevel(userId, perkKey, maxLevel) {
+  return Math.max(
+    0,
+    Math.min(maxLevel, Math.floor(Number(getPiratePerkLevel(userId, perkKey) || 0)))
+  );
+}
+
+function getPiratePullAmountBonus(userId) {
+  return getClampedPiratePerkLevel(
+    userId,
+    "pullAmountBoost",
+    PIRATE_PULL_AMOUNT_MAX_LEVEL
+  );
+}
+
+function getPirateFragmentStorageBonus(userId) {
+  const level = getClampedPiratePerkLevel(
+    userId,
+    "fragmentStorageBoost",
+    PIRATE_FRAGMENT_STORAGE_MAX_LEVEL
+  );
+
+  return level * PIRATE_FRAGMENT_STORAGE_PER_LEVEL;
+}
 function getPlayerPirate(userId) {
   try {
     return findPirateByUser(userId) || null;
@@ -62,6 +89,8 @@ module.exports = {
   getPirateExpBoostPercent,
   getPirateBerryBoostPercent,
   getPirateGemsBoostPercent,
+  getPiratePullAmountBonus,
+  getPirateFragmentStorageBonus,
   applyPiratePercentBoost,
   applyPirateCurrencyBoosts,
 };

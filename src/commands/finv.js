@@ -8,6 +8,7 @@ const {
 
 const { getPlayer } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const { getPirateFragmentStorageBonus } = require("../utils/pirateBoosts");
 const cardsData = require("../data/cards");
 const weaponsData = require("../data/weapons");
 const PAGE_SIZE = 8;
@@ -169,20 +170,20 @@ function getDisplayRarity(fragment) {
   return formatRarity(fragment?.rarity);
 }
 
-function getStorageInfo(player, fragments) {
-  const total = (Array.isArray(fragments) ? fragments : []).reduce(
-    (sum, item) => sum + getFragmentAmount(item),
-    0
-  );
-
-  const boostSummary = getPassiveBoostSummary(player);
-  const bonus = Math.max(0, Number(boostSummary?.fragmentStorageBonus || 0));
-  const max = BASE_FRAGMENT_STORAGE + bonus;
+function getStorageInfo(player, fragments, userId) {
+  const total = fragments.reduce((sum, item) => sum + Math.max(0, Number(item.amount || 0)), 0);
+  const passiveBoosts = getPassiveBoostSummary(player);
+  const passiveBonus = Math.max(0, Number(passiveBoosts?.fragmentStorageBonus || 0));
+  const pirateBonus = Math.max(0, Number(getPirateFragmentStorageBonus(userId) || 0));
+  const bonus = passiveBonus + pirateBonus;
+  const max = Math.min(MAX_FRAGMENT_STORAGE, BASE_FRAGMENT_STORAGE + bonus);
 
   return {
     total,
     max,
     bonus,
+    passiveBonus,
+    pirateBonus,
   };
 }
 
@@ -318,7 +319,7 @@ function buildPageEmbed(message, player, fragments, currentPage, isPrivate, sear
   const start = safePage * PAGE_SIZE;
   const pageItems = sorted.slice(start, start + PAGE_SIZE);
   const allFragments = Array.isArray(player.fragments) ? player.fragments : [];
-  const storage = getStorageInfo(player, allFragments);
+  const storage = getStorageInfo(player, allFragments, message.author.id);
   const memberAvatar = getMemberAvatar(message);
 
   const lines = pageItems.length

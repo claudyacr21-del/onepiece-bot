@@ -75,7 +75,7 @@ function getPirateLimit(pirate) {
 
   const perkLevel = Math.max(
     0,
-    Math.min(4, Math.floor(Number(pirate?.perks?.crewSlotBoost || 0)))
+    Math.min(5, Math.floor(Number(pirate?.perks?.crewSlotBoost || 0)))
   );
 
   return 6 + perkLevel;
@@ -233,7 +233,7 @@ function usageEmbed() {
         "`op p lb`",
         "`op p rewards`",
         "",
-        `Max members: **${MAX_MEMBERS}** — 1 Leader, 1 Vice Leader, 4 Crew`,
+        `Max members: **${MAX_MEMBERS}** — 1 Leader, 1 Vice Leader, 9 Crew`,
       ].join("\n")
     )
     .setFooter({ text: "One Piece Bot • Pirate System Phase 1 + 2" });
@@ -392,6 +392,8 @@ function formatPerkSummary(pirate) {
     ["Shop Discount", "shopDiscount"],
     ["Boss Damage Boost", "bossDamageBoost"],
     ["Crew Slot", "crewSlotBoost"],
+    ["Pull Amount", "pullAmountBoost"],
+    ["Fragment Storage", "fragmentStorageBoost"],
   ];
 
   return list
