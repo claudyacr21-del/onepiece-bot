@@ -1222,6 +1222,49 @@ module.exports = {
       return message.reply("No pull slot is currently available.");
     }
 
+    const reservedPulls = consumePullSlot(player, pullKey);
+
+    await updatePlayerAtomic(
+      message.author.id,
+      (fresh) => {
+        const existing = fresh || {};
+        const freshPlayer = {
+          ...existing,
+          pullAccessSnapshot: player.pullAccessSnapshot,
+        };
+
+        const freshResetState = applyGlobalPullReset(freshPlayer);
+        const freshPulls = freshResetState?.pulls || existing.pulls || {};
+        freshPlayer.pulls = freshPulls;
+
+        const freshPullKey = getNextAvailablePullKey(freshPlayer, message);
+
+        if (!freshPullKey) {
+          return existing;
+        }
+
+        return {
+          ...existing,
+          pulls: consumePullSlot(freshPlayer, freshPullKey),
+          pullAccessSnapshot: player.pullAccessSnapshot,
+        };
+      },
+      message.author.username
+    );
+
+    const playerAfterReserve = getPlayer(message.author.id, message.author.username);
+    const afterReserveKey = getNextAvailablePullKey(playerAfterReserve, message);
+
+    if (afterReserveKey === pullKey) {
+      return message.reply({
+        content:
+          "Pull could not lock your pull slot safely. Please try again in a few seconds.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
     const premiumTier = getEffectivePullTierForSlot(roleTier, pullKey);
     const pityLimit = getPityLimit(premiumTier, player);
     const pityGuarantee = getPityGuarantee(premiumTier);
@@ -1259,7 +1302,7 @@ module.exports = {
       return message.reply(`Pull pool is empty for ${contentType} ${baseTier}.`);
     }
 
-    const updatedPulls = consumePullSlot(player, pullKey);
+    const updatedPulls = reservedPulls;
     player.pulls = updatedPulls;
     const updatedDailyState = incrementQuestCounter(player, "pullsUsed", 1);
 

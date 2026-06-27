@@ -1,4 +1,4 @@
-const PULL_SLOT_SCHEMA_VERSION = 4;
+const PULL_SLOT_SCHEMA_VERSION = 5;
 const RESET_TIMEZONE = "Asia/Jakarta";
 const RESET_INTERVAL_HOURS = 8;
 const RESET_INTERVAL_MS = RESET_INTERVAL_HOURS * 60 * 60 * 1000;
@@ -62,6 +62,7 @@ function getNextResetTime(now = Date.now()) {
 function buildResetPullState(existingPulls = {}) {
   return {
     base: { ...(existingPulls?.base || {}), used: 0, max: 6 },
+    piratePullAmount: { ...(existingPulls?.piratePullAmount || {}), used: 0, max: 3 },
     supportMember: { ...(existingPulls?.supportMember || {}), used: 0, max: 1 },
     booster: { ...(existingPulls?.booster || {}), used: 0, max: 1 },
     owner: { ...(existingPulls?.owner || {}), used: 0, max: 1 },
@@ -78,6 +79,7 @@ function buildManualTicketResetPullState(existingPulls = {}) {
   return {
     ...existingPulls,
     base: { ...(existingPulls?.base || {}), used: 0, max: 6 },
+    piratePullAmount: { ...(existingPulls?.piratePullAmount || {}), used: 0, max: 3 },
     supportMember: { ...(existingPulls?.supportMember || {}), used: 0, max: 1 },
     booster: { ...(existingPulls?.booster || {}), used: 0, max: 1 },
     owner: { ...(existingPulls?.owner || {}), used: 0, max: 1 },

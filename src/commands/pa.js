@@ -1135,6 +1135,61 @@ module.exports = {
       });
     }
 
+    const reservedPulls = consumeAllActivePullSlots(player, message);
+
+    await updatePlayerAtomic(
+      message.author.id,
+      (fresh) => {
+        const existing = fresh || {};
+        const freshPlayer = {
+          ...existing,
+          pullAccessSnapshot: player.pullAccessSnapshot,
+        };
+
+        const freshResetState = applyGlobalPullReset(freshPlayer);
+        const freshPulls = freshResetState?.pulls || existing.pulls || {};
+        freshPlayer.pulls = freshPulls;
+
+        const freshSlots = getPullSlotStatus(freshPlayer, message);
+        const freshAvailableTotal = Object.values(freshSlots).reduce((sum, slot) => {
+          if (!slot?.enabled) return sum;
+
+          const max = Math.max(0, Math.floor(Number(slot.max || 0)));
+          const used = Math.max(0, Math.floor(Number(slot.used || 0)));
+
+          return sum + Math.max(0, max - used);
+        }, 0);
+
+        if (freshAvailableTotal <= 0) {
+          return existing;
+        }
+
+        return {
+          ...existing,
+          pulls: consumeAllActivePullSlots(freshPlayer, message),
+          pullAccessSnapshot: player.pullAccessSnapshot,
+        };
+      },
+      message.author.username
+    );
+
+    const playerAfterReserve = getPlayer(message.author.id, message.author.username);
+    const afterReserveUsage = getTotalPullUsage(playerAfterReserve, message);
+    const afterReserveAvailable = Math.max(
+      0,
+      Number(afterReserveUsage.totalMax || 0) - Number(afterReserveUsage.totalUsed || 0)
+    );
+
+    if (afterReserveAvailable > 0) {
+      return message.reply({
+        content:
+          "Pull All could not lock your pull slots safely. Please try again in a few seconds.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
     let updatedCards = [...(player.cards || [])];
     let updatedWeapons = [...(player.weapons || [])];
     let updatedDevilFruits = [...(player.devilFruits || [])];
@@ -1346,7 +1401,7 @@ module.exports = {
       premiumSPity: pityCounter,
     };
 
-    let updatedPulls = consumeAllActivePullSlots(player, message);
+    let updatedPulls = reservedPulls;
     const afterConsumeAudit = getTotalPullUsage(
       {
         ...player,

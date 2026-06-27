@@ -40,6 +40,18 @@ const MAIN_SERVER_IDS = [
 const BACCARAT_CARD_MAX_PULLS = 3;
 const DEFAULT_BACCARAT_FRUIT_MAX_PULLS = 2;
 
+const PULL_SLOT_KEYS = [
+  "base",
+  "piratePullAmount",
+  "supportMember",
+  "booster",
+  "owner",
+  "patreon",
+  "vivreCard",
+  "baccaratCard",
+  "baccaratFruit",
+];
+
 function normalize(value) {
   return String(value || "").toLowerCase().trim();
 }
@@ -412,19 +424,7 @@ function getTotalPullUsage(player, message) {
 function getNextAvailablePullKey(player, message) {
   const slots = getPullSlotStatus(player, message);
 
-  const order = [
-    "base",
-    "piratePullAmount",
-    "supportMember",
-    "booster",
-    "owner",
-    "patreon",
-    "vivreCard",
-    "baccaratCard",
-    "baccaratFruit",
-  ];
-
-  for (const key of order) {
+  for (const key of PULL_SLOT_KEYS) {
     const slot = slots[key];
     if (!slot?.enabled) continue;
 
@@ -460,14 +460,12 @@ function consumeAllActivePullSlots(player, message) {
 
   const slots = getPullSlotStatus(player, message);
 
-  for (const [key, slot] of Object.entries(slots)) {
-    if (!slot.enabled) continue;
+  for (const key of PULL_SLOT_KEYS) {
+    const slot = slots[key];
+    if (!slot?.enabled) continue;
 
     pulls[key] = {
-      ...(pulls[key] || {
-        used: 0,
-        max: slot.max,
-      }),
+      ...(pulls[key] || {}),
       used: Number(slot.max || 0),
       max: Number(slot.max || 0),
     };
@@ -488,6 +486,12 @@ function resetAllPullSlots(player) {
       ...(pulls.base || {}),
       used: 0,
       max: 6,
+    },
+
+    piratePullAmount: {
+      ...(pulls.piratePullAmount || {}),
+      used: 0,
+      max: 3,
     },
 
     supportMember: {
@@ -531,11 +535,6 @@ function resetAllPullSlots(player) {
       used: 0,
       max: DEFAULT_BACCARAT_FRUIT_MAX_PULLS,
     },
-    piratePullAmount: {
-      ...(pulls.piratePullAmount || {}),
-      used: 0,
-      max: 3,
-    },
   };
 }
 
@@ -544,6 +543,8 @@ module.exports = {
   BOOSTER_ROLE,
   PREMIUM_ROLE_NAME,
   LITE_PREMIUM_ROLE_NAME,
+
+  PULL_SLOT_KEYS,
 
   hasNamedRole,
   hasMainServerRole,
