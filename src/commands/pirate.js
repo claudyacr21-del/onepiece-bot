@@ -2381,19 +2381,70 @@ function formatPirateRaidLogTime(timestamp) {
 async function handlePirateRaidLog(message) {
   try {
     const pirate = requirePirate(message.author.id);
+    const raidSummaryByUser = new Map();
 
-    const raidLogs = Array.isArray(pirate.logs)
-      ? pirate.logs
-          .filter((log) => String(log?.type || "") === "pirate_raid_manual_attack")
-          .slice(-15)
-          .reverse()
-      : [];
+    const raids = pirate.raids && typeof pirate.raids === "object" ? pirate.raids : {};
 
-    if (!raidLogs.length) {
+    for (const [tierKey, raidState] of Object.entries(raids)) {
+      const contributors =
+        raidState?.contributors && typeof raidState.contributors === "object"
+          ? raidState.contributors
+          : {};
+
+      for (const [userId, contributor] of Object.entries(contributors)) {
+        const safeUserId = String(userId || "").trim();
+        if (!safeUserId) continue;
+
+        const old = raidSummaryByUser.get(safeUserId) || {
+          userId: safeUserId,
+          totalDamage: 0,
+          totalPoints: 0,
+          totalAttacks: 0,
+          lastAttackAt: 0,
+          raids: new Map(),
+        };
+
+        const damage = Math.max(0, Math.floor(Number(contributor?.damage || 0)));
+        const points = Math.max(0, Math.floor(Number(contributor?.points || 0)));
+        const attacks = Math.max(0, Math.floor(Number(contributor?.attacks || 0)));
+        const lastAttackAt = Math.max(0, Math.floor(Number(contributor?.lastAttackAt || 0)));
+
+        const oldRaid = old.raids.get(tierKey) || {
+          tierKey,
+          damage: 0,
+          points: 0,
+          attacks: 0,
+          lastAttackAt: 0,
+        };
+
+        oldRaid.damage += damage;
+        oldRaid.points += points;
+        oldRaid.attacks += attacks;
+        oldRaid.lastAttackAt = Math.max(oldRaid.lastAttackAt, lastAttackAt);
+
+        old.totalDamage += damage;
+        old.totalPoints += points;
+        old.totalAttacks += attacks;
+        old.lastAttackAt = Math.max(old.lastAttackAt, lastAttackAt);
+        old.raids.set(tierKey, oldRaid);
+
+        raidSummaryByUser.set(safeUserId, old);
+      }
+    }
+
+    const summaries = [...raidSummaryByUser.values()]
+      .filter((entry) => entry.totalDamage > 0 || entry.totalAttacks > 0)
+      .sort((a, b) => {
+        if (b.totalDamage !== a.totalDamage) return b.totalDamage - a.totalDamage;
+        return b.lastAttackAt - a.lastAttackAt;
+      })
+      .slice(0, 15);
+
+    if (!summaries.length) {
       return message.reply(
         makeError(
           [
-            "No pirate raid attack logs found yet.",
+            "No pirate raid activity found yet.",
             "",
             "Crew members need to attack Pirate Raid first:",
             "`op p attack <tier>`",
@@ -2407,29 +2458,34 @@ async function handlePirateRaidLog(message) {
 
     const lines = [];
 
-    for (const log of raidLogs) {
-      const username = await getPirateRaidLogUsername(message, log.userId);
-      const bossName = getPirateRaidLogBossName(log.tierKey);
-      const damage = Math.max(0, Math.floor(Number(log.damage || 0)));
-      const points = Math.max(0, Math.floor(Number(log.points || 0)));
-      const cardName = String(log.card || "Unknown Card");
-      const defeatedText = log.defeated ? " • Defeated Boss" : "";
+    for (const entry of summaries) {
+      const username = await getPirateRaidLogUsername(message, entry.userId);
+
+      const raidLines = [...entry.raids.values()]
+        .sort((a, b) => b.damage - a.damage)
+        .map((raid) => {
+          const bossName = getPirateRaidLogBossName(raid.tierKey);
+          const timeText = formatPirateRaidLogTime(raid.lastAttackAt);
+
+          return `• **${bossName}** — ${fmt(raid.damage)} DMG • ${fmt(raid.attacks)} attack${raid.attacks === 1 ? "" : "s"} • ${timeText}`;
+        });
 
       lines.push(
         [
-          `**${username}** attacked **${bossName}**${defeatedText}`,
-          `Damage: **${fmt(damage)}** • Points: **${fmt(points)}**`,
-          `Card: **${cardName}** • ${formatPirateRaidLogTime(log.at)}`,
+          `**${username}**`,
+          `Total Damage: **${fmt(entry.totalDamage)}** • Total Points: **${fmt(entry.totalPoints)}** • Total Attacks: **${fmt(entry.totalAttacks)}**`,
+          `Last Raid: ${formatPirateRaidLogTime(entry.lastAttackAt)}`,
+          raidLines.join("\n"),
         ].join("\n")
       );
     }
 
     const embed = new EmbedBuilder()
       .setColor(GOLD)
-      .setTitle(`☠️ ${pirate.name} Raid Attack Log`)
+      .setTitle(`☠️ ${pirate.name} Raid Activity Log`)
       .setDescription(lines.join("\n\n"))
       .setFooter({
-        text: "Showing latest pirate raid attack logs for your crew.",
+        text: "Showing crew raid summary for the current pirate raid cycle.",
       });
 
     return message.reply({
