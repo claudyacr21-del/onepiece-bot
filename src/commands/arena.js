@@ -897,7 +897,7 @@ function calculateArenaWinPoints(playerRank, opponentRank) {
   if (!Number.isFinite(myRank) || !Number.isFinite(enemyRank)) return 10;
 
   // enemyRank lebih besar = lawan rank-nya lebih rendah dari kita.
-  // Contoh: kita #50, lawan #120. Reward harus kecil.
+  // Contoh: kita #50, lawan #120. Reward tetap kecil.
   if (enemyRank > myRank) {
     const gap = enemyRank - myRank;
 
@@ -911,17 +911,17 @@ function calculateArenaWinPoints(playerRank, opponentRank) {
   }
 
   // enemyRank lebih kecil = lawan rank-nya lebih tinggi dari kita.
-  // Contoh: kita #120, lawan #50. Reward harus besar.
+  // Contoh: kita #120, lawan #50. Reward ditambah lebih besar.
   if (enemyRank < myRank) {
     const gap = myRank - enemyRank;
 
-    if (gap >= 200) return 24;
-    if (gap >= 100) return 20;
-    if (gap >= 50) return 17;
-    if (gap >= 25) return 14;
-    if (gap >= 10) return 12;
+    if (gap >= 200) return 40;
+    if (gap >= 100) return 35;
+    if (gap >= 50) return 30;
+    if (gap >= 25) return 25;
+    if (gap >= 10) return 20;
 
-    return 10;
+    return 15;
   }
 
   return 8;
