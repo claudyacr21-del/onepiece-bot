@@ -18,6 +18,7 @@ const {
   getSacBerryValue,
 } = require("../utils/autoSac");
 const {
+  getPullSlotStatus,
   getTotalPullUsage,
   consumeAllActivePullSlots,
   buildPullAccessSnapshot,
@@ -36,7 +37,7 @@ const {
 const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 
 const PREMIUM_PITY_TARGET = 100;
-
+const PA_USER_LOCKS = new Set();
 function getPirateLuckBoost(userId) {
   const pirate = findPirateByUser(userId);
   const luckLevel = Math.max(0, Math.floor(Number(pirate?.perks?.luckBoost || 0)));
@@ -844,12 +845,27 @@ function mergeCardCollections(existingCards, nextCards) {
   return [...map.values()];
 }
 
-function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
-  const result = {
-    ...(existingPulls || {}),
-    ...(nextPulls || {}),
-  };
+function getPullResetBucketValue(pulls = {}) {
+  const raw = pulls?.lastResetBucket;
 
+  if (raw === null || raw === undefined || raw === "") return null;
+
+  const asNumber = Number(raw);
+  if (Number.isFinite(asNumber)) return asNumber;
+
+  return String(raw || "").trim();
+}
+
+function isDifferentPullResetBucket(existingPulls = {}, nextPulls = {}) {
+  const existingBucket = getPullResetBucketValue(existingPulls);
+  const nextBucket = getPullResetBucketValue(nextPulls);
+
+  if (existingBucket === null || nextBucket === null) return false;
+
+  return String(existingBucket) !== String(nextBucket);
+}
+
+function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
   const keys = [
     "base",
     "piratePullAmount",
@@ -862,6 +878,13 @@ function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
     "baccaratFruit",
   ];
 
+  const bucketChanged = isDifferentPullResetBucket(existingPulls, nextPulls);
+
+  const result = {
+    ...(existingPulls || {}),
+    ...(nextPulls || {}),
+  };
+
   for (const key of keys) {
     const existing = existingPulls?.[key] || {};
     const next = nextPulls?.[key] || {};
@@ -869,14 +892,16 @@ function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
     result[key] = {
       ...existing,
       ...next,
-      used: Math.max(Number(existing.used || 0), Number(next.used || 0)),
+      used: bucketChanged
+        ? Math.max(0, Number(next.used || 0))
+        : Math.max(Number(existing.used || 0), Number(next.used || 0)),
       max: Math.max(Number(existing.max || 0), Number(next.max || 0)),
     };
   }
 
   result.lastResetBucket =
-    nextPulls?.lastResetBucket ||
-    existingPulls?.lastResetBucket ||
+    nextPulls?.lastResetBucket ??
+    existingPulls?.lastResetBucket ??
     result.lastResetBucket;
 
   result.slotSchemaVersion =
@@ -1020,8 +1045,22 @@ module.exports = {
   aliases: ["pullall"],
 
   async execute(message, args = []) {
-    const useManualResetAfterPull = String(args[0] || "").toLowerCase() === "reset";
-    const premiumAccess = await isPremiumUser(message);
+    const paLockKey = String(message.author.id);
+
+    if (PA_USER_LOCKS.has(paLockKey)) {
+      return message.reply({
+        content: "Your previous Pull All is still being saved. Please wait 1-2 seconds and try again.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
+    PA_USER_LOCKS.add(paLockKey);
+
+    try {
+      const useManualResetAfterPull = String(args[0] || "").toLowerCase() === "reset";
+      const premiumAccess = await isPremiumUser(message);
 
     if (!premiumAccess) {
       return message.reply({
@@ -1064,8 +1103,28 @@ module.exports = {
 
     player.pullAccessSnapshot = snapshot;
 
-    const { totalUsed, totalMax } = getTotalPullUsage(player, message);
-    const availableTotal = Math.max(0, totalMax - totalUsed);
+    const slotStatus = getPullSlotStatus(player, message);
+
+    const availableSlots = Object.entries(slotStatus)
+      .filter(([, slot]) => slot?.enabled)
+      .map(([key, slot]) => {
+        const max = Math.max(0, Math.floor(Number(slot.max || 0)));
+        const used = Math.max(0, Math.floor(Number(slot.used || 0)));
+        const remaining = Math.max(0, max - used);
+
+        return {
+          key,
+          max,
+          used,
+          remaining,
+        };
+      })
+      .filter((slot) => slot.remaining > 0);
+
+    const availableTotal = availableSlots.reduce(
+      (sum, slot) => sum + Number(slot.remaining || 0),
+      0
+    );
 
     if (availableTotal <= 0) {
       return message.reply({
@@ -1288,6 +1347,27 @@ module.exports = {
     };
 
     let updatedPulls = consumeAllActivePullSlots(player, message);
+    const afterConsumeAudit = getTotalPullUsage(
+      {
+        ...player,
+        pulls: updatedPulls,
+      },
+      message
+    );
+
+    if (Math.max(0, Number(afterConsumeAudit.totalMax || 0) - Number(afterConsumeAudit.totalUsed || 0)) > 0) {
+      updatedPulls = {
+        ...(updatedPulls || {}),
+      };
+
+      for (const slot of availableSlots) {
+        updatedPulls[slot.key] = {
+          ...(updatedPulls[slot.key] || {}),
+          used: slot.max,
+          max: slot.max,
+        };
+      }
+    }
     let resetTicketUsed = false;
     let resetFailedReason = "";
 
@@ -1439,5 +1519,8 @@ module.exports = {
         repliedUser: false,
       },
     });
+  } finally {
+    PA_USER_LOCKS.delete(paLockKey);
+  }
   },
 };
