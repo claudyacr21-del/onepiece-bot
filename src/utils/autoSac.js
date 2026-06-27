@@ -1,4 +1,5 @@
 const { getFragmentStorageBonus } = require("./passiveBoosts");
+const { getPassiveBoostSummary } = require("./passiveBoosts");
 const { getPirateFragmentStorageBonus } = require("./pirateBoosts");
 const BASE_FRAGMENT_STORAGE = 200;
 const MAX_FRAGMENT_STORAGE = 5000;
@@ -37,27 +38,20 @@ function getFragmentStorageInfo(player, fragments = []) {
   const BASE_FRAGMENT_STORAGE = 200;
   const MAX_FRAGMENT_STORAGE = 5000;
 
-  const passiveBoosts =
-    player?.passiveBoosts && typeof player.passiveBoosts === "object"
-      ? player.passiveBoosts
-      : {};
+  let passiveBonus = 0;
 
-  const passiveSummary =
-    player?.passiveBoostSummary && typeof player.passiveBoostSummary === "object"
-      ? player.passiveBoostSummary
-      : {};
-
-  const passiveBonus = Math.max(
-    0,
-    Math.floor(
-      Number(
-        passiveSummary.fragmentStorageBonus ??
-          passiveBoosts.fragmentStorageBonus ??
-          player?.fragmentStorageBonus ??
-          0
-      )
-    )
-  );
+  try {
+    const passiveBoosts = getPassiveBoostSummary(player) || {};
+    passiveBonus = Math.max(
+      0,
+      Math.floor(Number(passiveBoosts.fragmentStorageBonus || 0))
+    );
+  } catch {
+    passiveBonus = Math.max(
+      0,
+      Math.floor(Number(player?.fragmentStorageBonus || 0))
+    );
+  }
 
   const userId = String(
     player?.id ||
