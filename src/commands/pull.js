@@ -1210,85 +1210,27 @@ module.exports = {
 
     player.pullAccessSnapshot = snapshot;
 
-    let pullKey = null;
-    let reservedPulls = null;
-    let totalUsed = 0;
-    let totalMax = 0;
-    let available = 0;
+    const usage = getTotalPullUsage(player, message);
+    const totalUsed = Number(usage.totalUsed || 0);
+    const totalMax = Number(usage.totalMax || 0);
+    const available = Math.max(0, totalMax - totalUsed);
 
-    await updatePlayerAtomic(
-      message.author.id,
-      (fresh) => {
-        const existing = fresh || {};
-
-        const freshPlayer = {
-          ...existing,
-          pullAccessSnapshot: snapshot,
-        };
-
-        const freshResetState = applyGlobalPullReset(freshPlayer);
-        freshPlayer.pulls = freshResetState?.pulls || existing.pulls || {};
-
-        const usage = getTotalPullUsage(freshPlayer, message);
-        const freshAvailable = Math.max(
-          0,
-          Number(usage.totalMax || 0) - Number(usage.totalUsed || 0)
-        );
-
-        if (freshAvailable <= 0) {
-          totalUsed = Number(usage.totalUsed || 0);
-          totalMax = Number(usage.totalMax || 0);
-          available = 0;
-          pullKey = null;
-          reservedPulls = null;
-
-          return {
-            ...existing,
-            pulls: freshPlayer.pulls,
-            pullAccessSnapshot: snapshot,
-          };
-        }
-
-        const freshPullKey = getNextAvailablePullKey(freshPlayer, message);
-
-        if (!freshPullKey) {
-          totalUsed = Number(usage.totalUsed || 0);
-          totalMax = Number(usage.totalMax || 0);
-          available = 0;
-          pullKey = null;
-          reservedPulls = null;
-
-          return {
-            ...existing,
-            pulls: freshPlayer.pulls,
-            pullAccessSnapshot: snapshot,
-          };
-        }
-
-        const nextPulls = consumePullSlot(freshPlayer, freshPullKey);
-
-        totalUsed = Number(usage.totalUsed || 0);
-        totalMax = Number(usage.totalMax || 0);
-        available = freshAvailable;
-        pullKey = freshPullKey;
-        reservedPulls = nextPulls;
-
-        return {
-          ...existing,
-          pulls: nextPulls,
-          pullAccessSnapshot: snapshot,
-        };
-      },
-      message.author.username
-    );
-
-    if (!reservedPulls || !pullKey || available <= 0) {
+    if (available <= 0) {
       return message.reply(
         "You do not have any available pulls right now.\nUse `op pullinfo` to check your slots."
       );
     }
 
-    player.pulls = reservedPulls;
+    const pullKey = getNextAvailablePullKey(player, message);
+
+    if (!pullKey) {
+      return message.reply(
+        "You do not have any available pulls right now.\nUse `op pullinfo` to check your slots."
+      );
+    }
+
+    const updatedPulls = consumePullSlot(player, pullKey);
+    player.pulls = updatedPulls;
 
     const premiumTier = getEffectivePullTierForSlot(roleTier, pullKey);
     const pityLimit = getPityLimit(premiumTier, player);
@@ -1327,8 +1269,6 @@ module.exports = {
       return message.reply(`Pull pool is empty for ${contentType} ${baseTier}.`);
     }
 
-    const updatedPulls = reservedPulls;
-    player.pulls = updatedPulls;
     const updatedDailyState = incrementQuestCounter(player, "pullsUsed", 1);
 
     let updatedTickets = [...(player.tickets || [])];
