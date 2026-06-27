@@ -230,6 +230,7 @@ function usageEmbed() {
         "**Pirate Raid Commands**",
         "`op p raid`",
         "`op p attack <tier>`",
+        "`op p log` — Show crew pirate raid attack log.",
         "`op p lb`",
         "`op p rewards`",
         "",
@@ -2339,6 +2340,107 @@ async function handlePirateRaid(message) {
   }
 }
 
+function getPirateRaidLogBossName(tierKey) {
+  const key = String(tierKey || "").toLowerCase().trim();
+  const boss = PIRATE_RAID_BOSSES[key];
+
+  if (!boss) {
+    return key ? key.toUpperCase() : "Unknown Raid";
+  }
+
+  return `${boss.tierName} — ${boss.name}`;
+}
+
+async function getPirateRaidLogUsername(message, userId) {
+  const id = String(userId || "").trim();
+
+  if (!id) return "Unknown Player";
+
+  try {
+    const cached =
+      message.guild?.members?.cache?.get(id)?.user ||
+      message.client?.users?.cache?.get(id);
+
+    if (cached?.username) return cached.username;
+
+    const fetched = await message.client.users.fetch(id).catch(() => null);
+    if (fetched?.username) return fetched.username;
+  } catch {}
+
+  return `User ${id}`;
+}
+
+function formatPirateRaidLogTime(timestamp) {
+  const time = Math.floor(Number(timestamp || 0) / 1000);
+
+  if (!time) return "Unknown time";
+
+  return `<t:${time}:R>`;
+}
+
+async function handlePirateRaidLog(message) {
+  try {
+    const pirate = requirePirate(message.author.id);
+
+    const raidLogs = Array.isArray(pirate.logs)
+      ? pirate.logs
+          .filter((log) => String(log?.type || "") === "pirate_raid_manual_attack")
+          .slice(-15)
+          .reverse()
+      : [];
+
+    if (!raidLogs.length) {
+      return message.reply(
+        makeError(
+          [
+            "No pirate raid attack logs found yet.",
+            "",
+            "Crew members need to attack Pirate Raid first:",
+            "`op p attack <tier>`",
+            "",
+            "Example:",
+            "`op p attack easy`",
+          ].join("\n")
+        )
+      );
+    }
+
+    const lines = [];
+
+    for (const log of raidLogs) {
+      const username = await getPirateRaidLogUsername(message, log.userId);
+      const bossName = getPirateRaidLogBossName(log.tierKey);
+      const damage = Math.max(0, Math.floor(Number(log.damage || 0)));
+      const points = Math.max(0, Math.floor(Number(log.points || 0)));
+      const cardName = String(log.card || "Unknown Card");
+      const defeatedText = log.defeated ? " • Defeated Boss" : "";
+
+      lines.push(
+        [
+          `**${username}** attacked **${bossName}**${defeatedText}`,
+          `Damage: **${fmt(damage)}** • Points: **${fmt(points)}**`,
+          `Card: **${cardName}** • ${formatPirateRaidLogTime(log.at)}`,
+        ].join("\n")
+      );
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(GOLD)
+      .setTitle(`☠️ ${pirate.name} Raid Attack Log`)
+      .setDescription(lines.join("\n\n"))
+      .setFooter({
+        text: "Showing latest pirate raid attack logs for your crew.",
+      });
+
+    return message.reply({
+      embeds: [embed],
+      allowedMentions: { repliedUser: false },
+    });
+  } catch (error) {
+    return message.reply(makeError(error.message || "Failed to show pirate raid log."));
+  }
+}
+
 async function handlePirateAttack(message, args) {
   const tierKey = normalizePirateRaidTier(args.join(" "));
 
@@ -2878,6 +2980,9 @@ module.exports = {
     if (sub === "shop") return handlePirateShop(message);
     if (sub === "buy") return handlePirateBuy(message, rest);
     if (sub === "raid") return handlePirateRaid(message);
+    if (["log", "logs", "raidlog", "raidlogs"].includes(sub)) {
+      return handlePirateRaidLog(message);
+    }
     if (sub === "attack") return handlePirateAttack(message, rest);
     if (["lb", "leaderboard", "rank"].includes(sub)) return handlePirateLeaderboard(message);
     if (["reward", "rewards"].includes(sub)) return handlePirateRewardInfo(message);
