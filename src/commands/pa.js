@@ -1411,15 +1411,6 @@ module.exports = {
       },
     }, message.author.username);
 
-    if (!saveResult.didSave) {
-      return message.reply({
-        content: "You do not have any available pulls right now.",
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
-
     const groupedLines = [];
     const luckyWeekLine = getLuckyWeekBonusLine();
 
