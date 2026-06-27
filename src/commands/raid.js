@@ -1865,7 +1865,7 @@ function getRaidRewardConfig(tier, boss = null, raidMode = null) {
   if (bossCode === "imu" || bossName.includes("imu")) {
     return {
       berries: 25000,
-      gems: 30,
+      gems: 40,
       fragments: 1,
       weaponChance: 35,
       fruitChance: 1,
@@ -1896,14 +1896,14 @@ function getRaidRewardConfig(tier, boss = null, raidMode = null) {
     },
     S: {
       berries: 15000,
-      gems: 20,
+      gems: 25,
       fragments: 1,
       weaponChance: 35,
       fruitChance: 1,
     },
     M: {
       berries: 50000,
-      gems: 40,
+      gems: 50,
       fragments: 1,
       universalS: 2,
       weaponChance: 35,
