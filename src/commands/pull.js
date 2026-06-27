@@ -1289,6 +1289,8 @@ module.exports = {
     }
 
     player.pulls = reservedPulls;
+
+    const premiumTier = getEffectivePullTierForSlot(roleTier, pullKey);
     const pityLimit = getPityLimit(premiumTier, player);
     const pityGuarantee = getPityGuarantee(premiumTier);
 
