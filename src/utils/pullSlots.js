@@ -317,8 +317,12 @@ function getPullSlotStatus(player, message) {
   const access = buildPullAccessSnapshot(player, message);
   const baccaratCardBonus = getBaccaratCardPullBonus(player);
   const baccaratFruitBonus = getBaccaratFruitPullBonus(player);
-  const userId = String(message?.author?.id || player?.id || player?.userId || "");
-  const piratePullAmountBonus = getPiratePullAmountBonus(userId);
+  const userId = String(message?.author?.id || player?.id || player?.userId || "").trim();
+
+  const piratePullAmountBonus = Math.max(
+    0,
+    Math.min(3, Math.floor(Number(getPiratePullAmountBonus(userId) || 0)))
+  );
 
   return {
     base: {
@@ -326,6 +330,13 @@ function getPullSlotStatus(player, message) {
       max: 6,
       displayMax: 6,
       used: Number(pulls.base?.used || 0),
+    },
+
+    piratePullAmount: {
+      enabled: piratePullAmountBonus > 0,
+      max: piratePullAmountBonus,
+      displayMax: 3,
+      used: Number(pulls.piratePullAmount?.used || 0),
     },
 
     supportMember: {
@@ -375,12 +386,6 @@ function getPullSlotStatus(player, message) {
       max: baccaratFruitBonus,
       displayMax: Math.max(DEFAULT_BACCARAT_FRUIT_MAX_PULLS, baccaratFruitBonus),
       used: Number(pulls.baccaratFruit?.used || 0),
-    },
-    piratePullAmount: {
-      enabled: piratePullAmountBonus > 0,
-      max: piratePullAmountBonus,
-      displayMax: 3,
-      used: Number(pulls.piratePullAmount?.used || 0),
     },
   };
 }

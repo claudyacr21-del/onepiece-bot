@@ -852,6 +852,7 @@ function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
 
   const keys = [
     "base",
+    "piratePullAmount",
     "supportMember",
     "booster",
     "owner",
