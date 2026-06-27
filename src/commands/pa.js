@@ -37,7 +37,9 @@ const {
 const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 
 const PREMIUM_PITY_TARGET = 100;
-const PA_USER_LOCKS = new Set();
+const PULL_COMMAND_LOCKS =
+  global.__ONEPIECE_PULL_COMMAND_LOCKS ||
+  (global.__ONEPIECE_PULL_COMMAND_LOCKS = new Set());
 function getPirateLuckBoost(userId) {
   const pirate = findPirateByUser(userId);
   const luckLevel = Math.max(0, Math.floor(Number(pirate?.perks?.luckBoost || 0)));
@@ -1047,7 +1049,7 @@ module.exports = {
   async execute(message, args = []) {
     const paLockKey = String(message.author.id);
 
-    if (PA_USER_LOCKS.has(paLockKey)) {
+    if (PULL_COMMAND_LOCKS.has(paLockKey)) {
       return message.reply({
         content: "Your previous Pull All is still being saved. Please wait 1-2 seconds and try again.",
         allowedMentions: {
@@ -1056,7 +1058,7 @@ module.exports = {
       });
     }
 
-    PA_USER_LOCKS.add(paLockKey);
+    PULL_COMMAND_LOCKS.add(paLockKey);
 
     try {
       const useManualResetAfterPull = String(args[0] || "").toLowerCase() === "reset";
@@ -1135,60 +1137,23 @@ module.exports = {
       });
     }
 
-    const reservedPulls = consumeAllActivePullSlots(player, message);
+    let reservedPulls = consumeAllActivePullSlots(player, message);
 
-    await updatePlayerAtomic(
-      message.author.id,
-      (fresh) => {
-        const existing = fresh || {};
-        const freshPlayer = {
-          ...existing,
-          pullAccessSnapshot: player.pullAccessSnapshot,
-        };
+    // Force every available slot from the current PA calculation to be consumed.
+    // This prevents piratePullAmount from staying open when other slots are already full.
+    reservedPulls = {
+      ...(reservedPulls || {}),
+    };
 
-        const freshResetState = applyGlobalPullReset(freshPlayer);
-        const freshPulls = freshResetState?.pulls || existing.pulls || {};
-        freshPlayer.pulls = freshPulls;
-
-        const freshSlots = getPullSlotStatus(freshPlayer, message);
-        const freshAvailableTotal = Object.values(freshSlots).reduce((sum, slot) => {
-          if (!slot?.enabled) return sum;
-
-          const max = Math.max(0, Math.floor(Number(slot.max || 0)));
-          const used = Math.max(0, Math.floor(Number(slot.used || 0)));
-
-          return sum + Math.max(0, max - used);
-        }, 0);
-
-        if (freshAvailableTotal <= 0) {
-          return existing;
-        }
-
-        return {
-          ...existing,
-          pulls: consumeAllActivePullSlots(freshPlayer, message),
-          pullAccessSnapshot: player.pullAccessSnapshot,
-        };
-      },
-      message.author.username
-    );
-
-    const playerAfterReserve = getPlayer(message.author.id, message.author.username);
-    const afterReserveUsage = getTotalPullUsage(playerAfterReserve, message);
-    const afterReserveAvailable = Math.max(
-      0,
-      Number(afterReserveUsage.totalMax || 0) - Number(afterReserveUsage.totalUsed || 0)
-    );
-
-    if (afterReserveAvailable > 0) {
-      return message.reply({
-        content:
-          "Pull All could not lock your pull slots safely. Please try again in a few seconds.",
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
+    for (const slot of availableSlots) {
+      reservedPulls[slot.key] = {
+        ...(reservedPulls[slot.key] || {}),
+        used: slot.max,
+        max: slot.max,
+      };
     }
+
+    player.pulls = reservedPulls;
 
     let updatedCards = [...(player.cards || [])];
     let updatedWeapons = [...(player.weapons || [])];
@@ -1402,27 +1367,6 @@ module.exports = {
     };
 
     let updatedPulls = reservedPulls;
-    const afterConsumeAudit = getTotalPullUsage(
-      {
-        ...player,
-        pulls: updatedPulls,
-      },
-      message
-    );
-
-    if (Math.max(0, Number(afterConsumeAudit.totalMax || 0) - Number(afterConsumeAudit.totalUsed || 0)) > 0) {
-      updatedPulls = {
-        ...(updatedPulls || {}),
-      };
-
-      for (const slot of availableSlots) {
-        updatedPulls[slot.key] = {
-          ...(updatedPulls[slot.key] || {}),
-          used: slot.max,
-          max: slot.max,
-        };
-      }
-    }
     let resetTicketUsed = false;
     let resetFailedReason = "";
 
@@ -1575,7 +1519,7 @@ module.exports = {
       },
     });
   } finally {
-    PA_USER_LOCKS.delete(paLockKey);
+    PULL_COMMAND_LOCKS.delete(paLockKey);
   }
   },
 };

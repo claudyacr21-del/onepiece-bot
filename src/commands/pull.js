@@ -47,7 +47,9 @@ const {
 const PREMIUM_PITY_TARGET = 100;
 const VIVRE_PITY_TARGET = 125;
 const NORMAL_PITY_TARGET = 150;
-const PULL_USER_LOCKS = new Set();
+const PULL_COMMAND_LOCKS =
+  global.__ONEPIECE_PULL_COMMAND_LOCKS ||
+  (global.__ONEPIECE_PULL_COMMAND_LOCKS = new Set());
 
 function getPirateLuckBoost(userId) {
   const pirate = findPirateByUser(userId);
@@ -1176,14 +1178,14 @@ module.exports = {
   async execute(message) {
     const pullLockKey = String(message.author.id);
 
-    if (PULL_USER_LOCKS.has(pullLockKey)) {
+    if (PULL_COMMAND_LOCKS.has(pullLockKey)) {
       return message.reply({
         content: "Your previous pull is still being saved. Please wait 1-2 seconds and try again.",
         allowedMentions: { repliedUser: false },
       });
     }
 
-    PULL_USER_LOCKS.add(pullLockKey);
+    PULL_COMMAND_LOCKS.add(pullLockKey);
 
     try {
       const player = getPlayer(message.author.id, message.author.username);
@@ -1223,47 +1225,7 @@ module.exports = {
     }
 
     const reservedPulls = consumePullSlot(player, pullKey);
-
-    await updatePlayerAtomic(
-      message.author.id,
-      (fresh) => {
-        const existing = fresh || {};
-        const freshPlayer = {
-          ...existing,
-          pullAccessSnapshot: player.pullAccessSnapshot,
-        };
-
-        const freshResetState = applyGlobalPullReset(freshPlayer);
-        const freshPulls = freshResetState?.pulls || existing.pulls || {};
-        freshPlayer.pulls = freshPulls;
-
-        const freshPullKey = getNextAvailablePullKey(freshPlayer, message);
-
-        if (!freshPullKey) {
-          return existing;
-        }
-
-        return {
-          ...existing,
-          pulls: consumePullSlot(freshPlayer, freshPullKey),
-          pullAccessSnapshot: player.pullAccessSnapshot,
-        };
-      },
-      message.author.username
-    );
-
-    const playerAfterReserve = getPlayer(message.author.id, message.author.username);
-    const afterReserveKey = getNextAvailablePullKey(playerAfterReserve, message);
-
-    if (afterReserveKey === pullKey) {
-      return message.reply({
-        content:
-          "Pull could not lock your pull slot safely. Please try again in a few seconds.",
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
+    player.pulls = reservedPulls;
 
     const premiumTier = getEffectivePullTierForSlot(roleTier, pullKey);
     const pityLimit = getPityLimit(premiumTier, player);
@@ -1488,7 +1450,7 @@ module.exports = {
       embeds: [embed],
     });
     } finally {
-      PULL_USER_LOCKS.delete(pullLockKey);
+      PULL_COMMAND_LOCKS.delete(pullLockKey);
     }
   },
 };
