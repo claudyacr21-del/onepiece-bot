@@ -1105,52 +1105,88 @@ module.exports = {
 
     player.pullAccessSnapshot = snapshot;
 
-    const slotStatus = getPullSlotStatus(player, message);
+    let availableSlots = [];
+    let availableTotal = 0;
+    let reservedPulls = null;
 
-    const availableSlots = Object.entries(slotStatus)
-      .filter(([, slot]) => slot?.enabled)
-      .map(([key, slot]) => {
-        const max = Math.max(0, Math.floor(Number(slot.max || 0)));
-        const used = Math.max(0, Math.floor(Number(slot.used || 0)));
-        const remaining = Math.max(0, max - used);
+    await updatePlayerAtomic(
+      message.author.id,
+      (fresh) => {
+        const existing = fresh || {};
+
+        const freshPlayer = {
+          ...existing,
+          pullAccessSnapshot: snapshot,
+        };
+
+        const freshResetState = applyGlobalPullReset(freshPlayer);
+        freshPlayer.pulls = freshResetState?.pulls || existing.pulls || {};
+
+        const freshSlotStatus = getPullSlotStatus(freshPlayer, message);
+
+        const freshAvailableSlots = Object.entries(freshSlotStatus)
+          .filter(([, slot]) => slot?.enabled)
+          .map(([key, slot]) => {
+            const max = Math.max(0, Math.floor(Number(slot.max || 0)));
+            const used = Math.max(0, Math.floor(Number(slot.used || 0)));
+            const remaining = Math.max(0, max - Math.min(used, max));
+
+            return {
+              key,
+              max,
+              used: Math.min(used, max),
+              remaining,
+            };
+          })
+          .filter((slot) => slot.remaining > 0);
+
+        const freshAvailableTotal = freshAvailableSlots.reduce(
+          (sum, slot) => sum + Number(slot.remaining || 0),
+          0
+        );
+
+        if (freshAvailableTotal <= 0) {
+          availableSlots = [];
+          availableTotal = 0;
+          reservedPulls = null;
+
+          return {
+            ...existing,
+            pulls: freshPlayer.pulls,
+            pullAccessSnapshot: snapshot,
+          };
+        }
+
+        const nextPulls = consumeAllActivePullSlots(freshPlayer, message);
+
+        for (const slot of freshAvailableSlots) {
+          nextPulls[slot.key] = {
+            ...(nextPulls[slot.key] || {}),
+            used: slot.max,
+            max: slot.max,
+          };
+        }
+
+        availableSlots = freshAvailableSlots;
+        availableTotal = freshAvailableTotal;
+        reservedPulls = nextPulls;
 
         return {
-          key,
-          max,
-          used,
-          remaining,
+          ...existing,
+          pulls: nextPulls,
+          pullAccessSnapshot: snapshot,
         };
-      })
-      .filter((slot) => slot.remaining > 0);
-
-    const availableTotal = availableSlots.reduce(
-      (sum, slot) => sum + Number(slot.remaining || 0),
-      0
+      },
+      message.author.username
     );
 
-    if (availableTotal <= 0) {
+    if (!reservedPulls || availableTotal <= 0) {
       return message.reply({
         content: "You do not have any available pulls right now.",
         allowedMentions: {
           repliedUser: false,
         },
       });
-    }
-
-    let reservedPulls = consumeAllActivePullSlots(player, message);
-
-    // Force every available slot from the current PA calculation to be consumed.
-    // This prevents piratePullAmount from staying open when other slots are already full.
-    reservedPulls = {
-      ...(reservedPulls || {}),
-    };
-
-    for (const slot of availableSlots) {
-      reservedPulls[slot.key] = {
-        ...(reservedPulls[slot.key] || {}),
-        used: slot.max,
-        max: slot.max,
-      };
     }
 
     player.pulls = reservedPulls;

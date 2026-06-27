@@ -1,5 +1,5 @@
 const { getFragmentStorageBonus } = require("./passiveBoosts");
-
+const { getPirateFragmentStorageBonus } = require("./pirateBoosts");
 const BASE_FRAGMENT_STORAGE = 200;
 const MAX_FRAGMENT_STORAGE = 5000;
 
@@ -35,10 +35,9 @@ function getFragmentStorageInfo(player, fragments = null) {
     : [];
 
   const total = list.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const max = Math.min(
-    BASE_FRAGMENT_STORAGE + Number(getFragmentStorageBonus(player) || 0),
-    MAX_FRAGMENT_STORAGE
-  );
+  const max = Math.min(MAX_FRAGMENT_STORAGE, BASE_FRAGMENT_STORAGE + passiveBonus + pirateBonus);
+  const userId = String(player?.id || player?.userId || player?.discordId || "").trim();
+  const pirateBonus = Math.max(0, Number(getPirateFragmentStorageBonus(userId) || 0));
 
   return { total, max };
 }
