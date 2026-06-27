@@ -1048,6 +1048,8 @@ const WEAPON_IMAGES = {
   bandit_club: "https://cdn.discordapp.com/attachments/1493204525975076944/1515582409192505539/content.png?ex=6a2f879c&is=6a2e361c&hm=985b16ac65c9f057d3b88515567ab981ac93c1cf25b2f30d2315c75ae0d71f73&",
   bandit_knife: "https://cdn.discordapp.com/attachments/1493204525975076944/1515582409654145165/content.png?ex=6a2f879c&is=6a2e361c&hm=05687845afb0c6387dbf9f1f35d45fee4c06eab119ffd6c3893ce7ca59657b15&",
   fish_karate: "https://cdn.discordapp.com/attachments/1493204525975076944/1520029287497990185/content.png?ex=6a3fb516&is=6a3e6396&hm=d9cd71b89b671670913fb4b9876f49541b85d1c54e99b6c8b2942110427d4dd1",
+  gauntlet: "https://cdn.discordapp.com/attachments/1493204525975076944/1519255371544395847/content.png?ex=6a403012&is=6a3ede92&hm=df7d7b6a6a4dc439035b3127371dd6a81bdc27768d82404126e2c3dedc12e956",
+  kagi: "https://cdn.discordapp.com/attachments/1493204525975076944/1519262742043820153/content.png?ex=6a4036f0&is=6a3ee570&hm=f741e48edc696881c6b5f0eb9a55ee041368a6ae4d8e3b8941afbcf516f99689",
 };
 
 const DEVIL_FRUIT_IMAGES = {
