@@ -10,14 +10,6 @@ function getClampedPiratePerkLevel(userId, perkKey, maxLevel) {
   );
 }
 
-function getPiratePullAmountBonus(userId) {
-  return getClampedPiratePerkLevel(
-    userId,
-    "pullAmountBoost",
-    PIRATE_PULL_AMOUNT_MAX_LEVEL
-  );
-}
-
 function getPirateFragmentStorageBonus(userId) {
   const level = getClampedPiratePerkLevel(
     userId,
@@ -89,7 +81,6 @@ module.exports = {
   getPirateExpBoostPercent,
   getPirateBerryBoostPercent,
   getPirateGemsBoostPercent,
-  getPiratePullAmountBonus,
   getPirateFragmentStorageBonus,
   applyPiratePercentBoost,
   applyPirateCurrencyBoosts,

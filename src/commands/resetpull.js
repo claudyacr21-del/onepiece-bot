@@ -125,7 +125,6 @@ function syncPremiumSnapshot(snapshot, premiumTier) {
 function formatSlotName(key) {
   const names = {
     base: "Base Pulls",
-    piratePullAmount: "Pirate Pull Amount",
     supportMember: "Main Server Member",
     booster: "Main Server Booster",
     owner: "Server Owner",

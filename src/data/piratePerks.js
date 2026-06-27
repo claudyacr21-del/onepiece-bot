@@ -35,15 +35,6 @@ const PIRATE_PERKS = {
     effect: "Increase guild raid points earned by all crew members.",
   },
 
-  pullAmountBoost: {
-    key: "pullAmountBoost",
-    name: "Pull Amount",
-    unlockGuildLevel: 25,
-    maxLevel: 3,
-    bonusPerLevel: 1,
-    effect: "Increase daily pull amount by +1 pull per level for all pirate members.",
-  },
-
   expBoost: {
     key: "expBoost",
     name: "Crew Training",
@@ -112,15 +103,6 @@ function normalizePerkKey(query) {
     pullrate: "luckBoost",
     pullrates: "luckBoost",
     luckboost: "luckBoost",
-
-    pull: "pullAmountBoost",
-    pulls: "pullAmountBoost",
-    pullamount: "pullAmountBoost",
-    pullamountboost: "pullAmountBoost",
-    pullbonus: "pullAmountBoost",
-    pullslots: "pullAmountBoost",
-    extrapull: "pullAmountBoost",
-    extrapulls: "pullAmountBoost",
 
     raid: "raidPointBoost",
     point: "raidPointBoost",
@@ -224,12 +206,6 @@ function getPerkRequirement(perkKey, currentPerkLevel) {
     addMaterial(materials, "enhancement_stone", 2 + Math.floor(nextLevel / 2));
   }
 
-  if (perkKey === "pullAmountBoost") {
-    addMaterial(materials, "cola_engine_part", 4 + nextLevel * 2);
-    addMaterial(materials, "enhancement_stone", 3 + nextLevel * 2);
-    addMaterial(materials, "sail_cloth", 2 + nextLevel);
-  }
-
   if (perkKey === "fragmentStorageBoost") {
     addMaterial(materials, "hardwood", 4 + nextLevel * 2);
     addMaterial(materials, "iron_plating", 3 + nextLevel * 2);
@@ -277,10 +253,6 @@ function getPerkEffectText(perkKey, level) {
   if (!perk) return "Unknown effect.";
   if (perkKey === "luckBoost") return `+${(lv * 0.1).toFixed(1)}% pull rate`;
   if (perkKey === "crewSlotBoost") return `+${lv} member slot${lv === 1 ? "" : "s"}`;
-
-  if (perkKey === "pullAmountBoost") {
-    return `+${lv} pull${lv === 1 ? "" : "s"} per reset`;
-  }
 
   if (perkKey === "fragmentStorageBoost") {
     return `+${lv * 26} fragment storage`;

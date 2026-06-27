@@ -193,7 +193,6 @@ function pickBaseTier(
 function prettySlotName(key) {
   const map = {
     base: "Base Pull",
-    piratePullAmount: "Pirate Perk Pull",
     supportMember: "Main Server Member Pull",
     booster: "Main Server Booster Pull",
     owner: "Server Owner Pull",
@@ -1082,7 +1081,6 @@ function isDifferentPullResetBucket(existingPulls = {}, nextPulls = {}) {
 function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
   const keys = [
     "base",
-    "piratePullAmount",
     "supportMember",
     "booster",
     "owner",

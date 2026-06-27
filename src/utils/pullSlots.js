@@ -1,5 +1,4 @@
 const devilFruits = require("../data/devilFruits");
-const { getPiratePullAmountBonus } = require("./pirateBoosts");
 const SUPPORT_SERVER_ROLE = "Support Server";
 const BOOSTER_ROLE = "Server Booster";
 
@@ -42,7 +41,6 @@ const DEFAULT_BACCARAT_FRUIT_MAX_PULLS = 2;
 
 const PULL_SLOT_KEYS = [
   "base",
-  "piratePullAmount",
   "supportMember",
   "booster",
   "owner",
@@ -329,12 +327,6 @@ function getPullSlotStatus(player, message) {
   const access = buildPullAccessSnapshot(player, message);
   const baccaratCardBonus = getBaccaratCardPullBonus(player);
   const baccaratFruitBonus = getBaccaratFruitPullBonus(player);
-  const userId = String(message?.author?.id || player?.id || player?.userId || "").trim();
-
-  const piratePullAmountBonus = Math.max(
-    0,
-    Math.min(3, Math.floor(Number(getPiratePullAmountBonus(userId) || 0)))
-  );
 
   return {
     base: {
@@ -342,13 +334,6 @@ function getPullSlotStatus(player, message) {
       max: 6,
       displayMax: 6,
       used: Number(pulls.base?.used || 0),
-    },
-
-    piratePullAmount: {
-      enabled: piratePullAmountBonus > 0,
-      max: piratePullAmountBonus,
-      displayMax: 3,
-      used: Number(pulls.piratePullAmount?.used || 0),
     },
 
     supportMember: {
@@ -486,12 +471,6 @@ function resetAllPullSlots(player) {
       ...(pulls.base || {}),
       used: 0,
       max: 6,
-    },
-
-    piratePullAmount: {
-      ...(pulls.piratePullAmount || {}),
-      used: 0,
-      max: 3,
     },
 
     supportMember: {

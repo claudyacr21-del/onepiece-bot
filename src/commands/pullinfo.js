@@ -107,7 +107,6 @@ module.exports = {
           "",
           "**Pull Slots**",
           `↪ Base Pulls: ${fmtInfo(slots.base)}`,
-          `↪ Bonus Pulls From Pirate Perk: ${fmtInfo(slots.piratePullAmount)}`,
           `↪ Bonus Pull For Main Server Members: ${fmtInfo(slots.supportMember)}`,
           `↪ Bonus Pull For Main Server Boosters: ${fmtInfo(slots.booster)}`,
           `↪ Bonus Pull For Server Owners (invite bot to your server): ${fmtInfo(slots.owner)}`,
