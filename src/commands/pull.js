@@ -1189,7 +1189,9 @@ module.exports = {
 
     try {
       const player = getPlayer(message.author.id, message.author.username);
-
+      player.id = String(message.author.id);
+      player.userId = String(message.author.id);
+      
     const resetState = applyGlobalPullReset(player);
     if (resetState?.wasReset) {
       updatePlayer(message.author.id, {

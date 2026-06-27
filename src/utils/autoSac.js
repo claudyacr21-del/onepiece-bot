@@ -27,19 +27,61 @@ function normalizeCode(text) {
     .replace(/^_+|_+$/g, "");
 }
 
-function getFragmentStorageInfo(player, fragments = null) {
-  const list = Array.isArray(fragments)
-    ? fragments
-    : Array.isArray(player?.fragments)
-    ? player.fragments
-    : [];
+function getFragmentStorageInfo(player, fragments = []) {
+  const list = Array.isArray(fragments) ? fragments : [];
 
-  const total = list.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const max = Math.min(MAX_FRAGMENT_STORAGE, BASE_FRAGMENT_STORAGE + passiveBonus + pirateBonus);
-  const userId = String(player?.id || player?.userId || player?.discordId || "").trim();
-  const pirateBonus = Math.max(0, Number(getPirateFragmentStorageBonus(userId) || 0));
+  const total = list.reduce((sum, item) => {
+    return sum + Math.max(0, Math.floor(Number(item?.amount || 0)));
+  }, 0);
 
-  return { total, max };
+  const BASE_FRAGMENT_STORAGE = 200;
+  const MAX_FRAGMENT_STORAGE = 5000;
+
+  const passiveBoosts =
+    player?.passiveBoosts && typeof player.passiveBoosts === "object"
+      ? player.passiveBoosts
+      : {};
+
+  const passiveSummary =
+    player?.passiveBoostSummary && typeof player.passiveBoostSummary === "object"
+      ? player.passiveBoostSummary
+      : {};
+
+  const passiveBonus = Math.max(
+    0,
+    Math.floor(
+      Number(
+        passiveSummary.fragmentStorageBonus ??
+          passiveBoosts.fragmentStorageBonus ??
+          player?.fragmentStorageBonus ??
+          0
+      )
+    )
+  );
+
+  const userId = String(
+    player?.id ||
+      player?.userId ||
+      player?.discordId ||
+      player?.ownerId ||
+      ""
+  ).trim();
+
+  const pirateBonus = Math.max(
+    0,
+    Math.floor(Number(getPirateFragmentStorageBonus(userId) || 0))
+  );
+
+  const bonus = passiveBonus + pirateBonus;
+  const max = Math.min(MAX_FRAGMENT_STORAGE, BASE_FRAGMENT_STORAGE + bonus);
+
+  return {
+    total,
+    max,
+    bonus,
+    passiveBonus,
+    pirateBonus,
+  };
 }
 
 function getSacBerryValue(rarity, amount = 1) {
