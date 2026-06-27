@@ -423,8 +423,42 @@ function hasOwnedCardStageForSummon(player, targetCode, minStage = 1) {
   });
 }
 
+function getMergeSourceRequirementName(sourceCode) {
+  const template = getCardTemplateByCode(sourceCode) || {};
+  return (
+    template.displayName ||
+    template.name ||
+    String(sourceCode || "")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+  );
+}
+
 function getGenericMergeSummonRequirementError(player, card) {
   if (!isGenericMergeSummonCard(card)) return null;
+
+  const sourceCodes = Array.isArray(card?.mergeSourceCodes)
+    ? card.mergeSourceCodes.map((code) => String(code || "").trim()).filter(Boolean)
+    : [];
+
+  const missingSources = sourceCodes
+    .map((code) => ({
+      code,
+      name: getMergeSourceRequirementName(code),
+    }))
+    .filter((req) => !hasOwnedCardStageForSummon(player, req.code, 3));
+
+  if (missingSources.length) {
+    return [
+      `You cannot summon **${getCardName(card)}** yet.`,
+      "",
+      "**Special Requirement:**",
+      "You must own all merge source cards at **M3** first.",
+      "",
+      "**Missing M3 Cards:**",
+      ...missingSources.map((req) => `- ${req.name} M3`),
+    ].join("\n");
+  }
 
   if (!hasOwnedCardStageForSummon(player, "road_poneglyph", 1)) {
     return [
