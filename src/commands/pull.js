@@ -1135,11 +1135,42 @@ function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
   return result;
 }
 
-function savePullResultFresh(userId, payload, username = "Unknown") {
-  return updatePlayerAtomic(
+function savePullResultFresh(userId, payload, username = "Unknown", message = null) {
+  let didSave = false;
+  let savedPulls = null;
+  let savedPullKey = null;
+
+  const result = updatePlayerAtomic(
     userId,
     (fresh) => {
       const existing = fresh || {};
+
+      const freshPlayer = {
+        ...existing,
+        id: String(userId),
+        userId: String(userId),
+        pullAccessSnapshot: payload.pullAccessSnapshot || existing.pullAccessSnapshot || {},
+      };
+
+      const resetState = applyGlobalPullReset(freshPlayer);
+      freshPlayer.pulls = resetState?.pulls || existing.pulls || {};
+
+      const freshPullKey = getNextAvailablePullKey(freshPlayer, message);
+
+      if (!freshPullKey) {
+        didSave = false;
+        return {
+          ...existing,
+          pulls: freshPlayer.pulls,
+          pullAccessSnapshot: freshPlayer.pullAccessSnapshot,
+        };
+      }
+
+      const nextPulls = consumePullSlot(freshPlayer, freshPullKey);
+
+      didSave = true;
+      savedPulls = nextPulls;
+      savedPullKey = freshPullKey;
 
       return {
         ...existing,
@@ -1153,8 +1184,10 @@ function savePullResultFresh(userId, payload, username = "Unknown") {
 
         berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
 
-        pulls: mergePullUsageForSave(existing.pulls, payload.pulls),
+        pulls: nextPulls,
         pity: payload.pity,
+
+        pullAccessSnapshot: freshPlayer.pullAccessSnapshot,
 
         stats: {
           ...(existing.stats || {}),
@@ -1169,6 +1202,13 @@ function savePullResultFresh(userId, payload, username = "Unknown") {
     },
     username
   );
+
+  return {
+    result,
+    didSave,
+    pulls: savedPulls,
+    pullKey: savedPullKey,
+  };
 }
 
 module.exports = {
@@ -1191,7 +1231,7 @@ module.exports = {
       const player = getPlayer(message.author.id, message.author.username);
       player.id = String(message.author.id);
       player.userId = String(message.author.id);
-      
+
     const resetState = applyGlobalPullReset(player);
     if (resetState?.wasReset) {
       updatePlayer(message.author.id, {
@@ -1230,9 +1270,6 @@ module.exports = {
         "You do not have any available pulls right now.\nUse `op pullinfo` to check your slots."
       );
     }
-
-    const updatedPulls = consumePullSlot(player, pullKey);
-    player.pulls = updatedPulls;
 
     const premiumTier = getEffectivePullTierForSlot(roleTier, pullKey);
     const pityLimit = getPityLimit(premiumTier, player);
@@ -1382,7 +1419,8 @@ module.exports = {
       premiumSPity: pityCounter,
     };
 
-    await savePullResultFresh(message.author.id,
+    const saveResult = await savePullResultFresh(
+      message.author.id,
       {
         cards: updatedCards,
         weapons: updatedWeapons,
@@ -1390,8 +1428,8 @@ module.exports = {
         fragments: updatedFragments,
         tickets: updatedTickets,
         addBerries: autoSacBerries,
-        pulls: updatedPulls,
         pity: updatedPity,
+        pullAccessSnapshot: snapshot,
         stats: {
           cardsPulled:
             Number(player?.stats?.cardsPulled || 0) +
@@ -1401,7 +1439,27 @@ module.exports = {
           dailyState: updatedDailyState,
         },
       },
-      message.author.username
+      message.author.username,
+      message
+    );
+
+    if (!saveResult.didSave) {
+      return message.reply(
+        "You do not have any available pulls right now.\nUse `op pullinfo` to check your slots."
+      );
+    }
+
+    const finalUsage = getTotalPullUsage(
+      {
+        ...player,
+        pulls: saveResult.pulls,
+      },
+      message
+    );
+
+    const finalRemaining = Math.max(
+      0,
+      Number(finalUsage.totalMax || 0) - Number(finalUsage.totalUsed || 0)
     );
 
     const rewardName = picked.displayName || picked.name || "Unknown";
@@ -1420,7 +1478,7 @@ module.exports = {
       .setDescription(
         [
           `**Slot Used:** ${prettySlotName(pullKey)}`,
-          `**Remaining Pulls:** ${available - 1}/${totalMax}`,
+          `**Remaining Pulls:** ${finalRemaining}/${Number(finalUsage.totalMax || totalMax)}`,
           `**${pityText}**`,
           getLuckyWeekBonusLine(),
           "",
