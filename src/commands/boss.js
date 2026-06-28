@@ -1835,12 +1835,13 @@ function buildButtons(playerTeam, ended, usedThisCycle = []) {
   playerTeam.forEach((unit, index) => {
     const isDead = Number(unit.battleHp ?? unit.hp) <= 0;
     const alreadyUsed = isUnitUsedThisCycle(usedThisCycle, unit);
+    const label = `${alreadyUsed ? "⏳ " : ""}${unit.name}`.slice(0, 80);
 
     currentRow.addComponents(
       new ButtonBuilder()
         .setCustomId(`boss_attack_${index}`)
-        .setLabel(unit.name.slice(0, 80))
-        .setStyle(isDead || alreadyUsed ? ButtonStyle.Secondary : ButtonStyle.Primary)
+        .setLabel(label || "Unknown")
+        .setStyle(isDead ? ButtonStyle.Secondary : ButtonStyle.Primary)
         .setDisabled(Boolean(ended || isDead || alreadyUsed))
     );
 
@@ -2282,15 +2283,18 @@ function buildRaidBossButtons(participants, ended, lastUsedUnitKey = "") {
 
   for (const unit of allUnits.slice(0, 20)) {
     const unitKey = getUnitActionKey(unit);
-    const alreadyUsed = usedSet.has(unitKey) && shouldDisableLastUsed(allUnits, lastUsedUnitKey, unit);
+    const alreadyUsed =
+      usedSet.has(unitKey) && shouldDisableLastUsed(allUnits, lastUsedUnitKey, unit);
     const dead = Number(unit.battleHp ?? unit.hp) <= 0;
-    const label = `${Number(unit.globalSlot || 0) + 1} ${String(unit.name || "Unknown")}`.slice(0, 80);
+    const label = `${alreadyUsed ? "⏳ " : ""}${Number(unit.globalSlot || 0) + 1} ${
+      String(unit.name || "Unknown")
+    }`.slice(0, 80);
 
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`boss_raid_attack_${Number(unit.globalSlot || 0)}`)
         .setLabel(label || "Unknown")
-        .setStyle(dead || alreadyUsed ? ButtonStyle.Secondary : ButtonStyle.Success)
+        .setStyle(dead ? ButtonStyle.Secondary : ButtonStyle.Primary)
         .setDisabled(Boolean(ended || dead || alreadyUsed))
     );
 
