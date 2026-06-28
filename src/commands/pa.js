@@ -928,6 +928,7 @@ function savePullAllResultFresh(userId, payload, username = "Unknown") {
         tickets: Array.isArray(payload.tickets) ? payload.tickets : existing.tickets || [],
         berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
         pulls: mergePullUsageForSave(existing.pulls, payload.pulls),
+        pullAccessSnapshot: payload.pullAccessSnapshot || existing.pullAccessSnapshot,
         pity: payload.pity,
         stats: {
           ...(existing.stats || {}),
@@ -1076,34 +1077,14 @@ module.exports = {
     player.id = String(message.author.id);
     player.userId = String(message.author.id);
 
-    player.pullAccessSnapshot = {
-      ...(player.pullAccessSnapshot || {}),
-      patreon: true,
-      vivreCard: false,
-    };
-
-    updatePlayer(message.author.id, {
-      pullAccessSnapshot: player.pullAccessSnapshot,
-    });
-
     const resetState = applyGlobalPullReset(player);
-
     if (resetState?.wasReset) {
-      updatePlayer(message.author.id, {
-        pulls: resetState.pulls,
-      });
-
       player.pulls = resetState.pulls;
     }
 
     const snapshot = buildPullAccessSnapshot(player, message);
     snapshot.patreon = true;
     snapshot.vivreCard = false;
-
-    updatePlayer(message.author.id, {
-      pullAccessSnapshot: snapshot,
-    });
-
     player.pullAccessSnapshot = snapshot;
 
     const slotStatus = getPullSlotStatus(player, message);
@@ -1400,6 +1381,7 @@ module.exports = {
       tickets: updatedTickets,
       addBerries: convertedBerries,
       pulls: updatedPulls,
+      pullAccessSnapshot: snapshot,
       pity: updatedPity,
       stats: {
         ...(player.stats || {}),
