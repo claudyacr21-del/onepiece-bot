@@ -260,10 +260,25 @@ async function claimMessageOnce(message, commandName = "") {
     processedMessageIds.delete(messageId);
   }, 60_000);
 
+  const dedupeEnabled =
+    String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true";
+
+  const failOpen =
+    String(process.env.MESSAGE_DEDUPE_FAIL_OPEN || "false").toLowerCase() === "true";
+
   const pool = getDedupePool();
 
-  if (!pool) {
+  // Kalau dedupe OFF, local memory dedupe saja.
+  // Aman hanya kalau benar-benar 1 instance bot.
+  if (!dedupeEnabled) {
     return true;
+  }
+
+  // Kalau dedupe ON tapi pool tidak ada / sedang circuit breaker,
+  // jangan proses command supaya tidak reply 2x dari multi-instance.
+  if (!pool) {
+    console.warn("[MESSAGE DEDUPE BLOCKED] Dedupe pool unavailable. Command skipped to prevent duplicate replies.");
+    return failOpen;
   }
 
   try {
@@ -272,7 +287,8 @@ async function claimMessageOnce(message, commandName = "") {
     }
 
     if (!dedupeReady) {
-      return true;
+      console.warn("[MESSAGE DEDUPE BLOCKED] Dedupe table not ready. Command skipped to prevent duplicate replies.");
+      return failOpen;
     }
 
     const result = await pool.query(
@@ -291,17 +307,18 @@ async function claimMessageOnce(message, commandName = "") {
 
     return result.rowCount > 0;
   } catch (error) {
-    const message = String(error?.message || "");
+    const errorMessage = String(error?.message || "");
 
-    if (message.includes("Query read timeout")) {
-      console.warn("[MESSAGE DEDUPE SKIPPED] Supabase query timeout. Dedupe paused for 60s.");
+    if (errorMessage.includes("Query read timeout")) {
+      console.warn("[MESSAGE DEDUPE BLOCKED] Supabase query timeout. Command skipped to prevent duplicate replies.");
     } else {
       console.error("[MESSAGE DEDUPE CLAIM ERROR]", error);
     }
 
     dedupeReady = false;
-    dedupeDisabledUntil = Date.now() + 60_000;
-    return true;
+    dedupeDisabledUntil = Date.now() + 15_000;
+
+    return failOpen;
   }
 }
 
