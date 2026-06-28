@@ -97,7 +97,7 @@ function getArenaDisplayName(message, userId, raw = {}) {
 }
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
-const ARENA_DAILY_LIMIT = 5;
+const ARENA_DAILY_LIMIT = 10;
 const ARENA_TOTAL_RANK_SLOTS = 500;
 const ARENA_WIN_EXP_PER_CARD = 350;
 const ARENA_LOSE_EXP_PER_CARD = 175;
@@ -915,16 +915,16 @@ function calculateArenaWinPoints(playerRank, opponentRank) {
   if (enemyRank < myRank) {
     const gap = myRank - enemyRank;
 
-    if (gap >= 200) return 40;
-    if (gap >= 100) return 35;
-    if (gap >= 50) return 30;
-    if (gap >= 25) return 25;
-    if (gap >= 10) return 20;
+    if (gap >= 200) return 50;
+    if (gap >= 100) return 40;
+    if (gap >= 50) return 35;
+    if (gap >= 25) return 30;
+    if (gap >= 10) return 25;
 
-    return 15;
+    return 20;
   }
 
-  return 8;
+  return 10;
 }
 
 function applyArenaResult(arena, result, context = {}) {
