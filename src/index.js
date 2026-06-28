@@ -173,6 +173,7 @@ let readyStarted = false;
 let dedupePool = null;
 let dedupeReady = false;
 let dedupeInitStarted = false;
+let dedupeDisabledUntil = 0;
 
 function getDedupePool() {
   const enabled =
@@ -181,17 +182,24 @@ function getDedupePool() {
   if (!enabled) return null;
   if (!process.env.DATABASE_URL) return null;
 
+  if (Date.now() < dedupeDisabledUntil) return null;
+
   if (!dedupePool) {
     dedupePool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      max: 2,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
+      max: Number(process.env.MESSAGE_DEDUPE_POOL_MAX || 1),
+      idleTimeoutMillis: Number(process.env.MESSAGE_DEDUPE_IDLE_TIMEOUT_MS || 10000),
+      connectionTimeoutMillis: Number(process.env.MESSAGE_DEDUPE_CONNECT_TIMEOUT_MS || 2000),
+      query_timeout: Number(process.env.MESSAGE_DEDUPE_QUERY_TIMEOUT_MS || 3000),
+      statement_timeout: Number(process.env.MESSAGE_DEDUPE_STATEMENT_TIMEOUT_MS || 3000),
+      maxUses: Number(process.env.MESSAGE_DEDUPE_MAX_USES || 500),
     });
 
     dedupePool.on("error", (error) => {
       console.error("[MESSAGE DEDUPE DB POOL ERROR]", error);
+      dedupeReady = false;
+      dedupeDisabledUntil = Date.now() + 60_000;
     });
   }
 
@@ -233,6 +241,7 @@ async function ensureMessageDedupeTable() {
   } catch (error) {
     console.error("[MESSAGE DEDUPE INIT ERROR]", error);
     dedupeReady = false;
+    dedupeDisabledUntil = Date.now() + 60_000;
     return false;
   } finally {
     dedupeInitStarted = false;
@@ -283,6 +292,8 @@ async function claimMessageOnce(message, commandName = "") {
     return result.rowCount > 0;
   } catch (error) {
     console.error("[MESSAGE DEDUPE CLAIM ERROR]", error);
+    dedupeReady = false;
+    dedupeDisabledUntil = Date.now() + 60_000;
     return true;
   }
 }
