@@ -291,7 +291,14 @@ async function claimMessageOnce(message, commandName = "") {
 
     return result.rowCount > 0;
   } catch (error) {
-    console.error("[MESSAGE DEDUPE CLAIM ERROR]", error);
+    const message = String(error?.message || "");
+
+    if (message.includes("Query read timeout")) {
+      console.warn("[MESSAGE DEDUPE SKIPPED] Supabase query timeout. Dedupe paused for 60s.");
+    } else {
+      console.error("[MESSAGE DEDUPE CLAIM ERROR]", error);
+    }
+
     dedupeReady = false;
     dedupeDisabledUntil = Date.now() + 60_000;
     return true;
