@@ -913,39 +913,76 @@ function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
   return result;
 }
 
-function savePullAllResultFresh(userId, payload, username = "Unknown") {
-  return updatePlayerAtomic(
+function savePullAllResultFresh(userId, payload, username = "Unknown", message = null) {
+  let didSave = false;
+  let savedPulls = null;
+  let savedAvailableTotal = 0;
+
+  const result = updatePlayerAtomic(
     userId,
     (fresh) => {
       const existing = fresh || {};
 
-      const nextPulls = payload.replacePulls
-        ? payload.pulls
-        : mergePullUsageForSave(existing.pulls, payload.pulls);
+      const freshPlayer = {
+        ...existing,
+        id: String(userId),
+        userId: String(userId),
+        pullAccessSnapshot: payload.pullAccessSnapshot || existing.pullAccessSnapshot || {},
+      };
+
+      const resetState = applyGlobalPullReset(freshPlayer);
+      freshPlayer.pulls = resetState?.pulls || existing.pulls || {};
+
+      const freshSlotStatus = getPullSlotStatus(freshPlayer, message);
+
+      const freshAvailableTotal = Object.values(freshSlotStatus).reduce((sum, slot) => {
+        if (!slot?.enabled) return sum;
+
+        const max = Math.max(0, Math.floor(Number(slot.max || 0)));
+        const used = Math.max(0, Math.floor(Number(slot.used || 0)));
+        const safeUsed = Math.min(used, max);
+
+        return sum + Math.max(0, max - safeUsed);
+      }, 0);
+
+      if (freshAvailableTotal <= 0) {
+        didSave = false;
+        savedAvailableTotal = 0;
+
+        return {
+          ...existing,
+          pulls: freshPlayer.pulls,
+          pullAccessSnapshot: freshPlayer.pullAccessSnapshot,
+        };
+      }
+
+      const consumedPulls = consumeAllActivePullSlots(freshPlayer, message);
+      const finalPulls =
+        payload.manualResetAfterPull && payload.manualResetPulls
+          ? payload.manualResetPulls
+          : consumedPulls;
+
+      didSave = true;
+      savedPulls = finalPulls;
+      savedAvailableTotal = freshAvailableTotal;
 
       return {
         ...existing,
 
-        // Faster save:
-        // payload inventory is already the final Pull All result.
-        // Do not re-merge huge collections here.
-        cards: Array.isArray(payload.cards) ? payload.cards : existing.cards || [],
-        weapons: Array.isArray(payload.weapons) ? payload.weapons : existing.weapons || [],
-        devilFruits: Array.isArray(payload.devilFruits)
-          ? payload.devilFruits
-          : existing.devilFruits || [],
-        fragments: Array.isArray(payload.fragments)
-          ? payload.fragments
-          : existing.fragments || [],
-        tickets: Array.isArray(payload.tickets) ? payload.tickets : existing.tickets || [],
+        cards: mergeCardCollections(existing.cards, payload.cards),
+        weapons: mergeNamedInventory(existing.weapons, payload.weapons),
+        devilFruits: mergeNamedInventory(existing.devilFruits, payload.devilFruits),
+        fragments: mergeStackList(existing.fragments, payload.fragments),
+
+        tickets: Array.isArray(payload.tickets)
+          ? payload.tickets
+          : existing.tickets || [],
 
         berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
 
-        // Important:
-        // op pa reset must replace pulls, not merge with old used count.
-        pulls: nextPulls,
-
-        pity: payload.pity || existing.pity || {},
+        pulls: finalPulls,
+        pity: payload.pity,
+        pullAccessSnapshot: freshPlayer.pullAccessSnapshot,
 
         stats: {
           ...(existing.stats || {}),
@@ -960,6 +997,13 @@ function savePullAllResultFresh(userId, payload, username = "Unknown") {
     },
     username
   );
+
+  return {
+    result,
+    didSave,
+    pulls: savedPulls,
+    availableTotal: savedAvailableTotal,
+  };
 }
 
 function addDuplicateCardReward({
@@ -1095,14 +1139,34 @@ module.exports = {
     player.id = String(message.author.id);
     player.userId = String(message.author.id);
 
+    player.pullAccessSnapshot = {
+      ...(player.pullAccessSnapshot || {}),
+      patreon: true,
+      vivreCard: false,
+    };
+
+    updatePlayer(message.author.id, {
+      pullAccessSnapshot: player.pullAccessSnapshot,
+    });
+
     const resetState = applyGlobalPullReset(player);
+
     if (resetState?.wasReset) {
+      updatePlayer(message.author.id, {
+        pulls: resetState.pulls,
+      });
+
       player.pulls = resetState.pulls;
     }
 
     const snapshot = buildPullAccessSnapshot(player, message);
     snapshot.patreon = true;
     snapshot.vivreCard = false;
+
+    updatePlayer(message.author.id, {
+      pullAccessSnapshot: snapshot,
+    });
+
     player.pullAccessSnapshot = snapshot;
 
     const slotStatus = getPullSlotStatus(player, message);
@@ -1391,25 +1455,44 @@ module.exports = {
       convertedCount += fragmentStorageAudit.convertedCount;
     }
 
-    await savePullAllResultFresh(message.author.id, {
-      cards: updatedCards,
-      weapons: updatedWeapons,
-      devilFruits: updatedDevilFruits,
-      fragments: updatedFragments,
-      tickets: updatedTickets,
-      addBerries: convertedBerries,
-      pulls: updatedPulls,
-      replacePulls: resetTicketUsed,
-      pity: updatedPity,
-      stats: {
-        ...(player.stats || {}),
-        cardsPulled: Number(player?.stats?.cardsPulled || 0) + cardsPulledThisRun,
+    const saveResult = await savePullAllResultFresh(
+      message.author.id,
+      {
+        cards: updatedCards,
+        weapons: updatedWeapons,
+        devilFruits: updatedDevilFruits,
+        fragments: updatedFragments,
+        tickets: updatedTickets,
+        addBerries: convertedBerries,
+
+        pity: updatedPity,
+        pullAccessSnapshot: snapshot,
+
+        manualResetAfterPull: resetTicketUsed,
+        manualResetPulls: resetTicketUsed ? updatedPulls : null,
+
+        stats: {
+          ...(player.stats || {}),
+          cardsPulled: Number(player?.stats?.cardsPulled || 0) + cardsPulledThisRun,
+        },
+
+        quests: {
+          ...(player.quests || {}),
+          dailyState: updatedDailyState,
+        },
       },
-      quests: {
-        ...(player.quests || {}),
-        dailyState: updatedDailyState,
-      },
-    }, message.author.username);
+      message.author.username,
+      message
+    );
+
+    if (!saveResult.didSave) {
+      return message.reply({
+        content: "You do not have any available pulls right now.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
 
     const groupedLines = [];
     const luckyWeekLine = getLuckyWeekBonusLine();
