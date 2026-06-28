@@ -393,7 +393,6 @@ function formatPerkSummary(pirate) {
     ["Shop Discount", "shopDiscount"],
     ["Boss Damage Boost", "bossDamageBoost"],
     ["Crew Slot", "crewSlotBoost"],
-    ["Pull Amount", "pullAmountBoost"],
     ["Fragment Storage", "fragmentStorageBoost"],
   ];
 

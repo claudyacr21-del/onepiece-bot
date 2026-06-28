@@ -424,6 +424,7 @@ const SPECIAL_FORMS = {
   kuroobi: ["Fishman Karate", "Ocean Brawler", "Tidal Crusher"],
   dogra: ["Mountain Guardian", "Dadan Family Veteran", "Bandit Protector"],
   magra: ["Mountain Enforcer", "Dadan Family Fighter", "Rogue Outlaw"],
+  harald: ["King of Elbaf", "Giant Dominion", "Thunder Warhammer"],
 };
 
 function reqCard(code, m2Stage = 1, m3Stage = 2) {
