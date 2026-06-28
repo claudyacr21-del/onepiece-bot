@@ -85,10 +85,6 @@ function findOwnedCard(player, query) {
           hydrated.name,
           rawCard.displayName,
           rawCard.name,
-          hydrated.code,
-          rawCard.code,
-          hydrated.instanceId,
-          rawCard.instanceId,
         ]),
       };
     })
@@ -229,7 +225,7 @@ module.exports = {
 
     if (!previewFound) {
       return message.reply({
-        content: `Battle card matching \`${query}\` was not found.`,
+        content: `Battle card name matching \`${query}\` was not found.`,
         allowedMentions: {
           repliedUser: false,
         },
@@ -301,7 +297,7 @@ module.exports = {
           const found = findOwnedCard(fresh, query);
 
           if (!found) {
-            throw new Error(`Battle card matching \`${query}\` was not found.`);
+            throw new Error(`Battle card name matching \`${query}\` was not found.`);
           }
 
           const card = found.card;
