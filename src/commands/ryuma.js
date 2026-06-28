@@ -1792,18 +1792,19 @@ async function performAttack(message) {
       return interaction.reply({
         content: "Only the Ryuma attacker can use these buttons.",
         ephemeral: true,
-      });
+      }).catch(() => null);
     }
 
     if (turnBusy) {
       return interaction.reply({
-        content: "Previous Ryuma attack is still being processed. Please wait.",
+        content: "Previous Ryuma attack is still being processed.\nPlease wait.",
         ephemeral: true,
-      });
+      }).catch(() => null);
     }
 
-    turnBusy = true;
+    await interaction.deferUpdate().catch(() => null);
 
+    turnBusy = true;
     try {
       const cardIndex = Number(String(interaction.customId || "").replace("ryuma_card_", ""));
 
@@ -1837,7 +1838,7 @@ async function performAttack(message) {
         ended = true;
         collector.stop("event_not_started");
 
-        return interaction.update({
+        return sent.edit({
           content: `The Ryuma Global Boss Event has not started yet.\nStarts: ${RYUMA_EVENT_START_LABEL}`,
           embeds: [],
           components: [],
@@ -1848,7 +1849,7 @@ async function performAttack(message) {
         ended = true;
         collector.stop("event_ended");
 
-        return interaction.update({
+        return sent.edit({
           content: "The Ryuma Global Boss Event has ended.",
           embeds: [],
           components: [],
@@ -1883,7 +1884,7 @@ async function performAttack(message) {
         ended = true;
         collector.stop("no_attacks");
 
-        return interaction.update({
+        return sent.edit({
           content: `You have no attacks left. Your attacks reset <t:${Math.floor(freshAttackWindow.resetAt / 1000)}:R>.`,
           embeds: [],
           components: [],
@@ -1966,7 +1967,7 @@ async function performAttack(message) {
         allCardsDeadAfterHit ||
         turnCount >= ATTACK_LIMIT;
 
-      await interaction.update({
+      await sent.edit({
         content: null,
         embeds: [
           buildRyumaCardSelectEmbed({
@@ -1992,10 +1993,10 @@ async function performAttack(message) {
       }
     } catch (error) {
       console.error("[Ryuma] attack failed:", error);
-
-      await interaction.reply({
-        content: "Ryuma attack failed. Please try again.",
-        ephemeral: true,
+      await sent.edit({
+        content: "Ryuma attack failed.\nPlease try again.",
+        embeds: [],
+        components: buildRyumaCardRows(selectedCards, true),
       }).catch(() => null);
     } finally {
       turnBusy = false;
