@@ -919,21 +919,39 @@ function savePullAllResultFresh(userId, payload, username = "Unknown") {
     (fresh) => {
       const existing = fresh || {};
 
+      const nextPulls = payload.replacePulls
+        ? payload.pulls
+        : mergePullUsageForSave(existing.pulls, payload.pulls);
+
       return {
         ...existing,
-        cards: mergeCardCollections(existing.cards, payload.cards),
-        weapons: mergeNamedInventory(existing.weapons, payload.weapons),
-        devilFruits: mergeNamedInventory(existing.devilFruits, payload.devilFruits),
-        fragments: mergeStackList(existing.fragments, payload.fragments),
+
+        // Faster save:
+        // payload inventory is already the final Pull All result.
+        // Do not re-merge huge collections here.
+        cards: Array.isArray(payload.cards) ? payload.cards : existing.cards || [],
+        weapons: Array.isArray(payload.weapons) ? payload.weapons : existing.weapons || [],
+        devilFruits: Array.isArray(payload.devilFruits)
+          ? payload.devilFruits
+          : existing.devilFruits || [],
+        fragments: Array.isArray(payload.fragments)
+          ? payload.fragments
+          : existing.fragments || [],
         tickets: Array.isArray(payload.tickets) ? payload.tickets : existing.tickets || [],
+
         berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
-        pulls: mergePullUsageForSave(existing.pulls, payload.pulls),
-        pullAccessSnapshot: payload.pullAccessSnapshot || existing.pullAccessSnapshot,
-        pity: payload.pity,
+
+        // Important:
+        // op pa reset must replace pulls, not merge with old used count.
+        pulls: nextPulls,
+
+        pity: payload.pity || existing.pity || {},
+
         stats: {
           ...(existing.stats || {}),
           ...(payload.stats || {}),
         },
+
         quests: {
           ...(existing.quests || {}),
           ...(payload.quests || {}),
@@ -1381,7 +1399,7 @@ module.exports = {
       tickets: updatedTickets,
       addBerries: convertedBerries,
       pulls: updatedPulls,
-      pullAccessSnapshot: snapshot,
+      replacePulls: resetTicketUsed,
       pity: updatedPity,
       stats: {
         ...(player.stats || {}),
