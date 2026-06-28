@@ -28,7 +28,7 @@ const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 const { applyPirateRewardBonuses } = require("../utils/rewardBonuses");
 const RAID_ROOM_TIMEOUT_MS = 30 * 60 * 1000;
-const RAID_LOBBY_IDLE_REFUND_MS = 5 * 60 * 1000;
+const RAID_LOBBY_IDLE_REFUND_MS = 2 * 60 * 1000;
 const RAID_PICK_TIMEOUT_MS = 60 * 1000;
 const MAX_BATTLE_LOG_LINES = 2;
 

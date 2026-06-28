@@ -28,15 +28,16 @@ function normalizeCode(text) {
     .replace(/^_+|_+$/g, "");
 }
 
-function getFragmentStorageInfo(player, fragments = []) {
-  const list = Array.isArray(fragments) ? fragments : [];
+function getFragmentStorageInfo(player, fragments = [], userId = null) {
+  const list = Array.isArray(fragments)
+    ? fragments
+    : Array.isArray(player?.fragments)
+      ? player.fragments
+      : [];
 
   const total = list.reduce((sum, item) => {
     return sum + Math.max(0, Math.floor(Number(item?.amount || 0)));
   }, 0);
-
-  const BASE_FRAGMENT_STORAGE = 200;
-  const MAX_FRAGMENT_STORAGE = 5000;
 
   let passiveBonus = 0;
 
@@ -53,18 +54,21 @@ function getFragmentStorageInfo(player, fragments = []) {
     );
   }
 
-  const userId = String(
-    player?.id ||
+  const resolvedUserId = String(
+    userId ||
+      player?.id ||
       player?.userId ||
       player?.discordId ||
       player?.ownerId ||
       ""
   ).trim();
 
-  const pirateBonus = Math.max(
-    0,
-    Math.floor(Number(getPirateFragmentStorageBonus(userId) || 0))
-  );
+  const pirateBonus = resolvedUserId
+    ? Math.max(
+        0,
+        Math.floor(Number(getPirateFragmentStorageBonus(resolvedUserId) || 0))
+      )
+    : 0;
 
   const bonus = passiveBonus + pirateBonus;
   const max = Math.min(MAX_FRAGMENT_STORAGE, BASE_FRAGMENT_STORAGE + bonus);

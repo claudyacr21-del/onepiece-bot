@@ -353,9 +353,12 @@ module.exports = {
           storage = getFragmentStorageInfo(
             {
               ...fresh,
+              id: message.author.id,
+              userId: message.author.id,
               fragments,
             },
-            fragments
+            fragments,
+            message.author.id
           );
 
           result = {
