@@ -176,7 +176,7 @@ let dedupeInitStarted = false;
 let dedupeDisabledUntil = 0;
 
 function getDedupePool() {
-  const enabled = String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true";
+  const enabled = String(process.env.MESSAGE_DEDUPE_ENABLED || (process.env.DATABASE_URL ? "true" : "false")).toLowerCase() === "true";
 
   // Keep dedupe disabled unless explicitly enabled.
   // If Supabase is slow, DB-backed dedupe can block commands.
@@ -668,9 +668,7 @@ client.once("clientReady", async () => {
 
   console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
 
-  if (String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true") {
-    await ensureMessageDedupeTable();
-  }
+  if (String(process.env.MESSAGE_DEDUPE_ENABLED || (process.env.DATABASE_URL ? "true" : "false")).toLowerCase() === "true") { await ensureMessageDedupeTable(); }
 
   client.user.setPresence({
     status: "online",
