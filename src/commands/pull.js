@@ -695,6 +695,81 @@ function formatAtkRange(atk) {
   return `${Math.floor(value * 0.85)}-${Math.floor(value * 1.15)}`;
 }
 
+function formatResetTime(player) {
+  const pulls = player?.pulls || {};
+  const resetAt = Number(pulls.nextResetAt || pulls.resetAt || pulls.nextReset || 0);
+
+  if (resetAt > Date.now()) {
+    return `<t:${Math.floor(resetAt / 1000)}:R>`;
+  }
+
+  const lastResetBucket = Number(pulls.lastResetBucket || 0);
+  const sixHoursMs = 6 * 60 * 60 * 1000;
+  const nextFromBucket = lastResetBucket > 0 ? lastResetBucket + sixHoursMs : 0;
+
+  if (nextFromBucket > Date.now()) {
+    return `<t:${Math.floor(nextFromBucket / 1000)}:R>`;
+  }
+
+  return "after the next reset";
+}
+
+function buildRunOutOfPullsMessage(player, totalUsed, totalMax) {
+  const supportInvite =
+    process.env.SUPPORT_SERVER_INVITE_URL ||
+    process.env.SUPPORT_SERVER_INVITE ||
+    process.env.DISCORD_INVITE_URL ||
+    process.env.SERVER_INVITE_URL ||
+    "";
+
+  const voteUrl =
+    process.env.TOPGG_VOTE_URL ||
+    process.env.VOTE_URL ||
+    "";
+
+  const patreonUrl =
+    process.env.PATREON_URL ||
+    process.env.PATREON_LINK ||
+    "";
+
+  const lines = [
+    `You've run out of pulls! **(${totalUsed}/${totalMax})**`,
+    "",
+    "🎲 You can pull more cards after reset!",
+    `**Next Reset:** ${formatResetTime(player)}`,
+    "",
+    "📢 Want more pulls now?",
+  ];
+
+  if (voteUrl) {
+    lines.push(`↪️ **Vote for One Piece Bot** to pull more times!\n${voteUrl}`);
+  } else {
+    lines.push("↪️ **Vote for One Piece Bot** to get more pulls!");
+  }
+
+  lines.push("↪️ **Support Server** members get extra pulls per reset!");
+  lines.push("Make sure to join!");
+
+  if (supportInvite) {
+    lines.push(supportInvite);
+  }
+
+  lines.push("");
+  lines.push("↪️ **Server nitro boosters** get an extra pull per reset!");
+  lines.push("↪️ **Invite the bot** to your own server to get an extra pull per reset!");
+
+  if (patreonUrl) {
+    lines.push(`↪️ **Join Patreon** to get up to 2 extra pulls per reset!\n${patreonUrl}`);
+  } else {
+    lines.push("↪️ **Join Patreon** to get up to 2 extra pulls per reset!");
+  }
+
+  lines.push("");
+  lines.push("💡 **Tip:** Unlocking & upgrading **Takada**'s card mastery can grant you up to **3 more pulls per reset!**");
+
+  return lines.join("\n");
+}
+
 function getTicketUseText(ticket) {
   const code = String(ticket?.code || "").toLowerCase().trim();
   const rarity = String(ticket?.rarity || "").toUpperCase().trim();
@@ -1230,17 +1305,23 @@ module.exports = {
     const available = Math.max(0, totalMax - totalUsed);
 
     if (available <= 0) {
-      return message.reply(
-        "You do not have any available pulls right now.\nUse `op pullinfo` to check your slots."
-      );
+      return message.reply({
+        content: buildRunOutOfPullsMessage(player, totalUsed, totalMax),
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     const pullKey = getNextAvailablePullKey(player, message);
 
     if (!pullKey) {
-      return message.reply(
-        "You do not have any available pulls right now.\nUse `op pullinfo` to check your slots."
-      );
+      return message.reply({
+        content: buildRunOutOfPullsMessage(player, totalUsed, totalMax),
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
     }
 
     const updatedPulls = consumePullSlot(player, pullKey);
