@@ -669,41 +669,28 @@ module.exports = {
           if (result.items) updatedItems = result.items;
         }
 
-        const guaranteedPullResetTicket = makePullResetTicketReward(1);
+        const dailyPullResetTicketAmount = 1 + (baccaratBonusApplied ? 1 : 0);
+        const dailyPullResetTicket = makePullResetTicketReward(dailyPullResetTicketAmount);
 
-        updatedTickets = addPullResetTicketToTickets(updatedTickets, 1);
+        updatedTickets = addPullResetTicketToTickets(
+          updatedTickets,
+          dailyPullResetTicketAmount
+        );
 
         // Guaranteed daily Pull Reset Ticket:
         // Every daily claim gives 1 Pull Reset Ticket.
-        // Keep tickets, items, and legacy counters compatible.
+        // Baccarat / Raki Raki gives +1 extra.
+        // Total: normal = x1, Baccarat = x2.
         updatedItems = addOrIncrease(updatedItems, {
-          ...guaranteedPullResetTicket,
+          ...dailyPullResetTicket,
           category: "ticket",
         });
 
-        rewardsToApply.push(guaranteedPullResetTicket);
+        rewardsToApply.push(dailyPullResetTicket);
 
         console.log(
-          `[DAILY GUARANTEED] Added Pull Reset Ticket to tickets/items for ${message.author.id}.`
+          `[DAILY PULL RESET TICKET] Added Pull Reset Ticket x${dailyPullResetTicketAmount} for ${message.author.id}.`
         );
-
-        if (baccaratBonusApplied) {
-          const baccaratPullResetTicket = makePullResetTicketReward(1);
-
-          updatedTickets = addPullResetTicketToTickets(updatedTickets, 1);
-
-          // Baccarat / Raki Raki bonus gives 1 extra Pull Reset Ticket.
-          updatedItems = addOrIncrease(updatedItems, {
-            ...baccaratPullResetTicket,
-            category: "ticket",
-          });
-
-          rewardsToApply.push(baccaratPullResetTicket);
-
-          console.log(
-            `[DAILY BACCARAT] Added bonus Pull Reset Ticket to tickets/items for ${message.author.id}.`
-          );
-        }
 
         appliedRewards = rewardsToApply;
 
@@ -717,9 +704,10 @@ module.exports = {
           tickets: updatedTickets,
           materials: updatedMaterials,
           items: updatedItems,
-          pullResetTickets: Number(fresh.pullResetTickets || 0) + (baccaratBonusApplied ? 1 : 0),
+          pullResetTickets:
+            Number(fresh.pullResetTickets || 0) + dailyPullResetTicketAmount,
           pull_reset_ticket_count:
-            Number(fresh.pull_reset_ticket_count || 0) + (baccaratBonusApplied ? 1 : 0),
+            Number(fresh.pull_reset_ticket_count || 0) + dailyPullResetTicketAmount,
           dailyLastClaim: now,
           quests: {
             ...(fresh.quests || {}),
