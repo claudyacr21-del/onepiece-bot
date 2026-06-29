@@ -716,10 +716,7 @@ function formatResetTime(player) {
 
 function buildRunOutOfPullsMessage(player, totalUsed, totalMax) {
   const supportInvite =
-    process.env.SUPPORT_SERVER_INVITE_URL ||
-    process.env.SUPPORT_SERVER_INVITE ||
-    process.env.DISCORD_INVITE_URL ||
-    process.env.SERVER_INVITE_URL ||
+    process.env.SUPPORT_SERVER_URL ||
     "";
 
   const voteUrl =
@@ -727,10 +724,31 @@ function buildRunOutOfPullsMessage(player, totalUsed, totalMax) {
     process.env.VOTE_URL ||
     "";
 
+  const botInviteUrl =
+    process.env.BOT_INVITE_URL ||
+    process.env.INVITE_BOT_URL ||
+    "";
+
   const patreonUrl =
     process.env.PATREON_URL ||
     process.env.PATREON_LINK ||
     "";
+
+  const voteText = voteUrl
+    ? `[Vote for One Piece Bot](${voteUrl})`
+    : "**Vote for One Piece Bot**";
+
+  const supportText = supportInvite
+    ? `[Support Server](${supportInvite})`
+    : "**Support Server**";
+
+  const botInviteText = botInviteUrl
+    ? `[Invite the bot](${botInviteUrl})`
+    : "**Invite the bot**";
+
+  const patreonText = patreonUrl
+    ? `[Join Patreon](${patreonUrl})`
+    : "**Join Patreon**";
 
   const lines = [
     `You've run out of pulls! **(${totalUsed}/${totalMax})**`,
@@ -739,33 +757,20 @@ function buildRunOutOfPullsMessage(player, totalUsed, totalMax) {
     `**Next Reset:** ${formatResetTime(player)}`,
     "",
     "📢 Want more pulls now?",
+    `↪️ ${voteText} to pull more times!`,
+    `↪️ ${supportText} members get an extra pull per reset!`,
+    "Assure to join!",
+    `↪️ ${supportText} nitro boosters get an extra pull per reset!`,
+    `↪️ ${botInviteText} to your own server to get an extra pull per reset!`,
+    `↪️ ${patreonText} to get up to 2 extra pulls per reset!`,
+    "",
+    "💡 **Tip:** Unlocking & upgrading **Takada**'s card mastery can grant you up to **3 more pulls per reset!**",
   ];
 
-  if (voteUrl) {
-    lines.push(`↪️ **Vote for One Piece Bot** to pull more times!\n${voteUrl}`);
-  } else {
-    lines.push("↪️ **Vote for One Piece Bot** to get more pulls!");
-  }
-
-  lines.push("↪️ **Support Server** members get extra pulls per reset!");
-  lines.push("Make sure to join!");
-
   if (supportInvite) {
+    lines.push("");
     lines.push(supportInvite);
   }
-
-  lines.push("");
-  lines.push("↪️ **Server nitro boosters** get an extra pull per reset!");
-  lines.push("↪️ **Invite the bot** to your own server to get an extra pull per reset!");
-
-  if (patreonUrl) {
-    lines.push(`↪️ **Join Patreon** to get up to 2 extra pulls per reset!\n${patreonUrl}`);
-  } else {
-    lines.push("↪️ **Join Patreon** to get up to 2 extra pulls per reset!");
-  }
-
-  lines.push("");
-  lines.push("💡 **Tip:** Unlocking & upgrading **Takada**'s card mastery can grant you up to **3 more pulls per reset!**");
 
   return lines.join("\n");
 }
