@@ -44,6 +44,26 @@ const ITEMS = {
     description: "A premium treasure box with high-value rewards.",
   },
 
+  exclusiveEventChest: {
+    name: "Exclusive Event Chest",
+    amount: 1,
+    rarity: "UR",
+    code: "exclusive_event_chest",
+    type: "Box",
+    description:
+      "A special Ryuma Global Boss Event chest. Not available in the shop.",
+  },
+
+  ryumaPityCharm: {
+    name: "Ryuma Pity Charm",
+    amount: 1,
+    rarity: "S",
+    code: "ryuma_pity_charm",
+    type: "Event Item",
+    description:
+      "Passive event item from Ryuma global milestones. Reduces non-premium pity only. 1 charm = 140 pity, 2 charms = 135 pity, 3 charms = 130 pity. Maximum effect is 3 charms.",
+  },
+
   woodenMaterialBox: {
     name: "Wooden Material Box",
     amount: 1,

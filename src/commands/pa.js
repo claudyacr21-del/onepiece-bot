@@ -956,10 +956,9 @@ function savePullAllResultFresh(userId, payload, username = "Unknown", message =
       }
 
       const consumedPulls = consumeAllActivePullSlots(freshPlayer, message);
-      const finalPulls =
-        payload.manualResetAfterPull && payload.manualResetPulls
-          ? payload.manualResetPulls
-          : consumedPulls;
+      const finalPulls = payload.manualResetAfterPull
+        ? applyManualPullReset(consumedPulls).pulls
+        : consumedPulls;
 
       didSave = true;
       savedPulls = finalPulls;
@@ -1403,7 +1402,6 @@ module.exports = {
       premiumSPity: pityCounter,
     };
 
-    let updatedPulls = reservedPulls;
     let resetTicketUsed = false;
     let resetFailedReason = "";
 
@@ -1426,8 +1424,6 @@ module.exports = {
           updatedTickets.splice(ticketIndex, 1);
         }
 
-        const manualResetState = applyManualPullReset(updatedPulls);
-        updatedPulls = manualResetState.pulls;
         resetTicketUsed = true;
       }
     }
@@ -1456,7 +1452,6 @@ module.exports = {
         pullAccessSnapshot: snapshot,
 
         manualResetAfterPull: resetTicketUsed,
-        manualResetPulls: resetTicketUsed ? updatedPulls : null,
 
         stats: {
           ...(player.stats || {}),

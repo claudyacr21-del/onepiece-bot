@@ -551,6 +551,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     boxes: [...(state.boxes || [])],
     berries: Number(state.berries || 0),
     gems: Number(state.gems || 0),
+    ryumaTokens: Number(state.ryumaTokens || 0),
   };
 
   function addReward(item, qty) {
@@ -571,6 +572,12 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     const totalAmount = Number(qty || 0) * Number(amount || 1);
     nextState.gems += totalAmount;
     addRewardLine(rewardMap, "Gems", totalAmount);
+  }
+
+  function addRyumaTokens(qty) {
+    const totalAmount = Number(qty || 0) * Number(amount || 1);
+    nextState.ryumaTokens += totalAmount;
+    addRewardLine(rewardMap, "Ryuma Tokens", totalAmount);
   }
 
   if (box.code === "wooden_material_box") {
@@ -664,6 +671,12 @@ function grantBoxRewards(box, amount, state, rewardMap) {
         Math.random() < 0.4 ? 3 : 2
       );
     }
+  } else if (box.code === "exclusive_event_chest") {
+    addBerries(2000000);
+    addGems(2000);
+    addRyumaTokens(100);
+    addReward(getGoldRaidTicketItem(), 5);
+    addReward(getPullResetTicketItem(), 10);
   } else {
     return null;
   }
@@ -938,6 +951,7 @@ module.exports = {
               boxes: updatedBoxes,
               berries: Number(fixedFresh.berries || 0),
               gems: Number(fixedFresh.gems || 0),
+              ryumaTokens: Number(fixedFresh.ryumaTokens || 0),
             },
             rewardMap
           );
@@ -957,6 +971,7 @@ module.exports = {
             fragments: rewardState.fragments,
             berries: rewardState.berries,
             gems: rewardState.gems,
+            ryumaTokens: rewardState.ryumaTokens,
             quests: updatedQuests,
           };
         },
