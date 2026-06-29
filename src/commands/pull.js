@@ -1306,25 +1306,24 @@ module.exports = {
 
     player.pullAccessSnapshot = snapshot;
 
-    const usage = getTotalPullUsage(player, message);
-    const totalUsed = Number(usage.totalUsed || 0);
-    const totalMax = Number(usage.totalMax || 0);
-    const available = Math.max(0, totalMax - totalUsed);
-
-    if (available <= 0) {
-      return message.reply({
-        content: buildRunOutOfPullsMessage(player, totalUsed, totalMax),
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
+    const usageBeforePull = getTotalPullUsage(player, message);
+    const totalUsed = Number(usageBeforePull.totalUsed || 0);
+    const totalMax = Number(usageBeforePull.totalMax || 0);
 
     const pullKey = getNextAvailablePullKey(player, message);
 
     if (!pullKey) {
+      const refreshedPlayer = getPlayer(message.author.id, message.author.username);
+      const refreshedUsage = getTotalPullUsage(refreshedPlayer || player, message);
+      const refreshedTotalUsed = Number(refreshedUsage.totalUsed || totalUsed || 0);
+      const refreshedTotalMax = Number(refreshedUsage.totalMax || totalMax || 0);
+
       return message.reply({
-        content: buildRunOutOfPullsMessage(player, totalUsed, totalMax),
+        content: buildRunOutOfPullsMessage(
+          refreshedPlayer || player,
+          refreshedTotalUsed,
+          refreshedTotalMax
+        ),
         allowedMentions: {
           repliedUser: false,
         },
@@ -1521,7 +1520,7 @@ module.exports = {
       .setDescription(
         [
           `**Slot Used:** ${prettySlotName(pullKey)}`,
-          `**Remaining Pulls:** ${available - 1}/${totalMax}`,
+          `**Remaining Pulls:** ${Math.max(0, totalMax - totalUsed - 1)}/${totalMax}`,
           `**${pityText}**`,
           getLuckyWeekBonusLine(),
           "",
