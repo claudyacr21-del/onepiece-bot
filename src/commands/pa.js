@@ -1161,6 +1161,13 @@ module.exports = {
       });
     }
 
+    const processingMessage = await message.reply({
+      content: `Pulling all available slots... (${availableTotal} pull${availableTotal === 1 ? "" : "s"})`,
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+
     let updatedCards = [...(player.cards || [])];
     let updatedWeapons = [...(player.weapons || [])];
     let updatedDevilFruits = [...(player.devilFruits || [])];
@@ -1232,11 +1239,7 @@ module.exports = {
 
       const isDuplicateWeapon =
         rewardResult.storageKey === "weapons" &&
-        hasWeaponOwnedOrEquipped(
-          player,
-          updatedWeapons,
-          rewardResult.storedReward.code
-        );
+        hasNamedItemByCode(updatedWeapons, rewardResult.storedReward.code);
 
       const needsStorageSlot =
         ["cards", "weapons"].includes(rewardResult.storageKey) &&
@@ -1546,8 +1549,7 @@ module.exports = {
       );
     }
 
-    return processingMessage.edit({
-      content: null,
+    return message.reply({
       embeds,
       allowedMentions: {
         repliedUser: false,
