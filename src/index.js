@@ -177,6 +177,7 @@ function startPirateWeeklyResetScheduler() {
 
 
 let readyStarted = false;
+let isShuttingDown = false;
 let dedupePool = null;
 let dedupeReady = false;
 let dedupeInitStarted = false;
@@ -270,10 +271,64 @@ async function claimMessageOnce(message, commandName = "") {
     processedMessageIds.delete(messageId);
   }, 60_000);
 
-  // Fast path only: do not use Supabase/Postgres for message dedupe.
-  // Render is running one bot service, so local memory dedupe is enough.
-  // This prevents Supabase timeout from blocking bot commands.
-  return true;
+  const dedupeEnabled =
+    String(process.env.MESSAGE_DEDUPE_ENABLED || "true").toLowerCase() === "true";
+
+  if (!dedupeEnabled) {
+    return true;
+  }
+
+  const pool = getDedupePool();
+
+  if (!pool) {
+    console.warn("[MESSAGE DEDUPE BLOCKED] Dedupe pool unavailable. Command skipped to prevent duplicate replies.");
+    return false;
+  }
+
+  try {
+    if (!dedupeReady) {
+      await ensureMessageDedupeTable();
+    }
+
+    if (!dedupeReady) {
+      console.warn("[MESSAGE DEDUPE BLOCKED] Dedupe table not ready. Command skipped to prevent duplicate replies.");
+      return false;
+    }
+
+    const result = await pool.query(
+      `
+      insert into bot_processed_messages (message_id, user_id, command_name)
+      values ($1, $2, $3)
+      on conflict (message_id) do nothing
+      returning message_id
+      `,
+      [
+        messageId,
+        String(message?.author?.id || ""),
+        String(commandName || ""),
+      ]
+    );
+
+    return result.rowCount > 0;
+  } catch (error) {
+    const errorMessage = String(error?.message || "");
+
+    if (
+      errorMessage.includes("Query read timeout") ||
+      errorMessage.includes("timeout exceeded") ||
+      errorMessage.includes("Connection terminated") ||
+      errorMessage.includes("Connection terminated unexpectedly")
+    ) {
+      console.warn("[MESSAGE DEDUPE BLOCKED] Supabase dedupe timeout. Command skipped to prevent duplicate replies.");
+    } else {
+      console.error("[MESSAGE DEDUPE CLAIM ERROR]", error);
+    }
+
+    dedupeReady = false;
+    dedupeDisabledUntil = Date.now() + 15_000;
+
+    return false;
+  }
 }
 
 async function attachMainServerContext(message) {
@@ -677,6 +732,7 @@ client.once("clientReady", async () => {
 
 client.on("messageCreate", async (message) => {
   try {
+    if (isShuttingDown) return;
     if (message.partial) {
       try {
         await message.fetch();
@@ -929,9 +985,20 @@ let shutdownFlushRunning = false;
 async function flushBeforeShutdown(signal = "shutdown") {
   if (shutdownFlushRunning) return;
   shutdownFlushRunning = true;
+  isShuttingDown = true;
 
   try {
-    console.log(`[SHUTDOWN] ${signal} received. Flushing player data...`);
+    console.log(`[SHUTDOWN] ${signal} received. Disconnecting Discord client...`);
+
+    try {
+      client.removeAllListeners("messageCreate");
+      client.destroy();
+      console.log("[SHUTDOWN] Discord client disconnected.");
+    } catch (error) {
+      console.error("[SHUTDOWN CLIENT DESTROY ERROR]", error?.message || error);
+    }
+
+    console.log("[SHUTDOWN] Flushing player data...");
     await flushPlayerStoreNow(Number(process.env.SHUTDOWN_SAVE_TIMEOUT_MS || 15000));
     console.log("[SHUTDOWN] Player data flushed.");
   } catch (error) {
