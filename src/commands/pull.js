@@ -764,9 +764,11 @@ function buildRunOutOfPullsMessage(player, totalUsed, totalMax) {
     `↪️ ${botInviteText} to your own server to get an extra pull per reset!`,
     `↪️ ${patreonText} to get up to 2 extra pulls per reset!`,
     "",
-    "💡 **Tip:** Unlocking & upgrading **Takada**'s card mastery can grant you up to **3 more pulls per reset!**",
+    "💡 **Tip:** Unlocking & upgrading **Baccarat**'s card mastery can grant you up to **3 more pulls per reset!**",
   ];
 
+  // Keep only the main server invite as a raw link at the very end.
+  // This is the only link that should generate a Discord server preview card.
   if (supportInvite) {
     lines.push("");
     lines.push(supportInvite);
