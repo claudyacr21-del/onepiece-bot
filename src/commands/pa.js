@@ -1107,7 +1107,7 @@ module.exports = {
       const useManualResetAfterPull = String(args[0] || "").toLowerCase() === "reset";
 
       await replyOrEdit({
-        content: "Pull All is starting...",
+        content: "Pulling all available slots...",
         allowedMentions: {
           repliedUser: false,
         },
