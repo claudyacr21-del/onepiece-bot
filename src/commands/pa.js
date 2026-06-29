@@ -1,7 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const {
   getPlayer,
-  updatePlayer,
   updatePlayerAtomic,
 } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
@@ -91,7 +90,7 @@ function rollThroneEquivalentCardTier(baseTier) {
   // Same special feel as Empty Throne Raid Writ.
   // Road Poneglyph will only appear from pullTier: "THRONE".
   const roll = Math.random() * 100;
-  if (roll < 2.5) return "THRONE";
+  if (roll < 1.5) return "THRONE";
   return baseTier;
 }
 
@@ -148,7 +147,7 @@ function getTicketPool() {
       name: "Empty Throne Raid Writ",
       rarity: "S",
       type: "Ticket",
-      weight: 20,
+      weight: 15,
     },
     {
       code: "mythic_raid_ticket",
@@ -1145,27 +1144,15 @@ module.exports = {
       vivreCard: false,
     };
 
-    updatePlayer(message.author.id, {
-      pullAccessSnapshot: player.pullAccessSnapshot,
-    });
-
     const resetState = applyGlobalPullReset(player);
 
     if (resetState?.wasReset) {
-      updatePlayer(message.author.id, {
-        pulls: resetState.pulls,
-      });
-
       player.pulls = resetState.pulls;
     }
 
     const snapshot = buildPullAccessSnapshot(player, message);
     snapshot.patreon = true;
     snapshot.vivreCard = false;
-
-    updatePlayer(message.author.id, {
-      pullAccessSnapshot: snapshot,
-    });
 
     player.pullAccessSnapshot = snapshot;
 
