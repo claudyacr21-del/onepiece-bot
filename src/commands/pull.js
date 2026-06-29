@@ -82,11 +82,15 @@ function getRyumaPityCharmCount(player) {
 function getRyumaPityLimit(player, defaultLimit) {
   const charms = getRyumaPityCharmCount(player);
 
-  if (charms >= 3) return Math.min(defaultLimit, 130);
-  if (charms === 2) return Math.min(defaultLimit, 135);
-  if (charms === 1) return Math.min(defaultLimit, 140);
+  // Only reduce non-premium normal pity.
+  // Premium / Mother Flame already has 100 pity and must stay 100.
+  if (Number(defaultLimit) <= PREMIUM_PITY_TARGET) return defaultLimit;
 
-  return defaultLimit;
+  if (charms >= 3) return 130;
+  if (charms === 2) return 135;
+  if (charms === 1) return 140;
+
+  return 150;
 }
 
 function getPityLimit(tier, player = null) {
@@ -94,14 +98,22 @@ function getPityLimit(tier, player = null) {
     tier === "motherFlame"
       ? PREMIUM_PITY_TARGET
       : tier === "vivreCard"
-        ? VIVRE_PITY_TARGET
-        : NORMAL_PITY_TARGET;
+      ? VIVRE_PITY_TARGET
+      : NORMAL_PITY_TARGET;
 
   return getRyumaPityLimit(player, baseLimit);
 }
 
 function getPityGuarantee(tier) {
-  return tier === "none" || tier === "normal" ? "A" : "S";
+  // Ryuma Event update:
+  // Normal / non-premium pity is now guaranteed S, not A.
+  // Pity target:
+  // 0 Ryuma Pity Charm = 150 pulls
+  // 1 Ryuma Pity Charm = 140 pulls
+  // 2 Ryuma Pity Charms = 135 pulls
+  // 3 Ryuma Pity Charms = 130 pulls
+  // Premium / Mother Flame stays 100 pity.
+  return "S";
 }
 
 function getEffectivePullTierForSlot(roleTier, pullKey) {

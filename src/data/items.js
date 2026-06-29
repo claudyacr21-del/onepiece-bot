@@ -61,7 +61,7 @@ const ITEMS = {
     code: "ryuma_pity_charm",
     type: "Event Item",
     description:
-      "Passive event item from Ryuma global milestones. Reduces non-premium pity only. 1 charm = 140 pity, 2 charms = 135 pity, 3 charms = 130 pity. Maximum effect is 3 charms.",
+      "Passive Ryuma event item from global milestones. Reduces normal non-premium pity only. 1 charm = 140 pity, 2 charms = 135 pity, 3 charms = 130 pity. Maximum effect is 3 charms.",
   },
 
   woodenMaterialBox: {
