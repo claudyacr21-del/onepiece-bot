@@ -97,10 +97,13 @@ function getPityLimit(tier, player = null) {
   return getRyumaNormalPityLimit(player);
 }
 
-function getPityGuarantee(tier) {
-  // Ryuma Event update:
-  // normal / non-premium pity guarantee is now S, not A.
-  return "S";
+function getPityGuarantee(tier, player = null) {
+  if (tier === "motherFlame") return "S";
+  if (tier === "vivreCard") return "S";
+
+  const ryumaPityCharmCount = getRyumaPityCharmCount(player);
+
+  return ryumaPityCharmCount > 0 ? "S" : "A";
 }
 
 function getPityGuarantee(tier) {
@@ -1245,7 +1248,7 @@ module.exports = {
 
     const premiumTier = getEffectivePullTierForSlot(roleTier, pullKey);
     const pityLimit = getPityLimit(premiumTier, player);
-    const pityGuarantee = getPityGuarantee(premiumTier);
+    const pityGuarantee = getPityGuarantee(premiumTier, player);
 
     let pityCounter = getSharedPity(player) + 1;
     const triggeredPity = pityCounter >= pityLimit;

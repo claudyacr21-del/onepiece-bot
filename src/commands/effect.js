@@ -24,9 +24,29 @@ function getSharedPity(player) {
   );
 }
 
-function getPityLimitByTier(tier) {
+function getRyumaPityCharmCount(player) {
+  const items = Array.isArray(player?.items) ? player.items : [];
+
+  const charm = items.find((item) => {
+    const code = String(item?.code || "").toLowerCase().trim();
+    const name = String(item?.name || "").toLowerCase().trim();
+
+    return code === "ryuma_pity_charm" || name === "ryuma pity charm";
+  });
+
+  return Math.max(0, Math.min(3, Math.floor(Number(charm?.amount || 0))));
+}
+
+function getPityLimitByTier(tier, player = null) {
   if (tier === "motherFlame") return 100;
   if (tier === "vivreCard") return 125;
+
+  const charms = getRyumaPityCharmCount(player);
+
+  if (charms >= 3) return 130;
+  if (charms === 2) return 135;
+  if (charms === 1) return 140;
+
   return 150;
 }
 
@@ -36,10 +56,13 @@ function getPremiumLabelByTier(tier) {
   return "Normal";
 }
 
-function getPityGuaranteeByTier(tier) {
+function getPityGuaranteeByTier(tier, player = null) {
   if (tier === "motherFlame") return "S";
   if (tier === "vivreCard") return "S";
-  return "A";
+
+  const ryumaPityCharmCount = getRyumaPityCharmCount(player);
+
+  return ryumaPityCharmCount > 0 ? "S" : "A";
 }
 
 module.exports = {
@@ -95,9 +118,10 @@ module.exports = {
     player.quests = syncPayload.quests;
     player.pullAccessSnapshot = snapshot;
 
-    const pityLimit = getPityLimitByTier(premiumTier);
+    const ryumaPityCharmCount = getRyumaPityCharmCount(player);
+    const pityLimit = getPityLimitByTier(premiumTier, player);
     const premiumLabel = getPremiumLabelByTier(premiumTier);
-    const pityGuarantee = getPityGuaranteeByTier(premiumTier);
+    const pityGuarantee = getPityGuaranteeByTier(premiumTier, player);
     const pityDrop = `${getSharedPity(player)}/${pityLimit}`;
 
     const boosts = getPassiveBoostSummary(player);
@@ -112,6 +136,7 @@ module.exports = {
           `↪ Premium Tier: ${premiumLabel}`,
           `↪ Pulls Done: ${totalUsed}/${totalMax}`,
           `↪ Quest Left: ${questSummary.left}/${questSummary.total}`,
+          `↪ Ryuma Pity Charm: ${ryumaPityCharmCount}/3`,
           `↪ Pity Drop: ${pityDrop}`,
           `↪ Pity Guarantee: ${pityGuarantee}`,
           "",
