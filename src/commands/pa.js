@@ -1161,13 +1161,6 @@ module.exports = {
       });
     }
 
-    const processingMessage = await message.reply({
-      content: `Pulling all available slots... (${availableTotal} pull${availableTotal === 1 ? "" : "s"})`,
-      allowedMentions: {
-        repliedUser: false,
-      },
-    });
-
     let updatedCards = [...(player.cards || [])];
     let updatedWeapons = [...(player.weapons || [])];
     let updatedDevilFruits = [...(player.devilFruits || [])];
@@ -1456,9 +1449,8 @@ module.exports = {
     );
 
     if (!saveResult.didSave) {
-      return processingMessage.edit({
+      return message.reply({
         content: "You do not have any available pulls right now.",
-        embeds: [],
         allowedMentions: {
           repliedUser: false,
         },
@@ -1553,8 +1545,7 @@ module.exports = {
       );
     }
 
-    return processingMessage.edit({
-      content: null,
+    return message.reply({
       embeds,
       allowedMentions: {
         repliedUser: false,
