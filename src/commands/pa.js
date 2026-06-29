@@ -18,7 +18,6 @@ const {
 } = require("../utils/autoSac");
 const {
   getPullSlotStatus,
-  getTotalPullUsage,
   consumeAllActivePullSlots,
   buildPullAccessSnapshot,
 } = require("../utils/pullSlots");
@@ -1187,9 +1186,6 @@ module.exports = {
         },
       });
     }
-
-    const reservedPulls = consumeAllActivePullSlots(player, message);
-    player.pulls = reservedPulls;
 
     let updatedCards = [...(player.cards || [])];
     let updatedWeapons = [...(player.weapons || [])];
