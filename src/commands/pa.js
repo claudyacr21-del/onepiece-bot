@@ -1103,29 +1103,10 @@ module.exports = {
 
     PULL_COMMAND_LOCKS.add(paLockKey);
 
-    try {
-      const useManualResetAfterPull = String(args[0] || "").toLowerCase() === "reset";
+try {
+  const useManualResetAfterPull = String(args[0] || "").toLowerCase() === "reset";
 
-      await replyOrEdit({
-        content: "Pulling all available slots...",
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-
-      const premiumAccess = await isPremiumUser(message);
-
-      if (!premiumAccess) {
-        return replyOrEdit({
-          content: `Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`,
-          embeds: [],
-          allowedMentions: {
-            repliedUser: false,
-          },
-        });
-      }
-
-    const player = getPlayer(message.author.id, message.author.username);
+  const player = getPlayer(message.author.id, message.author.username);
     player.id = String(message.author.id);
     player.userId = String(message.author.id);
 
@@ -1171,6 +1152,15 @@ module.exports = {
       0
     );
 
+    if (availableTotal > 0) {
+      processingMessage = await message.reply({
+        content: `Pulling all available slots... (${availableTotal} pull${availableTotal === 1 ? "" : "s"})`,
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
     if (availableTotal <= 0) {
       return replyOrEdit({
         content: "You do not have any available pulls right now.",
@@ -1181,13 +1171,17 @@ module.exports = {
       });
     }
 
-    await replyOrEdit({
-      content: `Pulling all available slots... (${availableTotal} pull${availableTotal === 1 ? "" : "s"})`,
-      embeds: [],
-      allowedMentions: {
-        repliedUser: false,
-      },
-    });
+    const premiumAccess = await isPremiumUser(message);
+
+    if (!premiumAccess) {
+      return processingMessage.edit({
+        content: `Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`,
+        embeds: [],
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
 
     let updatedCards = [...(player.cards || [])];
     let updatedWeapons = [...(player.weapons || [])];

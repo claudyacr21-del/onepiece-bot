@@ -803,7 +803,21 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    await attachMainServerContext(message);
+    const shouldSkipMainContextFetch =
+      FAST_COMMAND_NAMES.has(normalizeCommandName(command.name)) ||
+      FAST_COMMAND_NAMES.has(normalizeCommandName(commandName));
+
+    if (shouldSkipMainContextFetch) {
+      message.commandGuild = message.guild || null;
+      message.commandMember = message.member || null;
+      message.mainGuild = message.guild || null;
+      message.mainMember = message.member || null;
+      message.resolvedGuild = message.guild || null;
+      message.resolvedMember = message.member || null;
+      message.isDMCommand = !message.guild;
+    } else {
+      await attachMainServerContext(message);
+    }
 
     const playersForBanCheck = readPlayers();
     const commandUserForBanCheck = playersForBanCheck[String(message.author.id)];
