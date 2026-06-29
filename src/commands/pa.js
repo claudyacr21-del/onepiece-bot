@@ -1081,6 +1081,15 @@ module.exports = {
 
   async execute(message, args = []) {
     const paLockKey = String(message.author.id);
+    let processingMessage = null;
+
+    const sendOrEditProcessingMessage = async (payload) => {
+      if (processingMessage && typeof processingMessage.edit === "function") {
+        return processingMessage.edit(payload).catch(() => message.reply(payload));
+      }
+
+      return message.reply(payload);
+    };
 
     if (PULL_COMMAND_LOCKS.has(paLockKey)) {
       return message.reply({
@@ -1161,7 +1170,7 @@ module.exports = {
       });
     }
 
-    const processingMessage = await message.reply({
+    processingMessage = await message.reply({
       content: `Pulling all available slots... (${availableTotal} pull${availableTotal === 1 ? "" : "s"})`,
       allowedMentions: {
         repliedUser: false,
@@ -1549,7 +1558,8 @@ module.exports = {
       );
     }
 
-    return message.reply({
+    return sendOrEditProcessingMessage({
+      content: "",
       embeds,
       allowedMentions: {
         repliedUser: false,

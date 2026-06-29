@@ -57,6 +57,13 @@ const client = new Client({
 const PREFIX = String(process.env.PREFIX || "op").toLowerCase();
 const COMMAND_COOLDOWN_MS = 3000;
 
+const FAST_COMMAND_NAMES = new Set([
+  "pull",
+  "pa",
+  "pullall",
+  "pullinfo",
+]);
+
 const ONEPIECE_MAIN_GUILD_ID =
   process.env.ONEPIECE_MAIN_GUILD_ID ||
   process.env.SUPPORT_GUILD_ID ||
@@ -176,7 +183,7 @@ let dedupeInitStarted = false;
 let dedupeDisabledUntil = 0;
 
 function getDedupePool() {
-  const enabled = String(process.env.MESSAGE_DEDUPE_ENABLED || (process.env.DATABASE_URL ? "true" : "false")).toLowerCase() === "true";
+  const enabled = String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true";
 
   // Keep dedupe disabled unless explicitly enabled.
   // If Supabase is slow, DB-backed dedupe can block commands.
@@ -264,7 +271,7 @@ async function claimMessageOnce(message, commandName = "") {
   }, 60_000);
 
   const dedupeEnabled =
-    String(process.env.MESSAGE_DEDUPE_ENABLED || (process.env.DATABASE_URL ? "true" : "false")).toLowerCase() === "true";
+    String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true";
 
   const failOpen =
     String(process.env.MESSAGE_DEDUPE_FAIL_OPEN || "false").toLowerCase() === "true";
@@ -668,7 +675,9 @@ client.once("clientReady", async () => {
 
   console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
 
-  if (String(process.env.MESSAGE_DEDUPE_ENABLED || (process.env.DATABASE_URL ? "true" : "false")).toLowerCase() === "true") { await ensureMessageDedupeTable(); }
+  if (String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true") {
+    await ensureMessageDedupeTable();
+  }
 
   client.user.setPresence({
     status: "online",
@@ -734,17 +743,35 @@ client.on("messageCreate", async (message) => {
       setTimeout(() => processedMessageIds.delete(String(message.id)), 60_000);
     }
 
-    if (message.guild) {
-      try {
-        await trackMessageMilestone(message);
-      } catch (error) {
-        console.error("[MESSAGE MILESTONE ERROR]", error);
+    if (!parsed) {
+      if (message.guild) {
+        setImmediate(() => {
+          trackMessageMilestone(message).catch((error) => {
+            console.error("[MESSAGE MILESTONE ERROR]", error);
+          });
+
+          maybeSpawnMarineEvent(client, message).catch((error) => {
+            console.error("[MARINE EVENT ERROR]", error);
+          });
+        });
       }
 
-      await maybeSpawnMarineEvent(client, message);
+      return;
     }
 
-    if (!parsed) return;
+    const isFastCommand = FAST_COMMAND_NAMES.has(normalizeCommandName(parsed.commandName));
+
+    if (message.guild && !isFastCommand) {
+      setImmediate(() => {
+        trackMessageMilestone(message).catch((error) => {
+          console.error("[MESSAGE MILESTONE ERROR]", error);
+        });
+
+        maybeSpawnMarineEvent(client, message).catch((error) => {
+          console.error("[MARINE EVENT ERROR]", error);
+        });
+      });
+    }
 
     const { commandName, args } = parsed;
 
@@ -803,26 +830,32 @@ client.on("messageCreate", async (message) => {
 
     const cooldownKey = `${message.author.id}:${command.name || commandName}`;
     const now = Date.now();
-    const lastUsed = commandCooldowns.get(cooldownKey) || 0;
-    const remainingMs = COMMAND_COOLDOWN_MS - (now - lastUsed);
+    const isFastCommandCooldownBypass =
+      FAST_COMMAND_NAMES.has(normalizeCommandName(command.name)) ||
+      FAST_COMMAND_NAMES.has(normalizeCommandName(commandName));
 
-    if (remainingMs > 0) {
-      const remainingSeconds = Math.ceil(remainingMs / 1000);
+    if (!isFastCommandCooldownBypass) {
+      const lastUsed = commandCooldowns.get(cooldownKey) || 0;
+      const remainingMs = COMMAND_COOLDOWN_MS - (now - lastUsed);
 
-      await message.reply(
-        `⏳ Please wait **${remainingSeconds}s** before using \`${PREFIX} ${commandName}\` again.`
-      );
+      if (remainingMs > 0) {
+        const remainingSeconds = Math.ceil(remainingMs / 1000);
 
-      return;
-    }
+        await message.reply(
+          `⏳ Please wait **${remainingSeconds}s** before using \`${PREFIX} ${commandName}\` again.`
+        );
 
-    commandCooldowns.set(cooldownKey, now);
-
-    setTimeout(() => {
-      if (commandCooldowns.get(cooldownKey) === now) {
-        commandCooldowns.delete(cooldownKey);
+        return;
       }
-    }, COMMAND_COOLDOWN_MS + 250);
+
+      commandCooldowns.set(cooldownKey, now);
+
+      setTimeout(() => {
+        if (commandCooldowns.get(cooldownKey) === now) {
+          commandCooldowns.delete(cooldownKey);
+        }
+      }, COMMAND_COOLDOWN_MS + 250);
+    }
 
     if (message.guild) {
       const channelCheck = isCommandAllowedInChannel({
