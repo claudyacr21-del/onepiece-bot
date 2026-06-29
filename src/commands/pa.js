@@ -1239,7 +1239,11 @@ module.exports = {
 
       const isDuplicateWeapon =
         rewardResult.storageKey === "weapons" &&
-        hasNamedItemByCode(updatedWeapons, rewardResult.storedReward.code);
+        hasWeaponOwnedOrEquipped(
+          player,
+          updatedWeapons,
+          rewardResult.storedReward.code
+        );
 
       const needsStorageSlot =
         ["cards", "weapons"].includes(rewardResult.storageKey) &&

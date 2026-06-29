@@ -264,7 +264,7 @@ async function claimMessageOnce(message, commandName = "") {
   }, 60_000);
 
   const dedupeEnabled =
-    String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true";
+    String(process.env.MESSAGE_DEDUPE_ENABLED || (process.env.DATABASE_URL ? "true" : "false")).toLowerCase() === "true";
 
   const failOpen =
     String(process.env.MESSAGE_DEDUPE_FAIL_OPEN || "false").toLowerCase() === "true";
