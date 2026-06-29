@@ -911,7 +911,17 @@ function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
   return result;
 }
 
-function savePullAllResultFresh(userId, payload, username = "Unknown", message = null) {
+function clonePullPlanPlayer(player) {
+  return {
+    ...player,
+    pulls: JSON.parse(JSON.stringify(player?.pulls || {})),
+    pullAccessSnapshot: {
+      ...(player?.pullAccessSnapshot || {}),
+    },
+  };
+}
+
+function savePullAllResultFresh(userId, payload, username = "Unknown") {
   let didSave = false;
   let savedPulls = null;
   let savedAvailableTotal = 0;
@@ -920,48 +930,11 @@ function savePullAllResultFresh(userId, payload, username = "Unknown", message =
     userId,
     (fresh) => {
       const existing = fresh || {};
-
-      const freshPlayer = {
-        ...existing,
-        id: String(userId),
-        userId: String(userId),
-        pullAccessSnapshot: payload.pullAccessSnapshot || existing.pullAccessSnapshot || {},
-      };
-
-      const resetState = applyGlobalPullReset(freshPlayer);
-      freshPlayer.pulls = resetState?.pulls || existing.pulls || {};
-
-      const freshSlotStatus = getPullSlotStatus(freshPlayer, message);
-
-      const freshAvailableTotal = Object.values(freshSlotStatus).reduce((sum, slot) => {
-        if (!slot?.enabled) return sum;
-
-        const max = Math.max(0, Math.floor(Number(slot.max || 0)));
-        const used = Math.max(0, Math.floor(Number(slot.used || 0)));
-        const safeUsed = Math.min(used, max);
-
-        return sum + Math.max(0, max - safeUsed);
-      }, 0);
-
-      if (freshAvailableTotal <= 0) {
-        didSave = false;
-        savedAvailableTotal = 0;
-
-        return {
-          ...existing,
-          pulls: freshPlayer.pulls,
-          pullAccessSnapshot: freshPlayer.pullAccessSnapshot,
-        };
-      }
-
-      const consumedPulls = consumeAllActivePullSlots(freshPlayer, message);
-      const finalPulls = payload.manualResetAfterPull
-        ? applyManualPullReset(consumedPulls).pulls
-        : consumedPulls;
+      const finalPulls = payload.finalPulls || existing.pulls || {};
 
       didSave = true;
       savedPulls = finalPulls;
-      savedAvailableTotal = freshAvailableTotal;
+      savedAvailableTotal = Number(payload.availableTotal || 0);
 
       return {
         ...existing,
@@ -979,7 +952,8 @@ function savePullAllResultFresh(userId, payload, username = "Unknown", message =
 
         pulls: finalPulls,
         pity: payload.pity,
-        pullAccessSnapshot: freshPlayer.pullAccessSnapshot,
+        pullAccessSnapshot:
+          payload.pullAccessSnapshot || existing.pullAccessSnapshot || {},
 
         stats: {
           ...(existing.stats || {}),
@@ -1424,6 +1398,13 @@ module.exports = {
       }
     }
 
+    const pullPlanPlayer = clonePullPlanPlayer(player);
+    let finalPulls = consumeAllActivePullSlots(pullPlanPlayer, message);
+
+    if (resetTicketUsed) {
+      finalPulls = applyManualPullReset(finalPulls).pulls;
+    }
+
     const updatedDailyState = incrementQuestCounter(player, "pullsUsed", availableTotal);
 
     const fragmentStorageAudit = enforceFragmentStorageLimit(player, updatedFragments);
@@ -1447,7 +1428,8 @@ module.exports = {
         pity: updatedPity,
         pullAccessSnapshot: snapshot,
 
-        manualResetAfterPull: resetTicketUsed,
+        finalPulls,
+        availableTotal,
 
         stats: {
           ...(player.stats || {}),
@@ -1459,8 +1441,7 @@ module.exports = {
           dailyState: updatedDailyState,
         },
       },
-      message.author.username,
-      message
+      message.author.username
     );
 
     if (!saveResult.didSave) {
