@@ -4,6 +4,7 @@ const ENABLED_MARINE_SPAWN_GUILDS = [
 
   // Add paid server IDs here later:
  "1482746203514077286",
+ "1514997836524290089"
 ];
 
 function getEnvGuildIds() {
