@@ -345,6 +345,18 @@ async function attachMainServerContext(message) {
     return message;
   }
 
+  if (
+    message.guild &&
+    String(message.guild.id) === String(ONEPIECE_MAIN_GUILD_ID) &&
+    message.member
+  ) {
+    message.mainGuild = message.guild;
+    message.mainMember = message.member;
+    message.resolvedGuild = message.guild;
+    message.resolvedMember = message.member;
+    return message;
+  }
+
   const mainGuild =
     message.client.guilds.cache.get(ONEPIECE_MAIN_GUILD_ID) ||
     (await message.client.guilds.fetch(ONEPIECE_MAIN_GUILD_ID).catch(() => null));
@@ -691,8 +703,12 @@ client.once("clientReady", async () => {
 
   startTopggWebhookServer(client);
   startResetReminderService(client);
-  startAutoReloadService(client);
-startPirateWeeklyResetScheduler();
+
+  if (String(process.env.AUTO_RELOAD_ENABLED || "false").toLowerCase() === "true") {
+    startAutoReloadService(client);
+  }
+
+  startPirateWeeklyResetScheduler();
   
   syncArenaRankRoles(client).catch((error) => {
     console.error("[ARENA RANK ROLES READY SYNC ERROR]", error);

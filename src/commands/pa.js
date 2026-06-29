@@ -1083,12 +1083,13 @@ module.exports = {
     const paLockKey = String(message.author.id);
     let processingMessage = null;
 
-    const sendOrEditProcessingMessage = async (payload) => {
+    const replyOrEdit = async (payload) => {
       if (processingMessage && typeof processingMessage.edit === "function") {
         return processingMessage.edit(payload).catch(() => message.reply(payload));
       }
 
-      return message.reply(payload);
+      processingMessage = await message.reply(payload);
+      return processingMessage;
     };
 
     if (PULL_COMMAND_LOCKS.has(paLockKey)) {
@@ -1104,16 +1105,25 @@ module.exports = {
 
     try {
       const useManualResetAfterPull = String(args[0] || "").toLowerCase() === "reset";
-      const premiumAccess = await isPremiumUser(message);
 
-    if (!premiumAccess) {
-      return message.reply({
-        content: `Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`,
+      await replyOrEdit({
+        content: "Pull All is starting...",
         allowedMentions: {
           repliedUser: false,
         },
       });
-    }
+
+      const premiumAccess = await isPremiumUser(message);
+
+      if (!premiumAccess) {
+        return replyOrEdit({
+          content: `Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`,
+          embeds: [],
+          allowedMentions: {
+            repliedUser: false,
+          },
+        });
+      }
 
     const player = getPlayer(message.author.id, message.author.username);
     player.id = String(message.author.id);
@@ -1162,16 +1172,18 @@ module.exports = {
     );
 
     if (availableTotal <= 0) {
-      return message.reply({
+      return replyOrEdit({
         content: "You do not have any available pulls right now.",
+        embeds: [],
         allowedMentions: {
           repliedUser: false,
         },
       });
     }
 
-    processingMessage = await message.reply({
+    await replyOrEdit({
       content: `Pulling all available slots... (${availableTotal} pull${availableTotal === 1 ? "" : "s"})`,
+      embeds: [],
       allowedMentions: {
         repliedUser: false,
       },
@@ -1558,7 +1570,7 @@ module.exports = {
       );
     }
 
-    return sendOrEditProcessingMessage({
+    return replyOrEdit({
       content: "",
       embeds,
       allowedMentions: {
