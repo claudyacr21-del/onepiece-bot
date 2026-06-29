@@ -9,6 +9,12 @@ const PULL_SLOT_SCHEMA_VERSION = 4;
 const PLAYER_STORE_MODE = String(process.env.PLAYER_STORE_MODE || "").toLowerCase();
 const USE_POSTGRES = PLAYER_STORE_MODE === "postgres" && Boolean(process.env.DATABASE_URL);
 
+const PLAYER_DB_SNAPSHOT_SAVE_ENABLED =
+  String(process.env.PLAYER_DB_SNAPSHOT_SAVE_ENABLED || "true").toLowerCase() !== "false";
+
+const PLAYER_DB_SNAPSHOT_ERROR_LOG_ENABLED =
+  String(process.env.PLAYER_DB_SNAPSHOT_ERROR_LOG_ENABLED || "false").toLowerCase() === "true";
+
 let playersCache = null;
 let persistedCache = {};
 let dbPool = null;
@@ -90,6 +96,10 @@ function normalizeStoreRecord(userId, data, username = "Unknown") {
 }
 
 function enqueuePlayerSnapshotSave(userId, player) {
+  if (!PLAYER_DB_SNAPSHOT_SAVE_ENABLED) {
+    return Promise.resolve(null);
+  }
+
   const id = String(userId);
 
   const initialSnapshot = normalizeStoreRecord(
@@ -130,10 +140,12 @@ function enqueuePlayerSnapshotSave(userId, player) {
       return safeSnapshot;
     })
     .catch((error) => {
-      console.error("[PLAYER DB SNAPSHOT SAVE ERROR]", {
-        userId: id,
-        message: error?.message || error,
-      });
+      if (PLAYER_DB_SNAPSHOT_ERROR_LOG_ENABLED) {
+        console.error("[PLAYER DB SNAPSHOT SAVE ERROR]", {
+          userId: id,
+          message: error?.message || error,
+        });
+      }
       return null;
     })
     .finally(() => {
