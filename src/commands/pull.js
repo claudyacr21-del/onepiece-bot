@@ -79,29 +79,28 @@ function getRyumaPityCharmCount(player) {
   return Math.max(0, Math.min(3, Math.floor(Number(charm?.amount || 0))));
 }
 
-function getRyumaPityLimit(player, defaultLimit) {
+function getRyumaNormalPityLimit(player) {
   const charms = getRyumaPityCharmCount(player);
-
-  // Only reduce non-premium normal pity.
-  // Premium / Mother Flame already has 100 pity and must stay 100.
-  if (Number(defaultLimit) <= PREMIUM_PITY_TARGET) return defaultLimit;
 
   if (charms >= 3) return 130;
   if (charms === 2) return 135;
   if (charms === 1) return 140;
 
-  return 150;
+  return NORMAL_PITY_TARGET;
 }
 
 function getPityLimit(tier, player = null) {
-  const baseLimit =
-    tier === "motherFlame"
-      ? PREMIUM_PITY_TARGET
-      : tier === "vivreCard"
-      ? VIVRE_PITY_TARGET
-      : NORMAL_PITY_TARGET;
+  if (tier === "motherFlame") return PREMIUM_PITY_TARGET;
+  if (tier === "vivreCard") return VIVRE_PITY_TARGET;
 
-  return getRyumaPityLimit(player, baseLimit);
+  // Ryuma Pity Charm only affects normal / non-premium pulls.
+  return getRyumaNormalPityLimit(player);
+}
+
+function getPityGuarantee(tier) {
+  // Ryuma Event update:
+  // normal / non-premium pity guarantee is now S, not A.
+  return "S";
 }
 
 function getPityGuarantee(tier) {
