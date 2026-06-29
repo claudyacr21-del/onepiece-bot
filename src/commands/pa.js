@@ -18,6 +18,7 @@ const {
 } = require("../utils/autoSac");
 const {
   getPullSlotStatus,
+  consumeAllActivePullSlots,
   buildPullAccessSnapshot,
 } = require("../utils/pullSlots");
 const { incrementQuestCounter } = require("../utils/questProgress");
@@ -910,24 +911,14 @@ function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
   return result;
 }
 
-function consumePullSlotsFromStatus(player, slotStatus) {
-  const pulls = {
-    ...(player.pulls || {}),
+function clonePullPlanPlayer(player) {
+  return {
+    ...player,
+    pulls: JSON.parse(JSON.stringify(player?.pulls || {})),
+    pullAccessSnapshot: {
+      ...(player?.pullAccessSnapshot || {}),
+    },
   };
-
-  for (const [key, slot] of Object.entries(slotStatus || {})) {
-    if (!slot?.enabled) continue;
-
-    const max = Math.max(0, Math.floor(Number(slot.max || 0)));
-
-    pulls[key] = {
-      ...(pulls[key] || {}),
-      used: max,
-      max,
-    };
-  }
-
-  return pulls;
 }
 
 function savePullAllResultFresh(userId, payload, username = "Unknown") {
@@ -1411,7 +1402,8 @@ module.exports = {
       }
     }
 
-    let finalPulls = consumePullSlotsFromStatus(player, slotStatus);
+    const pullPlanPlayer = clonePullPlanPlayer(player);
+    let finalPulls = consumeAllActivePullSlots(pullPlanPlayer, message);
 
     if (resetTicketUsed) {
       finalPulls = applyManualPullReset(finalPulls).pulls;
@@ -1457,8 +1449,9 @@ module.exports = {
     );
 
     if (!saveResult.didSave) {
-      return message.reply({
+      return processingMessage.edit({
         content: "You do not have any available pulls right now.",
+        embeds: [],
         allowedMentions: {
           repliedUser: false,
         },
@@ -1553,7 +1546,8 @@ module.exports = {
       );
     }
 
-    return message.reply({
+    return processingMessage.edit({
+      content: null,
       embeds,
       allowedMentions: {
         repliedUser: false,
