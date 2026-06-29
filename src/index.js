@@ -270,70 +270,10 @@ async function claimMessageOnce(message, commandName = "") {
     processedMessageIds.delete(messageId);
   }, 60_000);
 
-  const dedupeEnabled =
-    String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true";
-
-  const failOpen =
-    String(process.env.MESSAGE_DEDUPE_FAIL_OPEN || "true").toLowerCase() === "true";
-
-  // Fast/default mode: use local memory dedupe only.
-  // This prevents Supabase timeout from blocking every command.
-  if (!dedupeEnabled) {
-    return true;
-  }
-
-  const pool = getDedupePool();
-
-  // If Supabase dedupe is enabled but unavailable, let the command run.
-  // Render is running one bot service, so blocking commands is worse than duplicate protection.
-  if (!pool) {
-    console.warn("[MESSAGE DEDUPE FAIL OPEN] Dedupe pool unavailable. Command will continue.");
-    return failOpen;
-  }
-
-  try {
-    if (!dedupeReady) {
-      await ensureMessageDedupeTable();
-    }
-
-    if (!dedupeReady) {
-      console.warn("[MESSAGE DEDUPE BLOCKED] Dedupe table not ready. Command skipped to prevent duplicate replies.");
-      return failOpen;
-    }
-
-    const result = await pool.query(
-      `
-      insert into bot_processed_messages (message_id, user_id, command_name)
-      values ($1, $2, $3)
-      on conflict (message_id) do nothing
-      returning message_id
-      `,
-      [
-        messageId,
-        String(message?.author?.id || ""),
-        String(commandName || ""),
-      ]
-    );
-
-    return result.rowCount > 0;
-  } catch (error) {
-    const errorMessage = String(error?.message || "");
-
-    if (
-      errorMessage.includes("Query read timeout") ||
-      errorMessage.includes("timeout exceeded") ||
-      errorMessage.includes("Connection terminated")
-    ) {
-      console.warn("[MESSAGE DEDUPE FAIL OPEN] Supabase timeout. Command will continue.");
-    } else {
-      console.error("[MESSAGE DEDUPE CLAIM ERROR]", error);
-    }
-
-    dedupeReady = false;
-    dedupeDisabledUntil = Date.now() + 60_000;
-
-    return failOpen;
-  }
+  // Fast path only: do not use Supabase/Postgres for message dedupe.
+  // Render is running one bot service, so local memory dedupe is enough.
+  // This prevents Supabase timeout from blocking bot commands.
+  return true;
 }
 
 async function attachMainServerContext(message) {
