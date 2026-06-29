@@ -263,14 +263,6 @@ async function claimMessageOnce(message, commandName = "") {
   const messageId = String(message?.id || "");
   if (!messageId) return false;
 
-  if (processedMessageIds.has(messageId)) return false;
-
-  processedMessageIds.add(messageId);
-
-  setTimeout(() => {
-    processedMessageIds.delete(messageId);
-  }, 60_000);
-
   const dedupeEnabled =
     String(process.env.MESSAGE_DEDUPE_ENABLED || "true").toLowerCase() === "true";
 
@@ -278,11 +270,40 @@ async function claimMessageOnce(message, commandName = "") {
     return true;
   }
 
-  const pool = getDedupePool();
+  const dedupeBackend = String(process.env.MESSAGE_DEDUPE_BACKEND || "memory")
+    .toLowerCase()
+    .trim();
 
+  const authorId = String(message?.author?.id || "");
+  const channelId = String(message?.channel?.id || "");
+  const normalizedCommandName = String(commandName || "").toLowerCase().trim();
+
+  const memoryKeys = [
+    `msg:${messageId}`,
+    `cmd:${authorId}:${channelId}:${normalizedCommandName}`,
+  ];
+
+  for (const key of memoryKeys) {
+    if (processedMessageIds.has(key)) {
+      return false;
+    }
+  }
+
+  for (const key of memoryKeys) {
+    processedMessageIds.add(key);
+    setTimeout(() => {
+      processedMessageIds.delete(key);
+    }, 60_000);
+  }
+
+  if (dedupeBackend !== "supabase" && dedupeBackend !== "postgres" && dedupeBackend !== "db") {
+    return true;
+  }
+
+  const pool = getDedupePool();
   if (!pool) {
-    console.warn("[MESSAGE DEDUPE BLOCKED] Dedupe pool unavailable. Command skipped to prevent duplicate replies.");
-    return false;
+    console.warn("[MESSAGE DEDUPE MEMORY FALLBACK] Dedupe DB pool unavailable. Memory lock used.");
+    return true;
   }
 
   try {
@@ -291,8 +312,8 @@ async function claimMessageOnce(message, commandName = "") {
     }
 
     if (!dedupeReady) {
-      console.warn("[MESSAGE DEDUPE BLOCKED] Dedupe table not ready. Command skipped to prevent duplicate replies.");
-      return false;
+      console.warn("[MESSAGE DEDUPE MEMORY FALLBACK] Dedupe table not ready. Memory lock used.");
+      return true;
     }
 
     const result = await pool.query(
@@ -302,11 +323,7 @@ async function claimMessageOnce(message, commandName = "") {
       on conflict (message_id) do nothing
       returning message_id
       `,
-      [
-        messageId,
-        String(message?.author?.id || ""),
-        String(commandName || ""),
-      ]
+      [messageId, authorId, normalizedCommandName]
     );
 
     return result.rowCount > 0;
@@ -319,7 +336,7 @@ async function claimMessageOnce(message, commandName = "") {
       errorMessage.includes("Connection terminated") ||
       errorMessage.includes("Connection terminated unexpectedly")
     ) {
-      console.warn("[MESSAGE DEDUPE BLOCKED] Supabase dedupe timeout. Command skipped to prevent duplicate replies.");
+      console.warn("[MESSAGE DEDUPE MEMORY FALLBACK] Supabase dedupe timeout. Memory lock used.");
     } else {
       console.error("[MESSAGE DEDUPE CLAIM ERROR]", error);
     }
@@ -327,7 +344,7 @@ async function claimMessageOnce(message, commandName = "") {
     dedupeReady = false;
     dedupeDisabledUntil = Date.now() + 15_000;
 
-    return false;
+    return true;
   }
 }
 
