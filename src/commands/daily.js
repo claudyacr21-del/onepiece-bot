@@ -246,8 +246,28 @@ function getDailyTierRewards(dailyTier) {
   const milestone = Math.floor(tier / 5);
   const highMilestone = Math.floor(tier / 10);
 
-  const berries = 5000 + tier * 3000 + milestone * 5000;
-  const gems = 20 + tier * 10 + milestone * 10;
+  const rangeBonus =
+    tier >= 60 ? 7 :
+    tier >= 50 ? 6 :
+    tier >= 40 ? 5 :
+    tier >= 30 ? 4 :
+    tier >= 20 ? 3 :
+    tier >= 10 ? 2 :
+    tier >= 5 ? 1 :
+    0;
+
+  const berries =
+    5000 +
+    tier * 3500 +
+    milestone * 7500 +
+    rangeBonus * 25000;
+
+  const gems =
+    20 +
+    tier * 12 +
+    milestone * 18 +
+    rangeBonus * 45;
+
   const rewards = [];
 
   if (tier <= 0) {
@@ -258,23 +278,22 @@ function getDailyTierRewards(dailyTier) {
     };
   }
 
-  const boxAmount = 1 + Math.floor(tier / 10);
-  const materialAmount = 2 + tier;
-  const shipMaterialAmount = Math.max(1, Math.floor(1 + tier / 3));
-  const rumAmount = 2 + Math.floor(tier / 2);
+  const boxAmount = Math.max(1, 1 + Math.floor(tier / 8) + rangeBonus);
+  const materialAmount = Math.max(3, 3 + tier + rangeBonus * 8);
+  const shipMaterialAmount = Math.max(1, Math.floor(1 + tier / 3) + rangeBonus * 2);
+  const rumAmount = Math.max(2, 2 + Math.floor(tier / 2) + rangeBonus * 5);
+  const legendAmount = Math.max(1, 1 + Math.floor(tier / 20) + Math.floor(rangeBonus / 2));
 
   if (tier === 1) {
-    if (Math.random() < 0.35) {
-      addReward(
-        rewards,
-        randomPick([
-          makeReward(ITEMS.basicResourceBox, 1),
-          makeReward(ITEMS.woodenMaterialBox, 1),
-          makeReward(ITEMS.rumBeer, 2),
-          ...getShipMaterialPool(1),
-        ])
-      );
-    }
+    addReward(
+      rewards,
+      randomPick([
+        makeReward(ITEMS.basicResourceBox, 1),
+        makeReward(ITEMS.woodenMaterialBox, 1),
+        makeReward(ITEMS.rumBeer, 2),
+        ...getShipMaterialPool(1),
+      ])
+    );
 
     return {
       berries,
@@ -283,7 +302,7 @@ function getDailyTierRewards(dailyTier) {
     };
   }
 
-  if (tier === 2) {
+  if (tier >= 2 && tier <= 4) {
     addReward(
       rewards,
       randomPick([
@@ -291,35 +310,18 @@ function getDailyTierRewards(dailyTier) {
         makeReward(ITEMS.woodenMaterialBox, 1),
         makeReward(ITEMS.rareResourceBox, 1),
         makeReward(ITEMS.rumBeer, rumAmount),
-        ...getShipMaterialPool(shipMaterialAmount),
-      ])
-    );
-
-    return {
-      berries,
-      gems,
-      rewards,
-    };
-  }
-
-  if (tier === 3) {
-    addReward(
-      rewards,
-      randomPick([
-        makeReward(ITEMS.rareResourceBox, 1),
-        makeReward(ITEMS.eliteResourceBox, 1),
         makeReward(ITEMS.enhancementStone, materialAmount),
         ...getShipMaterialPool(shipMaterialAmount),
       ])
     );
 
-    if (Math.random() < 0.45) {
+    if (tier >= 3) {
       addReward(
         rewards,
         randomPick([
-          makeReward(ITEMS.basicResourceBox, 1),
-          makeReward(ITEMS.woodenMaterialBox, 1),
-          makeReward(ITEMS.rumBeer, rumAmount),
+          makeReward(ITEMS.rareResourceBox, 1),
+          makeReward(ITEMS.eliteResourceBox, 1),
+          makeReward(ITEMS.enhancementStone, materialAmount),
           ...getShipMaterialPool(shipMaterialAmount),
         ])
       );
@@ -335,9 +337,10 @@ function getDailyTierRewards(dailyTier) {
   addReward(
     rewards,
     randomPick([
-      makeReward(ITEMS.eliteResourceBox, boxAmount),
       makeReward(ITEMS.rareResourceBox, boxAmount),
+      makeReward(ITEMS.eliteResourceBox, Math.max(1, boxAmount - 1)),
       makeReward(ITEMS.enhancementStone, materialAmount),
+      makeReward(ITEMS.rumBeer, rumAmount),
       ...getShipMaterialPool(shipMaterialAmount),
     ])
   );
@@ -345,11 +348,11 @@ function getDailyTierRewards(dailyTier) {
   addReward(
     rewards,
     randomPick([
-      makeReward(ITEMS.rareResourceBox, boxAmount),
-      makeReward(ITEMS.rumBeer, rumAmount),
-      makeReward(ITEMS.enhancementStone, materialAmount),
-      makeReward(ITEMS.basicResourceBox, boxAmount),
-      ...getShipMaterialPool(shipMaterialAmount),
+      makeReward(ITEMS.eliteResourceBox, boxAmount),
+      makeReward(ITEMS.rareResourceBox, boxAmount + 1),
+      makeReward(ITEMS.enhancementStone, materialAmount + tier),
+      makeReward(ITEMS.basicResourceBox, boxAmount + 1),
+      ...getShipMaterialPool(shipMaterialAmount + milestone),
     ])
   );
 
@@ -358,7 +361,9 @@ function getDailyTierRewards(dailyTier) {
       rewards,
       randomPick([
         makeReward(ITEMS.legendResourceBox, 1),
-        makeReward(ITEMS.eliteResourceBox, boxAmount),
+        makeReward(ITEMS.eliteResourceBox, boxAmount + 1),
+        makeReward(ITEMS.enhancementStone, materialAmount + 10),
+        makeReward(ITEMS.rumBeer, rumAmount + 5),
         ...getShipMaterialPool(shipMaterialAmount + milestone),
       ])
     );
@@ -368,21 +373,76 @@ function getDailyTierRewards(dailyTier) {
     addReward(
       rewards,
       randomPick([
-        makeReward(ITEMS.legendResourceBox, 1 + highMilestone),
-        makeReward(ITEMS.enhancementStone, materialAmount + tier),
-        ...getShipMaterialPool(shipMaterialAmount + highMilestone),
+        makeReward(ITEMS.legendResourceBox, legendAmount),
+        makeReward(ITEMS.eliteResourceBox, boxAmount + highMilestone),
+        makeReward(ITEMS.enhancementStone, materialAmount + tier * 2),
+        makeReward(ITEMS.rumBeer, rumAmount + tier),
+        ...getShipMaterialPool(shipMaterialAmount + highMilestone + rangeBonus),
       ])
     );
   }
 
-  if (tier >= 15) {
+  if (tier >= 20) {
     addReward(
       rewards,
       randomPick([
-        makeReward(ITEMS.legendResourceBox, 1 + highMilestone),
-        makeReward(ITEMS.eliteResourceBox, boxAmount + highMilestone),
-        makeReward(ITEMS.rumBeer, rumAmount + tier),
-        ...getShipMaterialPool(shipMaterialAmount + highMilestone),
+        makeReward(ITEMS.legendResourceBox, legendAmount + 1),
+        makeReward(ITEMS.eliteResourceBox, boxAmount + rangeBonus),
+        makeReward(ITEMS.enhancementStone, materialAmount + tier * 3),
+        makeReward(ITEMS.rumBeer, rumAmount + tier * 2),
+        ...getShipMaterialPool(shipMaterialAmount + milestone + rangeBonus),
+      ])
+    );
+  }
+
+  if (tier >= 30) {
+    addReward(
+      rewards,
+      randomPick([
+        makeReward(ITEMS.legendResourceBox, legendAmount + 2),
+        makeReward(ITEMS.eliteResourceBox, boxAmount + highMilestone + rangeBonus),
+        makeReward(ITEMS.enhancementStone, materialAmount + tier * 4),
+        makeReward(ITEMS.rumBeer, rumAmount + tier * 3),
+        ...getShipMaterialPool(shipMaterialAmount + milestone + highMilestone + rangeBonus),
+      ])
+    );
+  }
+
+  if (tier >= 40) {
+    addReward(
+      rewards,
+      randomPick([
+        makeReward(ITEMS.legendResourceBox, legendAmount + 3),
+        makeReward(ITEMS.eliteResourceBox, boxAmount + highMilestone + rangeBonus + 2),
+        makeReward(ITEMS.enhancementStone, materialAmount + tier * 5),
+        makeReward(ITEMS.rumBeer, rumAmount + tier * 4),
+        ...getShipMaterialPool(shipMaterialAmount + milestone + highMilestone + rangeBonus + 2),
+      ])
+    );
+  }
+
+  if (tier >= 50) {
+    addReward(
+      rewards,
+      randomPick([
+        makeReward(ITEMS.legendResourceBox, legendAmount + 4),
+        makeReward(ITEMS.eliteResourceBox, boxAmount + highMilestone + rangeBonus + 4),
+        makeReward(ITEMS.enhancementStone, materialAmount + tier * 6),
+        makeReward(ITEMS.rumBeer, rumAmount + tier * 5),
+        ...getShipMaterialPool(shipMaterialAmount + milestone + highMilestone + rangeBonus + 4),
+      ])
+    );
+  }
+
+  if (tier >= 60) {
+    addReward(
+      rewards,
+      randomPick([
+        makeReward(ITEMS.legendResourceBox, legendAmount + 5),
+        makeReward(ITEMS.eliteResourceBox, boxAmount + highMilestone + rangeBonus + 6),
+        makeReward(ITEMS.enhancementStone, materialAmount + tier * 8),
+        makeReward(ITEMS.rumBeer, rumAmount + tier * 6),
+        ...getShipMaterialPool(shipMaterialAmount + milestone + highMilestone + rangeBonus + 6),
       ])
     );
   }
@@ -600,23 +660,39 @@ module.exports = {
           if (result.items) updatedItems = result.items;
         }
 
+        const guaranteedPullResetTicket = makePullResetTicketReward(1);
+
+        updatedTickets = addPullResetTicketToTickets(updatedTickets, 1);
+
+        // Guaranteed daily Pull Reset Ticket:
+        // Every daily claim gives 1 Pull Reset Ticket.
+        // Keep tickets, items, and legacy counters compatible.
+        updatedItems = addOrIncrease(updatedItems, {
+          ...guaranteedPullResetTicket,
+          category: "ticket",
+        });
+
+        rewardsToApply.push(guaranteedPullResetTicket);
+
+        console.log(
+          `[DAILY GUARANTEED] Added Pull Reset Ticket to tickets/items for ${message.author.id}.`
+        );
+
         if (baccaratBonusApplied) {
-          const pullResetTicket = makePullResetTicketReward(1);
+          const baccaratPullResetTicket = makePullResetTicketReward(1);
 
           updatedTickets = addPullResetTicketToTickets(updatedTickets, 1);
 
-          // Compatibility fallback:
-          // Some older inventory / item flows may still read Pull Reset Ticket from items
-          // or legacy numeric counters. Keep all three in sync.
+          // Baccarat / Raki Raki bonus gives 1 extra Pull Reset Ticket.
           updatedItems = addOrIncrease(updatedItems, {
-            ...pullResetTicket,
+            ...baccaratPullResetTicket,
             category: "ticket",
           });
 
-          rewardsToApply.push(pullResetTicket);
+          rewardsToApply.push(baccaratPullResetTicket);
 
           console.log(
-            `[DAILY BACCARAT] Added Pull Reset Ticket to tickets/items for ${message.author.id}.`
+            `[DAILY BACCARAT] Added bonus Pull Reset Ticket to tickets/items for ${message.author.id}.`
           );
         }
 
