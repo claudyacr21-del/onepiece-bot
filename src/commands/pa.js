@@ -18,7 +18,6 @@ const {
 } = require("../utils/autoSac");
 const {
   getPullSlotStatus,
-  consumeAllActivePullSlots,
   buildPullAccessSnapshot,
 } = require("../utils/pullSlots");
 const { incrementQuestCounter } = require("../utils/questProgress");
@@ -911,14 +910,24 @@ function mergePullUsageForSave(existingPulls = {}, nextPulls = {}) {
   return result;
 }
 
-function clonePullPlanPlayer(player) {
-  return {
-    ...player,
-    pulls: JSON.parse(JSON.stringify(player?.pulls || {})),
-    pullAccessSnapshot: {
-      ...(player?.pullAccessSnapshot || {}),
-    },
+function consumePullSlotsFromStatus(player, slotStatus) {
+  const pulls = {
+    ...(player.pulls || {}),
   };
+
+  for (const [key, slot] of Object.entries(slotStatus || {})) {
+    if (!slot?.enabled) continue;
+
+    const max = Math.max(0, Math.floor(Number(slot.max || 0)));
+
+    pulls[key] = {
+      ...(pulls[key] || {}),
+      used: max,
+      max,
+    };
+  }
+
+  return pulls;
 }
 
 function savePullAllResultFresh(userId, payload, username = "Unknown") {
@@ -1402,8 +1411,7 @@ module.exports = {
       }
     }
 
-    const pullPlanPlayer = clonePullPlanPlayer(player);
-    let finalPulls = consumeAllActivePullSlots(pullPlanPlayer, message);
+    let finalPulls = consumePullSlotsFromStatus(player, slotStatus);
 
     if (resetTicketUsed) {
       finalPulls = applyManualPullReset(finalPulls).pulls;
