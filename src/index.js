@@ -176,8 +176,11 @@ let dedupeInitStarted = false;
 let dedupeDisabledUntil = 0;
 
 function getDedupePool() {
-  const enabled =
-    String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true";
+  const enabled = String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true";
+
+  // Keep dedupe disabled unless explicitly enabled.
+  // If Supabase is slow, DB-backed dedupe can block commands.
+  if (!enabled) return null;
 
   if (!enabled) return null;
   if (!process.env.DATABASE_URL) return null;
@@ -836,8 +839,18 @@ client.on("messageCreate", async (message) => {
       }
     }
 
-    await command.execute(message, args);
-    await flushPlayerNow(message.author.id, Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 8000));
+  await command.execute(message, args);
+
+  const commandFlushMs = Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 0);
+
+  if (commandFlushMs > 0) {
+    flushPlayerNow(message.author.id, commandFlushMs).catch((error) => {
+      console.error("[PLAYER DB COMMAND FLUSH ERROR]", {
+        userId: String(message.author.id),
+        message: error?.message || error,
+      });
+    });
+  }
   } catch (error) {
     console.error("[COMMAND ERROR]", error);
 
