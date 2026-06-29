@@ -900,18 +900,20 @@ client.on("messageCreate", async (message) => {
       }
     }
 
-  await command.execute(message, args);
+    await command.execute(message, args);
 
-  const commandFlushMs = Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 0);
+    const commandFlushMs = Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 3000);
 
-  if (commandFlushMs > 0) {
-    flushPlayerNow(message.author.id, commandFlushMs).catch((error) => {
-      console.error("[PLAYER DB COMMAND FLUSH ERROR]", {
-        userId: String(message.author.id),
-        message: error?.message || error,
-      });
-    });
-  }
+    if (commandFlushMs > 0) {
+      try {
+        await flushPlayerNow(message.author.id, commandFlushMs);
+      } catch (error) {
+        console.error("[PLAYER DB COMMAND FLUSH ERROR]", {
+          userId: String(message.author.id),
+          message: error?.message || error,
+        });
+      }
+    }
   } catch (error) {
     console.error("[COMMAND ERROR]", error);
 
@@ -976,6 +978,31 @@ process.on("uncaughtException", (error) => {
   }
 
   console.error("[UNCAUGHT EXCEPTION]", error);
+});
+
+let shutdownFlushRunning = false;
+
+async function flushBeforeShutdown(signal = "shutdown") {
+  if (shutdownFlushRunning) return;
+  shutdownFlushRunning = true;
+
+  try {
+    console.log(`[SHUTDOWN] ${signal} received. Flushing player data...`);
+    await flushPlayerStoreNow(Number(process.env.SHUTDOWN_SAVE_TIMEOUT_MS || 15000));
+    console.log("[SHUTDOWN] Player data flushed.");
+  } catch (error) {
+    console.error("[SHUTDOWN SAVE ERROR]", error);
+  }
+}
+
+process.on("SIGTERM", async () => {
+  await flushBeforeShutdown("SIGTERM");
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  await flushBeforeShutdown("SIGINT");
+  process.exit(0);
 });
 
 initPlayerStore()
