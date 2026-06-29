@@ -115,6 +115,14 @@ async function fetchMainGuildMember(message) {
   const userId = message?.author?.id;
   if (!userId) return null;
 
+  if (message?.mainMember) {
+    return message.mainMember;
+  }
+
+  if (message?.resolvedMember) {
+    return message.resolvedMember;
+  }
+
   const mainGuild = await findMainGuild(message?.client);
   if (!mainGuild) return null;
 
