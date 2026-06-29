@@ -762,7 +762,7 @@ function buildRunOutOfPullsMessage(player, totalUsed, totalMax) {
     "Assure to join!",
     `↪️ ${supportText} nitro boosters get an extra pull per reset!`,
     `↪️ ${botInviteText} to your own server to get an extra pull per reset!`,
-    `↪️ ${patreonText} to get up to 2 extra pulls per reset!`,
+    `↪️ ${patreonText} to get up to 3 extra pulls per reset!`,
     "",
     "💡 **Tip:** Unlocking & upgrading **Baccarat**'s card mastery can grant you up to **3 more pulls per reset!**",
   ];
