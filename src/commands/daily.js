@@ -278,11 +278,20 @@ function getDailyTierRewards(dailyTier) {
     };
   }
 
-  const boxAmount = Math.max(1, 1 + Math.floor(tier / 8) + rangeBonus);
-  const materialAmount = Math.max(3, 3 + tier + rangeBonus * 8);
-  const shipMaterialAmount = Math.max(1, Math.floor(1 + tier / 3) + rangeBonus * 2);
-  const rumAmount = Math.max(2, 2 + Math.floor(tier / 2) + rangeBonus * 5);
-  const legendAmount = Math.max(1, 1 + Math.floor(tier / 20) + Math.floor(rangeBonus / 2));
+  const boxAmount = Math.max(1, 1 + Math.floor(tier / 12) + Math.floor(rangeBonus / 2));
+  const materialAmount = Math.max(3, 3 + tier + rangeBonus * 4);
+  const shipMaterialAmount = Math.max(1, Math.floor(1 + tier / 4) + rangeBonus);
+  const rumAmount = Math.max(2, 2 + Math.floor(tier / 3) + rangeBonus * 3);
+
+  const legendAmount =
+    tier >= 60 ? 4 :
+    tier >= 50 ? 3 :
+    tier >= 40 ? 3 :
+    tier >= 30 ? 2 :
+    tier >= 20 ? 2 :
+    tier >= 10 ? 1 :
+    tier >= 5 ? 1 :
+    0;
 
   if (tier === 1) {
     addReward(
@@ -386,7 +395,7 @@ function getDailyTierRewards(dailyTier) {
     addReward(
       rewards,
       randomPick([
-        makeReward(ITEMS.legendResourceBox, legendAmount + 1),
+        makeReward(ITEMS.legendResourceBox, legendAmount),
         makeReward(ITEMS.eliteResourceBox, boxAmount + rangeBonus),
         makeReward(ITEMS.enhancementStone, materialAmount + tier * 3),
         makeReward(ITEMS.rumBeer, rumAmount + tier * 2),
@@ -399,7 +408,7 @@ function getDailyTierRewards(dailyTier) {
     addReward(
       rewards,
       randomPick([
-        makeReward(ITEMS.legendResourceBox, legendAmount + 2),
+        makeReward(ITEMS.legendResourceBox, legendAmount),
         makeReward(ITEMS.eliteResourceBox, boxAmount + highMilestone + rangeBonus),
         makeReward(ITEMS.enhancementStone, materialAmount + tier * 4),
         makeReward(ITEMS.rumBeer, rumAmount + tier * 3),
@@ -412,7 +421,7 @@ function getDailyTierRewards(dailyTier) {
     addReward(
       rewards,
       randomPick([
-        makeReward(ITEMS.legendResourceBox, legendAmount + 3),
+        makeReward(ITEMS.legendResourceBox, legendAmount),
         makeReward(ITEMS.eliteResourceBox, boxAmount + highMilestone + rangeBonus + 2),
         makeReward(ITEMS.enhancementStone, materialAmount + tier * 5),
         makeReward(ITEMS.rumBeer, rumAmount + tier * 4),
@@ -425,7 +434,7 @@ function getDailyTierRewards(dailyTier) {
     addReward(
       rewards,
       randomPick([
-        makeReward(ITEMS.legendResourceBox, legendAmount + 4),
+        makeReward(ITEMS.legendResourceBox, legendAmount),
         makeReward(ITEMS.eliteResourceBox, boxAmount + highMilestone + rangeBonus + 4),
         makeReward(ITEMS.enhancementStone, materialAmount + tier * 6),
         makeReward(ITEMS.rumBeer, rumAmount + tier * 5),
@@ -438,7 +447,7 @@ function getDailyTierRewards(dailyTier) {
     addReward(
       rewards,
       randomPick([
-        makeReward(ITEMS.legendResourceBox, legendAmount + 5),
+        makeReward(ITEMS.legendResourceBox, legendAmount),
         makeReward(ITEMS.eliteResourceBox, boxAmount + highMilestone + rangeBonus + 6),
         makeReward(ITEMS.enhancementStone, materialAmount + tier * 8),
         makeReward(ITEMS.rumBeer, rumAmount + tier * 6),
