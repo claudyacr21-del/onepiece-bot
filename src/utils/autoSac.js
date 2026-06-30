@@ -145,6 +145,10 @@ function getFragmentCategory(cardOrFragment) {
   return "battle";
 }
 
+function isWeaponFragment(cardOrFragment) {
+  return getFragmentCategory(cardOrFragment) === "weapon";
+}
+
 function getCompareKeys(cardOrFragment) {
   const code = getFragmentCode(cardOrFragment);
   const name = getFragmentName(cardOrFragment);
@@ -199,9 +203,14 @@ function isCardAutoSacEnabled(player, cardOrFragment) {
 
   if (isAutoSacSafeListed(player, cardOrFragment)) return false;
 
-  if (getSpecificAutoSacEntry(player, cardOrFragment)) return true;
+  const specificEntry = getSpecificAutoSacEntry(player, cardOrFragment);
+  if (specificEntry) return true;
 
-  // Rarity auto-sac covers battle, boost, and weapon fragments.
+  // Weapon fragments share the same Fragment Storage as card fragments.
+  // Do not auto-sac weapon fragments from rarity rules.
+  // They should only be sacrificed when Fragment Storage is truly full.
+  if (isWeaponFragment(cardOrFragment)) return false;
+
   return Boolean(settings.rarities[rarity]);
 }
 
