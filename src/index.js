@@ -14,6 +14,9 @@ const {
 const { startTopggWebhookServer } = require("./topggWebhook");
 const { syncArenaRankRoles } = require("./utils/arenaRankRoles");
 const {
+  startAllBattleCardMasterRoleSync,
+} = require("./utils/allBattleCardMasterRole");
+const {
   initPatreonRoleStore,
   syncExpiredPatreonRoles,
 } = require("./utils/patreonRoleStore");
@@ -707,6 +710,7 @@ client.once("clientReady", async () => {
   }
 
   startPirateWeeklyResetScheduler();
+  startAllBattleCardMasterRoleSync(client);
   
   syncArenaRankRoles(client).catch((error) => {
     console.error("[ARENA RANK ROLES READY SYNC ERROR]", error);
