@@ -584,17 +584,28 @@ function getFastArenaTeamCards(raw) {
   const cards = Array.isArray(raw?.cards) ? raw.cards : [];
   const slots = Array.isArray(raw?.team?.slots) ? raw.team.slots.slice(0, 3) : [];
 
-  if (slots.filter(Boolean).length < 3 || cards.length < 3) return [];
+  if (!cards.length) return [];
 
-  return slots
-    .map((instanceId) =>
-      cards.find(
-        (card) =>
-          String(card?.instanceId || "") === String(instanceId || "") &&
-          String(card?.cardRole || "").toLowerCase() !== "boost"
-      )
-    )
-    .filter(Boolean);
+  const picked = [];
+  const usedInstanceIds = new Set();
+
+  for (const instanceId of slots) {
+    const targetId = String(instanceId || "").trim();
+    if (!targetId) continue;
+
+    const found = cards.find(
+      (card) =>
+        String(card?.instanceId || "") === targetId &&
+        String(card?.cardRole || "").toLowerCase() !== "boost"
+    );
+
+    if (!found) continue;
+
+    picked.push(found);
+    usedInstanceIds.add(String(found.instanceId || ""));
+  }
+
+  return picked;
 }
 
 function getFastArenaTeamPower(cards) {
@@ -610,7 +621,7 @@ function makeFastArenaEntry(message, userId, raw) {
   if (id === String(message?.client?.user?.id || "")) return null;
 
   const teamCards = getFastArenaTeamCards(raw);
-  if (teamCards.length !== 3) return null;
+  if (teamCards.length < 1) return null;
 
   const arena = raw?.arena || {};
 
@@ -665,7 +676,7 @@ function hydrateArenaOpponent(message, entry) {
   };
 
   const teamUnits = getTeamUnits(player, "opponent");
-  if (teamUnits.length !== 3) return null;
+  if (teamUnits.length < 1) return null;
 
   return {
     ...entry,
@@ -720,7 +731,7 @@ function getRealArenaEntries(message, options = {}) {
     })
     .map(([userId, raw]) => {
       const teamCards = getFastArenaTeamCards(raw);
-      if (teamCards.length !== 3) return null;
+      if (teamCards.length < 1) return null;
 
       const arena = raw?.arena || {};
 
@@ -745,7 +756,7 @@ function getRealArenaEntries(message, options = {}) {
   return entries
     .map((player) => {
       const teamUnits = getTeamUnits(player, "opponent");
-      if (teamUnits.length !== 3) return null;
+      if (teamUnits.length < 1) return null;
 
       return {
         ...player,
@@ -1862,8 +1873,8 @@ module.exports = {
 
     const myTeam = getTeamUnits(player, "player");
 
-    if (myTeam.length < 3) {
-      return message.reply("You need a full team of 3 battle cards to use `op arena`.");
+    if (myTeam.length < 1) {
+      return message.reply("You need at least 1 battle card in your team to use `op arena`.");
     }
 
     const usesLeft = getArenaUsesLeft(player.arena || {});

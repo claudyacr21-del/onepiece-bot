@@ -466,12 +466,12 @@ module.exports = {
     const myTeam = getTeamUnits(player, "player");
     const enemyTeam = getTeamUnits(targetPlayer, "opponent");
 
-    if (myTeam.length < 3) {
-      return message.reply("You need a full team of 3 battle cards to use `op challenge`.");
+    if (myTeam.length < 1) {
+      return message.reply("You need at least 1 battle card in your team to use `op challenge`.");
     }
 
-    if (enemyTeam.length < 3) {
-      return message.reply("That user does not have a full team of 3 battle cards.");
+    if (enemyTeam.length < 1) {
+      return message.reply("That user does not have any battle card in their team.");
     }
 
     const logs = [];

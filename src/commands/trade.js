@@ -151,6 +151,7 @@ function isBlockedTradeItemCode(code) {
     normalizedCode === "elite_resource_box" ||
     normalizedCode === "legend_resource_box" ||
     normalizedCode === "mother_flame_treasure_box" ||
+    normalizedCode === "ryuma_pity_charm" ||
 
     normalizedCode === "universal_c" ||
     normalizedCode === "universal_b" ||
