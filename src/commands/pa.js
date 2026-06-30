@@ -89,7 +89,7 @@ function rollThroneEquivalentCardTier(baseTier) {
   // Same special feel as Empty Throne Raid Writ.
   // Road Poneglyph will only appear from pullTier: "THRONE".
   const roll = Math.random() * 100;
-  if (roll < 1.5) return "THRONE";
+  if (roll < 1.0) return "THRONE";
   return baseTier;
 }
 
