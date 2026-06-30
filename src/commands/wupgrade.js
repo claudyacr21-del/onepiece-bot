@@ -563,7 +563,7 @@ function buildUpgradeConfirmEmbed({
 
 module.exports = {
   name: "wupgrade",
-  aliases: ["weaponupgrade", "upweapon"],
+  aliases: ["wup", "upweapon"],
 
   async execute(message, args) {
     const weaponQuery = args.join(" ").trim();
