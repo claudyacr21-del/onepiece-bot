@@ -59,10 +59,41 @@ function getPremiumLabel(tier) {
   return "Normal";
 }
 
-function getPityGuarantee(tier) {
+function getRyumaPityCharmCount(player) {
+  const items = Array.isArray(player?.items) ? player.items : [];
+
+  const charm = items.find((item) => {
+    const code = String(item?.code || "").toLowerCase().trim();
+    const name = String(item?.name || "").toLowerCase().trim();
+
+    return code === "ryuma_pity_charm" || name === "ryuma pity charm";
+  });
+
+  return Math.max(0, Math.min(3, Math.floor(Number(charm?.amount || 0))));
+}
+
+function getRyumaNormalPityLimit(player) {
+  const charms = getRyumaPityCharmCount(player);
+
+  if (charms >= 3) return 130;
+  if (charms === 2) return 135;
+  if (charms === 1) return 140;
+
+  return 150;
+}
+
+function getPityGuarantee(tier, player = null) {
   if (tier === "motherFlame") return "S at 100 pity";
   if (tier === "vivreCard") return "S at 125 pity";
-  return "A at 150 pity";
+
+  const charms = getRyumaPityCharmCount(player);
+  const pityLimit = getRyumaNormalPityLimit(player);
+
+  if (charms > 0) {
+    return `S at ${pityLimit} pity (${charms}/3 Ryuma Pity Charm)`;
+  }
+
+  return "S at 150 pity";
 }
 
 module.exports = {
@@ -96,7 +127,7 @@ module.exports = {
           "`op pull` and `op pa` use the same synced pity counter.",
           "",
           `↪ Premium Tier: ${getPremiumLabel(premiumTier)}`,
-          `↪ Pity Guarantee: ${getPityGuarantee(premiumTier)}`,
+          `↪ Pity Guarantee: ${getPityGuarantee(premiumTier, player)}`,
           `↪ Tier Note: ${
             premiumTier === "motherFlame"
               ? "Mother Flame tier"
