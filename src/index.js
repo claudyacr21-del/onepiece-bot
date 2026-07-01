@@ -446,24 +446,34 @@ async function claimMessageOnce(message, commandName = "") {
     .replace(/\s+/g, " ");
 
   const messageKey = `msg:${messageId}`;
-  const fingerprintKey = `cmd:${authorId}:${channelId}:${normalizedCommandName}:${normalizedContent}`;
+  const commandFingerprintKey = [
+    "cmd",
+    authorId,
+    channelId,
+    normalizedCommandName,
+    normalizedContent,
+  ].join(":");
 
-  if (processedMessageIds.has(messageKey) || processedMessageIds.has(fingerprintKey)) {
-    console.warn("[MESSAGE DEDUPE MEMORY BLOCKED] Duplicate command blocked.");
+  if (
+    processedMessageIds.has(messageKey) ||
+    processedMessageIds.has(commandFingerprintKey)
+  ) {
     return false;
   }
 
   processedMessageIds.add(messageKey);
-  processedMessageIds.add(fingerprintKey);
+  processedMessageIds.add(commandFingerprintKey);
 
   setTimeout(() => {
     processedMessageIds.delete(messageKey);
   }, 60_000);
 
   setTimeout(() => {
-    processedMessageIds.delete(fingerprintKey);
+    processedMessageIds.delete(commandFingerprintKey);
   }, Number(process.env.MESSAGE_DEDUPE_FINGERPRINT_TTL_MS || 5000));
 
+  // Keep DB/Supabase dedupe optional only.
+  // Memory fingerprint lock is enough to prevent repeated command replies.
   if (!shouldUseDbMessageDedupe()) {
     return true;
   }
@@ -471,7 +481,6 @@ async function claimMessageOnce(message, commandName = "") {
   const pool = getDedupePool();
 
   if (!pool) {
-    console.warn("[MESSAGE DEDUPE FALLBACK] DB pool unavailable. Memory dedupe used. Command will continue.");
     return true;
   }
 
@@ -481,7 +490,6 @@ async function claimMessageOnce(message, commandName = "") {
     }
 
     if (!dedupeReady) {
-      console.warn("[MESSAGE DEDUPE FALLBACK] DB table not ready. Memory dedupe used. Command will continue.");
       return true;
     }
 
@@ -499,23 +507,16 @@ async function claimMessageOnce(message, commandName = "") {
       ]
     );
 
-    if (result.rowCount <= 0) {
-      console.warn("[MESSAGE DEDUPE DB BLOCKED] Duplicate message id blocked.");
-      return false;
-    }
-
-    return true;
+    return result.rowCount > 0;
   } catch (error) {
     const errorMessage = String(error?.message || "");
 
     if (
-      errorMessage.includes("Query read timeout") ||
-      errorMessage.includes("timeout exceeded") ||
-      errorMessage.includes("Connection terminated") ||
-      errorMessage.includes("Connection terminated unexpectedly")
+      !errorMessage.includes("Query read timeout") &&
+      !errorMessage.includes("timeout exceeded") &&
+      !errorMessage.includes("Connection terminated") &&
+      !errorMessage.includes("Connection terminated unexpectedly")
     ) {
-      console.warn("[MESSAGE DEDUPE FALLBACK] DB timeout. Memory dedupe used. Command will continue.");
-    } else {
       console.error("[MESSAGE DEDUPE CLAIM ERROR]", error);
     }
 
