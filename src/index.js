@@ -185,16 +185,29 @@ let dedupeReady = false;
 let dedupeInitStarted = false;
 let dedupeDisabledUntil = 0;
 
+function getMessageDedupeBackend() {
+  return String(process.env.MESSAGE_DEDUPE_BACKEND || "memory")
+    .toLowerCase()
+    .trim();
+}
+
+function isMessageDedupeEnabled() {
+  return String(process.env.MESSAGE_DEDUPE_ENABLED || "true")
+    .toLowerCase()
+    .trim() === "true";
+}
+
+function shouldUseDbMessageDedupe() {
+  if (!isMessageDedupeEnabled()) return false;
+
+  const backend = getMessageDedupeBackend();
+
+  return backend === "supabase" || backend === "postgres" || backend === "db";
+}
+
 function getDedupePool() {
-  const enabled = String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true";
-
-  // Keep dedupe disabled unless explicitly enabled.
-  // If Supabase is slow, DB-backed dedupe can block commands.
-  if (!enabled) return null;
-
-  if (!enabled) return null;
+  if (!shouldUseDbMessageDedupe()) return null;
   if (!process.env.DATABASE_URL) return null;
-
   if (Date.now() < dedupeDisabledUntil) return null;
 
   if (!dedupePool) {
@@ -265,26 +278,39 @@ async function claimMessageOnce(message, commandName = "") {
   const messageId = String(message?.id || "");
   if (!messageId) return false;
 
-  if (processedMessageIds.has(messageId)) return false;
+  if (!isMessageDedupeEnabled()) {
+    return true;
+  }
 
-  processedMessageIds.add(messageId);
+  const authorId = String(message?.author?.id || "");
+  const channelId = String(message?.channel?.id || "");
+  const normalizedCommandName = String(commandName || "").toLowerCase().trim();
+
+  // Memory dedupe always runs first.
+  // This prevents duplicate replies without depending on Supabase.
+  const memoryKey = `msg:${messageId}`;
+
+  if (processedMessageIds.has(memoryKey)) {
+    return false;
+  }
+
+  processedMessageIds.add(memoryKey);
 
   setTimeout(() => {
-    processedMessageIds.delete(messageId);
+    processedMessageIds.delete(memoryKey);
   }, 60_000);
 
-  const dedupeEnabled =
-    String(process.env.MESSAGE_DEDUPE_ENABLED || "true").toLowerCase() === "true";
-
-  if (!dedupeEnabled) {
+  // DB/Supabase dedupe is optional only.
+  // If it is disabled, unavailable, or slow, never block the command.
+  if (!shouldUseDbMessageDedupe()) {
     return true;
   }
 
   const pool = getDedupePool();
 
   if (!pool) {
-    console.warn("[MESSAGE DEDUPE BLOCKED] Dedupe pool unavailable. Command skipped to prevent duplicate replies.");
-    return false;
+    console.warn("[MESSAGE DEDUPE FALLBACK] DB pool unavailable. Memory dedupe used. Command will continue.");
+    return true;
   }
 
   try {
@@ -293,8 +319,8 @@ async function claimMessageOnce(message, commandName = "") {
     }
 
     if (!dedupeReady) {
-      console.warn("[MESSAGE DEDUPE BLOCKED] Dedupe table not ready. Command skipped to prevent duplicate replies.");
-      return false;
+      console.warn("[MESSAGE DEDUPE FALLBACK] DB table not ready. Memory dedupe used. Command will continue.");
+      return true;
     }
 
     const result = await pool.query(
@@ -306,12 +332,16 @@ async function claimMessageOnce(message, commandName = "") {
       `,
       [
         messageId,
-        String(message?.author?.id || ""),
-        String(commandName || ""),
+        authorId,
+        normalizedCommandName,
       ]
     );
 
-    return result.rowCount > 0;
+    if (result.rowCount <= 0) {
+      return false;
+    }
+
+    return true;
   } catch (error) {
     const errorMessage = String(error?.message || "");
 
@@ -321,7 +351,7 @@ async function claimMessageOnce(message, commandName = "") {
       errorMessage.includes("Connection terminated") ||
       errorMessage.includes("Connection terminated unexpectedly")
     ) {
-      console.warn("[MESSAGE DEDUPE BLOCKED] Supabase dedupe timeout. Command skipped to prevent duplicate replies.");
+      console.warn("[MESSAGE DEDUPE FALLBACK] DB timeout. Memory dedupe used. Command will continue.");
     } else {
       console.error("[MESSAGE DEDUPE CLAIM ERROR]", error);
     }
@@ -329,7 +359,7 @@ async function claimMessageOnce(message, commandName = "") {
     dedupeReady = false;
     dedupeDisabledUntil = Date.now() + 15_000;
 
-    return false;
+    return true;
   }
 }
 
@@ -688,7 +718,7 @@ client.once("clientReady", async () => {
 
   console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
 
-  if (String(process.env.MESSAGE_DEDUPE_ENABLED || "false").toLowerCase() === "true") {
+  if (shouldUseDbMessageDedupe()) {
     await ensureMessageDedupeTable();
   }
 
@@ -757,9 +787,10 @@ client.on("messageCreate", async (message) => {
       const shouldProcess = await claimMessageOnce(message, parsed.commandName || "");
       if (!shouldProcess) return;
     } else {
-      if (processedMessageIds.has(String(message.id))) return;
-      processedMessageIds.add(String(message.id));
-      setTimeout(() => processedMessageIds.delete(String(message.id)), 60_000);
+      const nonCommandKey = `msg:${String(message.id)}`;
+      if (processedMessageIds.has(nonCommandKey)) return;
+      processedMessageIds.add(nonCommandKey);
+      setTimeout(() => processedMessageIds.delete(nonCommandKey), 60_000);
     }
 
     if (!parsed) {
