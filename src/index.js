@@ -958,28 +958,6 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    const originalReply = message.reply.bind(message);
-    const replyGuardKey = `reply:${String(message.id || "")}`;
-
-    message.reply = async (...replyArgs) => {
-      if (processedMessageIds.has(replyGuardKey)) {
-        console.warn("[MESSAGE REPLY BLOCKED] Duplicate reply blocked for same source message.", {
-          pid: process.pid,
-          messageId: String(message.id || ""),
-          content: String(message.content || ""),
-        });
-        return null;
-      }
-
-      processedMessageIds.add(replyGuardKey);
-
-      setTimeout(() => {
-        processedMessageIds.delete(replyGuardKey);
-      }, 10_000);
-
-      return originalReply(...replyArgs);
-    };
-
     const parsed = parsePrefixedCommand(message.content);
 
     if (parsed) {
