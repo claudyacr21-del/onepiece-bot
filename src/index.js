@@ -438,42 +438,23 @@ async function claimMessageOnce(message, commandName = "") {
   }
 
   const authorId = String(message?.author?.id || "");
-  const channelId = String(message?.channel?.id || "");
   const normalizedCommandName = String(commandName || "").toLowerCase().trim();
-  const normalizedContent = String(message?.content || "")
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, " ");
 
+  // Dedupe should only block the exact same Discord message event.
+  // Repeated user commands with different message IDs must go to the normal 3s cooldown.
   const messageKey = `msg:${messageId}`;
-  const commandFingerprintKey = [
-    "cmd",
-    authorId,
-    channelId,
-    normalizedCommandName,
-    normalizedContent,
-  ].join(":");
 
-  if (
-    processedMessageIds.has(messageKey) ||
-    processedMessageIds.has(commandFingerprintKey)
-  ) {
+  if (processedMessageIds.has(messageKey)) {
     return false;
   }
 
   processedMessageIds.add(messageKey);
-  processedMessageIds.add(commandFingerprintKey);
 
   setTimeout(() => {
     processedMessageIds.delete(messageKey);
   }, 60_000);
 
-  setTimeout(() => {
-    processedMessageIds.delete(commandFingerprintKey);
-  }, Number(process.env.MESSAGE_DEDUPE_FINGERPRINT_TTL_MS || 5000));
-
-  // Keep DB/Supabase dedupe optional only.
-  // Memory fingerprint lock is enough to prevent repeated command replies.
+  // DB dedupe is optional only.
   if (!shouldUseDbMessageDedupe()) {
     return true;
   }
@@ -1015,6 +996,38 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
+    const cooldownKey = `${message.author.id}:${command.name || commandName}`;
+    const now = Date.now();
+    const isFastCommandCooldownBypass =
+      FAST_COMMAND_NAMES.has(normalizeCommandName(command.name)) ||
+      FAST_COMMAND_NAMES.has(normalizeCommandName(commandName));
+
+    if (!isFastCommandCooldownBypass) {
+      const lastUsed = commandCooldowns.get(cooldownKey) || 0;
+      const remainingMs = COMMAND_COOLDOWN_MS - (now - lastUsed);
+
+      if (remainingMs > 0) {
+        const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+        await message.reply({
+          content: `⏳ Please wait **${remainingSeconds}s** before using \`${PREFIX} ${commandName}\` again.`,
+          allowedMentions: {
+            repliedUser: false,
+          },
+        });
+
+        return;
+      }
+
+      commandCooldowns.set(cooldownKey, now);
+
+      setTimeout(() => {
+        if (commandCooldowns.get(cooldownKey) === now) {
+          commandCooldowns.delete(cooldownKey);
+        }
+      }, COMMAND_COOLDOWN_MS + 250);
+    }
+
     const shouldSkipMainContextFetch =
       FAST_COMMAND_NAMES.has(normalizeCommandName(command.name)) ||
       FAST_COMMAND_NAMES.has(normalizeCommandName(commandName));
@@ -1068,35 +1081,6 @@ client.on("messageCreate", async (message) => {
         },
       });
       return;
-    }
-
-    const cooldownKey = `${message.author.id}:${command.name || commandName}`;
-    const now = Date.now();
-    const isFastCommandCooldownBypass =
-      FAST_COMMAND_NAMES.has(normalizeCommandName(command.name)) ||
-      FAST_COMMAND_NAMES.has(normalizeCommandName(commandName));
-
-    if (!isFastCommandCooldownBypass) {
-      const lastUsed = commandCooldowns.get(cooldownKey) || 0;
-      const remainingMs = COMMAND_COOLDOWN_MS - (now - lastUsed);
-
-      if (remainingMs > 0) {
-        const remainingSeconds = Math.ceil(remainingMs / 1000);
-
-        await message.reply(
-          `⏳ Please wait **${remainingSeconds}s** before using \`${PREFIX} ${commandName}\` again.`
-        );
-
-        return;
-      }
-
-      commandCooldowns.set(cooldownKey, now);
-
-      setTimeout(() => {
-        if (commandCooldowns.get(cooldownKey) === now) {
-          commandCooldowns.delete(cooldownKey);
-        }
-      }, COMMAND_COOLDOWN_MS + 250);
     }
 
     if (message.guild) {
