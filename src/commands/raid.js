@@ -234,6 +234,181 @@ function normalize(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function normalizeRaidCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_\-\s]+/g, "_")
+    .replace(/[^a-z0-9_]+/g, "")
+    .replace(/^_+|_+$/g, "");
+}
+
+function normalizeRaidText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function getRaidCardDisplayNameByCode(code) {
+  const template = findCardTemplate(code);
+  return String(template?.displayName || template?.name || code || "").trim();
+}
+
+function getWeaponOwnerCodes(weapon) {
+  const values = [
+    weapon?.ownerCode,
+    weapon?.ownerCardCode,
+    weapon?.cardCode,
+    weapon?.characterCode,
+    weapon?.userCode,
+    weapon?.knownUserCode,
+    weapon?.knownUser,
+    weapon?.owner,
+    weapon?.user,
+    weapon?.character,
+    ...(Array.isArray(weapon?.owners) ? weapon.owners : []),
+    ...(Array.isArray(weapon?.ownerCodes) ? weapon.ownerCodes : []),
+    ...(Array.isArray(weapon?.users) ? weapon.users : []),
+  ];
+
+  const out = new Set();
+
+  for (const value of values) {
+    if (!value) continue;
+
+    if (typeof value === "object") {
+      const nested = [
+        value.code,
+        value.cardCode,
+        value.characterCode,
+        value.name,
+        value.displayName,
+      ];
+
+      for (const item of nested) {
+        const code = normalizeRaidCode(item);
+        const text = normalizeRaidText(item);
+        if (code) out.add(code);
+        if (text) out.add(text);
+      }
+
+      continue;
+    }
+
+    const code = normalizeRaidCode(value);
+    const text = normalizeRaidText(value);
+
+    if (code) out.add(code);
+    if (text) out.add(text);
+  }
+
+  return out;
+}
+
+function getWeaponOwnerMatchKeys(cardCode) {
+  const template = findCardTemplate(cardCode) || {};
+  const keys = new Set();
+
+  const values = [
+    cardCode,
+    template.code,
+    template.name,
+    template.displayName,
+    template.title,
+  ];
+
+  for (const value of values) {
+    const code = normalizeRaidCode(value);
+    const text = normalizeRaidText(value);
+
+    if (code) keys.add(code);
+    if (text) keys.add(text);
+  }
+
+  return keys;
+}
+
+function weaponMatchesCardCode(weapon, cardCode) {
+  const ownerCodes = getWeaponOwnerCodes(weapon);
+  const matchKeys = getWeaponOwnerMatchKeys(cardCode);
+
+  for (const key of matchKeys) {
+    if (ownerCodes.has(key)) return true;
+  }
+
+  return false;
+}
+
+function getRaidRewardSourceCodesFromBoss(bossInfo) {
+  const bossCard =
+    bossInfo?.template ||
+    bossInfo?.card ||
+    bossInfo?.bossCard ||
+    bossInfo ||
+    {};
+
+  if (!isMergeCard(bossCard)) {
+    const code = normalizeRaidCode(
+      bossCard?.code ||
+        bossInfo?.bossCode ||
+        bossInfo?.code
+    );
+
+    return code ? [code] : [];
+  }
+
+  return getMergeSourceCodes(bossCard)
+    .map((code) => normalizeRaidCode(code))
+    .filter(Boolean);
+}
+
+function getRaidWeaponPoolForBoss(bossInfo) {
+  const sourceCodes = getRaidRewardSourceCodesFromBoss(bossInfo);
+
+  if (!sourceCodes.length) {
+    return [];
+  }
+
+  const pool = weaponsDb.filter((weapon) => {
+    if (!weapon) return false;
+    if (weapon.raidOnly) return false;
+    if (String(weapon.source || "").toLowerCase() === "empty_throne_raid_writ") return false;
+    if (String(weapon.source || "").toLowerCase() === "gold_raid_ticket") return false;
+
+    return sourceCodes.some((code) => weaponMatchesCardCode(weapon, code));
+  });
+
+  return pool;
+}
+
+function getRaidWeaponPoolLabel(bossInfo) {
+  const sourceCodes = getRaidRewardSourceCodesFromBoss(bossInfo);
+
+  if (!sourceCodes.length) return "Boss Card";
+
+  if (!isMergeCard(bossInfo?.template || bossInfo || {})) {
+    return getRaidCardDisplayNameByCode(sourceCodes[0]);
+  }
+
+  return sourceCodes
+    .map(getRaidCardDisplayNameByCode)
+    .filter(Boolean)
+    .join(" / ");
+}
+
+function pickRaidWeaponRewardForBoss(bossInfo) {
+  const pool = getRaidWeaponPoolForBoss(bossInfo);
+
+  if (!pool.length) {
+    return null;
+  }
+
+  return pool[Math.floor(Math.random() * pool.length)] || null;
+}
+
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -2076,22 +2251,48 @@ function getMergeRaidComponentBosses(boss = {}) {
   const template =
     findCardTemplate(bossCode) ||
     findCardTemplate(bossName) ||
+    findCardTemplate(boss.code) ||
+    findCardTemplate(boss.bossCode) ||
     null;
 
-  const directSourceCodes = [
+  const mergeSourceCodes = [
+    ...getMergeSourceCodes(boss),
+    ...getMergeSourceCodes(template),
     ...ensureArray(boss.mergeSourceCodes),
     ...ensureArray(template?.mergeSourceCodes),
   ]
     .map((code) => String(code || "").trim())
     .filter(Boolean);
 
-  if (directSourceCodes.length) {
-    return directSourceCodes.map((componentCode) => ({
-      code: componentCode,
-      bossCode: componentCode,
-      name: componentCode,
-      bossName: componentCode,
-    }));
+  const uniqueSourceCodes = [...new Set(mergeSourceCodes.map((code) => code.toLowerCase()))];
+
+  if (uniqueSourceCodes.length) {
+    return uniqueSourceCodes.map((componentCode) => {
+      const componentTemplate = findCardTemplate(componentCode);
+
+      if (componentTemplate) {
+        return {
+          code: componentTemplate.code,
+          bossCode: componentTemplate.code,
+          cardCode: componentTemplate.code,
+          name: componentTemplate.displayName || componentTemplate.name || componentTemplate.code,
+          bossName: componentTemplate.displayName || componentTemplate.name || componentTemplate.code,
+          displayName: componentTemplate.displayName || componentTemplate.name || componentTemplate.code,
+          rarity: componentTemplate.rarity || componentTemplate.currentTier || componentTemplate.baseTier || "C",
+          currentTier: componentTemplate.currentTier || componentTemplate.rarity || componentTemplate.baseTier || "C",
+          image: componentTemplate.image || "",
+        };
+      }
+
+      return {
+        code: componentCode,
+        bossCode: componentCode,
+        cardCode: componentCode,
+        name: componentCode,
+        bossName: componentCode,
+        displayName: componentCode,
+      };
+    });
   }
 
   const rawComponents = [
@@ -2108,19 +2309,66 @@ function getMergeRaidComponentBosses(boss = {}) {
   return rawComponents
     .map((entry) => {
       if (typeof entry === "string") {
+        const componentTemplate = findCardTemplate(entry);
+
+        if (componentTemplate) {
+          return {
+            code: componentTemplate.code,
+            bossCode: componentTemplate.code,
+            cardCode: componentTemplate.code,
+            name: componentTemplate.displayName || componentTemplate.name || componentTemplate.code,
+            bossName: componentTemplate.displayName || componentTemplate.name || componentTemplate.code,
+            displayName: componentTemplate.displayName || componentTemplate.name || componentTemplate.code,
+            rarity: componentTemplate.rarity || componentTemplate.currentTier || componentTemplate.baseTier || "C",
+            currentTier: componentTemplate.currentTier || componentTemplate.rarity || componentTemplate.baseTier || "C",
+            image: componentTemplate.image || "",
+          };
+        }
+
         return {
           code: entry,
           bossCode: entry,
+          cardCode: entry,
           name: entry,
           bossName: entry,
+          displayName: entry,
+        };
+      }
+
+      const rawCode =
+        entry?.code ||
+        entry?.cardCode ||
+        entry?.bossCode ||
+        entry?.id ||
+        entry?.name ||
+        "";
+
+      const componentTemplate = findCardTemplate(rawCode);
+
+      if (componentTemplate) {
+        return {
+          code: componentTemplate.code,
+          bossCode: componentTemplate.code,
+          cardCode: componentTemplate.code,
+          name: componentTemplate.displayName || componentTemplate.name || componentTemplate.code,
+          bossName: componentTemplate.displayName || componentTemplate.name || componentTemplate.code,
+          displayName: componentTemplate.displayName || componentTemplate.name || componentTemplate.code,
+          rarity: componentTemplate.rarity || componentTemplate.currentTier || componentTemplate.baseTier || "C",
+          currentTier: componentTemplate.currentTier || componentTemplate.rarity || componentTemplate.baseTier || "C",
+          image: componentTemplate.image || "",
         };
       }
 
       return {
-        code: entry?.code || entry?.cardCode || entry?.id || entry?.name || "",
-        bossCode: entry?.code || entry?.cardCode || entry?.id || entry?.name || "",
-        name: entry?.displayName || entry?.name || entry?.code || "",
-        bossName: entry?.displayName || entry?.name || entry?.code || "",
+        code: rawCode,
+        bossCode: rawCode,
+        cardCode: rawCode,
+        name: entry?.displayName || entry?.name || rawCode,
+        bossName: entry?.displayName || entry?.name || rawCode,
+        displayName: entry?.displayName || entry?.name || rawCode,
+        rarity: entry?.rarity || entry?.currentTier || "C",
+        currentTier: entry?.currentTier || entry?.rarity || "C",
+        image: entry?.image || "",
       };
     })
     .filter((entry) => entry.code || entry.name);
