@@ -738,6 +738,7 @@ client.once("clientReady", async () => {
 
   console.log("[BOT INSTANCE]", {
     pid: process.pid,
+    startedAt: new Date().toISOString(),
     renderServiceId: process.env.RENDER_SERVICE_ID || "",
     renderInstanceId: process.env.RENDER_INSTANCE_ID || "",
     renderCommit: process.env.RENDER_GIT_COMMIT || "",
@@ -805,6 +806,15 @@ client.on("messageCreate", async (message) => {
 
     if (!message.author || message.author.bot) return;
     if (typeof message.content !== "string") return;
+
+    console.log("[MESSAGE EVENT]", {
+      pid: process.pid,
+      messageId: String(message.id || ""),
+      authorId: String(message.author?.id || ""),
+      channelId: String(message.channel?.id || ""),
+      content: String(message.content || ""),
+      time: new Date().toISOString(),
+    });
 
     const parsed = parsePrefixedCommand(message.content);
 
