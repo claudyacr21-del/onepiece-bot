@@ -300,36 +300,25 @@ async function claimMessageOnce(message, commandName = "") {
     .trim()
     .replace(/\s+/g, " ");
 
-  // Message id lock prevents the exact same Discord message event from being processed twice.
   const messageKey = `msg:${messageId}`;
+  const fingerprintKey = `cmd:${authorId}:${channelId}:${normalizedCommandName}:${normalizedContent}`;
 
-  if (processedMessageIds.has(messageKey)) {
+  if (processedMessageIds.has(messageKey) || processedMessageIds.has(fingerprintKey)) {
+    console.warn("[MESSAGE DEDUPE MEMORY BLOCKED] Duplicate command blocked.");
     return false;
   }
 
   processedMessageIds.add(messageKey);
+  processedMessageIds.add(fingerprintKey);
 
   setTimeout(() => {
     processedMessageIds.delete(messageKey);
   }, 60_000);
 
-  // Fingerprint lock prevents duplicate command replies when Discord/Render emits
-  // another messageCreate event with a different message id but the same command.
-  const fingerprintKey = `cmd:${authorId}:${channelId}:${normalizedCommandName}:${normalizedContent}`;
-
-  if (processedMessageIds.has(fingerprintKey)) {
-    console.warn("[MESSAGE DEDUPE MEMORY BLOCKED] Duplicate command fingerprint blocked.");
-    return false;
-  }
-
-  processedMessageIds.add(fingerprintKey);
-
   setTimeout(() => {
     processedMessageIds.delete(fingerprintKey);
   }, Number(process.env.MESSAGE_DEDUPE_FINGERPRINT_TTL_MS || 5000));
 
-  // DB/Supabase dedupe is optional only.
-  // If it is disabled, unavailable, or slow, never block the command.
   if (!shouldUseDbMessageDedupe()) {
     return true;
   }
@@ -366,6 +355,7 @@ async function claimMessageOnce(message, commandName = "") {
     );
 
     if (result.rowCount <= 0) {
+      console.warn("[MESSAGE DEDUPE DB BLOCKED] Duplicate message id blocked.");
       return false;
     }
 
@@ -746,14 +736,11 @@ client.once("clientReady", async () => {
 
   console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
 
-  console.log("[MESSAGE DEDUPE CONFIG]", {
-    enabled: isMessageDedupeEnabled(),
-    backend: getMessageDedupeBackend(),
-    forceDb:
-      String(process.env.MESSAGE_DEDUPE_FORCE_DB || "false")
-        .toLowerCase()
-        .trim() === "true",
-    usingDb: shouldUseDbMessageDedupe(),
+  console.log("[BOT INSTANCE]", {
+    pid: process.pid,
+    renderServiceId: process.env.RENDER_SERVICE_ID || "",
+    renderInstanceId: process.env.RENDER_INSTANCE_ID || "",
+    renderCommit: process.env.RENDER_GIT_COMMIT || "",
   });
 
   if (shouldUseDbMessageDedupe()) {
