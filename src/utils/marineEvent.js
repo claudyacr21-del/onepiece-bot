@@ -6,7 +6,13 @@ const {
   MessageFlags,
 } = require("discord.js");
 
-const { getPlayer, updatePlayer, readPlayers, writePlayers } = require("../playerStore");
+const {
+  getPlayer,
+  updatePlayer,
+  readPlayers,
+  writePlayers,
+  flushPlayerStoreNow,
+} = require("../playerStore");
 const { hydrateCard } = require("./evolution");
 const { getPlayerCombatBoosts } = require("./combatStats");
 const { ITEMS, cloneItem } = require("../data/items");
@@ -69,8 +75,8 @@ const MARINE_RARITY_RATES = [
   { rarity: "C", rate: 42 },
   { rarity: "B", rate: 30 },
   { rarity: "A", rate: 18 },
-  { rarity: "S", rate: 8 },
-  { rarity: "SS", rate: 2 },
+  { rarity: "S", rate: 15 },
+  { rarity: "SS", rate: 10 },
 ];
 
 const MARINE_PROFILES = {
@@ -186,14 +192,13 @@ function isMarineChannelAllowed(guildId, channelId) {
   return allowedChannels.includes(String(channelId));
 }
 
-function setMarineChannelAllowed(guildId, channelId, allowed) {
+async function setMarineChannelAllowed(guildId, channelId, allowed) {
   const players = readPlayers();
   const store = getMarineConfigStore(players);
-
   const guildKey = String(guildId);
   const channelKey = String(channelId);
 
-  if (!store.guilds[guildKey] || typeof store.guilds[guildKey] !== "object") {
+  if (!store.guilds[guildKey]) {
     store.guilds[guildKey] = {
       allowedChannels: [],
     };
@@ -207,14 +212,16 @@ function setMarineChannelAllowed(guildId, channelId, allowed) {
     ? [...new Set([...current, channelKey])]
     : current.filter((id) => id !== channelKey);
 
-  store.guilds[guildKey] = {
-    ...store.guilds[guildKey],
-    allowedChannels: next,
-    updatedAt: Date.now(),
-  };
-
+  store.guilds[guildKey].allowedChannels = next;
   players[MARINE_CHANNEL_STORE_KEY] = store;
+
   writePlayers(players);
+
+  try {
+    await flushPlayerStoreNow(Number(process.env.MARINE_CHANNEL_SAVE_TIMEOUT_MS || 8000));
+  } catch (error) {
+    console.error("[MARINE CHANNEL SAVE ERROR]", error?.message || error);
+  }
 
   return next;
 }

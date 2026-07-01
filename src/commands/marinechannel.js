@@ -104,7 +104,7 @@ module.exports = {
     }
 
     const allow = ["allow", "on", "enable"].includes(mode);
-    const allowedChannels = setMarineChannelAllowed(
+    const allowedChannels = await setMarineChannelAllowed(
       message.guild.id,
       channel.id,
       allow
