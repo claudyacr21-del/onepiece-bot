@@ -56,7 +56,7 @@ module.exports = {
     }
 
     if (mode === "list") {
-      const allowed = getAllowedMarineChannels(message.guild.id);
+      const allowed = await getAllowedMarineChannels(message.guild.id);
 
       const embed = new EmbedBuilder()
         .setColor(0x3498db)
