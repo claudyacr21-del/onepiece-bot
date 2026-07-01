@@ -140,7 +140,7 @@ const PERSONAL_MILESTONES = [
     damage: 1000000,
     rewards: {
       ryumaTokens: 400,
-      gems: 5,
+      gems: 200,
     },
   },
   {
@@ -154,7 +154,7 @@ const PERSONAL_MILESTONES = [
     damage: 2750000,
     rewards: {
       ryumaTokens: 900,
-      gems: 10,
+      gems: 500,
     },
   },
   {
@@ -162,6 +162,7 @@ const PERSONAL_MILESTONES = [
     rewards: {
       ryumaTokens: 1250,
       berries: 5000000,
+      gems: 1000,
     },
   },
   {
