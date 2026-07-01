@@ -75,6 +75,7 @@ const ONEPIECE_MAIN_GUILD_ID =
 
 const commandCooldowns = new Map();
 const processedMessageIds = new Set();
+const activeCommandExecutions = new Set();
 
 let pirateWeeklyResetRunning = false;
 
@@ -807,6 +808,28 @@ client.on("messageCreate", async (message) => {
     if (!message.author || message.author.bot) return;
     if (typeof message.content !== "string") return;
 
+    const originalReply = message.reply.bind(message);
+    const replyGuardKey = `reply:${String(message.id || "")}`;
+
+    message.reply = async (...replyArgs) => {
+      if (processedMessageIds.has(replyGuardKey)) {
+        console.warn("[MESSAGE REPLY BLOCKED] Duplicate reply blocked for same source message.", {
+          pid: process.pid,
+          messageId: String(message.id || ""),
+          content: String(message.content || ""),
+        });
+        return null;
+      }
+
+      processedMessageIds.add(replyGuardKey);
+
+      setTimeout(() => {
+        processedMessageIds.delete(replyGuardKey);
+      }, 10_000);
+
+      return originalReply(...replyArgs);
+    };
+
     console.log("[MESSAGE EVENT]", {
       pid: process.pid,
       messageId: String(message.id || ""),
@@ -969,7 +992,43 @@ client.on("messageCreate", async (message) => {
       }
     }
 
-    await command.execute(message, args);
+    const commandExecutionKey = [
+      String(message.id || ""),
+      String(message.author?.id || ""),
+      String(message.channel?.id || ""),
+      normalizeCommandName(command.name || commandName),
+    ].join(":");
+
+    if (activeCommandExecutions.has(commandExecutionKey)) {
+      console.warn("[COMMAND EXECUTE BLOCKED] Duplicate active command execution blocked.", {
+        pid: process.pid,
+        messageId: String(message.id || ""),
+        authorId: String(message.author?.id || ""),
+        channelId: String(message.channel?.id || ""),
+        commandName: command.name || commandName,
+      });
+      return;
+    }
+
+    activeCommandExecutions.add(commandExecutionKey);
+
+    console.log("[COMMAND EXECUTE]", {
+      pid: process.pid,
+      messageId: String(message.id || ""),
+      authorId: String(message.author?.id || ""),
+      channelId: String(message.channel?.id || ""),
+      commandName: command.name || commandName,
+      content: String(message.content || ""),
+      time: new Date().toISOString(),
+    });
+
+    try {
+      await command.execute(message, args);
+    } finally {
+      setTimeout(() => {
+        activeCommandExecutions.delete(commandExecutionKey);
+      }, 10_000);
+    }
 
     const commandFlushMs = Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 3000);
 
