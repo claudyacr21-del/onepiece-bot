@@ -295,20 +295,38 @@ async function claimMessageOnce(message, commandName = "") {
   const authorId = String(message?.author?.id || "");
   const channelId = String(message?.channel?.id || "");
   const normalizedCommandName = String(commandName || "").toLowerCase().trim();
+  const normalizedContent = String(message?.content || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
 
-  // Memory dedupe always runs first.
-  // This prevents duplicate replies without depending on Supabase.
-  const memoryKey = `msg:${messageId}`;
+  // Message id lock prevents the exact same Discord message event from being processed twice.
+  const messageKey = `msg:${messageId}`;
 
-  if (processedMessageIds.has(memoryKey)) {
+  if (processedMessageIds.has(messageKey)) {
     return false;
   }
 
-  processedMessageIds.add(memoryKey);
+  processedMessageIds.add(messageKey);
 
   setTimeout(() => {
-    processedMessageIds.delete(memoryKey);
+    processedMessageIds.delete(messageKey);
   }, 60_000);
+
+  // Fingerprint lock prevents duplicate command replies when Discord/Render emits
+  // another messageCreate event with a different message id but the same command.
+  const fingerprintKey = `cmd:${authorId}:${channelId}:${normalizedCommandName}:${normalizedContent}`;
+
+  if (processedMessageIds.has(fingerprintKey)) {
+    console.warn("[MESSAGE DEDUPE MEMORY BLOCKED] Duplicate command fingerprint blocked.");
+    return false;
+  }
+
+  processedMessageIds.add(fingerprintKey);
+
+  setTimeout(() => {
+    processedMessageIds.delete(fingerprintKey);
+  }, Number(process.env.MESSAGE_DEDUPE_FINGERPRINT_TTL_MS || 5000));
 
   // DB/Supabase dedupe is optional only.
   // If it is disabled, unavailable, or slow, never block the command.
