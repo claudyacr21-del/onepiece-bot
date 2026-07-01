@@ -11,7 +11,7 @@ const {
   updatePlayer,
   readPlayers,
   writePlayers,
-  flushPlayerStoreNow,
+  flushPlayerNow,
 } = require("../playerStore");
 const { hydrateCard } = require("./evolution");
 const { getPlayerCombatBoosts } = require("./combatStats");
@@ -193,10 +193,11 @@ function isMarineChannelAllowed(guildId, channelId) {
 }
 
 async function setMarineChannelAllowed(guildId, channelId, allowed) {
-  const players = readPlayers();
-  const store = getMarineConfigStore(players);
   const guildKey = String(guildId);
   const channelKey = String(channelId);
+
+  const players = readPlayers();
+  const store = getMarineConfigStore(players);
 
   if (!store.guilds[guildKey]) {
     store.guilds[guildKey] = {
@@ -212,13 +213,25 @@ async function setMarineChannelAllowed(guildId, channelId, allowed) {
     ? [...new Set([...current, channelKey])]
     : current.filter((id) => id !== channelKey);
 
-  store.guilds[guildKey].allowedChannels = next;
-  players[MARINE_CHANNEL_STORE_KEY] = store;
+  const nextStore = {
+    ...store,
+    guilds: {
+      ...(store.guilds || {}),
+      [guildKey]: {
+        ...(store.guilds[guildKey] || {}),
+        allowedChannels: next,
+      },
+    },
+  };
 
+  players[MARINE_CHANNEL_STORE_KEY] = nextStore;
   writePlayers(players);
 
+  updatePlayer(MARINE_CHANNEL_STORE_KEY, nextStore);
+
   try {
-    await flushPlayerStoreNow(
+    await flushPlayerNow(
+      MARINE_CHANNEL_STORE_KEY,
       Number(process.env.MARINE_CHANNEL_SAVE_TIMEOUT_MS || 8000)
     );
   } catch (error) {
