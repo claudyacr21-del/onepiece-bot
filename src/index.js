@@ -186,6 +186,150 @@ let dedupeReady = false;
 let dedupeInitStarted = false;
 let dedupeDisabledUntil = 0;
 
+const BOT_INSTANCE_ID = [
+  process.env.RENDER_SERVICE_ID || "local",
+  process.env.RENDER_INSTANCE_ID || process.pid,
+  process.env.RENDER_GIT_COMMIT || "no-commit",
+  Date.now(),
+].join(":");
+
+let botSingletonPool = null;
+let isBotLeader = false;
+let botLeaderStarted = false;
+
+function isBotSingletonEnabled() {
+  return String(process.env.BOT_SINGLETON_ENABLED || "true")
+    .toLowerCase()
+    .trim() === "true";
+}
+
+function getBotSingletonPool() {
+  if (!isBotSingletonEnabled()) return null;
+  if (!process.env.DATABASE_URL) return null;
+
+  if (!botSingletonPool) {
+    botSingletonPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 1,
+      idleTimeoutMillis: Number(process.env.BOT_SINGLETON_IDLE_TIMEOUT_MS || 10000),
+      connectionTimeoutMillis: Number(process.env.BOT_SINGLETON_CONNECT_TIMEOUT_MS || 10000),
+      query_timeout: Number(process.env.BOT_SINGLETON_QUERY_TIMEOUT_MS || 10000),
+      statement_timeout: Number(process.env.BOT_SINGLETON_STATEMENT_TIMEOUT_MS || 10000),
+      maxUses: Number(process.env.BOT_SINGLETON_MAX_USES || 500),
+    });
+
+    botSingletonPool.on("error", (error) => {
+      console.error("[BOT SINGLETON POOL ERROR]", error);
+      isBotLeader = false;
+    });
+  }
+
+  return botSingletonPool;
+}
+
+async function tryClaimBotLeadership(reason = "manual") {
+  if (!isBotSingletonEnabled()) {
+    isBotLeader = true;
+    return true;
+  }
+
+  const pool = getBotSingletonPool();
+
+  if (!pool) {
+    console.error("[BOT SINGLETON] Missing DATABASE_URL. This instance will stay silent.");
+    isBotLeader = false;
+    return false;
+  }
+
+  const lockMs = Math.max(15000, Number(process.env.BOT_SINGLETON_LOCK_MS || 30000));
+
+  try {
+    await pool.query(`
+      create table if not exists bot_runtime_locks (
+        lock_key text primary key,
+        instance_id text not null,
+        heartbeat_at timestamptz not null default now()
+      );
+    `);
+
+    const result = await pool.query(
+      `
+      insert into bot_runtime_locks (lock_key, instance_id, heartbeat_at)
+      values ('discord_bot_main', $1, now())
+      on conflict (lock_key) do update
+      set instance_id = excluded.instance_id,
+          heartbeat_at = now()
+      where
+        bot_runtime_locks.instance_id = excluded.instance_id
+        or bot_runtime_locks.heartbeat_at < now() - ($2::int * interval '1 millisecond')
+      returning instance_id
+      `,
+      [BOT_INSTANCE_ID, lockMs]
+    );
+
+    const claimed = result.rowCount > 0;
+
+    if (claimed) {
+      if (!isBotLeader) {
+        console.log("[BOT SINGLETON] This instance is now leader.", {
+          reason,
+          instanceId: BOT_INSTANCE_ID,
+          pid: process.pid,
+        });
+      }
+
+      isBotLeader = true;
+      return true;
+    }
+
+    if (isBotLeader) {
+      console.warn("[BOT SINGLETON] Leadership lost.", {
+        reason,
+        instanceId: BOT_INSTANCE_ID,
+        pid: process.pid,
+      });
+    }
+
+    isBotLeader = false;
+    return false;
+  } catch (error) {
+    console.error("[BOT SINGLETON CLAIM ERROR]", error?.message || error);
+    isBotLeader = false;
+    return false;
+  }
+}
+
+function startBotSingletonHeartbeat() {
+  if (!isBotSingletonEnabled()) {
+    isBotLeader = true;
+    return;
+  }
+
+  if (botLeaderStarted) return;
+  botLeaderStarted = true;
+
+  const heartbeatMs = Math.max(
+    5000,
+    Number(process.env.BOT_SINGLETON_HEARTBEAT_MS || 10000)
+  );
+
+  tryClaimBotLeadership("startup").catch((error) => {
+    console.error("[BOT SINGLETON STARTUP ERROR]", error);
+  });
+
+  setInterval(() => {
+    tryClaimBotLeadership("heartbeat").catch((error) => {
+      console.error("[BOT SINGLETON HEARTBEAT ERROR]", error);
+    });
+  }, heartbeatMs);
+
+  console.log("[BOT SINGLETON] Heartbeat active.", {
+    instanceId: BOT_INSTANCE_ID,
+    heartbeatMs,
+  });
+}
+
 function getMessageDedupeBackend() {
   return String(process.env.MESSAGE_DEDUPE_BACKEND || "memory")
     .toLowerCase()
@@ -745,6 +889,8 @@ client.once("clientReady", async () => {
     renderCommit: process.env.RENDER_GIT_COMMIT || "",
   });
 
+  startBotSingletonHeartbeat();
+
   if (shouldUseDbMessageDedupe()) {
     await ensureMessageDedupeTable();
   }
@@ -808,6 +954,10 @@ client.on("messageCreate", async (message) => {
     if (!message.author || message.author.bot) return;
     if (typeof message.content !== "string") return;
 
+    if (isBotSingletonEnabled() && !isBotLeader) {
+      return;
+    }
+
     const originalReply = message.reply.bind(message);
     const replyGuardKey = `reply:${String(message.id || "")}`;
 
@@ -829,15 +979,6 @@ client.on("messageCreate", async (message) => {
 
       return originalReply(...replyArgs);
     };
-
-    console.log("[MESSAGE EVENT]", {
-      pid: process.pid,
-      messageId: String(message.id || ""),
-      authorId: String(message.author?.id || ""),
-      channelId: String(message.channel?.id || ""),
-      content: String(message.content || ""),
-      time: new Date().toISOString(),
-    });
 
     const parsed = parsePrefixedCommand(message.content);
 
@@ -1011,16 +1152,6 @@ client.on("messageCreate", async (message) => {
     }
 
     activeCommandExecutions.add(commandExecutionKey);
-
-    console.log("[COMMAND EXECUTE]", {
-      pid: process.pid,
-      messageId: String(message.id || ""),
-      authorId: String(message.author?.id || ""),
-      channelId: String(message.channel?.id || ""),
-      commandName: command.name || commandName,
-      content: String(message.content || ""),
-      time: new Date().toISOString(),
-    });
 
     try {
       await command.execute(message, args);
