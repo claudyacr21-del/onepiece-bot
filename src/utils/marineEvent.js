@@ -218,7 +218,9 @@ async function setMarineChannelAllowed(guildId, channelId, allowed) {
   writePlayers(players);
 
   try {
-    await flushPlayerStoreNow(Number(process.env.MARINE_CHANNEL_SAVE_TIMEOUT_MS || 8000));
+    await flushPlayerStoreNow(
+      Number(process.env.MARINE_CHANNEL_SAVE_TIMEOUT_MS || 8000)
+    );
   } catch (error) {
     console.error("[MARINE CHANNEL SAVE ERROR]", error?.message || error);
   }
