@@ -4,6 +4,7 @@ const { findPirateByUser, getRole } = require("../utils/pirateStore");
 const {
   isPremiumUser,
   isLitePremiumUser,
+  fetchMainGuildMember,
 } = require("../utils/premiumAccess");
 const {
   PROFILE_BADGES,
@@ -1000,14 +1001,32 @@ function getExistingOrSelfPlayer(targetId, targetUser, isSelf) {
   return players[String(targetId)] || null;
 }
 
-function createTargetProfileMessage(message, targetUser, targetMember) {
+function createTargetProfileMessage(message, targetUser, targetMember, targetMainMember = null) {
   return {
     ...message,
     author: targetUser || message.author,
+
+    // member = member from current guild, only for avatar/display fallback.
     member: targetMember || null,
-    resolvedMember: targetMember || null,
-    mainMember: targetMember || null,
+
+    // mainMember/resolvedMember must come from the main server only.
+    // Do not put current guild member here, because premiumAccess trusts this
+    // and will skip fetching the real main server member.
+    mainMember: targetMainMember || null,
+    resolvedMember: targetMainMember || null,
   };
+}
+
+async function resolveTargetMainServerMember(message, targetUser) {
+  const fakeMessage = {
+    ...message,
+    author: targetUser || message.author,
+    member: null,
+    mainMember: null,
+    resolvedMember: null,
+  };
+
+  return fetchMainGuildMember(fakeMessage).catch(() => null);
 }
 
 function getProfilePirateName(userId) {
@@ -1047,10 +1066,16 @@ module.exports = {
         });
       }
 
+      const targetMainMember = await resolveTargetMainServerMember(
+        message,
+        targetUser
+      );
+
       const profileMessage = createTargetProfileMessage(
         message,
         targetUser,
-        targetMember
+        targetMember,
+        targetMainMember
       );
 
       const pirateProfileText = formatPirateProfileLine(targetId);
@@ -1059,13 +1084,15 @@ module.exports = {
       const isMotherFlame = await isPremiumUser(profileMessage).catch(
         () => false
       );
+
       const isVivreCard = await isLitePremiumUser(profileMessage).catch(
         () => false
       );
+
       const booster = await isServerBooster(
         profileMessage,
         targetUser,
-        targetMember
+        targetMainMember || targetMember
       ).catch(() => false);
 
       const captainBadges = getCaptainBadges(player, {
