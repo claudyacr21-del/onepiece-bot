@@ -206,11 +206,8 @@ function isCardAutoSacEnabled(player, cardOrFragment) {
   const specificEntry = getSpecificAutoSacEntry(player, cardOrFragment);
   if (specificEntry) return true;
 
+  // Rarity auto-sac must cover battle, boost, and weapon fragments.
   // Weapon fragments share the same Fragment Storage as card fragments.
-  // Do not auto-sac weapon fragments from rarity rules.
-  // They should only be sacrificed when Fragment Storage is truly full.
-  if (isWeaponFragment(cardOrFragment)) return false;
-
   return Boolean(settings.rarities[rarity]);
 }
 
@@ -280,7 +277,7 @@ function addFragmentWithAutoSac(player, fragments, cardOrFragment, amount = 1) {
     sacAmount = addAmount;
     fragmentAddAmount = 0;
     reason = specificEntry
-      ? "Auto-Sac card rule"
+      ? "Auto-Sac specific rule"
       : `Auto-Sac ${rarity} rarity rule`;
   } else if (freeSlots <= 0) {
     sacAmount = addAmount;
@@ -289,15 +286,15 @@ function addFragmentWithAutoSac(player, fragments, cardOrFragment, amount = 1) {
   } else if (fragmentAddAmount > freeSlots) {
     sacAmount = fragmentAddAmount - freeSlots;
     fragmentAddAmount = freeSlots;
-    reason = "Storage Full";
+    reason = "Fragment Storage Full";
   }
 
   const updatedFragments =
     fragmentAddAmount > 0
       ? addFragmentRaw(fragments, cardOrFragment, fragmentAddAmount)
       : Array.isArray(fragments)
-      ? [...fragments]
-      : [];
+        ? [...fragments]
+        : [];
 
   const berries = getSacBerryValue(rarity, sacAmount);
 
