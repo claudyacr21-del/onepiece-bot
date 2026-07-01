@@ -202,6 +202,16 @@ function shouldUseDbMessageDedupe() {
 
   const backend = getMessageDedupeBackend();
 
+  // Safety default:
+  // Message dedupe must never depend on Supabase unless explicitly forced.
+  // Memory dedupe is enough to prevent duplicate replies in the active bot process.
+  const forceDb =
+    String(process.env.MESSAGE_DEDUPE_FORCE_DB || "false")
+      .toLowerCase()
+      .trim() === "true";
+
+  if (!forceDb) return false;
+
   return backend === "supabase" || backend === "postgres" || backend === "db";
 }
 
@@ -717,6 +727,16 @@ client.once("clientReady", async () => {
   readyStarted = true;
 
   console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
+
+  console.log("[MESSAGE DEDUPE CONFIG]", {
+    enabled: isMessageDedupeEnabled(),
+    backend: getMessageDedupeBackend(),
+    forceDb:
+      String(process.env.MESSAGE_DEDUPE_FORCE_DB || "false")
+        .toLowerCase()
+        .trim() === "true",
+    usingDb: shouldUseDbMessageDedupe(),
+  });
 
   if (shouldUseDbMessageDedupe()) {
     await ensureMessageDedupeTable();
