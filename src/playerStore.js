@@ -750,18 +750,21 @@ function getDbPool() {
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
 
-      // Keep this small. Supabase/pooler can timeout when the bot opens too many
-      // concurrent DB connections during command flush/reload.
-      max: Number(process.env.PLAYER_DB_POOL_MAX || 3),
+      // Keep this low. Render + Supabase can timeout if many connections open.
+      max: Number(process.env.PLAYER_DB_POOL_MAX || 2),
 
       idleTimeoutMillis: Number(process.env.PLAYER_DB_IDLE_TIMEOUT_MS || 10000),
       connectionTimeoutMillis: Number(
-        process.env.PLAYER_DB_CONNECT_TIMEOUT_MS || 20000
+        process.env.PLAYER_DB_CONNECT_TIMEOUT_MS || 30000
       ),
-      query_timeout: Number(process.env.PLAYER_DB_QUERY_TIMEOUT_MS || 30000),
+      query_timeout: Number(process.env.PLAYER_DB_QUERY_TIMEOUT_MS || 45000),
       statement_timeout: Number(
-        process.env.PLAYER_DB_STATEMENT_TIMEOUT_MS || 30000
+        process.env.PLAYER_DB_STATEMENT_TIMEOUT_MS || 45000
       ),
+    });
+
+    dbPool.on("error", (error) => {
+      console.error("[PLAYER DB POOL ERROR]", error);
     });
   }
 
@@ -862,8 +865,6 @@ async function upsertOnePlayerToPostgres(userId, data) {
         JSON.stringify(safeData || {}),
       ]
     );
-
-    return true;
   }, `upsert-player:${id}`);
 
   return true;
@@ -1044,17 +1045,15 @@ async function updateTwoPlayersInPostgresAtomic(
 async function flushChangedPlayersToPostgres(data = {}) {
   if (!USE_POSTGRES || !dbReady) return false;
 
+  const pool = getDbPool();
+  if (!pool) return false;
+
   const incoming =
     data && typeof data === "object" && !Array.isArray(data) ? data : {};
 
-  const entries = Object.entries(incoming);
+  const changedEntries = [];
 
-  let savedCount = 0;
-  let failedCount = 0;
-
-  // Save one row at a time. Do NOT Promise.all all players.
-  // Concurrent mass upsert is what causes Supabase connection timeout.
-  for (const [userId, value] of entries) {
+  for (const [userId, value] of Object.entries(incoming)) {
     const id = String(userId || "");
     if (!id) continue;
 
@@ -1068,32 +1067,67 @@ async function flushChangedPlayersToPostgres(data = {}) {
 
     if (
       oldPersisted &&
-      JSON.stringify(oldPersisted || {}) === JSON.stringify(latestNormalized || {})
+      JSON.stringify(oldPersisted || {}) ===
+        JSON.stringify(latestNormalized || {})
     ) {
       continue;
     }
 
-    try {
-      const saved = await upsertOnePlayerToPostgres(id, latestNormalized);
-
-      if (saved) {
-        persistedCache[id] = cloneJson(latestNormalized);
-        savedCount += 1;
-      }
-    } catch (error) {
-      failedCount += 1;
-
-      console.error("[PLAYER STORE ROW SAVE ERROR]", {
-        userId: id,
-        message: error?.message || error,
-      });
-
-      // Keep going. One failed row must not cancel all other player saves.
-    }
+    changedEntries.push([id, latestNormalized]);
   }
+
+  if (!changedEntries.length) {
+    return true;
+  }
+
+  let savedCount = 0;
+  let failedCount = 0;
+
+  await runDbWriteWithRetry(async () => {
+    await ensurePlayersTable();
+
+    const client = await pool.connect();
+
+    try {
+      for (const [id, latestNormalized] of changedEntries) {
+        try {
+          await client.query(
+            `
+            insert into players (user_id, username, data, updated_at)
+            values ($1, $2, $3::jsonb, now())
+            on conflict (user_id) do update
+            set username = excluded.username,
+                data = excluded.data,
+                updated_at = now()
+            `,
+            [
+              id,
+              isSystemStoreKey(id)
+                ? null
+                : latestNormalized?.username || "Unknown",
+              JSON.stringify(latestNormalized || {}),
+            ]
+          );
+
+          persistedCache[id] = cloneJson(latestNormalized);
+          savedCount += 1;
+        } catch (error) {
+          failedCount += 1;
+
+          console.error("[PLAYER STORE ROW SAVE ERROR]", {
+            userId: id,
+            message: error?.message || error,
+          });
+        }
+      }
+    } finally {
+      client.release();
+    }
+  }, "flush-player-store");
 
   if (savedCount || failedCount) {
     console.log("[PLAYER STORE FLUSH RESULT]", {
+      changed: changedEntries.length,
       saved: savedCount,
       failed: failedCount,
     });
@@ -2375,7 +2409,6 @@ async function flushPlayerStoreNow(timeoutMs = 30000) {
       await drainPlayerStoreSaves(safeTimeout);
 
       const latestPlayers = readPlayers();
-
       const ok = await flushChangedPlayersToPostgres(latestPlayers);
 
       if (!ok) {
