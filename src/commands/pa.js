@@ -450,18 +450,6 @@ function getTypeLabel(contentType) {
   return "Ticket";
 }
 
-function getCollectionStorageInfo(player) {
-  const cards = Array.isArray(player.cards) ? player.cards.length : 0;
-  const weapons = Array.isArray(player.weapons) ? player.weapons.length : 0;
-
-  // Devil Fruits are inventory stack items, not collection/fragment storage.
-  // They must never be auto-sacced by collection storage full logic.
-  const used = cards + weapons;
-
-  const max = Number(player?.storage?.max || player?.storageLimit || 250);
-  return { used, max };
-}
-
 function getConvertBerries(reward, contentType) {
   const rarity = String(reward?.baseTier || reward?.rarity || "C").toUpperCase();
 
@@ -1194,7 +1182,6 @@ try {
     let convertedBerries = 0;
     let convertedCount = 0;
     let cardsPulledThisRun = 0;
-    let storageInfo = getCollectionStorageInfo(player);
 
     const summary = {
       card: 0,
@@ -1256,43 +1243,7 @@ try {
         rewardResult.storageKey === "weapons" &&
         hasNamedItemByCode(updatedWeapons, rewardResult.storedReward.code);
 
-      const needsStorageSlot =
-        ["cards", "weapons"].includes(rewardResult.storageKey) &&
-        !isDuplicateCard &&
-        !isDuplicateWeapon;
-
-      if (needsStorageSlot && storageInfo.used >= storageInfo.max) {
-        const berryValue = getConvertBerries(reward, contentType);
-        convertedBerries += berryValue;
-        convertedCount += 1;
-
-        const rewardRarity = String(reward.baseTier || reward.rarity || "C").toUpperCase();
-        const rewardName = reward.displayName || reward.name || "Unknown";
-        const pityLabel = triggeredPity ? " [PITY]" : "";
-
-        const targetGroup =
-          contentType === "weapon"
-            ? pullGroups.weapons
-            : contentType === "devilFruit"
-            ? pullGroups.devilFruits
-            : contentType === "ticket"
-            ? pullGroups.tickets
-            : pullGroups.cards;
-
-        targetGroup.push(
-          `${targetGroup.length + 1}. [${rewardRarity}] ${rewardName}${pityLabel} → Collection Storage Full (+${berryValue.toLocaleString("en-US")} berries)`
-        );
-
-        if (triggeredPity) {
-          pityCounter = 0;
-        }
-
-        continue;
-      }
-
-      if (needsStorageSlot) {
-        storageInfo.used += 1;
-      }
+      const needsStorageSlot = false;
 
       if (rewardResult.storageKey === "tickets") {
         updatedTickets = addTicket(updatedTickets, rewardResult.storedReward);
