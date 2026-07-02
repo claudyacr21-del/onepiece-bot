@@ -19,6 +19,7 @@ module.exports = {
       "pirate",
       "inv",
       "vote",
+      "setvote",
       "patreon",
       "op",
       "market",
