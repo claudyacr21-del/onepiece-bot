@@ -642,6 +642,53 @@ function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
   });
 }
 
+function mergePlayerStoreForWrite(incomingStore = {}) {
+  const incoming =
+    incomingStore && typeof incomingStore === "object" && !Array.isArray(incomingStore)
+      ? incomingStore
+      : {};
+
+  const persisted =
+    persistedCache && typeof persistedCache === "object" && !Array.isArray(persistedCache)
+      ? persistedCache
+      : {};
+
+  const merged = {
+    ...persisted,
+  };
+
+  for (const [userId, value] of Object.entries(incoming)) {
+    const id = String(userId);
+
+    if (isSystemStoreKey(id)) {
+      // System rows like __lucky_week_event__, __marine_event_channels__,
+      // __disabled_commands__, etc must be saved exactly as the command set them.
+      // Do not merge them with old persisted data or OFF can rollback to ON.
+      merged[id] = cloneJson(value || {});
+      continue;
+    }
+
+    const incomingPlayer = normalizePlayer(
+      value || {},
+      value?.username || persisted[id]?.username || "Unknown"
+    );
+
+    const persistedPlayer = persisted[id]
+      ? normalizePlayer(
+          persisted[id],
+          persisted[id]?.username || incomingPlayer.username || "Unknown"
+        )
+      : null;
+
+    merged[id] = mergePlayerNoRollback(incomingPlayer, persistedPlayer, {
+      preserveMissingCards: true,
+      preserveMissingItems: true,
+    });
+  }
+
+  return merged;
+}
+
 function setPlayersCache(value) {
   playersCache = value && typeof value === "object" ? value : {};
   return playersCache;
@@ -2249,21 +2296,11 @@ async function flushPlayerStoreNow(timeoutMs = 30000) {
     if (USE_POSTGRES && dbReady) {
       const deadline = Date.now() + safeTimeout;
 
-      // First, wait for queued saves created by writePlayers().
       await drainPlayerStoreSaves(Math.max(1000, deadline - Date.now()));
 
-      // Then force-scan current memory cache and save anything that still differs
-      // from persistedCache. This protects system rows like:
-      // __lucky_week_event__, __disabled_commands__, __marine_event_channels__,
-      // and also any player progress that missed the async queue.
       const latestPlayers = readPlayers();
 
-      await Promise.race([
-        flushChangedPlayersToPostgres(latestPlayers),
-        new Promise((resolve) =>
-          setTimeout(resolve, Math.max(1000, deadline - Date.now()))
-        ),
-      ]);
+      await flushChangedPlayersToPostgres(latestPlayers);
 
       return true;
     }
