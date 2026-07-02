@@ -1,4 +1,8 @@
-const { readPlayers, writePlayers } = require("../playerStore");
+const {
+  readPlayers,
+  writePlayers,
+  flushPlayerStoreNow,
+} = require("../playerStore");
 
 const LUCKY_WEEK_STORE_KEY = "__lucky_week_event__";
 const LUCKY_WEEK_MULTIPLIER = 2;
@@ -26,7 +30,7 @@ function getLuckyWeekState() {
   };
 }
 
-function setLuckyWeekState(enabled, user = null) {
+async function setLuckyWeekState(enabled, user = null) {
   const players = readPlayers();
 
   const nextState = {
@@ -39,6 +43,14 @@ function setLuckyWeekState(enabled, user = null) {
 
   players[LUCKY_WEEK_STORE_KEY] = nextState;
   writePlayers(players);
+
+  try {
+    await flushPlayerStoreNow(
+      Number(process.env.LUCKY_WEEK_SAVE_TIMEOUT_MS || 10000)
+    );
+  } catch (error) {
+    console.error("[LUCKY WEEK SAVE ERROR]", error?.message || error);
+  }
 
   return nextState;
 }
@@ -60,7 +72,7 @@ function getLuckyWeekBonusLine() {
 
   if (!state.enabled) return null;
 
-  return `🍀 Lucky Week Active: Pull rarity rate x${Number(
+  return ` Lucky Week Active: Pull rarity rate x${Number(
     state.multiplier || LUCKY_WEEK_MULTIPLIER
   )}`;
 }

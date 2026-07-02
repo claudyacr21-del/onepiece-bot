@@ -136,7 +136,7 @@ module.exports = {
       });
     }
 
-    const state = setLuckyWeekState(enabled, message.author);
+    const state = await setLuckyWeekState(enabled, message.author);
 
     return message.reply({
       embeds: [buildLuckyWeekEmbed(state)],

@@ -2247,14 +2247,33 @@ async function flushPlayerStoreNow(timeoutMs = 30000) {
 
   try {
     if (USE_POSTGRES && dbReady) {
-      await drainPlayerStoreSaves(safeTimeout);
+      const deadline = Date.now() + safeTimeout;
+
+      // First, wait for queued saves created by writePlayers().
+      await drainPlayerStoreSaves(Math.max(1000, deadline - Date.now()));
+
+      // Then force-scan current memory cache and save anything that still differs
+      // from persistedCache. This protects system rows like:
+      // __lucky_week_event__, __disabled_commands__, __marine_event_channels__,
+      // and also any player progress that missed the async queue.
+      const latestPlayers = readPlayers();
+
+      await Promise.race([
+        flushChangedPlayersToPostgres(latestPlayers),
+        new Promise((resolve) =>
+          setTimeout(resolve, Math.max(1000, deadline - Date.now()))
+        ),
+      ]);
+
       return true;
     }
 
     const players = readPlayers();
 
     if (PLAYER_STORE_MODE === "postgres") {
-      console.error("[PLAYER STORE] Refusing flush file fallback while postgres mode is required.");
+      console.error(
+        "[PLAYER STORE] Refusing flush file fallback while postgres mode is required."
+      );
       return false;
     }
 
