@@ -1116,25 +1116,39 @@ client.on("messageCreate", async (message) => {
 
     activeCommandExecutions.add(commandExecutionKey);
 
+    let commandError = null;
+
     try {
       await command.execute(message, args);
+    } catch (error) {
+      commandError = error;
     } finally {
       setTimeout(() => {
         activeCommandExecutions.delete(commandExecutionKey);
       }, 10_000);
+
+      const commandFlushMs = Number(
+        process.env.PLAYER_DB_COMMAND_FLUSH_MS || 10000
+      );
+
+      if (commandFlushMs > 0) {
+        try {
+          // Flush the whole dirty player store, not only the command author.
+          // Many commands update target users, global config rows, raid/boss state,
+          // trade partners, rewards, cooldown state, or event state.
+          await flushPlayerStoreNow(commandFlushMs);
+        } catch (error) {
+          console.error("[PLAYER DB COMMAND STORE FLUSH ERROR]", {
+            commandName: command.name || commandName,
+            authorId: String(message.author.id),
+            message: error?.message || error,
+          });
+        }
+      }
     }
 
-    const commandFlushMs = Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 3000);
-
-    if (commandFlushMs > 0) {
-      try {
-        await flushPlayerNow(message.author.id, commandFlushMs);
-      } catch (error) {
-        console.error("[PLAYER DB COMMAND FLUSH ERROR]", {
-          userId: String(message.author.id),
-          message: error?.message || error,
-        });
-      }
+    if (commandError) {
+      throw commandError;
     }
   } catch (error) {
     console.error("[COMMAND ERROR]", error);
