@@ -696,6 +696,52 @@ function setPersistedCache(value) {
   return persistedCache;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientDbError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+
+  return (
+    message.includes("timeout exceeded when trying to connect") ||
+    message.includes("connection terminated") ||
+    message.includes("connection terminated unexpectedly") ||
+    message.includes("query read timeout") ||
+    message.includes("timeout exceeded") ||
+    message.includes("econnreset") ||
+    message.includes("etimedout") ||
+    message.includes("too many clients") ||
+    message.includes("remaining connection slots")
+  );
+}
+
+async function runDbWriteWithRetry(fn, label = "db-write") {
+  const attempts = Math.max(1, Number(process.env.PLAYER_DB_WRITE_RETRIES || 3));
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      if (!isTransientDbError(error) || attempt >= attempts) {
+        throw error;
+      }
+
+      const waitMs = Math.min(5000, 750 * attempt);
+      console.warn(`[PLAYER DB RETRY] ${label} attempt ${attempt}/${attempts} failed. Retrying in ${waitMs}ms.`, {
+        message: error?.message || error,
+      });
+
+      await sleep(waitMs);
+    }
+  }
+
+  throw lastError;
+}
+
 function getDbPool() {
   if (!USE_POSTGRES) return null;
 
@@ -703,15 +749,19 @@ function getDbPool() {
     dbPool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      max: Number(process.env.PLAYER_DB_POOL_MAX || 20),
-      idleTimeoutMillis: Number(process.env.PLAYER_DB_IDLE_TIMEOUT_MS || 30000),
-      connectionTimeoutMillis: Number(process.env.PLAYER_DB_CONNECT_TIMEOUT_MS || 3000),
-      query_timeout: Number(process.env.PLAYER_DB_QUERY_TIMEOUT_MS || 12000),
-      statement_timeout: Number(process.env.PLAYER_DB_STATEMENT_TIMEOUT_MS || 12000),
-    });
 
-    dbPool.on("error", (error) => {
-      console.error("[PLAYER DB POOL ERROR]", error);
+      // Keep this small. Supabase/pooler can timeout when the bot opens too many
+      // concurrent DB connections during command flush/reload.
+      max: Number(process.env.PLAYER_DB_POOL_MAX || 3),
+
+      idleTimeoutMillis: Number(process.env.PLAYER_DB_IDLE_TIMEOUT_MS || 10000),
+      connectionTimeoutMillis: Number(
+        process.env.PLAYER_DB_CONNECT_TIMEOUT_MS || 20000
+      ),
+      query_timeout: Number(process.env.PLAYER_DB_QUERY_TIMEOUT_MS || 30000),
+      statement_timeout: Number(
+        process.env.PLAYER_DB_STATEMENT_TIMEOUT_MS || 30000
+      ),
     });
   }
 
@@ -787,23 +837,34 @@ async function upsertOnePlayerToPostgres(userId, data) {
   const pool = getDbPool();
   if (!pool || !dbReady) return false;
 
-  await ensurePlayersTable();
-
   const id = String(userId);
-  const safeData = normalizeStoreRecord(id, data || {}, data?.username || "Unknown");
-
-  await pool.query(
-    `
-    insert into players (user_id, username, data, updated_at)
-    values ($1, $2, $3::jsonb, now())
-    on conflict (user_id)
-    do update set
-      username = excluded.username,
-      data = excluded.data,
-      updated_at = now()
-    `,
-    [id, safeData?.username || "Unknown", JSON.stringify(safeData || {})]
+  const safeData = normalizeStoreRecord(
+    id,
+    data || {},
+    data?.username || "Unknown"
   );
+
+  await runDbWriteWithRetry(async () => {
+    await ensurePlayersTable();
+
+    await pool.query(
+      `
+      insert into players (user_id, username, data, updated_at)
+      values ($1, $2, $3::jsonb, now())
+      on conflict (user_id) do update
+      set username = excluded.username,
+          data = excluded.data,
+          updated_at = now()
+      `,
+      [
+        id,
+        isSystemStoreKey(id) ? null : safeData?.username || "Unknown",
+        JSON.stringify(safeData || {}),
+      ]
+    );
+
+    return true;
+  }, `upsert-player:${id}`);
 
   return true;
 }
@@ -980,45 +1041,65 @@ async function updateTwoPlayersInPostgresAtomic(
   }
 }
 
-async function flushChangedPlayersToPostgres(data) {
-  if (!USE_POSTGRES || !dbReady) return;
+async function flushChangedPlayersToPostgres(data = {}) {
+  if (!USE_POSTGRES || !dbReady) return false;
 
-  const safeData = mergePlayerStoreForWrite(data);
-  const changed = [];
+  const incoming =
+    data && typeof data === "object" && !Array.isArray(data) ? data : {};
 
-  for (const [userId, player] of Object.entries(safeData)) {
-    const latestPlayers = playersCache || safeData;
-    const latestRaw = latestPlayers?.[userId] || player;
+  const entries = Object.entries(incoming);
 
-    const normalized = normalizeStoreRecord(
-      userId,
-      latestRaw,
-      latestRaw?.username || player?.username || "Unknown"
+  let savedCount = 0;
+  let failedCount = 0;
+
+  // Save one row at a time. Do NOT Promise.all all players.
+  // Concurrent mass upsert is what causes Supabase connection timeout.
+  for (const [userId, value] of entries) {
+    const id = String(userId || "");
+    if (!id) continue;
+
+    const latestNormalized = normalizeStoreRecord(
+      id,
+      value || {},
+      value?.username || "Unknown"
     );
 
-    const before = JSON.stringify(persistedCache?.[userId] || null);
-    const after = JSON.stringify(normalized || null);
+    const oldPersisted = persistedCache?.[id] || null;
 
-    if (before !== after) {
-      changed.push([userId, normalized]);
+    if (
+      oldPersisted &&
+      JSON.stringify(oldPersisted || {}) === JSON.stringify(latestNormalized || {})
+    ) {
+      continue;
+    }
+
+    try {
+      const saved = await upsertOnePlayerToPostgres(id, latestNormalized);
+
+      if (saved) {
+        persistedCache[id] = cloneJson(latestNormalized);
+        savedCount += 1;
+      }
+    } catch (error) {
+      failedCount += 1;
+
+      console.error("[PLAYER STORE ROW SAVE ERROR]", {
+        userId: id,
+        message: error?.message || error,
+      });
+
+      // Keep going. One failed row must not cancel all other player saves.
     }
   }
 
-  if (!changed.length) return;
-
-  for (const [userId, normalized] of changed) {
-    const latestPlayers = playersCache || safeData;
-    const latestRaw = latestPlayers?.[userId] || normalized;
-
-    const latestNormalized = normalizeStoreRecord(
-      userId,
-      latestRaw,
-      latestRaw?.username || normalized?.username || "Unknown"
-    );
-
-    await upsertOnePlayerToPostgres(userId, latestNormalized);
-    persistedCache[userId] = cloneJson(latestNormalized);
+  if (savedCount || failedCount) {
+    console.log("[PLAYER STORE FLUSH RESULT]", {
+      saved: savedCount,
+      failed: failedCount,
+    });
   }
+
+  return failedCount === 0;
 }
 
 function resolveFilePath() {
@@ -2291,15 +2372,17 @@ async function flushPlayerStoreNow(timeoutMs = 30000) {
 
   try {
     if (USE_POSTGRES && dbReady) {
-      const deadline = Date.now() + safeTimeout;
-
-      await drainPlayerStoreSaves(Math.max(1000, deadline - Date.now()));
+      await drainPlayerStoreSaves(safeTimeout);
 
       const latestPlayers = readPlayers();
 
-      await flushChangedPlayersToPostgres(latestPlayers);
+      const ok = await flushChangedPlayersToPostgres(latestPlayers);
 
-      return true;
+      if (!ok) {
+        console.error("[PLAYER STORE FLUSH NOW ERROR] Some rows failed to save.");
+      }
+
+      return ok;
     }
 
     const players = readPlayers();
@@ -2347,16 +2430,19 @@ async function flushPlayerNow(userId, timeoutMs = 8000) {
       latestRaw?.username || "Unknown"
     );
 
-    await upsertOnePlayerToPostgres(id, latestNormalized);
+    const saved = await upsertOnePlayerToPostgres(id, latestNormalized);
 
-    persistedCache[id] = cloneJson(latestNormalized);
+    if (saved) {
+      persistedCache[id] = cloneJson(latestNormalized);
+    }
 
-    return true;
+    return saved;
   } catch (error) {
     console.error("[PLAYER STORE FLUSH PLAYER ERROR]", {
       userId: id,
       message: error?.message || error,
     });
+
     return false;
   }
 }
