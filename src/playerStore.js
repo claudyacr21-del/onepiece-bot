@@ -661,9 +661,6 @@ function mergePlayerStoreForWrite(incomingStore = {}) {
     const id = String(userId);
 
     if (isSystemStoreKey(id)) {
-      // System rows like __lucky_week_event__, __marine_event_channels__,
-      // __disabled_commands__, etc must be saved exactly as the command set them.
-      // Do not merge them with old persisted data or OFF can rollback to ON.
       merged[id] = cloneJson(value || {});
       continue;
     }
@@ -2326,8 +2323,6 @@ async function flushPlayerNow(userId, timeoutMs = 8000) {
   const id = String(userId || "");
   if (!id) return false;
 
-  const safeTimeout = Math.max(1000, Number(timeoutMs || 8000));
-
   try {
     if (!USE_POSTGRES || !dbReady) {
       if (PLAYER_STORE_MODE === "postgres") {
@@ -2352,10 +2347,7 @@ async function flushPlayerNow(userId, timeoutMs = 8000) {
       latestRaw?.username || "Unknown"
     );
 
-    await Promise.race([
-      upsertOnePlayerToPostgres(id, latestNormalized),
-      new Promise((resolve) => setTimeout(resolve, safeTimeout)),
-    ]);
+    await upsertOnePlayerToPostgres(id, latestNormalized);
 
     persistedCache[id] = cloneJson(latestNormalized);
 
