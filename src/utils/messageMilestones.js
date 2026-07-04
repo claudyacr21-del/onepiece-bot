@@ -35,7 +35,7 @@ const MESSAGE_MILESTONE_REWARDS = [
         {
           code: "legend_resource_box",
           name: "Legend Resource Box",
-          amount: 1,
+          amount: 3,
           rarity: "B",
           type: "Box",
         },
@@ -52,7 +52,7 @@ const MESSAGE_MILESTONE_REWARDS = [
         {
           code: "raid_ticket",
           name: "Raid Ticket",
-          amount: 5,
+          amount: 10,
           rarity: "A",
           type: "Ticket",
         },
@@ -69,7 +69,7 @@ const MESSAGE_MILESTONE_REWARDS = [
         {
           code: "gold_raid_ticket",
           name: "Gold Raid Ticket",
-          amount: 3,
+          amount: 5,
           rarity: "S",
           type: "Ticket",
         },
