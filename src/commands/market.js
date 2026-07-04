@@ -73,7 +73,7 @@ const MARKET_ITEMS = [
     code: "random_fragment_berry",
     aliases: ["fberry"],
     name: "Random Fragment",
-    price: 500000,
+    price: 800000,
     currency: "berries",
     inventory: "items",
     randomItem: pickRandomUniversalFragment,
