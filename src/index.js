@@ -343,21 +343,10 @@ function isMessageDedupeEnabled() {
 }
 
 function shouldUseDbMessageDedupe() {
-  if (!isMessageDedupeEnabled()) return false;
-
-  const backend = getMessageDedupeBackend();
-
-  // Safety default:
-  // Message dedupe must never depend on Supabase unless explicitly forced.
-  // Memory dedupe is enough to prevent duplicate replies in the active bot process.
-  const forceDb =
-    String(process.env.MESSAGE_DEDUPE_FORCE_DB || "false")
-      .toLowerCase()
-      .trim() === "true";
-
-  if (!forceDb) return false;
-
-  return backend === "supabase" || backend === "postgres" || backend === "db";
+  // DB message dedupe is disabled permanently.
+  // Supabase timeout here can block commands and spam logs.
+  // Memory dedupe already blocks the same Discord message event in the active bot process.
+  return false;
 }
 
 function getDedupePool() {
