@@ -62,15 +62,29 @@ function applyPirateCurrencyBoosts(reward, userId) {
   const boostedBerries = applyPiratePercentBoost(baseBerries, berryBoost);
   const boostedGems = applyPiratePercentBoost(baseGems, gemsBoost);
 
+  const bonusBerries = Math.max(0, boostedBerries - baseBerries);
+  const bonusGems = Math.max(0, boostedGems - baseGems);
+
   return {
     ...(reward || {}),
-    berries: boostedBerries,
-    gems: boostedGems,
+
+    // Keep base reward unchanged.
+    berries: baseBerries,
+    gems: baseGems,
+
+    // Explicit final totals for commands that want direct total values.
+    totalBerries: boostedBerries,
+    totalGems: boostedGems,
+
     pirateBoosts: {
       berryBoost,
       gemsBoost,
-      bonusBerries: Math.max(0, boostedBerries - baseBerries),
-      bonusGems: Math.max(0, boostedGems - baseGems),
+      baseBerries,
+      baseGems,
+      bonusBerries,
+      bonusGems,
+      totalBerries: boostedBerries,
+      totalGems: boostedGems,
     },
   };
 }

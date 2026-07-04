@@ -788,27 +788,56 @@ function calculateWinReward(streakAfterWin, premiumTier, island) {
   return reward;
 }
 
-function formatFightRewardLines(reward) {
-  const lines = [
-    `↪ +${Number(reward.berries || 0).toLocaleString("en-US")} berries`,
-    `↪ +${Number(reward.gems || 0)} gems`,
-  ];
-
+function getFightRewardTotals(reward = {}) {
   const boosts = reward?.pirateBoosts || {};
 
-  if (Number(boosts.bonusBerries || 0) > 0) {
+  const baseBerries = Math.max(0, Math.floor(Number(reward.berries || 0)));
+  const baseGems = Math.max(0, Math.floor(Number(reward.gems || 0)));
+
+  const bonusBerries = Math.max(
+    0,
+    Math.floor(Number(boosts.bonusBerries || 0))
+  );
+
+  const bonusGems = Math.max(
+    0,
+    Math.floor(Number(boosts.bonusGems || 0))
+  );
+
+  return {
+    baseBerries,
+    baseGems,
+    bonusBerries,
+    bonusGems,
+    totalBerries: baseBerries + bonusBerries,
+    totalGems: baseGems + bonusGems,
+  };
+}
+
+function formatFightRewardLines(reward) {
+  const totals = getFightRewardTotals(reward);
+  const boosts = reward?.pirateBoosts || {};
+
+  const lines = [
+    `↪ +${totals.baseBerries.toLocaleString("en-US")} berries`,
+    `↪ +${totals.baseGems} gems`,
+  ];
+
+  if (totals.bonusBerries > 0) {
     lines.push(
-      `↪ Pirate Berry Boost Lv.${Number(boosts.berryBoost || 0)}: +${Number(
-        boosts.bonusBerries || 0
-      ).toLocaleString("en-US")} bonus berries`
+      `↪ Pirate Berry Boost Lv.${Number(boosts.berryBoost || 0)}: +${totals.bonusBerries.toLocaleString("en-US")} bonus berries`
     );
   }
 
-  if (Number(boosts.bonusGems || 0) > 0) {
+  if (totals.bonusGems > 0) {
     lines.push(
-      `↪ Pirate Gems Boost Lv.${Number(boosts.gemsBoost || 0)}: +${Number(
-        boosts.bonusGems || 0
-      ).toLocaleString("en-US")} bonus gems`
+      `↪ Pirate Gems Boost Lv.${Number(boosts.gemsBoost || 0)}: +${totals.bonusGems} bonus gems`
+    );
+  }
+
+  if (totals.bonusBerries > 0 || totals.bonusGems > 0) {
+    lines.push(
+      `↪ Total Added: +${totals.totalBerries.toLocaleString("en-US")} berries, +${totals.totalGems} gems`
     );
   }
 
@@ -1287,12 +1316,17 @@ if (interaction.user.id !== message.author.id) {
                   1
                 );
 
+                const rewardTotals = getFightRewardTotals(reward);
+
                 return {
                   ...fresh,
                   cards: applyFightExpToFreshCards(fresh, boostedTeam, expResults),
                   boxes: updatedBoxes,
-                  berries: Number(fresh.berries || 0) + reward.berries,
-                  gems: Number(fresh.gems || 0) + reward.gems,
+
+                  // Add base reward + pirate perk bonus explicitly.
+                  berries: Number(fresh.berries || 0) + rewardTotals.totalBerries,
+                  gems: Number(fresh.gems || 0) + rewardTotals.totalGems,
+
                   fightStreak: currentStreak,
                   quests: {
                     ...(fresh.quests || {}),
