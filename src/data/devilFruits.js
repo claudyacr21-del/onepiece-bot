@@ -783,10 +783,10 @@ module.exports = [
   {
     code: "uo_replica",
     name: "Uo Replica",
-    rarity: "S",
+    rarity: "UR",
     owners: ["momonosuke_shogun"],
     type: "Artificial Zoan Fruit",
-    statPercent: { atk: 7, hp: 7, speed: 3 },
+    statPercent: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "Vegapunk's artificial dragon fruit that allows Momonosuke to transform into a powerful dragon."
   }
