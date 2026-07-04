@@ -39,6 +39,44 @@ function scoreQuery(query, candidates) {
   return best;
 }
 
+function normalizeExactName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function stripFragmentSuffix(value) {
+  return String(value || "")
+    .replace(/\s+fragment$/i, "")
+    .trim();
+}
+
+function isExactNameMatch(query, names = []) {
+  const q = normalizeExactName(query);
+  if (!q) return false;
+
+  return names
+    .filter(Boolean)
+    .some((name) => normalizeExactName(name) === q);
+}
+
+function isExactFragmentNameMatch(query, fragment) {
+  const q = normalizeExactName(query);
+  if (!q) return false;
+
+  const names = [
+    fragment?.name,
+    fragment?.displayName,
+    stripFragmentSuffix(fragment?.name),
+    stripFragmentSuffix(fragment?.displayName),
+  ];
+
+  return names
+    .filter(Boolean)
+    .some((name) => normalizeExactName(name) === q);
+}
+
 function parseSacAddArgs(args) {
   if (!Array.isArray(args) || !args.length) {
     return {
@@ -117,60 +155,39 @@ function toFragmentTargetFromOwnedFragment(fragment) {
 function findOwnedFragment(player, query) {
   const fragments = Array.isArray(player.fragments) ? player.fragments : [];
 
-  const scored = fragments
-    .map((item) => ({
-      item,
-      score: scoreQuery(query, [
-        item.code,
-        item.name,
-        item.displayName,
-        item.weaponCode,
-      ]),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
+  const found = fragments.find((item) =>
+    isExactFragmentNameMatch(query, item)
+  );
 
-  return scored.length ? toFragmentTargetFromOwnedFragment(scored[0].item) : null;
+  return found ? toFragmentTargetFromOwnedFragment(found) : null;
 }
 
 function findCardTemplate(query) {
   const cards = Array.isArray(rawCards) ? rawCards : [];
 
-  const scored = cards
+  const found = cards
     .filter((card) => String(card.code || "").toLowerCase() !== "imu")
-    .map((card) => ({
-      card,
-      score: scoreQuery(query, [
-        card.code,
+    .find((card) =>
+      isExactNameMatch(query, [
         card.name,
         card.displayName,
-        card.alias,
-        ...(Array.isArray(card.aliases) ? card.aliases : []),
-      ]),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
+      ])
+    );
 
-  return scored.length ? toFragmentTargetFromCard(scored[0].card) : null;
+  return found ? toFragmentTargetFromCard(found) : null;
 }
 
 function findWeaponTemplate(query) {
   const weapons = Array.isArray(rawWeapons) ? rawWeapons : [];
 
-  const scored = weapons
-    .map((weapon) => ({
-      weapon,
-      score: scoreQuery(query, [
-        weapon.code,
-        weapon.name,
-        weapon.type,
-        ...(Array.isArray(weapon.aliases) ? weapon.aliases : []),
-      ]),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
+  const found = weapons.find((weapon) =>
+    isExactNameMatch(query, [
+      weapon.name,
+      weapon.displayName,
+    ])
+  );
 
-  return scored.length ? toFragmentTargetFromWeapon(scored[0].weapon) : null;
+  return found ? toFragmentTargetFromWeapon(found) : null;
 }
 
 function findSacTarget(player, query) {
