@@ -234,7 +234,17 @@ const EXTRA_CHARACTER_CARDS = [
   battleCard({ id: 191, code: "magra", name: "Magra", title: "Gray Terminal Bandit", rarity: "C", arc: "Post-War", faction: "Dadan Family", variant: "Mountain Bandit", type: "Support", atk: 60, hp: 620, speed: 54, basePower: 820, weapon: "Bandit Knife", devilFruit: "None", equipType: "Weapon", image: "" }),
   battleCard({ id: 192, code: "gvl", name: "God Valley Legends", title: "God Valley Legends", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["roger_king_of_the_pirates", "garp_hero_of_the_marines"], arc: "God Valley", faction: "Legends", variant: "Roger & Garp", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "None", devilFruit: "None", equipType: "Devil Fruit / Weapon", image: "" }),
   battleCard({ id: 193, code: "tfb", name: "The Flame Brothers", title: "Flame Brothers", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["ace_fire_fist", "sabo_flame_emperor"], arc: "Final Saga", faction: "Brotherhood", variant: "Ace & Sabo", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "None", devilFruit: "None", equipType: "Devil Fruit / Weapon", image: "" }),
-  battleCard({ id: 194, code: "wgd", name: "Worst Generation Duo", title: "Worst Generation Duo", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["kid_captain", "law_surgeon_of_death"], arc: "Wano", faction: "Worst Generation", variant: "Kid & Law", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "None", devilFruit: "None", equipType: "Devil Fruit / Weapon", image: "" })
+  battleCard({ id: 194, code: "wgd", name: "Worst Generation Duo", title: "Worst Generation Duo", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["kid_captain", "law_surgeon_of_death"], arc: "Wano", faction: "Worst Generation", variant: "Kid & Law", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "None", devilFruit: "None", equipType: "Devil Fruit / Weapon", image: "" }),
+  battleCard({ id: 195, code: "harald", name: "Harald", title: "King of Elbaf", rarity: "S", arc: "Elbaf", faction: "Elbaf", variant: "Giant King", type: "Tank", atk: 248, hp: 1900, speed: 65, basePower: 2535, weapon: "Excalibur", devilFruit: "None", equipType: "Weapon", image: "" }),
+  battleCard({ id: 196, code: "uta_diva", name: "Uta", title: "World Diva", rarity: "S", arc: "Film Red", faction: "Red Hair Pirates", variant: "New Genesis", type: "Control", atk: 235, hp: 1380, speed: 92, basePower: 2350, weapon: "Knight Form", devilFruit: "Uta Uta no Mi", equipType: "Devil Fruit", image: "" }),
+  boostCard({ id: 197, code: "lucky_roux", name: "Lucky Roux", title: "Red Hair Cook", rarity: "A", arc: "Final Saga", faction: "Red Hair Pirates", variant: "Lucky Support", boostType: "dmg", boostValue: 6, boostTarget: "team", basePower: 1450, boostDescription: "Increase team damage by 6% passively.", devilFruit: "None", equipType: "Passive", image: "" }),
+  boostCard({ id: 198, code: "carrot_mink", name: "Carrot", title: "Mink Support", rarity: "A", arc: "Zou", faction: "Mink Tribe", variant: "Sulong Spark", boostType: "spd", boostValue: 6, boostTarget: "team", basePower: 1480, boostDescription: "Increase team SPD by 6% passively.", devilFruit: "None", equipType: "Passive", image: "" }),
+  boostCard({ id: 199, code: "stussy", name: "Stussy", title: "CP0 Support", rarity: "S", arc: "Egghead", faction: "CP0", variant: "Clone Agent", boostType: "allstat", boostValue: 5, boostTarget: "team", basePower: 1900, boostDescription: "Increase team ATK, HP, SPD, and DMG by 5% passively.", devilFruit: "Batto Batto no Mi", equipType: "Devil Fruit", image: "" }),
+  battleCard({ id: 200, code: "momonosuke_shogun", name: "Kozuki Momonosuke", title: "Shogun of Wano", rarity: "S", arc: "Wano", faction: "Kozuki Clan", variant: "Adult Dragon", type: "Bruiser", atk: 220, hp: 1580, speed: 72, basePower: 2360, weapon: "Ame no Habakiri", devilFruit: "Uo Replica", equipType: "Devil Fruit", image: "" }),
+  battleCard({ id: 201, code: "inuarashi_duke", name: "Inuarashi", title: "Duke of Mokomo", rarity: "A", arc: "Zou", faction: "Mink Tribe", variant: "Sulong Duke", type: "Fighter", atk: 170, hp: 1180, speed: 88, basePower: 1895, weapon: "Rapier", devilFruit: "None", equipType: "Weapon", image: "" }),
+  battleCard({ id: 202, code: "wsr", name: "Worlds Strongest Rivals", title: "Worlds Strongest Rivals", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["shanks_red_hair", "mihawk_hawk_eyes"], arc: "Final Saga", faction: "Legendary Rivals", variant: "Shanks & Mihawk", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "None", devilFruit: "None", equipType: "Devil Fruit / Weapon", image: "" }),
+  battleCard({ id: 203, code: "gm", name: "Giant Masters", title: "Giant Masters", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["dorry", "brogy"], arc: "Little Garden / Elbaf", faction: "Giant Warrior Pirates", variant: "Dorry & Brogy", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "None", devilFruit: "None", equipType: "Devil Fruit / Weapon", image: "" }),
+  battleCard({ id: 204, code: "tre", name: "The Royals Of Elbaf", title: "The Royals Of Elbaf", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["loki", "harald"], arc: "Elbaf", faction: "Elbaf Royal Family", variant: "Loki & Harald", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "None", devilFruit: "None", equipType: "Devil Fruit / Weapon", image: "" })
 ];
 
 const SPECIAL_FORMS = {
@@ -425,6 +435,12 @@ const SPECIAL_FORMS = {
   dogra: ["Mountain Guardian", "Dadan Family Veteran", "Bandit Protector"],
   magra: ["Mountain Enforcer", "Dadan Family Fighter", "Rogue Outlaw"],
   harald: ["King of Elbaf", "Giant Dominion", "Thunder Warhammer"],
+  uta_diva: ["World Diva", "Uta Uta Singer", "New Genesis"],
+  lucky_roux: ["Red Hair Cook", "Lucky Shot", "Crew Support"],
+  carrot_mink: ["Mink Support", "Electro Spark", "Sulong Speed"],
+  stussy: ["CP0 Agent", "Clone Agent", "All-Stat Support"],
+  momonosuke_shogun: ["Kozuki Heir", "Adult Dragon", "Shogun of Wano"],
+  inuarashi_duke: ["Duke of Mokomo", "Sulong Duke", "Guardian of Zou"],
 };
 
 function reqCard(code, m2Stage = 1, m3Stage = 2) {
@@ -486,6 +502,9 @@ const BOOST_CANON_CARD_REQUIREMENTS = {
   holy_knight_sigil: [reqCard("garling", 1, 2)],
   giant_curse: [reqCard("loki", 1, 2)],
   samurai_spirit: [reqCard("oden", 1, 2)],
+  lucky_roux: [reqCard("shanks_red_hair", 1, 2)],
+  carrot_mink: [reqCard("inurashi_duke", 1, 2)],
+  stussy: [reqCard("vegapunk_stella", 1, 2)],
 };
 
 const CANON_LINKS = {
@@ -923,6 +942,66 @@ const CANON_LINKS = {
       reqCard("vegapunk_stella", 1, 2),
     ],
     boosts: [reqBoost("black_blade_yoru", 1, 2)],
+  },
+
+  harald: {
+    cards: [
+      reqCard("loki", 1, 2),
+      reqCard("dorry", 1, 2),
+      reqCard("brogy", 1, 2),
+    ],
+    boosts: [reqBoost("giant_curse", 1, 2)],
+  },
+
+  uta_diva: {
+    cards: [
+      reqCard("shanks_red_hair", 1, 2),
+      reqCard("luffy_straw_hat", 1, 2),
+    ],
+    boosts: [reqBoost("supreme_haki", 1, 2)],
+  },
+
+  lucky_roux: {
+    cards: [
+      reqCard("shanks_red_hair", 1, 2),
+      reqCard("ben_beckman", 1, 2),
+    ],
+    boosts: [reqBoost("supreme_haki", 1, 2)],
+    },
+
+  carrot_mink: {
+    cards: [
+      reqCard("inurashi_duke", 1, 2),
+      reqCard("bepo_navigator_support", 1, 2),
+    ],
+    boosts: [reqBoost("lucky_roux", 1, 2)],
+  },
+
+  stussy: {
+    cards: [
+      reqCard("vegapunk_stella", 1, 2),
+      reqCard("lucci_cp9", 1, 2),
+      reqCard("kaku_cp9", 1, 2),
+    ],
+    boosts: [reqBoost("empty_throne_edict", 1, 2)],
+  },
+
+  momonosuke_shogun: {
+    cards: [
+      reqCard("oden", 1, 2),
+      reqCard("yamato_oni_princess", 1, 2),
+      reqCard("luffy_straw_hat", 1, 2),
+    ],
+    boosts: [reqBoost("samurai_spirit", 1, 2)],
+  },
+
+  inurashi_duke: {
+    cards: [
+      reqCard("momonosuke_shogun", 1, 2),
+      reqCard("oden", 1, 2),
+      reqCard("bepo_navigator_support", 1, 2),
+    ],
+    boosts: [reqBoost("carrot_mink", 1, 2)],
   },
 };
 

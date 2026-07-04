@@ -7,7 +7,7 @@ const PROFILE_BADGES = {
 const RAID_PRESTIGE_BADGE_EMOJIS = {
   imu: "<:imu:1502505149275443400>",
   luffy_straw_hat: "<:luffy:1502581755549585509>",
-  shanks_red_hair: "<:shanks:1502581773630967828>",
+  shanks_red_hair: "<:shanks:1522829048940597410>",
   loki: "<:loki:1502581794053161022>",
   warcury: "<:warcury:1502581816060678275>",
   nusjuro: "<:nusjuro:1502581840496558190>",
@@ -34,7 +34,7 @@ const RAID_PRESTIGE_BADGE_EMOJIS = {
   kizaru: "<:kizaru:1503378650790363196>",
   aokiji: "<:aokiji:1503378668481806378>",
   katakuri_strongest_sweet_commander: "<:katakuri:1503378688211681351>",
-  mihawk_hawk_eyes: "<:mihawk:1503378706629132288>",
+  mihawk_hawk_eyes: "<:mihawk:1522829091559178251>",
   bartholomew_kuma: "<:kuma:1503378724328833124>",
   sabo_flame_emperor: "<:sabo:1503378730964357280>",
   boa_hancock: "<:hancock:1503378745187111076>",
@@ -117,6 +117,13 @@ const RAID_PRESTIGE_BADGE_EMOJIS = {
   gvl: "<:gvl:1517810661634211900",
   tfb: "<:tfb:1517809339497185372",
   wgd: "<:wgd:1517811474167234640",
+  harald: "<:harald:1522823292199632978",
+  uta_diva: "<:uta:1522823858682593380",
+  momonosuke_shogun: "<:momonosuke:1522825985903300679",
+  inuarashi_duke: "<:inuarashi:1522826150865535126",
+  wsr: "<:wsr:1522828304166551622",
+  gm: "<:gm:1522829749913653410",
+  tre: "<:tre:1522831402775875746",
 };
 
 function getRaidPrestigeBadgeEmoji(card) {

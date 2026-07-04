@@ -63,6 +63,14 @@ function normalizeBoostType(value) {
   }
 
   if (
+    type === "allstat" ||
+    type === "allstats" ||
+    type === "all"
+  ) {
+    return "allstat";
+  }
+
+  if (
     type === "experience" ||
     type === "exp" ||
     type === "expboost" ||
@@ -371,6 +379,16 @@ function sumBoost(cards, boostType) {
     }, 0);
 }
 
+function sumBoostWithAllStat(cards, boostType) {
+ const type = normalizeBoostType(boostType);
+
+ if (!["atk", "hp", "spd", "dmg"].includes(type)) {
+  return sumBoost(cards, type);
+ }
+
+ return sumBoost(cards, type) + sumBoost(cards, "allstat");
+}
+
 function getFragmentStorageBonus(player) {
   const boostCards = getBoostCards(player);
 
@@ -441,11 +459,11 @@ function getPassiveBoostSummary(player) {
 
     fruitGlobalBoosts,
 
-    atk: sumBoost(boostCards, "atk") + Number(fruitGlobalBoosts.atk || 0),
-    hp: sumBoost(boostCards, "hp") + Number(fruitGlobalBoosts.hp || 0),
-    spd: sumBoost(boostCards, "spd") + Number(fruitGlobalBoosts.spd || 0),
+    atk: sumBoostWithAllStat(boostCards, "atk") + Number(fruitGlobalBoosts.atk || 0),
+    hp: sumBoostWithAllStat(boostCards, "hp") + Number(fruitGlobalBoosts.hp || 0),
+    spd: sumBoostWithAllStat(boostCards, "spd") + Number(fruitGlobalBoosts.spd || 0),
     exp: sumBoost(boostCards, "exp") + Number(fruitGlobalBoosts.exp || 0),
-    dmg: sumBoost(boostCards, "dmg") + Number(fruitGlobalBoosts.dmg || 0),
+    dmg: sumBoostWithAllStat(boostCards, "dmg") + Number(fruitGlobalBoosts.dmg || 0),
     fragmentStorageBonus: Math.max(
       0,
       getFragmentStorageBonus(player) + Number(fruitGlobalBoosts.fragmentStorageBonus || 0)

@@ -107,4 +107,11 @@ module.exports = {
   gvl: "https://cdn.discordapp.com/attachments/1493204525975076944/1517820260680597524/one-piece-wano.gif?ex=6a37abc5&is=6a365a45&hm=48d872cc66fb8f16e6c443be8142bf37083028877712f7cfcb7820cc91cd9ec6",
   tfb: "https://cdn.discordapp.com/attachments/1493204525975076944/1517791588380708914/acesabo.gif?ex=6a379111&is=6a363f91&hm=a982280dfd3c969be28ac67889b146d8e725c748ad7745016d05c008411eb7ff",
   wgd: "https://cdn.discordapp.com/attachments/1493204525975076944/1517790407956758598/tenor.gif?ex=6a378ff8&is=6a363e78&hm=d0e8d211347427e375da9f037e1a9d9af1274b71d3ceaa08dd7bdbf44db4499d",
+  harald: "https://cdn.discordapp.com/attachments/1493204525975076944/1522616179355680788/king-of-the-giants-adult-harald.gif?ex=6a491e51&is=6a47ccd1&hm=1e031f03a3f5191a63d1be96773da1c083d2c7d1648e6ac92742a3ca7e136345",
+  uta_diva: "https://cdn.discordapp.com/attachments/1493204525975076944/1522817171460194344/uta-gif.gif?ex=6a49d982&is=6a488802&hm=776b4cb8fcd7b8b12d9693ec1e1101f93482c6341bf9ebc3076cf19f0112d9ef",
+  momonosuke_shogun: "https://cdn.discordapp.com/attachments/1493204525975076944/1522566346754494534/bf7c4408b7be58d683c2b1fe78dbbe39.gif?ex=6a48efe8&is=6a479e68&hm=3ce4194c6ca9bef0e9e38cf5f2413deabac28b2cc52b9755997f11c23f12058c",
+  inuarashi_duke: "https://cdn.discordapp.com/attachments/1493204525975076944/1522574483737542686/MHtrDJch.gif?ex=6a48f77c&is=6a47a5fc&hm=481405566ac4af6452445d0b7420232d7f9f35353edc0cb11376813d8708771e",
+  wsr: "https://cdn.discordapp.com/attachments/1493204525975076944/1522820096144310343/one-piece-anime.gif?ex=6a49dc3b&is=6a488abb&hm=acc4f22d30caa9bfd475049f7de5497edc1431564e0722590b020771361358d9",
+  gm: "https://cdn.discordapp.com/attachments/1493204525975076944/1517774899127652443/dorrybrogy.gif?ex=6a48a506&is=6a475386&hm=5babb6e4b86f4b303f27ff3b7accc533b78b794ae16ddb7b4e47361ffddb5e48",
+  tre: "https://cdn.discordapp.com/attachments/1492807857207382090/1520716646082416760/tenor_1.gif?ex=6a48ccbd&is=6a477b3d&hm=1a67f802bbb852a7acd1be653d05eafbbd960e972e29987415e5c94536b3f600",
 };

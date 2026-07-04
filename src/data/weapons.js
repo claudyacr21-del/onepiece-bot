@@ -40,7 +40,7 @@ module.exports = [
     code: "ame_no_habakiri",
     name: "Ame no Habakiri",
     rarity: "UR",
-    owners: ["oden"],
+    owners: ["oden", "momonosuke_shogun"],
     type: "Great Grade Sword",
     statPercent: { atk: 8, hp: 6, speed: 4 },
     ownerBonusPercent: { atk: 10, hp: 8, speed: 5 },
@@ -893,5 +893,38 @@ module.exports = [
     ownerBonusPercent: { atk: 2, hp: 2, speed: 1 },
     image: "",
     description: "Magra's simple bandit knife."
+  },
+  {
+    code: "excalibur",
+    name: "Excalibur",
+    rarity: "UR",
+    owners: ["harald"],
+    type: "Giant Sword",
+    statPercent: { atk: 8, hp: 6, speed: 4 },
+    ownerBonusPercent: { atk: 10, hp: 8, speed: 5 },
+    image: "",
+    description: "Harald's royal giant sword, carrying the power and authority of the King of Elbaf."
+  },
+  {
+    code: "rapier",
+    name: "Rapier",
+    rarity: "S",
+    owners: ["inuarashi_duke"],
+    type: "Sword",
+    statPercent: { atk: 7, hp: 4, speed: 3 },
+    ownerBonusPercent: { atk: 7, hp: 6, speed: 4 },
+    image: "",
+    description: "Inuarashi's elegant blade, used with the refined swordsmanship of the Duke of Mokomo."
+  },
+  {
+    code: "knight_form",
+    name: "Knight Form",
+    rarity: "S",
+    owners: ["uta_diva"],
+    type: "Song Manifestation",
+    statPercent: { atk: 7, hp: 4, speed: 3 },
+    ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
+    image: "",
+    description: "Uta's powerful knight manifestation created through the power of her song."
   }
 ];

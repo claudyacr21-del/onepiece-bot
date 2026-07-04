@@ -753,10 +753,41 @@ module.exports = [
   {
     code: "inu_inu_no_mi_model_kyubi_no_kitsune",
     name: "Inu Inu no Mi, Model: Kyubi no Kitsune",
-    rarity: "S", owners: ["catarina_devon"],
+    rarity: "S", 
+    owners: ["catarina_devon"],
     type: "Mythical Zoan Fruit",
     statPercent: { atk: 7, hp: 6, speed: 4 },
     image: "",
     description: "A mythical nine-tailed fox fruit that allows transformation and deception."
+  },
+  {
+    code: "uta_uta_no_mi",
+    name: "Uta Uta no Mi",
+    rarity: "S",
+    owners: ["uta_diva"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 7, hp: 6, speed: 4 },
+    image: "",
+    description: "Allows the user to create a powerful song world and control others through music."
+  },
+  {
+    code: "batto_batto_no_mi",
+    name: "Batto Batto no Mi",
+    rarity: "S",
+    owners: ["stussy"],
+    type: "Zoan Fruit",
+    statPercent: { atk: 7, hp: 6, speed: 4, dmg: 3 },
+    image: "",
+    description: "Grants bat-like vampire powers, enhancing speed, stealth, and draining attacks."
+  },
+  {
+    code: "uo_replica",
+    name: "Uo Replica",
+    rarity: "S",
+    owners: ["momonosuke_shogun"],
+    type: "Artificial Zoan Fruit",
+    statPercent: { atk: 7, hp: 7, speed: 3 },
+    image: "",
+    description: "Vegapunk's artificial dragon fruit that allows Momonosuke to transform into a powerful dragon."
   }
 ];
