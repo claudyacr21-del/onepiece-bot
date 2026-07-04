@@ -503,7 +503,7 @@ const BOOST_CANON_CARD_REQUIREMENTS = {
   giant_curse: [reqCard("loki", 1, 2)],
   samurai_spirit: [reqCard("oden", 1, 2)],
   lucky_roux: [reqCard("shanks_red_hair", 1, 2)],
-  carrot_mink: [reqCard("inurashi_duke", 1, 2)],
+  carrot_mink: [reqCard("inuarashi_duke", 1, 2)],
   stussy: [reqCard("vegapunk_stella", 1, 2)],
 };
 
@@ -971,7 +971,7 @@ const CANON_LINKS = {
 
   carrot_mink: {
     cards: [
-      reqCard("inurashi_duke", 1, 2),
+      reqCard("inuarashi_duke", 1, 2),
       reqCard("bepo_navigator_support", 1, 2),
     ],
     boosts: [reqBoost("lucky_roux", 1, 2)],
@@ -995,7 +995,7 @@ const CANON_LINKS = {
     boosts: [reqBoost("samurai_spirit", 1, 2)],
   },
 
-  inurashi_duke: {
+  inuarashi_duke: {
     cards: [
       reqCard("momonosuke_shogun", 1, 2),
       reqCard("oden", 1, 2),
