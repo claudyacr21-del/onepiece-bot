@@ -16,7 +16,7 @@ function pickRandomUniversalFragment() {
 const MARKET_ITEMS = [
   {
     code: "random_universal_fragment",
-    aliases: ["fragment", "frag", "universal fragment", "random fragment"],
+    aliases: ["fgems"],
     name: "Random Universal Fragment",
     price: 100,
     currency: "gems",
@@ -68,6 +68,17 @@ const MARKET_ITEMS = [
     item: ITEMS.rumBeer,
     description: "Adds 100 EXP to a battle card.",
     usageText: "Use `op rum <amount> <card name>` to use Rum Beer.",
+  },
+  {
+    code: "random_fragment_berry",
+    aliases: ["fberry"],
+    name: "Random Fragment",
+    price: 200000,
+    currency: "berries",
+    inventory: "items",
+    randomItem: pickRandomUniversalFragment,
+    description: "Random Universal C/B/A/S Fragment bought with berries.",
+    usageText: "Use `op inv` to check your inventory.",
   },
 ];
 
@@ -160,7 +171,8 @@ function buildMarketEmbed(player) {
     "`op buy iron 3`",
     "`op buy royal 10`",
     "`op buy rum 5`",
-    "`op buy fragment 2`",
+    "`op buy fgems 2`",
+    "`op buy fberry 2`"
   ];
 
   return new EmbedBuilder()
