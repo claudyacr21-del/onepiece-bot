@@ -43,6 +43,7 @@ function normalizeExactName(value) {
   return String(value || "")
     .toLowerCase()
     .trim()
+    .replace(/[’']/g, "")
     .replace(/\s+/g, " ");
 }
 
@@ -52,29 +53,25 @@ function stripFragmentSuffix(value) {
     .trim();
 }
 
-function isExactNameMatch(query, names = []) {
-  const q = normalizeExactName(query);
-  if (!q) return false;
-
-  return names
+function getExactSearchNames(item = {}) {
+  return [
+    item.name,
+    item.displayName,
+    item.title,
+    stripFragmentSuffix(item.name),
+    stripFragmentSuffix(item.displayName),
+    stripFragmentSuffix(item.title),
+  ]
     .filter(Boolean)
-    .some((name) => normalizeExactName(name) === q);
+    .map(normalizeExactName)
+    .filter(Boolean);
 }
 
-function isExactFragmentNameMatch(query, fragment) {
+function isExactNameMatch(query, item = {}) {
   const q = normalizeExactName(query);
   if (!q) return false;
 
-  const names = [
-    fragment?.name,
-    fragment?.displayName,
-    stripFragmentSuffix(fragment?.name),
-    stripFragmentSuffix(fragment?.displayName),
-  ];
-
-  return names
-    .filter(Boolean)
-    .some((name) => normalizeExactName(name) === q);
+  return getExactSearchNames(item).includes(q);
 }
 
 function parseSacAddArgs(args) {
@@ -155,9 +152,7 @@ function toFragmentTargetFromOwnedFragment(fragment) {
 function findOwnedFragment(player, query) {
   const fragments = Array.isArray(player.fragments) ? player.fragments : [];
 
-  const found = fragments.find((item) =>
-    isExactFragmentNameMatch(query, item)
-  );
+  const found = fragments.find((item) => isExactNameMatch(query, item));
 
   return found ? toFragmentTargetFromOwnedFragment(found) : null;
 }
@@ -167,12 +162,7 @@ function findCardTemplate(query) {
 
   const found = cards
     .filter((card) => String(card.code || "").toLowerCase() !== "imu")
-    .find((card) =>
-      isExactNameMatch(query, [
-        card.name,
-        card.displayName,
-      ])
-    );
+    .find((card) => isExactNameMatch(query, card));
 
   return found ? toFragmentTargetFromCard(found) : null;
 }
@@ -180,12 +170,7 @@ function findCardTemplate(query) {
 function findWeaponTemplate(query) {
   const weapons = Array.isArray(rawWeapons) ? rawWeapons : [];
 
-  const found = weapons.find((weapon) =>
-    isExactNameMatch(query, [
-      weapon.name,
-      weapon.displayName,
-    ])
-  );
+  const found = weapons.find((weapon) => isExactNameMatch(query, weapon));
 
   return found ? toFragmentTargetFromWeapon(found) : null;
 }
