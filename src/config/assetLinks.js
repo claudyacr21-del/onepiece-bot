@@ -994,7 +994,7 @@ const CARD_IMAGES = {
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1522570246031147028/content.png?ex=6a48f38a&is=6a47a20a&hm=3503b5d074d5612b84d96f0f7e67c80b44e4536887ad900b9c69064476f3bd0d&",
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1522570246622412882/content.png?ex=6a48f38a&is=6a47a20a&hm=37fc893fb8f7d69b0492c19b2a307a1e3032d8646a857f5aaa8bd5d4241d23ff&",
   },
-  inurashi_duke: {
+  inuarashi_duke: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1522574024276967494/content.png?ex=6a48f70f&is=6a47a58f&hm=2946516ad62cec7008350abedcf1f9fcfed2d73f38117790ef70d69bba52b5e1&",
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1522574024704655400/content.png?ex=6a48f70f&is=6a47a58f&hm=e8bb828c5a78a702fd576539d54eb28991f096f5eaa0010abf4f0cfcc53a42dd&",
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1522574025136541746/content.png?ex=6a48f70f&is=6a47a58f&hm=52f9a9277c95520d7f65a932d6bc0476c881d6f7d51338866ad2cfef1eba7be3&",
