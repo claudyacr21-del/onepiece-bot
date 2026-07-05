@@ -39,6 +39,103 @@ const PULL_COMMAND_LOCKS =
   global.__ONEPIECE_PULL_COMMAND_LOCKS ||
   (global.__ONEPIECE_PULL_COMMAND_LOCKS = new Set());
 
+const PA_REWARD_POOL_CACHE =
+  global.__ONEPIECE_PA_REWARD_POOL_CACHE ||
+  (global.__ONEPIECE_PA_REWARD_POOL_CACHE = new Map());
+
+function normalizePaCode(value) {
+  return String(value || "").toLowerCase().trim();
+}
+
+function getCachedRewardPool(contentType) {
+  const key = String(contentType || "unknown");
+
+  if (PA_REWARD_POOL_CACHE.has(key)) {
+    return PA_REWARD_POOL_CACHE.get(key);
+  }
+
+  const pool = getRewardPool(contentType);
+  const rarityMap = new Map();
+  const normalPool = [];
+
+  for (const entry of Array.isArray(pool) ? pool : []) {
+    const rarity = getPullRarity(entry);
+
+    if (rarity !== "THRONE") {
+      normalPool.push(entry);
+    }
+
+    if (!rarityMap.has(rarity)) {
+      rarityMap.set(rarity, []);
+    }
+
+    rarityMap.get(rarity).push(entry);
+  }
+
+  const cached = {
+    pool,
+    normalPool,
+    rarityMap,
+  };
+
+  PA_REWARD_POOL_CACHE.set(key, cached);
+  return cached;
+}
+
+function pickRandomByRarityCached(contentType, rarity) {
+  const cached = getCachedRewardPool(contentType);
+  const targetRarity = String(rarity || "").toUpperCase();
+
+  if (targetRarity === "THRONE") {
+    const thronePool = cached.rarityMap.get("THRONE") || [];
+    if (!thronePool.length) return null;
+
+    return thronePool[Math.floor(Math.random() * thronePool.length)] || null;
+  }
+
+  const filtered = cached.rarityMap.get(targetRarity) || [];
+  const source = filtered.length
+    ? filtered
+    : cached.normalPool.length
+    ? cached.normalPool
+    : cached.pool;
+
+  if (!source.length) return null;
+  return source[Math.floor(Math.random() * source.length)] || null;
+}
+
+function buildOwnedCardCodeSet(cards) {
+  const set = new Set();
+
+  for (const card of Array.isArray(cards) ? cards : []) {
+    const code = normalizePaCode(card?.code);
+    if (code) set.add(code);
+  }
+
+  return set;
+}
+
+function buildOwnedWeaponCodeSet(player, weaponsList) {
+  const set = new Set();
+
+  for (const weapon of Array.isArray(weaponsList) ? weaponsList : []) {
+    const code = normalizePaCode(weapon?.code);
+    if (code) set.add(code);
+  }
+
+  for (const card of Array.isArray(player?.cards) ? player.cards : []) {
+    for (const weapon of Array.isArray(card?.equippedWeapons) ? card.equippedWeapons : []) {
+      const code = normalizePaCode(weapon?.code || weapon?.weaponCode);
+      if (code) set.add(code);
+    }
+
+    const legacyCode = normalizePaCode(card?.equippedWeaponCode);
+    if (legacyCode) set.add(legacyCode);
+  }
+
+  return set;
+}
+
 function yieldPaEventLoop() {
   return new Promise((resolve) => {
     setImmediate(resolve);
@@ -1215,9 +1312,12 @@ try {
       tickets: [],
     };
 
+    const ownedCardCodes = buildOwnedCardCodeSet(updatedCards);
+    const ownedWeaponCodes = buildOwnedWeaponCodeSet(player, updatedWeapons);
+
     const paYieldEvery = Math.max(
       1,
-      Number(process.env.PA_EVENT_LOOP_YIELD_EVERY || 999)
+      Number(process.env.PA_EVENT_LOOP_YIELD_EVERY || 9999)
     );
 
     for (let i = 0; i < availableTotal; i++) {
@@ -1234,8 +1334,6 @@ try {
         contentType = Math.random() < 0.5 ? "battleCard" : "boostCard";
       }
 
-      const pool = getRewardPool(contentType);
-
       const rarity = getPremiumRewardTier(
         contentType,
         triggeredPity,
@@ -1244,30 +1342,29 @@ try {
       );
 
       const reward =
-        contentType === "ticket" ? pickWeightedTicket() : pickRandomByRarity(pool, rarity);
+        contentType === "ticket"
+          ? pickWeightedTicket()
+          : pickRandomByRarityCached(contentType, rarity);
 
       if (!reward) continue;
 
       const rewardResult = getRewardResult(contentType, reward);
       let duplicateNote = "";
 
+      const rewardCode = normalizePaCode(rewardResult.storedReward?.code);
+
       const isDuplicateCard =
-        rewardResult.storageKey === "cards" &&
-        hasOwnedCardByCode(updatedCards, rewardResult.storedReward.code);
+        rewardResult.storageKey === "cards" && ownedCardCodes.has(rewardCode);
 
       const isDuplicateWeapon =
-        rewardResult.storageKey === "weapons" &&
-        hasNamedItemByCode(updatedWeapons, rewardResult.storedReward.code);
+        rewardResult.storageKey === "weapons" && ownedWeaponCodes.has(rewardCode);
 
       const needsStorageSlot = false;
 
       if (rewardResult.storageKey === "tickets") {
         updatedTickets = addTicket(updatedTickets, rewardResult.storedReward);
       } else if (rewardResult.storageKey === "cards") {
-        const alreadyOwned = hasOwnedCardByCode(
-          updatedCards,
-          rewardResult.storedReward.code
-        );
+        const alreadyOwned = isDuplicateCard;
 
         if (alreadyOwned) {
           const duplicateResult = addDuplicateCardReward({
@@ -1285,13 +1382,10 @@ try {
           summary.fragments += duplicateResult.fragmentCount;
         } else {
           updatedCards.push(rewardResult.storedReward);
+          if (rewardCode) ownedCardCodes.add(rewardCode);
         }
       } else if (rewardResult.storageKey === "weapons") {
-        const alreadyOwnedWeapon = hasWeaponOwnedOrEquipped(
-          player,
-          updatedWeapons,
-          rewardResult.storedReward.code
-        );
+        const alreadyOwnedWeapon = isDuplicateWeapon;
 
         if (alreadyOwnedWeapon) {
           const duplicateResult = addDuplicateWeaponReward({
@@ -1307,6 +1401,7 @@ try {
           summary.fragments += duplicateResult.fragmentCount;
         } else {
           updatedWeapons = addNamedItem(updatedWeapons, rewardResult.storedReward);
+          if (rewardCode) ownedWeaponCodes.add(rewardCode);
         }
       } else if (rewardResult.storageKey === "devilFruits") {
         updatedDevilFruits = addDevilFruitItem(
