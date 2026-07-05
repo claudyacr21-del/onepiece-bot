@@ -102,6 +102,14 @@ const PITY_CHARM_MILESTONES = new Set([
   75000000,
 ]);
 
+const GLOBAL_BONUS_START_DAMAGE = 75000000;
+const GLOBAL_BONUS_STEP_DAMAGE = 1000000;
+
+const GLOBAL_BONUS_REWARD = {
+  berries: 1000000,
+  ryumaTokens: 200,
+};
+
 const PERSONAL_MILESTONES = [
   {
     damage: 25000,
@@ -1137,6 +1145,9 @@ function getEventData(player) {
     claimedGlobalMilestones: Array.isArray(data.claimedGlobalMilestones)
       ? data.claimedGlobalMilestones.map(Number)
       : [],
+    claimedGlobalBonusMilestones: Array.isArray(data.claimedGlobalBonusMilestones)
+      ? data.claimedGlobalBonusMilestones.map(Number)
+      : [],
     shopPurchases:
       data.shopPurchases && typeof data.shopPurchases === "object"
         ? data.shopPurchases
@@ -1290,9 +1301,44 @@ function getUnlockedGlobalMilestones(totalDamage) {
   return GLOBAL_MILESTONES.filter((milestone) => damage >= milestone);
 }
 
+function getUnlockedGlobalBonusCount(totalDamage) {
+  const damage = Math.max(0, Number(totalDamage || 0));
+
+  if (damage < GLOBAL_BONUS_START_DAMAGE + GLOBAL_BONUS_STEP_DAMAGE) {
+    return 0;
+  }
+
+  return Math.floor(
+    (damage - GLOBAL_BONUS_START_DAMAGE) / GLOBAL_BONUS_STEP_DAMAGE
+  );
+}
+
+function getGlobalBonusClaims(globalState, eventData) {
+  const claimed = new Set(eventData.claimedGlobalBonusMilestones || []);
+  const unlockedCount = getUnlockedGlobalBonusCount(globalState.totalDamage);
+  const claims = [];
+
+  for (let index = 1; index <= unlockedCount; index += 1) {
+    const milestoneDamage =
+      GLOBAL_BONUS_START_DAMAGE + index * GLOBAL_BONUS_STEP_DAMAGE;
+
+    if (!claimed.has(milestoneDamage)) {
+      claims.push(milestoneDamage);
+    }
+  }
+
+  return claims;
+}
+
 function getNextGlobalMilestone(totalDamage) {
   const damage = Math.max(0, Number(totalDamage || 0));
-  return GLOBAL_MILESTONES.find((milestone) => milestone > damage) || null;
+  const mainMilestone = GLOBAL_MILESTONES.find((milestone) => milestone > damage);
+
+  if (mainMilestone) return mainMilestone;
+
+  const bonusCount = getUnlockedGlobalBonusCount(damage);
+
+  return GLOBAL_BONUS_START_DAMAGE + (bonusCount + 1) * GLOBAL_BONUS_STEP_DAMAGE;
 }
 
 function getUnlockedBonusCount(damage) {
@@ -1426,6 +1472,8 @@ function buildRewardsEmbed(message) {
   const claimedGlobal = new Set(eventData.claimedGlobalMilestones || []);
   const claimedPersonal = new Set(eventData.claimedPersonalMilestones || []);
   const claimedBonus = new Set(eventData.claimedBonusMilestones || []);
+  const claimedGlobalBonus = new Set(eventData.claimedGlobalBonusMilestones || []);
+  const globalBonusCount = getUnlockedGlobalBonusCount(globalState.totalDamage);
 
   const personalLines = PERSONAL_MILESTONES.map((milestone) => {
     const unlocked = eventData.damage >= milestone.damage;
@@ -1473,6 +1521,19 @@ function buildRewardsEmbed(message) {
         "",
         "**Global Milestones**",
         globalLines.join("\n"),
+        globalBonusCount > 0 ? "" : null,
+        globalBonusCount > 0 ? "**Global Bonus Milestones After 75M**" : null,
+        globalBonusCount > 0
+          ? Array.from({ length: globalBonusCount }, (_, index) => {
+              const milestoneDamage =
+                GLOBAL_BONUS_START_DAMAGE + (index + 1) * GLOBAL_BONUS_STEP_DAMAGE;
+              const claimed = claimedGlobalBonus.has(milestoneDamage);
+
+              return `${claimed ? "✅" : "🟡"} ${fmt(
+                milestoneDamage
+              )} global bonus damage${claimed ? " — claimed" : " — claimable"}`;
+            }).join("\n")
+          : null,
         "",
         "Use `op ryuma claim` or the Claim button to claim unlocked rewards.",
       ].filter(Boolean).join("\n")
@@ -2028,6 +2089,9 @@ async function claimEventRewards(message, editableMessage = null) {
     claimedPersonalMilestones: [...eventData.claimedPersonalMilestones],
     claimedBonusMilestones: [...eventData.claimedBonusMilestones],
     claimedGlobalMilestones: [...eventData.claimedGlobalMilestones],
+    claimedGlobalBonusMilestones: [
+      ...(eventData.claimedGlobalBonusMilestones || []),
+    ],
   };
 
   const personalClaims = getPersonalClaims(nextEventData);
@@ -2036,8 +2100,14 @@ async function claimEventRewards(message, editableMessage = null) {
   const unlockedGlobal = getUnlockedGlobalMilestones(globalState.totalDamage);
   const claimedGlobal = new Set(nextEventData.claimedGlobalMilestones || []);
   const globalClaims = unlockedGlobal.filter((milestone) => !claimedGlobal.has(milestone));
+  const globalBonusClaims = getGlobalBonusClaims(globalState, nextEventData);
 
-  if (!personalClaims.length && !bonusClaims.length && !globalClaims.length) {
+  if (
+    !personalClaims.length &&
+    !bonusClaims.length &&
+    !globalClaims.length &&
+    !globalBonusClaims.length
+  ) {
     return message.reply({
       content: "You have no Ryuma event rewards to claim.",
       allowedMentions: {
@@ -2099,6 +2169,25 @@ async function claimEventRewards(message, editableMessage = null) {
     );
   }
 
+  if (globalBonusClaims.length) {
+    const totalGlobalBonusReward = multiplyRewards(
+      GLOBAL_BONUS_REWARD,
+      globalBonusClaims.length
+    );
+
+    player = applyRewards(player, totalGlobalBonusReward);
+
+    for (const milestone of globalBonusClaims) {
+      nextEventData.claimedGlobalBonusMilestones.push(milestone);
+    }
+
+    claimedLines.push(
+      `Global bonus ${fmt(globalBonusClaims.length)} milestone(s) after 75M: ${rewardLines(
+        totalGlobalBonusReward
+      ).join(", ")}`
+    );
+  }
+
   player = setEventData(player, nextEventData);
   players[String(message.author.id)] = player;
   await persistRyumaState(players, message.author.id);
@@ -2108,7 +2197,12 @@ async function claimEventRewards(message, editableMessage = null) {
     .setTitle("Ryuma Rewards Claimed")
     .setDescription(
       [
-        `You claimed **${fmt(personalClaims.length + bonusClaims.length + globalClaims.length)}** reward group(s).`,
+        `You claimed **${fmt(
+          personalClaims.length +
+            bonusClaims.length +
+            globalClaims.length +
+            globalBonusClaims.length
+        )}** reward group(s).`,
         "",
         claimedLines.map((line) => `- ${line}`).join("\n"),
         "",

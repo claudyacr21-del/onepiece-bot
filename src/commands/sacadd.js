@@ -39,7 +39,7 @@ function scoreQuery(query, candidates) {
   return best;
 }
 
-function normalizeExactName(value) {
+function normalizeNameOnly(value) {
   return String(value || "")
     .toLowerCase()
     .trim()
@@ -53,7 +53,7 @@ function stripFragmentSuffix(value) {
     .trim();
 }
 
-function getExactSearchNames(item = {}) {
+function getNameOnlyCandidates(item = {}) {
   return [
     item.name,
     item.displayName,
@@ -63,15 +63,57 @@ function getExactSearchNames(item = {}) {
     stripFragmentSuffix(item.title),
   ]
     .filter(Boolean)
-    .map(normalizeExactName)
+    .map((name) => normalizeNameOnly(name))
     .filter(Boolean);
 }
 
-function isExactNameMatch(query, item = {}) {
-  const q = normalizeExactName(query);
-  if (!q) return false;
+function scoreNameOnlyQuery(query, item = {}) {
+  const q = normalizeNameOnly(query);
+  if (!q) return 0;
 
-  return getExactSearchNames(item).includes(q);
+  const candidates = getNameOnlyCandidates(item);
+  let best = 0;
+
+  for (const name of candidates) {
+    if (name === q) {
+      best = Math.max(best, 10000 + name.length);
+      continue;
+    }
+
+    if (name.startsWith(q)) {
+      best = Math.max(best, 7000 + q.length);
+      continue;
+    }
+
+    if (name.includes(q)) {
+      best = Math.max(best, 5000 + q.length);
+      continue;
+    }
+
+    const queryWords = q.split(" ").filter(Boolean);
+    const nameWords = name.split(" ").filter(Boolean);
+
+    if (
+      queryWords.length > 1 &&
+      queryWords.every((word) => nameWords.includes(word))
+    ) {
+      best = Math.max(best, 3000 + queryWords.join("").length);
+    }
+  }
+
+  return best;
+}
+
+function findBestNameOnlyMatch(items = [], query) {
+  const scored = items
+    .map((item) => ({
+      item,
+      score: scoreNameOnlyQuery(query, item),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored.length ? scored[0].item : null;
 }
 
 function parseSacAddArgs(args) {
@@ -152,7 +194,7 @@ function toFragmentTargetFromOwnedFragment(fragment) {
 function findOwnedFragment(player, query) {
   const fragments = Array.isArray(player.fragments) ? player.fragments : [];
 
-  const found = fragments.find((item) => isExactNameMatch(query, item));
+  const found = findBestNameOnlyMatch(fragments, query);
 
   return found ? toFragmentTargetFromOwnedFragment(found) : null;
 }
@@ -160,9 +202,10 @@ function findOwnedFragment(player, query) {
 function findCardTemplate(query) {
   const cards = Array.isArray(rawCards) ? rawCards : [];
 
-  const found = cards
-    .filter((card) => String(card.code || "").toLowerCase() !== "imu")
-    .find((card) => isExactNameMatch(query, card));
+  const found = findBestNameOnlyMatch(
+    cards.filter((card) => String(card.code || "").toLowerCase() !== "imu"),
+    query
+  );
 
   return found ? toFragmentTargetFromCard(found) : null;
 }
@@ -170,7 +213,7 @@ function findCardTemplate(query) {
 function findWeaponTemplate(query) {
   const weapons = Array.isArray(rawWeapons) ? rawWeapons : [];
 
-  const found = weapons.find((weapon) => isExactNameMatch(query, weapon));
+  const found = findBestNameOnlyMatch(weapons, query);
 
   return found ? toFragmentTargetFromWeapon(found) : null;
 }
