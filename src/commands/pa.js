@@ -1208,7 +1208,7 @@ try {
 
     const paYieldEvery = Math.max(
       1,
-      Number(process.env.PA_EVENT_LOOP_YIELD_EVERY || 25)
+      Number(process.env.PA_EVENT_LOOP_YIELD_EVERY || 999)
     );
 
     for (let i = 0; i < availableTotal; i++) {
@@ -1395,44 +1395,30 @@ try {
       convertedCount += fragmentStorageAudit.convertedCount;
     }
 
-    const saveResult = await savePullAllResultFresh(
-      message.author.id,
-      {
-        cards: updatedCards,
-        weapons: updatedWeapons,
-        devilFruits: updatedDevilFruits,
-        fragments: updatedFragments,
-        tickets: updatedTickets,
-        addBerries: convertedBerries,
+    const savePayload = {
+      cards: updatedCards,
+      weapons: updatedWeapons,
+      devilFruits: updatedDevilFruits,
+      fragments: updatedFragments,
+      tickets: updatedTickets,
+      addBerries: convertedBerries,
 
-        pity: updatedPity,
-        pullAccessSnapshot: snapshot,
+      pity: updatedPity,
+      pullAccessSnapshot: snapshot,
 
-        finalPulls,
-        availableTotal,
+      finalPulls,
+      availableTotal,
 
-        stats: {
-          ...(player.stats || {}),
-          cardsPulled: Number(player?.stats?.cardsPulled || 0) + cardsPulledThisRun,
-        },
-
-        quests: {
-          ...(player.quests || {}),
-          dailyState: updatedDailyState,
-        },
+      stats: {
+        ...(player.stats || {}),
+        cardsPulled: Number(player?.stats?.cardsPulled || 0) + cardsPulledThisRun,
       },
-      message.author.username
-    );
 
-    if (!saveResult.didSave) {
-      return replyOrEdit({
-        content: "You do not have any available pulls right now.",
-        embeds: [],
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
+      quests: {
+        ...(player.quests || {}),
+        dailyState: updatedDailyState,
+      },
+    };
 
     const groupedLines = [];
     const luckyWeekLine = getLuckyWeekBonusLine();
@@ -1522,15 +1508,41 @@ try {
       );
     }
 
-    return replyOrEdit({
+    const sentResult = await replyOrEdit({
       content: "",
       embeds,
       allowedMentions: {
         repliedUser: false,
       },
     });
+
+    setImmediate(() => {
+      try {
+        const saveResult = savePullAllResultFresh(
+          message.author.id,
+          savePayload,
+          message.author.username
+        );
+
+        if (!saveResult.didSave) {
+          console.warn("[PA BACKGROUND SAVE SKIPPED]", {
+            userId: String(message.author.id),
+            reason: "didSave=false",
+          });
+        }
+      } catch (error) {
+        console.error("[PA BACKGROUND SAVE ERROR]", {
+          userId: String(message.author.id),
+          message: error?.message || error,
+        });
+      }
+    });
+
+    return sentResult;
   } finally {
-    PULL_COMMAND_LOCKS.delete(paLockKey);
+    setTimeout(() => {
+      PULL_COMMAND_LOCKS.delete(paLockKey);
+    }, 3000);
   }
   },
 };
