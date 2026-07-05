@@ -1147,6 +1147,15 @@ try {
       0
     );
 
+    if (availableTotal > 0) {
+      processingMessage = await message.reply({
+        content: `Pulling all available slots... (${availableTotal} pull${availableTotal === 1 ? "" : "s"})`,
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
     if (availableTotal <= 0) {
       return replyOrEdit({
         content: "You do not have any available pulls right now.",
@@ -1395,30 +1404,44 @@ try {
       convertedCount += fragmentStorageAudit.convertedCount;
     }
 
-    const savePayload = {
-      cards: updatedCards,
-      weapons: updatedWeapons,
-      devilFruits: updatedDevilFruits,
-      fragments: updatedFragments,
-      tickets: updatedTickets,
-      addBerries: convertedBerries,
+    const saveResult = await savePullAllResultFresh(
+      message.author.id,
+      {
+        cards: updatedCards,
+        weapons: updatedWeapons,
+        devilFruits: updatedDevilFruits,
+        fragments: updatedFragments,
+        tickets: updatedTickets,
+        addBerries: convertedBerries,
 
-      pity: updatedPity,
-      pullAccessSnapshot: snapshot,
+        pity: updatedPity,
+        pullAccessSnapshot: snapshot,
 
-      finalPulls,
-      availableTotal,
+        finalPulls,
+        availableTotal,
 
-      stats: {
-        ...(player.stats || {}),
-        cardsPulled: Number(player?.stats?.cardsPulled || 0) + cardsPulledThisRun,
+        stats: {
+          ...(player.stats || {}),
+          cardsPulled: Number(player?.stats?.cardsPulled || 0) + cardsPulledThisRun,
+        },
+
+        quests: {
+          ...(player.quests || {}),
+          dailyState: updatedDailyState,
+        },
       },
+      message.author.username
+    );
 
-      quests: {
-        ...(player.quests || {}),
-        dailyState: updatedDailyState,
-      },
-    };
+    if (!saveResult.didSave) {
+      return replyOrEdit({
+        content: "You do not have any available pulls right now.",
+        embeds: [],
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
 
     const groupedLines = [];
     const luckyWeekLine = getLuckyWeekBonusLine();
@@ -1508,41 +1531,15 @@ try {
       );
     }
 
-    const sentResult = await replyOrEdit({
+    return replyOrEdit({
       content: "",
       embeds,
       allowedMentions: {
         repliedUser: false,
       },
     });
-
-    setImmediate(() => {
-      try {
-        const saveResult = savePullAllResultFresh(
-          message.author.id,
-          savePayload,
-          message.author.username
-        );
-
-        if (!saveResult.didSave) {
-          console.warn("[PA BACKGROUND SAVE SKIPPED]", {
-            userId: String(message.author.id),
-            reason: "didSave=false",
-          });
-        }
-      } catch (error) {
-        console.error("[PA BACKGROUND SAVE ERROR]", {
-          userId: String(message.author.id),
-          message: error?.message || error,
-        });
-      }
-    });
-
-    return sentResult;
   } finally {
-    setTimeout(() => {
-      PULL_COMMAND_LOCKS.delete(paLockKey);
-    }, 3000);
+    PULL_COMMAND_LOCKS.delete(paLockKey);
   }
   },
 };
