@@ -2,6 +2,7 @@ const { EmbedBuilder } = require("discord.js");
 const {
   getPlayer,
   updatePlayerAtomic,
+  flushPlayerNow,
 } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
@@ -1426,6 +1427,18 @@ try {
         },
       });
     }
+
+    setImmediate(() => {
+      flushPlayerNow(
+        String(message.author.id),
+        Number(process.env.PA_PLAYER_SAVE_TIMEOUT_MS || 8000)
+      ).catch((error) => {
+        console.error("[PA PLAYER SAVE ERROR]", {
+          userId: String(message.author.id),
+          message: error?.message || error,
+        });
+      });
+    });
 
     const groupedLines = [];
     const luckyWeekLine = getLuckyWeekBonusLine();

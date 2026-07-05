@@ -782,6 +782,34 @@ function createPlayerBanMessage(ban) {
   return lines.join("\n");
 }
 
+function runPlayerStoreFlushInBackground({
+  command,
+  commandName,
+  authorId,
+  fastCommand = false,
+}) {
+  const commandFlushMs = Number(
+    process.env.PLAYER_DB_COMMAND_FLUSH_MS || 10000
+  );
+
+  if (commandFlushMs <= 0) return;
+
+  setImmediate(() => {
+    const flushPromise = fastCommand
+      ? flushPlayerNow(String(authorId), commandFlushMs)
+      : flushPlayerStoreNow(commandFlushMs);
+
+    Promise.resolve(flushPromise).catch((error) => {
+      console.error("[PLAYER DB BACKGROUND FLUSH ERROR]", {
+        commandName: command?.name || commandName,
+        authorId: String(authorId || ""),
+        fastCommand,
+        message: error?.message || error,
+      });
+    });
+  });
+}
+
 function createDefaultPlayerForMilestone(message) {
   return {
     username: message.author.username,
@@ -1116,24 +1144,12 @@ client.on("messageCreate", async (message) => {
         activeCommandExecutions.delete(commandExecutionKey);
       }, 10_000);
 
-      const commandFlushMs = Number(
-        process.env.PLAYER_DB_COMMAND_FLUSH_MS || 10000
-      );
-
-      if (commandFlushMs > 0) {
-        try {
-          // Flush the whole dirty player store, not only the command author.
-          // Many commands update target users, global config rows, raid/boss state,
-          // trade partners, rewards, cooldown state, or event state.
-          await flushPlayerStoreNow(commandFlushMs);
-        } catch (error) {
-          console.error("[PLAYER DB COMMAND STORE FLUSH ERROR]", {
-            commandName: command.name || commandName,
-            authorId: String(message.author.id),
-            message: error?.message || error,
-          });
-        }
-      }
+      runPlayerStoreFlushInBackground({
+        command,
+        commandName,
+        authorId: message.author.id,
+        fastCommand: isFastCommandCooldownBypass,
+      });
     }
 
     if (commandError) {
