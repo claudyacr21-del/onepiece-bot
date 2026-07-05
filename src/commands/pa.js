@@ -1078,31 +1078,6 @@ module.exports = {
   async execute(message, args = []) {
     const paLockKey = String(message.author.id);
     let processingMessage = null;
-    let loadingTimer = null;
-
-    const startDelayedLoading = (availableTotal) => {
-      loadingTimer = setTimeout(() => {
-        if (processingMessage) return;
-
-        message.reply({
-          content: `Pulling all available slots... (${availableTotal} pull${availableTotal === 1 ? "" : "s"})`,
-          allowedMentions: {
-            repliedUser: false,
-          },
-        })
-          .then((sent) => {
-            processingMessage = sent;
-          })
-          .catch(() => null);
-      }, Number(process.env.PA_LOADING_DELAY_MS || 1500));
-    };
-
-    const stopDelayedLoading = () => {
-      if (loadingTimer) {
-        clearTimeout(loadingTimer);
-        loadingTimer = null;
-      }
-    };
 
     const replyOrEdit = async (payload) => {
       if (processingMessage && typeof processingMessage.edit === "function") {
@@ -1173,8 +1148,6 @@ try {
       0
     );
 
-    await yieldPaEventLoop();
-
     if (availableTotal <= 0) {
       return replyOrEdit({
         content: "You do not have any available pulls right now.",
@@ -1196,8 +1169,6 @@ try {
         },
       });
     }
-
-    startDelayedLoading(availableTotal);
 
     let updatedCards = [...(player.cards || [])];
     let updatedWeapons = [...(player.weapons || [])];
@@ -1238,7 +1209,7 @@ try {
 
     const paYieldEvery = Math.max(
       1,
-      Number(process.env.PA_EVENT_LOOP_YIELD_EVERY || 5)
+      Number(process.env.PA_EVENT_LOOP_YIELD_EVERY || 25)
     );
 
     for (let i = 0; i < availableTotal; i++) {
@@ -1476,7 +1447,6 @@ try {
       });
     });
 
-    await yieldPaEventLoop();
     const groupedLines = [];
     const luckyWeekLine = getLuckyWeekBonusLine();
 
@@ -1565,8 +1535,6 @@ try {
       );
     }
 
-    stopDelayedLoading();
-
     return replyOrEdit({
       content: "",
       embeds,
@@ -1575,7 +1543,6 @@ try {
       },
     });
   } finally {
-    stopDelayedLoading();
     PULL_COMMAND_LOCKS.delete(paLockKey);
   }
   },
