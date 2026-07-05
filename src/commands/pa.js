@@ -39,6 +39,13 @@ const PREMIUM_PITY_TARGET = 100;
 const PULL_COMMAND_LOCKS =
   global.__ONEPIECE_PULL_COMMAND_LOCKS ||
   (global.__ONEPIECE_PULL_COMMAND_LOCKS = new Set());
+
+function yieldPaEventLoop() {
+  return new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+}
+
 function getPirateLuckBoost(userId) {
   const pirate = findPirateByUser(userId);
   const luckLevel = Math.max(0, Math.floor(Number(pirate?.perks?.luckBoost || 0)));
@@ -1150,6 +1157,8 @@ try {
       });
     }
 
+    await yieldPaEventLoop();
+
     if (availableTotal <= 0) {
       return replyOrEdit({
         content: "You do not have any available pulls right now.",
@@ -1209,7 +1218,16 @@ try {
       tickets: [],
     };
 
+    const paYieldEvery = Math.max(
+      1,
+      Number(process.env.PA_EVENT_LOOP_YIELD_EVERY || 5)
+    );
+
     for (let i = 0; i < availableTotal; i++) {
+      if (i > 0 && i % paYieldEvery === 0) {
+        await yieldPaEventLoop();
+      }
+
       pityCounter += 1;
       const triggeredPity = pityCounter >= PREMIUM_PITY_TARGET;
 
@@ -1440,6 +1458,7 @@ try {
       });
     });
 
+    await yieldPaEventLoop();
     const groupedLines = [];
     const luckyWeekLine = getLuckyWeekBonusLine();
 
