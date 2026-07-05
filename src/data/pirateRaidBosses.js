@@ -53,6 +53,17 @@ const PIRATE_RAID_BOSSES = {
     minPirateLevel: 60,
     description: "A Yonko-tier pirate raid boss.",
   },
+
+  mythic: {
+    key: "mythic",
+    name: "Joyboy",
+    tierName: "Mythic",
+    hp: 150000000,
+    atk: 9500,
+    basePoints: 100000,
+    minPirateLevel: 75,
+    description: "A Sun God raid boss for strong pirates.",
+  },
 };
 
 function normalizePirateRaidTier(query) {
@@ -85,6 +96,10 @@ function normalizePirateRaidTier(query) {
     leg: "legendary",
     legendary: "legendary",
     kaido: "legendary",
+
+    m: "mythic",
+    mythic: "mythic",
+    joyboy: "mythic",
   };
 
   return aliases[raw] || null;

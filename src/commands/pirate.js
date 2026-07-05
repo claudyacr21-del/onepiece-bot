@@ -1966,24 +1966,24 @@ function getPirateRaidPoints({ boss, damage, pirate, userId }) {
 function getPirateRaidClearReward(boss) {
   const rewards = {
     easy: {
-      berries: 10000,
-      gems: 5,
+      berries: 100000,
+      gems: 50,
       items: [
         { code: "rare_resource_box", name: "Rare Resource Box", type: "Box", amount: 1 },
       ],
     },
 
     normal: {
-      berries: 20000,
-      gems: 10,
+      berries: 200000,
+      gems: 100,
       items: [
         { code: "rare_resource_box", name: "Rare Resource Box", type: "Box", amount: 2 },
       ],
     },
 
     hard: {
-      berries: 50000,
-      gems: 20,
+      berries: 500000,
+      gems: 200,
       items: [
         { code: "elite_resource_box", name: "Elite Resource Box", type: "Box", amount: 1 },
         { code: "pull_reset_ticket", name: "Pull Reset Ticket", type: "Item", amount: 1 },
@@ -1991,8 +1991,8 @@ function getPirateRaidClearReward(boss) {
     },
 
     extreme: {
-      berries: 100000,
-      gems: 35,
+      berries: 1000000,
+      gems: 350,
       items: [
         { code: "elite_resource_box", name: "Elite Resource Box", type: "Box", amount: 2 },
         { code: "pull_reset_ticket", name: "Pull Reset Ticket", type: "Item", amount: 1 },
@@ -2000,12 +2000,23 @@ function getPirateRaidClearReward(boss) {
     },
 
     legendary: {
-      berries: 250000,
-      gems: 75,
+      berries: 1250000,
+      gems: 750,
       items: [
-        { code: "legend_resource_box", name: "Legend Resource Box", type: "Box", amount: 2 },
-        { code: "pull_reset_ticket", name: "Pull Reset Ticket", type: "Item", amount: 1 },
-        { code: "gold_raid_ticket", name: "Gold Raid Ticket", type: "Ticket", amount: 1 },
+        { code: "legend_resource_box", name: "Legend Resource Box", type: "Box", amount: 3 },
+        { code: "pull_reset_ticket", name: "Pull Reset Ticket", type: "Item", amount: 3 },
+        { code: "gold_raid_ticket", name: "Gold Raid Ticket", type: "Ticket", amount: 2 },
+      ],
+    },
+
+    mythic: {
+      berries: 1500000,
+      gems: 1500,
+      items: [
+        { code: "legend_resource_box", name: "Legend Resource Box", type: "Box", amount: 5 },
+        { code: "pull_reset_ticket", name: "Pull Reset Ticket", type: "Item", amount: 5 },
+        { code: "gold_raid_ticket", name: "Gold Raid Ticket", type: "Ticket", amount: 2 },
+        { code: "mythic_raid_ticket", name: "Mythic Raid Ticket", type: "Ticket", amount: 1 },
       ],
     },
   };
