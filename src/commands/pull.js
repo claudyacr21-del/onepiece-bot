@@ -261,7 +261,7 @@ function getTicketPool(pullTier = "normal") {
 
   const weights =
     tier === "motherFlame"
-      ? { common: 25, raid: 30, gold: 25, throne: 15, mythic: 5 }
+      ? { common: 25, raid: 30, gold: 25, throne: 10, mythic: 5 }
       : tier === "vivreCard"
         ? { common: 44, raid: 34, gold: 13, throne: 6, mythic: 3 }
         : { common: 52, raid: 35, gold: 8, throne: 4, mythic: 1 };

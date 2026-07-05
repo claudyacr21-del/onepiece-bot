@@ -146,7 +146,7 @@ function getTicketPool() {
       name: "Empty Throne Raid Writ",
       rarity: "S",
       type: "Ticket",
-      weight: 15,
+      weight: 10,
     },
     {
       code: "mythic_raid_ticket",
