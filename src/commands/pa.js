@@ -1078,6 +1078,31 @@ module.exports = {
   async execute(message, args = []) {
     const paLockKey = String(message.author.id);
     let processingMessage = null;
+    let loadingTimer = null;
+
+    const startDelayedLoading = (availableTotal) => {
+      loadingTimer = setTimeout(() => {
+        if (processingMessage) return;
+
+        message.reply({
+          content: `Pulling all available slots... (${availableTotal} pull${availableTotal === 1 ? "" : "s"})`,
+          allowedMentions: {
+            repliedUser: false,
+          },
+        })
+          .then((sent) => {
+            processingMessage = sent;
+          })
+          .catch(() => null);
+      }, Number(process.env.PA_LOADING_DELAY_MS || 1500));
+    };
+
+    const stopDelayedLoading = () => {
+      if (loadingTimer) {
+        clearTimeout(loadingTimer);
+        loadingTimer = null;
+      }
+    };
 
     const replyOrEdit = async (payload) => {
       if (processingMessage && typeof processingMessage.edit === "function") {
@@ -1148,15 +1173,6 @@ try {
       0
     );
 
-    if (availableTotal > 0) {
-      processingMessage = await message.reply({
-        content: `Pulling all available slots... (${availableTotal} pull${availableTotal === 1 ? "" : "s"})`,
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
-
     await yieldPaEventLoop();
 
     if (availableTotal <= 0) {
@@ -1172,7 +1188,7 @@ try {
     const premiumAccess = await isPremiumUser(message);
 
     if (!premiumAccess) {
-      return processingMessage.edit({
+      return replyOrEdit({
         content: `Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`,
         embeds: [],
         allowedMentions: {
@@ -1180,6 +1196,8 @@ try {
         },
       });
     }
+
+    startDelayedLoading(availableTotal);
 
     let updatedCards = [...(player.cards || [])];
     let updatedWeapons = [...(player.weapons || [])];
@@ -1437,7 +1455,7 @@ try {
     );
 
     if (!saveResult.didSave) {
-      return processingMessage.edit({
+      return replyOrEdit({
         content: "You do not have any available pulls right now.",
         embeds: [],
         allowedMentions: {
@@ -1547,6 +1565,8 @@ try {
       );
     }
 
+    stopDelayedLoading();
+
     return replyOrEdit({
       content: "",
       embeds,
@@ -1555,6 +1575,7 @@ try {
       },
     });
   } finally {
+    stopDelayedLoading();
     PULL_COMMAND_LOCKS.delete(paLockKey);
   }
   },
