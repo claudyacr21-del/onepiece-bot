@@ -32,7 +32,7 @@ const {
   getLuckyWeekPullMultiplier,
   getLuckyWeekBonusLine,
 } = require("../utils/luckyWeekStore");
-const { PREMIUM_ROLE_NAME } = require("../utils/premiumAccess");
+const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 
 const PREMIUM_PITY_TARGET = 100;
 const PULL_COMMAND_LOCKS =
@@ -43,20 +43,6 @@ function yieldPaEventLoop() {
   return new Promise((resolve) => {
     setImmediate(resolve);
   });
-}
-
-function isPremiumUserFast(message) {
-  const member =
-    message.member ||
-    message.commandMember ||
-    message.resolvedMember ||
-    message.mainMember ||
-    null;
-
-  const roles = member?.roles?.cache;
-  if (!roles) return false;
-
-  return roles.some((role) => role.name === PREMIUM_ROLE_NAME);
 }
 
 function getPirateLuckBoost(userId) {
@@ -1171,7 +1157,7 @@ try {
       });
     }
 
-    const premiumAccess = isPremiumUserFast(message);
+    const premiumAccess = await isPremiumUser(message);
 
     if (!premiumAccess) {
       return replyOrEdit({
