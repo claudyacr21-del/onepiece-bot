@@ -2229,30 +2229,30 @@ function formatRewardLines(reward) {
   const boosts = reward?.pirateBoosts || {};
 
   const lines = [
-    `↪ +${totals.baseBerries.toLocaleString("en-US")} berries`,
-    `↪ +${totals.baseGems.toLocaleString("en-US")} gems`,
+    `💰 +${totals.baseBerries.toLocaleString("en-US")} berries`,
+    `💎 +${totals.baseGems.toLocaleString("en-US")} gems`,
   ];
 
   if (totals.bonusBerries > 0) {
     lines.push(
-      `↪ Pirate Berry Boost Lv.${Number(boosts.berryBoost || 0)}: +${totals.bonusBerries.toLocaleString("en-US")} bonus berries`
+      `🏴‍☠️ Pirate Berry Boost Lv.${Number(boosts.berryBoost || 0)}: +${totals.bonusBerries.toLocaleString("en-US")} bonus berries`
     );
   }
 
   if (totals.bonusGems > 0) {
     lines.push(
-      `↪ Pirate Gems Boost Lv.${Number(boosts.gemsBoost || 0)}: +${totals.bonusGems.toLocaleString("en-US")} bonus gems`
+      `🏴‍☠️ Pirate Gems Boost Lv.${Number(boosts.gemsBoost || 0)}: +${totals.bonusGems.toLocaleString("en-US")} bonus gems`
     );
   }
 
   if (totals.bonusBerries > 0 || totals.bonusGems > 0) {
     lines.push(
-      `↪ Total Added: +${totals.totalBerries.toLocaleString("en-US")} berries, +${totals.totalGems.toLocaleString("en-US")} gems`
+      `🎁 Total Added: +${totals.totalBerries.toLocaleString("en-US")} berries, +${totals.totalGems.toLocaleString("en-US")} gems`
     );
   }
 
   for (const box of reward.boxes || []) {
-    lines.push(`↪ ${box.name || "Resource Box"} x${Number(box.amount || 1)}`);
+    lines.push(`📦 ${box.name || "Resource Box"} x${Number(box.amount || 1)}`);
   }
 
   return lines;

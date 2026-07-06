@@ -2081,7 +2081,7 @@ function getRaidRewardConfig(tier, boss = null, raidMode = null) {
       gems: 50,
       fragments: 1,
       universalS: 2,
-      weaponChance: 35,
+      weaponChance: 100,
       fruitChance: 1,
     },
   };
