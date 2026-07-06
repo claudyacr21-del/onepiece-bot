@@ -2441,7 +2441,7 @@ function addUniversalSReward(items, amount = 2) {
   items,
   {
    code: "universal_s",
-   name: "Universal S",
+   name: "Universal S Fragment",
    rarity: "S",
    type: "universal",
   },
@@ -2581,31 +2581,91 @@ function pickRandomLinkedRaidItemFromBossPool(db, bossPool, fallbackBoss = {}) {
   return pickRandomLinkedRaidItem(db, fallbackBoss);
 }
 
-function pickMythicRaidWeaponDrop(boss) {
+function getMythicRaidDropBossPool(state = {}, boss = {}) {
+  const hostRewardBossPool = getHostRewardBossPool(state, boss);
   const originalBossPool = getMergeRaidOriginalBossPool(boss);
 
-  if (!originalBossPool.length) {
-    return null;
+  const mergeSourcePool = ensureArray(boss?.mergeSourceCodes)
+    .map((code) => {
+      const template = findCardTemplate(code);
+
+      if (template) {
+        return {
+          code: template.code,
+          bossCode: template.code,
+          cardCode: template.code,
+          name: template.displayName || template.name || template.code,
+          bossName: template.displayName || template.name || template.code,
+          displayName: template.displayName || template.name || template.code,
+          rarity: template.rarity || template.currentTier || template.baseTier || "C",
+          currentTier: template.currentTier || template.rarity || template.baseTier || "C",
+          image: template.image || "",
+        };
+      }
+
+      return {
+        code,
+        bossCode: code,
+        cardCode: code,
+        name: code,
+        bossName: code,
+        displayName: code,
+      };
+    })
+    .filter((entry) => entry.code || entry.name);
+
+  const pool = [
+    ...originalBossPool,
+    ...mergeSourcePool,
+    ...hostRewardBossPool,
+    boss,
+  ];
+
+  const seen = new Set();
+
+  return pool.filter((entry) => {
+    const key = normalizeText(
+      entry?.code ||
+        entry?.bossCode ||
+        entry?.cardCode ||
+        entry?.name ||
+        entry?.bossName ||
+        entry?.displayName ||
+        ""
+    );
+
+    if (!key || seen.has(key)) return false;
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function pickMythicRaidWeaponDrop(state, boss) {
+  const mythicBossPool = getMythicRaidDropBossPool(state, boss);
+
+  if (!mythicBossPool.length) {
+    return pickRandomLinkedRaidItem(weaponsDb, boss);
   }
 
   return pickRandomLinkedRaidItemFromBossPool(
     weaponsDb,
-    originalBossPool,
-    originalBossPool[0]
+    mythicBossPool,
+    boss
   );
 }
 
-function pickMythicRaidFruitDrop(boss) {
-  const originalBossPool = getMergeRaidOriginalBossPool(boss);
+function pickMythicRaidFruitDrop(state, boss) {
+  const mythicBossPool = getMythicRaidDropBossPool(state, boss);
 
-  if (!originalBossPool.length) {
-    return null;
+  if (!mythicBossPool.length) {
+    return pickRandomLinkedRaidItem(devilFruitsDb, boss);
   }
 
   return pickRandomLinkedRaidItemFromBossPool(
     devilFruitsDb,
-    originalBossPool,
-    originalBossPool[0]
+    mythicBossPool,
+    boss
   );
 }
 
@@ -2629,20 +2689,20 @@ function giveRaidWinRewards(state) {
   );
 
   const linkedWeapon = isMergeRaid
-    ? pickMythicRaidWeaponDrop(boss)
+    ? pickMythicRaidWeaponDrop(state, boss)
     : pickRandomLinkedRaidItemFromBossPool(
         weaponsDb,
         hostRewardBossPool,
         boss
       );
 
-const linkedFruit = isMergeRaid
-  ? pickMythicRaidFruitDrop(boss)
-  : pickRandomLinkedRaidItemFromBossPool(
-      devilFruitsDb,
-      hostRewardBossPool,
-      boss
-    );
+  const linkedFruit = isMergeRaid
+    ? pickMythicRaidFruitDrop(state, boss)
+    : pickRandomLinkedRaidItemFromBossPool(
+        devilFruitsDb,
+        hostRewardBossPool,
+        boss
+      );
   const hostId = String(state.hostId || "");
 
   const rewards = [];
