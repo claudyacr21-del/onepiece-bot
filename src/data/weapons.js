@@ -863,7 +863,7 @@ module.exports = [
   },
   {
     code: "water_bullets",
-    ame: "Water Bullets",
+    name: "Water Bullets",
     rarity: "C",
     owners: ["Chew"],
     type: "Ranged Technique",
