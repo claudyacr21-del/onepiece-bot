@@ -260,7 +260,7 @@ module.exports = [
     code: "fish_man_karate",
     name: "FishMan Karate",
     rarity: "A",
-    owners: ["jinbe_first_son_of_the_sea", "kuroobi"],
+    owners: ["jinbe_first_son_of_the_sea"],
     type: "Martial Art",
     statPercent: { atk: 5, hp: 3, speed: 2 },
     ownerBonusPercent: { atk: 5, hp: 4, speed: 3 },

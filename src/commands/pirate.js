@@ -2440,7 +2440,10 @@ async function handlePirateRaidLog(message) {
         const damage = Math.max(0, Math.floor(Number(contributor?.damage || 0)));
         const points = Math.max(0, Math.floor(Number(contributor?.points || 0)));
         const attacks = Math.max(0, Math.floor(Number(contributor?.attacks || 0)));
-        const lastAttackAt = Math.max(0, Math.floor(Number(contributor?.lastAttackAt || 0)));
+        const lastAttackAt = Math.max(
+          0,
+          Math.floor(Number(contributor?.lastAttackAt || 0))
+        );
 
         const oldRaid = old.raids.get(tierKey) || {
           tierKey,
@@ -2489,44 +2492,100 @@ async function handlePirateRaidLog(message) {
       );
     }
 
-    const lines = [];
+    const clampLogText = (value, max = 950) => {
+      const text = String(value || "");
+      if (text.length <= max) return text;
+      return `${text.slice(0, Math.max(0, max - 20))}\n...trimmed`;
+    };
+
+    const entryBlocks = [];
 
     for (const entry of summaries) {
       const username = await getPirateRaidLogUsername(message, entry.userId);
 
       const raidLines = [...entry.raids.values()]
         .sort((a, b) => b.damage - a.damage)
+        .slice(0, 6)
         .map((raid) => {
           const bossName = getPirateRaidLogBossName(raid.tierKey);
           const timeText = formatPirateRaidLogTime(raid.lastAttackAt);
 
-          return `• **${bossName}** — ${fmt(raid.damage)} DMG • ${fmt(raid.attacks)} attack${raid.attacks === 1 ? "" : "s"} • ${timeText}`;
+          return `• **${bossName}** — ${fmt(raid.damage)} DMG • ${fmt(
+            raid.points
+          )} pts • ${fmt(raid.attacks)} attack${
+            raid.attacks === 1 ? "" : "s"
+          } • ${timeText}`;
         });
 
-      lines.push(
-        [
-          `**${username}**`,
-          `Total Damage: **${fmt(entry.totalDamage)}** • Total Points: **${fmt(entry.totalPoints)}** • Total Attacks: **${fmt(entry.totalAttacks)}**`,
-          `Last Raid: ${formatPirateRaidLogTime(entry.lastAttackAt)}`,
-          raidLines.join("\n"),
-        ].join("\n")
+      const hiddenRaidCount = Math.max(0, entry.raids.size - raidLines.length);
+
+      if (hiddenRaidCount > 0) {
+        raidLines.push(`• +${hiddenRaidCount} more raid tier(s) hidden.`);
+      }
+
+      entryBlocks.push(
+        clampLogText(
+          [
+            `**${username}**`,
+            `Total Damage: **${fmt(entry.totalDamage)}** • Total Points: **${fmt(
+              entry.totalPoints
+            )}** • Total Attacks: **${fmt(entry.totalAttacks)}**`,
+            `Last Raid: ${formatPirateRaidLogTime(entry.lastAttackAt)}`,
+            raidLines.join("\n") || "No tier detail found.",
+          ].join("\n")
+        )
       );
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(GOLD)
-      .setTitle(`☠️ ${pirate.name} Raid Activity Log`)
-      .setDescription(lines.join("\n\n"))
-      .setFooter({
-        text: "Showing crew raid summary for the current pirate raid cycle.",
-      });
+    const descriptions = [];
+    let current = "";
+
+    for (const block of entryBlocks) {
+      const next = current ? `${current}\n\n${block}` : block;
+
+      if (next.length > 3600) {
+        if (current) descriptions.push(current);
+        current = block;
+      } else {
+        current = next;
+      }
+    }
+
+    if (current) descriptions.push(current);
+
+    const embeds = descriptions.slice(0, 5).map((description, index) =>
+      new EmbedBuilder()
+        .setColor(GOLD)
+        .setTitle(
+          descriptions.length > 1
+            ? `☠️ ${pirate.name} Raid Activity Log ${index + 1}/${descriptions.length}`
+            : `☠️ ${pirate.name} Raid Activity Log`
+        )
+        .setDescription(description || "No pirate raid activity found.")
+        .setFooter({
+          text: "Showing crew raid summary for the current pirate raid cycle.",
+        })
+    );
 
     return message.reply({
-      embeds: [embed],
-      allowedMentions: { repliedUser: false },
+      embeds,
+      allowedMentions: {
+        repliedUser: false,
+      },
     });
   } catch (error) {
-    return message.reply(makeError(error.message || "Failed to show pirate raid log."));
+    console.error("[PIRATE RAID LOG ERROR]", error);
+
+    return message.reply(
+      makeError(
+        [
+          "Failed to show pirate raid log.",
+          "",
+          "The raid log data may be too large or malformed.",
+          "Please try again after another pirate raid attack.",
+        ].join("\n")
+      )
+    );
   }
 }
 
