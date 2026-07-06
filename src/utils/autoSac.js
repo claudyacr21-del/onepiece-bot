@@ -114,35 +114,98 @@ function getFragmentName(cardOrFragment) {
 }
 
 function getFragmentCode(cardOrFragment) {
+  const code = String(cardOrFragment?.code || "").trim();
+  const weaponCode = String(cardOrFragment?.weaponCode || "").trim();
+
+  if (weaponCode && !code.startsWith("weapon_fragment_")) {
+    return `weapon_fragment_${weaponCode}`;
+  }
+
   return String(
-    cardOrFragment?.code ||
+    code ||
       cardOrFragment?.cardCode ||
-      cardOrFragment?.weaponCode ||
+      weaponCode ||
+      cardOrFragment?.sourceCode ||
       ""
   );
 }
 
+function normalizeFragmentRarity(value) {
+  const raw = String(value || "C")
+    .toUpperCase()
+    .trim()
+    .replace(/\s+/g, "_");
+
+  const aliases = {
+    COMMON: "C",
+    C: "C",
+
+    UNCOMMON: "B",
+    RARE: "B",
+    B: "B",
+
+    EPIC: "A",
+    A: "A",
+
+    LEGENDARY: "S",
+    MYTHIC: "S",
+    S: "S",
+
+    SUPER_SUPER_RARE: "SS",
+    SUPER: "SS",
+    SS: "SS",
+
+    ULTRA_RARE: "UR",
+    ULTRA: "UR",
+    UR: "UR",
+
+    THRONE: "UR",
+  };
+
+  return aliases[raw] || raw;
+}
+
 function getFragmentRarity(cardOrFragment) {
-  return String(
+  return normalizeFragmentRarity(
     cardOrFragment?.baseTier ||
       cardOrFragment?.currentTier ||
       cardOrFragment?.rarity ||
+      cardOrFragment?.tier ||
+      cardOrFragment?.rank ||
       "C"
-  ).toUpperCase();
+  );
 }
 
 function getFragmentCategory(cardOrFragment) {
-  const rawCategory = String(cardOrFragment?.category || "").toLowerCase();
-  const role = String(cardOrFragment?.cardRole || "").toLowerCase();
-  const code = String(cardOrFragment?.code || "").toLowerCase();
+  const rawCategory = String(cardOrFragment?.category || "").toLowerCase().trim();
+  const role = String(cardOrFragment?.cardRole || "").toLowerCase().trim();
+  const code = String(cardOrFragment?.code || "").toLowerCase().trim();
+  const type = String(cardOrFragment?.type || "").toLowerCase().trim();
 
-  if (rawCategory) return rawCategory;
-  if (role === "boost") return "boost";
-  if (cardOrFragment?.weaponCode || code.startsWith("weapon_fragment_")) {
+  if (
+    rawCategory === "weapon" ||
+    rawCategory === "weapon_fragment" ||
+    rawCategory === "weapon fragment" ||
+    type === "weapon" ||
+    type === "weapon_fragment" ||
+    type === "weapon fragment" ||
+    cardOrFragment?.weaponCode ||
+    cardOrFragment?.weaponName ||
+    cardOrFragment?.weapon ||
+    code.startsWith("weapon_fragment_")
+  ) {
     return "weapon";
   }
 
-  return "battle";
+  if (rawCategory === "boost" || role === "boost") {
+    return "boost";
+  }
+
+  if (rawCategory === "battle" || role === "battle") {
+    return "battle";
+  }
+
+  return rawCategory || "battle";
 }
 
 function isWeaponFragment(cardOrFragment) {
@@ -206,8 +269,14 @@ function isCardAutoSacEnabled(player, cardOrFragment) {
   const specificEntry = getSpecificAutoSacEntry(player, cardOrFragment);
   if (specificEntry) return true;
 
-  // Rarity auto-sac must cover battle, boost, and weapon fragments.
-  // Weapon fragments share the same Fragment Storage as card fragments.
+  const category = getFragmentCategory(cardOrFragment);
+  const isSupportedFragment =
+    category === "battle" ||
+    category === "boost" ||
+    category === "weapon";
+
+  if (!isSupportedFragment) return false;
+
   return Boolean(settings.rarities[rarity]);
 }
 
@@ -386,6 +455,8 @@ module.exports = {
   getFragmentStorageInfo,
   getSacBerryValue,
   getAutoSacSettings,
+  getFragmentRarity,
+  getFragmentCategory,
   isCardAutoSacEnabled,
   addFragmentWithAutoSac,
   addFragmentRaw,
