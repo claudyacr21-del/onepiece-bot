@@ -2192,32 +2192,67 @@ function getBossReward(island, phaseBoss = null) {
   return base;
 }
 
-function formatRewardLines(reward) {
-  const lines = [
-    `💰 +${Number(reward.berries || 0).toLocaleString("en-US")} berries`,
-    `💎 +${Number(reward.gems || 0)} gems`,
-  ];
-
+function getBossRewardTotals(reward = {}) {
   const boosts = reward?.pirateBoosts || {};
 
-  if (Number(boosts.bonusBerries || 0) > 0) {
+  const baseBerries = Math.max(0, Math.floor(Number(reward.berries || 0)));
+  const baseGems = Math.max(0, Math.floor(Number(reward.gems || 0)));
+
+  const bonusBerries = Math.max(
+    0,
+    Math.floor(Number(boosts.bonusBerries || 0))
+  );
+
+  const bonusGems = Math.max(
+    0,
+    Math.floor(Number(boosts.bonusGems || 0))
+  );
+
+  return {
+    baseBerries,
+    baseGems,
+    bonusBerries,
+    bonusGems,
+    totalBerries: Math.max(
+      0,
+      Math.floor(Number(reward.totalBerries ?? baseBerries + bonusBerries))
+    ),
+    totalGems: Math.max(
+      0,
+      Math.floor(Number(reward.totalGems ?? baseGems + bonusGems))
+    ),
+  };
+}
+
+function formatRewardLines(reward) {
+  const totals = getBossRewardTotals(reward);
+  const boosts = reward?.pirateBoosts || {};
+
+  const lines = [
+    `↪ +${totals.baseBerries.toLocaleString("en-US")} berries`,
+    `↪ +${totals.baseGems.toLocaleString("en-US")} gems`,
+  ];
+
+  if (totals.bonusBerries > 0) {
     lines.push(
-      `🏴‍☠️ Berry Boost Lv.${Number(boosts.berryBoost || 0)}: +${Number(
-        boosts.bonusBerries || 0
-      ).toLocaleString("en-US")} bonus berries`
+      `↪ Pirate Berry Boost Lv.${Number(boosts.berryBoost || 0)}: +${totals.bonusBerries.toLocaleString("en-US")} bonus berries`
     );
   }
 
-  if (Number(boosts.bonusGems || 0) > 0) {
+  if (totals.bonusGems > 0) {
     lines.push(
-      `🏴‍☠️ Gems Boost Lv.${Number(boosts.gemsBoost || 0)}: +${Number(
-        boosts.bonusGems || 0
-      ).toLocaleString("en-US")} bonus gems`
+      `↪ Pirate Gems Boost Lv.${Number(boosts.gemsBoost || 0)}: +${totals.bonusGems.toLocaleString("en-US")} bonus gems`
+    );
+  }
+
+  if (totals.bonusBerries > 0 || totals.bonusGems > 0) {
+    lines.push(
+      `↪ Total Added: +${totals.totalBerries.toLocaleString("en-US")} berries, +${totals.totalGems.toLocaleString("en-US")} gems`
     );
   }
 
   for (const box of reward.boxes || []) {
-    lines.push(`🎁 ${box.name || "Reward Box"} x${Number(box.amount || 1)}`);
+    lines.push(`↪ ${box.name || "Resource Box"} x${Number(box.amount || 1)}`);
   }
 
   return lines;
@@ -3415,12 +3450,14 @@ if (interaction.customId === "boss_run") {
               }
             }
 
+            const rewardTotals = getBossRewardTotals(reward);
+
             return {
               ...fresh,
-              cards: applyBossExpToCards(fresh, playerTeam, expResults),
+              cards: applyBossExpToCards(fresh, participant.units, expResults),
               boxes: applyBoxes(fresh.boxes, reward.boxes),
-              berries: Number(fresh.berries || 0) + reward.berries,
-              gems: Number(fresh.gems || 0) + reward.gems,
+              berries: Number(fresh.berries || 0) + rewardTotals.totalBerries,
+              gems: Number(fresh.gems || 0) + rewardTotals.totalGems,
               story: freshStory,
               quests: applyBossQuestProgress(fresh, ["bossFights", "bossesDefeated"]),
             };
