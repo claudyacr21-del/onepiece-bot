@@ -2992,12 +2992,14 @@ if (interaction.customId === "boss_raid_run") {
                   }
                 }
 
+                const rewardTotals = getBossRewardTotals(reward);
+
                 return {
                   ...fresh,
                   cards: applyBossExpToCards(fresh, participant.units, expResults),
                   boxes: applyBoxes(fresh.boxes, reward.boxes),
-                  berries: Number(fresh.berries || 0) + reward.berries,
-                  gems: Number(fresh.gems || 0) + reward.gems,
+                  berries: Number(fresh.berries || 0) + rewardTotals.totalBerries,
+                  gems: Number(fresh.gems || 0) + rewardTotals.totalGems,
                   story: freshStory,
                   quests: applyBossQuestProgress(fresh, ["bossFights", "bossesDefeated"]),
                 };
@@ -3454,7 +3456,7 @@ if (interaction.customId === "boss_run") {
 
             return {
               ...fresh,
-              cards: applyBossExpToCards(fresh, participant.units, expResults),
+              cards: applyBossExpToCards(fresh, playerTeam, expResults),
               boxes: applyBoxes(fresh.boxes, reward.boxes),
               berries: Number(fresh.berries || 0) + rewardTotals.totalBerries,
               gems: Number(fresh.gems || 0) + rewardTotals.totalGems,
