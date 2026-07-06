@@ -258,7 +258,7 @@ const SHOP_ITEMS = [
     key: "raid_ticket",
     name: "Raid Ticket",
     price: 500,
-    limit: 5,
+    limit: 15,
     aliases: ["raid", "raid ticket", "raid tickets"],
     rewards: {
       tickets: [
@@ -275,7 +275,7 @@ const SHOP_ITEMS = [
     key: "gold_raid_ticket",
     name: "Gold Raid Ticket",
     price: 1200,
-    limit: 3,
+    limit: 5,
     aliases: ["gold raid", "gold raid ticket", "gold raid tickets", "grt"],
     rewards: {
       tickets: [
@@ -316,7 +316,7 @@ const SHOP_ITEMS = [
         {
           code: "pull_reset_ticket",
           name: "Pull Reset Ticket",
-          amount: 1,
+          amount: 2,
           type: "Ticket",
         },
       ],
