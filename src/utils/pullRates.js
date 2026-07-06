@@ -164,7 +164,7 @@ function rollPremiumContentType() {
 function rollStandardDevilFruitTier(luckyMultiplier = 1) {
   return rollRareRates(
     applyLuckyRareRates(
-      { c: 40, b: 40, a: 17, s: 2.5, ur: 0.5 },
+      { c: 34, b: 34, a: 27, s: 4.5, ur: 0.5 },
       luckyMultiplier
     )
   );
@@ -173,7 +173,7 @@ function rollStandardDevilFruitTier(luckyMultiplier = 1) {
 function rollVivreDevilFruitTier(luckyMultiplier = 1) {
   return rollRareRates(
     applyLuckyRareRates(
-      { c: 37, b: 37, a: 22, s: 3, ur: 1 },
+      { c: 32, b: 32, a: 29, s: 6, ur: 1 },
       luckyMultiplier
     )
   );
@@ -182,7 +182,7 @@ function rollVivreDevilFruitTier(luckyMultiplier = 1) {
 function rollPremiumDevilFruitTier(luckyMultiplier = 1) {
   return rollRareRates(
     applyLuckyRareRates(
-      { c: 34, b: 34, a: 27, s: 3, ur: 2 },
+      { c: 29.5, b: 29.5, a: 31, s: 8, ur: 2 },
       luckyMultiplier
     )
   );
@@ -191,7 +191,7 @@ function rollPremiumDevilFruitTier(luckyMultiplier = 1) {
 function rollStandardWeaponTier(luckyMultiplier = 1) {
   return rollRareRates(
     applyLuckyRareRates(
-      { c: 40, b: 40, a: 17, s: 2.5, ur: 0.5 },
+      { c: 34, b: 34, a: 27, s: 4.5, ur: 0.5 },
       luckyMultiplier
     )
   );
@@ -200,7 +200,7 @@ function rollStandardWeaponTier(luckyMultiplier = 1) {
 function rollVivreWeaponTier(luckyMultiplier = 1) {
   return rollRareRates(
     applyLuckyRareRates(
-      { c: 37, b: 37, a: 22, s: 3, ur: 1 },
+      { c: 32, b: 32, a: 29, s: 6, ur: 1 },
       luckyMultiplier
     )
   );
@@ -209,7 +209,7 @@ function rollVivreWeaponTier(luckyMultiplier = 1) {
 function rollPremiumWeaponTier(luckyMultiplier = 1) {
   return rollRareRates(
     applyLuckyRareRates(
-      { c: 34, b: 34, a: 27, s: 3, ur: 2 },
+      { c: 29.5, b: 29.5, a: 31, s: 8, ur: 2 },
       luckyMultiplier
     )
   );
