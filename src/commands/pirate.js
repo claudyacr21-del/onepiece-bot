@@ -5,7 +5,7 @@ const {
   ButtonStyle,
   MessageFlags,
 } = require("discord.js");
-const { readPlayers, writePlayers } = require("../playerStore");
+const { readPlayers, writePlayers, updatePlayerAtomic } = require("../playerStore");
 const {
   applyPirateRewardBonuses,
   applyRaidGloryPoints,
@@ -2066,58 +2066,82 @@ function applyPirateRaidContributorRewards(message, boss, contributors) {
   }
 
   const reward = getPirateRaidClearReward(boss);
-  const players = readPlayers();
   const rewardLines = [];
 
   for (const [userId, data] of entries) {
-    const player = getPlayer(players, userId, `User ${userId}`);
-
     const boostedReward = applyPirateRewardBonuses(userId, {
       berries: reward.berries,
       gems: reward.gems,
     });
 
-    player.berries =
-      Math.max(0, Math.floor(Number(player.berries || 0))) +
-      Math.max(0, Math.floor(Number(boostedReward.berries || 0)));
+    const finalBerries = Math.max(
+      0,
+      Math.floor(Number(boostedReward.berries || 0))
+    );
 
-    player.gems =
-      Math.max(0, Math.floor(Number(player.gems || 0))) +
-      Math.max(0, Math.floor(Number(boostedReward.gems || 0)));
+    const finalGems = Math.max(
+      0,
+      Math.floor(Number(boostedReward.gems || 0))
+    );
 
-    for (const item of reward.items || []) {
-      if (String(item.type || "").toLowerCase() === "ticket") {
-        player.tickets = addRaidRewardStack(player.tickets, item);
-      } else if (String(item.type || "").toLowerCase() === "box") {
-        player.boxes = addRaidRewardStack(player.boxes, item);
-      } else {
-        player.items = addRaidRewardStack(player.items, item);
-      }
-    }
+    const baseBerries = Math.max(
+      0,
+      Math.floor(Number(reward.berries || 0))
+    );
 
-    players[String(userId)] = player;
+    const baseGems = Math.max(
+      0,
+      Math.floor(Number(reward.gems || 0))
+    );
+
+    const bonusBerry = Math.max(0, finalBerries - baseBerries);
+    const bonusGems = Math.max(0, finalGems - baseGems);
+
+    const username =
+      message.client?.users?.cache?.get(String(userId))?.username ||
+      `User ${userId}`;
+
+    updatePlayerAtomic(
+      userId,
+      (freshPlayer) => {
+        const player = freshPlayer || {};
+
+        let nextTickets = Array.isArray(player.tickets) ? [...player.tickets] : [];
+        let nextBoxes = Array.isArray(player.boxes) ? [...player.boxes] : [];
+        let nextItems = Array.isArray(player.items) ? [...player.items] : [];
+
+        for (const item of reward.items || []) {
+          if (String(item.type || "").toLowerCase() === "ticket") {
+            nextTickets = addRaidRewardStack(nextTickets, item);
+          } else if (String(item.type || "").toLowerCase() === "box") {
+            nextBoxes = addRaidRewardStack(nextBoxes, item);
+          } else {
+            nextItems = addRaidRewardStack(nextItems, item);
+          }
+        }
+
+        return {
+          ...player,
+          username: username || player.username || "Unknown",
+          berries:
+            Math.max(0, Math.floor(Number(player.berries || 0))) + finalBerries,
+          gems:
+            Math.max(0, Math.floor(Number(player.gems || 0))) + finalGems,
+          tickets: nextTickets,
+          boxes: nextBoxes,
+          items: nextItems,
+        };
+      },
+      username
+    );
 
     const itemText = (reward.items || [])
       .map((item) => `${item.name || item.code} x${fmt(item.amount || 1)}`)
       .join(", ");
 
-    const bonusBerry = Math.max(
-      0,
-      Math.floor(Number(boostedReward.berries || 0)) -
-        Math.floor(Number(reward.berries || 0))
-    );
-
-    const bonusGems = Math.max(
-      0,
-      Math.floor(Number(boostedReward.gems || 0)) -
-        Math.floor(Number(reward.gems || 0))
-    );
-
     rewardLines.push(
       [
-        `• <@${userId}> — +${fmt(boostedReward.berries)} berries, +${fmt(
-          boostedReward.gems
-        )} gems`,
+        `• <@${userId}> — +${fmt(finalBerries)} berries, +${fmt(finalGems)} gems`,
         bonusBerry || bonusGems
           ? `Pirate Perk Bonus: +${fmt(bonusBerry)} berries, +${fmt(
               bonusGems
@@ -2131,7 +2155,6 @@ function applyPirateRaidContributorRewards(message, boss, contributors) {
     );
   }
 
-  writePlayers(players);
   return rewardLines;
 }
 
