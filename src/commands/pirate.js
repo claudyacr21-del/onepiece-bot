@@ -2474,7 +2474,7 @@ async function handlePirateRaidLog(message) {
         if (b.totalDamage !== a.totalDamage) return b.totalDamage - a.totalDamage;
         return b.lastAttackAt - a.lastAttackAt;
       })
-      .slice(0, 15);
+      .slice(0, 30);
 
     if (!summaries.length) {
       return message.reply(
@@ -2492,20 +2492,14 @@ async function handlePirateRaidLog(message) {
       );
     }
 
-    const clampLogText = (value, max = 950) => {
-      const text = String(value || "");
-      if (text.length <= max) return text;
-      return `${text.slice(0, Math.max(0, max - 20))}\n...trimmed`;
-    };
-
-    const entryBlocks = [];
+    const entries = [];
 
     for (const entry of summaries) {
       const username = await getPirateRaidLogUsername(message, entry.userId);
 
       const raidLines = [...entry.raids.values()]
         .sort((a, b) => b.damage - a.damage)
-        .slice(0, 6)
+        .slice(0, 4)
         .map((raid) => {
           const bossName = getPirateRaidLogBossName(raid.tierKey);
           const timeText = formatPirateRaidLogTime(raid.lastAttackAt);
@@ -2523,68 +2517,110 @@ async function handlePirateRaidLog(message) {
         raidLines.push(`• +${hiddenRaidCount} more raid tier(s) hidden.`);
       }
 
-      entryBlocks.push(
-        clampLogText(
-          [
-            `**${username}**`,
-            `Total Damage: **${fmt(entry.totalDamage)}** • Total Points: **${fmt(
-              entry.totalPoints
-            )}** • Total Attacks: **${fmt(entry.totalAttacks)}**`,
-            `Last Raid: ${formatPirateRaidLogTime(entry.lastAttackAt)}`,
-            raidLines.join("\n") || "No tier detail found.",
-          ].join("\n")
-        )
+      entries.push(
+        [
+          `**${username}**`,
+          `Total Damage: **${fmt(entry.totalDamage)}**`,
+          `Total Points: **${fmt(entry.totalPoints)}**`,
+          `Total Attacks: **${fmt(entry.totalAttacks)}**`,
+          `Last Raid: ${formatPirateRaidLogTime(entry.lastAttackAt)}`,
+          "",
+          ...raidLines,
+        ].join("\n")
       );
     }
 
-    const descriptions = [];
-    let current = "";
+    const pageSize = 3;
+    const pages = [];
 
-    for (const block of entryBlocks) {
-      const next = current ? `${current}\n\n${block}` : block;
-
-      if (next.length > 3600) {
-        if (current) descriptions.push(current);
-        current = block;
-      } else {
-        current = next;
-      }
+    for (let i = 0; i < entries.length; i += pageSize) {
+      pages.push(entries.slice(i, i + pageSize));
     }
 
-    if (current) descriptions.push(current);
+    let pageIndex = 0;
 
-    const embeds = descriptions.slice(0, 5).map((description, index) =>
-      new EmbedBuilder()
+    const buildRaidLogEmbed = () => {
+      const currentPage = pages[pageIndex] || [];
+
+      return new EmbedBuilder()
         .setColor(GOLD)
-        .setTitle(
-          descriptions.length > 1
-            ? `☠️ ${pirate.name} Raid Activity Log ${index + 1}/${descriptions.length}`
-            : `☠️ ${pirate.name} Raid Activity Log`
-        )
-        .setDescription(description || "No pirate raid activity found.")
+        .setTitle(`☠️ ${pirate.name} Raid Activity Log`)
+        .setDescription(currentPage.join("\n\n") || "No pirate raid activity found.")
         .setFooter({
-          text: "Showing crew raid summary for the current pirate raid cycle.",
-        })
-    );
+          text: `Page ${pageIndex + 1}/${pages.length} • Showing ${pageSize} member(s) per page`,
+        });
+    };
 
-    return message.reply({
-      embeds,
+    const buildRaidLogRows = (disabled = false) => {
+      if (pages.length <= 1) return [];
+
+      return [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("pirate_log_prev")
+            .setLabel("Prev")
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(disabled || pageIndex <= 0),
+          new ButtonBuilder()
+            .setCustomId("pirate_log_next")
+            .setLabel("Next")
+            .setStyle(ButtonStyle.Primary)
+            .setDisabled(disabled || pageIndex >= pages.length - 1)
+        ),
+      ];
+    };
+
+    const sent = await message.reply({
+      embeds: [buildRaidLogEmbed()],
+      components: buildRaidLogRows(),
       allowedMentions: {
         repliedUser: false,
       },
     });
+
+    if (pages.length <= 1) return sent;
+
+    const collector = sent.createMessageComponentCollector({
+      time: 120000,
+    });
+
+    collector.on("collect", async (interaction) => {
+      if (interaction.user.id !== message.author.id) {
+        return interaction.reply({
+          content: "This pirate raid log menu does not belong to you.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      if (interaction.customId === "pirate_log_prev") {
+        pageIndex = Math.max(0, pageIndex - 1);
+      }
+
+      if (interaction.customId === "pirate_log_next") {
+        pageIndex = Math.min(pages.length - 1, pageIndex + 1);
+      }
+
+      return interaction.update({
+        embeds: [buildRaidLogEmbed()],
+        components: buildRaidLogRows(),
+      });
+    });
+
+    collector.on("end", async () => {
+      try {
+        await sent.edit({
+          embeds: [buildRaidLogEmbed()],
+          components: buildRaidLogRows(true),
+        });
+      } catch (_) {}
+    });
+
+    return sent;
   } catch (error) {
     console.error("[PIRATE RAID LOG ERROR]", error);
 
     return message.reply(
-      makeError(
-        [
-          "Failed to show pirate raid log.",
-          "",
-          "The raid log data may be too large or malformed.",
-          "Please try again after another pirate raid attack.",
-        ].join("\n")
-      )
+      makeError(error.message || "Failed to show pirate raid log.")
     );
   }
 }

@@ -46,11 +46,11 @@ function applyLuckyCardRates({ c, b, a, s }, multiplier = 1) {
   };
 }
 
-function applyLuckyRareRates({ b, a, s, ur }, multiplier = 1) {
+function applyLuckyRareRates({ c, b, a, s, ur }, multiplier = 1) {
   const multi = getLuckyMultiplier(multiplier);
-
   return {
-    b: Number(b || 0),
+    c: Number(c || 0),
+    b: Number(b || 0) * multi,
     a: Number(a || 0) * multi,
     s: Number(s || 0) * multi,
     ur: Number(ur || 0) * multi,
@@ -72,12 +72,13 @@ function rollCardRates(rates) {
 function rollRareRates(rates) {
   return rollFromRates(
     [
+      { tier: "C", rate: rates.c },
       { tier: "B", rate: rates.b },
       { tier: "A", rate: rates.a },
       { tier: "S", rate: rates.s },
       { tier: "UR", rate: rates.ur },
     ],
-    "B"
+    "C"
   );
 }
 
@@ -162,37 +163,55 @@ function rollPremiumContentType() {
 
 function rollStandardDevilFruitTier(luckyMultiplier = 1) {
   return rollRareRates(
-    applyLuckyRareRates({ b: 68, a: 27, s: 4.5, ur: 0.5 }, luckyMultiplier)
+    applyLuckyRareRates(
+      { c: 60, b: 28, a: 9, s: 2.5, ur: 0.5 },
+      luckyMultiplier
+    )
   );
 }
 
 function rollVivreDevilFruitTier(luckyMultiplier = 1) {
   return rollRareRates(
-    applyLuckyRareRates({ b: 64, a: 29, s: 6, ur: 1 }, luckyMultiplier)
+    applyLuckyRareRates(
+      { c: 55, b: 30, a: 11, s: 3, ur: 1 },
+      luckyMultiplier
+    )
   );
 }
 
 function rollPremiumDevilFruitTier(luckyMultiplier = 1) {
   return rollRareRates(
-    applyLuckyRareRates({ b: 59, a: 31, s: 8, ur: 2 }, luckyMultiplier)
+    applyLuckyRareRates(
+      { c: 50, b: 31, a: 14, s: 3, ur: 2 },
+      luckyMultiplier
+    )
   );
 }
 
 function rollStandardWeaponTier(luckyMultiplier = 1) {
   return rollRareRates(
-    applyLuckyRareRates({ b: 68, a: 27, s: 4.5, ur: 0.5 }, luckyMultiplier)
+    applyLuckyRareRates(
+      { c: 60, b: 28, a: 9, s: 2.5, ur: 0.5 },
+      luckyMultiplier
+    )
   );
 }
 
 function rollVivreWeaponTier(luckyMultiplier = 1) {
   return rollRareRates(
-    applyLuckyRareRates({ b: 64, a: 29, s: 6, ur: 1 }, luckyMultiplier)
+    applyLuckyRareRates(
+      { c: 55, b: 30, a: 11, s: 3, ur: 1 },
+      luckyMultiplier
+    )
   );
 }
 
 function rollPremiumWeaponTier(luckyMultiplier = 1) {
   return rollRareRates(
-    applyLuckyRareRates({ b: 59, a: 31, s: 8, ur: 2 }, luckyMultiplier)
+    applyLuckyRareRates(
+      { c: 50, b: 31, a: 14, s: 3, ur: 2 },
+      luckyMultiplier
+    )
   );
 }
 
