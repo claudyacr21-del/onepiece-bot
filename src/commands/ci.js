@@ -998,37 +998,71 @@ function getCiRequirementMatchValues(entry) {
     .filter(Boolean);
 }
 
+function getCiStrictRequirementKeys(entry) {
+  if (!entry) return [];
+
+  const hydrated = getCiHydratedRequirementEntry(entry);
+
+  const template =
+    findTemplateByCodeForCi(entry?.code || entry?.cardCode || hydrated?.code || hydrated?.cardCode) ||
+    findCardTemplateByNameOnly(
+      entry?.name ||
+        entry?.displayName ||
+        entry?.cardName ||
+        hydrated?.name ||
+        hydrated?.displayName ||
+        hydrated?.cardName ||
+        ""
+    );
+
+  const values = [
+    entry?.code,
+    entry?.cardCode,
+    entry?.id,
+    entry?.name,
+    entry?.displayName,
+    entry?.cardName,
+
+    hydrated?.code,
+    hydrated?.cardCode,
+    hydrated?.id,
+    hydrated?.name,
+    hydrated?.displayName,
+    hydrated?.cardName,
+
+    template?.code,
+    template?.cardCode,
+    template?.id,
+    template?.name,
+    template?.displayName,
+    template?.cardName,
+  ];
+
+  return [
+    ...new Set(
+      values
+        .flatMap((value) => [
+          normalizeCompare(value),
+          normalizeCiCode(value),
+          normalizeRequirementCode(value),
+        ])
+        .filter(Boolean)
+    ),
+  ];
+}
+
+function hasCiExactRequirementMatch(a, b) {
+  const aKeys = getCiStrictRequirementKeys(a);
+  const bKeys = getCiStrictRequirementKeys(b);
+
+  if (!aKeys.length || !bKeys.length) return false;
+
+  const bSet = new Set(bKeys);
+  return aKeys.some((key) => bSet.has(key));
+}
+
 function doesEntryMatchRequirement(entry, requirement) {
-  const requirementTemplate =
-    findTemplateByCodeForCi(requirement?.code || requirement?.cardCode) ||
-    findCardTemplateByNameOnly(requirement?.name || requirement?.displayName || requirement?.cardName || "");
-
-  const requirementNames = [
-    requirement?.code,
-    requirement?.name,
-    requirement?.displayName,
-    requirement?.cardName,
-    requirement?.title,
-
-    requirementTemplate?.code,
-    requirementTemplate?.name,
-    requirementTemplate?.displayName,
-    requirementTemplate?.cardName,
-    requirementTemplate?.title,
-  ]
-    .map(normalizeCompare)
-    .filter(Boolean);
-
-  const entryNames = getCiRequirementMatchValues(entry);
-
-  if (!requirementNames.length || !entryNames.length) return false;
-
-  return requirementNames.some((reqName) =>
-    entryNames.some((entryName) => {
-      if (entryName === reqName) return true;
-      return entryName.includes(reqName) || reqName.includes(entryName);
-    })
-  );
+  return hasCiExactRequirementMatch(entry, requirement);
 }
 
 function findOwnedRequirementEntry(collection, requirement) {
@@ -1174,77 +1208,49 @@ function getRequirementEntries(req) {
 }
 
 function requirementMatchesCurrentCard(requirement, currentCard, currentStage) {
-  const requiredStage = Number(requirement?.stage || 1);
+  const requiredStage = Number(
+    requirement?.stage ||
+      requirement?.minStage ||
+      requirement?.evolutionStage ||
+      1
+  );
+
   const viewedStage = Number(currentStage || 1);
 
   if (requiredStage !== viewedStage) return false;
 
-  const requirementTemplate =
-    findTemplateByCodeForCi(requirement?.code || requirement?.cardCode) ||
-    findCardTemplateByNameOnly(requirement?.name || requirement?.displayName || requirement?.cardName || "");
-
-  const currentTemplate =
-    findTemplateByCodeForCi(currentCard?.code || currentCard?.cardCode) ||
-    findCardTemplateByNameOnly(currentCard?.name || currentCard?.displayName || "");
-
-  const requirementNames = [
-    requirement?.code,
-    requirement?.name,
-    requirement?.displayName,
-    requirement?.cardName,
-
-    requirementTemplate?.code,
-    requirementTemplate?.name,
-    requirementTemplate?.displayName,
-    requirementTemplate?.cardName,
-  ]
-    .map(normalizeCompare)
-    .filter(Boolean);
-
-  const currentNames = [
-    currentCard?.code,
-    currentCard?.name,
-    currentCard?.displayName,
-
-    currentTemplate?.code,
-    currentTemplate?.name,
-    currentTemplate?.displayName,
-    currentTemplate?.cardName,
-  ]
-    .map(normalizeCompare)
-    .filter(Boolean);
-
-  if (!requirementNames.length || !currentNames.length) return false;
-
-  return requirementNames.some((reqName) =>
-    currentNames.some(
-      (currentName) =>
-        reqName === currentName ||
-        reqName.includes(currentName) ||
-        currentName.includes(reqName)
-    )
-  );
+  return hasCiExactRequirementMatch(requirement, currentCard);
 }
 
 function getRequiredForTargets(currentCard, currentStage) {
   const results = [];
+  const currentIsRoadPoneglyph = isRoadPoneglyphCard(currentCard);
 
   for (const targetCard of getAllCards()) {
     const requirements = targetCard?.awakenRequirements || {};
+    const targetIsGenericMerge = isGenericMergeCardForCi(targetCard);
 
     for (const stageKey of ["M2", "M3"]) {
       const targetStage = Number(String(stageKey).replace("M", ""));
       let req = requirements?.[stageKey];
+
       req = mergeCanonRequirementsIntoReq(req, targetCard, targetStage);
+      req = normalizeMergeRequirementForCi(targetCard, targetStage, req);
 
       if (!req) continue;
 
       const entries = getRequirementEntries(req);
-      const matched = entries.some((entry) =>
+
+      const matchedByCards = entries.some((entry) =>
         requirementMatchesCurrentCard(entry, currentCard, currentStage)
       );
 
-      if (!matched) continue;
+      const matchedByRoadPoneglyph =
+        currentIsRoadPoneglyph &&
+        targetIsGenericMerge &&
+        Number(currentStage || 1) === targetStage;
+
+      if (!matchedByCards && !matchedByRoadPoneglyph) continue;
 
       results.push({
         targetName: targetCard.displayName || targetCard.name || "Unknown",
@@ -1502,9 +1508,7 @@ function buildReqEmbed(card, stage, player) {
     });
   }
 
-  const stageCard = mergeCard
-    ? syncCiOwnedDisplayData(card, owned)
-    : getStageCard(card, stage, owned);
+  const stageCard = mergeCard ? card : getStageCard(card, stage);
   const requirementCard = mergeCard ? originalCard : card;
   const isMergeCardForReq = isGenericMergeCardForCi(requirementCard);
 
@@ -1667,7 +1671,9 @@ function buildEmbed(card, owned, stage, player = null) {
     owned = card;
   }
 
-  const stageCard = mergeCard ? card : getStageCard(card, stage);
+  const stageCard = mergeCard
+    ? syncCiOwnedDisplayData(card, owned)
+    : getStageCard(card, stage, owned);
   const form =
     stageCard.evolutionForms?.[stage - 1] ||
     card.evolutionForms?.[stage - 1] ||
