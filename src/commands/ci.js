@@ -153,6 +153,148 @@ function findTemplateByCodeForCi(code) {
   );
 }
 
+function getCiSearchValues(card) {
+  if (!card || typeof card !== "object") return [];
+
+  const template = findTemplateByCodeForCi(card.code || card.cardCode || card.id);
+
+  const values = [
+    card.code,
+    card.cardCode,
+    card.id,
+    card.name,
+    card.displayName,
+    card.cardName,
+    card.title,
+    card.variant,
+
+    template?.code,
+    template?.name,
+    template?.displayName,
+    template?.cardName,
+    template?.title,
+    template?.variant,
+  ];
+
+  return [...new Set(values.filter(Boolean))];
+}
+
+function getCiStarValue(card) {
+  const values = [
+    card?.stars,
+    card?.star,
+    card?.rankStars,
+    card?.upgradeStars,
+    card?.evolutionStars,
+    card?.masteryStars,
+    card?.awakeningStars,
+  ];
+
+  for (const value of values) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  }
+
+  return 0;
+}
+
+function syncCiOwnedDisplayData(card, owned) {
+  if (!card) return card;
+
+  const stars = getCiStarValue(owned);
+  const next = {
+    ...card,
+  };
+
+  if (owned) {
+    next.fragments = Number(owned.fragments ?? next.fragments ?? 0);
+    next.level = Number(owned.level ?? next.level ?? 1);
+    next.exp = Number(owned.exp ?? owned.xp ?? next.exp ?? next.xp ?? 0);
+    next.xp = Number(owned.xp ?? owned.exp ?? next.xp ?? next.exp ?? 0);
+    next.instanceId = owned.instanceId || next.instanceId;
+    next.obtainedAt = owned.obtainedAt || next.obtainedAt;
+  }
+
+  if (stars > 0) {
+    next.stars = stars;
+    next.star = stars;
+    next.rankStars = stars;
+    next.upgradeStars = stars;
+    next.evolutionStars = stars;
+    next.masteryStars = stars;
+    next.awakeningStars = stars;
+  }
+
+  return next;
+}
+
+function findOwnedCardForCi(player, globalCard, query) {
+  const cards = Array.isArray(player?.cards) ? player.cards : [];
+  if (!cards.length) return null;
+
+  const targets = [
+    ...getCiSearchValues(globalCard),
+    query,
+  ]
+    .map((value) => ({
+      name: normalizeNameSearch(value),
+      code: normalizeCiCode(value),
+      compare: normalizeCompare(value),
+    }))
+    .filter((entry) => entry.name || entry.code || entry.compare);
+
+  const exact = cards.find((rawCard) => {
+    const hydrated = hydrateCard(rawCard) || rawCard;
+    const values = getCiSearchValues({
+      ...hydrated,
+      ...rawCard,
+    });
+
+    return values.some((value) => {
+      const name = normalizeNameSearch(value);
+      const code = normalizeCiCode(value);
+      const compare = normalizeCompare(value);
+
+      return targets.some(
+        (target) =>
+          (target.name && name && target.name === name) ||
+          (target.code && code && target.code === code) ||
+          (target.compare && compare && target.compare === compare)
+      );
+    });
+  });
+
+  if (exact) return exact;
+
+  const scored = cards
+    .map((rawCard) => {
+      const hydrated = hydrateCard(rawCard) || rawCard;
+      const values = getCiSearchValues({
+        ...hydrated,
+        ...rawCard,
+      });
+
+      return {
+        card: rawCard,
+        score: Math.max(
+          scoreNameOnly(query, values),
+          scoreNameOnly(globalCard?.displayName || globalCard?.name || globalCard?.code, values)
+        ),
+      };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length) return scored[0].card;
+
+  return (
+    findOwnedCard(cards, globalCard?.code || "") ||
+    findOwnedCard(cards, globalCard?.displayName || globalCard?.name || "") ||
+    findOwnedCard(cards, query) ||
+    null
+  );
+}
+
 function getAllGlobalCard(card) {
   const code = String(card?.code || "").toLowerCase();
   if (!code) return card;
@@ -164,12 +306,14 @@ function getAllGlobalCard(card) {
   );
 }
 
-function getStageCard(card, stage) {
-  return hydrateCard({
+function getStageCard(card, stage, owned = null) {
+  const stageCard = hydrateCard({
     ...card,
     evolutionStage: stage,
     evolutionKey: `M${stage}`,
   });
+
+  return syncCiOwnedDisplayData(stageCard, owned);
 }
 
 function getStageLabel(stage) {
@@ -824,6 +968,9 @@ function getCiHydratedRequirementEntry(entry) {
 
 function getCiRequirementMatchValues(entry) {
   const hydrated = getCiHydratedRequirementEntry(entry);
+  const template =
+    findTemplateByCodeForCi(entry?.code || hydrated?.code || entry?.cardCode) ||
+    findCardTemplateByNameOnly(entry?.name || entry?.displayName || hydrated?.name || hydrated?.displayName || "");
 
   return [
     entry?.code,
@@ -839,18 +986,35 @@ function getCiRequirementMatchValues(entry) {
     hydrated?.cardName,
     hydrated?.title,
     hydrated?.variant,
+
+    template?.code,
+    template?.name,
+    template?.displayName,
+    template?.cardName,
+    template?.title,
+    template?.variant,
   ]
     .map(normalizeCompare)
     .filter(Boolean);
 }
 
 function doesEntryMatchRequirement(entry, requirement) {
+  const requirementTemplate =
+    findTemplateByCodeForCi(requirement?.code || requirement?.cardCode) ||
+    findCardTemplateByNameOnly(requirement?.name || requirement?.displayName || requirement?.cardName || "");
+
   const requirementNames = [
     requirement?.code,
     requirement?.name,
     requirement?.displayName,
     requirement?.cardName,
     requirement?.title,
+
+    requirementTemplate?.code,
+    requirementTemplate?.name,
+    requirementTemplate?.displayName,
+    requirementTemplate?.cardName,
+    requirementTemplate?.title,
   ]
     .map(normalizeCompare)
     .filter(Boolean);
@@ -1015,11 +1179,24 @@ function requirementMatchesCurrentCard(requirement, currentCard, currentStage) {
 
   if (requiredStage !== viewedStage) return false;
 
+  const requirementTemplate =
+    findTemplateByCodeForCi(requirement?.code || requirement?.cardCode) ||
+    findCardTemplateByNameOnly(requirement?.name || requirement?.displayName || requirement?.cardName || "");
+
+  const currentTemplate =
+    findTemplateByCodeForCi(currentCard?.code || currentCard?.cardCode) ||
+    findCardTemplateByNameOnly(currentCard?.name || currentCard?.displayName || "");
+
   const requirementNames = [
     requirement?.code,
     requirement?.name,
     requirement?.displayName,
     requirement?.cardName,
+
+    requirementTemplate?.code,
+    requirementTemplate?.name,
+    requirementTemplate?.displayName,
+    requirementTemplate?.cardName,
   ]
     .map(normalizeCompare)
     .filter(Boolean);
@@ -1028,6 +1205,11 @@ function requirementMatchesCurrentCard(requirement, currentCard, currentStage) {
     currentCard?.code,
     currentCard?.name,
     currentCard?.displayName,
+
+    currentTemplate?.code,
+    currentTemplate?.name,
+    currentTemplate?.displayName,
+    currentTemplate?.cardName,
   ]
     .map(normalizeCompare)
     .filter(Boolean);
@@ -1320,7 +1502,9 @@ function buildReqEmbed(card, stage, player) {
     });
   }
 
-  const stageCard = mergeCard ? card : getStageCard(card, stage);
+  const stageCard = mergeCard
+    ? syncCiOwnedDisplayData(card, owned)
+    : getStageCard(card, stage, owned);
   const requirementCard = mergeCard ? originalCard : card;
   const isMergeCardForReq = isGenericMergeCardForCi(requirementCard);
 
@@ -1532,7 +1716,7 @@ function buildEmbed(card, owned, stage, player = null) {
           `Target: ${stageCard.boostTarget || "team"}`,
           `Boost Type: ${stageCard.boostType || "unknown"}`,
           `Devil Fruit: ${getBoostDevilFruitForCi(card, stageCard, form)}`,
-          `Fragments: ${Number(owned?.fragments || 0)}`,
+          `Fragments: ${Number(stageCard?.fragments || owned?.fragments || 0)}`,
         ]
       : [
           `Form: ${stageLabel}`,
@@ -1600,7 +1784,7 @@ module.exports = {
     const globalCard = findCardTemplateByNameOnly(query);
     if (!globalCard) return message.reply("Card not found in global database.");
 
-    const owned = findOwnedCard(player.cards || [], query);
+    const owned = findOwnedCardForCi(player, globalCard, query);
     let stage = 1;
 
     const sent = await message.reply({
@@ -1668,7 +1852,7 @@ module.exports = {
             displayStage: stage,
             displayLevel: stage === 1 ? 50 : stage === 2 ? 85 : 100,
           })
-        : findOwnedCard(freshPlayer.cards || [], query);
+        : findOwnedCardForCi(freshPlayer, globalCard, query);
 
       return i.update({
         embeds: [buildEmbed(globalCard, freshOwned, stage, freshPlayer)],
