@@ -1054,18 +1054,54 @@ function isSameRaidCard(a, b) {
 }
 
 function getRaidBaseBattleCards(player) {
-  const cards = (Array.isArray(player?.cards) ? player.cards : [])
+  const safePlayer = player || { cards: [] };
+  const combatBoosts = getPlayerCombatBoosts(safePlayer);
+
+  const cards = (Array.isArray(safePlayer?.cards) ? safePlayer.cards : [])
     .map((rawCard) => {
       const card = hydrateCard(rawCard);
       if (!card) return null;
 
       const syncedCard = isMergeCard(card)
-        ? buildMergedCard(player || { cards: [] }, card)
+        ? buildMergedCard(safePlayer, card)
         : card;
 
-      // Skin dipasang setelah stat/merge selesai.
-      // Ini aman: stat tetap dari original card, skin cuma display.
-      return applyCustomSkinToCard(player || {}, syncedCard);
+      const boostedCard = applyBoostedRaidDisplayStats(syncedCard, combatBoosts);
+
+      // Skin only changes display. Stats must stay from the boosted owned card.
+      const displayCard = applyCustomSkinToCard(safePlayer, boostedCard);
+
+      return {
+        ...displayCard,
+
+        atk: getRaidCardAtk(boostedCard),
+        hp: getRaidCardHp(boostedCard),
+        maxHp: getRaidCardHp(boostedCard),
+        speed: getRaidCardSpeed(boostedCard),
+
+        displayAtk: getRaidCardAtk(boostedCard),
+        displayHp: getRaidCardHp(boostedCard),
+        displaySpeed: getRaidCardSpeed(boostedCard),
+
+        battleAtk: getRaidCardAtk(boostedCard),
+        battleHp: getRaidCardHp(boostedCard),
+        battleMaxHp: getRaidCardHp(boostedCard),
+        battleSpeed: getRaidCardSpeed(boostedCard),
+
+        currentPower: getRaidDisplayPower(boostedCard),
+        power: getRaidDisplayPower(boostedCard),
+        battlePower: getRaidDisplayPower(boostedCard),
+        combatPower: getRaidDisplayPower(boostedCard),
+        teamPower: getRaidDisplayPower(boostedCard),
+
+        passiveBoostsApplied: {
+          atk: Number(combatBoosts.atk || 0),
+          hp: Number(combatBoosts.hp || 0),
+          spd: Number(combatBoosts.spd || 0),
+          dmg: Number(combatBoosts.dmg || 0),
+          exp: Number(combatBoosts.exp || 0),
+        },
+      };
     })
     .filter(
       (card) =>
@@ -1100,10 +1136,8 @@ function getBattleTeamCards(player) {
 }
 
 function toRoomCard(card) {
-  const hydrated = hydrateCard(card) || {};
   const synced = {
-    ...hydrated,
-    ...card,
+    ...(card || {}),
   };
 
   const hasCustomSkin = Boolean(synced.hasCustomSkin);
@@ -1118,12 +1152,15 @@ function toRoomCard(card) {
   const originalDisplayName = String(
     synced.originalDisplayName ||
       synced.skinnedCharacter ||
-      hydrated.displayName ||
-      hydrated.name ||
-      synced.name ||
       synced.displayName ||
+      synced.name ||
       ""
   );
+
+  const atk = getRaidCardAtk(synced);
+  const hp = getRaidCardHp(synced);
+  const speed = getRaidCardSpeed(synced);
+  const power = getRaidDisplayPower(synced);
 
   return {
     instanceId: String(synced.instanceId || ""),
@@ -1133,18 +1170,39 @@ function toRoomCard(card) {
         ? skinName || synced.displayName || synced.name || "Unknown"
         : synced.displayName || synced.name || "Unknown"
     ),
+    displayName: String(synced.displayName || synced.name || "Unknown"),
     evolutionStage: Number(synced.evolutionStage || 1),
+    evolutionKey: String(synced.evolutionKey || `M${Number(synced.evolutionStage || 1)}`),
     currentTier: String(synced.currentTier || synced.rarity || ""),
+    rarity: String(synced.currentTier || synced.rarity || ""),
     image: String(hasCustomSkin ? skinImage || synced.image || "" : synced.image || ""),
     cardRole: String(synced.cardRole || "battle"),
 
-    atk: getRaidCardAtk(synced),
-    hp: getRaidCardHp(synced),
-    maxHp: getRaidCardHp(synced),
-    speed: getRaidCardSpeed(synced),
-    currentPower: getRaidDisplayPower(synced),
-    battlePower: getRaidDisplayPower(synced),
-    passiveBoostsApplied: synced.passiveBoostsApplied || {},
+    atk,
+    hp,
+    maxHp: hp,
+    speed,
+    displayAtk: atk,
+    displayHp: hp,
+    displaySpeed: speed,
+    battleAtk: atk,
+    battleHp: hp,
+    battleMaxHp: hp,
+    battleSpeed: speed,
+
+    currentPower: power,
+    power,
+    battlePower: power,
+    combatPower: power,
+    teamPower: power,
+
+    passiveBoostsApplied: {
+      atk: Number(synced.passiveBoostsApplied?.atk || 0),
+      hp: Number(synced.passiveBoostsApplied?.hp || 0),
+      spd: Number(synced.passiveBoostsApplied?.spd || 0),
+      dmg: Number(synced.passiveBoostsApplied?.dmg || 0),
+      exp: Number(synced.passiveBoostsApplied?.exp || 0),
+    },
 
     hasCustomSkin,
     skinName,
@@ -1236,11 +1294,16 @@ function buildBattleRoster(room) {
                 "Unknown"
             : displayed.displayName || displayed.name || picked?.name || "Unknown"
         ),
-        atk: getRaidCardAtk(displayed),
-        maxHp: getRaidCardHp(displayed),
-        hp: getRaidCardHp(displayed),
-        speed: getRaidCardSpeed(displayed),
-        currentPower: getRaidDisplayPower(displayed),
+        atk: Number(displayed.battleAtk || displayed.atk || getRaidCardAtk(displayed)),
+        maxHp: Number(displayed.battleMaxHp || displayed.maxHp || displayed.hp || getRaidCardHp(displayed)),
+        hp: Number(displayed.battleHp || displayed.hp || displayed.maxHp || getRaidCardHp(displayed)),
+        speed: Number(displayed.battleSpeed || displayed.speed || getRaidCardSpeed(displayed)),
+        currentPower: Number(displayed.battlePower || displayed.currentPower || getRaidDisplayPower(displayed)),
+        battleAtk: Number(displayed.battleAtk || displayed.atk || getRaidCardAtk(displayed)),
+        battleHp: Number(displayed.battleHp || displayed.hp || displayed.maxHp || getRaidCardHp(displayed)),
+        battleMaxHp: Number(displayed.battleMaxHp || displayed.maxHp || displayed.hp || getRaidCardHp(displayed)),
+        battleSpeed: Number(displayed.battleSpeed || displayed.speed || getRaidCardSpeed(displayed)),
+        battlePower: Number(displayed.battlePower || displayed.currentPower || getRaidDisplayPower(displayed)),
         currentTier: String(displayed.currentTier || displayed.rarity || ""),
         evolutionStage: Number(displayed.evolutionStage || 1),
         image: String(
