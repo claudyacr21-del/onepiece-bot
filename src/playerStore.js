@@ -1743,6 +1743,40 @@ function normalizeVote(vote) {
   };
 }
 
+function normalizeTeamPresetSlots(value) {
+  const slots = Array.isArray(value) ? value.slice(0, 3) : [];
+
+  while (slots.length < 3) {
+    slots.push(null);
+  }
+
+  return slots.map((slot) => (slot ? String(slot) : null));
+}
+
+function normalizeTeamPresets(value) {
+  const raw =
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+      ? value
+      : {};
+
+  const presets = {};
+
+  for (const key of ["1", "2", "3"]) {
+    if (!Array.isArray(raw[key])) continue;
+
+    const slots = normalizeTeamPresetSlots(raw[key]);
+    const filled = slots.filter(Boolean);
+
+    if (filled.length) {
+      presets[key] = slots;
+    }
+  }
+
+  return presets;
+}
+
 function normalizeTeam(team) {
   const slots = Array.isArray(team?.slots) ? team.slots.slice(0, 3) : [];
 
@@ -1752,6 +1786,7 @@ function normalizeTeam(team) {
 
   return {
     slots: slots.map((slot) => (slot ? String(slot) : null)),
+    presets: normalizeTeamPresets(team?.presets),
   };
 }
 
@@ -2028,7 +2063,10 @@ function normalizePlayer(player = {}, username = "Unknown") {
     quests: normalizeQuests(player.quests),
     cooldowns: normalizeCooldowns(player.cooldowns),
     vote: normalizeVote(player.vote),
-    team: normalizeTeam(player.team),
+    team: normalizeTeam({
+      ...(player.team || {}),
+      presets: player?.team?.presets || player?.teamPresets,
+    }),
     raidTeam: normalizeRaidTeam(player.raidTeam),
     stats: normalizeStats(player.stats),
     arena: normalizeArena(player.arena),

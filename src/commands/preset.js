@@ -16,30 +16,17 @@ function normalizeSlot(value) {
   return String(n);
 }
 
-function getPresetStore(...players) {
-  const merged = {};
+function getPresetStore(player) {
+  const raw =
+    player?.team?.presets &&
+    typeof player.team.presets === "object" &&
+    !Array.isArray(player.team.presets)
+      ? player.team.presets
+      : {};
 
-  for (const player of players) {
-    if (!player || typeof player !== "object") continue;
-
-    const legacyPresets =
-      player.teamPresets &&
-      typeof player.teamPresets === "object" &&
-      !Array.isArray(player.teamPresets)
-        ? player.teamPresets
-        : {};
-
-    const teamPresets =
-      player.team?.presets &&
-      typeof player.team.presets === "object" &&
-      !Array.isArray(player.team.presets)
-        ? player.team.presets
-        : {};
-
-    Object.assign(merged, legacyPresets, teamPresets);
-  }
-
-  return merged;
+  return {
+    ...raw,
+  };
 }
 
 function applyPresetStore(player, presets, slots = null) {
@@ -55,9 +42,6 @@ function applyPresetStore(player, presets, slots = null) {
       presets: {
         ...presets,
       },
-    },
-    teamPresets: {
-      ...presets,
     },
   };
 }
@@ -256,18 +240,11 @@ function validatePresetCanEquip(player, presetSlots) {
 function savePreset(userId, username, slotKey) {
   let result = null;
 
-  const cachedPlayer = getPlayer(userId, username);
-  const cachedPresets = getPresetStore(cachedPlayer);
-  const cachedSlots = getTeamSlots(cachedPlayer);
-  const sourceSlots = cachedSlots.filter(Boolean).length
-    ? cachedSlots
-    : null;
-
   updatePlayerAtomic(
     userId,
     (fresh) => {
       const player = fresh || {};
-      const currentSlots = sourceSlots || getTeamSlots(player);
+      const currentSlots = getTeamSlots(player);
       const filled = currentSlots.filter(Boolean);
 
       if (!filled.length) {
@@ -280,12 +257,11 @@ function savePreset(userId, username, slotKey) {
       }
 
       const presets = {
-        ...getPresetStore(player, cachedPlayer),
-        ...cachedPresets,
+        ...getPresetStore(player),
         [slotKey]: currentSlots,
       };
 
-      const updatedPlayer = applyPresetStore(player, presets, currentSlots);
+      const updatedPlayer = applyPresetStore(player, presets);
 
       result = {
         ok: true,
@@ -304,18 +280,11 @@ function savePreset(userId, username, slotKey) {
 function equipPreset(userId, username, slotKey) {
   let result = null;
 
-  const cachedPlayer = getPlayer(userId, username);
-  const cachedPresets = getPresetStore(cachedPlayer);
-
   updatePlayerAtomic(
     userId,
     (fresh) => {
       const player = fresh || {};
-      const presets = {
-        ...getPresetStore(player, cachedPlayer),
-        ...cachedPresets,
-      };
-
+      const presets = getPresetStore(player);
       const presetSlots = Array.isArray(presets[slotKey])
         ? presets[slotKey].slice(0, TEAM_SIZE)
         : null;
@@ -326,14 +295,14 @@ function equipPreset(userId, username, slotKey) {
           reason: `Preset ${slotKey} is empty. Use \`op tp save ${slotKey}\` first.`,
         };
 
-        return applyPresetStore(player, presets);
+        return player;
       }
 
       const validation = validatePresetCanEquip(player, presetSlots);
 
       if (!validation.ok) {
         result = validation;
-        return applyPresetStore(player, presets);
+        return player;
       }
 
       const updatedPlayer = applyPresetStore(player, presets, validation.slots);
@@ -355,17 +324,11 @@ function equipPreset(userId, username, slotKey) {
 function removePreset(userId, username, slotKey) {
   let result = null;
 
-  const cachedPlayer = getPlayer(userId, username);
-  const cachedPresets = getPresetStore(cachedPlayer);
-
   updatePlayerAtomic(
     userId,
     (fresh) => {
       const player = fresh || {};
-      const presets = {
-        ...getPresetStore(player, cachedPlayer),
-        ...cachedPresets,
-      };
+      const presets = getPresetStore(player);
 
       if (!presets[slotKey]) {
         result = {
@@ -373,7 +336,7 @@ function removePreset(userId, username, slotKey) {
           reason: `Preset ${slotKey} is already empty.`,
         };
 
-        return applyPresetStore(player, presets);
+        return player;
       }
 
       delete presets[slotKey];
