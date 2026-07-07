@@ -156,148 +156,6 @@ function findTemplateByCodeForCi(code) {
   );
 }
 
-function getCiSearchValues(card) {
-  if (!card || typeof card !== "object") return [];
-
-  const template = findTemplateByCodeForCi(card.code || card.cardCode || card.id);
-
-  const values = [
-    card.code,
-    card.cardCode,
-    card.id,
-    card.name,
-    card.displayName,
-    card.cardName,
-    card.title,
-    card.variant,
-
-    template?.code,
-    template?.name,
-    template?.displayName,
-    template?.cardName,
-    template?.title,
-    template?.variant,
-  ];
-
-  return [...new Set(values.filter(Boolean))];
-}
-
-function getCiStarValue(card) {
-  const values = [
-    card?.stars,
-    card?.star,
-    card?.rankStars,
-    card?.upgradeStars,
-    card?.evolutionStars,
-    card?.masteryStars,
-    card?.awakeningStars,
-  ];
-
-  for (const value of values) {
-    const n = Number(value);
-    if (Number.isFinite(n) && n > 0) return Math.floor(n);
-  }
-
-  return 0;
-}
-
-function syncCiOwnedDisplayData(card, owned) {
-  if (!card) return card;
-
-  const stars = getCiStarValue(owned);
-  const next = {
-    ...card,
-  };
-
-  if (owned) {
-    next.fragments = Number(owned.fragments ?? next.fragments ?? 0);
-    next.level = Number(owned.level ?? next.level ?? 1);
-    next.exp = Number(owned.exp ?? owned.xp ?? next.exp ?? next.xp ?? 0);
-    next.xp = Number(owned.xp ?? owned.exp ?? next.xp ?? next.exp ?? 0);
-    next.instanceId = owned.instanceId || next.instanceId;
-    next.obtainedAt = owned.obtainedAt || next.obtainedAt;
-  }
-
-  if (stars > 0) {
-    next.stars = stars;
-    next.star = stars;
-    next.rankStars = stars;
-    next.upgradeStars = stars;
-    next.evolutionStars = stars;
-    next.masteryStars = stars;
-    next.awakeningStars = stars;
-  }
-
-  return next;
-}
-
-function findOwnedCardForCi(player, globalCard, query) {
-  const cards = Array.isArray(player?.cards) ? player.cards : [];
-  if (!cards.length) return null;
-
-  const targets = [
-    ...getCiSearchValues(globalCard),
-    query,
-  ]
-    .map((value) => ({
-      name: normalizeNameSearch(value),
-      code: normalizeCiCode(value),
-      compare: normalizeCompare(value),
-    }))
-    .filter((entry) => entry.name || entry.code || entry.compare);
-
-  const exact = cards.find((rawCard) => {
-    const hydrated = hydrateCard(rawCard) || rawCard;
-    const values = getCiSearchValues({
-      ...hydrated,
-      ...rawCard,
-    });
-
-    return values.some((value) => {
-      const name = normalizeNameSearch(value);
-      const code = normalizeCiCode(value);
-      const compare = normalizeCompare(value);
-
-      return targets.some(
-        (target) =>
-          (target.name && name && target.name === name) ||
-          (target.code && code && target.code === code) ||
-          (target.compare && compare && target.compare === compare)
-      );
-    });
-  });
-
-  if (exact) return exact;
-
-  const scored = cards
-    .map((rawCard) => {
-      const hydrated = hydrateCard(rawCard) || rawCard;
-      const values = getCiSearchValues({
-        ...hydrated,
-        ...rawCard,
-      });
-
-      return {
-        card: rawCard,
-        score: Math.max(
-          scoreNameOnly(query, values),
-          scoreNameOnly(globalCard?.displayName || globalCard?.name || globalCard?.code, values)
-        ),
-      };
-    })
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
-
-  if (scored.length) return scored[0].card;
-
-  return (
-    findOwnedCard(cards, globalCard?.code || "") ||
-    findOwnedCard(cards, globalCard?.displayName || globalCard?.name || "") ||
-    findOwnedCard(cards, query) ||
-    null
-  );
-}
-
 function getAllGlobalCard(card) {
   const code = String(card?.code || "").toLowerCase();
   if (!code) return card;
@@ -309,14 +167,12 @@ function getAllGlobalCard(card) {
   );
 }
 
-function getStageCard(card, stage, owned = null) {
-  const stageCard = hydrateCard({
+function getStageCard(card, stage) {
+  return hydrateCard({
     ...card,
     evolutionStage: stage,
     evolutionKey: `M${stage}`,
   });
-
-  return syncCiOwnedDisplayData(stageCard, owned);
 }
 
 function getStageLabel(stage) {
@@ -971,9 +827,6 @@ function getCiHydratedRequirementEntry(entry) {
 
 function getCiRequirementMatchValues(entry) {
   const hydrated = getCiHydratedRequirementEntry(entry);
-  const template =
-    findTemplateByCodeForCi(entry?.code || hydrated?.code || entry?.cardCode) ||
-    findCardTemplateByNameOnly(entry?.name || entry?.displayName || hydrated?.name || hydrated?.displayName || "");
 
   return [
     entry?.code,
@@ -989,83 +842,32 @@ function getCiRequirementMatchValues(entry) {
     hydrated?.cardName,
     hydrated?.title,
     hydrated?.variant,
-
-    template?.code,
-    template?.name,
-    template?.displayName,
-    template?.cardName,
-    template?.title,
-    template?.variant,
   ]
     .map(normalizeCompare)
     .filter(Boolean);
 }
 
-function getCiStrictRequirementKeys(entry) {
-  if (!entry) return [];
-
-  const hydrated = getCiHydratedRequirementEntry(entry);
-
-  const template =
-    findTemplateByCodeForCi(entry?.code || entry?.cardCode || hydrated?.code || hydrated?.cardCode) ||
-    findCardTemplateByNameOnly(
-      entry?.name ||
-        entry?.displayName ||
-        entry?.cardName ||
-        hydrated?.name ||
-        hydrated?.displayName ||
-        hydrated?.cardName ||
-        ""
-    );
-
-  const values = [
-    entry?.code,
-    entry?.cardCode,
-    entry?.id,
-    entry?.name,
-    entry?.displayName,
-    entry?.cardName,
-
-    hydrated?.code,
-    hydrated?.cardCode,
-    hydrated?.id,
-    hydrated?.name,
-    hydrated?.displayName,
-    hydrated?.cardName,
-
-    template?.code,
-    template?.cardCode,
-    template?.id,
-    template?.name,
-    template?.displayName,
-    template?.cardName,
-  ];
-
-  return [
-    ...new Set(
-      values
-        .flatMap((value) => [
-          normalizeCompare(value),
-          normalizeCiCode(value),
-          normalizeRequirementCode(value),
-        ])
-        .filter(Boolean)
-    ),
-  ];
-}
-
-function hasCiExactRequirementMatch(a, b) {
-  const aKeys = getCiStrictRequirementKeys(a);
-  const bKeys = getCiStrictRequirementKeys(b);
-
-  if (!aKeys.length || !bKeys.length) return false;
-
-  const bSet = new Set(bKeys);
-  return aKeys.some((key) => bSet.has(key));
-}
-
 function doesEntryMatchRequirement(entry, requirement) {
-  return hasCiExactRequirementMatch(entry, requirement);
+  const requirementNames = [
+    requirement?.code,
+    requirement?.name,
+    requirement?.displayName,
+    requirement?.cardName,
+    requirement?.title,
+  ]
+    .map(normalizeCompare)
+    .filter(Boolean);
+
+  const entryNames = getCiRequirementMatchValues(entry);
+
+  if (!requirementNames.length || !entryNames.length) return false;
+
+  return requirementNames.some((reqName) =>
+    entryNames.some((entryName) => {
+      if (entryName === reqName) return true;
+      return entryName.includes(reqName) || reqName.includes(entryName);
+    })
+  );
 }
 
 function findOwnedRequirementEntry(collection, requirement) {
@@ -1211,195 +1013,59 @@ function getRequirementEntries(req) {
 }
 
 function requirementMatchesCurrentCard(requirement, currentCard, currentStage) {
-  const requiredStage = Number(
-    requirement?.stage ||
-      requirement?.minStage ||
-      requirement?.evolutionStage ||
-      1
-  );
-
+  const requiredStage = Number(requirement?.stage || 1);
   const viewedStage = Number(currentStage || 1);
 
   if (requiredStage !== viewedStage) return false;
 
-  return hasCiExactRequirementMatch(requirement, currentCard);
-}
+  const requirementNames = [
+    requirement?.code,
+    requirement?.name,
+    requirement?.displayName,
+    requirement?.cardName,
+  ]
+    .map(normalizeCompare)
+    .filter(Boolean);
 
-let CI_CANON_REQUIRED_FOR_INDEX = null;
+  const currentNames = [
+    currentCard?.code,
+    currentCard?.name,
+    currentCard?.displayName,
+  ]
+    .map(normalizeCompare)
+    .filter(Boolean);
 
-function getCiCanonLinksObject() {
-  return cardsData.CANON_LINKS || cardsData.canon_links || cardsData.canonLinks || {};
-}
+  if (!requirementNames.length || !currentNames.length) return false;
 
-function getSimpleCiRequirementKeys(value) {
-  const values = [];
-
-  if (typeof value === "string") {
-    values.push(value);
-  } else if (value && typeof value === "object") {
-    values.push(
-      value.code,
-      value.card,
-      value.cardCode,
-      value.id,
-      value.name,
-      value.displayName,
-      value.cardName,
-      value.title
-    );
-  }
-
-  return [
-    ...new Set(
-      values
-        .flatMap((item) => [
-          normalizeRequirementCode(item),
-          normalizeCiCode(item),
-          normalizeCompare(item),
-        ])
-        .filter(Boolean)
-    ),
-  ];
-}
-
-function getCurrentCardCanonKeys(card) {
-  return getSimpleCiRequirementKeys({
-    code: card?.code,
-    cardCode: card?.cardCode,
-    id: card?.id,
-    name: card?.name,
-    displayName: card?.displayName,
-    cardName: card?.cardName,
-    title: card?.title,
-  });
-}
-
-function getCanonRequirementEntriesForIndex(canon, targetStage) {
-  return [
-    ...normalizeCanonRequirementList(canon?.cards, targetStage),
-    ...normalizeCanonRequirementList(canon?.boosts, targetStage),
-  ];
-}
-
-function getCiCanonRequiredForIndex() {
-  if (CI_CANON_REQUIRED_FOR_INDEX) {
-    return CI_CANON_REQUIRED_FOR_INDEX;
-  }
-
-  const links = getCiCanonLinksObject();
-  const index = new Map();
-
-  for (const [targetKey, canon] of Object.entries(links)) {
-    for (const targetStage of [2, 3]) {
-      const stageKey = `M${targetStage}`;
-      const entries = getCanonRequirementEntriesForIndex(canon, targetStage);
-
-      for (const entry of entries) {
-        const requiredStage = Number(
-          entry?.stage ||
-            entry?.minStage ||
-            entry?.evolutionStage ||
-            targetStage ||
-            1
-        );
-
-        const requirementKeys = getSimpleCiRequirementKeys(entry);
-
-        for (const reqKey of requirementKeys) {
-          const indexKey = `${reqKey}:m${requiredStage}`;
-
-          if (!index.has(indexKey)) {
-            index.set(indexKey, []);
-          }
-
-          index.get(indexKey).push({
-            targetName: prettifyCode(targetKey),
-            targetStage: stageKey,
-            targetRole: "battle",
-          });
-        }
-      }
-    }
-  }
-
-  for (const [key, value] of index.entries()) {
-    const seen = new Set();
-
-    index.set(
-      key,
-      value.filter((entry) => {
-        const uniqueKey = `${normalizeCompare(entry.targetName)}:${entry.targetStage}`;
-        if (seen.has(uniqueKey)) return false;
-        seen.add(uniqueKey);
-        return true;
-      })
-    );
-  }
-
-  CI_CANON_REQUIRED_FOR_INDEX = index;
-  return CI_CANON_REQUIRED_FOR_INDEX;
-}
-
-function getCanonRequiredForTargets(currentCard, currentStage) {
-  const index = getCiCanonRequiredForIndex();
-  const stage = Number(currentStage || 1);
-  const keys = getCurrentCardCanonKeys(currentCard);
-  const results = [];
-  const seen = new Set();
-
-  for (const key of keys) {
-    const indexKey = `${key}:m${stage}`;
-    const targets = index.get(indexKey) || [];
-
-    for (const target of targets) {
-      const uniqueKey = `${normalizeCompare(target.targetName)}:${target.targetStage}`;
-
-      if (seen.has(uniqueKey)) continue;
-
-      seen.add(uniqueKey);
-      results.push(target);
-    }
-  }
-
-  return results.sort((a, b) => {
-    const nameA = normalizeCompare(a.targetName);
-    const nameB = normalizeCompare(b.targetName);
-
-    if (nameA !== nameB) return nameA.localeCompare(nameB);
-
-    return String(a.targetStage).localeCompare(String(b.targetStage));
-  });
+  return requirementNames.some((reqName) =>
+    currentNames.some(
+      (currentName) =>
+        reqName === currentName ||
+        reqName.includes(currentName) ||
+        currentName.includes(reqName)
+    )
+  );
 }
 
 function getRequiredForTargets(currentCard, currentStage) {
   const results = [];
-  const currentIsRoadPoneglyph = isRoadPoneglyphCard(currentCard);
 
   for (const targetCard of getAllCards()) {
     const requirements = targetCard?.awakenRequirements || {};
-    const targetIsGenericMerge = isGenericMergeCardForCi(targetCard);
 
     for (const stageKey of ["M2", "M3"]) {
       const targetStage = Number(String(stageKey).replace("M", ""));
       let req = requirements?.[stageKey];
-
       req = mergeCanonRequirementsIntoReq(req, targetCard, targetStage);
-      req = normalizeMergeRequirementForCi(targetCard, targetStage, req);
 
       if (!req) continue;
 
       const entries = getRequirementEntries(req);
-
-      const matchedByCards = entries.some((entry) =>
+      const matched = entries.some((entry) =>
         requirementMatchesCurrentCard(entry, currentCard, currentStage)
       );
 
-      const matchedByRoadPoneglyph =
-        currentIsRoadPoneglyph &&
-        targetIsGenericMerge &&
-        Number(currentStage || 1) === targetStage;
-
-      if (!matchedByCards && !matchedByRoadPoneglyph) continue;
+      if (!matched) continue;
 
       results.push({
         targetName: targetCard.displayName || targetCard.name || "Unknown",
@@ -1438,10 +1104,10 @@ function getRequiredForTargetsCached(card, stage) {
     return cached.targets;
   }
 
-  const targets = getCanonRequiredForTargets(card, stage);
+  const targets = getRequiredForTargets(card, stage);
 
   CI_REQUIRED_FOR_CACHE.set(key, {
-    createdAt: Date.now(),
+    createdAt: now,
     targets,
   });
 
@@ -1854,9 +1520,7 @@ function buildEmbed(card, owned, stage, player = null) {
     owned = card;
   }
 
-  const stageCard = mergeCard
-    ? syncCiOwnedDisplayData(card, owned)
-    : getStageCard(card, stage, owned);
+  const stageCard = mergeCard ? card : getStageCard(card, stage);
   const form =
     stageCard.evolutionForms?.[stage - 1] ||
     card.evolutionForms?.[stage - 1] ||
@@ -1905,7 +1569,7 @@ function buildEmbed(card, owned, stage, player = null) {
           `Target: ${stageCard.boostTarget || "team"}`,
           `Boost Type: ${stageCard.boostType || "unknown"}`,
           `Devil Fruit: ${getBoostDevilFruitForCi(card, stageCard, form)}`,
-          `Fragments: ${Number(stageCard?.fragments || owned?.fragments || 0)}`,
+          `Fragments: ${Number(owned?.fragments || 0)}`,
         ]
       : [
           `Form: ${stageLabel}`,
@@ -2059,7 +1723,7 @@ module.exports = {
     const globalCard = findCardTemplateByNameOnly(query);
     if (!globalCard) return message.reply("Card not found in global database.");
 
-    const owned = findOwnedCardForCi(player, globalCard, query);
+    const owned = findOwnedCard(player.cards || [], query);
     let stage = 1;
 
     const sent = await message.reply({
@@ -2109,10 +1773,8 @@ module.exports = {
         if (!deferred) return null;
 
         try {
-          const requiredForEmbed = buildRequiredForEmbed(globalCard, stage);
-
           return await safeCiEditEphemeral(i, {
-            embeds: [requiredForEmbed],
+            embeds: [buildRequiredForEmbed(globalCard, stage)],
             components: [],
           });
         } catch (error) {
@@ -2134,7 +1796,7 @@ module.exports = {
             displayStage: stage,
             displayLevel: stage === 1 ? 50 : stage === 2 ? 85 : 100,
           })
-        : findOwnedCardForCi(freshPlayer, globalCard, query);
+        : findOwnedCard(freshPlayer.cards || [], query);
 
       return safeCiUpdate(i, {
         embeds: [buildEmbed(globalCard, freshOwned, stage, freshPlayer)],
