@@ -17,7 +17,9 @@ function normalizeSlot(value) {
 }
 
 function getPresetStore(player) {
-  const raw = player?.teamPresets;
+  const raw =
+    player?.team?.presets ||
+    player?.teamPresets;
 
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return {};
@@ -241,15 +243,22 @@ function savePreset(userId, username, slotKey) {
       const presets = getPresetStore(player);
       presets[slotKey] = currentSlots;
 
+      const updatedPlayer = {
+        ...player,
+        team: {
+          ...(player.team || {}),
+          slots: getTeamSlots(player),
+          presets,
+        },
+      };
+
       result = {
         ok: true,
         slots: currentSlots,
+        player: updatedPlayer,
       };
 
-      return {
-        ...player,
-        teamPresets: presets,
-      };
+      return updatedPlayer;
     },
     username
   );
@@ -285,18 +294,22 @@ function equipPreset(userId, username, slotKey) {
         return player;
       }
 
-      result = {
-        ok: true,
-        slots: validation.slots,
-      };
-
-      return {
+      const updatedPlayer = {
         ...player,
         team: {
           ...(player.team || {}),
           slots: validation.slots,
+          presets,
         },
       };
+
+      result = {
+        ok: true,
+        slots: validation.slots,
+        player: updatedPlayer,
+      };
+
+      return updatedPlayer;
     },
     username
   );
@@ -324,14 +337,21 @@ function removePreset(userId, username, slotKey) {
 
       delete presets[slotKey];
 
-      result = {
-        ok: true,
+      const updatedPlayer = {
+        ...player,
+        team: {
+          ...(player.team || {}),
+          slots: getTeamSlots(player),
+          presets,
+        },
       };
 
-      return {
-        ...player,
-        teamPresets: presets,
+      result = {
+        ok: true,
+        player: updatedPlayer,
       };
+
+      return updatedPlayer;
     },
     username
   );
@@ -370,11 +390,9 @@ module.exports = {
         return message.reply(result?.reason || "Failed to save team preset.");
       }
 
-      const latestPlayer = getPlayer(message.author.id, message.author.username);
-
       return message.reply({
         content: `✅ Saved your current team to **Preset ${slotKey}**.`,
-        embeds: [buildPresetEmbed(latestPlayer)],
+        embeds: [buildPresetEmbed(result.player || getPlayer(message.author.id, message.author.username))],
         allowedMentions: {
           repliedUser: false,
         },
@@ -394,11 +412,9 @@ module.exports = {
         return message.reply(result?.reason || "Failed to remove team preset.");
       }
 
-      const latestPlayer = getPlayer(message.author.id, message.author.username);
-
       return message.reply({
         content: `✅ Removed **Preset ${slotKey}**.`,
-        embeds: [buildPresetEmbed(latestPlayer)],
+        embeds: [buildPresetEmbed(result.player || getPlayer(message.author.id, message.author.username))],
         allowedMentions: {
           repliedUser: false,
         },
@@ -414,11 +430,9 @@ module.exports = {
         return message.reply(result?.reason || "Failed to equip team preset.");
       }
 
-      const latestPlayer = getPlayer(message.author.id, message.author.username);
-
       return message.reply({
         content: `✅ Equipped **Preset ${slotKey}** as your battle team.`,
-        embeds: [buildPresetEmbed(latestPlayer)],
+        embeds: [buildPresetEmbed(result.player || getPlayer(message.author.id, message.author.username))],
         allowedMentions: {
           repliedUser: false,
         },
