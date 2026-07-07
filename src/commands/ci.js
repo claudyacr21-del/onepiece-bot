@@ -24,6 +24,10 @@ const SPECIAL_FORMS = cardsData.SPECIAL_FORMS || cardsData.specialForms || {
 const CI_REQUIRED_FOR_CACHE = new Map();
 const CI_REQUIRED_FOR_CACHE_TTL_MS = 5 * 60 * 1000;
 
+function yieldCiEventLoop() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 function isRoadPoneglyphCard(card) {
   const code = String(card?.code || "").toLowerCase().trim();
   const name = String(card?.displayName || card?.name || card?.title || "")
@@ -1280,7 +1284,7 @@ function getCiRequiredForCacheKey(card, stage) {
   ].join(":");
 }
 
-function getRequiredForTargetsCached(card, stage) {
+async function getRequiredForTargetsCached(card, stage) {
   const key = getCiRequiredForCacheKey(card, stage);
   const now = Date.now();
   const cached = CI_REQUIRED_FOR_CACHE.get(key);
@@ -1292,10 +1296,63 @@ function getRequiredForTargetsCached(card, stage) {
     return cached.targets;
   }
 
-  const targets = getRequiredForTargets(card, stage);
+  const results = [];
+  const currentIsRoadPoneglyph = isRoadPoneglyphCard(card);
+  const allCards = getAllCards();
+
+  for (let index = 0; index < allCards.length; index += 1) {
+    const targetCard = allCards[index];
+    const requirements = targetCard?.awakenRequirements || {};
+    const targetIsGenericMerge = isGenericMergeCardForCi(targetCard);
+
+    for (const stageKey of ["M2", "M3"]) {
+      const targetStage = Number(String(stageKey).replace("M", ""));
+      let req = requirements?.[stageKey];
+
+      req = mergeCanonRequirementsIntoReq(req, targetCard, targetStage);
+      req = normalizeMergeRequirementForCi(targetCard, targetStage, req);
+
+      if (!req) continue;
+
+      const entries = getRequirementEntries(req);
+
+      const matchedByCards = entries.some((entry) =>
+        requirementMatchesCurrentCard(entry, card, stage)
+      );
+
+      const matchedByRoadPoneglyph =
+        currentIsRoadPoneglyph &&
+        targetIsGenericMerge &&
+        Number(stage || 1) === targetStage;
+
+      if (!matchedByCards && !matchedByRoadPoneglyph) continue;
+
+      results.push({
+        targetName: targetCard.displayName || targetCard.name || "Unknown",
+        targetStage: stageKey,
+        targetRole: targetCard.cardRole || "battle",
+      });
+    }
+
+    // IMPORTANT:
+    // Jangan scan semua card dalam 1 event-loop tick.
+    // Ini yang bikin command lain seperti op bal ikut ketahan.
+    if (index > 0 && index % 20 === 0) {
+      await yieldCiEventLoop();
+    }
+  }
+
+  const targets = results.sort((a, b) => {
+    const nameA = normalizeCompare(a.targetName);
+    const nameB = normalizeCompare(b.targetName);
+
+    if (nameA !== nameB) return nameA.localeCompare(nameB);
+
+    return String(a.targetStage).localeCompare(String(b.targetStage));
+  });
 
   CI_REQUIRED_FOR_CACHE.set(key, {
-    createdAt: now,
+    createdAt: Date.now(),
     targets,
   });
 
@@ -1307,11 +1364,11 @@ function getRequiredForTargetsCached(card, stage) {
   return targets;
 }
 
-function buildRequiredForEmbed(card, stage) {
+async function buildRequiredForEmbed(card, stage) {
   const stageCard = getStageCard(card, stage);
   const stageLabel = getStageLabel(stage);
   const displayName = stageCard.displayName || card.displayName || card.name;
-  const targets = getRequiredForTargetsCached(card, stage);
+  const targets = await getRequiredForTargetsCached(card, stage);
 
   const lines = targets.length
     ? targets.map((target) => `↪ ${target.targetName} ${target.targetStage}`)
@@ -1963,8 +2020,10 @@ module.exports = {
         if (!deferred) return null;
 
         try {
+          const requiredForEmbed = await buildRequiredForEmbed(globalCard, stage);
+
           return await safeCiEditEphemeral(i, {
-            embeds: [buildRequiredForEmbed(globalCard, stage)],
+            embeds: [requiredForEmbed],
             components: [],
           });
         } catch (error) {
