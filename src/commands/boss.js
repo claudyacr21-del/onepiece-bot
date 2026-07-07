@@ -1377,6 +1377,34 @@ function shouldDisableLastUsed(units, lastUsedUnitKey, unit) {
 }
 async function waitForBossJoinLobby(message, island, phaseBoss) {
   const joinedIds = new Set([String(message.author.id)]);
+  const joinedSnapshots = new Map();
+  const saveParticipantSnapshot = (userId, username, player) => {
+    const { teamCards } = getFullTeamFromPlayer(player);
+
+    if (teamCards.length < 3) {
+      return null;
+    }
+
+    const snapshot = {
+      userId: String(userId),
+      username: player.username || username,
+      units: teamCards.slice(0, 3).map((unit) => ({
+        ...unit,
+        ownerId: String(userId),
+        ownerName: player.username || username,
+        globalSlot: 0,
+      })),
+    };
+
+    joinedSnapshots.set(String(userId), snapshot);
+    return snapshot;
+  };
+
+  saveParticipantSnapshot(
+    message.author.id,
+    message.author.username,
+    getPlayer(message.author.id, message.author.username)
+  );
   let approved = false;
   let cancelled = false;
 
@@ -1396,6 +1424,16 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
           : userId === String(message.author.id)
           ? message.author.username
           : await resolveUsernameSafe(message, userId);
+
+      const savedSnapshot = joinedSnapshots.get(String(userId));
+
+      if (savedSnapshot && !(extraUserId && String(extraUserId) === String(userId))) {
+        participants.push({
+          ...savedSnapshot,
+          units: savedSnapshot.units.map((unit) => ({ ...unit })),
+        });
+        continue;
+      }
 
       const player =
         extraUserId && String(extraUserId) === String(userId) && extraPlayer
@@ -1607,6 +1645,20 @@ if (lobbyProcessing) {
           components: [],
         });
         }
+        
+        const savedJoinSnapshot = saveParticipantSnapshot(
+          userId,
+          username,
+          joiningPlayer
+        );
+
+        if (!savedJoinSnapshot) {
+          return replyBossJoin({
+            content: "Join failed because your current team is no longer valid.",
+            embeds: [],
+            components: [],
+          });
+        }
 
         joinedIds.add(userId);
 
@@ -1678,7 +1730,19 @@ if (lobbyProcessing) {
 
         await safeDeferUpdate(interaction);
 
-        const participants = await getJoinedParticipantsPreview();
+        const participants = [...joinedIds]
+          .map((id) => joinedSnapshots.get(String(id)))
+          .filter(Boolean)
+          .map((participant) => ({
+            ...participant,
+            units: participant.units.map((unit) => ({ ...unit })),
+          }));
+        participants.forEach((participant, participantIndex) => {
+          participant.units.forEach((unit, unitIndex) => {
+            unit.globalSlot = participantIndex * 3 + unitIndex;
+            unit.slot = unitIndex + 1;
+          });
+        });
         const duplicates = getDuplicatePartyCards(participants);
 
         if (duplicates.length) {
@@ -1750,10 +1814,23 @@ lobbyProcessing = false;
     });
   });
 
+  const participants = [...joinedIds]
+    .map((id) => joinedSnapshots.get(String(id)))
+    .filter(Boolean)
+    .map((participant, participantIndex) => ({
+      ...participant,
+      units: participant.units.map((unit, unitIndex) => ({
+        ...unit,
+        globalSlot: participantIndex * 3 + unitIndex,
+        slot: unitIndex + 1,
+      })),
+    }));
+
   return {
     approved,
     cancelled,
     joinedIds: [...joinedIds],
+    participants,
   };
 }
 
@@ -2055,54 +2132,6 @@ async function resolveUsernameSafe(message, userId) {
   if (fetchedUser?.username) return fetchedUser.username;
 
   return id;
-}
-
-async function buildRaidBossParticipantsFromJoinedIds(message, joinedIds) {
-  const participants = [];
-  const rejected = [];
-
-  for (const userId of joinedIds.map(String)) {
-    const username =
-      userId === String(message.author.id)
-        ? message.author.username
-        : await resolveUsernameSafe(message, userId);
-
-    const player = getPlayer(userId, username);
-
-    if (!player) {
-      rejected.push(`${username} has no player data.`);
-      continue;
-    }
-
-        const { combatBoosts, teamCards } = getFullTeamFromPlayer(player);
-
-    if (teamCards.length < 3) {
-      rejected.push(`${username} does not have a full team of 3 cards.`);
-      continue;
-    }
-
-    participants.push({
-      userId,
-      username: player.username || username,
-      player,
-      combatBoosts,
-      units: teamCards.map((unit) => ({
-        ...unit,
-        ownerId: userId,
-        ownerName: player.username || username,
-        globalSlot: 0,
-      })),
-    });
-  }
-
-  participants.forEach((participant, participantIndex) => {
-    participant.units.forEach((unit, unitIndex) => {
-      unit.globalSlot = participantIndex * 3 + unitIndex;
-      unit.slot = unitIndex + 1;
-    });
-  });
-
-  return { participants, rejected };
 }
 
 function getBossReward(island, phaseBoss = null) {
@@ -2615,21 +2644,19 @@ module.exports = {
         return;
       }
 
-      const { participants, rejected } = await buildRaidBossParticipantsFromJoinedIds(
-        message,
-        lobby.joinedIds
-      );
+      const participants = Array.isArray(lobby.participants)
+        ? lobby.participants.map((participant) => ({
+            ...participant,
+            units: Array.isArray(participant.units)
+              ? participant.units.map((unit) => ({ ...unit }))
+              : [],
+          }))
+        : [];
 
       if (participants.length < 1) {
         clearActiveBossSession(message.author.id);
         return message.reply(
-          [
-            "You need a full battle team of **3 cards** to start Boss Phase 2 solo.",
-            "",
-            rejected.length ? `Rejected:\n${rejected.map((x) => `- ${x}`).join("\n")}` : "",
-          ]
-            .filter(Boolean)
-            .join("\n")
+          "You need a full battle team of **3 cards** to start Boss Phase 2 solo."
         );
       }
 

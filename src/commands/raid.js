@@ -1138,6 +1138,14 @@ function toRoomCard(card) {
     image: String(hasCustomSkin ? skinImage || synced.image || "" : synced.image || ""),
     cardRole: String(synced.cardRole || "battle"),
 
+    atk: getRaidCardAtk(synced),
+    hp: getRaidCardHp(synced),
+    maxHp: getRaidCardHp(synced),
+    speed: getRaidCardSpeed(synced),
+    currentPower: getRaidDisplayPower(synced),
+    battlePower: getRaidDisplayPower(synced),
+    passiveBoostsApplied: synced.passiveBoostsApplied || {},
+
     hasCustomSkin,
     skinName,
     skinTitle: String(synced.skinTitle || ""),
@@ -1197,31 +1205,20 @@ function buildBattleRoster(room) {
     const pickedCards = dedupeRaidCards(ensureArray(participant.selectedCards));
 
     for (const picked of pickedCards) {
-      const fresh = getFreshOwnedBattleCard(
-        String(participant.userId),
-        String(participant.username || "Unknown"),
-        picked
-      );
+      const displayed = {
+        ...(picked || {}),
+      };
 
-      if (!fresh) continue;
+      if (!displayed.instanceId || !displayed.code) continue;
 
       const alreadyAdded = roster.some(
         (member) =>
           String(member.userId || "") === String(participant.userId || "") &&
-          isSameRaidCard(member, fresh)
+          isSameRaidCard(member, displayed)
       );
 
-      if (alreadyAdded) {
-        continue;
-      }
+      if (alreadyAdded) continue;
 
-      const player = getPlayer(
-        String(participant.userId),
-        String(participant.username || "Unknown")
-      );
-
-      const boosts = getPlayerCombatBoosts(player);
-      const displayed = applyBoostedRaidDisplayStats(fresh, boosts);
       const hasCustomSkin = Boolean(displayed.hasCustomSkin || picked?.hasCustomSkin);
 
       roster.push({
@@ -1264,11 +1261,11 @@ function buildBattleRoster(room) {
         ),
         cardConflictKey: getRoomCardConflictKey(displayed.hasCustomSkin ? displayed : picked),
         passiveBoostsApplied: {
-          atk: Number(boosts.atk || 0),
-          hp: Number(boosts.hp || 0),
-          spd: Number(boosts.spd || 0),
-          dmg: Number(boosts.dmg || 0),
-          exp: Number(boosts.exp || 0),
+          atk: Number(displayed.passiveBoostsApplied?.atk || 0),
+          hp: Number(displayed.passiveBoostsApplied?.hp || 0),
+          spd: Number(displayed.passiveBoostsApplied?.spd || 0),
+          dmg: Number(displayed.passiveBoostsApplied?.dmg || 0),
+          exp: Number(displayed.passiveBoostsApplied?.exp || 0),
         },
         alive: true,
       });

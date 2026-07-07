@@ -773,7 +773,7 @@ module.exports = [
   {
     code: "batto_batto_no_mi",
     name: "Batto Batto no Mi",
-    rarity: "S",
+    rarity: "UR",
     owners: ["stussy"],
     type: "Zoan Fruit",
     statPercent: { atk: 7, hp: 6, speed: 4 },
