@@ -17,16 +17,35 @@ function normalizeSlot(value) {
 }
 
 function getPresetStore(player) {
-  const raw =
-    player?.team?.presets ||
-    player?.teamPresets;
+  const teamPresets =
+    player?.team?.presets &&
+    typeof player.team.presets === "object" &&
+    !Array.isArray(player.team.presets)
+      ? player.team.presets
+      : {};
 
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return {};
-  }
+  const legacyPresets =
+    player?.teamPresets &&
+    typeof player.teamPresets === "object" &&
+    !Array.isArray(player.teamPresets)
+      ? player.teamPresets
+      : {};
 
   return {
-    ...raw,
+    ...legacyPresets,
+    ...teamPresets,
+  };
+}
+
+function applyPresetStore(player, presets) {
+  return {
+    ...player,
+    team: {
+      ...(player.team || {}),
+      slots: getTeamSlots(player),
+      presets,
+    },
+    teamPresets: presets,
   };
 }
 
@@ -240,17 +259,12 @@ function savePreset(userId, username, slotKey) {
         return player;
       }
 
-      const presets = getPresetStore(player);
-      presets[slotKey] = currentSlots;
-
-      const updatedPlayer = {
-        ...player,
-        team: {
-          ...(player.team || {}),
-          slots: getTeamSlots(player),
-          presets,
-        },
+      const presets = {
+        ...getPresetStore(player),
+        [slotKey]: currentSlots,
       };
+
+      const updatedPlayer = applyPresetStore(player, presets);
 
       result = {
         ok: true,
@@ -295,7 +309,7 @@ function equipPreset(userId, username, slotKey) {
       }
 
       const updatedPlayer = {
-        ...player,
+        ...applyPresetStore(player, presets),
         team: {
           ...(player.team || {}),
           slots: validation.slots,
@@ -324,7 +338,9 @@ function removePreset(userId, username, slotKey) {
     userId,
     (fresh) => {
       const player = fresh || {};
-      const presets = getPresetStore(player);
+      const presets = {
+        ...getPresetStore(player),
+      };
 
       if (!presets[slotKey]) {
         result = {
@@ -337,14 +353,7 @@ function removePreset(userId, username, slotKey) {
 
       delete presets[slotKey];
 
-      const updatedPlayer = {
-        ...player,
-        team: {
-          ...(player.team || {}),
-          slots: getTeamSlots(player),
-          presets,
-        },
-      };
+      const updatedPlayer = applyPresetStore(player, presets);
 
       result = {
         ok: true,
@@ -413,7 +422,7 @@ module.exports = {
       }
 
       return message.reply({
-        content: `✅ Removed **Preset ${slotKey}**.`,
+        content: `✅ Equipped **Preset ${slotKey}** as your battle team.`,
         embeds: [buildPresetEmbed(result.player || getPlayer(message.author.id, message.author.username))],
         allowedMentions: {
           repliedUser: false,
