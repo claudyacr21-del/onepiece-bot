@@ -1379,7 +1379,11 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
   const joinedIds = new Set([String(message.author.id)]);
   const joinedSnapshots = new Map();
   const saveParticipantSnapshot = (userId, username, player) => {
-    const { teamCards } = getFullTeamFromPlayer(player);
+    if (!player || typeof player !== "object") {
+      return null;
+    }
+
+    const { combatBoosts, teamCards } = getFullTeamFromPlayer(player);
 
     if (teamCards.length < 3) {
       return null;
@@ -1388,6 +1392,11 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
     const snapshot = {
       userId: String(userId),
       username: player.username || username,
+      player: {
+        ...player,
+        cards: Array.isArray(player.cards) ? player.cards : [],
+      },
+      combatBoosts,
       units: teamCards.slice(0, 3).map((unit) => ({
         ...unit,
         ownerId: String(userId),
@@ -1400,11 +1409,20 @@ async function waitForBossJoinLobby(message, island, phaseBoss) {
     return snapshot;
   };
 
-  saveParticipantSnapshot(
+  const hostSnapshot = saveParticipantSnapshot(
     message.author.id,
     message.author.username,
     getPlayer(message.author.id, message.author.username)
   );
+
+  if (!hostSnapshot) {
+    return {
+      approved: false,
+      cancelled: true,
+      joinedIds: [],
+      participants: [],
+    };
+  }
   let approved = false;
   let cancelled = false;
 
@@ -2072,16 +2090,26 @@ function applyBossQuestProgress(player, keys) {
   return nextQuests;
 }
 
-function getFullTeamFromPlayer(player) {
-  const combatBoosts = getPassiveBoostSummary(player);
+function getFullTeamFromPlayer(player = {}) {
+  const safePlayer =
+    player && typeof player === "object"
+      ? player
+      : {
+          cards: [],
+          team: {
+            slots: [null, null, null],
+          },
+        };
 
-  const cards = (Array.isArray(player.cards) ? player.cards : [])
+  const combatBoosts = getPassiveBoostSummary(safePlayer);
+
+  const cards = (Array.isArray(safePlayer.cards) ? safePlayer.cards : [])
     .map((rawCard, sourceIndex) => {
       const card = hydrateCard(rawCard);
       if (!card) return null;
 
       const mergedCard = isMergeCard(card)
-        ? buildMergedCard(player, card)
+        ? buildMergedCard(safePlayer, card)
         : card;
 
       return {
@@ -2091,8 +2119,8 @@ function getFullTeamFromPlayer(player) {
     })
     .filter((card) => String(card.cardRole || "").toLowerCase() !== "boost");
 
-  const teamSlots = Array.isArray(player?.team?.slots)
-    ? player.team.slots.slice(0, 3)
+  const teamSlots = Array.isArray(safePlayer?.team?.slots)
+    ? safePlayer.team.slots.slice(0, 3)
     : [null, null, null];
 
   const teamCards = teamSlots
@@ -2105,7 +2133,7 @@ function getFullTeamFromPlayer(player) {
           String(card.cardRole || "").toLowerCase() !== "boost"
       );
 
-      return found ? toBattleUnit(found, index, combatBoosts, player) : null;
+      return found ? toBattleUnit(found, index, combatBoosts, safePlayer) : null;
     })
     .filter(Boolean);
 

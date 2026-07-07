@@ -124,7 +124,7 @@ const HELP_PAGES = {
 
   battle: {
     label: "Battle",
-    description: "Fight, boss, arena, challenge",
+    description: "Fight, boss, arena, challenge, team",
     emoji: "⚔️",
     title: "⚔️ Battle Commands",
     body: [
