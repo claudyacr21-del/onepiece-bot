@@ -21,6 +21,9 @@ const SPECIAL_FORMS = cardsData.SPECIAL_FORMS || cardsData.specialForms || {
   luffy_straw_hat: ["The Beginning", "Revival", "Gear 5"],
 };
 
+const CI_REQUIRED_FOR_CACHE = new Map();
+const CI_REQUIRED_FOR_CACHE_TTL_MS = 5 * 60 * 1000;
+
 function isRoadPoneglyphCard(card) {
   const code = String(card?.code || "").toLowerCase().trim();
   const name = String(card?.displayName || card?.name || card?.title || "")
@@ -1270,11 +1273,45 @@ function getRequiredForTargets(currentCard, currentStage) {
   });
 }
 
+function getCiRequiredForCacheKey(card, stage) {
+  return [
+    normalizeCiCode(card?.code || card?.id || card?.displayName || card?.name || "unknown"),
+    getStageLabel(stage),
+  ].join(":");
+}
+
+function getRequiredForTargetsCached(card, stage) {
+  const key = getCiRequiredForCacheKey(card, stage);
+  const now = Date.now();
+  const cached = CI_REQUIRED_FOR_CACHE.get(key);
+
+  if (
+    cached &&
+    now - Number(cached.createdAt || 0) < CI_REQUIRED_FOR_CACHE_TTL_MS
+  ) {
+    return cached.targets;
+  }
+
+  const targets = getRequiredForTargets(card, stage);
+
+  CI_REQUIRED_FOR_CACHE.set(key, {
+    createdAt: now,
+    targets,
+  });
+
+  if (CI_REQUIRED_FOR_CACHE.size > 300) {
+    const oldestKey = CI_REQUIRED_FOR_CACHE.keys().next().value;
+    if (oldestKey) CI_REQUIRED_FOR_CACHE.delete(oldestKey);
+  }
+
+  return targets;
+}
+
 function buildRequiredForEmbed(card, stage) {
   const stageCard = getStageCard(card, stage);
   const stageLabel = getStageLabel(stage);
   const displayName = stageCard.displayName || card.displayName || card.name;
-  const targets = getRequiredForTargets(card, stage);
+  const targets = getRequiredForTargetsCached(card, stage);
 
   const lines = targets.length
     ? targets.map((target) => `↪ ${target.targetName} ${target.targetStage}`)
@@ -1751,6 +1788,92 @@ function buildEmbed(card, owned, stage, player = null) {
   });
 }
 
+async function safeCiDeferEphemeral(interaction) {
+  try {
+    if (!interaction) return false;
+    if (interaction.deferred || interaction.replied) return true;
+
+    await interaction.deferReply({
+      flags: MessageFlags.Ephemeral,
+    });
+
+    return true;
+  } catch (error) {
+    const code = Number(error?.code || 0);
+    const message = String(error?.message || "");
+
+    if (
+      code !== 10062 &&
+      code !== 40060 &&
+      !message.includes("Unknown interaction") &&
+      !message.includes("Interaction has already been acknowledged")
+    ) {
+      console.error("[CI DEFER ERROR]", error);
+    }
+
+    return false;
+  }
+}
+
+async function safeCiEditEphemeral(interaction, payload = {}) {
+  try {
+    if (!interaction) return null;
+
+    if (interaction.deferred || interaction.replied) {
+      return await interaction.editReply(payload);
+    }
+
+    return await interaction.reply({
+      ...payload,
+      flags: MessageFlags.Ephemeral,
+    });
+  } catch (error) {
+    const code = Number(error?.code || 0);
+    const message = String(error?.message || "");
+
+    if (
+      code !== 10062 &&
+      code !== 40060 &&
+      !message.includes("Unknown interaction") &&
+      !message.includes("Interaction has already been acknowledged")
+    ) {
+      console.error("[CI EDIT ERROR]", error);
+    }
+
+    return null;
+  }
+}
+
+async function safeCiUpdate(interaction, payload = {}) {
+  try {
+    if (!interaction) return null;
+
+    if (!interaction.deferred && !interaction.replied) {
+      return await interaction.update(payload);
+    }
+
+    if (interaction.message) {
+      return await interaction.message.edit(payload);
+    }
+
+    return await interaction.editReply(payload);
+  } catch (error) {
+    const code = Number(error?.code || 0);
+    const message = String(error?.message || "");
+
+    if (
+      code !== 10062 &&
+      code !== 40060 &&
+      !message.includes("Unknown interaction") &&
+      !message.includes("Interaction has already been acknowledged")
+    ) {
+      console.error("[CI UPDATE ERROR]", error);
+    }
+
+    return null;
+  }
+}
+
 function buildRows(stage) {
   return [
     new ActionRowBuilder().addComponents(
@@ -1814,39 +1937,44 @@ module.exports = {
       if (i.customId === "ci_next") stage = Math.min(3, stage + 1);
 
       if (i.customId === "ci_info") {
-        await i.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+        const deferred = await safeCiDeferEphemeral(i);
+        if (!deferred) return null;
 
         try {
           const freshPlayer = getPlayer(message.author.id, message.author.username);
-          return await i.editReply({
+
+          return await safeCiEditEphemeral(i, {
             embeds: [buildReqEmbed(globalCard, stage, freshPlayer)],
+            components: [],
           });
         } catch (error) {
           console.error("[CI INFO INTERACTION ERROR]", error);
 
-          return i.editReply({
+          return await safeCiEditEphemeral(i, {
             content: "❌ Failed to load requirement panel. Please try again.",
             embeds: [],
             components: [],
-          }).catch(() => null);
+          });
         }
       }
 
       if (i.customId === "ci_required_for") {
-        await i.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+        const deferred = await safeCiDeferEphemeral(i);
+        if (!deferred) return null;
 
         try {
-          return await i.editReply({
+          return await safeCiEditEphemeral(i, {
             embeds: [buildRequiredForEmbed(globalCard, stage)],
+            components: [],
           });
         } catch (error) {
           console.error("[CI REQUIRED FOR INTERACTION ERROR]", error);
 
-          return i.editReply({
+          return await safeCiEditEphemeral(i, {
             content: "❌ Failed to load required-for panel. Please try again.",
             embeds: [],
             components: [],
-          }).catch(() => null);
+          });
         }
       }
 
@@ -1860,7 +1988,7 @@ module.exports = {
           })
         : findOwnedCardForCi(freshPlayer, globalCard, query);
 
-      return i.update({
+      return safeCiUpdate(i, {
         embeds: [buildEmbed(globalCard, freshOwned, stage, freshPlayer)],
         components: buildRows(stage),
       });

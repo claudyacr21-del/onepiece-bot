@@ -78,7 +78,8 @@ function getReminderPool() {
     });
 
     reminderPool.on("error", (error) => {
-      console.error("[RESET REMINDER DB POOL ERROR]", error);
+      console.error("[RESET REMINDER DB POOL ERROR]", error?.message || error);
+      reminderDbReady = false;
     });
   }
 
@@ -151,95 +152,109 @@ async function ensureReminderTables() {
 }
 
 async function getReminderState(userId, reminderType) {
-  const pool = getReminderPool();
-  if (!pool) return null;
+  try {
+    const pool = getReminderPool();
+    if (!pool) return null;
 
-  if (!reminderDbReady) {
-    await ensureReminderTables();
+    if (!reminderDbReady) {
+      await ensureReminderTables();
+    }
+
+    if (!reminderDbReady) return null;
+
+    const result = await pool.query(
+      `
+      select user_id, reminder_type, last_cooldown_at, last_notified_at, was_pending
+      from cooldown_reminder_states
+      where user_id = $1 and reminder_type = $2
+      limit 1
+      `,
+      [String(userId), String(reminderType)]
+    );
+
+    return result.rows?.[0] || null;
+  } catch (error) {
+    reminderDbReady = false;
+    console.error("[RESET REMINDER GET STATE ERROR]", error?.message || error);
+    return null;
   }
-
-  if (!reminderDbReady) return null;
-
-  const result = await pool.query(
-    `
-    select user_id, reminder_type, last_cooldown_at, last_notified_at, was_pending
-    from cooldown_reminder_states
-    where user_id = $1 and reminder_type = $2
-    limit 1
-    `,
-    [String(userId), String(reminderType)]
-  );
-
-  return result.rows?.[0] || null;
 }
 
 async function saveReminderState(userId, reminderType, patch = {}) {
-  const pool = getReminderPool();
-  if (!pool) return false;
+  try {
+    const pool = getReminderPool();
+    if (!pool) return false;
 
-  if (!reminderDbReady) {
-    await ensureReminderTables();
+    if (!reminderDbReady) {
+      await ensureReminderTables();
+    }
+
+    if (!reminderDbReady) return false;
+
+    const lastCooldownAt = Number(patch.lastCooldownAt || 0);
+    const lastNotifiedAt = Number(patch.lastNotifiedAt || 0);
+    const wasPending = Boolean(patch.wasPending);
+
+    await pool.query(
+      `
+      insert into cooldown_reminder_states (
+        user_id, reminder_type, last_cooldown_at, last_notified_at, was_pending, updated_at
+      )
+      values ($1, $2, $3, $4, $5, now())
+      on conflict (user_id, reminder_type)
+      do update set
+        last_cooldown_at = excluded.last_cooldown_at,
+        last_notified_at = excluded.last_notified_at,
+        was_pending = excluded.was_pending,
+        updated_at = now()
+      `,
+      [
+        String(userId),
+        String(reminderType),
+        lastCooldownAt,
+        lastNotifiedAt,
+        wasPending,
+      ]
+    );
+
+    return true;
+  } catch (error) {
+    reminderDbReady = false;
+    console.error("[RESET REMINDER SAVE STATE ERROR]", error?.message || error);
+    return false;
   }
-
-  if (!reminderDbReady) return false;
-
-  const lastCooldownAt = Number(patch.lastCooldownAt || 0);
-  const lastNotifiedAt = Number(patch.lastNotifiedAt || 0);
-  const wasPending = Boolean(patch.wasPending);
-
-  await pool.query(
-    `
-    insert into cooldown_reminder_states (
-      user_id,
-      reminder_type,
-      last_cooldown_at,
-      last_notified_at,
-      was_pending,
-      updated_at
-    )
-    values ($1, $2, $3, $4, $5, now())
-    on conflict (user_id, reminder_type)
-    do update set
-      last_cooldown_at = excluded.last_cooldown_at,
-      last_notified_at = excluded.last_notified_at,
-      was_pending = excluded.was_pending,
-      updated_at = now()
-    `,
-    [
-      String(userId),
-      String(reminderType),
-      lastCooldownAt,
-      lastNotifiedAt,
-      wasPending,
-    ]
-  );
-
-  return true;
 }
 
 async function claimReminderEventOnce(userId, reminderType, readyAt) {
-  const pool = getReminderPool();
-  const ready = Number(readyAt || 0);
+  try {
+    const pool = getReminderPool();
+    const ready = Number(readyAt || 0);
 
-  if (!pool || !userId || !reminderType || !ready) return false;
+    if (!pool || !userId || !reminderType || !ready) return false;
 
-  if (!reminderDbReady) {
-    await ensureReminderTables();
+    if (!reminderDbReady) {
+      await ensureReminderTables();
+    }
+
+    if (!reminderDbReady) return false;
+
+    const result = await pool.query(
+      `
+      insert into cooldown_reminder_events (user_id, reminder_type, ready_at)
+      values ($1, $2, $3)
+      on conflict (user_id, reminder_type, ready_at)
+      do nothing
+      returning id
+      `,
+      [String(userId), String(reminderType), ready]
+    );
+
+    return result.rowCount > 0;
+  } catch (error) {
+    reminderDbReady = false;
+    console.error("[RESET REMINDER CLAIM EVENT ERROR]", error?.message || error);
+    return false;
   }
-
-  if (!reminderDbReady) return false;
-
-  const result = await pool.query(
-    `
-    insert into cooldown_reminder_events (user_id, reminder_type, ready_at)
-    values ($1, $2, $3)
-    on conflict (user_id, reminder_type, ready_at) do nothing
-    returning id
-    `,
-    [String(userId), String(reminderType), ready]
-  );
-
-  return result.rowCount > 0;
 }
 
 async function shouldSendGlobalResetNotification(resetAt) {
