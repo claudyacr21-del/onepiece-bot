@@ -22,7 +22,7 @@ const CARD_IMAGES = {
   nami_cat_burglar: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1507247862050979980/content.png?ex=6a113575&is=6a0fe3f5&hm=766de8f09e051efd76113b67a049c1655a2833fb2b3f07c76f9147c4786b351d&",
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1507247862499774554/content.png?ex=6a113575&is=6a0fe3f5&hm=deb599b48239968ad9d8549e62e039f4682d81ea60f3bac6b376fd6203a8e22b&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1507247862902292601/content.png?ex=6a113575&is=6a0fe3f5&hm=f7eec6fa3419fb185d01809246589c6664b20480293007316cd811d8f712905c&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1507247862902292601/content.png?ex=6a51cef5&is=6a507d75&hm=a70b8b0fab2253f21c46d216b0f77e69ba5e99ac9f8aa0e8743f725f58aad920",
   },
   usopp_sniper: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1507252012834623519/content.png?ex=6a113953&is=6a0fe7d3&hm=09e3705dea3e597f6162bea9f7dafcbfda3ecb1bdf74782a4fee912c3d053661&",
