@@ -1657,21 +1657,39 @@ function applyGenericMergeCardRules() {
       makeMergeFragmentText(code, config.summonFragmentAmount)
     );
 
-    const m2Cards = config.requireRoadPoneglyph
-      ? uniqRequirementCards([...awakenCards, makeRoadPoneglyphReq(2)])
-      : awakenCards;
+    const m2Cards = [];
+    const m3Cards = [];
 
-    const m3Cards = config.requireRoadPoneglyph
-      ? uniqRequirementCards([...awakenCards, makeRoadPoneglyphReq(3)])
-      : awakenCards;
+    const m2CardsText = [];
+    const m3CardsText = [];
 
-    const m2CardsText = config.requireRoadPoneglyph
-      ? [...awakenCardsText, "Road Poneglyph M2"]
-      : awakenCardsText;
+    const m2Boosts = uniqRequirementCards([
+      ...(Array.isArray(card.awakenRequirements?.M2?.boosts)
+        ? card.awakenRequirements.M2.boosts
+        : []),
+      makeRoadPoneglyphReq(2),
+    ]);
 
-    const m3CardsText = config.requireRoadPoneglyph
-      ? [...awakenCardsText, "Road Poneglyph M3"]
-      : awakenCardsText;
+    const m3Boosts = uniqRequirementCards([
+      ...(Array.isArray(card.awakenRequirements?.M3?.boosts)
+        ? card.awakenRequirements.M3.boosts
+        : []),
+      makeRoadPoneglyphReq(3),
+    ]);
+
+    const m2BoostsText = [
+      ...(Array.isArray(card.awakenRequirements?.M2?.boostsText)
+        ? card.awakenRequirements.M2.boostsText
+        : []),
+      "Road Poneglyph M2",
+    ].filter((value, index, arr) => arr.indexOf(value) === index);
+
+    const m3BoostsText = [
+      ...(Array.isArray(card.awakenRequirements?.M3?.boostsText)
+        ? card.awakenRequirements.M3.boostsText
+        : []),
+      "Road Poneglyph M3",
+    ].filter((value, index, arr) => arr.indexOf(value) === index);
 
     const summonReq = card.summonRequirements || {};
 
@@ -1752,6 +1770,8 @@ function applyGenericMergeCardRules() {
           fragments: m2Fragments,
           cards: m2Cards,
           cardsText: m2CardsText,
+          boosts: m2Boosts,
+          boostsText: m2BoostsText,
         },
       },
       {
@@ -1774,29 +1794,41 @@ function applyGenericMergeCardRules() {
           fragments: m3Fragments,
           cards: m3Cards,
           cardsText: m3CardsText,
+          boosts: m3Boosts,
+          boostsText: m3BoostsText,
         },
       },
     ];
 
     card.awakenRequirements = {
       ...(card.awakenRequirements || {}),
+
       M2: {
         ...(card.awakenRequirements?.M2 || {}),
         berries: config.m2Berries,
         gems: config.m2Gems,
         selfFragments: 0,
         fragments: m2Fragments,
+
         cards: m2Cards,
         cardsText: m2CardsText,
+
+        boosts: m2Boosts,
+        boostsText: m2BoostsText,
       },
+
       M3: {
         ...(card.awakenRequirements?.M3 || {}),
         berries: config.m3Berries,
         gems: config.m3Gems,
         selfFragments: 0,
         fragments: m3Fragments,
+
         cards: m3Cards,
         cardsText: m3CardsText,
+
+        boosts: m3Boosts,
+        boostsText: m3BoostsText,
       },
     };
   }
