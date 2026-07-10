@@ -1003,6 +1003,28 @@ const CANON_LINKS = {
     ],
     boosts: [reqBoost("carrot_mink", 1, 2)],
   },
+
+  lzs: {
+    boosts: [reqBoost("road_poneglyph", 2, 3)],
+  },
+  gvl: {
+    boosts: [reqBoost("road_poneglyph", 2, 3)],
+  },
+  tfb: {
+    boosts: [reqBoost("road_poneglyph", 2, 3)],
+  },
+  wgd: {
+    boosts: [reqBoost("road_poneglyph", 2, 3)],
+  },
+  wsr: {
+    boosts: [reqBoost("road_poneglyph", 2, 3)],
+  },
+  gm: {
+    boosts: [reqBoost("road_poneglyph", 2, 3)],
+  },
+  tre: {
+    boosts: [reqBoost("road_poneglyph", 2, 3)],
+  },
 };
 
 const STAGE_MULTIPLIERS = { 1: 1, 2: 1.2, 3: 1.45 };

@@ -1279,68 +1279,106 @@ function normalizeMergeRequirementForCi(card, stage, req) {
   const baseReq = req || {};
 
   const sourceCodes = Array.isArray(card?.mergeSourceCodes)
-    ? card.mergeSourceCodes.map((code) => String(code || "").trim()).filter(Boolean)
+    ? card.mergeSourceCodes
+        .map((code) => String(code || "").trim())
+        .filter(Boolean)
     : [];
 
   const fragmentAmount =
     nextStage === 2
-      ? Number(card?.mergeM2FragmentAmount ?? card?.mergeFragmentAmount ?? 75)
-      : Number(card?.mergeM3FragmentAmount ?? card?.mergeFragmentAmount ?? 100);
+      ? Number(
+          card?.mergeM2FragmentAmount ??
+            card?.mergeFragmentAmount ??
+            75
+        )
+      : Number(
+          card?.mergeM3FragmentAmount ??
+            card?.mergeFragmentAmount ??
+            100
+        );
 
   // All merge card awaken requirements use the same fixed cost:
   // M2: 2,000,000 berries + 2,000 gems
   // M3: 2,000,000 berries + 2,000 gems
   const berries =
     nextStage === 2
-      ? Number(card?.mergeM2Berries ?? card?.mergeBerries ?? baseReq.berries ?? 2000000)
-      : Number(card?.mergeM3Berries ?? card?.mergeBerries ?? baseReq.berries ?? 2000000);
+      ? Number(
+          card?.mergeM2Berries ??
+            card?.mergeBerries ??
+            baseReq.berries ??
+            2000000
+        )
+      : Number(
+          card?.mergeM3Berries ??
+            card?.mergeBerries ??
+            baseReq.berries ??
+            2000000
+        );
 
   const gems =
     nextStage === 2
-      ? Number(card?.mergeM2Gems ?? card?.mergeGems ?? baseReq.gems ?? 2000)
-      : Number(card?.mergeM3Gems ?? card?.mergeGems ?? baseReq.gems ?? 2000);
+      ? Number(
+          card?.mergeM2Gems ??
+            card?.mergeGems ??
+            baseReq.gems ??
+            2000
+        )
+      : Number(
+          card?.mergeM3Gems ??
+            card?.mergeGems ??
+            baseReq.gems ??
+            2000
+        );
 
-  const sourceCards = sourceCodes.map((code) => ({
-    code,
-    name: prettifyCode(code),
-    stage: 3,
-    minStage: 3,
-    evolutionStage: 3,
-  }));
-
+  // Fragment requirements stay linked to the original merge source cards.
   const sourceFragments = sourceCodes.map((code) => ({
     code,
     name: prettifyCode(code),
     amount: fragmentAmount,
   }));
 
-  const cards = Array.isArray(baseReq.cards) && baseReq.cards.length
+  const fragments =
+    Array.isArray(baseReq.fragments) && baseReq.fragments.length
+      ? baseReq.fragments
+      : sourceFragments;
+
+  const fragmentsText =
+    Array.isArray(baseReq.fragmentsText) && baseReq.fragmentsText.length
+      ? baseReq.fragmentsText
+      : sourceFragments.map(
+          (entry) =>
+            `${entry.amount}x ${entry.name} Fragment`
+        );
+
+  // Card requirements must only come from manual requirements or CANON_LINKS.
+  // Never fall back to mergeSourceCodes.
+  const cards = Array.isArray(baseReq.cards)
     ? baseReq.cards
-    : sourceCards;
+    : [];
 
-  const fragments = Array.isArray(baseReq.fragments) && baseReq.fragments.length
-    ? baseReq.fragments
-    : sourceFragments;
-
-  const cardsText = Array.isArray(baseReq.cardsText) && baseReq.cardsText.length
+  const cardsText = Array.isArray(baseReq.cardsText)
     ? baseReq.cardsText
-    : sourceCards.map((entry) => `${entry.name} M3`);
-
-  const fragmentsText = Array.isArray(baseReq.fragmentsText) && baseReq.fragmentsText.length
-    ? baseReq.fragmentsText
-    : sourceFragments.map((entry) => `${entry.amount}x ${entry.name} Fragment`);
+    : [];
 
   return {
     ...baseReq,
     berries,
     gems,
     selfFragments: 0,
+
     cards: uniqCiRequirementCards(cards),
     cardsText,
+
     fragments,
     fragmentsText,
-    boosts: Array.isArray(baseReq.boosts) ? baseReq.boosts : [],
-    boostsText: Array.isArray(baseReq.boostsText) ? baseReq.boostsText : [],
+
+    boosts: Array.isArray(baseReq.boosts)
+      ? baseReq.boosts
+      : [],
+
+    boostsText: Array.isArray(baseReq.boostsText)
+      ? baseReq.boostsText
+      : [],
   };
 }
 
