@@ -570,7 +570,7 @@ module.exports = {
 
     if (!weaponQuery) {
       return message.reply({
-        content: "Usage: `op wupgrade <weapon>`",
+        content: "Usage: `op wup <weapon>`",
         allowedMentions: { repliedUser: false },
       });
     }
