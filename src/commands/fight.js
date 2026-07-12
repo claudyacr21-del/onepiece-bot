@@ -28,6 +28,10 @@ const {
   getCardLevelCap,
   applyExpToCard,
 } = require("../utils/cardExp");
+const {
+  getServerTagPerksFromMessage,
+  applyServerTagCurrencyBonus,
+} = require("../utils/serverTagPerks");
 
 const NORMAL_FIGHT_COOLDOWN_MS = 8 * 60 * 1000;
 const MOTHER_FLAME_FIGHT_COOLDOWN_MS = 5 * 60 * 1000;
@@ -789,19 +793,37 @@ function calculateWinReward(streakAfterWin, premiumTier, island) {
 }
 
 function getFightRewardTotals(reward = {}) {
-  const boosts = reward?.pirateBoosts || {};
+  const pirateBoosts = reward?.pirateBoosts || {};
+  const serverTagPerks = reward?.serverTagPerks || {};
 
-  const baseBerries = Math.max(0, Math.floor(Number(reward.berries || 0)));
-  const baseGems = Math.max(0, Math.floor(Number(reward.gems || 0)));
+  const baseBerries = Math.max(
+    0,
+    Math.floor(Number(reward.berries || 0))
+  );
+
+  const baseGems = Math.max(
+    0,
+    Math.floor(Number(reward.gems || 0))
+  );
 
   const bonusBerries = Math.max(
     0,
-    Math.floor(Number(boosts.bonusBerries || 0))
+    Math.floor(Number(pirateBoosts.bonusBerries || 0))
   );
 
   const bonusGems = Math.max(
     0,
-    Math.floor(Number(boosts.bonusGems || 0))
+    Math.floor(Number(pirateBoosts.bonusGems || 0))
+  );
+
+  const serverTagBonusBerries = Math.max(
+    0,
+    Math.floor(Number(serverTagPerks.bonusBerries || 0))
+  );
+
+  const serverTagBonusGems = Math.max(
+    0,
+    Math.floor(Number(serverTagPerks.bonusGems || 0))
   );
 
   return {
@@ -809,40 +831,106 @@ function getFightRewardTotals(reward = {}) {
     baseGems,
     bonusBerries,
     bonusGems,
-    totalBerries: baseBerries + bonusBerries,
-    totalGems: baseGems + bonusGems,
+    serverTagBonusBerries,
+    serverTagBonusGems,
+
+    totalBerries: Math.max(
+      0,
+      Math.floor(
+        Number(
+          reward.totalBerries ??
+            baseBerries +
+              bonusBerries +
+              serverTagBonusBerries
+        )
+      )
+    ),
+
+    totalGems: Math.max(
+      0,
+      Math.floor(
+        Number(
+          reward.totalGems ??
+            baseGems +
+              bonusGems +
+              serverTagBonusGems
+        )
+      )
+    ),
   };
 }
 
 function formatFightRewardLines(reward) {
   const totals = getFightRewardTotals(reward);
-  const boosts = reward?.pirateBoosts || {};
+  const pirateBoosts = reward?.pirateBoosts || {};
+  const serverTagPerks = reward?.serverTagPerks || {};
 
   const lines = [
     `↪ +${totals.baseBerries.toLocaleString("en-US")} berries`,
-    `↪ +${totals.baseGems} gems`,
+    `↪ +${totals.baseGems.toLocaleString("en-US")} gems`,
   ];
 
   if (totals.bonusBerries > 0) {
     lines.push(
-      `↪ Pirate Berry Boost Lv.${Number(boosts.berryBoost || 0)}: +${totals.bonusBerries.toLocaleString("en-US")} bonus berries`
+      `↪ Pirate Berry Boost Lv.${Number(
+        pirateBoosts.berryBoost || 0
+      )}: +${totals.bonusBerries.toLocaleString(
+        "en-US"
+      )} bonus berries`
     );
   }
 
   if (totals.bonusGems > 0) {
     lines.push(
-      `↪ Pirate Gems Boost Lv.${Number(boosts.gemsBoost || 0)}: +${totals.bonusGems} bonus gems`
+      `↪ Pirate Gems Boost Lv.${Number(
+        pirateBoosts.gemsBoost || 0
+      )}: +${totals.bonusGems.toLocaleString(
+        "en-US"
+      )} bonus gems`
     );
   }
 
-  if (totals.bonusBerries > 0 || totals.bonusGems > 0) {
+  if (totals.serverTagBonusBerries > 0) {
     lines.push(
-      `↪ Total Added: +${totals.totalBerries.toLocaleString("en-US")} berries, +${totals.totalGems} gems`
+      `🏷️ Server Tag Berry Bonus (${Number(
+        serverTagPerks.berryBonusPercent || 0
+      )}%): +${totals.serverTagBonusBerries.toLocaleString(
+        "en-US"
+      )} berries`
+    );
+  }
+
+  if (totals.serverTagBonusGems > 0) {
+    lines.push(
+      `🏷️ Server Tag Gem Bonus (${Number(
+        serverTagPerks.gemBonusPercent || 0
+      )}%): +${totals.serverTagBonusGems.toLocaleString(
+        "en-US"
+      )} gems`
+    );
+  }
+
+  if (
+    totals.bonusBerries > 0 ||
+    totals.bonusGems > 0 ||
+    totals.serverTagBonusBerries > 0 ||
+    totals.serverTagBonusGems > 0
+  ) {
+    lines.push(
+      `↪ Total Added: +${totals.totalBerries.toLocaleString(
+        "en-US"
+      )} berries, +${totals.totalGems.toLocaleString(
+        "en-US"
+      )} gems`
     );
   }
 
   for (const box of reward.boxes || []) {
-    lines.push(`↪ ${box.name || "Resource Box"} x${Number(box.amount || 1)}`);
+    lines.push(
+      `↪ ${box.name || "Resource Box"} x${Number(
+        box.amount || 1
+      )}`
+    );
   }
 
   return lines;
@@ -1010,13 +1098,30 @@ module.exports = {
 
     try {
       const player = getPlayer(message.author.id, message.author.username);
-      const premiumTier = await getFightPremiumTier(message, player);
+      const premiumTier = await getFightPremiumTier(
+        message,
+        player
+      );
+
       const premiumMode = getFightModeLabel(premiumTier);
       const currentIsland = getPlayerFightIsland(player);
-
       const cooldownKey = getFightCooldownKey(premiumTier);
-      const cooldownMs = getFightCooldownForTier(premiumTier);
-      const cooldownUntil = Number(player?.cooldowns?.[cooldownKey] || 0);
+
+      const serverTagPerks =
+        getServerTagPerksFromMessage(message);
+
+      const baseCooldownMs =
+        getFightCooldownForTier(premiumTier);
+
+      const cooldownMs = Math.max(
+        0,
+        baseCooldownMs -
+          Number(serverTagPerks.fightCooldownReductionMs || 0)
+      );
+
+      const cooldownUntil = Number(
+        player?.cooldowns?.[cooldownKey] || 0
+      );
 
       if (cooldownUntil > Date.now()) {
         clearActiveFightSession(sessionKey);
@@ -1279,9 +1384,19 @@ if (interaction.user.id !== message.author.id) {
             battleEnded = true;
             currentStreak += 1;
 
-            const reward = applyPirateCurrencyBoosts(
-              calculateWinReward(currentStreak, premiumTier, currentIsland),
-              message.author.id
+            const rewardWithPirateBoost =
+              applyPirateCurrencyBoosts(
+                calculateWinReward(
+                  currentStreak,
+                  premiumTier,
+                  currentIsland
+                ),
+                message.author.id
+              );
+
+            const reward = applyServerTagCurrencyBonus(
+              rewardWithPirateBoost,
+              getServerTagPerksFromMessage(message)
             );
             const pirateExpBoost = getPirateExpBoostPercent(message.author.id);
             const boostedTeam = playerTeam.map((unit) => ({

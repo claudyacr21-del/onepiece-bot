@@ -3,6 +3,10 @@ const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
+const {
+  getServerTagPerksFromMessage,
+  applyPercentageBonus,
+} = require("../utils/serverTagPerks");
 
 const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
@@ -630,6 +634,23 @@ module.exports = {
     }
 
     const rewardBundle = getDailyTierRewards(dailyTier);
+    const serverTagPerks = getServerTagPerksFromMessage(message);
+
+    const berryReward = applyPercentageBonus(
+      rewardBundle.berries,
+      serverTagPerks.berryIncomeBonusPercent
+    );
+
+    const gemReward = applyPercentageBonus(
+      rewardBundle.gems,
+      serverTagPerks.gemIncomeBonusPercent
+    );
+
+    const serverTagResetTicketBonus = Math.max(
+      0,
+      Math.floor(Number(serverTagPerks.dailyResetTokenBonus || 0))
+    );
+
     const nextReadyAt = now + DAILY_COOLDOWN_MS;
 
     let baccaratBonusApplied = false;
@@ -669,7 +690,10 @@ module.exports = {
           if (result.items) updatedItems = result.items;
         }
 
-        const dailyPullResetTicketAmount = 1 + (baccaratBonusApplied ? 1 : 0);
+        const dailyPullResetTicketAmount =
+          1 +
+          (baccaratBonusApplied ? 1 : 0) +
+          serverTagResetTicketBonus;
         const dailyPullResetTicket = makePullResetTicketReward(dailyPullResetTicketAmount);
 
         updatedTickets = addPullResetTicketToTickets(
@@ -698,8 +722,8 @@ module.exports = {
 
         updatedSnapshot = {
           ...fresh,
-          berries: Number(fresh.berries || 0) + rewardBundle.berries,
-          gems: Number(fresh.gems || 0) + rewardBundle.gems,
+          berries: Number(fresh.berries || 0) + berryReward.totalAmount,
+          gems: Number(fresh.gems || 0) + gemReward.totalAmount,
           boxes: updatedBoxes,
           tickets: updatedTickets,
           materials: updatedMaterials,
@@ -734,14 +758,29 @@ module.exports = {
       extraLines.push("↪ Baccarat / Raki Raki Bonus Applied");
     }
 
+    if (serverTagPerks.active) {
+      extraLines.push(`↪ Server Tag Perk: +${serverTagResetTicketBonus} Pull Reset Ticket`
+      );
+
+      if (berryReward.bonusAmount > 0) {
+        extraLines.push(`↪ Server Tag Berry Bonus: +${Number(berryReward.bonusAmount).toLocaleString("en-US")} Berries`
+        );
+      }
+
+      if (gemReward.bonusAmount > 0) {
+        extraLines.push(`↪ Server Tag Gem Bonus: +${Number(gemReward.bonusAmount).toLocaleString("en-US")} Gems`
+        );
+      }
+    }
+
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
       .setTitle("Daily Reward Claimed")
       .setDescription(
         [
           `↪ Daily Tier: ${dailyTier}`,
-          `↪ Berries: +${Number(rewardBundle.berries).toLocaleString("en-US")}`,
-          `↪ Gems: +${Number(rewardBundle.gems).toLocaleString("en-US")}`,
+          `↪ Berries: +${Number(berryReward.totalAmount).toLocaleString("en-US")}`,
+          `↪ Gems: +${Number(gemReward.totalAmount).toLocaleString("en-US")}`,
           "",
           "**Extra Rewards**",
           ...extraLines,

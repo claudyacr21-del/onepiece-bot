@@ -33,6 +33,11 @@ const {
   getCardLevelCap,
   applyExpToCard,
 } = require("../utils/cardExp");
+const {
+  getServerTagPerks,
+  getServerTagPerksFromMessage,
+  applyServerTagCurrencyBonus,
+} = require("../utils/serverTagPerks");
 
 const BOSS_COOLDOWN_MS = 10 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
@@ -2250,19 +2255,37 @@ function getBossReward(island, phaseBoss = null) {
 }
 
 function getBossRewardTotals(reward = {}) {
-  const boosts = reward?.pirateBoosts || {};
+  const pirateBoosts = reward?.pirateBoosts || {};
+  const serverTagPerks = reward?.serverTagPerks || {};
 
-  const baseBerries = Math.max(0, Math.floor(Number(reward.berries || 0)));
-  const baseGems = Math.max(0, Math.floor(Number(reward.gems || 0)));
+  const baseBerries = Math.max(
+    0,
+    Math.floor(Number(reward.berries || 0))
+  );
+
+  const baseGems = Math.max(
+    0,
+    Math.floor(Number(reward.gems || 0))
+  );
 
   const bonusBerries = Math.max(
     0,
-    Math.floor(Number(boosts.bonusBerries || 0))
+    Math.floor(Number(pirateBoosts.bonusBerries || 0))
   );
 
   const bonusGems = Math.max(
     0,
-    Math.floor(Number(boosts.bonusGems || 0))
+    Math.floor(Number(pirateBoosts.bonusGems || 0))
+  );
+
+  const serverTagBonusBerries = Math.max(
+    0,
+    Math.floor(Number(serverTagPerks.bonusBerries || 0))
+  );
+
+  const serverTagBonusGems = Math.max(
+    0,
+    Math.floor(Number(serverTagPerks.bonusGems || 0))
   );
 
   return {
@@ -2270,20 +2293,39 @@ function getBossRewardTotals(reward = {}) {
     baseGems,
     bonusBerries,
     bonusGems,
+    serverTagBonusBerries,
+    serverTagBonusGems,
+
     totalBerries: Math.max(
       0,
-      Math.floor(Number(reward.totalBerries ?? baseBerries + bonusBerries))
+      Math.floor(
+        Number(
+          reward.totalBerries ??
+            baseBerries +
+              bonusBerries +
+              serverTagBonusBerries
+        )
+      )
     ),
+
     totalGems: Math.max(
       0,
-      Math.floor(Number(reward.totalGems ?? baseGems + bonusGems))
+      Math.floor(
+        Number(
+          reward.totalGems ??
+            baseGems +
+              bonusGems +
+              serverTagBonusGems
+        )
+      )
     ),
   };
 }
 
 function formatRewardLines(reward) {
   const totals = getBossRewardTotals(reward);
-  const boosts = reward?.pirateBoosts || {};
+  const pirateBoosts = reward?.pirateBoosts || {};
+  const serverTagPerks = reward?.serverTagPerks || {};
 
   const lines = [
     `💰 +${totals.baseBerries.toLocaleString("en-US")} berries`,
@@ -2292,24 +2334,65 @@ function formatRewardLines(reward) {
 
   if (totals.bonusBerries > 0) {
     lines.push(
-      `🏴‍☠️ Pirate Berry Boost Lv.${Number(boosts.berryBoost || 0)}: +${totals.bonusBerries.toLocaleString("en-US")} bonus berries`
+      `🏴‍☠️ Pirate Berry Boost Lv.${Number(
+        pirateBoosts.berryBoost || 0
+      )}: +${totals.bonusBerries.toLocaleString(
+        "en-US"
+      )} bonus berries`
     );
   }
 
   if (totals.bonusGems > 0) {
     lines.push(
-      `🏴‍☠️ Pirate Gems Boost Lv.${Number(boosts.gemsBoost || 0)}: +${totals.bonusGems.toLocaleString("en-US")} bonus gems`
+      `🏴‍☠️ Pirate Gems Boost Lv.${Number(
+        pirateBoosts.gemsBoost || 0
+      )}: +${totals.bonusGems.toLocaleString(
+        "en-US"
+      )} bonus gems`
     );
   }
 
-  if (totals.bonusBerries > 0 || totals.bonusGems > 0) {
+  if (totals.serverTagBonusBerries > 0) {
     lines.push(
-      `🎁 Total Added: +${totals.totalBerries.toLocaleString("en-US")} berries, +${totals.totalGems.toLocaleString("en-US")} gems`
+      `🏷️ Server Tag Berry Bonus (${Number(
+        serverTagPerks.berryBonusPercent || 0
+      )}%): +${totals.serverTagBonusBerries.toLocaleString(
+        "en-US"
+      )} berries`
+    );
+  }
+
+  if (totals.serverTagBonusGems > 0) {
+    lines.push(
+      `🏷️ Server Tag Gem Bonus (${Number(
+        serverTagPerks.gemBonusPercent || 0
+      )}%): +${totals.serverTagBonusGems.toLocaleString(
+        "en-US"
+      )} gems`
+    );
+  }
+
+  if (
+    totals.bonusBerries > 0 ||
+    totals.bonusGems > 0 ||
+    totals.serverTagBonusBerries > 0 ||
+    totals.serverTagBonusGems > 0
+  ) {
+    lines.push(
+      `🎁 Total Added: +${totals.totalBerries.toLocaleString(
+        "en-US"
+      )} berries, +${totals.totalGems.toLocaleString(
+        "en-US"
+      )} gems`
     );
   }
 
   for (const box of reward.boxes || []) {
-    lines.push(`📦 ${box.name || "Resource Box"} x${Number(box.amount || 1)}`);
+    lines.push(
+      `📦 ${box.name || "Resource Box"} x${Number(
+        box.amount || 1
+      )}`
+    );
   }
 
   return lines;
@@ -2413,8 +2496,17 @@ function buildRaidBossButtons(participants, ended, lastUsedUnitKey = "") {
   return rows.slice(0, 5);
 }
 
-function startBossCooldownNow(userId, username = "Unknown") {
-  const nextBossAt = Date.now() + BOSS_COOLDOWN_MS;
+function startBossCooldownNow(
+  userId,
+  username = "Unknown",
+  cooldownMs = BOSS_COOLDOWN_MS
+) {
+  const safeCooldownMs = Math.max(
+    0,
+    Math.floor(Number(cooldownMs || BOSS_COOLDOWN_MS))
+  );
+
+  const nextBossAt = Date.now() + safeCooldownMs;
 
   updatePlayerAtomic(
     userId,
@@ -2580,8 +2672,23 @@ module.exports = {
   name: "boss",
 
   async execute(message, args = []) {
-    const player = getPlayer(message.author.id, message.author.username);
-    const bossCooldownUntil = Number(player?.cooldowns?.boss || 0);
+    const player = getPlayer(
+      message.author.id,
+      message.author.username
+    );
+
+    const serverTagPerks =
+      getServerTagPerksFromMessage(message);
+
+    const effectiveBossCooldownMs = Math.max(
+      0,
+      BOSS_COOLDOWN_MS -
+        Number(serverTagPerks.bossCooldownReductionMs || 0)
+    );
+
+    const bossCooldownUntil = Number(
+      player?.cooldowns?.boss || 0
+    );
 
     if (bossCooldownUntil > Date.now()) {
       return message.reply(
@@ -2699,7 +2806,7 @@ module.exports = {
         );
       }
 
-      startBossCooldownNow(message.author.id, message.author.username);
+      startBossCooldownNow(message.author.id, message.author.username, effectiveBossCooldownMs);
 
       const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
       const logs = [];
@@ -2942,7 +3049,24 @@ if (interaction.customId === "boss_raid_run") {
             const allExpLines = [];
 
             for (const participant of participants) {
-              const reward = applyPirateCurrencyBoosts(baseReward, participant.userId);
+            const participantDiscordUser =
+              message.client.users.cache.get(
+                String(participant.userId)
+              ) ||
+              (await message.client.users
+                .fetch(String(participant.userId))
+                .catch(() => null));
+
+            const rewardWithPirateBoost =
+              applyPirateCurrencyBoosts(
+                baseReward,
+                participant.userId
+              );
+
+            const reward = applyServerTagCurrencyBonus(
+              rewardWithPirateBoost,
+              getServerTagPerks(participantDiscordUser)
+            );
             const expResults = calculateBossExp(
               participant.units,
               true,
@@ -3063,7 +3187,16 @@ if (interaction.customId === "boss_raid_run") {
             );
           }
 
-          const hostReward = applyPirateCurrencyBoosts(baseReward, message.author.id);
+          const hostRewardWithPirateBoost =
+            applyPirateCurrencyBoosts(
+              baseReward,
+              message.author.id
+            );
+
+          const hostReward = applyServerTagCurrencyBonus(
+            hostRewardWithPirateBoost,
+            getServerTagPerksFromMessage(message)
+          );
           const rewardLines = formatRewardLines(hostReward);
 
           storyLines.push(`✅ ${currentIsland.name} Phase ${phaseBoss.phase} cleared.`);
@@ -3227,7 +3360,7 @@ if (interaction.customId === "boss_raid_run") {
       );
     }
 
-    startBossCooldownNow(message.author.id, message.author.username);
+    startBossCooldownNow(message.author.id, message.author.username, effectiveBossCooldownMs);
 
     const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
     const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
@@ -3384,9 +3517,15 @@ if (interaction.customId === "boss_run") {
       if (Number(boss.battleHp ?? boss.hp) <= 0) {
         ended = true;
 
-        const reward = applyPirateCurrencyBoosts(
-          getBossReward(currentIsland, phaseBoss),
-          message.author.id
+        const rewardWithPirateBoost =
+          applyPirateCurrencyBoosts(
+            getBossReward(currentIsland, phaseBoss),
+            message.author.id
+          );
+
+        const reward = applyServerTagCurrencyBonus(
+          rewardWithPirateBoost,
+          getServerTagPerksFromMessage(message)
         );
 
         let updatedBoxes = [...(player.boxes || [])];

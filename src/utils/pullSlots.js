@@ -1,4 +1,8 @@
 const devilFruits = require("../data/devilFruits");
+
+const {
+  getServerTagPerksFromMessage,
+} = require("./serverTagPerks");
 const SUPPORT_SERVER_ROLE = "Support Server";
 const BOOSTER_ROLE = "Server Booster";
 
@@ -328,11 +332,17 @@ function getPullSlotStatus(player, message) {
   const baccaratCardBonus = getBaccaratCardPullBonus(player);
   const baccaratFruitBonus = getBaccaratFruitPullBonus(player);
 
+  const serverTagPerks =
+    getServerTagPerksFromMessage(message);
+
+  const basePullMaximum =
+    6 + Number(serverTagPerks.extraPullLimit || 0);
+
   return {
     base: {
       enabled: true,
-      max: 6,
-      displayMax: 6,
+      max: basePullMaximum,
+      displayMax: basePullMaximum,
       used: Number(pulls.base?.used || 0),
     },
 
