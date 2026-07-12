@@ -375,7 +375,6 @@ function buildListEmbed(data, options = {}) {
 
 module.exports = {
   name: "redeemcode",
-  aliases: ["redeem"],
 
   async execute(message, args) {
     const subcommand = String(args[0] || "").toLowerCase();

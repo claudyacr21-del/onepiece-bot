@@ -27,6 +27,10 @@ const raidBossImages = require("../config/raidBossImages");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 const { applyPirateRewardBonuses } = require("../utils/rewardBonuses");
+const {
+  getServerTagPerks,
+} = require("../utils/serverTagPerks");
+
 const RAID_ROOM_TIMEOUT_MS = 30 * 60 * 1000;
 const RAID_LOBBY_IDLE_REFUND_MS = 2 * 60 * 1000;
 const RAID_PICK_TIMEOUT_MS = 60 * 1000;
@@ -886,30 +890,110 @@ function getEffectiveRaidMode(usedCommand, bossInfo, raidMode) {
   return raidMode;
 }
 
-function findTicketEntry(tickets = [], raidMode) {
+const TRADE_LOCKED_RAID_TICKET_CODES = Object.freeze({
+  common_raid_ticket: "tl_common_raid_ticket",
+  raid_ticket: "tl_raid_ticket",
+  gold_raid_ticket: "tl_gold_raid_ticket",
+});
+
+function getTradeLockedRaidTicketCode(raidMode) {
+  const normalCode = String(
+    raidMode?.ticketCode || ""
+  ).toLowerCase();
+
+  return TRADE_LOCKED_RAID_TICKET_CODES[normalCode] || "";
+}
+
+function getTradeLockedRaidTicketName(raidMode) {
+  const names = {
+    common_raid_ticket: "TL Common Raid Ticket",
+    raid_ticket: "TL Raid Ticket",
+    gold_raid_ticket: "TL Gold Raid Ticket",
+  };
+
   return (
-    ensureArray(tickets).find((entry) => {
+    names[String(raidMode?.ticketCode || "").toLowerCase()] ||
+    `TL ${raidMode?.ticketName || "Raid Ticket"}`
+  );
+}
+
+function findTicketEntry(tickets = [], raidMode) {
+  const entries = ensureArray(tickets);
+
+  const tradeLockedCode =
+    getTradeLockedRaidTicketCode(raidMode);
+
+  const tradeLockedName =
+    getTradeLockedRaidTicketName(raidMode);
+
+  const tradeLockedEntry =
+    entries.find((entry) => {
       const code = normalize(entry?.code);
       const name = normalize(entry?.name);
 
       return (
-        code === normalize(raidMode.ticketCode) ||
-        name === normalize(raidMode.ticketName)
+        Number(entry?.amount || 0) > 0 &&
+        (
+          code === normalize(tradeLockedCode) ||
+          name === normalize(tradeLockedName)
+        )
+      );
+    }) || null;
+
+  if (tradeLockedEntry) {
+    return tradeLockedEntry;
+  }
+
+  return (
+    entries.find((entry) => {
+      const code = normalize(entry?.code);
+      const name = normalize(entry?.name);
+
+      return (
+        Number(entry?.amount || 0) > 0 &&
+        (
+          code === normalize(raidMode.ticketCode) ||
+          name === normalize(raidMode.ticketName)
+        )
       );
     }) || null
   );
 }
 
 function consumeOneTicket(player, raidMode) {
-  const tickets = ensureArray(player?.tickets).map((ticket) => ({ ...ticket }));
+  const tickets = ensureArray(player?.tickets).map(
+    (ticket) => ({ ...ticket })
+  );
+
+  const selectedTicket =
+    findTicketEntry(tickets, raidMode);
+
+  if (!selectedTicket) {
+    return {
+      ok: false,
+      tickets: ensureArray(player?.tickets),
+      consumedTicket: null,
+    };
+  }
+
+  const selectedCode = String(
+    selectedTicket.code || ""
+  ).toLowerCase();
+
+  const selectedName = String(
+    selectedTicket.name || raidMode.ticketName || "Raid Ticket"
+  );
 
   const index = tickets.findIndex((entry) => {
-    const code = normalize(entry?.code);
+    const code = String(entry?.code || "").toLowerCase();
     const name = normalize(entry?.name);
 
     return (
-      code === normalize(raidMode.ticketCode) ||
-      name === normalize(raidMode.ticketName)
+      code === selectedCode ||
+      (
+        !selectedCode &&
+        name === normalize(selectedName)
+      )
     );
   });
 
@@ -917,6 +1001,7 @@ function consumeOneTicket(player, raidMode) {
     return {
       ok: false,
       tickets: ensureArray(player?.tickets),
+      consumedTicket: null,
     };
   }
 
@@ -926,8 +1011,40 @@ function consumeOneTicket(player, raidMode) {
     return {
       ok: false,
       tickets: ensureArray(player?.tickets),
+      consumedTicket: null,
     };
   }
+
+  const consumedTicket = {
+    code:
+      tickets[index].code ||
+      selectedCode ||
+      raidMode.ticketCode,
+
+    name:
+      tickets[index].name ||
+      selectedName ||
+      raidMode.ticketName,
+
+    type: tickets[index].type || "Ticket",
+
+    rarity: tickets[index].rarity || null,
+
+    tradeable:
+      tickets[index].tradeable !== undefined
+        ? tickets[index].tradeable
+        : !selectedCode.startsWith("tl_"),
+
+    untradeable:
+      tickets[index].untradeable === true ||
+      selectedCode.startsWith("tl_"),
+
+    tradeLocked:
+      tickets[index].tradeLocked === true ||
+      selectedCode.startsWith("tl_"),
+
+    amount: 1,
+  };
 
   if (current === 1) {
     tickets.splice(index, 1);
@@ -938,28 +1055,58 @@ function consumeOneTicket(player, raidMode) {
   return {
     ok: true,
     tickets,
+    consumedTicket,
   };
 }
 
-function refundOneTicket(player, raidMode) {
-  const tickets = ensureArray(player?.tickets).map((ticket) => ({ ...ticket }));
-  const ticketCode = String(raidMode.ticketCode || "").toLowerCase();
+function refundOneTicket(
+  player,
+  raidMode,
+  consumedTicket = null
+) {
+  const tickets = ensureArray(player?.tickets).map(
+    (ticket) => ({ ...ticket })
+  );
+
+  const refundTicket = consumedTicket
+    ? {
+        ...consumedTicket,
+        amount: 1,
+      }
+    : {
+        code: raidMode.ticketCode,
+        name: raidMode.ticketName,
+        type: "Ticket",
+        amount: 1,
+      };
+
+  const refundCode = String(
+    refundTicket.code || raidMode.ticketCode || ""
+  ).toLowerCase();
+
+  const refundName = String(
+    refundTicket.name || raidMode.ticketName || "Raid Ticket"
+  );
 
   const index = tickets.findIndex((entry) => {
     const code = String(entry?.code || "").toLowerCase();
-    const name = String(entry?.name || "").toLowerCase();
+    const name = normalize(entry?.name);
 
     return (
-      code === ticketCode ||
-      name === String(raidMode.ticketName || "").toLowerCase()
+      code === refundCode ||
+      (
+        !refundCode &&
+        name === normalize(refundName)
+      )
     );
   });
 
   if (index === -1) {
     tickets.push({
-      code: raidMode.ticketCode,
-      name: raidMode.ticketName,
-      type: "ticket",
+      ...refundTicket,
+      code: refundCode || raidMode.ticketCode,
+      name: refundName,
+      type: refundTicket.type || "Ticket",
       amount: 1,
     });
 
@@ -968,6 +1115,7 @@ function refundOneTicket(player, raidMode) {
 
   tickets[index] = {
     ...tickets[index],
+    ...refundTicket,
     amount: Number(tickets[index].amount || 0) + 1,
   };
 
@@ -987,7 +1135,11 @@ function refundRaidTicketIfUnused(userId, username, raidMode, room) {
 
       return {
         ...fresh,
-        tickets: refundOneTicket(fresh, raidMode),
+        tickets: refundOneTicket(
+          fresh,
+          raidMode,
+          room?.consumedTicket || null
+        ),
       };
     },
     username || "Unknown"
@@ -1722,7 +1874,12 @@ function findRaidRoomCardConflict(room, cards, userId = null) {
   return null;
 }
 
-function buildBattleState(room, bossTemplate, raidMode = {}) {
+function buildBattleState(
+  room,
+  bossTemplate,
+  raidMode = {},
+  client = null
+) {
   const members = buildBattleRoster(room).map((member) => ({
     ...member,
     actionCooldown: 0,
@@ -1730,6 +1887,7 @@ function buildBattleState(room, bossTemplate, raidMode = {}) {
 
   return {
     roomId: room.roomId,
+    client,
     hostId: room.hostId,
     hostName: room.hostName,
     raidMode: {
@@ -2775,13 +2933,55 @@ function giveRaidWinRewards(state) {
     rewardedUsers.add(userId);
 
     const isHost = hostId && userId === hostId;
+
+    const baseBerries = Math.max(
+      0,
+      Math.floor(Number(config.berries || 0))
+    );
+
+    const baseGems = Math.max(
+      0,
+      Math.floor(Number(config.gems || 0))
+    );
+
     const boostedRewards = applyPirateRewardBonuses(userId, {
-      berries: Number(config.berries || 0),
-      gems: Number(config.gems || 0),
+      berries: baseBerries,
+      gems: baseGems,
     });
 
-    const berries = boostedRewards.berries;
-    const gems = boostedRewards.gems;
+    const discordUser =
+      state.client?.users?.cache?.get(userId) || null;
+
+    const serverTagPerks = getServerTagPerks(discordUser);
+
+    const serverTagBonusBerries = serverTagPerks.active
+      ? Math.floor(
+          baseBerries *
+            (Number(
+              serverTagPerks.berryIncomeBonusPercent || 0
+            ) /
+              100)
+        )
+      : 0;
+
+    const serverTagBonusGems = serverTagPerks.active
+      ? Math.floor(
+          baseGems *
+            (Number(
+              serverTagPerks.gemIncomeBonusPercent || 0
+            ) /
+              100)
+        )
+      : 0;
+
+    const berries =
+      Number(boostedRewards.berries || 0) +
+      serverTagBonusBerries;
+
+    const gems =
+      Number(boostedRewards.gems || 0) +
+      serverTagBonusGems;
+
     const fragments = isHost && !isMergeRaid ? Number(config.fragments || 0) : 0;
     const universalS = isMergeRaid ? Number(config.universalS || 0) : 0;
     const gotWeapon = Boolean(isHost && linkedWeapon && randomChance(config.weaponChance));
@@ -2826,6 +3026,18 @@ function giveRaidWinRewards(state) {
       isHost,
       berries,
       gems,
+
+      serverTagBonusBerries,
+      serverTagBonusGems,
+
+      serverTagBerryBonusPercent: Number(
+        serverTagPerks.berryIncomeBonusPercent || 0
+      ),
+
+      serverTagGemBonusPercent: Number(
+        serverTagPerks.gemIncomeBonusPercent || 0
+      ),
+
       fragments,
       universalS,
       bossName:
@@ -2856,18 +3068,47 @@ function formatRaidWinRewardLines(state) {
       `+${Number(reward.gems || 0).toLocaleString("en-US")} gems`,
     ];
 
+    if (Number(reward.serverTagBonusBerries || 0) > 0) {
+      lines.push(
+        `🏷️ Server Tag Berry Bonus (${Number(
+          reward.serverTagBerryBonusPercent || 0
+        )}%): +${Number(
+          reward.serverTagBonusBerries || 0
+        ).toLocaleString("en-US")} berries`
+      );
+    }
+
+    if (Number(reward.serverTagBonusGems || 0) > 0) {
+      lines.push(
+        `🏷️ Server Tag Gem Bonus (${Number(
+          reward.serverTagGemBonusPercent || 0
+        )}%): +${Number(
+          reward.serverTagBonusGems || 0
+        ).toLocaleString("en-US")} gems`
+      );
+    }
+
     if (reward.isHost && Number(reward.fragments || 0) > 0) {
-      lines.push(`+${Number(reward.fragments || 0)} ${reward.bossName} fragment`);
+      lines.push(
+        `+${Number(reward.fragments || 0)} ${reward.bossName} fragment`
+      );
     }
 
     if (Number(reward.universalS || 0) > 0) {
-      lines.push(`+Universal S x${Number(reward.universalS || 0)}`);
+      lines.push(
+        `+Universal S x${Number(reward.universalS || 0)}`
+      );
     }
 
     const extras = [];
 
-    if (reward.weapon) extras.push(`⚔️ ${reward.weapon} Fragment x1`);
-    if (reward.fruit) extras.push(`🍈 ${reward.fruit}`);
+    if (reward.weapon) {
+      extras.push(`⚔️ ${reward.weapon} Fragment x1`);
+    }
+
+    if (reward.fruit) {
+      extras.push(`🍈 ${reward.fruit}`);
+    }
 
     if (reward.isHost && extras.length) {
       lines.push(`Host Bonus: ${extras.join(" • ")}`);
@@ -3318,6 +3559,7 @@ module.exports = {
     }
 
     let consumedTickets = null;
+    let consumedTicket = null;
 
     try {
       updatePlayerAtomic(
@@ -3330,6 +3572,7 @@ module.exports = {
           }
 
           consumedTickets = consumed.tickets;
+          consumedTicket = consumed.consumedTicket;
 
           return {
             ...fresh,
@@ -3356,6 +3599,7 @@ module.exports = {
       bossName: bossInfo.bossName,
       bossImage: bossInfo.bossImage || "",
       ticketConsumed: true,
+      consumedTicket,
       whitelist,
       cardsPerUser: isThroneRaid ? 3 : 1,
       maxParticipants: isThroneRaid ? 4 : 10,
@@ -3752,7 +3996,12 @@ module.exports = {
         let battleState;
 
         try {
-          battleState = buildBattleState(startedRoom, bossInfo.template, raidMode);
+          battleState = buildBattleState(
+            startedRoom,
+            bossInfo.template,
+            raidMode,
+            message.client
+          );
         } catch (error) {
           console.error("[raid build battle state error]", error);
 
@@ -4038,7 +4287,12 @@ module.exports = {
       if (refunded) {
         await message.channel
           .send({
-            content: `↩️ ${userMention(hostId)} raid did not start within 5 minutes, so **${raidMode.label}** was refunded.`,
+          content: `↩️ ${userMention(
+            hostId
+          )} raid did not start within 5 minutes, so **${
+            activeRoom?.consumedTicket?.name ||
+            raidMode.label
+          }** was refunded.`,
             allowedMentions: {
               users: [hostId],
               repliedUser: false,

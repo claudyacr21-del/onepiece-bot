@@ -127,6 +127,45 @@ const ITEMS = {
     description: "Used to create a C/B common raid room.",
   },
 
+  tlCommonRaidTicket: {
+    name: "TL Common Raid Ticket",
+    amount: 1,
+    rarity: "B",
+    code: "tl_common_raid_ticket",
+    type: "Ticket",
+    tradeable: false,
+    untradeable: true,
+    tradeLocked: true,
+    description:
+      "A trade-locked ticket used to create a C/B common raid room.",
+  },
+
+  tlRaidTicket: {
+    name: "TL Raid Ticket",
+    amount: 1,
+    rarity: "A",
+    code: "tl_raid_ticket",
+    type: "Ticket",
+    tradeable: false,
+    untradeable: true,
+    tradeLocked: true,
+    description:
+      "A trade-locked ticket used to create an A raid room.",
+  },
+
+  tlGoldRaidTicket: {
+    name: "TL Gold Raid Ticket",
+    amount: 1,
+    rarity: "S",
+    code: "tl_gold_raid_ticket",
+    type: "Ticket",
+    tradeable: false,
+    untradeable: true,
+    tradeLocked: true,
+    description:
+      "A trade-locked ticket used to create an S Gold Raid room.",
+  },
+
   royalMaterialBox: {
     name: "Royal Material Box",
     amount: 1,

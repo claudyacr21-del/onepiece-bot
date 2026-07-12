@@ -96,6 +96,17 @@ function normalizeTradeAliasCode(value) {
     mraid: "mythic_raid_ticket",
     throne: "empty_throne_raid_writ",
 
+    tlcraid: "tl_common_raid_ticket",
+    tl_common: "tl_common_raid_ticket",
+    tl_common_raid: "tl_common_raid_ticket",
+
+    tlraid: "tl_raid_ticket",
+    tl_raid: "tl_raid_ticket",
+
+    tlgraid: "tl_gold_raid_ticket",
+    tl_gold: "tl_gold_raid_ticket",
+    tl_gold_raid: "tl_gold_raid_ticket",
+
     cola_part: "cola_engine_part",
     colapart: "cola_engine_part",
     engine_part: "cola_engine_part",
@@ -138,6 +149,11 @@ function isBlockedTradeItemCode(code) {
   const normalizedCode = normalizeTradeAliasCode(code);
 
   return (
+    normalizedCode === "tl_common_raid_ticket" ||
+    normalizedCode === "tl_raid_ticket" ||
+    normalizedCode === "tl_gold_raid_ticket" ||
+    normalizedCode.startsWith("tl_") ||
+
     normalizedCode === "mythic_raid_ticket" ||
     normalizedCode === "empty_throne_raid_writ" ||
     normalizedCode === "pull_reset_ticket" ||
