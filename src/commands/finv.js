@@ -84,80 +84,14 @@ function getCatalogRarity(entry) {
 }
 
 function getFragmentCatalogMatch(fragment) {
-  const category = String(fragment?.category || "").toLowerCase();
-  const codeKeys = [
-    fragment?.code,
-    fragment?.cardCode,
-    fragment?.sourceCode,
-    fragment?.weaponCode,
-    String(fragment?.code || "").replace(/^fragment_/i, ""),
-    String(fragment?.code || "").replace(/_fragment$/i, ""),
-  ]
-    .map(normalizeFragmentCode)
-    .filter(Boolean);
-
-  const nameKeys = [
-    fragment?.displayName,
-    fragment?.name,
-    fragment?.title,
-    String(fragment?.name || "").replace(/\s+fragment$/i, ""),
-    String(fragment?.displayName || "").replace(/\s+fragment$/i, ""),
-  ]
-    .map(normalizeFragmentName)
-    .filter(Boolean);
+  const category =
+    getResolvedFragmentCategory(fragment);
 
   if (category === "weapon") {
-    return (
-      (Array.isArray(weaponsData) ? weaponsData : []).find((weapon) => {
-        const weaponCodes = [
-          weapon?.code,
-          weapon?.id,
-          weapon?.name,
-        ]
-          .map(normalizeFragmentCode)
-          .filter(Boolean);
-
-        const weaponNames = [
-          weapon?.name,
-          weapon?.displayName,
-          weapon?.title,
-        ]
-          .map(normalizeFragmentName)
-          .filter(Boolean);
-
-        return (
-          codeKeys.some((key) => weaponCodes.includes(key)) ||
-          nameKeys.some((key) => weaponNames.includes(key))
-        );
-      }) || null
-    );
+    return findWeaponForFragment(fragment);
   }
 
-  return (
-    (Array.isArray(cardsData) ? cardsData : []).find((card) => {
-      const cardCodes = [
-        card?.code,
-        card?.baseCode,
-        card?.id,
-      ]
-        .map(normalizeFragmentCode)
-        .filter(Boolean);
-
-      const cardNames = [
-        card?.displayName,
-        card?.name,
-        card?.title,
-        card?.variant,
-      ]
-        .map(normalizeFragmentName)
-        .filter(Boolean);
-
-      return (
-        codeKeys.some((key) => cardCodes.includes(key)) ||
-        nameKeys.some((key) => cardNames.includes(key))
-      );
-    }) || null
-  );
+  return findCardForFragment(fragment);
 }
 
 function getDisplayRarity(fragment) {
@@ -290,13 +224,18 @@ function filterFragments(fragments, query) {
 }
 
 function getFragmentIcon(fragment) {
-  const category = String(fragment?.category || "").toLowerCase();
+  const category =
+    getResolvedFragmentCategory(fragment);
 
-  if (category === "weapon") return "⚔️";
-  if (category === "boost") return "✨";
-  if (category === "battle") return "🎴";
+  if (category === "weapon") {
+    return "⚔️";
+  }
 
-  return "🧩";
+  if (category === "boost") {
+    return "✨";
+  }
+
+  return "🃏";
 }
 
 function getMemberAvatar(message) {
@@ -324,13 +263,26 @@ function buildPageEmbed(message, player, fragments, currentPage, isPrivate, sear
 
   const lines = pageItems.length
     ? pageItems.map((fragment) => {
+        const category =
+          getResolvedFragmentCategory(fragment);
+
         const icon = getFragmentIcon(fragment);
         const name = getDisplayName(fragment);
-        const amount = getFragmentAmount(fragment).toLocaleString("en-US");
-        const rarity = getDisplayRarity(fragment);
-        const category = String(fragment?.category || "fragment").toLowerCase();
 
-        return `${icon} **${name}** x${amount} • ${rarity} • ${category}`;
+        const amount = getFragmentAmount(
+          fragment
+        ).toLocaleString("en-US");
+
+        const rarity = getDisplayRarity(fragment);
+
+        const categoryLabel =
+          category === "weapon"
+            ? "Weapon"
+            : category === "boost"
+              ? "Boost"
+              : "Battle";
+
+        return `${icon} **${name}** x${amount} • ${rarity} • ${categoryLabel}`;
       })
     : ["No fragments found."];
 
