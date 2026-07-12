@@ -128,7 +128,7 @@ const ITEMS = {
   },
 
   tlCommonRaidTicket: {
-    name: "TL Common Raid Ticket",
+    name: "Common Raid Ticket (TL)",
     amount: 1,
     rarity: "B",
     code: "tl_common_raid_ticket",
@@ -141,7 +141,7 @@ const ITEMS = {
   },
 
   tlRaidTicket: {
-    name: "TL Raid Ticket",
+    name: "Raid Ticket (TL)",
     amount: 1,
     rarity: "A",
     code: "tl_raid_ticket",
@@ -154,7 +154,7 @@ const ITEMS = {
   },
 
   tlGoldRaidTicket: {
-    name: "TL Gold Raid Ticket",
+    name: "Gold Raid Ticket (TL)",
     amount: 1,
     rarity: "S",
     code: "tl_gold_raid_ticket",

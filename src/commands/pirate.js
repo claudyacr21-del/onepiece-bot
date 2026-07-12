@@ -230,7 +230,7 @@ function usageEmbed() {
         "**Pirate Raid Commands**",
         "`op p raid`",
         "`op p attack <tier>`",
-        "`op p log` — Show crew pirate raid attack log.",
+        "`op p log` — Show crew Pirate Raid and Boss activity log.",
         "`op p lb`",
         "`op p rewards`",
         "",
@@ -2430,11 +2430,21 @@ async function handlePirateRaidLog(message) {
 
         const old = raidSummaryByUser.get(safeUserId) || {
           userId: safeUserId,
+
           totalDamage: 0,
           totalPoints: 0,
           totalAttacks: 0,
           lastAttackAt: 0,
+
+          raidPoints: 0,
+          raidAttacks: 0,
+          lastRaidAt: 0,
           raids: new Map(),
+
+          bossPoints: 0,
+          bossAttacks: 0,
+          lastBossAt: 0,
+          bosses: new Map(),
         };
 
         const damage = Math.max(0, Math.floor(Number(contributor?.damage || 0)));
@@ -2463,15 +2473,159 @@ async function handlePirateRaidLog(message) {
         old.totalAttacks += attacks;
         old.lastAttackAt = Math.max(old.lastAttackAt, lastAttackAt);
         old.raids.set(tierKey, oldRaid);
+        old.raidPoints += points;
+        old.raidAttacks += attacks;
+        old.lastRaidAt = Math.max(
+          old.lastRaidAt,
+          lastAttackAt
+        );
 
         raidSummaryByUser.set(safeUserId, old);
       }
     }
 
+    const bossActivity =
+      pirate?.bossActivity &&
+      typeof pirate.bossActivity === "object"
+        ? pirate.bossActivity
+        : {};
+
+    const bossContributors =
+      bossActivity?.contributors &&
+      typeof bossActivity.contributors === "object"
+        ? bossActivity.contributors
+        : {};
+
+    for (const [userId, contributor] of Object.entries(
+      bossContributors
+    )) {
+      const safeUserId = String(userId || "").trim();
+
+      if (!safeUserId) continue;
+
+      const old = raidSummaryByUser.get(safeUserId) || {
+        userId: safeUserId,
+
+        totalDamage: 0,
+        totalPoints: 0,
+        totalAttacks: 0,
+        lastAttackAt: 0,
+
+        raidPoints: 0,
+        raidAttacks: 0,
+        lastRaidAt: 0,
+        raids: new Map(),
+
+        bossPoints: 0,
+        bossAttacks: 0,
+        lastBossAt: 0,
+        bosses: new Map(),
+      };
+
+      const bossPoints = Math.max(
+        0,
+        Math.floor(Number(contributor?.points || 0))
+      );
+
+      const bossAttacks = Math.max(
+        0,
+        Math.floor(Number(contributor?.attacks || 0))
+      );
+
+      const lastBossAt = Math.max(
+        0,
+        Math.floor(Number(contributor?.lastAttackAt || 0))
+      );
+
+      const contributorBosses =
+        contributor?.bosses &&
+        typeof contributor.bosses === "object"
+          ? contributor.bosses
+          : {};
+
+      for (const [bossKey, bossEntry] of Object.entries(
+        contributorBosses
+      )) {
+        const oldBoss = old.bosses.get(bossKey) || {
+          key: bossKey,
+          islandName: "Unknown Island",
+          phase: 0,
+          bossName: "Island Boss",
+          points: 0,
+          attacks: 0,
+          lastAttackAt: 0,
+        };
+
+        oldBoss.islandName = String(
+          bossEntry?.islandName ||
+            oldBoss.islandName ||
+            "Unknown Island"
+        );
+
+        oldBoss.phase = Math.max(
+          0,
+          Math.floor(
+            Number(bossEntry?.phase || oldBoss.phase || 0)
+          )
+        );
+
+        oldBoss.bossName = String(
+          bossEntry?.bossName ||
+            oldBoss.bossName ||
+            "Island Boss"
+        );
+
+        oldBoss.points += Math.max(
+          0,
+          Math.floor(Number(bossEntry?.points || 0))
+        );
+
+        oldBoss.attacks += Math.max(
+          0,
+          Math.floor(Number(bossEntry?.attacks || 0))
+        );
+
+        oldBoss.lastAttackAt = Math.max(
+          oldBoss.lastAttackAt,
+          Math.floor(Number(bossEntry?.lastAttackAt || 0))
+        );
+
+        old.bosses.set(bossKey, oldBoss);
+      }
+
+      old.bossPoints += bossPoints;
+      old.bossAttacks += bossAttacks;
+      old.lastBossAt = Math.max(
+        old.lastBossAt,
+        lastBossAt
+      );
+
+      old.totalPoints += bossPoints;
+      old.totalAttacks += bossAttacks;
+      old.lastAttackAt = Math.max(
+        old.lastAttackAt,
+        lastBossAt
+      );
+
+      raidSummaryByUser.set(safeUserId, old);
+    }
+
     const summaries = [...raidSummaryByUser.values()]
-      .filter((entry) => entry.totalDamage > 0 || entry.totalAttacks > 0)
+      .filter(
+        (entry) =>
+          entry.totalDamage > 0 ||
+          entry.totalAttacks > 0 ||
+          entry.totalPoints > 0
+      )
       .sort((a, b) => {
-        if (b.totalDamage !== a.totalDamage) return b.totalDamage - a.totalDamage;
+        if (b.totalPoints !== a.totalPoints) {
+          return b.totalPoints - a.totalPoints;
+        }
+
+        if (b.totalDamage !== a.totalDamage) {
+          return b.totalDamage - a.totalDamage;
+        }
+
         return b.lastAttackAt - a.lastAttackAt;
       })
       .slice(0, 30);
@@ -2480,13 +2634,14 @@ async function handlePirateRaidLog(message) {
       return message.reply(
         makeError(
           [
-            "No pirate raid activity found yet.",
+            "No Pirate Raid or Boss activity was found yet.",
             "",
-            "Crew members need to attack Pirate Raid first:",
+            "Crew members can contribute through:",
             "`op p attack <tier>`",
+            "`op boss`",
             "",
-            "Example:",
-            "`op p attack easy`",
+            "Boss Pirate Points are added only after the Boss is defeated.",
+            "For Boss Phase 2, only the host receives Pirate Points.",
           ].join("\n")
         )
       );
@@ -2511,21 +2666,90 @@ async function handlePirateRaidLog(message) {
           } • ${timeText}`;
         });
 
-      const hiddenRaidCount = Math.max(0, entry.raids.size - raidLines.length);
+      const hiddenRaidCount = Math.max(
+        0,
+        entry.raids.size - raidLines.length
+      );
 
       if (hiddenRaidCount > 0) {
-        raidLines.push(`• +${hiddenRaidCount} more raid tier(s) hidden.`);
+        raidLines.push(
+          `• +${hiddenRaidCount} more raid tier(s) hidden.`
+        );
+      }
+
+      const bossLines = [...entry.bosses.values()]
+        .sort((a, b) => {
+          if (b.attacks !== a.attacks) {
+            return b.attacks - a.attacks;
+          }
+
+          return b.lastAttackAt - a.lastAttackAt;
+        })
+        .slice(0, 4)
+        .map((bossEntry) => {
+          const phaseText =
+            Number(bossEntry.phase || 0) > 0
+              ? ` Phase ${Number(bossEntry.phase || 0)}`
+              : "";
+
+          const timeText = formatPirateRaidLogTime(
+            bossEntry.lastAttackAt
+          );
+
+          return [
+            `• **${bossEntry.islandName}${phaseText} — ${bossEntry.bossName}**`,
+            `${fmt(bossEntry.points)} pts`,
+            `${fmt(bossEntry.attacks)} attack${
+              Number(bossEntry.attacks || 0) === 1 ? "" : "s"
+            }`,
+            timeText,
+          ].join(" • ");
+        });
+
+      const hiddenBossCount = Math.max(
+        0,
+        entry.bosses.size - bossLines.length
+      );
+
+      if (hiddenBossCount > 0) {
+        bossLines.push(
+          `• +${hiddenBossCount} more Boss activity type(s) hidden.`
+        );
       }
 
       entries.push(
         [
           `**${username}**`,
-          `Total Damage: **${fmt(entry.totalDamage)}**`,
+
           `Total Points: **${fmt(entry.totalPoints)}**`,
-          `Total Attacks: **${fmt(entry.totalAttacks)}**`,
-          `Last Raid: ${formatPirateRaidLogTime(entry.lastAttackAt)}`,
+          `Total Activities: **${fmt(entry.totalAttacks)}**`,
+
           "",
-          ...raidLines,
+          "**Pirate Raid Activity**",
+
+          `Raid Damage: **${fmt(entry.totalDamage)}**`,
+          `Raid Points: **${fmt(entry.raidPoints)}**`,
+          `Raid Attacks: **${fmt(entry.raidAttacks)}**`,
+          `Last Raid: ${formatPirateRaidLogTime(
+            entry.lastRaidAt
+          )}`,
+
+          ...(raidLines.length
+            ? raidLines
+            : ["• No Pirate Raid attacks."]),
+
+          "",
+          "**Boss Activity**",
+
+          `Boss Points: **${fmt(entry.bossPoints)}**`,
+          `Boss Attacks: **${fmt(entry.bossAttacks)}**`,
+          `Last Boss: ${formatPirateRaidLogTime(
+            entry.lastBossAt
+          )}`,
+
+          ...(bossLines.length
+            ? bossLines
+            : ["• No Boss attacks."]),
         ].join("\n")
       );
     }
@@ -2544,8 +2768,8 @@ async function handlePirateRaidLog(message) {
 
       return new EmbedBuilder()
         .setColor(GOLD)
-        .setTitle(`☠️ ${pirate.name} Raid Activity Log`)
-        .setDescription(currentPage.join("\n\n") || "No pirate raid activity found.")
+        .setTitle(`☠️ ${pirate.name} Activity Log`)
+        .setDescription(currentPage.join("\n\n") || "No Pirate Raid or Boss activity found.")
         .setFooter({
           text: `Page ${pageIndex + 1}/${pages.length} • Showing ${pageSize} member(s) per page`,
         });

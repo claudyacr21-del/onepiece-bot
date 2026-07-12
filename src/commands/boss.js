@@ -38,12 +38,23 @@ const {
   getServerTagPerksFromMessage,
   applyServerTagCurrencyBonus,
 } = require("../utils/serverTagPerks");
+const {
+  findPirateByUser,
+  updatePirate,
+} = require("../utils/pirateStore");
 
 const BOSS_COOLDOWN_MS = 10 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
 const BOSS_PHASE_JOIN_MIN = 1;
 const BOSS_PHASE_JOIN_MAX = 4;
 const BOSS_JOIN_LOBBY_MS = 2 * 60 * 1000;
+
+const PIRATE_BOSS_ACTIVITY_POINTS = Math.max(
+  0,
+  Math.floor(
+    Number(process.env.PIRATE_BOSS_ACTIVITY_POINTS || 5)
+  )
+);
 
 const activeBossSessions = new Map();
 
@@ -89,6 +100,205 @@ function startActiveBossSession(userId, ttlMs = SESSION_TIMEOUT_MS + BOSS_JOIN_L
 
 function clearActiveBossSession(userId) {
   activeBossSessions.delete(getBossSessionKey(userId));
+}
+
+function normalizePirateBossActivityKey(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function awardPirateBossActivity({
+  userId,
+  username,
+  island,
+  phaseBoss = null,
+  boss = null,
+}) {
+  const pirate = findPirateByUser(userId);
+
+  if (!pirate || PIRATE_BOSS_ACTIVITY_POINTS <= 0) {
+    return {
+      awarded: false,
+      points: 0,
+      pirateName: null,
+    };
+  }
+
+  const safeUserId = String(userId || "");
+  const now = Date.now();
+
+  const islandCode = String(
+    island?.code || "unknown_island"
+  );
+
+  const islandName = String(
+    island?.name || "Unknown Island"
+  );
+
+  const phase = Math.max(
+    0,
+    Math.floor(Number(phaseBoss?.phase || 0))
+  );
+
+  const bossName = String(
+    boss?.name ||
+      phaseBoss?.name ||
+      phaseBoss?.bossName ||
+      island?.boss ||
+      "Island Boss"
+  );
+
+  const activityKey = normalizePirateBossActivityKey(
+    [
+      islandCode,
+      phase > 0 ? `phase_${phase}` : "boss",
+      bossName,
+    ].join("_")
+  );
+
+  const updatedPirate = updatePirate(
+    pirate.id,
+    (fresh) => {
+      const oldActivity =
+        fresh?.bossActivity &&
+        typeof fresh.bossActivity === "object"
+          ? fresh.bossActivity
+          : {};
+
+      const contributors =
+        oldActivity?.contributors &&
+        typeof oldActivity.contributors === "object"
+          ? { ...oldActivity.contributors }
+          : {};
+
+      const oldContributor =
+        contributors[safeUserId] &&
+        typeof contributors[safeUserId] === "object"
+          ? contributors[safeUserId]
+          : {};
+
+      const bosses =
+        oldContributor?.bosses &&
+        typeof oldContributor.bosses === "object"
+          ? { ...oldContributor.bosses }
+          : {};
+
+      const oldBoss =
+        bosses[activityKey] &&
+        typeof bosses[activityKey] === "object"
+          ? bosses[activityKey]
+          : {};
+
+      bosses[activityKey] = {
+        ...oldBoss,
+        key: activityKey,
+        islandCode,
+        islandName,
+        phase,
+        bossName,
+
+        attacks:
+          Math.max(
+            0,
+            Math.floor(Number(oldBoss.attacks || 0))
+          ) + 1,
+
+        points:
+          Math.max(
+            0,
+            Math.floor(Number(oldBoss.points || 0))
+          ) + PIRATE_BOSS_ACTIVITY_POINTS,
+
+        lastAttackAt: now,
+      };
+
+      contributors[safeUserId] = {
+        ...oldContributor,
+        userId: safeUserId,
+        username:
+          username ||
+          oldContributor.username ||
+          "Unknown",
+
+        attacks:
+          Math.max(
+            0,
+            Math.floor(Number(oldContributor.attacks || 0))
+          ) + 1,
+
+        points:
+          Math.max(
+            0,
+            Math.floor(Number(oldContributor.points || 0))
+          ) + PIRATE_BOSS_ACTIVITY_POINTS,
+
+        lastAttackAt: now,
+        bosses,
+      };
+
+      return {
+        ...fresh,
+
+        weeklyPoints:
+          Math.max(
+            0,
+            Math.floor(Number(fresh.weeklyPoints || 0))
+          ) + PIRATE_BOSS_ACTIVITY_POINTS,
+
+        totalPoints:
+          Math.max(
+            0,
+            Math.floor(Number(fresh.totalPoints || 0))
+          ) + PIRATE_BOSS_ACTIVITY_POINTS,
+
+        bossActivity: {
+          ...oldActivity,
+
+          totalAttacks:
+            Math.max(
+              0,
+              Math.floor(Number(oldActivity.totalAttacks || 0))
+            ) + 1,
+
+          totalPoints:
+            Math.max(
+              0,
+              Math.floor(Number(oldActivity.totalPoints || 0))
+            ) + PIRATE_BOSS_ACTIVITY_POINTS,
+
+          lastAttackAt: now,
+          contributors,
+        },
+
+        logs: [
+          ...(Array.isArray(fresh.logs)
+            ? fresh.logs
+            : []),
+
+          {
+            at: now,
+            type: "boss_activity",
+            userId: safeUserId,
+            username: username || "Unknown",
+            islandCode,
+            islandName,
+            phase,
+            bossName,
+            points: PIRATE_BOSS_ACTIVITY_POINTS,
+          },
+        ].slice(-25),
+      };
+    }
+  );
+
+  return {
+    awarded: true,
+    points: PIRATE_BOSS_ACTIVITY_POINTS,
+    pirateName: updatedPirate?.name || pirate.name,
+  };
 }
 
 const BOSS_WIN_EXP_PER_CARD = 180;
@@ -3197,10 +3407,34 @@ if (interaction.customId === "boss_raid_run") {
             hostRewardWithPirateBoost,
             getServerTagPerksFromMessage(message)
           );
+
           const rewardLines = formatRewardLines(hostReward);
 
-          storyLines.push(`✅ ${currentIsland.name} Phase ${phaseBoss.phase} cleared.`);
-          storyLines.push("Rewards were given to every valid raid participant.");
+          const pirateBossResult = awardPirateBossActivity({
+            userId: message.author.id,
+            username: message.author.username,
+            island: currentIsland,
+            phaseBoss,
+            boss,
+          });
+
+          if (pirateBossResult.awarded) {
+            rewardLines.push(
+              `🏴‍☠️ Pirate Boss Activity: +${Number(
+                pirateBossResult.points || 0
+              ).toLocaleString(
+                "en-US"
+              )} Pirate Points for **${pirateBossResult.pirateName}**`
+            );
+          }
+
+          storyLines.push(
+            `✅ ${currentIsland.name} Phase ${phaseBoss.phase} cleared.`
+          );
+
+          storyLines.push(
+            "Rewards were given to every valid raid participant."
+          );
 
           pushBossLog(logs, `🏆 ${boss.name} was defeated by the raid team!`);
 
@@ -3661,6 +3895,26 @@ if (interaction.customId === "boss_run") {
           message.author.username
         );
 
+        const pirateBossResult = awardPirateBossActivity({
+          userId: message.author.id,
+          username: message.author.username,
+          island: currentIsland,
+          phaseBoss,
+          boss,
+        });
+
+        const rewardLines = formatRewardLines(reward);
+
+        if (pirateBossResult.awarded) {
+          rewardLines.push(
+            `🏴‍☠️ Pirate Boss Activity: +${Number(
+              pirateBossResult.points || 0
+            ).toLocaleString(
+              "en-US"
+            )} Pirate Points for **${pirateBossResult.pirateName}**`
+          );
+        }
+
         pushBossLog(logs, `🏆 ${boss.name} was defeated!`);
 
         await safeEditInteractionMessage(interaction, {
@@ -3669,7 +3923,7 @@ if (interaction.customId === "boss_run") {
               title: "🏆 Boss Victory",
               color: 0x2ecc71,
               result: "WIN",
-              rewardLines: formatRewardLines(reward),
+              rewardLines,
               expLines,
               storyLines,
               logs,
