@@ -2,6 +2,9 @@ const { EmbedBuilder } = require("discord.js");
 const { updatePlayerAtomic } = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
 const { readRedeemCodes, writeRedeemCodes } = require("../utils/redeemCodeStore");
+const {
+  getServerTagPerksFromMessage,
+} = require("../utils/serverTagPerks");
 
 function parseEnvIds(...values) {
   return values
@@ -68,6 +71,16 @@ function normalize(value) {
 
 function normalizeCode(value) {
   return String(value || "").trim().toUpperCase();
+}
+
+const SERVER_TAG_REQUIRED_REDEEM_CODES = new Set([
+  "OPBTAG",
+]);
+
+function redeemCodeRequiresServerTag(code) {
+  return SERVER_TAG_REQUIRED_REDEEM_CODES.has(
+    normalizeCode(code)
+  );
 }
 
 function parsePositiveDays(value) {
@@ -590,7 +603,39 @@ module.exports = {
       });
     }
 
-    entry.usedBy = Array.isArray(entry.usedBy) ? entry.usedBy.map(String) : [];
+    if (redeemCodeRequiresServerTag(code)) {
+      const serverTagPerks =
+        getServerTagPerksFromMessage(message);
+
+      if (!serverTagPerks.active) {
+        return message.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("Server Tag Required")
+              .setDescription(
+                [
+                  `The redeem code **${code}** is exclusive to users supporting the server with the **OPB Server Tag**.`,
+                  "",
+                  "Equip the OPB Server Tag on your Discord profile, then try the command again.",
+                  "",
+                  `Use: \`op redeem ${code}\``,
+                ].join("\n")
+              )
+              .setFooter({
+                text: "One Piece Bot • Server Tag Reward",
+              }),
+          ],
+          allowedMentions: {
+            repliedUser: false,
+          },
+        });
+      }
+    }
+
+    entry.usedBy = Array.isArray(entry.usedBy)
+      ? entry.usedBy.map(String)
+      : [];
 
     const userId = String(message.author.id);
 
