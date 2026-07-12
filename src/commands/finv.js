@@ -83,6 +83,207 @@ function getCatalogRarity(entry) {
   return isValidRarity(rarity) ? rarity : "C";
 }
 
+function getFragmentIdentityKeys(fragment) {
+  const rawCode = String(fragment?.code || "");
+  const rawName = String(
+    fragment?.name ||
+      fragment?.displayName ||
+      fragment?.title ||
+      ""
+  );
+
+  const cleanCode = rawCode
+    .replace(/^fragment_/i, "")
+    .replace(/^weapon_fragment_/i, "")
+    .replace(/^boost_fragment_/i, "")
+    .replace(/_fragment$/i, "");
+
+  const cleanName = rawName
+    .replace(/\s+fragment$/i, "")
+    .trim();
+
+  const codeKeys = [
+    fragment?.code,
+    fragment?.cardCode,
+    fragment?.sourceCode,
+    fragment?.sourceCardCode,
+    fragment?.characterCode,
+    fragment?.weaponCode,
+    fragment?.sourceWeaponCode,
+    cleanCode,
+  ]
+    .map(normalizeFragmentCode)
+    .filter(Boolean);
+
+  const nameKeys = [
+    fragment?.name,
+    fragment?.displayName,
+    fragment?.title,
+    cleanName,
+  ]
+    .map(normalizeFragmentName)
+    .filter(Boolean);
+
+  return {
+    codeKeys: [...new Set(codeKeys)],
+    nameKeys: [...new Set(nameKeys)],
+  };
+}
+
+function findCardForFragment(fragment) {
+  const { codeKeys, nameKeys } =
+    getFragmentIdentityKeys(fragment);
+
+  return (
+    (Array.isArray(cardsData) ? cardsData : []).find(
+      (card) => {
+        const cardCodes = [
+          card?.code,
+          card?.id,
+          card?.baseCode,
+          card?.cardCode,
+          card?.characterCode,
+        ]
+          .map(normalizeFragmentCode)
+          .filter(Boolean);
+
+        const cardNames = [
+          card?.name,
+          card?.displayName,
+          card?.title,
+        ]
+          .map(normalizeFragmentName)
+          .filter(Boolean);
+
+        return (
+          codeKeys.some((key) =>
+            cardCodes.includes(key)
+          ) ||
+          nameKeys.some((key) =>
+            cardNames.includes(key)
+          )
+        );
+      }
+    ) || null
+  );
+}
+
+function findWeaponForFragment(fragment) {
+  const { codeKeys, nameKeys } =
+    getFragmentIdentityKeys(fragment);
+
+  return (
+    (Array.isArray(weaponsData) ? weaponsData : []).find(
+      (weapon) => {
+        const weaponCodes = [
+          weapon?.code,
+          weapon?.id,
+          weapon?.weaponCode,
+        ]
+          .map(normalizeFragmentCode)
+          .filter(Boolean);
+
+        const weaponNames = [
+          weapon?.name,
+          weapon?.displayName,
+          weapon?.title,
+        ]
+          .map(normalizeFragmentName)
+          .filter(Boolean);
+
+        return (
+          codeKeys.some((key) =>
+            weaponCodes.includes(key)
+          ) ||
+          nameKeys.some((key) =>
+            weaponNames.includes(key)
+          )
+        );
+      }
+    ) || null
+  );
+}
+
+function getResolvedFragmentCategory(fragment) {
+  const rawCode = normalizeFragmentCode(
+    fragment?.code
+  );
+
+  const rawName = normalizeFragmentName(
+    fragment?.name ||
+      fragment?.displayName ||
+      fragment?.title
+  );
+
+  const rawCategory = String(
+    fragment?.category ||
+      fragment?.type ||
+      fragment?.kind ||
+      ""
+  )
+    .toLowerCase()
+    .trim();
+
+  const explicitWeapon = Boolean(
+    fragment?.weaponCode ||
+      fragment?.sourceWeaponCode ||
+      rawCode.startsWith("weapon_fragment_") ||
+      rawCode.includes("_weapon_fragment") ||
+      rawName.includes("weapon fragment")
+  );
+
+  if (explicitWeapon) {
+    return "weapon";
+  }
+
+  const matchedCard = findCardForFragment(fragment);
+
+  if (matchedCard) {
+    const cardRole = String(
+      matchedCard?.cardRole ||
+        matchedCard?.role ||
+        matchedCard?.type ||
+        ""
+    )
+      .toLowerCase()
+      .trim();
+
+    if (
+      cardRole === "boost" ||
+      cardRole.includes("boost") ||
+      cardRole.includes("support")
+    ) {
+      return "boost";
+    }
+
+    return "battle";
+  }
+
+  const matchedWeapon =
+    findWeaponForFragment(fragment);
+
+  if (matchedWeapon) {
+    return "weapon";
+  }
+
+  if (
+    rawCategory === "weapon" ||
+    rawCategory.includes("weapon")
+  ) {
+    return "weapon";
+  }
+
+  if (
+    rawCategory === "boost" ||
+    rawCategory.includes("boost") ||
+    rawCategory.includes("support")
+  ) {
+    return "boost";
+  }
+
+  return "battle";
+}
+
 function getFragmentCatalogMatch(fragment) {
   const category =
     getResolvedFragmentCategory(fragment);
