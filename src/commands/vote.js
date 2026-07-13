@@ -7,7 +7,11 @@ const {
 
 const { getPlayer } = require("../playerStore");
 
-const TOPGG_URL = "https://top.gg/bot/1492759342972407869/vote";
+const TOPGG_URL =
+  "https://top.gg/bot/1492759342972407869/vote";
+
+const DISCORDLIST_URL =
+  "https://discordlist.gg/bot/1492759342972407869/vote";
 const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const RAID_TICKET_STREAK_TARGET = 25;
 
@@ -52,29 +56,55 @@ function buildVoteEmbed(message, player) {
   };
 
   const streak = Number(voteData.streak || 0);
+
   const cooldownAt = getVoteCooldownAt(player);
-  const nextRaidTicketIn = getNextRaidTicketIn(streak);
+
+  const nextRaidTicketIn =
+    getNextRaidTicketIn(streak);
 
   return new EmbedBuilder()
     .setColor(0x8e44ad)
-    .setTitle("Vote For One Piece Bot!")
+    .setTitle("🗳️ Vote For One Piece Bot")
     .setDescription(
       [
-        "Vote for us at Top.gg to gain **Pull Reset Ticket + 5,000 Berries**!",
+        "Support One Piece Bot by voting on the platforms below and receive exclusive rewards!",
         "",
-        "**Can Vote Again In**",
-        formatCooldown(cooldownAt),
+
+        "## 🔵 Top.gg",
+        "> Reward:",
+        "> 🎟️ Pull Reset Ticket x1",
+        "> 💰 5,000 Berries",
         "",
-        "**Vote Streak Bonus**",
+        `Cooldown: **${formatCooldown(cooldownAt)}**`,
+        "",
+
+        "## 🟣 DiscordList.gg",
+        "> Reward:",
+        "> 📦 Legend Resource Box x2",
+        "> Cooldown: 12 Hours",
+        "",
+
+        "## 🟢 Botlist.me",
+        "> 🚧 Coming Soon...",
+        "> Our listing is currently under review.",
+        "> Reward:",
+        "> 📦 Legend Resource Box x2",
+        "",
+
+        "---",
+        "",
+        "**Vote Streak**",
         `Current Streak: **${streak}**`,
-        `Next Raid Ticket In: **${nextRaidTicketIn} vote(s)**`,
+        `Next Raid Ticket: **${nextRaidTicketIn} vote(s)**`,
         "",
-        "Every **25 Vote Streak** gives **Raid Ticket x1**.",
+        "Every **25 Vote Streak** rewards **Raid Ticket x1**.",
         "",
-        "🗳️ Reminder: the bot will DM you automatically when your vote cooldown is ready.",
+        "💜 You'll automatically receive a DM reminder when your vote cooldown becomes available.",
       ].join("\n")
     )
-    .setThumbnail(message.client.user.displayAvatarURL())
+    .setThumbnail(
+      message.client.user.displayAvatarURL()
+    )
     .setFooter({
       text: "One Piece Bot • Vote System",
     });
@@ -84,9 +114,25 @@ function buildVoteRows() {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setLabel("Vote")
+        .setLabel("Top.gg")
         .setStyle(ButtonStyle.Link)
-        .setURL(TOPGG_URL)
+        .setURL(TOPGG_URL),
+
+      new ButtonBuilder()
+        .setLabel("DiscordList.gg")
+        .setStyle(ButtonStyle.Link)
+        .setURL(DISCORDLIST_URL),
+
+      new ButtonBuilder()
+        .setLabel("Botlist.me (Soon)")
+        .setStyle(ButtonStyle.Secondary)
+        .setCustomId("vote_botlist_soon")
+        .setDisabled(true)
+
+      //new ButtonBuilder()
+      //  .setLabel("Botlist.me")
+      //  .setStyle(ButtonStyle.Link)
+      //  .setURL("LINK_BOTLIST")
     ),
   ];
 }
