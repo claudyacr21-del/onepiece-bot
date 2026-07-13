@@ -106,7 +106,7 @@ const GLOBAL_BONUS_START_DAMAGE = 75000000;
 const GLOBAL_BONUS_STEP_DAMAGE = 1000000;
 
 const GLOBAL_BONUS_REWARD = {
-  berries: 1000000,
+  berries: 200000,
   ryumaTokens: 200,
 };
 
@@ -195,7 +195,7 @@ const BONUS_STEP_DAMAGE = 1000000;
 
 const BONUS_REWARD = {
   ryumaTokens: 500,
-  berries: 1000000,
+  berries: 200000,
   gems: 500,
   tickets: [
     {
@@ -1485,14 +1485,44 @@ function buildRewardsEmbed(message) {
   });
 
   const bonusCount = getUnlockedBonusCount(eventData.damage);
-  const bonusLines = [];
+  const claimedPersonalBonusCount =
+    Array.from(claimedBonus).filter(
+      (milestone) =>
+        Number(milestone) >
+        BONUS_START_DAMAGE
+    ).length;
 
-  for (let index = 1; index <= bonusCount; index += 1) {
-    const milestoneDamage = BONUS_START_DAMAGE + (index * BONUS_STEP_DAMAGE);
-    const claimed = claimedBonus.has(milestoneDamage);
+  const unclaimedPersonalBonusCount = Math.max(
+    0,
+    bonusCount - claimedPersonalBonusCount
+  );
 
-    bonusLines.push(`${claimed ? "✅" : "🟡"} ${fmt(milestoneDamage)} bonus damage${claimed ? " — claimed" : " — claimable"}`);
-  }
+  const bonusLines =
+    bonusCount > 0
+      ? [
+          `Unlocked: **${fmt(
+            bonusCount
+          )}** milestone(s)`,
+          `Claimed: **${fmt(
+            claimedPersonalBonusCount
+          )}** milestone(s)`,
+          `Unclaimed: **${fmt(
+            unclaimedPersonalBonusCount
+          )}** milestone(s)`,
+          `Reward each: **${fmt(
+            BONUS_REWARD.berries
+          )} berries + ${fmt(
+            BONUS_REWARD.ryumaTokens
+          )} Ryuma Tokens + ${fmt(
+            BONUS_REWARD.gems
+          )} Gems**`,
+          `Next milestone: **${fmt(
+            getNextPersonalMilestone(
+              eventData.damage
+            )
+          )} personal damage**`,
+        ]
+      : [];
 
   const globalLines = GLOBAL_MILESTONES.map((milestone) => {
     const unlocked = unlockedGlobal.includes(milestone);
@@ -1522,17 +1552,35 @@ function buildRewardsEmbed(message) {
         "**Global Milestones**",
         globalLines.join("\n"),
         globalBonusCount > 0 ? "" : null,
-        globalBonusCount > 0 ? "**Global Bonus Milestones After 75M**" : null,
-        globalBonusCount > 0
-          ? Array.from({ length: globalBonusCount }, (_, index) => {
-              const milestoneDamage =
-                GLOBAL_BONUS_START_DAMAGE + (index + 1) * GLOBAL_BONUS_STEP_DAMAGE;
-              const claimed = claimedGlobalBonus.has(milestoneDamage);
 
-              return `${claimed ? "✅" : "🟡"} ${fmt(
-                milestoneDamage
-              )} global bonus damage${claimed ? " — claimed" : " — claimable"}`;
-            }).join("\n")
+        globalBonusCount > 0
+          ? "**Global Bonus Milestones After 75M**"
+          : null,
+
+        globalBonusCount > 0
+          ? [
+              `Unlocked: **${fmt(globalBonusCount)}** milestone(s)`,
+              `Claimed: **${fmt(
+                claimedGlobalBonus.size
+              )}** milestone(s)`,
+              `Unclaimed: **${fmt(
+                Math.max(
+                  0,
+                  globalBonusCount -
+                    claimedGlobalBonus.size
+                )
+              )}** milestone(s)`,
+              `Reward each: **${fmt(
+                GLOBAL_BONUS_REWARD.berries
+              )} berries + ${fmt(
+                GLOBAL_BONUS_REWARD.ryumaTokens
+              )} Ryuma Tokens**`,
+              `Next milestone: **${fmt(
+                getNextGlobalMilestone(
+                  globalState.totalDamage
+                )
+              )} global damage**`,
+            ].join("\n")
           : null,
         "",
         "Use `op ryuma claim` or the Claim button to claim unlocked rewards.",

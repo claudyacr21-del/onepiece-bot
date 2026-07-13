@@ -167,6 +167,140 @@ function normalizeRaidState(rawRaids) {
   return raids;
 }
 
+function normalizeBossActivity(rawActivity) {
+  const activity =
+    rawActivity && typeof rawActivity === "object"
+      ? rawActivity
+      : {};
+
+  const contributors = {};
+
+  const rawContributors =
+    activity.contributors &&
+    typeof activity.contributors === "object"
+      ? activity.contributors
+      : {};
+
+  for (const [userId, rawContributor] of Object.entries(
+    rawContributors
+  )) {
+    const safeUserId = String(userId || "").trim();
+
+    if (!safeUserId) {
+      continue;
+    }
+
+    const contributor =
+      rawContributor &&
+      typeof rawContributor === "object"
+        ? rawContributor
+        : {};
+
+    const bosses = {};
+
+    const rawBosses =
+      contributor.bosses &&
+      typeof contributor.bosses === "object"
+        ? contributor.bosses
+        : {};
+
+    for (const [bossKey, rawBoss] of Object.entries(
+      rawBosses
+    )) {
+      const safeBossKey = String(bossKey || "").trim();
+
+      if (!safeBossKey) {
+        continue;
+      }
+
+      const boss =
+        rawBoss && typeof rawBoss === "object"
+          ? rawBoss
+          : {};
+
+      bosses[safeBossKey] = {
+        key: String(boss.key || safeBossKey),
+
+        islandCode: String(
+          boss.islandCode || "unknown_island"
+        ),
+
+        islandName: String(
+          boss.islandName || "Unknown Island"
+        ),
+
+        phase: Math.max(
+          0,
+          Math.floor(Number(boss.phase || 0))
+        ),
+
+        bossName: String(
+          boss.bossName || "Island Boss"
+        ),
+
+        attacks: Math.max(
+          0,
+          Math.floor(Number(boss.attacks || 0))
+        ),
+
+        points: Math.max(
+          0,
+          Math.floor(Number(boss.points || 0))
+        ),
+
+        lastAttackAt: Math.max(
+          0,
+          Number(boss.lastAttackAt || 0)
+        ),
+      };
+    }
+
+    contributors[safeUserId] = {
+      userId: safeUserId,
+
+      username: String(
+        contributor.username || "Unknown"
+      ),
+
+      attacks: Math.max(
+        0,
+        Math.floor(Number(contributor.attacks || 0))
+      ),
+
+      points: Math.max(
+        0,
+        Math.floor(Number(contributor.points || 0))
+      ),
+
+      lastAttackAt: Math.max(
+        0,
+        Number(contributor.lastAttackAt || 0)
+      ),
+
+      bosses,
+    };
+  }
+
+  return {
+    totalAttacks: Math.max(
+      0,
+      Math.floor(Number(activity.totalAttacks || 0))
+    ),
+
+    totalPoints: Math.max(
+      0,
+      Math.floor(Number(activity.totalPoints || 0))
+    ),
+
+    lastAttackAt: Math.max(
+      0,
+      Number(activity.lastAttackAt || 0)
+    ),
+
+    contributors,
+  };
+}
+
 function normalizePirate(raw) {
   const now = Date.now();
   const memberLimit = getPirateMemberLimit(raw);
@@ -215,8 +349,17 @@ function normalizePirate(raw) {
       berries: Math.max(0, Math.floor(Number(raw?.storage?.berries || 0))),
       materials: storageMaterials,
     },
-    perks: raw?.perks && typeof raw.perks === "object" ? raw.perks : {},
+    perks:
+      raw?.perks && typeof raw.perks === "object"
+        ? raw.perks
+        : {},
+
     raids: normalizeRaidState(raw?.raids || {}),
+
+    bossActivity: normalizeBossActivity(
+      raw?.bossActivity || {}
+    ),
+
     lastWeeklyReward:
       raw?.lastWeeklyReward && typeof raw.lastWeeklyReward === "object"
         ? raw.lastWeeklyReward

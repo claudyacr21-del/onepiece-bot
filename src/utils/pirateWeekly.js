@@ -54,7 +54,15 @@ function getPirateMemberRole(pirate, userId) {
 function resetPirateRaidState(pirate) {
   return {
     ...pirate,
+
     raids: {},
+
+    bossActivity: {
+      totalAttacks: 0,
+      totalPoints: 0,
+      lastAttackAt: 0,
+      contributors: {},
+    },
   };
 }
 
