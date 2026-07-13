@@ -145,26 +145,94 @@ function verifyDiscordListPayload(req) {
 }
 
 function getDiscordListUserId(payload) {
-  return String(
-    payload?.user_id ||
-      payload?.userId ||
-      payload?.user?.id ||
-      payload?.voter_id ||
-      payload?.voterId ||
-      payload?.voter?.id ||
-      payload?.id ||
-      ""
-  ).trim();
+  const candidates = [
+    payload?.data?.user?.platform_id,
+    payload?.data?.user?.discord_id,
+    payload?.data?.user?.discordId,
+    payload?.data?.user?.id,
+
+    payload?.data?.voter?.platform_id,
+    payload?.data?.voter?.discord_id,
+    payload?.data?.voter?.discordId,
+    payload?.data?.voter?.id,
+
+    payload?.data?.user_id,
+    payload?.data?.userId,
+    payload?.data?.voter_id,
+    payload?.data?.voterId,
+
+    payload?.user?.platform_id,
+    payload?.user?.discord_id,
+    payload?.user?.discordId,
+    payload?.user?.id,
+
+    payload?.voter?.platform_id,
+    payload?.voter?.discord_id,
+    payload?.voter?.discordId,
+    payload?.voter?.id,
+
+    payload?.user_id,
+    payload?.userId,
+    payload?.voter_id,
+    payload?.voterId,
+
+    payload?.discord_id,
+    payload?.discordId,
+
+    payload?.sub,
+  ];
+
+  const found = candidates.find((value) => {
+    return /^\d{15,25}$/.test(String(value || "").trim());
+  });
+
+  return found ? String(found).trim() : "";
 }
 
 function getDiscordListEventId(payload, userId) {
-  return String(
+  const eventId =
+    payload?.data?.id ||
+    payload?.data?.event_id ||
+    payload?.data?.eventId ||
+    payload?.data?.vote_id ||
+    payload?.data?.voteId ||
     payload?.event_id ||
-      payload?.eventId ||
-      payload?.vote_id ||
-      payload?.voteId ||
-      payload?.jti ||
-      `${userId}:${payload?.iat || payload?.timestamp || Date.now()}`
+    payload?.eventId ||
+    payload?.vote_id ||
+    payload?.voteId ||
+    payload?.jti ||
+    payload?.id ||
+    "";
+
+  if (eventId) {
+    return String(eventId);
+  }
+
+  const timestamp =
+    payload?.data?.created_at ||
+    payload?.data?.createdAt ||
+    payload?.data?.timestamp ||
+    payload?.created_at ||
+    payload?.createdAt ||
+    payload?.timestamp ||
+    payload?.iat ||
+    Date.now();
+
+  return `${userId}:${timestamp}`;
+}
+
+function getDiscordListUsername(payload) {
+  return String(
+    payload?.data?.user?.username ||
+      payload?.data?.user?.name ||
+      payload?.data?.voter?.username ||
+      payload?.data?.voter?.name ||
+      payload?.user?.username ||
+      payload?.user?.name ||
+      payload?.voter?.username ||
+      payload?.voter?.name ||
+      payload?.username ||
+      "Unknown"
   );
 }
 
@@ -257,11 +325,18 @@ async function handleDiscordListVote(
 
   if (!userId) {
     console.warn(
-      "[DISCORDLIST] Missing user ID:",
-      payload
+      "[DISCORDLIST] Missing Discord user ID.",
+      {
+        payloadKeys: Object.keys(payload || {}),
+        dataKeys: Object.keys(payload?.data || {}),
+        payload,
+      }
     );
 
-    return;
+    return {
+      ok: false,
+      reason: "missing_user_id",
+    };
   }
 
   const eventId = getDiscordListEventId(
@@ -269,12 +344,8 @@ async function handleDiscordListVote(
     userId
   );
 
-  const username = String(
-    payload?.username ||
-      payload?.user?.username ||
-      payload?.voter?.username ||
-      "Unknown"
-  );
+  const username =
+    getDiscordListUsername(payload);
 
   let reward = null;
   let duplicate = false;
@@ -352,6 +423,9 @@ async function handleDiscordListVote(
           lastVoteAt:
             now,
 
+          cooldownUntil:
+            now + VOTE_COOLDOWN_MS,
+
           lastEventId:
             String(eventId || ""),
 
@@ -366,10 +440,16 @@ async function handleDiscordListVote(
   if (duplicate) {
     console.log(
       "[DISCORDLIST] Duplicate vote ignored:",
-      eventId
+      {
+        userId,
+        eventId,
+      }
     );
 
-    return;
+    return {
+      ok: true,
+      duplicate: true,
+    };
   }
 
   if (!reward) {
@@ -381,7 +461,10 @@ async function handleDiscordListVote(
       }
     );
 
-    return;
+    return {
+      ok: false,
+      reason: "reward_not_generated",
+    };
   }
 
   await sendDiscordListVoteDm(
@@ -399,6 +482,14 @@ async function handleDiscordListVote(
         DISCORDLIST_LEGEND_BOX_REWARD,
     }
   );
+
+  return {
+    ok: true,
+    duplicate: false,
+    userId,
+    eventId,
+    reward,
+  };
 }
 
 function checkAuthorization(req) {
@@ -667,51 +758,78 @@ function startTopggWebhookServer(client) {
 
   app.post("/discordlist", async (req, res) => {
     try {
-      console.log(
-        "[DISCORDLIST] Raw webhook body received:",
-        req.body
-      );
-
-      const payload = verifyDiscordListPayload(req);
+      const payload =
+        verifyDiscordListPayload(req);
 
       console.log(
-        "[DISCORDLIST] Verified vote payload:",
-        payload
+        "[DISCORDLIST] Verified payload:",
+        JSON.stringify(payload)
       );
 
       const payloadType = String(
         payload?.type ||
           payload?.event ||
+          payload?.data?.type ||
+          payload?.data?.event ||
           ""
       ).toLowerCase();
 
-      if (
+      const isTest =
         payloadType.includes("test") ||
-        payload?.test === true
-      ) {
+        payload?.test === true ||
+        payload?.data?.test === true;
+
+      if (isTest) {
+        console.log(
+          "[DISCORDLIST] Webhook test accepted."
+        );
+
         return res.status(200).json({
           ok: true,
           test: true,
         });
       }
 
-      await handleDiscordListVote(
-        client,
-        payload
-      );
+      const result =
+        await handleDiscordListVote(
+          client,
+          payload
+        );
+
+      if (!result?.ok) {
+        console.warn(
+          "[DISCORDLIST] Vote was accepted but no reward was granted:",
+          result
+        );
+
+        return res.status(200).json({
+          ok: true,
+          processed: false,
+          reason:
+            result?.reason ||
+            "unknown_payload",
+        });
+      }
 
       return res.status(200).json({
         ok: true,
+        processed: true,
+        duplicate:
+          Boolean(result.duplicate),
       });
     } catch (error) {
       console.error(
         "[DISCORDLIST] Webhook error:",
-        error?.message || error
+        error?.stack ||
+          error?.message ||
+          error
       );
 
       return res.status(200).json({
         ok: false,
-        error: error?.message || "invalid_webhook",
+        error:
+          error?.message ||
+          "invalid_webhook",
       });
     }
   });

@@ -15,12 +15,50 @@ const DISCORDLIST_URL =
 const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const RAID_TICKET_STREAK_TARGET = 25;
 
-function getVoteCooldownAt(player) {
-  const cooldownVote = Number(player?.cooldowns?.vote || 0);
-  const lastVoteAt = Number(player?.vote?.lastVoteAt || 0);
-  const fallbackCooldown = lastVoteAt > 0 ? lastVoteAt + VOTE_COOLDOWN_MS : 0;
+function getTopggCooldownAt(player) {
+  const cooldownVote = Number(
+    player?.cooldowns?.vote || 0
+  );
 
-  return Math.max(cooldownVote, fallbackCooldown);
+  const lastVoteAt = Number(
+    player?.vote?.lastVoteAt || 0
+  );
+
+  const fallbackCooldown =
+    lastVoteAt > 0
+      ? lastVoteAt + VOTE_COOLDOWN_MS
+      : 0;
+
+  return Math.max(
+    cooldownVote,
+    fallbackCooldown
+  );
+}
+
+function getDiscordListCooldownAt(player) {
+  const voteData =
+    player?.discordListVote &&
+    typeof player.discordListVote === "object"
+      ? player.discordListVote
+      : {};
+
+  const storedCooldown = Number(
+    voteData.cooldownUntil || 0
+  );
+
+  const lastVoteAt = Number(
+    voteData.lastVoteAt || 0
+  );
+
+  const fallbackCooldown =
+    lastVoteAt > 0
+      ? lastVoteAt + VOTE_COOLDOWN_MS
+      : 0;
+
+  return Math.max(
+    storedCooldown,
+    fallbackCooldown
+  );
 }
 
 function formatCooldown(timestamp) {
@@ -57,7 +95,23 @@ function buildVoteEmbed(message, player) {
 
   const streak = Number(voteData.streak || 0);
 
-  const cooldownAt = getVoteCooldownAt(player);
+  const topggCooldownAt =
+    getTopggCooldownAt(player);
+
+  const discordListCooldownAt =
+    getDiscordListCooldownAt(player);
+
+  const discordListVoteData =
+    player?.discordListVote || {};
+
+  const discordListTotalVotes = Math.max(
+    0,
+    Math.floor(
+      Number(
+        discordListVoteData.totalVotes || 0
+      )
+    )
+  );
 
   const nextRaidTicketIn =
     getNextRaidTicketIn(streak);
@@ -75,13 +129,18 @@ function buildVoteEmbed(message, player) {
         "> 🎟️ Pull Reset Ticket x1",
         "> 💰 5,000 Berries",
         "",
-        `Cooldown: **${formatCooldown(cooldownAt)}**`,
+        `Cooldown: **${formatCooldown(
+          topggCooldownAt
+        )}**`,
         "",
 
         "## 🟣 DiscordList.gg",
         "> Reward:",
         "> 📦 Legend Resource Box x2",
-        "> Cooldown: 12 Hours",
+        `> Cooldown: **${formatCooldown(
+          discordListCooldownAt
+        )}**`,
+        `> Total Votes: **${discordListTotalVotes}**`,
         "",
 
         "## 🟢 Botlist.me",
