@@ -81,7 +81,24 @@ function isTestPayload(body) {
   return false;
 }
 
-function getDiscordListToken(body) {
+function getDiscordListToken(req) {
+  const authorization = String(
+    req?.get?.("Authorization") ||
+      req?.get?.("authorization") ||
+      req?.headers?.authorization ||
+      req?.headers?.["x-webhook-signature"] ||
+      req?.headers?.["x-signature"] ||
+      ""
+  )
+    .replace(/^Bearer\s+/i, "")
+    .trim();
+
+  if (authorization) {
+    return authorization;
+  }
+
+  const body = req?.body;
+
   if (typeof body === "string") {
     return body.trim();
   }
@@ -89,13 +106,14 @@ function getDiscordListToken(body) {
   return String(
     body?.token ||
       body?.jwt ||
+      body?.authorization ||
       body?.data?.token ||
       body?.data?.jwt ||
       ""
   ).trim();
 }
 
-function verifyDiscordListPayload(body) {
+function verifyDiscordListPayload(req) {
   const secret = String(
     process.env.DISCORDLIST_WEBHOOK_SECRET || ""
   ).trim();
@@ -106,11 +124,20 @@ function verifyDiscordListPayload(body) {
     );
   }
 
-  const token = getDiscordListToken(body);
+  const token = getDiscordListToken(req);
 
   if (!token) {
+    console.log("[DISCORDLIST] Request headers:", {
+      authorization: Boolean(
+        req?.headers?.authorization
+      ),
+      contentType:
+        req?.headers?.["content-type"] || null,
+      headerNames: Object.keys(req?.headers || {}),
+    });
+
     throw new Error(
-      "DiscordList JWT token was not found in the request body."
+      "DiscordList JWT token was not found in the request headers or body."
     );
   }
 
@@ -645,8 +672,7 @@ function startTopggWebhookServer(client) {
         req.body
       );
 
-      const payload =
-        verifyDiscordListPayload(req.body || {});
+      const payload = verifyDiscordListPayload(req);
 
       console.log(
         "[DISCORDLIST] Verified vote payload:",
@@ -683,9 +709,9 @@ function startTopggWebhookServer(client) {
         error?.message || error
       );
 
-      return res.status(401).json({
+      return res.status(200).json({
         ok: false,
-        error: "invalid_webhook",
+        error: error?.message || "invalid_webhook",
       });
     }
   });
