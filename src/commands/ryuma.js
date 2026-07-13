@@ -309,7 +309,7 @@ const SHOP_ITEMS = [
     key: "pull_reset_ticket",
     name: "Pull Reset Ticket",
     price: 900,
-    limit: 3,
+    limit: 50,
     aliases: ["pull reset", "pull reset ticket", "pull reset tickets", "reset"],
     rewards: {
       tickets: [
