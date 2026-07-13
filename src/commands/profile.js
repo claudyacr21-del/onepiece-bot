@@ -872,12 +872,34 @@ function getCaptainBadges(player, options = {}) {
 
   if (!badges.length) return "None";
 
-  const visibleBadges = badges.slice(0, 18);
-  const hiddenCount = Math.max(0, badges.length - visibleBadges.length);
+  const BADGES_PER_LINE = 12;
+  const MAX_VISIBLE_BADGES = 96;
 
-  return hiddenCount
-    ? `${visibleBadges.join(" ")} +${hiddenCount} more`
-    : visibleBadges.join(" ");
+  const visibleBadges = badges.slice(0, MAX_VISIBLE_BADGES);
+  const hiddenCount = Math.max(
+    0,
+    badges.length - visibleBadges.length
+  );
+
+  const badgeLines = [];
+
+  for (
+    let index = 0;
+    index < visibleBadges.length;
+    index += BADGES_PER_LINE
+  ) {
+    badgeLines.push(
+      visibleBadges
+        .slice(index, index + BADGES_PER_LINE)
+        .join(" ")
+    );
+  }
+
+  if (hiddenCount > 0) {
+    badgeLines.push(`+${hiddenCount} more badges`);
+  }
+
+  return badgeLines.join("\n");
 }
 
 function line(label, value) {
@@ -1134,7 +1156,7 @@ module.exports = {
             ),
             line("Pirates", pirateProfileText),
             line("Ship", `${ship.name} • Tier ${ship.tier}`),
-            rawLine("Badges", captainBadges),
+            `↪ Badges:\n${captainBadges}`,
             "",
             " **Wallet**",
             line("Berries", safeLocaleNumber(player.berries)),
