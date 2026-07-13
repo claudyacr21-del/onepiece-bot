@@ -30,10 +30,7 @@ const MARKET_ITEMS = [
   {
     code: "random_universal_fragment",
     aliases: [
-      "fragment",
-      "frag",
-      "universal fragment",
-      "random fragment",
+      "fgems",
     ],
     name: "Random Universal Fragment",
     price: 100,
@@ -41,6 +38,20 @@ const MARKET_ITEMS = [
     inventory: "items",
     randomItem: pickRandomUniversalFragment,
     description: "Random Universal C/B/A/S Fragment.",
+    usageText: "Use `op inv` to check your inventory.",
+  },
+  {
+    code: "random_universal_fragment",
+    aliases: [
+      "fberry",
+    ],
+    name: "Random Universal Fragment",
+    price: 800000,
+    currency: "berries",
+    inventory: "items",
+    randomItem: pickRandomUniversalFragment,
+    description:
+      "Random Universal C/B/A/S Fragment bought with berries.",
     usageText: "Use `op inv` to check your inventory.",
   },
   {
@@ -278,7 +289,8 @@ function buildMarketEmbed(player, message) {
     "`op buy iron 3`",
     "`op buy royal 10`",
     "`op buy rum 5`",
-    "`op buy fragment 2`"
+    "`op buy fgems 2`",
+    "`op buy fberry 2`"
   );
 
   return new EmbedBuilder()
