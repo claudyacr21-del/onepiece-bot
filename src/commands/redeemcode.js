@@ -619,7 +619,7 @@ module.exports = {
                   "",
                   "Equip the OPB Server Tag on your Discord profile, then try the command again.",
                   "",
-                  `Use: \`op redeem ${code}\``,
+                  `Use: \`op redeemcode ${code}\``,
                 ].join("\n")
               )
               .setFooter({
