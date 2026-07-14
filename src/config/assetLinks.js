@@ -450,9 +450,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1499299518708187146/content.png?ex=69f44afc&is=69f2f97c&hm=be1f0e1c4fe741eaae0ec7b99a708953d84d1093a2efe5e5d2313df014d2a106&",
   },
   brook_soul_king: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1526457742502395934/brook_1.png?ex=6a57180e&is=6a55c68e&hm=af6aefc9f95443347c9bbca8531ab6b5ef9e3d55fe1734ed284985497f59feae&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1526457742221512776/brook_2.png?ex=6a57180d&is=6a55c68d&hm=c40f4f55d9073a826c35a0b248ef085dba829ffe778e032f82d1887e6eac6056&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1526457741944819805/brook_3.png?ex=6a57180d&is=6a55c68d&hm=136b17fa96fcc1e9ad49aa170f6b17c8148515c457086903b1fb2f3f3f1c76b9&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1526528170881454201/brook_1.jpg?ex=6a5759a5&is=6a560825&hm=92859effb6b2bd941c7127c5f5a29946ab42e0a7ce7e667ac6ec8358860c31cd&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1526528171221061712/brook-2.jpg?ex=6a5759a5&is=6a560825&hm=ee31a2c7b05945f324415fbdc6b300c6272b611a584ef838fad76e5e9e80fdb9&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1526528171854532679/brook-3.jpg?ex=6a5759a5&is=6a560825&hm=89d65793353fe269e3e872aa93f7c9051265e91543f9b1b97c122e04aa54c5cb&",
   },
   gecko_moria: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499321141620117604/content.png?ex=69f45f20&is=69f30da0&hm=70c893c0089f2b3179ad4dbaac0983f89ec42d97a6f7fd7dd0ac0d766dce72f8&",
