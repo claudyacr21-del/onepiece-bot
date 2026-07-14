@@ -87,13 +87,34 @@ function getNextRaidTicketIn(streak) {
 }
 
 function buildVoteEmbed(message, player) {
-  const voteData = player.vote || {
-    streak: 0,
-    totalVotes: 0,
-    lastVoteAt: null,
-  };
+  const topggVote =
+    player?.vote &&
+    typeof player.vote === "object"
+      ? player.vote
+      : {};
 
-  const streak = Number(voteData.streak || 0);
+  const discordListVote =
+    player?.discordListVote &&
+    typeof player.discordListVote === "object"
+      ? player.discordListVote
+      : {};
+
+  const topggStreak = Math.max(
+    0,
+    Math.floor(Number(topggVote.streak || 0))
+  );
+
+  const topggTotalVotes = Math.max(
+    0,
+    Math.floor(Number(topggVote.totalVotes || 0))
+  );
+
+  const discordListTotalVotes = Math.max(
+    0,
+    Math.floor(
+      Number(discordListVote.totalVotes || 0)
+    )
+  );
 
   const topggCooldownAt =
     getTopggCooldownAt(player);
@@ -101,68 +122,57 @@ function buildVoteEmbed(message, player) {
   const discordListCooldownAt =
     getDiscordListCooldownAt(player);
 
-  const discordListVoteData =
-    player?.discordListVote || {};
-
-  const discordListTotalVotes = Math.max(
-    0,
-    Math.floor(
-      Number(
-        discordListVoteData.totalVotes || 0
-      )
-    )
-  );
-
   const nextRaidTicketIn =
-    getNextRaidTicketIn(streak);
+    getNextRaidTicketIn(topggStreak);
 
   return new EmbedBuilder()
     .setColor(0x8e44ad)
-    .setTitle("🗳️ Vote For One Piece Bot")
+    .setTitle("🗳️ Vote for One Piece Bot")
     .setDescription(
       [
-        "Support One Piece Bot by voting on the platforms below and receive exclusive rewards!",
+        "Support the bot by voting on the platforms below. Each platform has its own reward and cooldown.",
         "",
 
         "## 🔵 Top.gg",
-        "> Reward:",
-        "> 🎟️ Pull Reset Ticket x1",
-        "> 💰 5,000 Berries",
+        "🎁 **Reward**",
+        "• Pull Reset Ticket x1",
+        "• 5,000 Berries",
         "",
-        `Cooldown: **${formatCooldown(
+        `⏳ **Cooldown:** ${formatCooldown(
           topggCooldownAt
-        )}**`,
+        )}`,
+        `🗳️ **Total Votes:** ${topggTotalVotes}`,
+        `🔥 **Current Streak:** ${topggStreak}`,
+        `🎫 **Next Raid Ticket:** ${nextRaidTicketIn} vote(s)`,
         "",
+        "Every **25 Top.gg vote streak** rewards **Raid Ticket x1**.",
 
+        "",
         "## 🟣 DiscordList.gg",
-        "> Reward:",
-        "> 📦 Legend Resource Box x2",
-        `> Cooldown: **${formatCooldown(
+        "🎁 **Reward**",
+        "• Legend Resource Box x2",
+        "",
+        `⏳ **Cooldown:** ${formatCooldown(
           discordListCooldownAt
-        )}**`,
-        `> Total Votes: **${discordListTotalVotes}**`,
-        "",
+        )}`,
+        `🗳️ **Total Votes:** ${discordListTotalVotes}`,
 
+        "",
         "## 🟢 Botlist.me",
-        "> 🚧 Coming Soon...",
-        "> Our listing is currently under review.",
-        "> Reward:",
-        "> 📦 Legend Resource Box x2",
+        "🚧 **Coming Soon**",
+        "• Legend Resource Box x2",
         "",
+        "The Botlist.me listing is currently under review.",
 
-        "---",
         "",
-        "**Vote Streak**",
-        `Current Streak: **${streak}**`,
-        `Next Raid Ticket: **${nextRaidTicketIn} vote(s)**`,
-        "",
-        "Every **25 Vote Streak** rewards **Raid Ticket x1**.",
-        "",
-        "💜 You'll automatically receive a DM reminder when your vote cooldown becomes available.",
+        "💜 The bot will send a DM after a vote reward is successfully granted.",
       ].join("\n")
     )
     .setThumbnail(
-      message.client.user.displayAvatarURL()
+      message.client.user.displayAvatarURL({
+        extension: "png",
+        size: 512,
+      })
     )
     .setFooter({
       text: "One Piece Bot • Vote System",
