@@ -127,25 +127,33 @@ function verifyDiscordListPayload(req) {
   const token = getDiscordListToken(req);
 
   if (!token) {
-    console.log("[DISCORDLIST] Request headers:", {
-      authorization: Boolean(
-        req?.headers?.authorization
-      ),
+    console.log("[DISCORDLIST] Request parsing debug:", {
+      bodyType: typeof req?.body,
+      bodyLength:
+        typeof req?.body === "string"
+          ? req.body.length
+          : 0,
       contentType:
         req?.headers?.["content-type"] || null,
-      headerNames: Object.keys(req?.headers || {}),
+      authorizationHeader:
+        Boolean(req?.headers?.authorization),
     });
 
     throw new Error(
-      "DiscordList JWT token was not found in the request headers or body."
+      "DiscordList JWT token was not found in the request body."
     );
   }
 
-  return jwt.verify(token, secret);
+  return jwt.verify(token, secret, {
+    algorithms: ["HS256"],
+  });
 }
 
 function getDiscordListUserId(payload) {
   const candidates = [
+    payload?.data?.user,
+    payload?.data?.voter,
+
     payload?.data?.user?.platform_id,
     payload?.data?.user?.discord_id,
     payload?.data?.user?.discordId,
@@ -160,6 +168,9 @@ function getDiscordListUserId(payload) {
     payload?.data?.userId,
     payload?.data?.voter_id,
     payload?.data?.voterId,
+
+    payload?.user,
+    payload?.voter,
 
     payload?.user?.platform_id,
     payload?.user?.discord_id,
@@ -178,15 +189,18 @@ function getDiscordListUserId(payload) {
 
     payload?.discord_id,
     payload?.discordId,
-
     payload?.sub,
   ];
 
   const found = candidates.find((value) => {
-    return /^\d{15,25}$/.test(String(value || "").trim());
+    return /^\d{15,25}$/.test(
+      String(value || "").trim()
+    );
   });
 
-  return found ? String(found).trim() : "";
+  return found
+    ? String(found).trim()
+    : "";
 }
 
 function getDiscordListEventId(payload, userId) {
@@ -661,7 +675,22 @@ function startTopggWebhookServer(client) {
 
   const app = express();
 
-  app.use(express.json({ limit: "2mb" }));
+  app.use(
+    express.text({
+      type: [
+        "text/plain",
+        "application/jwt",
+        "application/octet-stream",
+      ],
+      limit: "2mb",
+    })
+  );
+
+  app.use(
+    express.json({
+      limit: "2mb",
+    })
+  );
 
   app.get("/", (_, res) => {
     res.status(200).send("onepiece-bot ok");
@@ -758,6 +787,19 @@ function startTopggWebhookServer(client) {
 
   app.post("/discordlist", async (req, res) => {
     try {
+      console.log(
+        "[DISCORDLIST] Webhook body received:",
+        {
+          bodyType: typeof req.body,
+          bodyLength:
+            typeof req.body === "string"
+              ? req.body.length
+              : 0,
+          contentType:
+            req.headers?.["content-type"] || null,
+        }
+      );
+
       const payload =
         verifyDiscordListPayload(req);
 
