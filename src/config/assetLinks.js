@@ -15,9 +15,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1526558061131464805/luffy_3.jpg?ex=6a57757b&is=6a5623fb&hm=2e0d4b10cf6b7bfdce3db43bed3001faf0129d35c046c3c9b76092c3f48faca5&",
   },
   zoro_pirate_hunter: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1504807809131221112/content.png?ex=6a0854fb&is=6a07037b&hm=089ae22ce421f20a274831ece71cf9b0185202d0a908a3024aa8a3915089825c&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1504807809748041758/content.png?ex=6a0854fb&is=6a07037b&hm=69746cba81cd2a12f75d0e7577f3f1223564c795239beb11f4b815a6aeed0064&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1504822197850472538/content.png?ex=6a086262&is=6a0710e2&hm=28197c4b3b66daee82917dbbdb54721f940aa4ca8d44925ee7633e172682688b",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1526562981306044657/zoro_1.jpg?ex=6a577a10&is=6a562890&hm=232aaaa709d0f6e6ea5d2083873f5d67781e16a6e890065ce3dac7bb78fecd41&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1526562981721145344/zoro_2.jpg?ex=6a577a11&is=6a562891&hm=230e6fbff0239f921b96ca3e6d4b6e2638bd2ab587d19ae6432a3d7ef6942e2c&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1526562982228660264/zoro_3.jpg?ex=6a577a11&is=6a562891&hm=0360a8996f9338bc57657473723a6892dc2bf2f536f2681c8d02f6f4808e1751&",
   },
   nami_cat_burglar: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1507247862050979980/content.png?ex=6a113575&is=6a0fe3f5&hm=766de8f09e051efd76113b67a049c1655a2833fb2b3f07c76f9147c4786b351d&",

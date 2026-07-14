@@ -1,5 +1,6 @@
 const { readPlayers } = require("../playerStore");
 const rawCards = require("../data/cards");
+const { isMergeCard } = require("../utils/mergeCards");
 
 let allBattleCardMasterRoleRunning = false;
 
@@ -24,7 +25,17 @@ function getCardCode(card) {
 }
 
 function isBattleCard(card) {
-  const role = String(card?.cardRole || card?.role || "battle")
+  if (!card) return false;
+
+  if (isMergeCard(card)) {
+    return false;
+  }
+
+  const role = String(
+    card?.cardRole ||
+      card?.role ||
+      "battle"
+  )
     .toLowerCase()
     .trim();
 
