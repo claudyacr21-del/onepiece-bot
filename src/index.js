@@ -1153,6 +1153,49 @@ client.on("messageCreate", async (message) => {
     }
 
     if (commandError) {
+      if (isIgnorableDiscordInteractionError(commandError)) {
+        if (
+          String(
+            process.env.LOG_IGNORED_INTERACTIONS || "false"
+          )
+            .toLowerCase()
+            .trim() === "true"
+        ) {
+          console.warn(
+            "[IGNORED COMMAND INTERACTION ERROR]",
+            {
+              commandName:
+                command?.name || commandName,
+
+              authorId:
+                String(
+                  message.author?.id || ""
+                ),
+
+              channelId:
+                String(
+                  message.channel?.id || ""
+                ),
+
+              code:
+                Number(
+                  commandError?.code ||
+                    commandError?.rawError?.code ||
+                    0
+                ),
+
+              message:
+                String(
+                  commandError?.message ||
+                    "Unknown interaction"
+                ),
+            }
+          );
+        }
+
+        return;
+      }
+
       throw commandError;
     }
   } catch (error) {
