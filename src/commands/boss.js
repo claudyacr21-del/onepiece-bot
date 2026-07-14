@@ -2957,22 +2957,12 @@ module.exports = {
     }
 
     let phaseBossResult = null;
+    let activeSessionReserved = false;
 
     if (isPhasedIsland(currentIsland) && !requestedPhase) {
-      phaseBossResult = await chooseBossPhase(message, player, currentIsland);
-      if (phaseBossResult?.cancelled) return;
-    } else {
-      phaseBossResult = getRequestedBossPhase(player, currentIsland, args);
-    }
-
-    if (phaseBossResult?.error) {
-      return message.reply(phaseBossResult.error);
-    }
-
-    const phaseBoss = phaseBossResult;
-
-    if (isBossPhaseTwoParty(currentIsland, phaseBoss)) {
-      const activeSession = startActiveBossSession(message.author.id);
+      const activeSession = startActiveBossSession(
+        message.author.id
+      );
 
       if (!activeSession.ok) {
         return message.reply(
@@ -2982,7 +2972,72 @@ module.exports = {
         );
       }
 
-      const lobby = await waitForBossJoinLobby(message, currentIsland, phaseBoss);
+      activeSessionReserved = true;
+
+      phaseBossResult = await chooseBossPhase(
+        message,
+        player,
+        currentIsland
+      );
+
+      if (phaseBossResult?.cancelled) {
+        clearActiveBossSession(
+          message.author.id
+        );
+
+        return;
+      }
+    } else {
+      phaseBossResult = getRequestedBossPhase(
+        player,
+        currentIsland,
+        args
+      );
+    }
+
+    if (phaseBossResult?.error) {
+      if (activeSessionReserved) {
+        clearActiveBossSession(
+          message.author.id
+        );
+      }
+
+      return message.reply(
+        phaseBossResult.error
+      );
+    }
+
+    const phaseBoss = phaseBossResult;
+
+    if (
+      isBossPhaseTwoParty(
+        currentIsland,
+        phaseBoss
+      )
+    ) {
+      if (!activeSessionReserved) {
+        const activeSession =
+          startActiveBossSession(
+            message.author.id
+          );
+
+        if (!activeSession.ok) {
+          return message.reply(
+            `You already have an active boss UI. Finish it first or wait **${formatRemaining(
+              activeSession.remaining
+            )}**.`
+          );
+        }
+
+        activeSessionReserved = true;
+      }
+
+      const lobby =
+        await waitForBossJoinLobby(
+          message,
+          currentIsland,
+          phaseBoss
+        );
 
       if (!lobby.approved || lobby.cancelled) {
         clearActiveBossSession(message.author.id);
@@ -3584,17 +3639,28 @@ if (interaction.customId === "boss_raid_run") {
       return message.reply("You need a full battle team of 3 cards to challenge the island boss.");
     }
 
-    const activeSession = startActiveBossSession(message.author.id);
+    if (!activeSessionReserved) {
+      const activeSession =
+        startActiveBossSession(
+          message.author.id
+        );
 
-    if (!activeSession.ok) {
-      return message.reply(
-        `You already have an active boss UI. Finish it first or wait **${formatRemaining(
-          activeSession.remaining
-        )}**.`
-      );
+      if (!activeSession.ok) {
+        return message.reply(
+          `You already have an active boss UI. Finish it first or wait **${formatRemaining(
+            activeSession.remaining
+          )}**.`
+        );
+      }
+
+      activeSessionReserved = true;
     }
 
-    startBossCooldownNow(message.author.id, message.author.username, effectiveBossCooldownMs);
+    startBossCooldownNow(
+      message.author.id,
+      message.author.username,
+      effectiveBossCooldownMs
+    );
 
     const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
     const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
