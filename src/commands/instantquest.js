@@ -16,12 +16,14 @@ const MOTHER_FLAME_MAX_INSTANT_QUEST_PER_DAY = 2;
 const VIVRE_CARD_MAX_INSTANT_QUEST_PER_DAY = 1;
 
 function getTodayKey() {
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(now.getUTCDate()).padStart(2, "0");
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 
-  return `${y}-${m}-${d}`;
+  return formatter.format(new Date());
 }
 
 function getMaxInstantQuestPerDay(tier) {
