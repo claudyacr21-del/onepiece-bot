@@ -1176,12 +1176,7 @@ module.exports = {
     let processingMessage = null;
 
     const replyOrEdit = async (payload) => {
-      if (processingMessage && typeof processingMessage.edit === "function") {
-        return processingMessage.edit(payload).catch(() => message.reply(payload));
-      }
-
-      processingMessage = await message.reply(payload);
-      return processingMessage;
+      return message.reply(payload);
     };
 
     if (PULL_COMMAND_LOCKS.has(paLockKey)) {
@@ -1243,15 +1238,6 @@ try {
       (sum, slot) => sum + Number(slot.remaining || 0),
       0
     );
-
-    if (availableTotal > 0) {
-      processingMessage = await message.reply({
-        content: `Pulling all available slots... (${availableTotal} pull${availableTotal === 1 ? "" : "s"})`,
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
 
     if (availableTotal <= 0) {
       return replyOrEdit({
