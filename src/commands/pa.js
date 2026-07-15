@@ -1118,16 +1118,23 @@ function savePullAllResultFresh(
 function addDuplicateCardReward({
   player,
   reward,
+  amount = 1,
   updatedCards,
   updatedFragments,
 }) {
-  const autoLevelResult = applyAutoLevelForDuplicate({
-    cards: updatedCards,
-    fragments: updatedFragments,
-    autoLevel: player.autoLevel,
-    pulledCard: reward,
-    amount: 1,
-  });
+  const safeAmount = Math.max(
+    1,
+    Math.floor(Number(amount || 1))
+  );
+
+  const autoLevelResult =
+    applyAutoLevelForDuplicate({
+      cards: updatedCards,
+      fragments: updatedFragments,
+      autoLevel: player.autoLevel,
+      pulledCard: reward,
+      amount: safeAmount,
+    });
 
   let nextCards = autoLevelResult.cards;
   let nextFragments = autoLevelResult.fragments;
@@ -1136,42 +1143,88 @@ function addDuplicateCardReward({
   let convertedCount = 0;
   let fragmentCount = 0;
 
-  if (autoLevelResult.levelGained > 0) {
-    duplicateNote = ` → Auto Level +${autoLevelResult.levelGained}`;
-  } else {
-    const storedAmount = Number(autoLevelResult.fragmentsStored || 1);
+  const levelGained = Math.max(
+    0,
+    Number(autoLevelResult.levelGained || 0)
+  );
 
-    const fragmentsBeforeAutoSac = removeFragmentAmount(
-      autoLevelResult.fragments,
-      reward,
-      storedAmount
-    );
+  const storedAmount = Math.max(
+    0,
+    Number(
+      autoLevelResult.fragmentsStored || 0
+    )
+  );
 
-    const sacResult = addFragmentWithAutoSac(
-      player,
-      fragmentsBeforeAutoSac,
-      reward,
-      storedAmount
-    );
+  if (levelGained > 0) {
+    duplicateNote =
+      ` → Auto Level +${levelGained}`;
+
+    if (storedAmount <= 0) {
+      return {
+        cards: nextCards,
+        fragments: nextFragments,
+        duplicateNote,
+        convertedBerries,
+        convertedCount,
+        fragmentCount,
+      };
+    }
+  }
+
+  if (storedAmount > 0) {
+    const fragmentsBeforeAutoSac =
+      removeFragmentAmount(
+        autoLevelResult.fragments,
+        reward,
+        storedAmount
+      );
+
+    const sacResult =
+      addFragmentWithAutoSac(
+        player,
+        fragmentsBeforeAutoSac,
+        reward,
+        storedAmount
+      );
 
     nextFragments = sacResult.fragments;
 
-    if (Number(sacResult.sacrificed || 0) > 0) {
-      convertedBerries += Number(sacResult.berries || 0);
-      convertedCount += Number(sacResult.sacrificed || 0);
-      duplicateNote = ` → ${sacResult.reason} (+${Number(
+    const sacrificed = Math.max(
+      0,
+      Number(sacResult.sacrificed || 0)
+    );
+
+    const added = Math.max(
+      0,
+      Number(sacResult.added || 0)
+    );
+
+    if (sacrificed > 0) {
+      convertedBerries += Number(
         sacResult.berries || 0
-      ).toLocaleString("en-US")} berries)`;
-    } else {
-      fragmentCount += Number(sacResult.added || 0);
-      duplicateNote = ` → Duplicate (+${Number(sacResult.added || storedAmount)} fragment)`;
+      );
+
+      convertedCount += sacrificed;
+
+      duplicateNote +=
+        ` → ${sacResult.reason}` +
+        ` (+${Number(
+          sacResult.berries || 0
+        ).toLocaleString("en-US")} berries)`;
+    } else if (added > 0) {
+      fragmentCount += added;
+
+      duplicateNote +=
+        ` → Duplicate (+${added} fragments)`;
     }
   }
 
   return {
     cards: nextCards,
     fragments: nextFragments,
-    duplicateNote,
+    duplicateNote:
+      duplicateNote ||
+      ` → Duplicate x${safeAmount}`,
     convertedBerries,
     convertedCount,
     fragmentCount,
@@ -1181,27 +1234,58 @@ function addDuplicateCardReward({
 function addDuplicateWeaponReward({
   player,
   reward,
+  amount = 1,
   updatedFragments,
 }) {
-  const weaponFragment = buildWeaponFragmentPayload(reward);
-  const sacResult = addFragmentWithAutoSac(player, updatedFragments, weaponFragment, 1);
+  const safeAmount = Math.max(
+    1,
+    Math.floor(Number(amount || 1))
+  );
+
+  const weaponFragment =
+    buildWeaponFragmentPayload(reward);
+
+  const sacResult =
+    addFragmentWithAutoSac(
+      player,
+      updatedFragments,
+      weaponFragment,
+      safeAmount
+    );
 
   let duplicateNote = "";
   let convertedBerries = 0;
   let convertedCount = 0;
   let fragmentCount = 0;
 
-  if (Number(sacResult.sacrificed || 0) > 0) {
-    convertedBerries += Number(sacResult.berries || 0);
-    convertedCount += Number(sacResult.sacrificed || 0);
-    duplicateNote = ` → ${sacResult.reason} (+${Number(
+  const sacrificed = Math.max(
+    0,
+    Number(sacResult.sacrificed || 0)
+  );
+
+  const added = Math.max(
+    0,
+    Number(sacResult.added || 0)
+  );
+
+  if (sacrificed > 0) {
+    convertedBerries += Number(
       sacResult.berries || 0
-    ).toLocaleString("en-US")} berries)`;
+    );
+
+    convertedCount += sacrificed;
+
+    duplicateNote =
+      ` → ${sacResult.reason}` +
+      ` (+${Number(
+        sacResult.berries || 0
+      ).toLocaleString("en-US")} berries)`;
   } else {
-    fragmentCount += Number(sacResult.added || 1);
-    duplicateNote = ` → Duplicate (+${Number(sacResult.added || 1)} ${
-      reward.name
-    } Fragment)`;
+    fragmentCount += added;
+
+    duplicateNote =
+      ` → Duplicate (+${added || safeAmount} ` +
+      `${reward.name} Fragments)`;
   }
 
   return {
@@ -1227,470 +1311,751 @@ module.exports = {
   aliases: ["pullall"],
 
   async execute(message, args = []) {
-    const paLockKey = String(message.author.id);
+    const userId = String(message.author.id);
+    const username =
+      message.author.username || "Unknown";
 
-    const sendResult = async (payload) => {
-      return message.reply(payload);
-    };
-
-    if (PULL_COMMAND_LOCKS.has(paLockKey)) {
+    if (PULL_COMMAND_LOCKS.has(userId)) {
       return message.reply({
-        content: "Your previous Pull All is still being saved. Please wait 1-2 seconds and try again.",
+        content:
+          "Your previous Pull All is still being processed.",
         allowedMentions: {
           repliedUser: false,
         },
       });
     }
 
-    PULL_COMMAND_LOCKS.add(paLockKey);
+    PULL_COMMAND_LOCKS.add(userId);
 
-try {
-  const useManualResetAfterPull =
-    String(args[0] || "").toLowerCase() === "reset";
+    try {
+      const useManualResetAfterPull =
+        String(args[0] || "")
+          .toLowerCase()
+          .trim() === "reset";
 
-  /*
-    Start premium validation immediately, but do not block
-    local player preparation while Discord access is checked.
-  */
-  const premiumAccessPromise =
-    isPremiumUser(message);
-
-  const player = getPlayer(
-    message.author.id,
-    message.author.username
-  );
-    player.id = String(message.author.id);
-    player.userId = String(message.author.id);
-
-    player.pullAccessSnapshot = {
-      ...(player.pullAccessSnapshot || {}),
-      patreon: true,
-      vivreCard: false,
-    };
-
-    const resetState = applyGlobalPullReset(player);
-
-    if (resetState?.wasReset) {
-      player.pulls = resetState.pulls;
-    }
-
-    const snapshot = buildPullAccessSnapshot(player, message);
-    snapshot.patreon = true;
-    snapshot.vivreCard = false;
-
-    player.pullAccessSnapshot = snapshot;
-
-    const slotStatus = getPullSlotStatus(player, message);
-
-    const availableSlots = Object.entries(slotStatus)
-      .filter(([, slot]) => slot?.enabled)
-      .map(([key, slot]) => {
-        const max = Math.max(0, Math.floor(Number(slot.max || 0)));
-        const used = Math.max(0, Math.floor(Number(slot.used || 0)));
-        const safeUsed = Math.min(used, max);
-        const remaining = Math.max(0, max - safeUsed);
-
-        return {
-          key,
-          max,
-          used: safeUsed,
-          remaining,
-        };
-      })
-      .filter((slot) => slot.remaining > 0);
-
-    const availableTotal = availableSlots.reduce(
-      (sum, slot) =>
-        sum + Number(slot.remaining || 0),
-      0
-    );
-
-    const premiumAccess =
-      await premiumAccessPromise;
-
-    if (!premiumAccess) {
-      return sendResult({
-        content: `Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`,
-        embeds: [],
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
-
-    if (availableTotal <= 0) {
-      return sendResult({
-        content: "You do not have any available pulls right now.",
-        embeds: [],
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
-
-    let updatedCards = [...(player.cards || [])];
-    let updatedWeapons = [...(player.weapons || [])];
-    let updatedDevilFruits = [...(player.devilFruits || [])];
-    let updatedFragments = [...(player.fragments || [])];
-    let updatedTickets = [...(player.tickets || [])];
-    let pityCounter = getSharedPity(player);
-    const pirateLuckBoost = getPirateLuckBoost(message.author.id);
-    const luckyWeekMultiplier = getLuckyWeekPullMultiplier();
-    let convertedBerries = 0;
-    let convertedCount = 0;
-    let cardsPulledThisRun = 0;
-
-    const summary = {
-      card: 0,
-      weapon: 0,
-      devilFruit: 0,
-      C: 0,
-      B: 0,
-      A: 0,
-      S: 0,
-      SS: 0,
-      UR: 0,
-      fragments: 0,
-      commonRaidTicket: 0,
-      raidTicket: 0,
-      goldRaidTicket: 0,
-      emptyThroneRaidWrit: 0,
-      mythicRaidTicket: 0,
-    };
-
-    const pullGroups = {
-      cards: [],
-      weapons: [],
-      devilFruits: [],
-      tickets: [],
-    };
-
-    const ownedCardCodes = buildOwnedCardCodeSet(updatedCards);
-    const ownedWeaponCodes = buildOwnedWeaponCodeSet(player, updatedWeapons);
-
-    for (
-      let i = 0;
-      i < availableTotal;
-      i += 1
-    ) {
       /*
-        Yield only in batches. This does not add a timer
-        delay; it lets Discord process other messages.
+        Begin Discord premium validation immediately,
+        while all local player calculations continue.
       */
-      if (i > 0 && i % 4 === 0) {
-        await yieldPaCommand();
+      const premiumPromise =
+        isPremiumUser(message);
+
+      const player =
+        getPlayer(userId, username);
+
+      player.id = userId;
+      player.userId = userId;
+
+      player.pullAccessSnapshot = {
+        ...(player.pullAccessSnapshot || {}),
+        patreon: true,
+        vivreCard: false,
+      };
+
+      const resetState =
+        applyGlobalPullReset(player);
+
+      if (resetState?.wasReset) {
+        player.pulls = resetState.pulls;
       }
 
-      pityCounter += 1;
-      const triggeredPity = pityCounter >= PREMIUM_PITY_TARGET;
+      const snapshot =
+        buildPullAccessSnapshot(
+          player,
+          message
+        );
 
-      let contentType = getContentType();
+      snapshot.patreon = true;
+      snapshot.vivreCard = false;
 
-      if (triggeredPity) {
-        contentType = Math.random() < 0.5 ? "battleCard" : "boostCard";
+      player.pullAccessSnapshot = snapshot;
+
+      const slotStatus =
+        getPullSlotStatus(
+          player,
+          message
+        );
+
+      const availableTotal =
+        Object.values(slotStatus)
+          .filter((slot) => slot?.enabled)
+          .reduce((total, slot) => {
+            const max = Math.max(
+              0,
+              Math.floor(
+                Number(slot?.max || 0)
+              )
+            );
+
+            const used = Math.min(
+              max,
+              Math.max(
+                0,
+                Math.floor(
+                  Number(slot?.used || 0)
+                )
+              )
+            );
+
+            return total +
+              Math.max(0, max - used);
+          }, 0);
+
+      const premiumAccess =
+        await premiumPromise;
+
+      if (!premiumAccess) {
+        return message.reply({
+          content:
+            `Only ${PREMIUM_ROLE_NAME} users ` +
+            "can use `op pa`.",
+          allowedMentions: {
+            repliedUser: false,
+          },
+        });
       }
 
-      const rarity = getPremiumRewardTier(
-        contentType,
-        triggeredPity,
-        pirateLuckBoost,
-        luckyWeekMultiplier
-      );
+      if (availableTotal <= 0) {
+        return message.reply({
+          content:
+            "You do not have any available pulls right now.",
+          allowedMentions: {
+            repliedUser: false,
+          },
+        });
+      }
 
-      const reward =
-        contentType === "ticket"
-          ? pickWeightedTicket()
-          : pickRandomByRarityCached(contentType, rarity);
+      const pirateLuckBoost =
+        getPirateLuckBoost(userId);
 
-      if (!reward) continue;
+      const luckyWeekMultiplier =
+        getLuckyWeekPullMultiplier();
 
-      const rewardResult = getRewardResult(contentType, reward);
-      let duplicateNote = "";
+      let pityCounter =
+        getSharedPity(player);
 
-      const rewardCode = normalizePaCode(rewardResult.storedReward?.code);
+      /*
+        Phase 1:
+        Roll only. Do not touch the large player
+        inventories inside this loop.
+      */
+      const rolledRewards = [];
 
-      const isDuplicateCard =
-        rewardResult.storageKey === "cards" && ownedCardCodes.has(rewardCode);
+      for (
+        let index = 0;
+        index < availableTotal;
+        index += 1
+      ) {
+        pityCounter += 1;
 
-      const isDuplicateWeapon =
-        rewardResult.storageKey === "weapons" && ownedWeaponCodes.has(rewardCode);
+        const triggeredPity =
+          pityCounter >= PREMIUM_PITY_TARGET;
 
-      const needsStorageSlot = false;
+        let contentType =
+          getContentType();
 
-      if (rewardResult.storageKey === "tickets") {
-        updatedTickets = addTicket(updatedTickets, rewardResult.storedReward);
-      } else if (rewardResult.storageKey === "cards") {
-        const alreadyOwned = isDuplicateCard;
+        if (triggeredPity) {
+          contentType =
+            Math.random() < 0.5
+              ? "battleCard"
+              : "boostCard";
+        }
 
-        if (alreadyOwned) {
-          const duplicateResult = addDuplicateCardReward({
-            player,
+        const rarity =
+          getPremiumRewardTier(
+            contentType,
+            triggeredPity,
+            pirateLuckBoost,
+            luckyWeekMultiplier
+          );
+
+        const reward =
+          contentType === "ticket"
+            ? pickWeightedTicket()
+            : pickRandomByRarityCached(
+                contentType,
+                rarity
+              );
+
+        if (reward) {
+          rolledRewards.push({
+            contentType,
+            rarity: String(
+              reward.baseTier ||
+                reward.rarity ||
+                rarity ||
+                "C"
+            ).toUpperCase(),
             reward,
-            updatedCards,
-            updatedFragments,
+            triggeredPity,
           });
+        }
 
-          updatedCards = duplicateResult.cards;
-          updatedFragments = duplicateResult.fragments;
-          duplicateNote = duplicateResult.duplicateNote;
-          convertedBerries += duplicateResult.convertedBerries;
-          convertedCount += duplicateResult.convertedCount;
-          summary.fragments += duplicateResult.fragmentCount;
+        if (triggeredPity) {
+          pityCounter = 0;
+        }
+
+        /*
+          This is not a timer delay.
+          It releases Discord's message event loop after
+          each roll, so op bal/op reset can run immediately.
+        */
+        await new Promise((resolve) => {
+          setImmediate(resolve);
+        });
+      }
+
+      /*
+        Group identical results first.
+        Ten duplicate copies of one card are now processed
+        once with amount 10, instead of scanning inventory
+        ten separate times.
+      */
+      const groupedRewardMap =
+        new Map();
+
+      for (const rolled of rolledRewards) {
+        const rewardCode =
+          normalizePaCode(
+            rolled.reward?.code ||
+              rolled.reward?.name
+          );
+
+        const groupKey = [
+          rolled.contentType,
+          rewardCode,
+          rolled.rarity,
+          rolled.triggeredPity
+            ? "pity"
+            : "normal",
+        ].join(":");
+
+        const current =
+          groupedRewardMap.get(groupKey);
+
+        if (current) {
+          current.amount += 1;
         } else {
-          updatedCards.push(rewardResult.storedReward);
-          if (rewardCode) ownedCardCodes.add(rewardCode);
+          groupedRewardMap.set(
+            groupKey,
+            {
+              ...rolled,
+              amount: 1,
+            }
+          );
         }
-      } else if (rewardResult.storageKey === "weapons") {
-        const alreadyOwnedWeapon = isDuplicateWeapon;
+      }
 
-        if (alreadyOwnedWeapon) {
-          const duplicateResult = addDuplicateWeaponReward({
-            player,
-            reward: rewardResult.storedReward,
-            updatedFragments,
-          });
+      let updatedCards = [
+        ...(player.cards || []),
+      ];
 
-          updatedFragments = duplicateResult.fragments;
-          duplicateNote = duplicateResult.duplicateNote;
-          convertedBerries += duplicateResult.convertedBerries;
-          convertedCount += duplicateResult.convertedCount;
-          summary.fragments += duplicateResult.fragmentCount;
+      let updatedWeapons = [
+        ...(player.weapons || []),
+      ];
+
+      let updatedDevilFruits = [
+        ...(player.devilFruits || []),
+      ];
+
+      let updatedFragments = [
+        ...(player.fragments || []),
+      ];
+
+      let updatedTickets = [
+        ...(player.tickets || []),
+      ];
+
+      let convertedBerries = 0;
+      let convertedCount = 0;
+      let cardsPulledThisRun = 0;
+
+      const ownedCardCodes =
+        buildOwnedCardCodeSet(
+          updatedCards
+        );
+
+      const ownedWeaponCodes =
+        buildOwnedWeaponCodeSet(
+          player,
+          updatedWeapons
+        );
+
+      const pullGroups = {
+        cards: [],
+        weapons: [],
+        devilFruits: [],
+        tickets: [],
+      };
+
+      /*
+        Phase 2:
+        Apply each unique grouped reward once.
+      */
+      for (
+        const grouped of
+        groupedRewardMap.values()
+      ) {
+        const {
+          contentType,
+          reward,
+          rarity,
+          triggeredPity,
+          amount,
+        } = grouped;
+
+        const rewardCode =
+          normalizePaCode(
+            reward?.code ||
+              reward?.name
+          );
+
+        const rewardName =
+          reward.displayName ||
+          reward.name ||
+          "Unknown";
+
+        const pityLabel =
+          triggeredPity
+            ? " [PITY]"
+            : "";
+
+        let duplicateNote = "";
+
+        if (
+          contentType === "battleCard" ||
+          contentType === "boostCard"
+        ) {
+          cardsPulledThisRun += amount;
+
+          const alreadyOwned =
+            ownedCardCodes.has(
+              rewardCode
+            );
+
+          if (!alreadyOwned) {
+            updatedCards.push(
+              createOwnedCardLocal(
+                reward
+              )
+            );
+
+            ownedCardCodes.add(
+              rewardCode
+            );
+          }
+
+          const duplicateAmount =
+            alreadyOwned
+              ? amount
+              : Math.max(0, amount - 1);
+
+          if (duplicateAmount > 0) {
+            const duplicateResult =
+              addDuplicateCardReward({
+                player,
+                reward,
+                amount:
+                  duplicateAmount,
+                updatedCards,
+                updatedFragments,
+              });
+
+            updatedCards =
+              duplicateResult.cards;
+
+            updatedFragments =
+              duplicateResult.fragments;
+
+            duplicateNote =
+              duplicateResult.duplicateNote;
+
+            convertedBerries +=
+              duplicateResult.convertedBerries;
+
+            convertedCount +=
+              duplicateResult.convertedCount;
+          }
+
+          pullGroups.cards.push(
+            `${pullGroups.cards.length + 1}. ` +
+            `[${rarity}] ${rewardName}` +
+            `${amount > 1 ? ` x${amount}` : ""}` +
+            `${pityLabel}${duplicateNote}`
+          );
+        } else if (
+          contentType === "weapon"
+        ) {
+          const alreadyOwned =
+            ownedWeaponCodes.has(
+              rewardCode
+            );
+
+          if (!alreadyOwned) {
+            updatedWeapons =
+              addNamedItem(
+                updatedWeapons,
+                reward
+              );
+
+            ownedWeaponCodes.add(
+              rewardCode
+            );
+          }
+
+          const duplicateAmount =
+            alreadyOwned
+              ? amount
+              : Math.max(0, amount - 1);
+
+          if (duplicateAmount > 0) {
+            const duplicateResult =
+              addDuplicateWeaponReward({
+                player,
+                reward,
+                amount:
+                  duplicateAmount,
+                updatedFragments,
+              });
+
+            updatedFragments =
+              duplicateResult.fragments;
+
+            duplicateNote =
+              duplicateResult.duplicateNote;
+
+            convertedBerries +=
+              duplicateResult.convertedBerries;
+
+            convertedCount +=
+              duplicateResult.convertedCount;
+          }
+
+          pullGroups.weapons.push(
+            `${pullGroups.weapons.length + 1}. ` +
+            `[${rarity}] ${rewardName}` +
+            `${amount > 1 ? ` x${amount}` : ""}` +
+            `${pityLabel}${duplicateNote}`
+          );
+        } else if (
+          contentType === "devilFruit"
+        ) {
+          for (
+            let count = 0;
+            count < amount;
+            count += 1
+          ) {
+            updatedDevilFruits =
+              addDevilFruitItem(
+                updatedDevilFruits,
+                reward
+              );
+          }
+
+          pullGroups.devilFruits.push(
+            `${pullGroups.devilFruits.length + 1}. ` +
+            `[${rarity}] ${rewardName}` +
+            `${amount > 1 ? ` x${amount}` : ""}` +
+            pityLabel
+          );
         } else {
-          updatedWeapons = addNamedItem(updatedWeapons, rewardResult.storedReward);
-          if (rewardCode) ownedWeaponCodes.add(rewardCode);
-        }
-      } else if (rewardResult.storageKey === "devilFruits") {
-        updatedDevilFruits = addDevilFruitItem(
-          updatedDevilFruits,
-          rewardResult.storedReward
-        );
-      }
+          for (
+            let count = 0;
+            count < amount;
+            count += 1
+          ) {
+            updatedTickets =
+              addTicket(
+                updatedTickets,
+                reward
+              );
+          }
 
-      if (contentType === "battleCard" || contentType === "boostCard") {
-        summary.card += 1;
-        cardsPulledThisRun += 1;
-      } else if (contentType === "weapon") {
-        summary.weapon += 1;
-      } else if (contentType === "devilFruit") {
-        summary.devilFruit += 1;
-      } else {
-        addTicketSummary(summary, reward);
-      }
-
-      const rewardRarity = String(reward.baseTier || reward.rarity || "C").toUpperCase();
-
-      if (summary[rewardRarity] !== undefined) {
-        summary[rewardRarity] += 1;
-      }
-
-      const rewardName = reward.displayName || reward.name || "Unknown";
-      const pityLabel = triggeredPity ? " [PITY]" : "";
-
-      const targetGroup =
-        contentType === "weapon"
-          ? pullGroups.weapons
-          : contentType === "devilFruit"
-          ? pullGroups.devilFruits
-          : contentType === "ticket"
-          ? pullGroups.tickets
-          : pullGroups.cards;
-
-      const line = `${targetGroup.length + 1}. [${rewardRarity}] ${rewardName}${pityLabel}${duplicateNote}`;
-
-      targetGroup.push(line);
-
-      if (triggeredPity) {
-        pityCounter = 0;
-      }
-    }
-
-    const updatedPity = {
-      ...(player.pity || {}),
-      pullPity: pityCounter,
-      normalAPity: pityCounter,
-      normalSPity: pityCounter,
-      premiumSPity: pityCounter,
-    };
-
-    let resetTicketUsed = false;
-    let resetFailedReason = "";
-
-    if (useManualResetAfterPull) {
-      const resetTicketCode = "pull_reset_ticket";
-      const ticketIndex = updatedTickets.findIndex(
-        (ticket) => String(ticket.code || "").toLowerCase() === resetTicketCode
-      );
-
-      if (ticketIndex === -1 || Number(updatedTickets[ticketIndex].amount || 0) <= 0) {
-        resetFailedReason =
-          "You do not have Pull Reset Ticket left, so pull reset was not applied.";
-      } else {
-        updatedTickets[ticketIndex] = {
-          ...updatedTickets[ticketIndex],
-          amount: Number(updatedTickets[ticketIndex].amount || 0) - 1,
-        };
-
-        if (Number(updatedTickets[ticketIndex].amount || 0) <= 0) {
-          updatedTickets.splice(ticketIndex, 1);
+          pullGroups.tickets.push(
+            `${pullGroups.tickets.length + 1}. ` +
+            `[${rarity}] ${rewardName}` +
+            `${amount > 1 ? ` x${amount}` : ""}` +
+            pityLabel
+          );
         }
 
-        resetTicketUsed = true;
+        /*
+          Allow command messages between unique groups.
+          Normally there are only a few unique groups.
+        */
+        await new Promise((resolve) => {
+          setImmediate(resolve);
+        });
       }
-    }
 
-    const pullPlanPlayer = clonePullPlanPlayer(player);
-    let finalPulls = consumeAllActivePullSlots(pullPlanPlayer, message);
+      const updatedPity = {
+        ...(player.pity || {}),
+        pullPity: pityCounter,
+        normalAPity: pityCounter,
+        normalSPity: pityCounter,
+        premiumSPity: pityCounter,
+      };
 
-    if (resetTicketUsed) {
-      finalPulls = applyManualPullReset(finalPulls).pulls;
-    }
+      let resetTicketUsed = false;
+      let resetFailedReason = "";
 
-    const updatedDailyState = incrementQuestCounter(player, "pullsUsed", availableTotal);
+      if (useManualResetAfterPull) {
+        const resetTicketCode =
+          "pull_reset_ticket";
 
-    const fragmentStorageAudit = enforceFragmentStorageLimit(player, updatedFragments);
+        const ticketIndex =
+          updatedTickets.findIndex(
+            (ticket) =>
+              normalizePaCode(
+                ticket?.code
+              ) === resetTicketCode
+          );
 
-    if (fragmentStorageAudit.convertedCount > 0) {
-      updatedFragments = fragmentStorageAudit.fragments;
-      convertedBerries += fragmentStorageAudit.convertedBerries;
-      convertedCount += fragmentStorageAudit.convertedCount;
-    }
+        if (
+          ticketIndex === -1 ||
+          Number(
+            updatedTickets[ticketIndex]
+              ?.amount || 0
+          ) <= 0
+        ) {
+          resetFailedReason =
+            "You do not have Pull Reset Ticket left, " +
+            "so pull reset was not applied.";
+        } else {
+          updatedTickets[ticketIndex] = {
+            ...updatedTickets[
+              ticketIndex
+            ],
+            amount:
+              Number(
+                updatedTickets[
+                  ticketIndex
+                ].amount || 0
+              ) - 1,
+          };
 
-    const saveResult = savePullAllResultFresh(
-      message.author.id,
-      {
-        cards: updatedCards,
-        weapons: updatedWeapons,
-        devilFruits: updatedDevilFruits,
-        fragments: updatedFragments,
-        tickets: updatedTickets,
-        addBerries: convertedBerries,
+          if (
+            updatedTickets[ticketIndex]
+              .amount <= 0
+          ) {
+            updatedTickets.splice(
+              ticketIndex,
+              1
+            );
+          }
 
-        pity: updatedPity,
-        pullAccessSnapshot: snapshot,
+          resetTicketUsed = true;
+        }
+      }
 
-        finalPulls,
-        availableTotal,
+      const pullPlanPlayer =
+        clonePullPlanPlayer(player);
 
-        stats: {
-          ...(player.stats || {}),
-          cardsPulled: Number(player?.stats?.cardsPulled || 0) + cardsPulledThisRun,
-        },
-
-        quests: {
-          ...(player.quests || {}),
-          dailyState: updatedDailyState,
-        },
-      },
-      message.author.username
-    );
-
-    if (!saveResult.didSave) {
-      return sendResult({
-        content: "You do not have any available pulls right now.",
-        embeds: [],
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
-
-    const groupedLines = [];
-    const luckyWeekLine = getLuckyWeekBonusLine();
-
-    if (luckyWeekLine) {
-      groupedLines.push(luckyWeekLine);
-      groupedLines.push("");
-    }
-
-    if (pullGroups.cards.length) {
-      groupedLines.push("## Cards");
-      groupedLines.push(...pullGroups.cards);
-      groupedLines.push("");
-    }
-
-    if (pullGroups.weapons.length) {
-      groupedLines.push("## Weapons");
-      groupedLines.push(...pullGroups.weapons);
-      groupedLines.push("");
-    }
-
-    if (pullGroups.devilFruits.length) {
-      groupedLines.push("## Devil Fruits");
-      groupedLines.push(...pullGroups.devilFruits);
-      groupedLines.push("");
-    }
-
-    if (pullGroups.tickets.length) {
-      groupedLines.push("## Tickets");
-      groupedLines.push(...pullGroups.tickets);
-    }
-
-    if (convertedCount > 0) {
-      groupedLines.push("");
-      groupedLines.push("## Auto Convert");
-      groupedLines.push(
-        `${convertedCount} reward(s) converted into **${convertedBerries.toLocaleString("en-US")} berries**.`
-      );
-
-      if (fragmentStorageAudit?.convertedCount > 0) {
-        groupedLines.push(
-          `Fragment storage overflow converted: **${fragmentStorageAudit.convertedCount} fragment(s)**.`
+      let finalPulls =
+        consumeAllActivePullSlots(
+          pullPlanPlayer,
+          message
         );
-      }
-    }
-
-    if (useManualResetAfterPull) {
-      groupedLines.push("");
-      groupedLines.push("## Reset");
 
       if (resetTicketUsed) {
-        groupedLines.push("Pull Reset Ticket x1 used.");
-        groupedLines.push("Pull slots have been reset after Pull All.");
-        groupedLines.push("You can use `op pa` again now.");
-      } else {
-        groupedLines.push(resetFailedReason || "Pull reset was not applied.");
-        groupedLines.push("Pull All rewards were still saved.");
+        finalPulls =
+          applyManualPullReset(
+            finalPulls
+          ).pulls;
       }
-    }
 
-    const chunkSize = 25;
-    const chunks = [];
-    for (let i = 0; i < groupedLines.length; i += chunkSize) {
-      chunks.push(groupedLines.slice(i, i + chunkSize).join("\n"));
-    }
+      const updatedDailyState =
+        incrementQuestCounter(
+          player,
+          "pullsUsed",
+          availableTotal
+        );
 
-    const embeds = [];
+      const fragmentStorageAudit =
+        enforceFragmentStorageLimit(
+          player,
+          updatedFragments
+        );
 
-    chunks.slice(0, 10).forEach((chunk, index) => {
-      embeds.push(
-        new EmbedBuilder()
-          .setColor(0x8e44ad)
-          .setTitle(`Pull Results ${index + 1}/${chunks.length}`)
-          .setDescription(chunk || "No rewards rolled.")
-          .setFooter({
-            text: `One Piece Bot • Pull All • Pity ${updatedPity.pullPity}/${PREMIUM_PITY_TARGET}`,
-          })
+      if (
+        fragmentStorageAudit
+          .convertedCount > 0
+      ) {
+        updatedFragments =
+          fragmentStorageAudit.fragments;
+
+        convertedBerries +=
+          fragmentStorageAudit
+            .convertedBerries;
+
+        convertedCount +=
+          fragmentStorageAudit
+            .convertedCount;
+      }
+
+      const saveResult =
+        savePullAllResultFresh(
+          userId,
+          {
+            cards: updatedCards,
+            weapons: updatedWeapons,
+            devilFruits:
+              updatedDevilFruits,
+            fragments:
+              updatedFragments,
+            tickets: updatedTickets,
+            addBerries:
+              convertedBerries,
+            pity: updatedPity,
+            pullAccessSnapshot:
+              snapshot,
+            finalPulls,
+            availableTotal,
+
+            stats: {
+              ...(player.stats || {}),
+              cardsPulled:
+                Number(
+                  player?.stats
+                    ?.cardsPulled || 0
+                ) +
+                cardsPulledThisRun,
+            },
+
+            quests: {
+              ...(player.quests || {}),
+              dailyState:
+                updatedDailyState,
+            },
+          },
+          username
+        );
+
+      if (!saveResult.didSave) {
+        return message.reply({
+          content:
+            "Pull All could not be saved. No pulls were consumed.",
+          allowedMentions: {
+            repliedUser: false,
+          },
+        });
+      }
+
+      const groupedLines = [];
+      const luckyWeekLine =
+        getLuckyWeekBonusLine();
+
+      if (luckyWeekLine) {
+        groupedLines.push(
+          luckyWeekLine,
+          ""
+        );
+      }
+
+      if (pullGroups.cards.length) {
+        groupedLines.push(
+          "## Cards",
+          ...pullGroups.cards,
+          ""
+        );
+      }
+
+      if (pullGroups.weapons.length) {
+        groupedLines.push(
+          "## Weapons",
+          ...pullGroups.weapons,
+          ""
+        );
+      }
+
+      if (
+        pullGroups.devilFruits.length
+      ) {
+        groupedLines.push(
+          "## Devil Fruits",
+          ...pullGroups.devilFruits,
+          ""
+        );
+      }
+
+      if (pullGroups.tickets.length) {
+        groupedLines.push(
+          "## Tickets",
+          ...pullGroups.tickets
+        );
+      }
+
+      if (convertedCount > 0) {
+        groupedLines.push(
+          "",
+          "## Auto Convert",
+          `${convertedCount} reward(s) converted into ` +
+          `**${convertedBerries.toLocaleString(
+            "en-US"
+          )} berries**.`
+        );
+      }
+
+      if (useManualResetAfterPull) {
+        groupedLines.push(
+          "",
+          "## Reset",
+          resetTicketUsed
+            ? "Pull Reset Ticket x1 used."
+            : resetFailedReason,
+          resetTicketUsed
+            ? "Pull slots have been reset after Pull All."
+            : "Pull All rewards were still saved."
+        );
+      }
+
+      const chunks = [];
+
+      for (
+        let index = 0;
+        index < groupedLines.length;
+        index += 25
+      ) {
+        chunks.push(
+          groupedLines
+            .slice(index, index + 25)
+            .join("\n")
+        );
+      }
+
+      const embeds = (
+        chunks.length
+          ? chunks
+          : ["No rewards rolled."]
+      )
+        .slice(0, 10)
+        .map((chunk, index, list) =>
+          new EmbedBuilder()
+            .setColor(0x8e44ad)
+            .setTitle(
+              list.length > 1
+                ? `Pull Results ${index + 1}/${list.length}`
+                : "Pull Results"
+            )
+            .setDescription(chunk)
+            .setFooter({
+              text:
+                "One Piece Bot • Pull All • " +
+                `Pity ${updatedPity.pullPity}/` +
+                PREMIUM_PITY_TARGET,
+            })
+        );
+
+      return message.reply({
+        embeds,
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    } finally {
+      PULL_COMMAND_LOCKS.delete(
+        userId
       );
-    });
-
-    if (!embeds.length) {
-      embeds.push(
-        new EmbedBuilder()
-          .setColor(0x8e44ad)
-          .setTitle("Pull Results")
-          .setDescription("No rewards rolled.")
-      );
     }
-
-    return sendResult({
-      content: "",
-      embeds,
-      allowedMentions: {
-        repliedUser: false,
-      },
-    });
-  } finally {
-    PULL_COMMAND_LOCKS.delete(paLockKey);
-  }
   },
 };
