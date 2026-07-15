@@ -788,6 +788,24 @@ function runPlayerStoreFlushInBackground({
   authorId,
   fastCommand = false,
 }) {
+  const normalizedCommand =
+    normalizeCommandName(
+      command?.name || commandName
+    );
+
+  /*
+    PA already queues its exact player snapshot through
+    updatePlayerAtomicFast. Running flushPlayerNow here
+    would normalize and stringify the same large player
+    a second time.
+  */
+  if (
+    normalizedCommand === "pa" ||
+    normalizedCommand === "pullall"
+  ) {
+    return;
+  }
+
   const commandFlushMs = Number(
     process.env.PLAYER_DB_COMMAND_FLUSH_MS || 10000
   );

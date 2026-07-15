@@ -21,10 +21,14 @@ let dbPool = null;
 let dbReady = false;
 let playerStoreFlushInterval = null;
 const playerSaveQueues = new Map();
+const fastPlayerSaveQueues = new Map();
 let playerStoreShutdownDrainInstalled = false;
 
 function getPendingPlayerSavePromises() {
-  return [...playerSaveQueues.values()].filter(Boolean);
+  return [
+    ...playerSaveQueues.values(),
+    ...fastPlayerSaveQueues.values(),
+  ].filter(Boolean);
 }
 
 async function drainPlayerStoreSaves(timeoutMs = 60000) {
@@ -868,6 +872,136 @@ async function upsertOnePlayerToPostgres(userId, data) {
   }, `upsert-player:${id}`);
 
   return true;
+}
+
+async function upsertOnePlayerRawToPostgres(
+  userId,
+  player
+) {
+  const pool = getDbPool();
+
+  if (!pool || !dbReady) {
+    return false;
+  }
+
+  const id = String(userId);
+  const rawPlayer =
+    player && typeof player === "object"
+      ? player
+      : {};
+
+  await runDbWriteWithRetry(
+    async () => {
+      await ensurePlayersTable();
+
+      await pool.query(
+        `
+        insert into players (
+          user_id,
+          username,
+          data,
+          updated_at
+        )
+        values (
+          $1,
+          $2,
+          $3::jsonb,
+          now()
+        )
+        on conflict (user_id)
+        do update set
+          username = excluded.username,
+          data = excluded.data,
+          updated_at = now()
+        `,
+        [
+          id,
+          rawPlayer.username || "Unknown",
+          JSON.stringify(rawPlayer),
+        ]
+      );
+    },
+    `fast-upsert-player:${id}`
+  );
+
+  return true;
+}
+
+function enqueueFastPlayerSave(
+  userId
+) {
+  const id = String(userId);
+
+  if (
+    !PLAYER_DB_SNAPSHOT_SAVE_ENABLED ||
+    !USE_POSTGRES ||
+    !dbReady
+  ) {
+    return Promise.resolve(null);
+  }
+
+  const previous =
+    fastPlayerSaveQueues.get(id) ||
+    Promise.resolve();
+
+  const next = previous
+    .catch(() => {})
+    .then(async () => {
+      /*
+        Read the latest cache only when this queued
+        save actually starts. This prevents an older
+        PA snapshot from overwriting a newer command.
+      */
+      const latest =
+        playersCache?.[id];
+
+      if (
+        !latest ||
+        typeof latest !== "object"
+      ) {
+        return null;
+      }
+
+      const saved =
+        await upsertOnePlayerRawToPostgres(
+          id,
+          latest
+        );
+
+      if (saved) {
+        /*
+          Do not normalize/clone the full player here.
+          The next DB comparison is not needed for the
+          PA fast path.
+        */
+        persistedCache[id] = latest;
+      }
+
+      return latest;
+    })
+    .catch((error) => {
+      console.error(
+        "[PLAYER FAST SAVE ERROR]",
+        {
+          userId: id,
+          message:
+            error?.message || error,
+        }
+      );
+
+      return null;
+    })
+    .finally(() => {
+      if (
+        fastPlayerSaveQueues.get(id) === next
+      ) {
+        fastPlayerSaveQueues.delete(id);
+      }
+    });
+
+  fastPlayerSaveQueues.set(id, next);
+
+  return next;
 }
 
 async function updateOnePlayerInPostgresAtomic(userId, username, mutator) {
@@ -2414,6 +2548,86 @@ function updatePlayerAtomic(userId, mutator, username = "Unknown") {
   return nextPlayer;
 }
 
+function updatePlayerAtomicFast(
+  userId,
+  mutator,
+  username = "Unknown"
+) {
+  const players = readPlayers();
+  const id = String(userId);
+
+  /*
+    PA already starts from a normalized player returned
+    by getPlayer(). Do not normalize or deep-clone it again.
+  */
+  const currentPlayer =
+    players[id] &&
+    typeof players[id] === "object"
+      ? players[id]
+      : getDefaultPlayer(username);
+
+  const result =
+    typeof mutator === "function"
+      ? mutator(currentPlayer)
+      : currentPlayer;
+
+  const nextPlayer =
+    result &&
+    typeof result === "object"
+      ? result
+      : currentPlayer;
+
+  if (!nextPlayer.username) {
+    nextPlayer.username =
+      currentPlayer.username ||
+      username ||
+      "Unknown";
+  }
+
+  players[id] = nextPlayer;
+  setPlayersCache(players);
+
+  if (USE_POSTGRES && dbReady) {
+    /*
+      Do not await this. Cache is already updated and
+      Discord may receive the result immediately.
+    */
+    enqueueFastPlayerSave(id);
+  } else if (
+    PLAYER_STORE_MODE === "postgres"
+  ) {
+    console.error(
+      "[PLAYER STORE] Fast update could not queue Postgres save.",
+      {
+        userId: id,
+      }
+    );
+  } else {
+    /*
+      File mode only. Keep writing outside the current
+      synchronous command stack.
+    */
+    setImmediate(() => {
+      try {
+        writePlayersLocalBackupOnly(
+          playersCache || players
+        );
+      } catch (error) {
+        console.error(
+          "[PLAYER FAST FILE SAVE ERROR]",
+          {
+            userId: id,
+            message:
+              error?.message || error,
+          }
+        );
+      }
+    });
+  }
+
+  return nextPlayer;
+}
+
 function updateTwoPlayersAtomic(userIdA, userIdB, mutator, usernameA = "Unknown", usernameB = "Unknown") {
   if (USE_POSTGRES && dbReady) {
     const players = readPlayers();
@@ -2574,6 +2788,7 @@ module.exports = {
   getPlayer,
   updatePlayer,
   updatePlayerAtomic,
+  updatePlayerAtomicFast,
   updateTwoPlayersAtomic,
   normalizePlayer,
   initPlayerStore,

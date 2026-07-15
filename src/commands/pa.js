@@ -1,7 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const {
   getPlayer,
-  updatePlayerAtomic,
+  updatePlayerAtomicFast,
 } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const rawCards = require("../data/cards");
@@ -45,6 +45,12 @@ const PA_REWARD_POOL_CACHE =
 
 function normalizePaCode(value) {
   return String(value || "").toLowerCase().trim();
+}
+
+function yieldPaCommand() {
+  return new Promise((resolve) => {
+    setImmediate(resolve);
+  });
 }
 
 function getCachedRewardPool(contentType) {
@@ -1007,39 +1013,82 @@ function clonePullPlanPlayer(player) {
   };
 }
 
-function savePullAllResultFresh(userId, payload, username = "Unknown") {
+function savePullAllResultFresh(
+  userId,
+  payload,
+  username = "Unknown"
+) {
   let didSave = false;
-  let savedPulls = null;
-  let savedAvailableTotal = 0;
 
-  const result = updatePlayerAtomic(
+  const result = updatePlayerAtomicFast(
     userId,
     (fresh) => {
-      const existing = fresh || {};
-      const finalPulls = payload.finalPulls || existing.pulls || {};
+      const existing =
+        fresh &&
+        typeof fresh === "object"
+          ? fresh
+          : {};
 
       didSave = true;
-      savedPulls = finalPulls;
-      savedAvailableTotal = Number(payload.availableTotal || 0);
 
+      /*
+        Payload PA was built from this player's current
+        inventories. Replace only PA-owned fields and keep
+        all unrelated live fields from fresh.
+      */
       return {
         ...existing,
 
-        cards: mergeCardCollections(existing.cards, payload.cards),
-        weapons: mergeNamedInventory(existing.weapons, payload.weapons),
-        devilFruits: mergeNamedInventory(existing.devilFruits, payload.devilFruits),
-        fragments: mergeStackList(existing.fragments, payload.fragments),
+        username:
+          existing.username ||
+          username,
 
-        tickets: Array.isArray(payload.tickets)
+        cards: Array.isArray(payload.cards)
+          ? payload.cards
+          : existing.cards || [],
+
+        weapons: Array.isArray(
+          payload.weapons
+        )
+          ? payload.weapons
+          : existing.weapons || [],
+
+        devilFruits: Array.isArray(
+          payload.devilFruits
+        )
+          ? payload.devilFruits
+          : existing.devilFruits || [],
+
+        fragments: Array.isArray(
+          payload.fragments
+        )
+          ? payload.fragments
+          : existing.fragments || [],
+
+        tickets: Array.isArray(
+          payload.tickets
+        )
           ? payload.tickets
           : existing.tickets || [],
 
-        berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
+        berries:
+          Number(existing.berries || 0) +
+          Number(payload.addBerries || 0),
 
-        pulls: finalPulls,
-        pity: payload.pity,
+        pulls:
+          payload.finalPulls ||
+          existing.pulls ||
+          {},
+
+        pity:
+          payload.pity ||
+          existing.pity ||
+          {},
+
         pullAccessSnapshot:
-          payload.pullAccessSnapshot || existing.pullAccessSnapshot || {},
+          payload.pullAccessSnapshot ||
+          existing.pullAccessSnapshot ||
+          {},
 
         stats: {
           ...(existing.stats || {}),
@@ -1058,8 +1107,11 @@ function savePullAllResultFresh(userId, payload, username = "Unknown") {
   return {
     result,
     didSave,
-    pulls: savedPulls,
-    availableTotal: savedAvailableTotal,
+    pulls:
+      payload.finalPulls || null,
+    availableTotal: Number(
+      payload.availableTotal || 0
+    ),
   };
 }
 
@@ -1316,7 +1368,19 @@ try {
     const ownedCardCodes = buildOwnedCardCodeSet(updatedCards);
     const ownedWeaponCodes = buildOwnedWeaponCodeSet(player, updatedWeapons);
 
-    for (let i = 0; i < availableTotal; i++) {
+    for (
+      let i = 0;
+      i < availableTotal;
+      i += 1
+    ) {
+      /*
+        Yield only in batches. This does not add a timer
+        delay; it lets Discord process other messages.
+      */
+      if (i > 0 && i % 4 === 0) {
+        await yieldPaCommand();
+      }
+
       pityCounter += 1;
       const triggeredPity = pityCounter >= PREMIUM_PITY_TARGET;
 
