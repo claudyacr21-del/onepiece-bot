@@ -1424,6 +1424,15 @@ module.exports = {
           },
         });
       }
+      
+      const pullingMessage = await message.reply({
+        content: `Pulling all available slots... (${availableTotal} pull${
+          availableTotal === 1 ? "" : "s"
+        })`,
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
 
       const pirateLuckBoost =
         getPirateLuckBoost(userId);
@@ -2046,7 +2055,8 @@ module.exports = {
             })
         );
 
-      return message.reply({
+      return pullingMessage.edit({
+        content: "",
         embeds,
         allowedMentions: {
           repliedUser: false,
