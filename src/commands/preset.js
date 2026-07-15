@@ -421,15 +421,21 @@ module.exports = {
     const slotKey = normalizeSlot(action);
 
     if (slotKey) {
-      const result = equipPreset(message.author.id, message.author.username, slotKey);
+      const result = equipPreset(
+        message.author.id,
+        message.author.username,
+        slotKey
+      );
 
       if (!result?.ok) {
-        return message.reply(result?.reason || "Failed to equip team preset.");
+        return message.reply(
+          result?.reason ||
+            "Failed to equip team preset."
+        );
       }
 
       return message.reply({
         content: `✅ Equipped **Preset ${slotKey}** as your battle team.`,
-        embeds: [buildPresetEmbed(result.player || getPlayer(message.author.id, message.author.username))],
         allowedMentions: {
           repliedUser: false,
         },
