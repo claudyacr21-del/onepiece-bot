@@ -1173,9 +1173,8 @@ module.exports = {
 
   async execute(message, args = []) {
     const paLockKey = String(message.author.id);
-    let processingMessage = null;
 
-    const replyOrEdit = async (payload) => {
+    const sendResult = async (payload) => {
       return message.reply(payload);
     };
 
@@ -1191,9 +1190,25 @@ module.exports = {
     PULL_COMMAND_LOCKS.add(paLockKey);
 
 try {
-  const useManualResetAfterPull = String(args[0] || "").toLowerCase() === "reset";
+  const useManualResetAfterPull =
+    String(args[0] || "").toLowerCase() === "reset";
 
-  const player = getPlayer(message.author.id, message.author.username);
+  const premiumAccess = await isPremiumUser(message);
+
+  if (!premiumAccess) {
+    return sendResult({
+      content: `Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`,
+      embeds: [],
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
+
+  const player = getPlayer(
+    message.author.id,
+    message.author.username
+  );
     player.id = String(message.author.id);
     player.userId = String(message.author.id);
 
@@ -1240,20 +1255,8 @@ try {
     );
 
     if (availableTotal <= 0) {
-      return replyOrEdit({
+      return sendResult({
         content: "You do not have any available pulls right now.",
-        embeds: [],
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
-
-    const premiumAccess = await isPremiumUser(message);
-
-    if (!premiumAccess) {
-      return replyOrEdit({
-        content: `Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`,
         embeds: [],
         allowedMentions: {
           repliedUser: false,
@@ -1303,7 +1306,11 @@ try {
 
     const paYieldEvery = Math.max(
       1,
-      Number(process.env.PA_EVENT_LOOP_YIELD_EVERY || 9999)
+      Math.floor(
+        Number(
+          process.env.PA_EVENT_LOOP_YIELD_EVERY || 1
+        )
+      )
     );
 
     for (let i = 0; i < availableTotal; i++) {
@@ -1485,6 +1492,7 @@ try {
       convertedCount += fragmentStorageAudit.convertedCount;
     }
 
+    await yieldPaEventLoop();
     const saveResult = await savePullAllResultFresh(
       message.author.id,
       {
@@ -1515,7 +1523,8 @@ try {
     );
 
     if (!saveResult.didSave) {
-      return replyOrEdit({
+      await yieldPaEventLoop();
+      return sendResult({
         content: "You do not have any available pulls right now.",
         embeds: [],
         allowedMentions: {
@@ -1612,7 +1621,7 @@ try {
       );
     }
 
-    return replyOrEdit({
+    return sendResult({
       content: "",
       embeds,
       allowedMentions: {
