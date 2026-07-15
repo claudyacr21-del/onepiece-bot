@@ -735,7 +735,7 @@ function buildRunOutOfPullsMessage(player, totalUsed, totalMax) {
     "";
 
   const voteText = voteUrl
-    ? `[Vote for One Piece Bot](${voteUrl})`
+    ? `[Vote for One Piece Bot](<${voteUrl}>)`
     : "**Vote for One Piece Bot**";
 
   const supportText = supportInvite
@@ -747,7 +747,7 @@ function buildRunOutOfPullsMessage(player, totalUsed, totalMax) {
     : "**Invite the bot**";
 
   const patreonText = patreonUrl
-    ? `[Join Patreon](${patreonUrl})`
+    ? `[Join Patreon](<${patreonUrl}>)`
     : "**Join Patreon**";
 
   const lines = [

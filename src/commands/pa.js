@@ -1495,14 +1495,14 @@ module.exports = {
           pityCounter = 0;
         }
 
-        if (
-          index > 0 &&
-          index % 8 === 0
-        ) {
-          await new Promise((resolve) => {
-            setImmediate(resolve);
-          });
-        }
+        /*
+          This is not a timer delay.
+          It releases Discord's message event loop after
+          each roll, so op bal/op reset can run immediately.
+        */
+        await new Promise((resolve) => {
+          setImmediate(resolve);
+        });
       }
 
       /*
@@ -1545,10 +1545,6 @@ module.exports = {
           );
         }
       }
-
-      await new Promise((resolve) => {
-        setImmediate(resolve);
-      });
 
       let updatedCards = [
         ...(player.cards || []),
@@ -1782,6 +1778,14 @@ module.exports = {
             pityLabel
           );
         }
+
+        /*
+          Allow command messages between unique groups.
+          Normally there are only a few unique groups.
+        */
+        await new Promise((resolve) => {
+          setImmediate(resolve);
+        });
       }
 
       const updatedPity = {
