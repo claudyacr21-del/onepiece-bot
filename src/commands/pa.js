@@ -136,12 +136,6 @@ function buildOwnedWeaponCodeSet(player, weaponsList) {
   return set;
 }
 
-function yieldPaEventLoop() {
-  return new Promise((resolve) => {
-    setImmediate(resolve);
-  });
-}
-
 function getPirateLuckBoost(userId) {
   const pirate = findPirateByUser(userId);
   const luckLevel = Math.max(0, Math.floor(Number(pirate?.perks?.luckBoost || 0)));
@@ -1167,6 +1161,15 @@ function addDuplicateWeaponReward({
   };
 }
 
+for (const contentType of [
+  "battleCard",
+  "boostCard",
+  "weapon",
+  "devilFruit",
+]) {
+  getCachedRewardPool(contentType);
+}
+
 module.exports = {
   name: "pa",
   aliases: ["pullall"],
@@ -1193,17 +1196,12 @@ try {
   const useManualResetAfterPull =
     String(args[0] || "").toLowerCase() === "reset";
 
-  const premiumAccess = await isPremiumUser(message);
-
-  if (!premiumAccess) {
-    return sendResult({
-      content: `Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`,
-      embeds: [],
-      allowedMentions: {
-        repliedUser: false,
-      },
-    });
-  }
+  /*
+    Start premium validation immediately, but do not block
+    local player preparation while Discord access is checked.
+  */
+  const premiumAccessPromise =
+    isPremiumUser(message);
 
   const player = getPlayer(
     message.author.id,
@@ -1250,9 +1248,23 @@ try {
       .filter((slot) => slot.remaining > 0);
 
     const availableTotal = availableSlots.reduce(
-      (sum, slot) => sum + Number(slot.remaining || 0),
+      (sum, slot) =>
+        sum + Number(slot.remaining || 0),
       0
     );
+
+    const premiumAccess =
+      await premiumAccessPromise;
+
+    if (!premiumAccess) {
+      return sendResult({
+        content: `Only ${PREMIUM_ROLE_NAME} users can use \`op pa\`.`,
+        embeds: [],
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
 
     if (availableTotal <= 0) {
       return sendResult({
@@ -1304,20 +1316,7 @@ try {
     const ownedCardCodes = buildOwnedCardCodeSet(updatedCards);
     const ownedWeaponCodes = buildOwnedWeaponCodeSet(player, updatedWeapons);
 
-    const paYieldEvery = Math.max(
-      1,
-      Math.floor(
-        Number(
-          process.env.PA_EVENT_LOOP_YIELD_EVERY || 1
-        )
-      )
-    );
-
     for (let i = 0; i < availableTotal; i++) {
-      if (i > 0 && i % paYieldEvery === 0) {
-        await yieldPaEventLoop();
-      }
-
       pityCounter += 1;
       const triggeredPity = pityCounter >= PREMIUM_PITY_TARGET;
 
@@ -1492,8 +1491,7 @@ try {
       convertedCount += fragmentStorageAudit.convertedCount;
     }
 
-    await yieldPaEventLoop();
-    const saveResult = await savePullAllResultFresh(
+    const saveResult = savePullAllResultFresh(
       message.author.id,
       {
         cards: updatedCards,
@@ -1523,7 +1521,6 @@ try {
     );
 
     if (!saveResult.didSave) {
-      await yieldPaEventLoop();
       return sendResult({
         content: "You do not have any available pulls right now.",
         embeds: [],
