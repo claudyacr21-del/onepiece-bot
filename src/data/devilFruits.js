@@ -776,7 +776,7 @@ module.exports = [
     rarity: "UR",
     owners: ["stussy"],
     type: "Zoan Fruit",
-    statPercent: { atk: 7, hp: 6, speed: 4 },
+    statPercent: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "Grants bat-like vampire powers, enhancing speed, stealth, and draining attacks."
   },
