@@ -24,7 +24,7 @@ const EVENT_NAME = "Ryuma Global Boss Event";
 const BOSS_NAME = "Ryuma";
 
 const MAX_HP = 600000000;
-const BOSS_DAMAGE = 5000;
+const BASE_BOSS_DAMAGE = 5000;
 const ATTACK_LIMIT = 20;
 const ACTIVE_RYUMA_BATTLES = new Set();
 const DAMAGE_VARIANCE_MIN = 0.85;
@@ -549,6 +549,28 @@ function getBossPhase(globalState) {
   );
 }
 
+function getRyumaBossDamage(globalState) {
+  const bossPhase = getBossPhase(globalState);
+  const phase = Math.max(
+    1,
+    Math.min(
+      4,
+      Number(bossPhase?.phase || 1)
+    )
+  );
+
+  const multiplier = Number(
+    PHASE_DAMAGE_MULTIPLIER[phase] || 1
+  );
+
+  return Math.max(
+    1,
+    Math.floor(
+      BASE_BOSS_DAMAGE * multiplier
+    )
+  );
+}
+
 function getRyumaTeamCards(player) {
   const ownedCards = Array.isArray(player?.cards) ? player.cards : [];
   const combatCards = Array.isArray(getPlayerCombatCards(player))
@@ -942,12 +964,30 @@ function applyRyumaBoostedStats(card, boosts = {}) {
 }
 
 function getRyumaDamageRange(card, bossPhase, boosts = {}) {
-  const stats = applyRyumaBoostedStats(card, boosts);
-  const phase = Number(bossPhase?.phase || 1);
-  const phaseMultiplier = Number(PHASE_DAMAGE_MULTIPLIER[phase] || 1);
+  const stats = applyRyumaBoostedStats(
+    card,
+    boosts
+  );
 
-  const min = Math.max(1, Math.floor(stats.atk * phaseMultiplier * DAMAGE_VARIANCE_MIN));
-  const max = Math.max(min, Math.floor(stats.atk * phaseMultiplier * DAMAGE_VARIANCE_MAX));
+  /*
+    Boss phase does not increase player stats.
+    Player damage remains based on the card's own ATK.
+  */
+  const min = Math.max(
+    1,
+    Math.floor(
+      stats.atk *
+        DAMAGE_VARIANCE_MIN
+    )
+  );
+
+  const max = Math.max(
+    min,
+    Math.floor(
+      stats.atk *
+        DAMAGE_VARIANCE_MAX
+    )
+  );
 
   return {
     min,
@@ -1068,7 +1108,9 @@ function buildRyumaCardSelectEmbed({
     .setDescription(
       [
         `**Boss HP:** ${fmt(hpLeft)} / ${fmt(MAX_HP)}`,
-        `**Boss ATK:** ${fmt(BOSS_DAMAGE)}`,
+        `**Boss ATK:** ${fmt(
+          getRyumaBossDamage(globalState)
+        )}`,
         `**Phase:** ${bossPhase.phase}/4 — ${bossPhase.name}`,
         `**Turn:** ${fmt(turnCount)}/${fmt(ATTACK_LIMIT)}`,
         "",
@@ -1434,7 +1476,9 @@ function buildPanelEmbed(message) {
         `**Status:** ${!eventStarted ? "Not Started" : eventEnded ? "Ended" : "Active"}`,
         `**Boss:** ${BOSS_NAME}`,
         `**Boss HP:** ${fmt(hpLeft)} / ${fmt(MAX_HP)}`,
-        `**Boss Damage:** ${fmt(BOSS_DAMAGE)}`,
+        `**Boss Damage:** ${fmt(
+          getRyumaBossDamage(globalState)
+        )}`,
         `**Phase:** ${bossPhase.phase}/4 — ${bossPhase.name}`,
         `**Global Damage:** ${fmt(globalState.totalDamage)}`,
         `**Time:** ${timeText}`,
@@ -2007,14 +2051,22 @@ async function performAttack(message) {
       let bossCounterDamage = 0;
 
       if (!nextBossDefeated) {
+        const currentBossDamage =
+          getRyumaBossDamage(
+            freshGlobalState
+          );
+
         bossCounterDamage = Math.min(
           Number(selected.currentHp || 0),
-          BOSS_DAMAGE
+          currentBossDamage
         );
 
         selected.currentHp = Math.max(
           0,
-          Math.floor(Number(selected.currentHp || 0)) - bossCounterDamage
+          Math.floor(
+            Number(selected.currentHp || 0) -
+              bossCounterDamage
+          )
         );
       }
 
