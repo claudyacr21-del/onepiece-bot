@@ -214,6 +214,33 @@ async function writeRedeemCodesToDb(data) {
       );
     }
 
+    const activeCodes = Object.keys(codes)
+      .map((code) => String(code || "").toUpperCase().trim())
+      .filter(Boolean);
+
+    /*
+      Remove database rows that no longer exist in the
+      current redeem code store.
+
+      Without this cleanup, deleted codes remain in Postgres
+      and return after the bot reloads.
+    */
+    if (activeCodes.length > 0) {
+      await client.query(
+        `
+        delete from redeem_codes
+        where not (code = any($1::text[]))
+        `,
+        [activeCodes]
+      );
+    } else {
+      await client.query(
+        `
+        delete from redeem_codes
+        `
+      );
+    }
+
     await client.query("commit");
     return true;
   } catch (error) {
