@@ -10,7 +10,7 @@ const {
 const {
   getPlayer,
   readPlayers,
-  updatePlayerAtomic,
+  updatePlayerAtomicFast,
 } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
@@ -978,88 +978,208 @@ function applyArenaResult(arena, result, context = {}) {
   return current;
 }
 
-function updateArenaPlayer(
+function finalizeArenaPlayerResult({
   message,
   result,
   opponent = null,
+  playerTeam = [],
   prebuiltLeaderboard = null,
-  knownPlayerRank = null
-) {
+  knownPlayerRank = null,
+}) {
   let finalArena = null;
-  let streakRewardLine = null;
+  let expResults = [];
 
   const playerRankBefore =
     Number(knownPlayerRank || 0) ||
-    (prebuiltLeaderboard
-      ? getArenaRankForUser(message, message.author.id, prebuiltLeaderboard)
-      : ARENA_TOTAL_RANK_SLOTS);
+    (
+      prebuiltLeaderboard
+        ? getArenaRankForUser(
+            message,
+            message.author.id,
+            prebuiltLeaderboard
+          )
+        : ARENA_TOTAL_RANK_SLOTS
+    );
 
-  const opponentRank = Number(opponent?.rank || ARENA_TOTAL_RANK_SLOTS);
+  const opponentRank = Number(
+    opponent?.rank ||
+      ARENA_TOTAL_RANK_SLOTS
+  );
 
-  updatePlayerAtomic(
+  expResults = calculateArenaExp(
+    playerTeam,
+    result === "win"
+  );
+
+  updatePlayerAtomicFast(
     message.author.id,
     (freshPlayer) => {
-      const updatedArena = applyArenaResult(freshPlayer.arena, result, {
-        playerRank: playerRankBefore,
-        opponentRank,
-      });
+      const player =
+        freshPlayer &&
+        typeof freshPlayer === "object"
+          ? freshPlayer
+          : {};
+
+      const updatedArena =
+        applyArenaResult(
+          player.arena,
+          result,
+          {
+            playerRank: playerRankBefore,
+            opponentRank,
+          }
+        );
 
       const streakBoxReward =
         result === "win"
-          ? applyArenaStreakBoxReward(freshPlayer, updatedArena)
+          ? applyArenaStreakBoxReward(
+              player,
+              updatedArena
+            )
           : {
-              boxes: freshPlayer.boxes || [],
+              boxes: player.boxes || [],
               rewardLine: null,
             };
 
-      let updatedDailyState = incrementQuestCounter(freshPlayer, "arenaMatches", 1);
-
-      if (result === "win") {
-        updatedDailyState = incrementQuestCounter(
-          {
-            ...freshPlayer,
-            quests: {
-              ...(freshPlayer.quests || {}),
-              dailyState: updatedDailyState,
-            },
-          },
-          "arenaWins",
+      let updatedDailyState =
+        incrementQuestCounter(
+          player,
+          "arenaMatches",
           1
         );
+
+      if (result === "win") {
+        updatedDailyState =
+          incrementQuestCounter(
+            {
+              ...player,
+              quests: {
+                ...(player.quests || {}),
+                dailyState:
+                  updatedDailyState,
+              },
+            },
+            "arenaWins",
+            1
+          );
       }
 
-      const completed = Array.isArray(updatedDailyState.quests)
-        ? updatedDailyState.quests.filter((quest) => {
-            const progress = Number(updatedDailyState.progress?.[quest.key] || 0);
-            return progress >= Number(quest.target || 0);
-          }).length
-        : 0;
+      const completed =
+        Array.isArray(
+          updatedDailyState?.quests
+        )
+          ? updatedDailyState.quests.filter(
+              (quest) => {
+                const progress = Number(
+                  updatedDailyState
+                    ?.progress?.[quest.key] ||
+                    0
+                );
 
-      const total = Array.isArray(updatedDailyState.quests)
-        ? updatedDailyState.quests.length
-        : 0;
+                return (
+                  progress >=
+                  Number(
+                    quest.target || 0
+                  )
+                );
+              }
+            ).length
+          : 0;
+
+      const total =
+        Array.isArray(
+          updatedDailyState?.quests
+        )
+          ? updatedDailyState.quests.length
+          : 0;
+
+      /*
+        Apply EXP in this same update.
+        Arena result, quests, streak reward, and EXP
+        no longer trigger separate full player saves.
+      */
+      const updatedCards = [
+        ...(player.cards || []),
+      ].map((card, index) => {
+        const expEntry =
+          expResults.find(
+            (entry) =>
+              Number.isInteger(
+                entry.sourceIndex
+              ) &&
+              entry.sourceIndex === index
+          ) ||
+          expResults.find(
+            (entry) =>
+              String(entry.instanceId) ===
+              String(card?.instanceId)
+          );
+
+        if (!expEntry) {
+          return card;
+        }
+
+        const nextCard =
+          applyExpToCard(
+            {
+              ...card,
+              level: Number(
+                card?.level || 1
+              ),
+              exp: getCardExp(card),
+              xp: getCardExp(card),
+            },
+            expEntry.expGain
+          );
+
+        expEntry.leveledUp =
+          Number(
+            nextCard?.leveledUp || 0
+          );
+
+        return nextCard;
+      });
 
       finalArena = {
         ...updatedArena,
-        arenaRank: playerRankBefore,
-        streakRewardLine: streakBoxReward.rewardLine,
+
+        arenaRank:
+          playerRankBefore,
+
+        streakRewardLine:
+          streakBoxReward.rewardLine,
       };
 
-      streakRewardLine = streakBoxReward.rewardLine;
-
       return {
-        ...freshPlayer,
+        ...player,
+
         arena: updatedArena,
-        boxes: streakBoxReward.boxes,
+
+        cards: updatedCards,
+
+        boxes:
+          streakBoxReward.boxes,
+
         quests: {
-          ...(freshPlayer.quests || {}),
-          dailyState: updatedDailyState,
+          ...(player.quests || {}),
+
+          dailyState:
+            updatedDailyState,
+
           daily: {
-            ...(freshPlayer?.quests?.daily || {}),
+            ...(player?.quests?.daily ||
+              {}),
+
             total,
             completed,
-            left: Math.max(0, total - completed),
-            lastSyncedAt: Date.now(),
+
+            left: Math.max(
+              0,
+              total - completed
+            ),
+
+            lastSyncedAt:
+              Date.now(),
           },
         },
       };
@@ -1070,9 +1190,16 @@ function updateArenaPlayer(
   invalidateArenaPlayersCache();
 
   return {
-    ...(finalArena || {}),
-    arenaRank: playerRankBefore,
-    streakRewardLine,
+    arena: {
+      ...(finalArena || {}),
+      arenaRank: playerRankBefore,
+    },
+
+    expLines:
+      formatArenaExpResults(
+        playerTeam,
+        expResults
+      ),
   };
 }
 
@@ -1142,7 +1269,7 @@ function updateArenaOpponentAfterBattle(opponent, result, context = {}) {
 
   let updatedArena = null;
 
-  updatePlayerAtomic(
+  updatePlayerAtomicFast(
     opponentId,
     (fresh) => {
       updatedArena =
@@ -1413,47 +1540,6 @@ function formatArenaExpResults(playerTeam, expResults) {
     .filter(Boolean);
 }
 
-function applyArenaExp(message, playerTeam, won) {
-  const expResults = calculateArenaExp(playerTeam, won);
-
-  updatePlayerAtomic(
-    message.author.id,
-    (freshPlayer) => {
-      const updatedCards = [...(freshPlayer.cards || [])].map((card, index) => {
-        const expEntry =
-          expResults.find(
-            (entry) =>
-              Number.isInteger(entry.sourceIndex) && entry.sourceIndex === index
-          ) || expResults.find((entry) => entry.instanceId === card.instanceId);
-
-        if (!expEntry) return card;
-
-        const nextCard = applyExpToCard(
-          {
-            ...card,
-            level: Number(card.level || 1),
-            exp: getCardExp(card),
-            xp: getCardExp(card),
-          },
-          expEntry.expGain
-        );
-
-        expEntry.leveledUp = Number(nextCard.leveledUp || 0);
-
-        return nextCard;
-      });
-
-      return {
-        ...freshPlayer,
-        cards: updatedCards,
-      };
-    },
-    message.author.username
-  );
-
-  return formatArenaExpResults(playerTeam, expResults);
-}
-
 function buildActionRows(myTeam, ended) {
   const attackRow = new ActionRowBuilder();
 
@@ -1603,14 +1689,20 @@ if (interaction.user.id !== message.author.id) {
         logs.length = 0;
         logs.push("🏳️ You forfeited the arena battle.");
 
-        currentArena = updateArenaPlayer(
-          message,
-          result,
-          opponent,
-          null,
-          player?.arenaRank || ARENA_TOTAL_RANK_SLOTS
-        );
-        const expLines = applyArenaExp(message, myTeam, false);
+        const finalized =
+          finalizeArenaPlayerResult({
+            message,
+            result,
+            opponent,
+            playerTeam: myTeam,
+            knownPlayerRank:
+              player?.arenaRank ||
+              ARENA_TOTAL_RANK_SLOTS,
+          });
+
+        currentArena = finalized.arena;
+
+        const expLines = finalized.expLines;
 
         await safeEditInteractionMessage(interaction, {
           embeds: [
@@ -1710,20 +1802,49 @@ if (interaction.user.id !== message.author.id) {
           components: disableArenaRows(buildActionRows(myTeam, true)),
         });
 
-        currentArena = updateArenaPlayer(
-          message,
-          result,
-          opponent,
-          null,
-          player?.arenaRank || ARENA_TOTAL_RANK_SLOTS
-        );
-        updateArenaOpponentAfterBattle(opponent, result, {
-          playerRank: player?.arenaRank || getArenaRankForUser(message, message.author.id),
-          opponentRank: opponent?.rank || ARENA_TOTAL_RANK_SLOTS,
-        });
-        queueArenaRankRoleSync(message);
+        const finalized =
+          finalizeArenaPlayerResult({
+            message,
+            result,
+            opponent,
+            playerTeam: myTeam,
+            knownPlayerRank:
+              player?.arenaRank ||
+              ARENA_TOTAL_RANK_SLOTS,
+          });
 
-        const expLines = applyArenaExp(message, myTeam, true);
+        currentArena = finalized.arena;
+
+        const expLines = finalized.expLines;
+
+        /*
+          Opponent Arena result and rank-role sync run
+          after the visible player result is prepared.
+        */
+        setImmediate(() => {
+          try {
+            updateArenaOpponentAfterBattle(
+              opponent,
+              result,
+              {
+                playerRank:
+                  player?.arenaRank ||
+                  ARENA_TOTAL_RANK_SLOTS,
+
+                opponentRank:
+                  opponent?.rank ||
+                  ARENA_TOTAL_RANK_SLOTS,
+              }
+            );
+
+            queueArenaRankRoleSync(message);
+          } catch (error) {
+            console.error(
+              "[ARENA BACKGROUND RESULT ERROR]",
+              error
+            );
+          }
+        });
 
         await safeEditInteractionMessage(interaction, {
           embeds: [
@@ -1762,14 +1883,49 @@ if (interaction.user.id !== message.author.id) {
           components: disableArenaRows(buildActionRows(myTeam, true)),
         });
 
-        currentArena = updateArenaPlayer(
-          message,
-          result,
-          opponent,
-          null,
-          player?.arenaRank || ARENA_TOTAL_RANK_SLOTS
-        );
-        const expLines = applyArenaExp(message, myTeam, false);
+        const finalized =
+          finalizeArenaPlayerResult({
+            message,
+            result,
+            opponent,
+            playerTeam: myTeam,
+            knownPlayerRank:
+              player?.arenaRank ||
+              ARENA_TOTAL_RANK_SLOTS,
+          });
+
+        currentArena = finalized.arena;
+
+        const expLines = finalized.expLines;
+
+        /*
+          The opponent won, so update their defensive
+          Arena result outside the current interaction stack.
+        */
+        setImmediate(() => {
+          try {
+            updateArenaOpponentAfterBattle(
+              opponent,
+              result,
+              {
+                playerRank:
+                  player?.arenaRank ||
+                  ARENA_TOTAL_RANK_SLOTS,
+
+                opponentRank:
+                  opponent?.rank ||
+                  ARENA_TOTAL_RANK_SLOTS,
+              }
+            );
+
+            queueArenaRankRoleSync(message);
+          } catch (error) {
+            console.error(
+              "[ARENA BACKGROUND RESULT ERROR]",
+              error
+            );
+          }
+        });
 
         await safeEditInteractionMessage(interaction, {
           embeds: [
@@ -1820,28 +1976,63 @@ if (interaction.user.id !== message.author.id) {
 
     if (reason === "time") {
       ended = true;
-      result = resolveNoDrawResult(myTeam, enemyTeam);
-      logs.length = 0;
-      logs.push("⌛ Arena battle timed out.");
-      logs.push("Result decided by remaining HP.");
-
-      currentArena = updateArenaPlayer(
-        message,
-        result,
-        opponent,
-        null,
-        player?.arenaRank || ARENA_TOTAL_RANK_SLOTS
+      result = resolveNoDrawResult(
+        myTeam,
+        enemyTeam
       );
 
-      if (result === "win") {
-        updateArenaOpponentAfterBattle(opponent, result, {
-          playerRank: player?.arenaRank || getArenaRankForUser(message, message.author.id),
-          opponentRank: opponent?.rank || ARENA_TOTAL_RANK_SLOTS,
-        });
-        queueArenaRankRoleSync(message);
-      }
+      logs.length = 0;
+      logs.push(
+        "⌛ Arena battle timed out."
+      );
+      logs.push(
+        "Result decided by remaining HP."
+      );
 
-      const expLines = applyArenaExp(message, myTeam, result === "win");
+      const finalized =
+        finalizeArenaPlayerResult({
+          message,
+          result,
+          opponent,
+          playerTeam: myTeam,
+          knownPlayerRank:
+            player?.arenaRank ||
+            ARENA_TOTAL_RANK_SLOTS,
+        });
+
+      currentArena = finalized.arena;
+
+      const expLines = finalized.expLines;
+
+      /*
+        Update the real opponent for either result:
+        player win  → opponent defensive loss
+        player lose → opponent defensive win
+      */
+      setImmediate(() => {
+        try {
+          updateArenaOpponentAfterBattle(
+            opponent,
+            result,
+            {
+              playerRank:
+                player?.arenaRank ||
+                ARENA_TOTAL_RANK_SLOTS,
+
+              opponentRank:
+                opponent?.rank ||
+                ARENA_TOTAL_RANK_SLOTS,
+            }
+          );
+
+          queueArenaRankRoleSync(message);
+        } catch (error) {
+          console.error(
+            "[ARENA TIMEOUT BACKGROUND ERROR]",
+            error
+          );
+        }
+      });
 
       try {
         await lobbyMessage.edit({
@@ -1857,7 +2048,16 @@ if (interaction.user.id !== message.author.id) {
           ],
           components: [],
         });
-      } catch (_) {}
+      } catch (error) {
+        if (
+          !isIgnorableInteractionError(error)
+        ) {
+          console.error(
+            "[ARENA TIMEOUT RESULT EDIT ERROR]",
+            error
+          );
+        }
+      }
     }
   });
 }
@@ -1880,7 +2080,7 @@ module.exports = {
     const usesLeft = getArenaUsesLeft(player.arena || {});
 
     if (usesLeft <= 0) {
-      return message.reply(`You already used all **${ARENA_DAILY_LIMIT}/5** arena battles today.`);
+      return message.reply(`You already used all **${ARENA_DAILY_LIMIT}** arena battles today.`);
     }
 
     const loadingMessage = await message.reply({
@@ -1979,7 +2179,7 @@ module.exports = {
       if (freshUsesLeft <= 0) {
         await safeEphemeralReply(
           interaction,
-          `You already used all **${ARENA_DAILY_LIMIT}/5** arena battles today.`
+          `You already used all **${ARENA_DAILY_LIMIT}** arena battles today.`
         );
         return;
       }
