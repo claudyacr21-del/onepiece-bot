@@ -213,24 +213,39 @@ async function safeEditInteractionMessage(interaction, payload) {
 }
 
 function queueArenaRankRoleSync(message) {
-  if (!ARENA_ROLE_SYNC_ENABLED) return;
-  if (!message?.client || !message?.guild) return;
+  if (!ARENA_ROLE_SYNC_ENABLED) {
+    return;
+  }
 
-  setTimeout(() => {
+  if (!message?.client || !message?.guild) {
+    return;
+  }
+
+  setTimeout(async () => {
     try {
-      const leaderboardSnapshot = buildArenaVirtualLeaderboard(message, {
-        limit: ARENA_MAX_OPPONENT_SCAN,
-      });
+      const leaderboardSnapshot =
+        await buildFastArenaLeaderboard(message);
 
-      syncArenaRankRoles(message.client, message.guild, leaderboardSnapshot).catch(
-        (error) => {
-          console.error("[ARENA RANK ROLES SYNC ERROR]", error);
-        }
+      await waitImmediate();
+
+      await syncArenaRankRoles(
+        message.client,
+        message.guild,
+        leaderboardSnapshot.slice(
+          0,
+          ARENA_TOTAL_RANK_SLOTS
+        )
       );
     } catch (error) {
-      console.error("[ARENA RANK ROLES SNAPSHOT ERROR]", error);
+      console.error(
+        "[ARENA RANK ROLES SYNC ERROR]",
+        error
+      );
     }
-  }, ARENA_ROLE_SYNC_DELAY_MS);
+  }, Math.max(
+    30000,
+    ARENA_ROLE_SYNC_DELAY_MS
+  ));
 }
 
 function getDateKey() {
@@ -1658,9 +1673,7 @@ async function startArenaBattle({
   });
 
   collector.on("collect", async (interaction) => {
-
-        let __actionLock = null;
-if (interaction.user.id !== message.author.id) {
+    if (interaction.user.id !== message.author.id) {
       await safeEphemeralReply(
         interaction,
         "Only the command user can control this arena battle."
