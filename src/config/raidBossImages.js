@@ -1,5 +1,5 @@
 module.exports = {
-  luffy_straw_hat: "https://cdn.discordapp.com/attachments/1493204525975076944/1526974909975367701/luffy.gif?ex=6a58f9b4&is=6a57a834&hm=642c11a572c55b32232d8be60139d4abcebee5e3c8b97b7b16e712f9c6f74377",
+  luffy_straw_hat: "https://cdn.discordapp.com/attachments/1493204525975076944/1528318608063860826/luf.gif?ex=6a5ddd1e&is=6a5c8b9e&hm=8f637033114c40b5f3aebc77040b19dc4d19448fd3beb204a8c2c43e3f986a84",
   zoro_pirate_hunter: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233875971837962/zoro-one-piece-one-piece.gif?ex=69f06a87&is=69ef1907&hm=43629d7ce5e2e6b22a01af0b4fd7d9952acb152051680d61c9713dd0495e2eea&",
   nami_cat_burglar: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233876315897906/nami-zeus.gif?ex=69f06a87&is=69ef1907&hm=20bce5adcb61e649189241dd12e6972308db8e7a15456d0d628c2f293d35ccc5&",
   usopp_sniper: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233875606798446/usopp-one-piece.gif?ex=69f06a87&is=69ef1907&hm=19e299abb66e1cf21eeed1cf2cd042325046cf07a2c64ed91ce75a0d9bfda40f&",
@@ -27,6 +27,7 @@ module.exports = {
   brook_soul_king: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233861216407633/soul-king-brook-one-piece-edit-anime-brooke-blox-fruits-roblox.gif?ex=69f06a84&is=69ef1904&hm=ee1cb168819080d0467562ca3afece4c623b3db115f412b9de73330e8677e05e&",
   gecko_moria: "https://cdn.discordapp.com/attachments/1493204525975076944/1498201522343907358/one-piece-gecko-moria.gif?ex=69f04c66&is=69eefae6&hm=883cbabef318531837a3d35d0d894951818470e7b4802917f5cfb2112d0ad3c1&",
   bartholomew_kuma: "https://cdn.discordapp.com/attachments/1493204525975076944/1498201522029330523/kuma-pawpaw.gif?ex=69f04c66&is=69eefae6&hm=026069c5c851ecdeadaf22c1c227fb82150629c97ba294b62c58cddeefd8bc5b&",
+  koby_aspiring_marine: "https://cdn.discordapp.com/attachments/1493204525975076944/1528305309167386634/koby-honesty-impact.gif?ex=6a5dd0bc&is=6a5c7f3c&hm=e9393144282247a9a4025abdacc28c8ec8e6e6cb76bff749223d05c0a6145361",
   boa_hancock: "https://cdn.discordapp.com/attachments/1493204525975076944/1498201521735733428/boa-hancock.gif?ex=69f04c66&is=69eefae6&hm=c6d0062a0a9337cd390d35a99e76c29dba1972b45e7c2a0381269bed3566e350&",
   jinbe_first_son_of_the_sea: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233850545831967/jinbe.gif?ex=69f06a81&is=69ef1901&hm=6e0902cd09374c46ac9198d2ed35b4796c3aad1ba0b34e08d668c5607a5d6813&",
   ace_fire_fist: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233850248040520/onepiece-ace.gif?ex=69f06a81&is=69ef1901&hm=ed9ba4faa79fe8532bf72e9acee0f04d539033e695cfd17206ce10ce53cfee6b&",
