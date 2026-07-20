@@ -211,6 +211,7 @@ function usageEmbed() {
         "`op p kick <@user>`",
         "`op p promote <@user>`",
         "`op p demote <@user>`",
+        "`op p transfer <@user>` — Transfer Leader role.",
         "",
         "**Storage Commands**",
         "`op p deposit berries <amount>`",
@@ -720,42 +721,172 @@ async function handleJoin(message, args) {
 
 async function handleLeave(message) {
   try {
-    const pirate = requirePirate(message.author.id);
-    const userId = String(message.author.id);
+    const pirate =
+      requirePirate(message.author.id);
 
-    if (isLeader(pirate, userId)) {
-      if ((pirate.members || []).length <= 1) {
-        deletePirate(pirate.id);
-        return message.reply(makeSuccess("Pirate Disbanded", `**${pirate.name}** has been disbanded.`));
-      }
+    const userId =
+      String(message.author.id);
+
+    const members = (
+      pirate.members || []
+    ).map(String);
+
+    /*
+      Pirate with only the Leader remaining
+      is automatically disbanded.
+    */
+    if (
+      isLeader(pirate, userId) &&
+      members.length <= 1
+    ) {
+      deletePirate(pirate.id);
 
       return message.reply(
-        makeError(
-          "Leader cannot leave while members still exist.\nKick/transfer members first, or use this only when you are alone."
+        makeSuccess(
+          "Pirate Disbanded",
+          `**${pirate.name}** has been disbanded because no crew members remained.`
         )
       );
     }
 
-    const updated = updatePirate(pirate.id, (fresh) => ({
-      ...fresh,
-      viceLeaderId:
-        String(fresh.viceLeaderId || "") === userId ? null : fresh.viceLeaderId,
-      members: (fresh.members || []).filter((id) => String(id) !== userId),
-      logs: [
-        ...(fresh.logs || []),
-        {
-          at: Date.now(),
-          type: "leave",
-          userId,
+    /*
+      When the Leader leaves, the current Vice Leader
+      automatically becomes the new Leader.
+    */
+    if (isLeader(pirate, userId)) {
+      const viceLeaderId = String(
+        pirate.viceLeaderId || ""
+      );
+
+      if (
+        !viceLeaderId ||
+        !members.includes(viceLeaderId) ||
+        viceLeaderId === userId
+      ) {
+        return message.reply(
+          makeError(
+            [
+              "You must have an active Vice Leader before leaving.",
+              "",
+              "Promote a crew member first:",
+              "`op p promote <@user>`",
+              "",
+              "The Vice Leader will automatically become Leader when you leave.",
+            ].join("\n")
+          )
+        );
+      }
+
+      const updated = updatePirate(
+        pirate.id,
+        (fresh) => {
+          const freshMembers = (
+            fresh.members || []
+          )
+            .map(String)
+            .filter(
+              (memberId) =>
+                memberId !== userId
+            );
+
+          return {
+            ...fresh,
+
+            leaderId: viceLeaderId,
+            viceLeaderId: null,
+
+            members: [
+              ...new Set([
+                viceLeaderId,
+                ...freshMembers,
+              ]),
+            ],
+
+            logs: [
+              ...(fresh.logs || []),
+              {
+                at: Date.now(),
+                type: "leader_leave",
+                userId,
+                newLeaderId:
+                  viceLeaderId,
+              },
+            ].slice(-25),
+          };
+        }
+      );
+
+      return message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(GREEN)
+            .setTitle(
+              "Leader Left Pirate"
+            )
+            .setDescription(
+              [
+                `You left **${updated.name}**.`,
+                "",
+                `<@${viceLeaderId}> has automatically become the new Leader.`,
+                "The Vice Leader position is now empty.",
+              ].join("\n")
+            ),
+        ],
+
+        allowedMentions: {
+          users: [viceLeaderId],
+          repliedUser: false,
         },
-      ].slice(-25),
-    }));
+      });
+    }
+
+    /*
+      Normal crew or Vice Leader leave flow.
+    */
+    const updated = updatePirate(
+      pirate.id,
+      (fresh) => ({
+        ...fresh,
+
+        viceLeaderId:
+          String(
+            fresh.viceLeaderId || ""
+          ) === userId
+            ? null
+            : fresh.viceLeaderId,
+
+        members: (
+          fresh.members || []
+        ).filter(
+          (memberId) =>
+            String(memberId) !==
+            userId
+        ),
+
+        logs: [
+          ...(fresh.logs || []),
+          {
+            at: Date.now(),
+            type: "leave",
+            userId,
+          },
+        ].slice(-25),
+      })
+    );
 
     return message.reply(
-      makeSuccess("Left Pirate", `You left **${updated.name}**.`)
+      makeSuccess(
+        "Left Pirate",
+        `You left **${updated.name}**.`
+      )
     );
   } catch (error) {
-    return message.reply(makeError(error.message || "Failed to leave pirate/guild."));
+    return message.reply(
+      makeError(
+        error.message ||
+          "Failed to leave pirate/guild."
+      )
+    );
   }
 }
 
@@ -937,6 +1068,142 @@ async function handleDemote(message, args) {
     });
   } catch (error) {
     return message.reply(makeError(error.message || "Failed to demote user."));
+  }
+}
+
+async function handleTransferLeader(
+  message,
+  args
+) {
+  try {
+    const pirate =
+      requirePirate(message.author.id);
+
+    requireLeader(
+      pirate,
+      message.author.id
+    );
+
+    const currentLeaderId =
+      String(message.author.id);
+
+    const targetId =
+      getMentionId(args[0]);
+
+    if (!targetId) {
+      return message.reply(
+        makeError(
+          "Usage: `op p transfer <@user>`"
+        )
+      );
+    }
+
+    if (
+      String(targetId) ===
+      currentLeaderId
+    ) {
+      return message.reply(
+        makeError(
+          "You are already the Leader."
+        )
+      );
+    }
+
+    const members = (
+      pirate.members || []
+    ).map(String);
+
+    if (
+      !members.includes(
+        String(targetId)
+      )
+    ) {
+      return message.reply(
+        makeError(
+          "That user is not in your pirate/guild."
+        )
+      );
+    }
+
+    const updated = updatePirate(
+      pirate.id,
+      (fresh) => {
+        const freshMembers = [
+          ...new Set(
+            (
+              fresh.members || []
+            ).map(String)
+          ),
+        ];
+
+        return {
+          ...fresh,
+
+          leaderId:
+            String(targetId),
+
+          /*
+            The previous Leader becomes Vice Leader
+            after transferring leadership.
+          */
+          viceLeaderId:
+            currentLeaderId,
+
+          members: [
+            ...new Set([
+              String(targetId),
+              currentLeaderId,
+              ...freshMembers,
+            ]),
+          ],
+
+          logs: [
+            ...(fresh.logs || []),
+            {
+              at: Date.now(),
+              type:
+                "transfer_leader",
+              fromUserId:
+                currentLeaderId,
+              toUserId:
+                String(targetId),
+            },
+          ].slice(-25),
+        };
+      }
+    );
+
+    return message.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(GREEN)
+          .setTitle(
+            "Leadership Transferred"
+          )
+          .setDescription(
+            [
+              `<@${targetId}> is now the Leader of **${updated.name}**.`,
+              "",
+              `<@${currentLeaderId}> is now the Vice Leader.`,
+            ].join("\n")
+          ),
+      ],
+
+      allowedMentions: {
+        users: [
+          String(targetId),
+          currentLeaderId,
+        ],
+        repliedUser: false,
+      },
+    });
+  } catch (error) {
+    return message.reply(
+      makeError(
+        error.message ||
+          "Failed to transfer leadership."
+      )
+    );
   }
 }
 
@@ -3384,6 +3651,7 @@ module.exports = {
     if (sub === "kick") return handleKick(message, rest);
     if (sub === "promote") return handlePromote(message, rest);
     if (sub === "demote") return handleDemote(message, rest);
+    if (sub === "transfer") return handleTransferLeader(message, rest);
     if (sub === "deposit") return handleDeposit(message, rest);
     if (sub === "shop") return handlePirateShop(message);
     if (sub === "buy") return handlePirateBuy(message, rest);
