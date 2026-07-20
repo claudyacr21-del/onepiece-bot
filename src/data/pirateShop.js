@@ -14,6 +14,7 @@ const PIRATE_SHOP_ITEMS = {
     key: "pull_reset",
     name: "Pull Reset",
     price: 5,
+    amount: 2,
     type: "item",
     code: "pull_reset_ticket",
     rarity: "A",
