@@ -3958,7 +3958,10 @@ if (interaction.customId === "boss_run") {
               gems: Number(fresh.gems || 0) + rewardTotals.totalGems,
               story: freshStory,
               quests: applyBossQuestProgress(fresh, ["bossFights", "bossesDefeated"]),
-              achievements: bumpAchievement(fresh, "bossDefeated", 1),
+              achievements:
+                String(participant.userId) === String(message.author.id)
+                  ? bumpAchievement(fresh, "bossDefeated", 1)
+                  : fresh.achievements,
             };
           },
           message.author.username

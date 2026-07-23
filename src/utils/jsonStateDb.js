@@ -15,11 +15,11 @@ function getPool() {
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      max: Number(process.env.PLAYER_DB_POOL_MAX || 5),
-      idleTimeoutMillis: Number(process.env.PLAYER_DB_IDLE_TIMEOUT_MS || 10000),
-      connectionTimeoutMillis: Number(process.env.PLAYER_DB_CONNECT_TIMEOUT_MS || 15000),
-      query_timeout: Number(process.env.PLAYER_DB_QUERY_TIMEOUT_MS || 30000),
-      statement_timeout: Number(process.env.PLAYER_DB_STATEMENT_TIMEOUT_MS || 30000),
+      max: Number(process.env.PLAYER_DB_POOL_MAX || 20),
+      idleTimeoutMillis: Number(process.env.PLAYER_DB_IDLE_TIMEOUT_MS || 30000),
+      connectionTimeoutMillis: Number(process.env.PLAYER_DB_CONNECT_TIMEOUT_MS || 3000),
+      query_timeout: Number(process.env.PLAYER_DB_QUERY_TIMEOUT_MS || 12000),
+      statement_timeout: Number(process.env.PLAYER_DB_STATEMENT_TIMEOUT_MS || 12000),
     });
 
     pool.on("error", (error) => {
