@@ -72,9 +72,11 @@ function getReminderPool() {
     reminderPool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      max: 2,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
+      max: Number(process.env.REMINDER_DB_POOL_MAX || 1),
+      idleTimeoutMillis: Number(process.env.REMINDER_DB_IDLE_TIMEOUT_MS || 10000),
+      connectionTimeoutMillis: Number(process.env.REMINDER_DB_CONNECT_TIMEOUT_MS || 15000),
+      query_timeout: Number(process.env.REMINDER_DB_QUERY_TIMEOUT_MS || 30000),
+      statement_timeout: Number(process.env.REMINDER_DB_STATEMENT_TIMEOUT_MS || 30000),
     });
 
     reminderPool.on("error", (error) => {
