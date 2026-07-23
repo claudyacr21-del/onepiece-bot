@@ -277,30 +277,49 @@ function pickWeightedTicket() {
 }
 
 function getRewardPool(contentType) {
-  if (contentType === "ticket") return getTicketPool();
+  if (contentType === "ticket") {
+    return getTicketPool();
+  }
 
   if (contentType === "battleCard") {
-    return rawCards.filter(
-      (card) =>
+    return rawCards.filter((card) => {
+      const code = String(
+        card.code || ""
+      ).toLowerCase();
+
+      return (
         card.cardRole === "battle" &&
-        String(card.code || "").toLowerCase() !== "imu" 
-    );
+        code !== "imu" &&
+        card.canPA !== false &&
+        card.summonOnly !== true &&
+        card.mergeOnly !== true
+      );
+    });
   }
 
   if (contentType === "boostCard") {
-    return rawCards.filter((card) => card.cardRole === "boost");
+    return rawCards.filter(
+      (card) =>
+        card.cardRole === "boost" &&
+        card.canPA !== false &&
+        card.summonOnly !== true &&
+        card.mergeOnly !== true
+    );
   }
 
   if (contentType === "weapon") {
     return rawWeapons.filter(
       (weapon) =>
         !weapon.raidOnly &&
+        weapon.canPA !== false &&
         weapon.source !== "empty_throne_raid_writ" &&
         weapon.source !== "gold_raid_ticket"
     );
   }
 
-  return rawDevilFruits;
+  return rawDevilFruits.filter(
+    (fruit) => fruit.canPA !== false
+  );
 }
 
 function getPullRarity(entry) {
