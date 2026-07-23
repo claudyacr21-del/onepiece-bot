@@ -3447,7 +3447,10 @@ if (interaction.customId === "boss_raid_run") {
                   gems: Number(fresh.gems || 0) + rewardTotals.totalGems,
                   story: freshStory,
                   quests: applyBossQuestProgress(fresh, ["bossFights", "bossesDefeated"]),
-                  achievements: bumpAchievement(fresh, "bossDefeated", 1),
+                  achievements:
+                    String(participant.userId) === String(message.author.id)
+                      ? bumpAchievement(fresh, "bossDefeated", 1)
+                      : fresh.achievements,
                 };
               },
               participant.username || "Unknown"
@@ -3958,10 +3961,7 @@ if (interaction.customId === "boss_run") {
               gems: Number(fresh.gems || 0) + rewardTotals.totalGems,
               story: freshStory,
               quests: applyBossQuestProgress(fresh, ["bossFights", "bossesDefeated"]),
-              achievements:
-                String(participant.userId) === String(message.author.id)
-                  ? bumpAchievement(fresh, "bossDefeated", 1)
-                  : fresh.achievements,
+              achievements: bumpAchievement(fresh, "bossDefeated", 1),
             };
           },
           message.author.username
