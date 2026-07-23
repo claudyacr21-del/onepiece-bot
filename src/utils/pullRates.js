@@ -38,22 +38,65 @@ function rollFromRates(rates, fallback = "C") {
 function applyLuckyCardRates({ c, b, a, s }, multiplier = 1) {
   const multi = getLuckyMultiplier(multiplier);
 
+  const cRate = Math.max(0, Number(c || 0));
+  const bRate = Math.max(0, Number(b || 0));
+  const aRate = Math.max(0, Number(a || 0));
+  const sRate = Math.max(0, Number(s || 0));
+
+  if (multi <= 1) {
+    return {
+      c: cRate,
+      b: bRate,
+      a: aRate,
+      s: sRate,
+    };
+  }
+
+  const boostedSRate = sRate * multi;
+  const additionalSRate = boostedSRate - sRate;
+
   return {
-    c: Number(c || 0),
-    b: Number(b || 0) * multi,
-    a: Number(a || 0) * multi,
-    s: Number(s || 0) * multi,
+    c: Math.max(0, cRate - additionalSRate),
+    b: bRate,
+    a: aRate,
+    s: boostedSRate,
   };
 }
 
 function applyLuckyRareRates({ c, b, a, s, ur }, multiplier = 1) {
   const multi = getLuckyMultiplier(multiplier);
+
+  const cRate = Math.max(0, Number(c || 0));
+  const bRate = Math.max(0, Number(b || 0));
+  const aRate = Math.max(0, Number(a || 0));
+  const sRate = Math.max(0, Number(s || 0));
+  const urRate = Math.max(0, Number(ur || 0));
+
+  if (multi <= 1) {
+    return {
+      c: cRate,
+      b: bRate,
+      a: aRate,
+      s: sRate,
+      ur: urRate,
+    };
+  }
+
+  const boostedSRate = sRate * multi;
+  const boostedUrRate = urRate * multi;
+
+  const additionalRareRate =
+    boostedSRate -
+    sRate +
+    boostedUrRate -
+    urRate;
+
   return {
-    c: Number(c || 0),
-    b: Number(b || 0) * multi,
-    a: Number(a || 0) * multi,
-    s: Number(s || 0) * multi,
-    ur: Number(ur || 0) * multi,
+    c: Math.max(0, cRate - additionalRareRate),
+    b: bRate,
+    a: aRate,
+    s: boostedSRate,
+    ur: boostedUrRate,
   };
 }
 
