@@ -156,10 +156,25 @@ function syncPremiumSnapshot(snapshot, premiumTier) {
   };
 }
 
-function pickContentType(tier) {
-  if (tier === "motherFlame") return rollPremiumContentType();
-  if (tier === "vivreCard") return rollVivreContentType();
-  return rollStandardContentType();
+function pickContentType(
+  tier,
+  luckyMultiplier = 1
+) {
+  if (tier === "motherFlame") {
+    return rollPremiumContentType(
+      luckyMultiplier
+    );
+  }
+
+  if (tier === "vivreCard") {
+    return rollVivreContentType(
+      luckyMultiplier
+    );
+  }
+
+  return rollStandardContentType(
+    luckyMultiplier
+  );
 }
 
 function rollThroneEquivalentCardTier(baseTier) {
@@ -1402,18 +1417,31 @@ module.exports = {
     const pityLimit = getPityLimit(premiumTier, player);
     const pityGuarantee = getPityGuarantee(premiumTier, player);
 
-    let pityCounter = getSharedPity(player) + 1;
-    const triggeredPity = pityCounter >= pityLimit;
-    const rolledContentType = pickContentType(premiumTier);
+    let pityCounter =
+      getSharedPity(player) + 1;
+
+    const triggeredPity =
+      pityCounter >= pityLimit;
+
+    const pirateLuckBoost =
+      getPirateLuckBoost(
+        message.author.id
+      );
+
+    const luckyWeekMultiplier =
+      getLuckyWeekPullMultiplier();
+
+    const rolledContentType =
+      pickContentType(
+        premiumTier,
+        luckyWeekMultiplier
+      );
 
     const contentType = triggeredPity
       ? Math.random() < 0.5
         ? "battleCard"
         : "boostCard"
       : rolledContentType;
-
-    const pirateLuckBoost = getPirateLuckBoost(message.author.id);
-    const luckyWeekMultiplier = getLuckyWeekPullMultiplier();
 
     const baseTier = triggeredPity
       ? pityGuarantee

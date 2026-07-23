@@ -177,31 +177,146 @@ function rollPremiumGuaranteedTier() {
   return "S";
 }
 
-function rollStandardContentType() {
-  const roll = Math.random() * 100;
-  if (roll < 43.5) return "battleCard";
-  if (roll < 87) return "boostCard";
-  if (roll < 95) return "weapon";
-  if (roll < 97) return "devilFruit";
-  return "ticket";
+function rollContentTypeWithLucky(
+  rates,
+  luckyMultiplier = 1
+) {
+  const multi = getLuckyMultiplier(
+    luckyMultiplier
+  );
+
+  const battleRate = Math.max(
+    0,
+    Number(rates.battleCard || 0)
+  );
+
+  const boostRate = Math.max(
+    0,
+    Number(rates.boostCard || 0)
+  );
+
+  const weaponRate = Math.max(
+    0,
+    Number(rates.weapon || 0)
+  );
+
+  const devilFruitRate = Math.max(
+    0,
+    Number(rates.devilFruit || 0)
+  );
+
+  const ticketRate = Math.max(
+    0,
+    Number(rates.ticket || 0)
+  );
+
+  const boostedWeaponRate =
+    weaponRate * multi;
+
+  const boostedDevilFruitRate =
+    devilFruitRate * multi;
+
+  const boostedTicketRate =
+    ticketRate * multi;
+
+  const originalRareTotal =
+    weaponRate +
+    devilFruitRate +
+    ticketRate;
+
+  const boostedRareTotal =
+    boostedWeaponRate +
+    boostedDevilFruitRate +
+    boostedTicketRate;
+
+  const additionalRareRate =
+    boostedRareTotal -
+    originalRareTotal;
+
+  const commonTotal =
+    battleRate +
+    boostRate;
+
+  const remainingCommonTotal = Math.max(
+    0,
+    commonTotal - additionalRareRate
+  );
+
+  const commonScale =
+    commonTotal > 0
+      ? remainingCommonTotal / commonTotal
+      : 0;
+
+  return rollFromRates(
+    [
+      {
+        tier: "battleCard",
+        rate: battleRate * commonScale,
+      },
+      {
+        tier: "boostCard",
+        rate: boostRate * commonScale,
+      },
+      {
+        tier: "weapon",
+        rate: boostedWeaponRate,
+      },
+      {
+        tier: "devilFruit",
+        rate: boostedDevilFruitRate,
+      },
+      {
+        tier: "ticket",
+        rate: boostedTicketRate,
+      },
+    ],
+    "battleCard"
+  );
 }
 
-function rollVivreContentType() {
-  const roll = Math.random() * 100;
-  if (roll < 41.5) return "battleCard";
-  if (roll < 83) return "boostCard";
-  if (roll < 93) return "weapon";
-  if (roll < 96) return "devilFruit";
-  return "ticket";
+function rollStandardContentType(
+  luckyMultiplier = 1
+) {
+  return rollContentTypeWithLucky(
+    {
+      battleCard: 43.5,
+      boostCard: 43.5,
+      weapon: 8,
+      devilFruit: 2,
+      ticket: 3,
+    },
+    luckyMultiplier
+  );
 }
 
-function rollPremiumContentType() {
-  const roll = Math.random() * 100;
-  if (roll < 39.5) return "battleCard";
-  if (roll < 79) return "boostCard";
-  if (roll < 91) return "weapon";
-  if (roll < 95) return "devilFruit";
-  return "ticket";
+function rollVivreContentType(
+  luckyMultiplier = 1
+) {
+  return rollContentTypeWithLucky(
+    {
+      battleCard: 41.5,
+      boostCard: 41.5,
+      weapon: 10,
+      devilFruit: 3,
+      ticket: 4,
+    },
+    luckyMultiplier
+  );
+}
+
+function rollPremiumContentType(
+  luckyMultiplier = 1
+) {
+  return rollContentTypeWithLucky(
+    {
+      battleCard: 39.5,
+      boostCard: 39.5,
+      weapon: 12,
+      devilFruit: 4,
+      ticket: 5,
+    },
+    luckyMultiplier
+  );
 }
 
 function applyPirateLuckToRareRates(

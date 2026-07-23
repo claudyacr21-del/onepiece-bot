@@ -186,8 +186,12 @@ function createOwnedCardLocal(template) {
   });
 }
 
-function getContentType() {
-  return rollPremiumContentType();
+function getContentType(
+  luckyMultiplier = 1
+) {
+  return rollPremiumContentType(
+    luckyMultiplier
+  );
 }
 
 function rollThroneEquivalentCardTier(baseTier) {
@@ -1498,7 +1502,9 @@ module.exports = {
           pityCounter >= PREMIUM_PITY_TARGET;
 
         let contentType =
-          getContentType();
+          getContentType(
+            luckyWeekMultiplier
+          );
 
         if (triggeredPity) {
           contentType =
