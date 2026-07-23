@@ -542,6 +542,33 @@ function addRandomUniversalFragment(state, rewardMap, pool, qty, boxAmount) {
   return grantRewardItem(state, rewardMap, picked, qty, boxAmount);
 }
 
+function grantBoxRewardsIndividually(box, amount, state, rewardMap) {
+  let nextState = {
+    materials: [...(state.materials || [])],
+    items: [...(state.items || [])],
+    tickets: [...(state.tickets || [])],
+    fragments: [...(state.fragments || [])],
+    boxes: [...(state.boxes || [])],
+    berries: Number(state.berries || 0),
+    gems: Number(state.gems || 0),
+    ryumaTokens: Number(state.ryumaTokens || 0),
+  };
+
+  const openAmount = Math.max(0, Math.floor(Number(amount || 0)));
+
+  for (let i = 0; i < openAmount; i++) {
+    const rolledState = grantBoxRewards(box, 1, nextState, rewardMap);
+
+    if (!rolledState) {
+      return null;
+    }
+
+    nextState = rolledState;
+  }
+
+  return nextState;
+}
+
 function grantBoxRewards(box, amount, state, rewardMap) {
   let nextState = {
     materials: [...(state.materials || [])],
@@ -940,7 +967,7 @@ module.exports = {
             throw new Error(`You do not own enough **${box.name}**.`);
           }
 
-          const rewardState = grantBoxRewards(
+          const rewardState = grantBoxRewardsIndividually(
             box,
             openAmount,
             {
