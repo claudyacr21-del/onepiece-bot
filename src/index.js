@@ -788,17 +788,10 @@ function runPlayerStoreFlushInBackground({
   authorId,
   fastCommand = false,
 }) {
-  const normalizedCommand =
-    normalizeCommandName(
-      command?.name || commandName
-    );
+  const normalizedCommand = normalizeCommandName(
+    command?.name || commandName
+  );
 
-  /*
-    PA already queues its exact player snapshot through
-    updatePlayerAtomicFast. Running flushPlayerNow here
-    would normalize and stringify the same large player
-    a second time.
-  */
   if (
     normalizedCommand === "pa" ||
     normalizedCommand === "pullall"
@@ -807,20 +800,18 @@ function runPlayerStoreFlushInBackground({
   }
 
   const commandFlushMs = Number(
-    process.env.PLAYER_DB_COMMAND_FLUSH_MS || 10000
+    process.env.PLAYER_DB_COMMAND_FLUSH_MS || 0
   );
 
-  if (commandFlushMs <= 0) return;
+  if (commandFlushMs <= 0 || !authorId) return;
 
   setImmediate(() => {
-    const flushPromise = fastCommand
-      ? flushPlayerNow(String(authorId), commandFlushMs)
-      : flushPlayerStoreNow(commandFlushMs);
-
-    Promise.resolve(flushPromise).catch((error) => {
+    Promise.resolve(
+      flushPlayerNow(String(authorId), commandFlushMs)
+    ).catch((error) => {
       console.error("[PLAYER DB BACKGROUND FLUSH ERROR]", {
         commandName: command?.name || commandName,
-        authorId: String(authorId || ""),
+        authorId: String(authorId),
         fastCommand,
         message: error?.message || error,
       });

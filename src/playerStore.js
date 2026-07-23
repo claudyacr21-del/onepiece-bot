@@ -24,6 +24,7 @@ let playerStoreFlushInterval = null;
 const playerSaveQueues = new Map();
 const fastPlayerSaveQueues = new Map();
 let playerStoreShutdownDrainInstalled = false;
+let playerStoreFullFlushPromise = null;
 
 function getPendingPlayerSavePromises() {
   return [
@@ -2706,37 +2707,62 @@ function updateTwoPlayersAtomic(userIdA, userIdB, mutator, usernameA = "Unknown"
 }
 
 async function flushPlayerStoreNow(timeoutMs = 30000) {
-  const safeTimeout = Math.max(1000, Number(timeoutMs || 30000));
+  if (playerStoreFullFlushPromise) {
+    return playerStoreFullFlushPromise;
+  }
 
-  try {
-    if (USE_POSTGRES && dbReady) {
-      await drainPlayerStoreSaves(safeTimeout);
+  const safeTimeout = Math.max(
+    1000,
+    Number(timeoutMs || 30000)
+  );
 
-      const latestPlayers = readPlayers();
-      const ok = await flushChangedPlayersToPostgres(latestPlayers);
+  const currentFlush = (async () => {
+    try {
+      if (USE_POSTGRES && dbReady) {
+        await drainPlayerStoreSaves(safeTimeout);
 
-      if (!ok) {
-        console.error("[PLAYER STORE FLUSH NOW ERROR] Some rows failed to save.");
+        const latestPlayers = readPlayers();
+        const ok = await flushChangedPlayersToPostgres(
+          latestPlayers
+        );
+
+        if (!ok) {
+          console.error(
+            "[PLAYER STORE FLUSH NOW ERROR] Some rows failed to save."
+          );
+        }
+
+        return ok;
       }
 
-      return ok;
-    }
+      const players = readPlayers();
 
-    const players = readPlayers();
+      if (PLAYER_STORE_MODE === "postgres") {
+        console.error(
+          "[PLAYER STORE] Refusing flush file fallback while postgres mode is required."
+        );
+        return false;
+      }
 
-    if (PLAYER_STORE_MODE === "postgres") {
+      writePlayersLocalBackupOnly(players);
+      return true;
+    } catch (error) {
       console.error(
-        "[PLAYER STORE] Refusing flush file fallback while postgres mode is required."
+        "[PLAYER STORE FLUSH NOW ERROR]",
+        error?.message || error
       );
       return false;
     }
+  })();
 
-    writePlayersLocalBackupOnly(players);
-    return true;
-  } catch (error) {
-    console.error("[PLAYER STORE FLUSH NOW ERROR]", error);
-    return false;
-  }
+  const trackedFlush = currentFlush.finally(() => {
+    if (playerStoreFullFlushPromise === trackedFlush) {
+      playerStoreFullFlushPromise = null;
+    }
+  });
+
+  playerStoreFullFlushPromise = trackedFlush;
+  return trackedFlush;
 }
 
 async function flushPlayerNow(userId, timeoutMs = 8000) {
