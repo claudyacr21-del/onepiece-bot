@@ -65,20 +65,40 @@ const channelCooldowns = new Map();
 const MARINE_CHANNEL_STORE_KEY = "__marine_event_channels__";
 
 let marineChannelPool = null;
+let marineChannelTablePromise = null;
+let marineDbUnavailableUntil = 0;
+const marineAllowedChannelCache = new Map();
 
 function getMarineChannelPool() {
   if (!process.env.DATABASE_URL) return null;
+  if (Date.now() < marineDbUnavailableUntil) return null;
 
   if (!marineChannelPool) {
     marineChannelPool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl:
-        String(process.env.DATABASE_URL || "").includes("supabase")
-          ? { rejectUnauthorized: false }
-          : undefined,
-      max: 2,
-      idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 10_000,
+      ssl: { rejectUnauthorized: false },
+      max: Number(process.env.MARINE_DB_POOL_MAX || 1),
+      idleTimeoutMillis: Number(
+        process.env.MARINE_DB_IDLE_TIMEOUT_MS || 10000
+      ),
+      connectionTimeoutMillis: Number(
+        process.env.MARINE_DB_CONNECT_TIMEOUT_MS || 30000
+      ),
+      query_timeout: Number(
+        process.env.MARINE_DB_QUERY_TIMEOUT_MS || 30000
+      ),
+      statement_timeout: Number(
+        process.env.MARINE_DB_STATEMENT_TIMEOUT_MS || 30000
+      ),
+    });
+
+    marineChannelPool.on("error", (error) => {
+      marineDbUnavailableUntil = Date.now() + 60_000;
+
+      console.error(
+        "[MARINE CHANNEL DB POOL ERROR]",
+        error?.message || error
+      );
     });
   }
 
@@ -89,18 +109,27 @@ async function ensureMarineChannelTable() {
   const pool = getMarineChannelPool();
   if (!pool) return false;
 
-  await pool.query(`
-    create table if not exists public.marine_event_channels (
-      guild_id text not null,
-      channel_id text not null,
-      allowed boolean not null default true,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now(),
-      primary key (guild_id, channel_id)
-    )
-  `);
+  if (!marineChannelTablePromise) {
+    marineChannelTablePromise = pool
+      .query(`
+        create table if not exists public.marine_event_channels (
+          guild_id text not null,
+          channel_id text not null,
+          allowed boolean not null default true,
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now(),
+          primary key (guild_id, channel_id)
+        )
+      `)
+      .then(() => true)
+      .catch((error) => {
+        marineChannelTablePromise = null;
+        marineDbUnavailableUntil = Date.now() + 60_000;
+        throw error;
+      });
+  }
 
-  return true;
+  return marineChannelTablePromise;
 }
 
 const RARITY_ORDER = {
@@ -219,6 +248,10 @@ function getMarineConfigStore(players = null) {
 async function getAllowedMarineChannels(guildId) {
   const guildKey = String(guildId);
 
+  if (marineAllowedChannelCache.has(guildKey)) {
+    return [...marineAllowedChannelCache.get(guildKey)];
+  }
+
   const pool = getMarineChannelPool();
 
   if (pool) {
@@ -236,9 +269,19 @@ async function getAllowedMarineChannels(guildId) {
         [guildKey]
       );
 
-      return result.rows.map((row) => String(row.channel_id));
+      const channels = result.rows.map((row) =>
+        String(row.channel_id)
+      );
+
+      marineAllowedChannelCache.set(guildKey, channels);
+      return [...channels];
     } catch (error) {
-      console.error("[MARINE CHANNEL LOAD ERROR]", error?.message || error);
+      marineDbUnavailableUntil = Date.now() + 60_000;
+
+      console.error(
+        "[MARINE CHANNEL LOAD ERROR]",
+        error?.message || error
+      );
     }
   }
 
@@ -246,9 +289,14 @@ async function getAllowedMarineChannels(guildId) {
   const store = getMarineConfigStore(players);
   const guildConfig = store.guilds[guildKey] || {};
 
-  return Array.isArray(guildConfig.allowedChannels)
+  const channels = Array.isArray(
+    guildConfig.allowedChannels
+  )
     ? guildConfig.allowedChannels.map(String)
     : [];
+
+  marineAllowedChannelCache.set(guildKey, channels);
+  return [...channels];
 }
 
 async function isMarineChannelAllowed(guildId, channelId) {
@@ -256,7 +304,11 @@ async function isMarineChannelAllowed(guildId, channelId) {
   return allowedChannels.includes(String(channelId));
 }
 
-async function setMarineChannelAllowed(guildId, channelId, allowed) {
+async function setMarineChannelAllowed(
+  guildId,
+  channelId,
+  allowed
+) {
   const guildKey = String(guildId);
   const channelKey = String(channelId);
   const pool = getMarineChannelPool();
@@ -290,9 +342,15 @@ async function setMarineChannelAllowed(guildId, channelId, allowed) {
         );
       }
 
+      marineAllowedChannelCache.delete(guildKey);
       return getAllowedMarineChannels(guildKey);
     } catch (error) {
-      console.error("[MARINE CHANNEL SAVE ERROR]", error?.message || error);
+      marineDbUnavailableUntil = Date.now() + 60_000;
+
+      console.error(
+        "[MARINE CHANNEL SAVE ERROR]",
+        error?.message || error
+      );
     }
   }
 
@@ -305,7 +363,9 @@ async function setMarineChannelAllowed(guildId, channelId, allowed) {
     };
   }
 
-  const current = Array.isArray(store.guilds[guildKey].allowedChannels)
+  const current = Array.isArray(
+    store.guilds[guildKey].allowedChannels
+  )
     ? store.guilds[guildKey].allowedChannels.map(String)
     : [];
 
@@ -315,9 +375,11 @@ async function setMarineChannelAllowed(guildId, channelId, allowed) {
 
   store.guilds[guildKey].allowedChannels = next;
   players[MARINE_CHANNEL_STORE_KEY] = store;
+  marineAllowedChannelCache.set(guildKey, next);
+
   writePlayers(players);
 
-  return next;
+  return [...next];
 }
 
 function getChannelUserKey(guildId, channelId) {
