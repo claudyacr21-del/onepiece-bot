@@ -7,6 +7,7 @@ const USE_POSTGRES =
   Boolean(process.env.DATABASE_URL);
 
 let pool = null;
+let ensureJsonStateTablePromise = null;
 
 function getPool() {
   if (!USE_POSTGRES) return null;
@@ -15,11 +16,19 @@ function getPool() {
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      max: Number(process.env.PLAYER_DB_POOL_MAX || 20),
-      idleTimeoutMillis: Number(process.env.PLAYER_DB_IDLE_TIMEOUT_MS || 30000),
-      connectionTimeoutMillis: Number(process.env.PLAYER_DB_CONNECT_TIMEOUT_MS || 3000),
-      query_timeout: Number(process.env.PLAYER_DB_QUERY_TIMEOUT_MS || 12000),
-      statement_timeout: Number(process.env.PLAYER_DB_STATEMENT_TIMEOUT_MS || 12000),
+      max: Number(process.env.JSON_STATE_DB_POOL_MAX || 3),
+      idleTimeoutMillis: Number(
+        process.env.JSON_STATE_DB_IDLE_TIMEOUT_MS || 10000
+      ),
+      connectionTimeoutMillis: Number(
+        process.env.JSON_STATE_DB_CONNECT_TIMEOUT_MS || 30000
+      ),
+      query_timeout: Number(
+        process.env.JSON_STATE_DB_QUERY_TIMEOUT_MS || 30000
+      ),
+      statement_timeout: Number(
+        process.env.JSON_STATE_DB_STATEMENT_TIMEOUT_MS || 30000
+      ),
     });
 
     pool.on("error", (error) => {
@@ -34,20 +43,29 @@ async function ensureJsonStateTable() {
   const db = getPool();
   if (!db) return false;
 
-  await db.query(`
-    create table if not exists bot_json_state (
-      state_key text primary key,
-      data jsonb not null default '{}'::jsonb,
-      updated_at timestamptz not null default now()
-    );
-  `);
+  if (!ensureJsonStateTablePromise) {
+    ensureJsonStateTablePromise = (async () => {
+      await db.query(`
+        create table if not exists bot_json_state (
+          state_key text primary key,
+          data jsonb not null default '{}'::jsonb,
+          updated_at timestamptz not null default now()
+        );
+      `);
 
-  await db.query(`
-    create index if not exists bot_json_state_updated_at_idx
-    on bot_json_state (updated_at);
-  `);
+      await db.query(`
+        create index if not exists bot_json_state_updated_at_idx
+        on bot_json_state (updated_at);
+      `);
 
-  return true;
+      return true;
+    })().catch((error) => {
+      ensureJsonStateTablePromise = null;
+      throw error;
+    });
+  }
+
+  return ensureJsonStateTablePromise;
 }
 
 async function loadJsonStateFromDb(stateKey) {

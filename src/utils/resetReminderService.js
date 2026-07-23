@@ -63,7 +63,76 @@ let lastGlobalResetNoticeAt = 0;
 
 let reminderPool = null;
 let reminderDbReady = false;
-let reminderDbInitStarted = false;
+let reminderDbInitPromise = null;
+let userReminderCheckRunning = false;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientReminderDbError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+
+  return (
+    message.includes("connection timeout") ||
+    message.includes("timeout exceeded") ||
+    message.includes("connection terminated") ||
+    message.includes("connection terminated unexpectedly") ||
+    message.includes("econnreset") ||
+    message.includes("etimedout") ||
+    message.includes("too many clients") ||
+    message.includes("remaining connection slots")
+  );
+}
+
+function shouldReinitializeReminderTables(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+
+  return (
+    String(error?.code || "") === "42P01" ||
+    (message.includes("relation") && message.includes("does not exist"))
+  );
+}
+
+async function runReminderDbQuery(text, values = [], label = "query") {
+  const pool = getReminderPool();
+
+  if (!pool) {
+    throw new Error("Reminder database pool is unavailable.");
+  }
+
+  const attempts = Math.max(
+    1,
+    Number(process.env.RESET_REMINDER_DB_RETRIES || 3)
+  );
+
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await pool.query(text, values);
+    } catch (error) {
+      lastError = error;
+
+      if (!isTransientReminderDbError(error) || attempt >= attempts) {
+        throw error;
+      }
+
+      const waitMs = Math.min(5000, 1000 * attempt);
+
+      console.warn(
+        `[RESET REMINDER DB RETRY] ${label} attempt ${attempt}/${attempts}. Retrying in ${waitMs}ms.`,
+        {
+          message: error?.message || error,
+        }
+      );
+
+      await sleep(waitMs);
+    }
+  }
+
+  throw lastError;
+}
 
 function getReminderPool() {
   if (!process.env.DATABASE_URL) return null;
@@ -72,14 +141,26 @@ function getReminderPool() {
     reminderPool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      max: 2,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
+      max: Number(process.env.RESET_REMINDER_DB_POOL_MAX || 1),
+      idleTimeoutMillis: Number(
+        process.env.RESET_REMINDER_DB_IDLE_TIMEOUT_MS || 10000
+      ),
+      connectionTimeoutMillis: Number(
+        process.env.RESET_REMINDER_DB_CONNECT_TIMEOUT_MS || 30000
+      ),
+      query_timeout: Number(
+        process.env.RESET_REMINDER_DB_QUERY_TIMEOUT_MS || 30000
+      ),
+      statement_timeout: Number(
+        process.env.RESET_REMINDER_DB_STATEMENT_TIMEOUT_MS || 30000
+      ),
     });
 
     reminderPool.on("error", (error) => {
-      console.error("[RESET REMINDER DB POOL ERROR]", error?.message || error);
-      reminderDbReady = false;
+      console.error(
+        "[RESET REMINDER DB POOL ERROR]",
+        error?.message || error
+      );
     });
   }
 
@@ -88,15 +169,17 @@ function getReminderPool() {
 
 async function ensureReminderTables() {
   if (reminderDbReady) return true;
-  if (reminderDbInitStarted) return false;
+
+  if (reminderDbInitPromise) {
+    return reminderDbInitPromise;
+  }
 
   const pool = getReminderPool();
   if (!pool) return false;
 
-  reminderDbInitStarted = true;
-
-  try {
-    await pool.query(`
+  reminderDbInitPromise = (async () => {
+    await runReminderDbQuery(
+      `
       create table if not exists cooldown_reminder_states (
         user_id text not null,
         reminder_type text not null,
@@ -106,14 +189,22 @@ async function ensureReminderTables() {
         updated_at timestamptz not null default now(),
         primary key (user_id, reminder_type)
       );
-    `);
+      `,
+      [],
+      "create-reminder-states"
+    );
 
-    await pool.query(`
+    await runReminderDbQuery(
+      `
       create index if not exists cooldown_reminder_states_updated_at_idx
       on cooldown_reminder_states (updated_at);
-    `);
+      `,
+      [],
+      "create-reminder-states-index"
+    );
 
-    await pool.query(`
+    await runReminderDbQuery(
+      `
       create table if not exists cooldown_reminder_events (
         id bigserial primary key,
         user_id text not null,
@@ -122,33 +213,55 @@ async function ensureReminderTables() {
         sent_at timestamptz not null default now(),
         unique (user_id, reminder_type, ready_at)
       );
-    `);
+      `,
+      [],
+      "create-reminder-events"
+    );
 
-    await pool.query(`
+    await runReminderDbQuery(
+      `
       create index if not exists cooldown_reminder_events_user_idx
       on cooldown_reminder_events (user_id);
-    `);
+      `,
+      [],
+      "create-reminder-events-user-index"
+    );
 
-    await pool.query(`
+    await runReminderDbQuery(
+      `
       create index if not exists cooldown_reminder_events_sent_at_idx
       on cooldown_reminder_events (sent_at);
-    `);
+      `,
+      [],
+      "create-reminder-events-sent-index"
+    );
 
-    await pool.query(`
+    await runReminderDbQuery(
+      `
       delete from cooldown_reminder_events
       where sent_at < now() - interval '30 days';
-    `);
+      `,
+      [],
+      "cleanup-reminder-events"
+    );
 
     reminderDbReady = true;
     console.log("[RESET REMINDER] Supabase reminder lock ready.");
     return true;
-  } catch (error) {
-    console.error("[RESET REMINDER DB INIT ERROR]", error);
-    reminderDbReady = false;
-    return false;
-  } finally {
-    reminderDbInitStarted = false;
-  }
+  })()
+    .catch((error) => {
+      reminderDbReady = false;
+      console.error(
+        "[RESET REMINDER DB INIT ERROR]",
+        error?.message || error
+      );
+      return false;
+    })
+    .finally(() => {
+      reminderDbInitPromise = null;
+    });
+
+  return reminderDbInitPromise;
 }
 
 async function getReminderState(userId, reminderType) {
@@ -162,20 +275,33 @@ async function getReminderState(userId, reminderType) {
 
     if (!reminderDbReady) return null;
 
-    const result = await pool.query(
+    const result = await runReminderDbQuery(
       `
-      select user_id, reminder_type, last_cooldown_at, last_notified_at, was_pending
+      select
+        user_id,
+        reminder_type,
+        last_cooldown_at,
+        last_notified_at,
+        was_pending
       from cooldown_reminder_states
       where user_id = $1 and reminder_type = $2
       limit 1
       `,
-      [String(userId), String(reminderType)]
+      [String(userId), String(reminderType)],
+      "get-reminder-state"
     );
 
     return result.rows?.[0] || null;
   } catch (error) {
-    reminderDbReady = false;
-    console.error("[RESET REMINDER GET STATE ERROR]", error?.message || error);
+    if (shouldReinitializeReminderTables(error)) {
+      reminderDbReady = false;
+    }
+
+    console.error(
+      "[RESET REMINDER GET STATE ERROR]",
+      error?.message || error
+    );
+
     return null;
   }
 }
@@ -195,10 +321,15 @@ async function saveReminderState(userId, reminderType, patch = {}) {
     const lastNotifiedAt = Number(patch.lastNotifiedAt || 0);
     const wasPending = Boolean(patch.wasPending);
 
-    await pool.query(
+    await runReminderDbQuery(
       `
       insert into cooldown_reminder_states (
-        user_id, reminder_type, last_cooldown_at, last_notified_at, was_pending, updated_at
+        user_id,
+        reminder_type,
+        last_cooldown_at,
+        last_notified_at,
+        was_pending,
+        updated_at
       )
       values ($1, $2, $3, $4, $5, now())
       on conflict (user_id, reminder_type)
@@ -214,13 +345,21 @@ async function saveReminderState(userId, reminderType, patch = {}) {
         lastCooldownAt,
         lastNotifiedAt,
         wasPending,
-      ]
+      ],
+      "save-reminder-state"
     );
 
     return true;
   } catch (error) {
-    reminderDbReady = false;
-    console.error("[RESET REMINDER SAVE STATE ERROR]", error?.message || error);
+    if (shouldReinitializeReminderTables(error)) {
+      reminderDbReady = false;
+    }
+
+    console.error(
+      "[RESET REMINDER SAVE STATE ERROR]",
+      error?.message || error
+    );
+
     return false;
   }
 }
@@ -230,7 +369,9 @@ async function claimReminderEventOnce(userId, reminderType, readyAt) {
     const pool = getReminderPool();
     const ready = Number(readyAt || 0);
 
-    if (!pool || !userId || !reminderType || !ready) return false;
+    if (!pool || !userId || !reminderType || !ready) {
+      return false;
+    }
 
     if (!reminderDbReady) {
       await ensureReminderTables();
@@ -238,21 +379,33 @@ async function claimReminderEventOnce(userId, reminderType, readyAt) {
 
     if (!reminderDbReady) return false;
 
-    const result = await pool.query(
+    const result = await runReminderDbQuery(
       `
-      insert into cooldown_reminder_events (user_id, reminder_type, ready_at)
+      insert into cooldown_reminder_events (
+        user_id,
+        reminder_type,
+        ready_at
+      )
       values ($1, $2, $3)
       on conflict (user_id, reminder_type, ready_at)
       do nothing
       returning id
       `,
-      [String(userId), String(reminderType), ready]
+      [String(userId), String(reminderType), ready],
+      "claim-reminder-event"
     );
 
     return result.rowCount > 0;
   } catch (error) {
-    reminderDbReady = false;
-    console.error("[RESET REMINDER CLAIM EVENT ERROR]", error?.message || error);
+    if (shouldReinitializeReminderTables(error)) {
+      reminderDbReady = false;
+    }
+
+    console.error(
+      "[RESET REMINDER CLAIM EVENT ERROR]",
+      error?.message || error
+    );
+
     return false;
   }
 }
@@ -445,27 +598,46 @@ async function handleReminderTarget(client, userId, target, now) {
 }
 
 async function checkUserCooldownReminders(client) {
-    if (String(process.env.RESET_REMINDER_USER_CHECK_ENABLED || "false").toLowerCase() !== "true") {
-      return;
-    }
-  const players = readPlayers();
-  const now = Date.now();
+  const enabled =
+    String(
+      process.env.RESET_REMINDER_USER_CHECK_ENABLED || "false"
+    ).toLowerCase() === "true";
 
-  for (const [userId, player] of Object.entries(players || {})) {
-    if (userId === "__system__" || userId === "__global__") continue;
+  if (!enabled || userReminderCheckRunning) {
+    return;
+  }
 
-    const targets = getCooldownTargets(player);
+  userReminderCheckRunning = true;
 
-    for (const target of targets) {
-      try {
-        await handleReminderTarget(client, userId, target, now);
-      } catch (error) {
-        console.error(
-          `[RESET REMINDER USER CHECK ERROR] user=${userId} type=${target.type}`,
-          error
-        );
+  try {
+    const players = readPlayers();
+    const now = Date.now();
+
+    for (const [userId, player] of Object.entries(players || {})) {
+      if (userId === "__system__" || userId === "__global__") {
+        continue;
+      }
+
+      const targets = getCooldownTargets(player);
+
+      for (const target of targets) {
+        try {
+          await handleReminderTarget(
+            client,
+            userId,
+            target,
+            now
+          );
+        } catch (error) {
+          console.error(
+            `[RESET REMINDER USER CHECK ERROR] user=${userId} type=${target.type}`,
+            error
+          );
+        }
       }
     }
+  } finally {
+    userReminderCheckRunning = false;
   }
 }
 
