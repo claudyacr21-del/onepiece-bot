@@ -204,55 +204,161 @@ function rollPremiumContentType() {
   return "ticket";
 }
 
-function rollStandardDevilFruitTier(luckyMultiplier = 1) {
+function applyPirateLuckToRareRates(
+  rates,
+  pullChanceBonus = 0
+) {
+  const bonus = Math.min(
+    5,
+    Math.max(
+      0,
+      Number(pullChanceBonus || 0)
+    )
+  );
+
+  return {
+    ...rates,
+    c: Math.max(
+      0,
+      Number(rates.c || 0) - bonus
+    ),
+    s: Number(rates.s || 0) + bonus,
+  };
+}
+
+function rollStandardDevilFruitTier(
+  pullChanceBonus = 0,
+  luckyMultiplier = 1
+) {
+  const rates = applyPirateLuckToRareRates(
+    {
+      c: 34,
+      b: 34,
+      a: 27,
+      s: 4.5,
+      ur: 0.5,
+    },
+    pullChanceBonus
+  );
+
   return rollRareRates(
     applyLuckyRareRates(
-      { c: 34, b: 34, a: 27, s: 4.5, ur: 0.5 },
+      rates,
       luckyMultiplier
     )
   );
 }
 
-function rollVivreDevilFruitTier(luckyMultiplier = 1) {
+function rollVivreDevilFruitTier(
+  pullChanceBonus = 0,
+  luckyMultiplier = 1
+) {
+  const rates = applyPirateLuckToRareRates(
+    {
+      c: 32,
+      b: 32,
+      a: 29,
+      s: 6,
+      ur: 1,
+    },
+    pullChanceBonus
+  );
+
   return rollRareRates(
     applyLuckyRareRates(
-      { c: 32, b: 32, a: 29, s: 6, ur: 1 },
+      rates,
       luckyMultiplier
     )
   );
 }
 
-function rollPremiumDevilFruitTier(luckyMultiplier = 1) {
+function rollPremiumDevilFruitTier(
+  pullChanceBonus = 0,
+  luckyMultiplier = 1
+) {
+  const rates = applyPirateLuckToRareRates(
+    {
+      c: 29.5,
+      b: 29.5,
+      a: 31,
+      s: 8,
+      ur: 2,
+    },
+    pullChanceBonus
+  );
+
   return rollRareRates(
     applyLuckyRareRates(
-      { c: 29.5, b: 29.5, a: 31, s: 8, ur: 2 },
+      rates,
       luckyMultiplier
     )
   );
 }
 
-function rollStandardWeaponTier(luckyMultiplier = 1) {
+function rollStandardWeaponTier(
+  pullChanceBonus = 0,
+  luckyMultiplier = 1
+) {
+  const rates = applyPirateLuckToRareRates(
+    {
+      c: 34,
+      b: 34,
+      a: 27,
+      s: 4.5,
+      ur: 0.5,
+    },
+    pullChanceBonus
+  );
+
   return rollRareRates(
     applyLuckyRareRates(
-      { c: 34, b: 34, a: 27, s: 4.5, ur: 0.5 },
+      rates,
       luckyMultiplier
     )
   );
 }
 
-function rollVivreWeaponTier(luckyMultiplier = 1) {
+function rollVivreWeaponTier(
+  pullChanceBonus = 0,
+  luckyMultiplier = 1
+) {
+  const rates = applyPirateLuckToRareRates(
+    {
+      c: 32,
+      b: 32,
+      a: 29,
+      s: 6,
+      ur: 1,
+    },
+    pullChanceBonus
+  );
+
   return rollRareRates(
     applyLuckyRareRates(
-      { c: 32, b: 32, a: 29, s: 6, ur: 1 },
+      rates,
       luckyMultiplier
     )
   );
 }
 
-function rollPremiumWeaponTier(luckyMultiplier = 1) {
+function rollPremiumWeaponTier(
+  pullChanceBonus = 0,
+  luckyMultiplier = 1
+) {
+  const rates = applyPirateLuckToRareRates(
+    {
+      c: 29.5,
+      b: 29.5,
+      a: 31,
+      s: 8,
+      ur: 2,
+    },
+    pullChanceBonus
+  );
+
   return rollRareRates(
     applyLuckyRareRates(
-      { c: 29.5, b: 29.5, a: 31, s: 8, ur: 2 },
+      rates,
       luckyMultiplier
     )
   );

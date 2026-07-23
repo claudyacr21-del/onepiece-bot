@@ -205,19 +205,32 @@ function getPremiumRewardTier(
   luckyMultiplier = 1
 ) {
   if (contentType === "devilFruit") {
-    return rollPremiumDevilFruitTier(luckyMultiplier);
+    return rollPremiumDevilFruitTier(
+      pullChanceBonus,
+      luckyMultiplier
+    );
   }
 
   if (contentType === "weapon") {
-    return rollPremiumWeaponTier(luckyMultiplier);
+    return rollPremiumWeaponTier(
+      pullChanceBonus,
+      luckyMultiplier
+    );
   }
 
-  if (triggeredPity) return "S";
+  if (triggeredPity) {
+    return "S";
+  }
 
-  const baseTier = rollPremiumBaseTier(pullChanceBonus, luckyMultiplier);
+  const baseTier = rollPremiumBaseTier(
+    pullChanceBonus,
+    luckyMultiplier
+  );
 
   if (contentType === "boostCard") {
-    return rollThroneEquivalentCardTier(baseTier);
+    return rollThroneEquivalentCardTier(
+      baseTier
+    );
   }
 
   return baseTier;

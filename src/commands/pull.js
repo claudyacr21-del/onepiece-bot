@@ -178,28 +178,71 @@ function pickBaseTier(
   luckyMultiplier = 1
 ) {
   if (contentType === "devilFruit") {
-    if (tier === "motherFlame") return rollPremiumDevilFruitTier(luckyMultiplier);
-    if (tier === "vivreCard") return rollVivreDevilFruitTier(luckyMultiplier);
-    return rollStandardDevilFruitTier(luckyMultiplier);
+    if (tier === "motherFlame") {
+      return rollPremiumDevilFruitTier(
+        pullChanceBonus,
+        luckyMultiplier
+      );
+    }
+
+    if (tier === "vivreCard") {
+      return rollVivreDevilFruitTier(
+        pullChanceBonus,
+        luckyMultiplier
+      );
+    }
+
+    return rollStandardDevilFruitTier(
+      pullChanceBonus,
+      luckyMultiplier
+    );
   }
 
   if (contentType === "weapon") {
-    if (tier === "motherFlame") return rollPremiumWeaponTier(luckyMultiplier);
-    if (tier === "vivreCard") return rollVivreWeaponTier(luckyMultiplier);
-    return rollStandardWeaponTier(luckyMultiplier);
+    if (tier === "motherFlame") {
+      return rollPremiumWeaponTier(
+        pullChanceBonus,
+        luckyMultiplier
+      );
+    }
+
+    if (tier === "vivreCard") {
+      return rollVivreWeaponTier(
+        pullChanceBonus,
+        luckyMultiplier
+      );
+    }
+
+    return rollStandardWeaponTier(
+      pullChanceBonus,
+      luckyMultiplier
+    );
   }
 
-  if (triggeredPity) return getPityGuarantee(tier);
+  if (triggeredPity) {
+    return getPityGuarantee(tier);
+  }
 
   const baseTier =
     tier === "motherFlame"
-      ? rollPremiumBaseTier(pullChanceBonus, luckyMultiplier)
+      ? rollPremiumBaseTier(
+          pullChanceBonus,
+          luckyMultiplier
+        )
       : tier === "vivreCard"
-      ? rollVivreBaseTier(pullChanceBonus, luckyMultiplier)
-      : rollStandardBaseTier(pullChanceBonus, luckyMultiplier);
+        ? rollVivreBaseTier(
+            pullChanceBonus,
+            luckyMultiplier
+          )
+        : rollStandardBaseTier(
+            pullChanceBonus,
+            luckyMultiplier
+          );
 
   if (contentType === "boostCard") {
-    return rollThroneEquivalentCardTier(baseTier);
+    return rollThroneEquivalentCardTier(
+      baseTier
+    );
   }
 
   return baseTier;
