@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { Pool } = require("pg");
 const { syncMergedCardsInPlayer } = require("./utils/mergeCards");
+const { normalizeAchievements } = require("./utils/achievements");
 const persistentDir = process.env.PLAYER_DATA_DIR || path.join(__dirname, "data");
 const fallbackDir = path.join(__dirname, "data");
 
@@ -2250,6 +2251,7 @@ function normalizePlayer(player = {}, username = "Unknown") {
     ship: normalizeShip(player.ship, currentIsland),
     story: normalizeStory(player.story),
     raidPrestigeBank: normalizeRaidPrestigeBank(player.raidPrestigeBank),
+    achievements: normalizeAchievements(player.achievements),
     storage: normalizeStorage(player.storage, player.storageLimit),
     clan: {
       name: player?.clan?.name || null,

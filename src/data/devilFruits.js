@@ -789,5 +789,25 @@ module.exports = [
     statPercent: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "Vegapunk's artificial dragon fruit that allows Momonosuke to transform into a powerful dragon."
+  },
+  {
+    code: "ryu_ryu_no_mi_model_kirin",
+    name: "Ryu Ryu no Mi, Model: Kirin",
+    rarity: "UR",
+    owners: ["killingham"],
+    type: "Mythical Zoan Fruit",
+    statPercent: { atk: 10, hp: 8, speed: 5 },
+    image: "",
+    description: "A mythical zoan fruit that grants the power of the Kirin, combining divine beast strength, speed, and overwhelming presence."
+  },
+  {
+    code: "iba_iba_no_mi",
+    name: "Iba Iba no Mi",
+    rarity: "UR",
+    owners: ["sommers"],
+    type: "Paramecia Fruit",
+    statPercent: { atk: 10, hp: 8, speed: 5 },
+    image: "",
+    description: "A devil fruit that grants Saint Shepherd Sommers thorn-like offensive power, allowing brutal piercing and constricting attacks."
   }
 ];

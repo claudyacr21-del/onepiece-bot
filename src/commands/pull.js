@@ -7,6 +7,7 @@ const rawDevilFruits = require("../data/devilFruits");
 const { applyGlobalPullReset } = require("../utils/pullReset");
 const { findPirateByUser } = require("../utils/pirateStore");
 const { applyAutoLevelForDuplicate } = require("../utils/autoLevel");
+const { bumpAchievement } = require("../utils/achievements");
 const {
   addFragmentWithAutoSac,
   removeFragmentAmount,
@@ -1259,6 +1260,8 @@ function savePullResultFresh(userId, payload, username = "Unknown") {
           ...(existing.quests || {}),
           ...(payload.quests || {}),
         },
+
+        achievements: payload.achievements || existing.achievements,
       };
     },
     username
@@ -1500,6 +1503,7 @@ module.exports = {
         quests: {
           dailyState: updatedDailyState,
         },
+        achievements: bumpAchievement(player, "pullsUsed", 1),
       },
       message.author.username
     );

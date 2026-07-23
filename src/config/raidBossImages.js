@@ -81,7 +81,7 @@ module.exports = {
   gunko_holy_knight: "https://cdn.discordapp.com/attachments/1493204525975076944/1498201488823160905/elbaph-elbaf.gif?ex=69f04c5e&is=69eefade&hm=094b39af7881feba5bf13629d6e06e12d0eb43ad81de360471612d71bed87fd3&",
   law_surgeon_of_death : "https://cdn.discordapp.com/attachments/1493204525975076944/1511225009845047437/trafalgar-law-trafalgar.gif?ex=6a1fad77&is=6a1e5bf7&hm=46557fe3f542993b921b7308695592ee048e157620d16fed58e300457a721421&",
   kid_captain: "https://cdn.discordapp.com/attachments/1493204525975076944/1511225009333469366/kid.gif?ex=6a1fad77&is=6a1e5bf7&hm=6e518e1abf4138874419051f81eaff433c6e34b8681104e6dc37c15a7741fb66&",
-  lzs: "https://cdn.discordapp.com/attachments/1493204525975076944/1513544660650426468/monster-trio-luffy-zoro-sanji.gif?ex=6a281dcf&is=6a26cc4f&hm=0df3cb590b16487e164298cb94a4e1e309caedbba6be1325312c456d2552baf9",
+  lzs: "https://cdn.discordapp.com/attachments/1493204525975076944/1529385698874884096/242c64d651d3d65c9dfbea5ae12e27a3.gif?ex=6a61beed&is=6a606d6d&hm=8c73afff3ebba3c8a68f943964904a5b5f39c5581c5fd5f4535b90e4650bbaed",
   mr2: "https://cdn.discordapp.com/attachments/1493204525975076944/1516735524679716914/onepiece-okamaway.gif?ex=6a33b988&is=6a326808&hm=6b8dfe2f5eb337b3e52f0a067fef3578468f74995ce43bfd6660cf9c837f5f6b",
   higuma: "https://cdn.discordapp.com/attachments/1493204525975076944/1516743077602132008/higumaanimation.gif?ex=6a33c091&is=6a326f11&hm=c0d7cff50a425c9faf8c486e47650b89117dbfa9a6bfaf920d238705b3fa719a&",
   x_drake: "https://cdn.discordapp.com/attachments/1493204525975076944/1516743078118162432/one-piece-one-piece-stampede.gif?ex=6a33c091&is=6a326f11&hm=b0ca70d46f487b7ec973ce21d807ec863779a415088a9847ca0cb6aa3a3f8900&",
@@ -115,4 +115,7 @@ module.exports = {
   wsr: "https://cdn.discordapp.com/attachments/1493204525975076944/1522820096144310343/one-piece-anime.gif?ex=6a49dc3b&is=6a488abb&hm=acc4f22d30caa9bfd475049f7de5497edc1431564e0722590b020771361358d9",
   gm: "https://cdn.discordapp.com/attachments/1493204525975076944/1517774899127652443/dorrybrogy.gif?ex=6a48a506&is=6a475386&hm=5babb6e4b86f4b303f27ff3b7accc533b78b794ae16ddb7b4e47361ffddb5e48",
   tre: "https://cdn.discordapp.com/attachments/1492807857207382090/1520716646082416760/tenor_1.gif?ex=6a48ccbd&is=6a477b3d&hm=1a67f802bbb852a7acd1be653d05eafbbd960e972e29987415e5c94536b3f600",
+  killingham: "https://cdn.discordapp.com/attachments/1493204525975076944/1529386663896158218/one-piece-one-piece-anime_2.gif?ex=6a61bfd3&is=6a606e53&hm=2a71138c1bbe45e373778e1e45f90b6651f82bfe51e989004c5c4bcc77357f2b",
+  sommers: "https://cdn.discordapp.com/attachments/1493204525975076944/1529386699220713512/one-piece-one-piece-anime_1.gif?ex=6a61bfdb&is=6a606e5b&hm=473c1741eefb78e253a7acf7b701b39be665ab1d440e329f56a7842dfa23417b",
+  wgs: "https://cdn.discordapp.com/attachments/1493204525975076944/1529359660254232736/VID-20260722-WA0015-ezgif.com-video-to-gif-converter.gif?ex=6a61a6ad&is=6a60552d&hm=c6feb6630bec6b454988763beda8e01d395bd3a0dcdc610e4b0e4d192b0909d5",
 };

@@ -20,6 +20,7 @@ const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { applyCustomSkinToCard } = require("../utils/customSkins");
+const { bumpAchievement } = require("../utils/achievements");
 const {
   getPirateExpBoostPercent,
   applyPirateCurrencyBoosts,
@@ -3446,6 +3447,7 @@ if (interaction.customId === "boss_raid_run") {
                   gems: Number(fresh.gems || 0) + rewardTotals.totalGems,
                   story: freshStory,
                   quests: applyBossQuestProgress(fresh, ["bossFights", "bossesDefeated"]),
+                  achievements: bumpAchievement(fresh, "bossDefeated", 1),
                 };
               },
               participant.username || "Unknown"
@@ -3956,6 +3958,7 @@ if (interaction.customId === "boss_run") {
               gems: Number(fresh.gems || 0) + rewardTotals.totalGems,
               story: freshStory,
               quests: applyBossQuestProgress(fresh, ["bossFights", "bossesDefeated"]),
+              achievements: bumpAchievement(fresh, "bossDefeated", 1),
             };
           },
           message.author.username

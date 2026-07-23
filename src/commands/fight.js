@@ -14,6 +14,7 @@ const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
 const { getCurrentIsland, getIslandByCode } = require("../data/islands");
 const { getPremiumTier } = require("../utils/premiumAccess");
+const { bumpAchievement } = require("../utils/achievements");
 const {
   getPirateExpBoostPercent,
   applyPirateCurrencyBoosts,
@@ -1443,6 +1444,7 @@ if (interaction.user.id !== message.author.id) {
                   gems: Number(fresh.gems || 0) + rewardTotals.totalGems,
 
                   fightStreak: currentStreak,
+                  achievements: bumpAchievement(fresh, "fightWon", 1),
                   quests: {
                     ...(fresh.quests || {}),
                     dailyState: updatedDailyState,

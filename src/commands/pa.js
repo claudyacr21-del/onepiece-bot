@@ -4,6 +4,7 @@ const {
   updatePlayerAtomicFast,
 } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
+const { bumpAchievement } = require("../utils/achievements");
 const rawCards = require("../data/cards");
 const rawWeapons = require("../data/weapons");
 const rawDevilFruits = require("../data/devilFruits");
@@ -1099,6 +1100,10 @@ function savePullAllResultFresh(
           ...(existing.quests || {}),
           ...(payload.quests || {}),
         },
+
+        achievements:
+          payload.achievements ||
+          existing.achievements,
       };
     },
     username
@@ -1936,6 +1941,12 @@ module.exports = {
               dailyState:
                 updatedDailyState,
             },
+
+            achievements: bumpAchievement(
+              player,
+              "pullsUsed",
+              availableTotal
+            ),
           },
           username
         );

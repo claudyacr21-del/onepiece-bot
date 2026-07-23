@@ -926,5 +926,27 @@ module.exports = [
     ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
     image: "",
     description: "Uta's powerful knight manifestation created through the power of her song."
+  },
+  {
+    code: "leister",
+    name: "Leister",
+    rarity: "UR",
+    owners: ["killingham"],
+    type: "Holy Knight Spear",
+    statPercent: { atk: 8, hp: 6, speed: 4 },
+    ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
+    image: "",
+    description: "Saint Rimoshifu Killingham's divine leister, a holy weapon used to pierce enemies with overwhelming authority."
+  },
+  {
+    code: "tetsubo",
+    name: "Tetsubo",
+    rarity: "UR",
+    owners: ["sommers"],
+    type: "Holy Knight Club",
+    statPercent: { atk: 8, hp: 6, speed: 4 },
+    ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
+    image: "",
+    description: "Saint Shepherd Sommers' massive tetsubo, a brutal holy weapon built for crushing enemies with raw force."
   }
 ];

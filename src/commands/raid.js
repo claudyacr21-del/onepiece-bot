@@ -10,6 +10,7 @@ const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard, findCardTemplate } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard, getMergeSourceCodes } = require("../utils/mergeCards");
 const { applyCustomSkinToCard } = require("../utils/customSkins");
+const { bumpAchievement } = require("../utils/achievements");
 const activeRaidReadyNotices = new Set();
 const {
   getPlayerCombatBoosts,
@@ -3356,6 +3357,29 @@ function addRaidPrestigeToWinnerCards(state) {
   return rewards;
 }
 
+function addRaidAchievementForMembers(state) {
+  // Exclude craid / Common Raid Ticket.
+  const ticketCode = String(state?.raidMode?.ticketCode || "").toLowerCase();
+  if (ticketCode === "common_raid_ticket") return;
+
+  const counted = new Set();
+
+  for (const member of ensureArray(state.members)) {
+    const userId = String(member.userId || "");
+    if (!userId || counted.has(userId)) continue;
+    counted.add(userId);
+
+    updatePlayerAtomic(
+      userId,
+      (fresh) => ({
+        ...fresh,
+        achievements: bumpAchievement(fresh, "raidCompleted", 1),
+      }),
+      member.username || "Unknown"
+    );
+  }
+}
+
 function finalizeRaidBattle(state) {
   if (state.winner === "players") {
     try {
@@ -3374,6 +3398,12 @@ function finalizeRaidBattle(state) {
       console.error("[raid prestige error]", error);
       state.prestigeRewards = [];
       pushBattleLog(state, "Raid prestige sync failed.");
+    }
+
+    try {
+      addRaidAchievementForMembers(state);
+    } catch (error) {
+      console.error("[raid achievement error]", error);
     }
 
     pushBattleLog(state, "Raid cleared.");

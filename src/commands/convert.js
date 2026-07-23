@@ -156,8 +156,13 @@ module.exports = {
       });
     }
 
-    if (String(card.code || "").toLowerCase() === "imu") {
-      return message.reply("Universal fragments cannot be converted into **Imu** fragments.");
+    const blockedUniversalConvertCodes = new Set(["imu", "killingham", "sommers"]);
+    const cardCode = String(card.code || "").toLowerCase();
+
+    if (blockedUniversalConvertCodes.has(cardCode)) {
+      return message.reply(
+        `Universal fragments cannot be converted into **${getCardName(card)}** fragments.`
+      );
     }
 
     const rarity = String(card.baseTier || card.rarity || "C").toUpperCase();
