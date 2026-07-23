@@ -17,6 +17,7 @@ module.exports = {
       "help",
       "balance",
       "pirate",
+      "ach",
       "inv",
       "vote",
       "setvote",
