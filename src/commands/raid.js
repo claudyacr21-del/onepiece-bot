@@ -3200,11 +3200,52 @@ function isImuThroneRaid(state, boss) {
 }
 
 function normalizePrestigeBankCode(boss) {
-  const code = String(boss?.code || boss?.bossCode || "").toLowerCase().trim();
-  const name = String(boss?.name || boss?.bossName || "").toLowerCase().trim();
+  const code = String(
+    boss?.code ||
+    boss?.bossCode ||
+    ""
+  )
+    .toLowerCase()
+    .trim();
 
-  if (code === "imu" || name.includes("imu")) return "imu";
-  return code || name.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const name = String(
+    boss?.name ||
+    boss?.bossName ||
+    ""
+  )
+    .toLowerCase()
+    .trim();
+
+  if (
+    code === "imu" ||
+    code.includes("nerona_imu") ||
+    name.includes("imu")
+  ) {
+    return "imu";
+  }
+
+  if (
+    code === "killingham" ||
+    code.includes("killingham") ||
+    name.includes("killingham")
+  ) {
+    return "killingham";
+  }
+
+  if (
+    code === "sommers" ||
+    code.includes("sommers") ||
+    name.includes("sommers")
+  ) {
+    return "sommers";
+  }
+
+  return (
+    code ||
+    name
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+  );
 }
 
 function addRaidPrestigeToWinnerCards(state) {
@@ -3213,8 +3254,13 @@ function addRaidPrestigeToWinnerCards(state) {
   const bossCode = String(boss.code || boss.bossCode || "").toLowerCase();
   const bossName = String(boss.name || boss.bossName || "").toLowerCase();
   const hostId = String(state.hostId || "");
-  const allowBankedPrestige = isImuThroneRaid(state, boss);
   const bankCode = normalizePrestigeBankCode(boss);
+
+  const allowBankedPrestige = [
+    "imu",
+    "killingham",
+    "sommers",
+  ].includes(bankCode);
 
   if (!hostId) {
     return [
@@ -3280,25 +3326,37 @@ function addRaidPrestigeToWinnerCards(state) {
         const before = bankPrestige;
         const after = Math.min(200, before + 1);
 
+        const bankedCardName =
+          boss.name ||
+          boss.bossName ||
+          bankCode;
+
         bank[bankCode] = {
           ...existingBank,
           code: bankCode,
-          name: boss.name || boss.bossName || "Imu",
-          displayName: boss.name || boss.bossName || "Imu",
+          name: bankedCardName,
+          displayName: bankedCardName,
           raidPrestige: after,
-          source: "throne",
+          source:
+            bankCode === "imu"
+              ? "throne"
+              : "raid",
           updatedAt: Date.now(),
         };
 
         prestigeReward = {
           userId: hostId,
-          username: hostMember?.username || fresh.username || "Host",
-          cardName: boss.name || boss.bossName || "Imu",
+          username:
+            hostMember?.username ||
+            fresh.username ||
+            "Host",
+          cardName: bankedCardName,
           before,
           after,
           missing: false,
           banked: true,
-          reason: "Throne / Imu prestige was banked because host does not own the card yet.",
+          reason:
+            "Raid prestige was banked because the host does not own the card yet.",
         };
 
         return {
@@ -3328,7 +3386,10 @@ function addRaidPrestigeToWinnerCards(state) {
           displayName:
             cards[index].displayName || cards[index].name || boss.name || "Imu",
           raidPrestige: after,
-          source: "throne",
+          source:
+            bankCode === "imu"
+              ? "throne"
+              : "raid",
           updatedAt: Date.now(),
         };
       }
