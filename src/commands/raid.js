@@ -2868,21 +2868,27 @@ function pickMythicRaidWeaponDrop(state, boss) {
       ""
   );
 
-  /*
-    WGD has a fixed weapon pool:
-    - Kid: Metal Arm
-    - Law: Kikoku
-
-    Do not allow host cards or generic fallback weapons
-    to enter this specific Merge Raid reward pool.
-  */
-  if (bossCode === "wgd") {
-    const allowedWeaponCodes = new Set([
+  const fixedWeaponPools = {
+    wgd: [
       "metal_arm",
       "kikoku",
-    ]);
+    ],
+    gvc: [
+      "eclipse",
+      "kagi",
+    ],
+  };
 
-    const wgdWeaponPool = flattenDb(
+  const allowedCodes = fixedWeaponPools[bossCode];
+
+  if (allowedCodes) {
+    const allowedWeaponCodes = new Set(
+      allowedCodes.map((code) =>
+        normalizeRaidCode(code)
+      )
+    );
+
+    const fixedWeaponPool = flattenDb(
       weaponsDb
     ).filter((weapon) => {
       const weaponCode =
@@ -2899,24 +2905,20 @@ function pickMythicRaidWeaponDrop(state, boss) {
       );
     });
 
-    if (!wgdWeaponPool.length) {
+    if (!fixedWeaponPool.length) {
       return null;
     }
 
     return (
-      wgdWeaponPool[
+      fixedWeaponPool[
         Math.floor(
           Math.random() *
-            wgdWeaponPool.length
+            fixedWeaponPool.length
         )
       ] || null
     );
   }
 
-  /*
-    Keep the current behavior unchanged
-    for every other Merge Card.
-  */
   const mythicBossPool =
     getMythicRaidDropBossPool(
       state,
