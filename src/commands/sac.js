@@ -261,13 +261,6 @@ function formatFragmentLine(fragment, index) {
   )} • ${formatRarity(fragment?.rarity)} • ${category} fragment • exact code: \`${exactCode}\``;
 }
 
-function getFragmentSample(fragments) {
-  return (Array.isArray(fragments) ? fragments : [])
-    .filter((fragment) => getFragmentAmount(fragment) > 0)
-    .slice(0, 15)
-    .map((fragment, index) => formatFragmentLine(fragment, index));
-}
-
 function getUsageText() {
   return [
     "Usage:",
@@ -302,7 +295,6 @@ module.exports = {
     let newBerries = 0;
     let storage = null;
     let multipleMatches = [];
-    let sample = [];
 
     try {
       updatePlayerAtomic(
@@ -320,7 +312,6 @@ module.exports = {
           }
 
           if (found.status === "not_found" || found.index === -1) {
-            sample = getFragmentSample(fragments);
             throw new Error("FRAGMENT_NOT_FOUND");
           }
 
@@ -398,14 +389,7 @@ module.exports = {
 
       if (error.message === "FRAGMENT_NOT_FOUND") {
         return message.reply({
-          content: [
-            `Fragment matching \`${query}\` was not found in your fragment inventory.`,
-            "",
-            sample.length ? "**Fragment Inventory Sample:**" : "Your fragment inventory is empty.",
-            ...sample,
-          ]
-            .filter(Boolean)
-            .join("\n"),
+          content: `Fragment matching \`${query}\` was not found in your fragment inventory.`,
           allowedMentions: {
             repliedUser: false,
           },

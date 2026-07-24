@@ -1,6 +1,6 @@
 module.exports = {
   luffy_straw_hat: "https://cdn.discordapp.com/attachments/1493204525975076944/1528318608063860826/luf.gif?ex=6a5ddd1e&is=6a5c8b9e&hm=8f637033114c40b5f3aebc77040b19dc4d19448fd3beb204a8c2c43e3f986a84",
-  zoro_pirate_hunter: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233875971837962/zoro-one-piece-one-piece.gif?ex=69f06a87&is=69ef1907&hm=43629d7ce5e2e6b22a01af0b4fd7d9952acb152051680d61c9713dd0495e2eea&",
+  zoro_pirate_hunter: "https://cdn.discordapp.com/attachments/1493204525975076944/1530144981438824458/zoro.gif?ex=6a648210&is=6a633090&hm=20e9b52692558f14ce4ecbb16ceb307400210872e382827efca5d054b50f07d8",
   nami_cat_burglar: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233876315897906/nami-zeus.gif?ex=69f06a87&is=69ef1907&hm=20bce5adcb61e649189241dd12e6972308db8e7a15456d0d628c2f293d35ccc5&",
   usopp_sniper: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233875606798446/usopp-one-piece.gif?ex=69f06a87&is=69ef1907&hm=19e299abb66e1cf21eeed1cf2cd042325046cf07a2c64ed91ce75a0d9bfda40f&",
   sanji_black_leg: "https://cdn.discordapp.com/attachments/1493204525975076944/1498233875305070682/one-piece-fanart.gif?ex=69f06a87&is=69ef1907&hm=5a635bed0b2e961c08c56805679f977c78e4c32face6fee0c558a42623f55a5a&",

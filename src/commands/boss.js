@@ -1762,7 +1762,7 @@ if (lobbyProcessing) {
         }
 
         if (joinedIds.has(userId)) {
-          await failJoin("This boss interaction is no longer available or already processed.");
+          await failJoin("You have already joined this boss lobby.");
           return;
         }
 
