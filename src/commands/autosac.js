@@ -24,8 +24,25 @@ function buildEmbed(message, player) {
     : "No specific cards are currently set for auto-sacrifice.";
 
   const safeText = settings.safeCards.length
-    ? settings.safeCards.map((card) => card.name || card.code || "Unknown Card").join(", ")
+    ? settings.safeCards
+        .map(
+          (card) =>
+            card.name ||
+            card.code ||
+            "Unknown Card"
+        )
+        .join(", ")
     : "No cards are currently safelisted.";
+
+  const serverIcon =
+    message.guild?.iconURL({
+      extension: "png",
+      size: 512,
+    }) ||
+    message.client.user.displayAvatarURL({
+      extension: "png",
+      size: 512,
+    });
 
   return new EmbedBuilder()
     .setColor(0x8e44ad)
@@ -52,7 +69,7 @@ function buildEmbed(message, player) {
         "`Example: op msac luffy_5, zoro_2, nami_6`",
       ].join("\n")
     )
-    .setThumbnail(message.author.displayAvatarURL({ extension: "png", size: 512 }))
+    .setThumbnail(serverIcon)
     .setFooter({ text: "One Piece Bot • Auto Sacrifice" });
 }
 

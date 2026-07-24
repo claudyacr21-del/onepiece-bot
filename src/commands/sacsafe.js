@@ -168,14 +168,43 @@ function formatSafeCards(cards) {
     return "No safelisted cards yet.";
   }
 
-  return cards
-    .map((card, index) => {
-      const name = card.name || card.code || "Unknown Card";
-      const rarity = String(card.rarity || "C").toUpperCase();
-      const category = card.category ? ` • ${card.category}` : "";
-      return `${index + 1}. **${name}** • ${rarity}${category}`;
-    })
-    .join("\n");
+  const maxDisplayed = 20;
+  const displayedCards = cards.slice(
+    0,
+    maxDisplayed
+  );
+
+  const entries = displayedCards.map(
+    (card) => {
+      const name =
+        card.name ||
+        card.code ||
+        "Unknown Card";
+
+      const rarity = String(
+        card.rarity || "C"
+      ).toUpperCase();
+
+      const category =
+        card.category
+          ? ` • ${card.category}`
+          : "";
+
+      return `**${name}** • ${rarity}${category}`;
+    }
+  );
+
+  const hiddenAmount =
+    cards.length -
+    displayedCards.length;
+
+  if (hiddenAmount > 0) {
+    entries.push(
+      `...and **${hiddenAmount}** more`
+    );
+  }
+
+  return entries.join(", ");
 }
 
 module.exports = {

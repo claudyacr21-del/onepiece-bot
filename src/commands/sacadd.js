@@ -244,16 +244,46 @@ function formatCurrentCards(cards) {
     return "No specific cards are currently in the auto-sac list.";
   }
 
-  return cards
-    .map((card, index) => {
-      const name = card.name || card.code || "Unknown Card";
-      const rarity = String(card.rarity || "C").toUpperCase();
-      const mode = card.mode || "all";
-      const category = card.category ? ` • ${card.category}` : "";
+  const maxDisplayed = 20;
+  const displayedCards = cards.slice(
+    0,
+    maxDisplayed
+  );
 
-      return `${index + 1}. **${name}** • ${rarity}${category} • ${mode}`;
-    })
-    .join("\n");
+  const entries = displayedCards.map(
+    (card) => {
+      const name =
+        card.name ||
+        card.code ||
+        "Unknown Card";
+
+      const rarity = String(
+        card.rarity || "C"
+      ).toUpperCase();
+
+      const mode =
+        card.mode || "all";
+
+      const category =
+        card.category
+          ? ` • ${card.category}`
+          : "";
+
+      return `**${name}** • ${rarity}${category} • ${mode}`;
+    }
+  );
+
+  const hiddenAmount =
+    cards.length -
+    displayedCards.length;
+
+  if (hiddenAmount > 0) {
+    entries.push(
+      `...and **${hiddenAmount}** more`
+    );
+  }
+
+  return entries.join(", ");
 }
 
 module.exports = {
