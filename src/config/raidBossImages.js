@@ -119,5 +119,5 @@ module.exports = {
   sommers: "https://cdn.discordapp.com/attachments/1493204525975076944/1529386699220713512/one-piece-one-piece-anime_1.gif?ex=6a61bfdb&is=6a606e5b&hm=473c1741eefb78e253a7acf7b701b39be665ab1d440e329f56a7842dfa23417b",
   wgs: "https://cdn.discordapp.com/attachments/1493204525975076944/1529359660254232736/VID-20260722-WA0015-ezgif.com-video-to-gif-converter.gif?ex=6a61a6ad&is=6a60552d&hm=c6feb6630bec6b454988763beda8e01d395bd3a0dcdc610e4b0e4d192b0909d5",
   ya: "https://cdn.discordapp.com/attachments/1493204525975076944/1529863597839224923/kaido-big-mom.gif?ex=6a637c01&is=6a622a81&hm=6a214f903d8ef31022e207ea0c8b597a13fb9f68fed03bcd18b585dc65d709dc",
-  gvc: "",
+  gvc: "https://cdn.discordapp.com/attachments/1493204525975076944/1529873041826254858/rocks-d-xebec.gif?ex=6a6384cc&is=6a62334c&hm=4190b50fd2f8a1a657eba4a371fccb1ad03d96fb4cce7093545e3eac526551da",
 };

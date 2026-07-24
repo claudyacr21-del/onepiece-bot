@@ -332,9 +332,30 @@ function buildCardEmbed(card, index, total, mode, player = null) {
           `Power: ${power}`,
         ];
 
+  const header =
+    mode === "boost"
+      ? "All Boost Cards"
+      : mode === "merge"
+        ? "All Merge Cards"
+        : "All Battle Cards";
+
+  const color =
+    mode === "boost"
+      ? 0x9b59b6
+      : mode === "merge"
+        ? 0xf1c40f
+        : 0xe67e22;
+
+  const footerLabel =
+    mode === "boost"
+      ? "Boost"
+      : mode === "merge"
+        ? "Merge"
+        : "Battle";
+
   return buildCardStyleEmbed({
-    color: mode === "boost" ? 0x9b59b6 : 0xe67e22,
-    header: mode === "boost" ? "All Boost Cards" : "All Battle Cards",
+    color,
+    header,
     card: {
       ...displayCard,
       atk: baseStats.atk,
@@ -348,9 +369,7 @@ function buildCardEmbed(card, index, total, mode, player = null) {
     image: stageImage,
     formName: form?.name || displayCard.evolutionKey || stageKey,
     tier: form?.tier || displayCard.baseTier || displayCard.rarity,
-    footerText: `${mode === "boost" ? "Boost" : "Battle"} ${
-      index + 1
-    }/${total} • Code: ${displayCard.code}`,
+    footerText: `${footerLabel} ${index + 1}/${total} • Code: ${displayCard.code}`,
     extraLines,
   });
 }
@@ -534,14 +553,16 @@ module.exports = {
     const rawMode = String(args.join(" ").trim()).toLowerCase();
 
     const mode = rawMode === "boost"
-        ? "boost"
+      ? "boost"
+      : rawMode === "merge"
+        ? "merge"
         : rawMode === "weapon"
-        ? "weapon"
-        : rawMode === "fruit"
-        ? "fruit"
-        : rawMode === "missing"
-        ? "missing"
-        : "battle";
+          ? "weapon"
+          : rawMode === "fruit"
+            ? "fruit"
+            : rawMode === "missing"
+              ? "missing"
+              : "battle";
 
     let list = [];
     let renderer = null;
@@ -590,12 +611,16 @@ module.exports = {
         buildMissingCardEmbed(item, index, total, progress, player);
     }
 
-    if (mode === "battle" || mode === "boost") {
+    if (mode === "battle" || mode === "boost" || mode === "merge") {
       const player = getPlayer(message.author.id, message.author.username);
 
       const normalCards = sortCardsForAll(
         getAllCards()
-          .filter((c) => c.cardRole === mode)
+          .filter((card) =>
+            mode === "merge"
+              ? isMergeCard(card)
+              : card.cardRole === mode
+          )
           .map((card) =>
             isMergeCard(card)
               ? buildAllMergeDisplayCard(player, card, "M1")

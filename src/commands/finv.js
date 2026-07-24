@@ -410,18 +410,63 @@ function fragmentMatchesQuery(fragment, query) {
 }
 
 function filterFragments(fragments, query) {
-  const list = Array.isArray(fragments) ? fragments : [];
+  let list = Array.isArray(fragments)
+    ? fragments
+    : [];
 
   if (!query) return list;
 
   const rawQuery = String(query || "").trim();
-  const upperQuery = rawQuery.toUpperCase();
 
-  if (isExactRarityQuery(rawQuery)) {
-    return list.filter((fragment) => getDisplayRarity(fragment) === upperQuery);
+  const queryParts = rawQuery
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const requestedCategory = String(
+    queryParts[0] || ""
+  ).toLowerCase();
+
+  const validCategories = new Set([
+    "weapon",
+    "battle",
+    "boost",
+  ]);
+
+  let remainingQuery = rawQuery;
+
+  if (validCategories.has(requestedCategory)) {
+    list = list.filter(
+      (fragment) =>
+        getResolvedFragmentCategory(fragment) ===
+        requestedCategory
+    );
+
+    remainingQuery = queryParts
+      .slice(1)
+      .join(" ")
+      .trim();
+
+    if (!remainingQuery) {
+      return list;
+    }
   }
 
-  return list.filter((fragment) => fragmentMatchesQuery(fragment, rawQuery));
+  const upperQuery = remainingQuery.toUpperCase();
+
+  if (isExactRarityQuery(remainingQuery)) {
+    return list.filter(
+      (fragment) =>
+        getDisplayRarity(fragment) === upperQuery
+    );
+  }
+
+  return list.filter(
+    (fragment) =>
+      fragmentMatchesQuery(
+        fragment,
+        remainingQuery
+      )
+  );
 }
 
 function getFragmentIcon(fragment) {

@@ -11,6 +11,10 @@ const ESSENCE_BY_RARITY = {
   UR: 100,
 };
 
+const BULK_BREAK_RARITIES = new Set(
+  Object.keys(ESSENCE_BY_RARITY)
+);
+
 function normalize(value) {
   return String(value || "")
     .toLowerCase()
@@ -124,27 +128,42 @@ function parseArgs(args) {
     return {
       ok: false,
       message:
-        "Usage: `op fbreak <fruit name> <amount/all>`\nExample: `op fbreak sube all`",
+        "Usage: `op fbreak <fruit name> <amount/all>` or `op fbreak <rarity> all`\nExamples: `op fbreak sube all`, `op fbreak c all`",
     };
   }
 
-  const last = String(args[args.length - 1] || "").toLowerCase();
-  const query = args.slice(0, -1).join(" ").trim();
+  const last = String(
+    args[args.length - 1] || ""
+  ).toLowerCase();
+
+  const query = args
+    .slice(0, -1)
+    .join(" ")
+    .trim();
 
   if (!query) {
     return {
       ok: false,
       message:
-        "Usage: `op fbreak <fruit name> <amount/all>`\nExample: `op fbreak sube all`",
+        "Usage: `op fbreak <fruit name> <amount/all>` or `op fbreak <rarity> all`\nExamples: `op fbreak sube all`, `op fbreak c all`",
     };
   }
 
   if (last === "all") {
+    const bulkRarity =
+      args.length === 2 &&
+      BULK_BREAK_RARITIES.has(
+        String(args[0] || "").toUpperCase()
+      )
+        ? String(args[0]).toUpperCase()
+        : null;
+
     return {
       ok: true,
       query,
       useAll: true,
       amount: Infinity,
+      bulkRarity,
     };
   }
 
@@ -162,7 +181,113 @@ function parseArgs(args) {
     query,
     useAll: false,
     amount,
+    bulkRarity: null,
   };
+}
+
+async function breakAllFruitsByRarity(message, targetRarity) {
+  let totalBroken = 0;
+  let totalEssence = 0;
+  let fruitTypesBroken = 0;
+
+  try {
+    updatePlayerAtomic(
+      message.author.id,
+      (fresh) => {
+        const devilFruits = Array.isArray(fresh.devilFruits)
+          ? [...fresh.devilFruits]
+          : [];
+
+        const remainingFruits = [];
+
+        for (const ownedFruit of devilFruits) {
+          const template =
+            findFruitTemplate(
+              ownedFruit.code || ownedFruit.name
+            ) || {};
+
+          const rarity = String(
+            template.rarity ||
+              ownedFruit.rarity ||
+              "C"
+          ).toUpperCase();
+
+          const amount = Math.max(
+            0,
+            Math.floor(
+              Number(ownedFruit.amount || 0)
+            )
+          );
+
+          if (rarity !== targetRarity || amount <= 0) {
+            remainingFruits.push(ownedFruit);
+            continue;
+          }
+
+          totalBroken += amount;
+          fruitTypesBroken += 1;
+          totalEssence +=
+            amount *
+            (ESSENCE_BY_RARITY[targetRarity] ||
+              ESSENCE_BY_RARITY.C);
+        }
+
+        if (totalBroken <= 0) {
+          throw new Error(
+            `You do not have any ${targetRarity} rarity Devil Fruits.`
+          );
+        }
+
+        const materials = addStack(
+          fresh.materials || [],
+          cloneItem(
+            ITEMS.fruitEssence,
+            totalEssence
+          )
+        );
+
+        return {
+          ...fresh,
+          devilFruits: remainingFruits,
+          materials,
+        };
+      },
+      message.author.username
+    );
+  } catch (error) {
+    return message.reply({
+      content:
+        error.message ||
+        "Failed to break Devil Fruits.",
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0x9b59b6)
+    .setTitle("🍈 Devil Fruits Broken Down")
+    .setDescription(
+      [
+        `**Rarity:** ${targetRarity}`,
+        `**Fruit Types Broken:** ${fruitTypesBroken}`,
+        `**Total Fruits Broken:** x${totalBroken}`,
+        `**Fruit Essence Gained:** +${totalEssence}`,
+        "",
+        "Use `op fshop` to see what you can buy with Fruit Essence.",
+      ].join("\n")
+    )
+    .setFooter({
+      text: "One Piece Bot • Fruit Essence",
+    });
+
+  return message.reply({
+    embeds: [embed],
+    allowedMentions: {
+      repliedUser: false,
+    },
+  });
 }
 
 module.exports = {
@@ -177,6 +302,13 @@ module.exports = {
         content: parsed.message,
         allowedMentions: { repliedUser: false },
       });
+    }
+
+    if (parsed.bulkRarity) {
+      return breakAllFruitsByRarity(
+        message,
+        parsed.bulkRarity
+      );
     }
 
     let foundFruit = null;
