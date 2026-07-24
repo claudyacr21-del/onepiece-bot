@@ -106,7 +106,7 @@ const RAID_PRESTIGE_BADGE_EMOJIS = {
   belo_betty: "<:betty:1517170463263166594>",
   inazuma: "<:inazuma:1517171613861281842>",
   jewelry_bonney: "<:bonney:1517173354413424791>",
-  figarland_shamrock: "<:shamrock:1517173368388849924>",
+  figarland_shamrock: "<:shamrock1:1517173368388849924>",
   jesus_burgess: "<:burgess:1517174501404573768>",
   catarina_devon: "<:devon:1517360843346546849>",
   scopper_gaban: "<:gaban:1517500528127643778>",
