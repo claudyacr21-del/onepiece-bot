@@ -258,10 +258,34 @@ function getBaseCardByCode(code) {
   });
 }
 
-function makeMasteryCard(side, stage) {
+function getBankedRaidPrestige(player, cardCode) {
+  const code = String(cardCode || "")
+    .toLowerCase()
+    .trim();
+
+  const bank =
+    player?.raidPrestigeBank &&
+    typeof player.raidPrestigeBank === "object"
+      ? player.raidPrestigeBank
+      : {};
+
+  return Math.max(
+    0,
+    Math.min(
+      200,
+      Number(bank[code]?.raidPrestige || 0)
+    )
+  );
+}
+
+function makeMasteryCard(side, stage, player) {
   const base = getBaseCardByCode(side.code) || {};
   const masteryStage = getMasteryStage(stage);
   const formTitle = getSpecialFormTitle(side.code, masteryStage);
+  const bankedPrestige = getBankedRaidPrestige(
+    player,
+    side.code
+  );
 
   return {
     ...base,
@@ -280,7 +304,7 @@ function makeMasteryCard(side, stage) {
     xp: 0,
     kills: 0,
     fragments: 0,
-    raidPrestige: 0,
+    raidPrestige: bankedPrestige,
 
     evolutionStage: masteryStage,
     evolutionKey: `M${masteryStage}`,
@@ -409,7 +433,13 @@ function claimForUser(userId, username, sideKey) {
           image: cards[idx].image || base.image || "",
         };
       } else {
-        cards.push(makeMasteryCard(side, nextStage));
+        cards.push(
+          makeMasteryCard(
+            side,
+            nextStage,
+            fresh
+          )
+        );
       }
 
       const fragmentReward = Number(tier.fragmentReward || 0);

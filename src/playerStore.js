@@ -385,7 +385,29 @@ function normalizePrestigeCardCode(card) {
     .toLowerCase()
     .trim();
 
-  if (code === "imu" || name === "imu") return "imu";
+  if (
+    code === "imu" ||
+    code.includes("nerona_imu") ||
+    name.includes("imu")
+  ) {
+    return "imu";
+  }
+
+  if (
+    code === "killingham" ||
+    code.includes("killingham") ||
+    name.includes("killingham")
+  ) {
+    return "killingham";
+  }
+
+  if (
+    code === "sommers" ||
+    code.includes("sommers") ||
+    name.includes("sommers")
+  ) {
+    return "sommers";
+  }
 
   return (
     code ||
@@ -2191,7 +2213,7 @@ function normalizeAdminBan(adminBan) {
 function normalizePlayer(player = {}, username = "Unknown") {
   const currentIsland = player.currentIsland || "Foosha Village";
 
-  return {
+  const normalizedPlayer = {
     username: player.username || username,
     customSkins: normalizeCustomSkins(player.customSkins),
     adminBan: normalizeAdminBan(player.adminBan),
@@ -2259,6 +2281,10 @@ function normalizePlayer(player = {}, username = "Unknown") {
       role: player?.clan?.role || "member",
     },
   };
+
+  return syncRaidPrestigeBankToCards(
+    normalizedPlayer
+  );
 }
 
 function getDefaultPlayer(username) {
