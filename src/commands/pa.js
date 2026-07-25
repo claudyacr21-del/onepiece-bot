@@ -307,6 +307,8 @@ function getRewardPool(contentType) {
       return (
         card.cardRole === "battle" &&
         code !== "imu" &&
+        code !== "killingham" &&
+        code !== "sommers" &&
         card.canPA !== false &&
         card.summonOnly !== true &&
         card.mergeOnly !== true

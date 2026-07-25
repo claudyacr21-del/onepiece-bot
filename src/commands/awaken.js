@@ -48,6 +48,22 @@ function normalizeCode(value) {
     .replace(/^_+|_+$/g, "");
 }
 
+const ACHIEVEMENT_MASTERY_CARD_CODES = new Set([
+  "killingham",
+  "sommers",
+]);
+
+function isAchievementMasteryCard(card) {
+  return [
+    card?.code,
+    card?.baseCode,
+    card?.cardCode,
+    card?.sourceCode,
+  ]
+    .map(normalizeCode)
+    .some((code) => ACHIEVEMENT_MASTERY_CARD_CODES.has(code));
+}
+
 function isExactRawCardCodeMatch(card, query) {
   const q = normalizeCode(query);
   if (!q) return false;
@@ -984,6 +1000,11 @@ function runAwaken(player, query, targetSelector = null) {
   }
 
   const originalCard = cardsOwned[targetIndex];
+  if (isAchievementMasteryCard(originalCard)) {
+    throw new Error(
+      "Killingham and Sommers mastery can only be upgraded through the Achievement System."
+    );
+  }
   const hydratedOriginal = hydrateCard(originalCard) || originalCard;
 
   const template =

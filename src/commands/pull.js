@@ -361,6 +361,8 @@ function getRewardPool(contentType, pullTier = "normal") {
       return (
         card.cardRole === "battle" &&
         code !== "imu" &&
+        code !== "killingham" &&
+        code !== "sommers" &&
         card.canPull !== false &&
         card.summonOnly !== true &&
         card.mergeOnly !== true
