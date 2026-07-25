@@ -10,6 +10,7 @@ const {
   flushPlayerNow,
 } = require("../playerStore");
 const { incrementQuestCounter } = require("../utils/questProgress");
+const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const LEVEL_CAPS_BY_STAGE = {
   1: 50,
@@ -38,62 +39,12 @@ function getLevelCap(card) {
   return LEVEL_CAPS_BY_STAGE[getCardStage(card)] || 50;
 }
 
-function safeStat(value, fallback = 0) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function scaleStatByLevelGain(value, levelGain, percentPerLevel) {
-  const base = Math.max(0, Math.floor(safeStat(value, 0)));
-  const gain = Math.max(0, Math.floor(safeStat(levelGain, 0)));
-  const percent = Math.max(0, safeStat(percentPerLevel, 0));
-
-  if (base <= 0 || gain <= 0 || percent <= 0) return base;
-
-  return Math.max(1, Math.floor(base * (1 + (gain * percent) / 100)));
-}
-
-function recalcPowerFromStats(card) {
-  const atk = Math.max(0, Math.floor(safeStat(card.atk, 0)));
-  const hp = Math.max(0, Math.floor(safeStat(card.hp, 0)));
-  const speed = Math.max(0, Math.floor(safeStat(card.speed || card.spd, 0)));
-
-  const calculated = Math.floor(atk * 1.4 + hp * 0.22 + speed * 9);
-  const oldPower = Math.max(0, Math.floor(safeStat(card.currentPower || card.power, 0)));
-
-  return Math.max(oldPower, calculated);
-}
-
 function applyLevelStats(card, levelGain) {
   const gain = Math.max(0, Math.floor(Number(levelGain || 0)));
 
   if (!card || gain <= 0) return card;
 
-  const nextAtk = scaleStatByLevelGain(card.atk, gain, 1);
-  const nextHp = scaleStatByLevelGain(card.hp, gain, 1);
-  const nextSpeed = scaleStatByLevelGain(card.speed || card.spd, gain, 0.5);
-
-  const nextCard = {
-    ...card,
-    atk: nextAtk,
-    hp: nextHp,
-    speed: nextSpeed,
-    spd: nextSpeed,
-    displayAtk: nextAtk,
-    displayHp: nextHp,
-    displaySpeed: nextSpeed,
-    combatAtk: nextAtk,
-    combatHp: nextHp,
-    combatSpeed: nextSpeed,
-  };
-
-  const nextPower = recalcPowerFromStats(nextCard);
-
-  return {
-    ...nextCard,
-    currentPower: nextPower,
-    power: nextPower,
-  };
+  return hydrateCard(card) || card;
 }
 
 function applyLevelStatsWithMergeSupport(player, cardIndex, card, levelGain) {

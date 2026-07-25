@@ -174,8 +174,10 @@ function applyExpToCard(card, expAmount) {
     next.xp = 0;
   }
 
+  const hydratedCard = hydrateCard(next) || next;
+
   return {
-    card: next,
+    card: hydratedCard,
     usedExp: Math.max(0, Math.floor(Number(expAmount || 0))) - remainingExp,
     unusedExp: remainingExp,
     levelsGained,

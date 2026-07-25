@@ -123,8 +123,22 @@ function getCardLevel(card) {
   return Math.max(1, Math.min(100, Number(card?.level || 1)));
 }
 
-function getLevelProgressForStage(card, stage) {
-  const range = LEVEL_RANGES_BY_STAGE[stage] || LEVEL_RANGES_BY_STAGE[1];
+function getLevelRange(card) {
+  const level = getCardLevel(card);
+
+  if (level <= LEVEL_RANGES_BY_STAGE[1].max) {
+    return LEVEL_RANGES_BY_STAGE[1];
+  }
+
+  if (level <= LEVEL_RANGES_BY_STAGE[2].max) {
+    return LEVEL_RANGES_BY_STAGE[2];
+  }
+
+  return LEVEL_RANGES_BY_STAGE[3];
+}
+
+function getLevelProgressForStage(card) {
+  const range = getLevelRange(card);
   const level = getCardLevel(card);
 
   if (level <= range.min) return 0;
@@ -133,13 +147,13 @@ function getLevelProgressForStage(card, stage) {
   return (level - range.min) / (range.max - range.min);
 }
 
-function getLevelScaledMultiplier(card, stage) {
-  const range = LEVEL_RANGES_BY_STAGE[stage] || LEVEL_RANGES_BY_STAGE[1];
-  const progress = getLevelProgressForStage(card, stage);
+function getLevelScaledMultiplier(card) {
+  const range = getLevelRange(card);
+  const progress = getLevelProgressForStage(card);
 
   const fromMult = getStageMultiplier(card, range.fromStage);
   const toMult =
-    Number(stage) === 3
+    range.fromStage === 3 && range.toStage === 3
       ? getStageMultiplier(card, 3) * Number(range.finalBonus || 1)
       : getStageMultiplier(card, range.toStage);
 
