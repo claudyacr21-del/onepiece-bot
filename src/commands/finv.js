@@ -113,7 +113,7 @@ const FRAGMENT_EMOJIS = {
   ace_fire_fist: "<:ace_f:1529840565024329920>",
   whitebeard_strongest_man: "<:whitebeard_f:1529840528584216616>",
   blackbeard_emperor_of_darkness: "<:teach_f:1529840558569160846>",
-  garp_hero_of_the_marines: "<:garp_f:1529840565024329920>",
+  garp_hero_of_the_marines: "<:garp_f:1529840576110006333>",
   sengoku_buddha: "<:sengoku_f:1530526572434559046>",
   akainu: "<:akainu_f:1529840534506438887>",
   aokiji: "<:kuzan_f:1529840545931726923>",

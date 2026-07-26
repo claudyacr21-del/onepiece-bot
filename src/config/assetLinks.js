@@ -190,14 +190,14 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1530923041209581708/Tsuru_3.jpeg?ex=6a6756b0&is=6a660530&hm=9c5918eaa287c87f0570e3deca72747b5a9de4aa58033d5ee4ad26ad4f3c7b87&",
   },
   reiju_poison_pink: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1496863181245517924/content.png?ex=69eb6df8&is=69ea1c78&hm=a2ea5da47068668e4d34b6d81fe16989c164a90c2961943bcee84397876b4843&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1496863181967200417/content.png?ex=69eb6df8&is=69ea1c78&hm=33f4fb91c9a11a46c2ee76c16ecffcec2903529e7a1657ce4d6a7bdc1f9974e7&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1496863182688489542/content.png?ex=69eb6df9&is=69ea1c79&hm=ef91622575b049bc20f031719508abc6d1529a4e019e3a43332fa7ee6153e613&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1530930403005829200/Reiju_1.jpeg?ex=6a675d8b&is=6a660c0b&hm=38dd1aae48dcf9a51e58f3c22359e288b4a5f042d99344c77f325d0bfd7aefaf&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1530930403307683950/Reiju_2.jpeg?ex=6a675d8b&is=6a660c0b&hm=f36f0d403aaca45f55be375fd43eed52731c2f2cda824fd887cf22e1ca31c169&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1530930403651752177/Reiju_3.jpeg?ex=6a675d8b&is=6a660c0b&hm=cfd5ed6332fa1227b50467e1a6f6bddc455d92201fb37cd35bcc8aa493890569&",
   },
   otama_kibi_support: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1496867133253226516/content.png?ex=69eb71a7&is=69ea2027&hm=e248db44ff4a5022628a21f37d3f91c91145a8085b65591f349a71f3a48bf010&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1496867133748150463/content.png?ex=69eb71a7&is=69ea2027&hm=47fe0da31d07d9e6c53b220e640c16eaf49bec09b86774e354ea8886b2d0b504&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1496867134343614704/content.png?ex=69eb71a7&is=69ea2027&hm=10d488769d9d82a6c047347ecd33a81a3e8a90b7e303876eb55ff85371ef348d&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1530934087487848699/otama_1.jpeg?ex=6a6760f9&is=6a660f79&hm=c944cf43d71831b6de4b79ff623da0077c882357ac5a50b8553bcb34cb4218c1&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1530934087865471037/otama_2.jpeg?ex=6a6760f9&is=6a660f79&hm=9b15656b9cc63240aae5d153db41c98d88901e76625234113485a9489d24c598&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1530934088192495837/otama_3.jpeg?ex=6a6760fa&is=6a660f7a&hm=05c2e65c8f5d3f8ed149794509a486ec42846e402d658abf2db30a8c2d4e17b5&",
   },
   iceburg: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1496879550855123066/content.png?ex=69eb7d37&is=69ea2bb7&hm=ca8515600850cecc3a31754ed011caa5dafb899fca236909a506a09f3ce10023&",
