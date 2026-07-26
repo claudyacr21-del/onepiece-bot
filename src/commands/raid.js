@@ -27,6 +27,7 @@ const {
 const raidBossImages = require("../config/raidBossImages");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
+const { ITEMS } = require("../data/items");
 const { applyPirateRewardBonuses } = require("../utils/rewardBonuses");
 const {
   getServerTagPerks,
@@ -2258,8 +2259,8 @@ function getRaidRewardConfig(tier, boss = null, raidMode = null) {
 
   if (bossCode === "imu" || bossName.includes("imu")) {
     return {
-      berries: 25000,
-      gems: 40,
+      berries: 50000,
+      gems: 80,
       fragments: 1,
       weaponChance: 35,
       fruitChance: 1,
@@ -2268,36 +2269,36 @@ function getRaidRewardConfig(tier, boss = null, raidMode = null) {
 
   const configs = {
     C: {
-      berries: 5000,
-      gems: 10,
+      berries: 10000,
+      gems: 20,
       fragments: 1,
       weaponChance: 50,
       fruitChance: 1,
     },
     B: {
-      berries: 5000,
-      gems: 10,
+      berries: 10000,
+      gems: 20,
       fragments: 1,
       weaponChance: 50,
       fruitChance: 1,
     },
     A: {
-      berries: 10000,
-      gems: 15,
+      berries: 20000,
+      gems: 30,
       fragments: 1,
       weaponChance: 45,
       fruitChance: 1,
     },
     S: {
-      berries: 15000,
-      gems: 25,
+      berries: 30000,
+      gems: 50,
       fragments: 1,
       weaponChance: 35,
       fruitChance: 1,
     },
     M: {
-      berries: 50000,
-      gems: 50,
+      berries: 100000,
+      gems: 100,
       fragments: 1,
       universalS: 2,
       weaponChance: 100,
@@ -2668,6 +2669,76 @@ function addUniversalSReward(items, amount = 2) {
  );
 }
 
+function addUniversalAReward(items, amount = 2) {
+  return addAmountEntry(
+    items,
+    {
+      code: "universal_a",
+      name: "Universal A Fragment",
+      rarity: "A",
+      type: "universal",
+    },
+    amount
+  );
+}
+
+const RAID_RANDOM_BOX_POOL = [
+  ITEMS.rareResourceBox,
+  ITEMS.eliteResourceBox,
+  ITEMS.legendResourceBox,
+];
+
+function addRandomRaidBoxes(boxes, amount = 1) {
+  let nextBoxes = Array.isArray(boxes) ? [...boxes] : [];
+  const rewards = [];
+
+  for (let index = 0; index < Math.max(0, Number(amount || 0)); index += 1) {
+    const box =
+      RAID_RANDOM_BOX_POOL[
+        Math.floor(Math.random() * RAID_RANDOM_BOX_POOL.length)
+      ];
+
+    if (!box) continue;
+
+    nextBoxes = addAmountEntry(nextBoxes, box, 1);
+    rewards.push(box.name);
+  }
+
+  return {
+    boxes: nextBoxes,
+    rewards,
+  };
+}
+
+function getRaidRandomBoxCount(state = {}) {
+  const raidMode = state.raidMode || {};
+  const ticketCode = String(raidMode.ticketCode || "").toLowerCase();
+  const modeName = String(raidMode.modeName || "").toLowerCase();
+
+  if (
+    ticketCode === "empty_throne_raid_writ" ||
+    modeName.includes("throne")
+  ) {
+    return 1;
+  }
+
+  if (
+    ticketCode === "gold_raid_ticket" ||
+    modeName.includes("gold")
+  ) {
+    return 2;
+  }
+
+  if (
+    ticketCode === "raid_ticket" ||
+    modeName === "raid"
+  ) {
+    return 1;
+  }
+
+  return 0;
+}
+
 function addAmountEntry(list, payload, amount = 1) {
   const arr = Array.isArray(list) ? [...list] : [];
   const code = String(payload.code || payload.name || "").toLowerCase();
@@ -2961,6 +3032,8 @@ function giveRaidWinRewards(state) {
 
   const config = getRaidRewardConfig(bossTier, boss, state.raidMode);
   const isMergeRaid = isMythicMergeRaid(state);
+  const isThroneRaid = isImuThroneRaid(state, boss);
+  const randomBoxCount = getRaidRandomBoxCount(state);
   const hostRewardBossPool = getHostRewardBossPool(state, boss);
   const mergeOriginalBossPool = isMergeRaid ? getMergeRaidOriginalBossPool(boss) : [];
   const fragmentRewardBossPool = isMergeRaid
@@ -3050,6 +3123,8 @@ function giveRaidWinRewards(state) {
 
     const fragments = isHost && !isMergeRaid ? Number(config.fragments || 0) : 0;
     const universalS = isMergeRaid ? Number(config.universalS || 0) : 0;
+    const universalA = isThroneRaid ? 2 : 0;
+    let randomBoxes = [];
     const gotWeapon = Boolean(isHost && linkedWeapon && randomChance(config.weaponChance));
     const gotFruit = Boolean(isHost && linkedFruit && randomChance(config.fruitChance));
 
@@ -3060,27 +3135,53 @@ function giveRaidWinRewards(state) {
       (fresh) => {
         username = member.username || fresh.username || "Unknown";
 
+        let nextItems = fresh.items;
+
+        if (isMergeRaid && universalS > 0) {
+          nextItems = addUniversalSReward(nextItems, universalS);
+        }
+
+        if (isThroneRaid && universalA > 0) {
+          nextItems = addUniversalAReward(nextItems, universalA);
+        }
+
+        const randomBoxResult = addRandomRaidBoxes(
+          fresh.boxes,
+          randomBoxCount
+        );
+
+        randomBoxes = randomBoxResult.rewards;
+
         return {
-        ...fresh,
-        berries: Number(fresh.berries || 0) + berries,
-        gems: Number(fresh.gems || 0) + gems,
-        fragments: isHost
-          ? gotWeapon
-            ? addRaidWeaponFragment(
-                fragments > 0
-                  ? addRaidBossFragment(fresh.fragments, linkedFragmentBoss, fragments)
-                  : fresh.fragments,
-                linkedWeapon,
-                1
-              )
-            : fragments > 0
-              ? addRaidBossFragment(fresh.fragments, linkedFragmentBoss, fragments)
-              : fresh.fragments
-          : fresh.fragments,
-          items: isMergeRaid && universalS > 0
-            ? addUniversalSReward(fresh.items, universalS)
-            : fresh.items,
-        devilFruits: gotFruit ? addRaidFruit(fresh.devilFruits, linkedFruit) : fresh.devilFruits,
+          ...fresh,
+          berries: Number(fresh.berries || 0) + berries,
+          gems: Number(fresh.gems || 0) + gems,
+          fragments: isHost
+            ? gotWeapon
+              ? addRaidWeaponFragment(
+                  fragments > 0
+                    ? addRaidBossFragment(
+                        fresh.fragments,
+                        linkedFragmentBoss,
+                        fragments
+                      )
+                    : fresh.fragments,
+                  linkedWeapon,
+                  1
+                )
+              : fragments > 0
+                ? addRaidBossFragment(
+                    fresh.fragments,
+                    linkedFragmentBoss,
+                    fragments
+                  )
+                : fresh.fragments
+            : fresh.fragments,
+          items: nextItems,
+          boxes: randomBoxResult.boxes,
+          devilFruits: gotFruit
+            ? addRaidFruit(fresh.devilFruits, linkedFruit)
+            : fresh.devilFruits,
         };
       },
       member.username || "Unknown"
@@ -3106,6 +3207,8 @@ function giveRaidWinRewards(state) {
 
       fragments,
       universalS,
+      universalA,
+      randomBoxes,
       bossName:
         linkedFragmentBoss.name ||
         linkedFragmentBoss.bossName ||
@@ -3163,6 +3266,18 @@ function formatRaidWinRewardLines(state) {
     if (Number(reward.universalS || 0) > 0) {
       lines.push(
         `+Universal S x${Number(reward.universalS || 0)}`
+      );
+    }
+
+    if (Number(reward.universalA || 0) > 0) {
+      lines.push(
+        `+Universal A x${Number(reward.universalA || 0)}`
+      );
+    }
+
+    if (Array.isArray(reward.randomBoxes) && reward.randomBoxes.length) {
+      lines.push(
+        `+Random Box: ${reward.randomBoxes.join(", ")}`
       );
     }
 

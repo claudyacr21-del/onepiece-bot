@@ -17,7 +17,7 @@ const SHOP_ITEMS = [
   {
     key: "elite",
     name: "Elite Resource Box x1",
-    cost: 75,
+    cost: 60,
     description: "High-grade resource box.",
   },
   {
@@ -29,7 +29,7 @@ const SHOP_ITEMS = [
   {
     key: "legend",
     name: "Legend Resource Box x1",
-    cost: 100,
+    cost: 80,
     description: "Premium resource box for late progression.",
   },
 

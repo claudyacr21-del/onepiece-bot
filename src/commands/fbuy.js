@@ -22,13 +22,13 @@ const SHOP_ITEMS = {
   elite: {
     key: "elite",
     label: "Elite Resource Box x1",
-    cost: 75,
+    cost: 60,
     boxes: [{ item: ITEMS.eliteResourceBox, amount: 1 }],
   },
   legend: {
     key: "legend",
     label: "Legend Resource Box x1",
-    cost: 100,
+    cost: 80,
     boxes: [{ item: ITEMS.legendResourceBox, amount: 1 }],
   },
   reset: {
