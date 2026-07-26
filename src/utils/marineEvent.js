@@ -15,6 +15,10 @@ const {
   flushPlayerNow,
 } = require("../playerStore");
 const { hydrateCard } = require("./evolution");
+const {
+  isMergeCard,
+  buildMergedCard,
+} = require("./mergeCards");
 const { getPlayerCombatBoosts } = require("./combatStats");
 const { ITEMS, cloneItem } = require("../data/items");
 
@@ -497,7 +501,10 @@ function getTeamCards(player) {
 
   const hydratedCards = rawCards
     .map((rawCard, sourceIndex) => {
-      const card = hydrateCard(rawCard);
+      const card = isMergeCard(rawCard)
+        ? buildMergedCard(player, rawCard)
+        : hydrateCard(rawCard);
+
       if (!card) return null;
 
       return {

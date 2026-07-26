@@ -177,99 +177,47 @@ function findFruitTemplate(value) {
   );
 }
 
-function getAllOwnedCardsPower(player) {
+function getPlayerCollectionPower(player) {
   const cards = (Array.isArray(player.cards) ? player.cards : [])
     .map(hydrateCard)
     .filter(Boolean);
 
   return cards.reduce((sum, card) => {
-    return sum + getLeaderboardCardPower(card);
-  }, 0);
-}
-
-function getInventoryWeaponsPower(player) {
-  const inventoryWeapons = Array.isArray(player.weapons) ? player.weapons : [];
-
-  return inventoryWeapons.reduce((sum, entry) => {
-    const template = findWeaponTemplate(entry.code || entry.name);
-    if (!template) return sum;
-
-    const amount = Math.max(0, Number(entry.amount || 0));
-    const level = Math.max(0, Number(entry.upgradeLevel || 0));
-
-    return sum + getWeaponPowerByRarityAndLevel(template.rarity, level) * amount;
-  }, 0);
-}
-
-function getEquippedWeaponsPower(player) {
-  const cards = Array.isArray(player.cards) ? player.cards : [];
-
-  return cards.reduce((sum, rawCard) => {
-    const equipped = Array.isArray(rawCard.equippedWeapons)
-      ? rawCard.equippedWeapons
-      : [];
-
-    const equippedPower = equipped.reduce((sub, entry) => {
-      const template = findWeaponTemplate(entry.code || entry.name);
-      if (!template) return sub;
-
-      return (
-        sub +
-        getWeaponPowerByRarityAndLevel(
-          template.rarity,
-          Number(entry.upgradeLevel || 0)
-        )
-      );
-    }, 0);
-
-    return sum + equippedPower;
-  }, 0);
-}
-
-function getInventoryFruitsPower(player) {
-  const inventoryFruits = Array.isArray(player.devilFruits)
-    ? player.devilFruits
-    : [];
-
-  return inventoryFruits.reduce((sum, entry) => {
-    const template = findFruitTemplate(entry.code || entry.name);
-    if (!template) return sum;
-
-    const amount = Math.max(0, Number(entry.amount || 0));
-    return sum + getFruitPowerByRarity(template.rarity) * amount;
-  }, 0);
-}
-
-function getEquippedFruitsPower(player) {
-  const cards = Array.isArray(player.cards) ? player.cards : [];
-
-  return cards.reduce((sum, rawCard) => {
-    if (!rawCard.equippedDevilFruit) return sum;
-
-    const template = findFruitTemplate(
-      rawCard.equippedDevilFruitName || rawCard.equippedDevilFruit
+    const totalCardPower = Math.max(
+      0,
+      Number(getLeaderboardCardPower(card) || 0)
     );
 
-    if (!template) return sum;
+    const weaponPower = Math.max(
+      0,
+      Number(card.weaponPowerBonus || 0)
+    );
 
-    return sum + getFruitPowerByRarity(template.rarity);
+    const fruitPower = Math.max(
+      0,
+      Number(card.fruitPowerBonus || 0)
+    );
+
+    const equipmentPower = Math.max(
+      0,
+      Number(
+        card.totalEquipmentPowerBonus ??
+          weaponPower + fruitPower
+      )
+    );
+
+    const cardOnlyPower = Math.max(
+      0,
+      totalCardPower - equipmentPower
+    );
+
+    return (
+      sum +
+      cardOnlyPower +
+      weaponPower +
+      fruitPower
+    );
   }, 0);
-}
-
-function getPlayerCollectionPower(player) {
-  const cardsPower = getAllOwnedCardsPower(player);
-  const inventoryWeaponsPower = getInventoryWeaponsPower(player);
-  const equippedWeaponsPower = getEquippedWeaponsPower(player);
-  const inventoryFruitsPower = getInventoryFruitsPower(player);
-  const equippedFruitsPower = getEquippedFruitsPower(player);
-
-  return (
-    cardsPower +
-    inventoryWeaponsPower +
-    equippedWeaponsPower +
-    inventoryFruitsPower +
-    equippedFruitsPower
-  );
 }
 
 function looksLikeGeneratedUserName(value, id = "") {
