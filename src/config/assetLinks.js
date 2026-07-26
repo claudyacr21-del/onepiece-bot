@@ -200,19 +200,19 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1530934088192495837/otama_3.jpeg?ex=6a6760fa&is=6a660f7a&hm=05c2e65c8f5d3f8ed149794509a486ec42846e402d658abf2db30a8c2d4e17b5&",
   },
   iceburg: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1496879550855123066/content.png?ex=69eb7d37&is=69ea2bb7&hm=ca8515600850cecc3a31754ed011caa5dafb899fca236909a506a09f3ce10023&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1496879551320686652/content.png?ex=69eb7d37&is=69ea2bb7&hm=170644815546030cc8db9b8af49449d69c823956f12f638ce9463ab603cf846b&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1496879551731597492/content.png?ex=69eb7d37&is=69ea2bb7&hm=1c10f01167d2d4989a22692eacafeaac6e376bd692c92e718ffb7b9eb3f6b639&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1530936255041503445/iceberg_1.jpeg?ex=6a6762fe&is=6a66117e&hm=cca0fb288b4e06eb09a2a269d0c0c551d16189965879eb37470396128c81c946&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1530936255460806706/iceberg_2.jpeg?ex=6a6762fe&is=6a66117e&hm=ee4c3c8cb4cf13dd7ee53bdb0a06ca474916c1eec5add7c433a9773082777505&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1530936255788093531/iceberg_3.jpeg?ex=6a6762fe&is=6a66117e&hm=f7228ba7da2504c0f4ab3358c207225dffb17d280d4d14c250418c95e320afa5&",
   },
   laboon: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1497102730919936051/content.png?ex=69ec4d11&is=69eafb91&hm=3f1a7b9813767820ee12b58567a6f2b588027a1a14142c35d60c9982e1d0a246&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1497102731435839540/content.png?ex=69ec4d11&is=69eafb91&hm=f39492606fedf0f15f30508f9313bffd1fdf6ea2470720a8e22b409482440d64&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1497102731897344010/content.png?ex=69ec4d12&is=69eafb92&hm=f56a41fbda426002462a8ad34dc253baee55c02198e392a35f697e2f5249712e&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1530939557036429453/laboon_1.jpeg?ex=6a676611&is=6a661491&hm=9f6d66c492d0880189c4a0831ba6afe88ee48952c5cfe840f22ff9c0d2430ac4&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1530939557560848496/laboon_2.jpeg?ex=6a676612&is=6a661492&hm=3e08c9f272a5fabf02abff848936bc68c9802eb3343804b5a975b0eb788c45c6&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1530939557934272594/laboon_3.jpeg?ex=6a676612&is=6a661492&hm=ce283f466f5634466ac60e4f30fb52f77966f2f3e79294b0c676bfff5e578842&",
   },
   sniper_focus: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1497111980069093476/content.png?ex=69ec55af&is=69eb042f&hm=f98e6dec24ddeaf77ed523b32db7729df95b13b2fa7c59eba0ac742d0208ff6b&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1497111980589449276/content.png?ex=69ec55af&is=69eb042f&hm=154b29333b6bb5134b675692cef1e7bc18864fdec34f601ef475cd5bfd7e3688&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1497111981243502683/content.png?ex=69ec55af&is=69eb042f&hm=d733fe2a0a804abd5b88295732e01a00ce47738c52459f9238ca918eb2491e4d&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1530945070851821650/sniper_focus_1.jpeg?ex=6a676b34&is=6a6619b4&hm=078da8b78bd64cbb3b570dc5ff762a442bb04e2776666ca67bc3633a03746d04&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1530945071094956173/sniper_focus_2.jpeg?ex=6a676b34&is=6a6619b4&hm=c3d32fda3ba49107bdc5a31e1c5d88e269833696f3fda1d7fb32978c9acef50d&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1530945071338356786/sniper_focus_3.jpeg?ex=6a676b34&is=6a6619b4&hm=c1e41f64c2901ad61beb3018058f80dd480de810907788d3b6a4d87f54bba9b2&",
   },
   weather_science: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1497125308317302895/content.png?ex=69ec6218&is=69eb1098&hm=2dfce6f34a854a347e4962d5e61bcd2e668dcdc028186f68548523e0fb17a8c7&",

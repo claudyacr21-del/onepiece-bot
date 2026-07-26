@@ -256,7 +256,7 @@ const SPECIAL_FORMS = {
   luffy_straw_hat: ["The Beginning", "Revival", "Gear 5"],
   zoro_pirate_hunter: ["Three Sword Style", "King of Hell", "Ashura"],
   nami_cat_burglar: ["Weather Rookie", "Thunder Tempo", "Zeus Queen"],
-  usopp_sniper: ["Sniper Rookie", "Pop Green Arsenal", "God Usopp"],
+  usopp_sniper: ["Rookie", "Pop Green Arsenal", "God Usopp"],
   sanji_black_leg: ["The Beginning", "Soba Mask", "Ifrit Jambe"],
   koby_aspiring_marine: ["East Blue Saga", "Hero of the Marines", "Honesty Impact"],
   morgan_axe_hand: ["Captain Morgan", "Axe-Hand", "Fallen"],
