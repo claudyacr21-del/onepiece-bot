@@ -1454,6 +1454,23 @@ function buildPanelEmbed(message) {
   const globalState = getGlobalState(players);
   const player = getRyumaPlayerFromStore(players, message);
   const eventData = getEventData(player);
+  const personalDamage = Math.max(
+    0,
+    Number(eventData.damage || 0)
+  );
+
+  if (
+    isEventEnded(globalState) &&
+    personalDamage <= 0
+  ) {
+    return message.reply({
+      content:
+        "You did not participate in the Ryuma Global Boss Event, so you cannot claim personal or global milestone rewards.",
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
   const attackWindow = getAttackWindow(eventData);
   const hpLeft = getHpLeft(globalState);
   const bossPhase = getBossPhase(globalState);
