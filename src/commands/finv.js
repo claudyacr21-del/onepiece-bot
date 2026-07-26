@@ -975,7 +975,9 @@ function resolveExternalEmoji(
     return emojiByName;
   }
 
-  return null;
+  // Valid configured external emojis can still be rendered by Discord
+  // even when the source guild emoji is not present in the local cache.
+  return value;
 }
 
 function getFragmentEmojiCandidates(fragment) {
