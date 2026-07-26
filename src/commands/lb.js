@@ -139,10 +139,10 @@ function getLeaderboardCardPower(card) {
   }
 
   return Number(
-    card.teamPower ||
-      card.currentPower ||
+    card.currentPower ||
       card.finalPower ||
       card.power ||
+      card.teamPower ||
       Math.floor(
         Number(card.atk || card.finalAtk || card.displayAtk || 0) * 1.4 +
           Number(card.hp || card.finalHp || card.displayHp || 0) * 0.22 +
