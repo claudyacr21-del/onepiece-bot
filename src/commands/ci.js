@@ -168,10 +168,21 @@ function getAllGlobalCard(card) {
 }
 
 function getStageCard(card, stage) {
+  const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
+  const previewLevelByStage = {
+    1: 50,
+    2: 85,
+    3: 100,
+  };
+  const previewLevel = previewLevelByStage[safeStage];
+
   return hydrateCard({
     ...card,
-    evolutionStage: stage,
-    evolutionKey: `M${stage}`,
+    level: previewLevel,
+    currentLevel: previewLevel,
+    lvl: previewLevel,
+    evolutionStage: safeStage,
+    evolutionKey: `M${safeStage}`,
   });
 }
 
