@@ -355,25 +355,39 @@ function getFragmentAmount(player, target) {
 
   const possibleCodes = [
     code,
+    code ? `${code}_fragment` : null,
+    code ? `fragment_${code}` : null,
+    code ? `${code} fragment` : null,
     code ? `weapon_fragment_${code}` : null,
     code ? `weapon fragment ${code}` : null,
+    name,
+    name ? `${name} fragment` : null,
   ]
     .filter(Boolean)
     .map(normalize);
 
   const found = fragments.find((entry) => {
-    const entryCode = normalize(entry.code);
-    const entryName = normalize(entry.name || entry.displayName);
+    const entryCode = normalize(entry?.code);
+    const entryCardCode = normalize(entry?.cardCode);
+    const entryName = normalize(entry?.name || entry?.displayName);
 
     return (
       possibleCodes.includes(entryCode) ||
-      possibleCodes.includes(entryName) ||
-      (name && entryName === name) ||
-      (name && entryCode === name)
+      possibleCodes.includes(entryCardCode) ||
+      possibleCodes.includes(entryName)
     );
   });
 
-  return Math.max(0, Number(found?.amount || 0));
+  return Math.max(
+    0,
+    Number(
+      found?.amount ??
+        found?.count ??
+        found?.quantity ??
+        found?.qty ??
+        0
+    )
+  );
 }
 
 function pushUnique(list, value) {
