@@ -1000,7 +1000,7 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1522574025136541746/content.png?ex=6a48f70f&is=6a47a58f&hm=52f9a9277c95520d7f65a932d6bc0476c881d6f7d51338866ad2cfef1eba7be3&",
   },
   wsr: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1529719271360299120/shanks_and_mihawk_1.jpg?ex=6a62f597&is=6a61a417&hm=97ada6230448e0b5007f98a3f4a0f1a94886615f01b856b4eeed60b7b7330120&",
+    M1: "https://cdn.discordapp.com/attachments/1492807857207382090/1531654188394745906/3c70d698-610c-4bc9-9149-61f9ae575634.png?ex=6a69ff9f&is=6a68ae1f&hm=159cc5ef59e0399c6b6d9f237ea3591dc1883197d4e3609ec62e2fffbec3ea2c",
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1529719271708561619/shanks_and_mihawk_2.jpg?ex=6a62f597&is=6a61a417&hm=51909b75f093c7688c78707f301e8250e12ad003790393a964ce9f6b8e3e585a&",
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1529719272027455548/shanks_and_mihawk_3.jpg?ex=6a62f597&is=6a61a417&hm=ec3a66191ae117295f6d347a9b164588b1f027eb584a952bcd65be08d835783a&",
   },
