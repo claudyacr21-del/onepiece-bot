@@ -694,20 +694,46 @@ module.exports = {
           1 +
           (baccaratBonusApplied ? 1 : 0) +
           serverTagResetTicketBonus;
-        const dailyPullResetTicket = makePullResetTicketReward(dailyPullResetTicketAmount);
-
-        updatedTickets = addPullResetTicketToTickets(
-          updatedTickets,
+        const dailyPullResetTicket = makePullResetTicketReward(
           dailyPullResetTicketAmount
         );
+        const pullResetTicketCode = "pull_reset_ticket";
 
-        // Guaranteed daily Pull Reset Ticket:
-        // Every daily claim gives 1 Pull Reset Ticket.
-        // Baccarat / Raki Raki gives +1 extra.
-        // Total: normal = x1, Baccarat = x2.
-        updatedItems = addOrIncrease(updatedItems, {
-          ...dailyPullResetTicket,
-          category: "ticket",
+        const existingPullResetTicketAmount = updatedTickets.reduce(
+          (total, ticket) => {
+            const ticketCode = String(ticket?.code || "")
+              .toLowerCase()
+              .trim();
+
+            if (ticketCode !== pullResetTicketCode) {
+              return total;
+            }
+
+            return total + Math.max(0, Number(ticket?.amount || 0));
+          },
+          0
+        );
+
+        updatedTickets = updatedTickets.filter((ticket) => {
+          return (
+            String(ticket?.code || "")
+              .toLowerCase()
+              .trim() !== pullResetTicketCode
+          );
+        });
+
+        updatedTickets.push(
+          makePullResetTicketReward(
+            existingPullResetTicketAmount + dailyPullResetTicketAmount
+          )
+        );
+
+        updatedItems = updatedItems.filter((item) => {
+          return (
+            String(item?.code || "")
+              .toLowerCase()
+              .trim() !== pullResetTicketCode
+          );
         });
 
         rewardsToApply.push(dailyPullResetTicket);
@@ -728,10 +754,8 @@ module.exports = {
           tickets: updatedTickets,
           materials: updatedMaterials,
           items: updatedItems,
-          pullResetTickets:
-            Number(fresh.pullResetTickets || 0) + dailyPullResetTicketAmount,
-          pull_reset_ticket_count:
-            Number(fresh.pull_reset_ticket_count || 0) + dailyPullResetTicketAmount,
+          pullResetTickets: 0,
+          pull_reset_ticket_count: 0,
           dailyLastClaim: now,
           quests: {
             ...(fresh.quests || {}),
