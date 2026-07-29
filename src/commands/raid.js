@@ -441,6 +441,30 @@ function getMissingNonHostRaidUsers(room) {
     .filter((id) => id && id !== hostId && !joined.has(id));
 }
 
+async function notifyMissingRaidMembers(message, room) {
+  if (!message?.channel || !room?.roomId) return;
+
+  const missingUserIds = [
+    ...new Set(getMissingNonHostRaidUsers(room)),
+  ];
+
+  if (!missingUserIds.length) return;
+
+  await message.channel
+    .send({
+      content: `📣 Missing raid members: ${missingUserIds
+        .map(userMention)
+        .join(" ")}`,
+      allowedMentions: {
+        users: missingUserIds,
+        repliedUser: false,
+      },
+    })
+    .catch((error) => {
+      console.error("[RAID MISSING MEMBER PING ERROR]", error);
+    });
+}
+
 async function notifyHostIfRaidReady(message, room) {
   if (!message?.channel || !room?.roomId) return;
 
@@ -3903,6 +3927,8 @@ module.exports = {
       ],
       components: buildLobbyRows(room, false),
     });
+
+    await notifyMissingRaidMembers(message, room);
 
     const lobbyCollector = lobbyMessage.createMessageComponentCollector({
       time: RAID_ROOM_TIMEOUT_MS,
