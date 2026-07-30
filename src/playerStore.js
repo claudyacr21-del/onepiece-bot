@@ -1940,6 +1940,45 @@ function normalizeDiscordListVote(vote) {
   };
 }
 
+function normalizeBotlistVote(vote) {
+  const data =
+    vote && typeof vote === "object"
+      ? vote
+      : {};
+
+  const processedIds = Array.isArray(
+    data.processedIds
+  )
+    ? data.processedIds
+        .map((entry) => String(entry || "").trim())
+        .filter(Boolean)
+        .slice(-100)
+    : [];
+
+  return {
+    totalVotes: Math.max(
+      0,
+      Math.floor(Number(data.totalVotes || 0))
+    ),
+
+    lastVoteAt: Math.max(
+      0,
+      Math.floor(Number(data.lastVoteAt || 0))
+    ),
+
+    cooldownUntil: Math.max(
+      0,
+      Math.floor(Number(data.cooldownUntil || 0))
+    ),
+
+    lastEventId: String(
+      data.lastEventId || ""
+    ),
+
+    processedIds,
+  };
+}
+
 function normalizeTeamPresetSlots(value) {
   const slots = Array.isArray(value) ? value.slice(0, 3) : [];
 
@@ -2264,6 +2303,11 @@ function normalizePlayer(player = {}, username = "Unknown") {
     discordListVote: normalizeDiscordListVote(
       player.discordListVote
     ),
+
+    botlistVote: normalizeBotlistVote(
+      player.botlistVote
+    ),
+
     team: normalizeTeam({
       ...(player.team || {}),
       presets: player?.team?.presets || player?.teamPresets,

@@ -10,6 +10,7 @@ let serverStarted = false;
 const VOTE_BERRY_REWARD = 5000;
 const VOTE_PULL_RESET_REWARD = 1;
 const DISCORDLIST_LEGEND_BOX_REWARD = 2;
+const BOTLIST_LEGEND_BOX_REWARD = 2;
 const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const RAID_TICKET_STREAK_TARGET = 25;
 
@@ -329,6 +330,300 @@ async function sendDiscordListVoteDm(
       error?.message || error
     );
   }
+}
+
+function verifyBotlistAuthorization(req) {
+  const expected = String(
+    process.env.BOTLIST_WEBHOOK_AUTH || ""
+  ).trim();
+
+  if (!expected) {
+    console.error(
+      "[BOTLIST] BOTLIST_WEBHOOK_AUTH is not configured."
+    );
+
+    return false;
+  }
+
+  const received = String(
+    req?.get?.("Authorization") ||
+      req?.get?.("authorization") ||
+      req?.headers?.authorization ||
+      ""
+  )
+    .replace(/^Bearer\s+/i, "")
+    .trim();
+
+  return Boolean(
+    received &&
+    received === expected
+  );
+}
+
+function getBotlistUserId(payload) {
+  return String(
+    payload?.user ||
+      payload?.userId ||
+      payload?.user_id ||
+      payload?.data?.user ||
+      payload?.data?.userId ||
+      payload?.data?.user_id ||
+      ""
+  ).trim();
+}
+
+function getBotlistEventId(
+  payload,
+  userId
+) {
+  const directId =
+    payload?.id ||
+    payload?.voteId ||
+    payload?.vote_id ||
+    payload?.data?.id ||
+    payload?.data?.voteId ||
+    payload?.data?.vote_id;
+
+  if (directId) {
+    return String(directId);
+  }
+
+  const voteBucket = Math.floor(
+    Date.now() / VOTE_COOLDOWN_MS
+  );
+
+  return [
+    "botlist",
+    String(userId || ""),
+    String(
+      payload?.type || "upvote"
+    ).toLowerCase(),
+    voteBucket,
+  ].join(":");
+}
+
+async function sendBotlistVoteDm(
+  client,
+  userId,
+  reward
+) {
+  try {
+    const user =
+      await client.users.fetch(userId);
+
+    const embed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle(
+        "Botlist.me Vote Reward"
+      )
+      .setDescription(
+        [
+          "✅ Thanks for voting for One Piece Bot on Botlist.me!",
+          "",
+          `📦 Legend Resource Box: +${Number(
+            reward.legendBoxes || 0
+          ).toLocaleString("en-US")}`,
+          "",
+          `Total Botlist.me Votes: ${Number(
+            reward.totalVotes || 0
+          ).toLocaleString("en-US")}`,
+        ].join("\n")
+      )
+      .setFooter({
+        text: "One Piece Bot • Botlist.me",
+      });
+
+    await user.send({
+      embeds: [embed],
+    });
+  } catch (error) {
+    console.warn(
+      "[BOTLIST] Failed to send vote DM:",
+      error?.message || error
+    );
+  }
+}
+
+async function handleBotlistVote(
+  client,
+  payload
+) {
+  const userId =
+    getBotlistUserId(payload);
+
+  if (!userId) {
+    console.warn(
+      "[BOTLIST] Missing Discord user ID.",
+      payload
+    );
+
+    return {
+      ok: false,
+      reason: "missing_user_id",
+    };
+  }
+
+  const eventId =
+    getBotlistEventId(
+      payload,
+      userId
+    );
+
+  let reward = null;
+  let duplicate = false;
+
+  updatePlayerAtomic(
+    userId,
+    (fresh) => {
+      const previous =
+        fresh?.botlistVote &&
+        typeof fresh.botlistVote === "object"
+          ? fresh.botlistVote
+          : {};
+
+      const processedIds =
+        Array.isArray(
+          previous.processedIds
+        )
+          ? previous.processedIds.map(
+              String
+            )
+          : [];
+
+      const now = Date.now();
+
+      const cooldownUntil = Math.max(
+        0,
+        Number(
+          previous.cooldownUntil || 0
+        )
+      );
+
+      if (
+        processedIds.includes(
+          String(eventId)
+        ) ||
+        cooldownUntil > now
+      ) {
+        duplicate = true;
+        return fresh;
+      }
+
+      const nextTotalVotes =
+        Math.max(
+          0,
+          Math.floor(
+            Number(
+              previous.totalVotes || 0
+            )
+          )
+        ) + 1;
+
+      const nextBoxes = addBox(
+        fresh.boxes,
+        {
+          code: "legend_resource_box",
+          name: "Legend Resource Box",
+          amount:
+            BOTLIST_LEGEND_BOX_REWARD,
+          rarity: "S",
+          type: "Box",
+        }
+      );
+
+      const nextProcessedIds = [
+        ...processedIds,
+        String(eventId),
+      ].slice(-100);
+
+      reward = {
+        legendBoxes:
+          BOTLIST_LEGEND_BOX_REWARD,
+
+        totalVotes:
+          nextTotalVotes,
+      };
+
+      return {
+        ...fresh,
+
+        boxes:
+          nextBoxes,
+
+        botlistVote: {
+          totalVotes:
+            nextTotalVotes,
+
+          lastVoteAt:
+            now,
+
+          cooldownUntil:
+            now + VOTE_COOLDOWN_MS,
+
+          lastEventId:
+            String(eventId),
+
+          processedIds:
+            nextProcessedIds,
+        },
+      };
+    },
+    "Unknown"
+  );
+
+  if (duplicate) {
+    console.log(
+      "[BOTLIST] Duplicate vote ignored:",
+      {
+        userId,
+        eventId,
+      }
+    );
+
+    return {
+      ok: true,
+      duplicate: true,
+    };
+  }
+
+  if (!reward) {
+    console.warn(
+      "[BOTLIST] Vote reward was not generated:",
+      {
+        userId,
+        eventId,
+      }
+    );
+
+    return {
+      ok: false,
+      reason: "reward_not_generated",
+    };
+  }
+
+  await sendBotlistVoteDm(
+    client,
+    userId,
+    reward
+  );
+
+  console.log(
+    "[BOTLIST] Vote reward granted:",
+    {
+      userId,
+      eventId,
+      legendBoxes:
+        BOTLIST_LEGEND_BOX_REWARD,
+    }
+  );
+
+  return {
+    ok: true,
+    duplicate: false,
+    userId,
+    eventId,
+    reward,
+  };
 }
 
 async function handleDiscordListVote(

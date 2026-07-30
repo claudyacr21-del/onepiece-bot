@@ -12,6 +12,10 @@ const TOPGG_URL =
 
 const DISCORDLIST_URL =
   "https://discordlist.gg/bot/1492759342972407869/vote";
+
+const BOTLIST_URL =
+  "https://botlist.me/bots/1492759342972407869/vote";
+
 const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const RAID_TICKET_STREAK_TARGET = 25;
 
@@ -40,6 +44,32 @@ function getDiscordListCooldownAt(player) {
     player?.discordListVote &&
     typeof player.discordListVote === "object"
       ? player.discordListVote
+      : {};
+
+  const storedCooldown = Number(
+    voteData.cooldownUntil || 0
+  );
+
+  const lastVoteAt = Number(
+    voteData.lastVoteAt || 0
+  );
+
+  const fallbackCooldown =
+    lastVoteAt > 0
+      ? lastVoteAt + VOTE_COOLDOWN_MS
+      : 0;
+
+  return Math.max(
+    storedCooldown,
+    fallbackCooldown
+  );
+}
+
+function getBotlistCooldownAt(player) {
+  const voteData =
+    player?.botlistVote &&
+    typeof player.botlistVote === "object"
+      ? player.botlistVote
       : {};
 
   const storedCooldown = Number(
@@ -99,6 +129,12 @@ function buildVoteEmbed(message, player) {
       ? player.discordListVote
       : {};
 
+  const botlistVote =
+    player?.botlistVote &&
+    typeof player.botlistVote === "object"
+      ? player.botlistVote
+      : {};
+
   const topggStreak = Math.max(
     0,
     Math.floor(Number(topggVote.streak || 0))
@@ -116,11 +152,21 @@ function buildVoteEmbed(message, player) {
     )
   );
 
+  const botlistTotalVotes = Math.max(
+    0,
+    Math.floor(
+      Number(botlistVote.totalVotes || 0)
+    )
+  );
+
   const topggCooldownAt =
     getTopggCooldownAt(player);
 
   const discordListCooldownAt =
     getDiscordListCooldownAt(player);
+
+  const botlistCooldownAt =
+    getBotlistCooldownAt(player);
 
   const nextRaidTicketIn =
     getNextRaidTicketIn(topggStreak);
@@ -159,10 +205,13 @@ function buildVoteEmbed(message, player) {
 
         "",
         "## 🟢 Botlist.me",
-        "🚧 **Coming Soon**",
+        "🎁 **Reward**",
         "• Legend Resource Box x2",
         "",
-        "The Botlist.me listing is currently under review.",
+        `⏳ **Cooldown:** ${formatCooldown(
+          botlistCooldownAt
+        )}`,
+        `🗳️ **Total Votes:** ${botlistTotalVotes}`,
 
         "",
         "💜 The bot will send a DM after a vote reward is successfully granted.",
@@ -193,15 +242,9 @@ function buildVoteRows() {
         .setURL(DISCORDLIST_URL),
 
       new ButtonBuilder()
-        .setLabel("Botlist.me (Soon)")
-        .setStyle(ButtonStyle.Secondary)
-        .setCustomId("vote_botlist_soon")
-        .setDisabled(true)
-
-      //new ButtonBuilder()
-      //  .setLabel("Botlist.me")
-      //  .setStyle(ButtonStyle.Link)
-      //  .setURL("LINK_BOTLIST")
+        .setLabel("Botlist.me")
+        .setStyle(ButtonStyle.Link)
+        .setURL(BOTLIST_URL)
     ),
   ];
 }
