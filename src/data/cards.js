@@ -114,7 +114,7 @@ const BASE_CARDS = [
   // =========================
   // Grand Line / Alabasta to Thriller Bark
   // =========================
-  battleCard({ id: 81, code: "crocodile_desert_king", name: "Crocodile", title: "Desert King", rarity: "S", arc: "Alabasta", faction: "Baroque Works", variant: "Sand Tyrant", type: "Control", atk: 175, hp: 1120, speed: 78, basePower: 2150, weapon: "Golden Hook", devilFruit: "Suna Suna no Mi", equipType: "Devil Fruit", image: "" }),
+  battleCard({ id: 81, code: "crocodile_desert_king", name: "Crocodile", title: "Desert King", rarity: "S", arc: "Alabasta", faction: "Baroque Works", variant: "Sand Tyrant", type: "Control", atk: 215, hp: 1220, speed: 78, basePower: 2150, weapon: "Golden Hook", devilFruit: "Suna Suna no Mi", equipType: "Devil Fruit", image: "" }),
   battleCard({ id: 82, code: "nico_robin_devil_child", name: "Nico Robin", title: "Devil Child", rarity: "A", arc: "Alabasta", faction: "Straw Hat Pirates", variant: "Hana Hana Bloom", type: "Support", atk: 170, hp: 760, speed: 75, basePower: 1870, weapon: "None", devilFruit: "Hana Hana no Mi", equipType: "Devil Fruit", image: "" }),
   battleCard({ id: 83, code: "daz_bonez", name: "Daz Bonez", title: "Mr. 1", rarity: "B", arc: "Alabasta", faction: "Baroque Works", variant: "Blade Body", type: "Bruiser", atk: 128, hp: 980, speed: 60, basePower: 1332, weapon: "None", devilFruit: "Supa Supa no Mi", equipType: "Devil Fruit", image: "" }),
   battleCard({ id: 84, code: "bellamy_hyena", name: "Bellamy", title: "The Hyena", rarity: "B", arc: "Jaya", faction: "Bellamy Pirates", variant: "Spring Legs", type: "Burst", atk: 125, hp: 760, speed: 80, basePower: 1154, weapon: "None", devilFruit: "Bane Bane no Mi", equipType: "Devil Fruit", image: "" }),
