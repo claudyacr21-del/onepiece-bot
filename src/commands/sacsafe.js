@@ -51,13 +51,11 @@ function scoreQuery(query, candidates) {
       continue;
     }
 
-    // Multiple words must match full words only and same amount of words.
-    // This prevents:
-    // "fish karate" matching "fishman karate"
-    // "fish karate" matching "fish man karate"
+    // Multiple words may match part of a valid canonical name.
+    // Example: "blade replica" matches "Black Blade Replica".
     if (
-      queryWords.length === valueWords.length &&
-      queryWords.every((word, index) => valueWords[index] === word)
+      queryWords.length > 1 &&
+      queryWords.every((word) => valueWords.includes(word))
     ) {
       best = Math.max(best, 750 + queryWords.join("").length);
     }
@@ -132,23 +130,8 @@ function findWeaponTemplate(query) {
   return scored.length ? toTargetFromWeapon(scored[0].weapon) : null;
 }
 
-function makeFallbackTarget(query) {
-  const code = normalizeCode(query);
-
-  return {
-    code,
-    name: query
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" "),
-    rarity: "C",
-    category: "battle",
-  };
-}
-
 function findSafeTarget(query) {
-  return findCardTemplate(query) || findWeaponTemplate(query) || makeFallbackTarget(query);
+  return findCardTemplate(query) || findWeaponTemplate(query) || null;
 }
 
 function isSameEntry(entry, target) {
@@ -221,7 +204,16 @@ module.exports = {
       });
     }
 
-    let target = findSafeTarget(query);
+    const previewTarget = findSafeTarget(query);
+
+    if (!previewTarget) {
+      return message.reply({
+        content: `Safe-sacrifice target was not found: \`${query}\`.\nUse a valid card or weapon name from the game data.`,
+        allowedMentions: { repliedUser: false },
+      });
+    }
+
+    let target = previewTarget;
     let safeCards = [];
     let action = "added to";
     let color = 0x2ecc71;
@@ -234,7 +226,15 @@ module.exports = {
           safeCards = Array.isArray(settings.safeCards) ? [...settings.safeCards] : [];
           let cards = Array.isArray(settings.cards) ? [...settings.cards] : [];
 
-          target = findSafeTarget(query);
+          const freshTarget = findSafeTarget(query);
+
+          if (!freshTarget) {
+            throw new Error(
+              `Safe-sacrifice target was not found: \`${query}\`.\nUse a valid card or weapon name from the game data.`
+            );
+          }
+
+          target = freshTarget;
 
           const existingIndex = safeCards.findIndex((entry) =>
             isSameEntry(entry, target)

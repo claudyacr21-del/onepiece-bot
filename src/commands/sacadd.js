@@ -218,9 +218,8 @@ function findWeaponTemplate(query) {
   return found ? toFragmentTargetFromWeapon(found) : null;
 }
 
-function findSacTarget(player, query) {
+function findSacTarget(_player, query) {
   return (
-    findOwnedFragment(player, query) ||
     findCardTemplate(query) ||
     findWeaponTemplate(query) ||
     null
@@ -307,7 +306,7 @@ module.exports = {
 
     if (!previewTarget) {
       return message.reply({
-        content: `Auto-sac target was not found: \`${parsed.query}\`.\nUse a valid battle card, boost card, weapon, or owned fragment name.`,
+        content: `Auto-sac target was not found: \`${parsed.query}\`.\nUse a valid battle card, boost card, or weapon name from the game data.`,
         allowedMentions: {
           repliedUser: false,
         },
@@ -328,7 +327,7 @@ module.exports = {
 
           if (!freshTarget) {
             throw new Error(
-              `Auto-sac target was not found: \`${parsed.query}\`.\nUse a valid battle card, boost card, weapon, or owned fragment name.`
+              `Auto-sac target was not found: \`${parsed.query}\`.\nUse a valid battle card, boost card, or weapon name from the game data.`
             );
           }
 
