@@ -1171,6 +1171,87 @@ function startTopggWebhookServer(client) {
     }
   });
 
+  app.post("/botlist", async (req, res) => {
+    try {
+      if (!verifyBotlistAuthorization(req)) {
+        console.warn(
+          "[BOTLIST] Unauthorized webhook request."
+        );
+
+        return res.status(401).json({
+          ok: false,
+          error: "unauthorized",
+        });
+      }
+
+      const payload =
+        req.body || {};
+
+      console.log(
+        "[BOTLIST] Webhook payload received:",
+        payload
+      );
+
+      const payloadType = String(
+        payload?.type ||
+          payload?.event ||
+          payload?.data?.type ||
+          ""
+      ).toLowerCase();
+
+      if (
+        payloadType === "test" ||
+        payloadType.includes("test")
+      ) {
+        console.log(
+          "[BOTLIST] Webhook test accepted."
+        );
+
+        return res.status(200).json({
+          ok: true,
+          test: true,
+        });
+      }
+
+      const result =
+        await handleBotlistVote(
+          client,
+          payload
+        );
+
+      if (!result?.ok) {
+        return res.status(200).json({
+          ok: true,
+          processed: false,
+          reason:
+            result?.reason ||
+            "unknown_payload",
+        });
+      }
+
+      return res.status(200).json({
+        ok: true,
+        processed: true,
+        duplicate:
+          Boolean(result.duplicate),
+      });
+    } catch (error) {
+      console.error(
+        "[BOTLIST] Webhook error:",
+        error?.stack ||
+          error?.message ||
+          error
+      );
+
+      return res.status(200).json({
+        ok: false,
+        error:
+          error?.message ||
+          "handled",
+      });
+    }
+  });
+
   const port = Number(process.env.PORT || process.env.WEBHOOK_PORT || 10000);
   const host = "0.0.0.0";
 
@@ -1182,6 +1263,10 @@ function startTopggWebhookServer(client) {
 
     console.log(
       `[DISCORDLIST] Webhook endpoint ready at /discordlist`
+    );
+    
+    console.log(
+      `[BOTLIST] Webhook endpoint ready at /botlist`
     );
   });
 }
