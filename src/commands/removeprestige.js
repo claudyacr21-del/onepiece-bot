@@ -203,13 +203,62 @@ module.exports = {
         cards[found.index] = {
           ...card,
           raidPrestige: newPrestige,
+          prestige: newPrestige,
+          bossPrestige: newPrestige,
+          arenaPrestige: newPrestige,
         };
+
+        const normalizePrestigeKey = (value) =>
+          String(value || "")
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9]+/g, "_")
+            .replace(/^_+|_+$/g, "");
+
+        const prestigeKeys = new Set(
+          [
+            card.code,
+            card.baseCode,
+            card.cardCode,
+            card.sourceCode,
+            card.displayName,
+            card.name,
+          ]
+            .map(normalizePrestigeKey)
+            .filter(Boolean)
+        );
+
+        const raidPrestigeBank =
+          fresh.raidPrestigeBank && typeof fresh.raidPrestigeBank === "object"
+            ? { ...fresh.raidPrestigeBank }
+            : {};
+
+        for (const [key, entry] of Object.entries(raidPrestigeBank)) {
+          const normalizedKey = normalizePrestigeKey(key);
+          const entryKey = normalizePrestigeKey(
+            entry?.code || entry?.cardCode || entry?.name
+          );
+
+          if (
+            !prestigeKeys.has(normalizedKey) &&
+            !prestigeKeys.has(entryKey)
+          ) {
+            continue;
+          }
+
+          raidPrestigeBank[key] = {
+            ...(entry || {}),
+            raidPrestige: newPrestige,
+            prestige: newPrestige,
+          };
+        }
 
         cardName = card.displayName || card.name || card.code || "Unknown Card";
 
         return {
           ...fresh,
           cards,
+          raidPrestigeBank,
         };
       },
       message.mentions.users.first()?.username || targetId
