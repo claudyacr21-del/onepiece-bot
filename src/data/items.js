@@ -44,6 +44,16 @@ const ITEMS = {
     description: "A premium treasure box with high-value rewards.",
   },
 
+  eternalBox: {
+    name: "Eternal Box",
+    amount: 1,
+    rarity: "UR",
+    code: "eternal_box",
+    type: "Box",
+    description:
+      "A Midsummer Event box containing guaranteed Universal S Fragments, Pull Reset Tickets, Gems, and Berries.",
+  },
+
   exclusiveEventChest: {
     name: "Exclusive Event Chest",
     amount: 1,
@@ -80,6 +90,20 @@ const ITEMS = {
     code: "iron_material_box",
     type: "Box",
     description: "A better random material box with improved material rewards.",
+  },
+
+  radiantTicket: {
+    name: "Radiant Ticket",
+    amount: 1,
+    rarity: "UR",
+    code: "radiant_ticket",
+    type: "Ticket",
+    canPull: false,
+    canPA: false,
+    eventOnly: true,
+    shopOnly: true,
+    description:
+      "A Midsummer Event ticket used exclusively to attack Nika through op solstice attack.",
   },
 
   mythicRaidTicket: {

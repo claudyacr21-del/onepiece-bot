@@ -43,6 +43,47 @@ const activeFightSessions = new Map();
 
 const __fightSystem1ActionLocks = new Set();
 
+const MIDSUMMER_START_AT = Date.parse(
+  "2026-07-31T17:00:00.000Z"
+);
+
+const MIDSUMMER_END_AT = Date.parse(
+  "2026-08-31T17:00:00.000Z"
+);
+
+const GOLDEN_FOIL_COIN_EMOJI =
+  "<:GoldenFoilCoin:1532388575197270228>";
+
+function isMidsummerEventActive(
+  now = Date.now()
+) {
+  return (
+    now >= MIDSUMMER_START_AT &&
+    now < MIDSUMMER_END_AT
+  );
+}
+
+function rollFightGoldenFoilCoins() {
+  if (!isMidsummerEventActive()) {
+    return 0;
+  }
+
+  return 1 + Math.floor(Math.random() * 3);
+}
+
+function getGoldenFoilCoinRewardLine(
+  amount
+) {
+  const reward = Math.max(
+    0,
+    Math.floor(Number(amount || 0))
+  );
+
+  return reward > 0
+    ? `${GOLDEN_FOIL_COIN_EMOJI} Golden Foil Coin: +${reward}`
+    : null;
+}
+
 function __getActionLockKey(interaction) {
   return [
     interaction?.message?.id || "no-message",
@@ -1046,31 +1087,73 @@ function getFightModeLabel(tier) {
   return "Normal Fight";
 }
 
-function applyFightLoss(message, playerTeam) {
-  const pirateExpBoost = getPirateExpBoostPercent(message.author.id);
-  const boostedTeam = playerTeam.map((unit) => ({
-    ...unit,
-    passiveBoostsApplied: {
-      ...(unit.passiveBoostsApplied || {}),
-      exp: Number(unit.passiveBoostsApplied?.exp || 0) + pirateExpBoost,
-      pirateExpBoost,
-    },
-  }));
+function applyFightLoss(
+  message,
+  playerTeam,
+  goldenFoilCoinReward = 0
+) {
+  const pirateExpBoost =
+    getPirateExpBoostPercent(
+      message.author.id
+    );
 
-  const expResults = calculateFightExp(boostedTeam, false);
+  const boostedTeam = playerTeam.map(
+    (unit) => ({
+      ...unit,
+
+      passiveBoostsApplied: {
+        ...(unit.passiveBoostsApplied || {}),
+
+        exp:
+          Number(
+            unit.passiveBoostsApplied?.exp ||
+              0
+          ) + pirateExpBoost,
+
+        pirateExpBoost,
+      },
+    })
+  );
+
+  const expResults = calculateFightExp(
+    boostedTeam,
+    false
+  );
 
   updatePlayerAtomic(
     message.author.id,
     (fresh) => {
-      const updatedDailyState = incrementQuestCounter(fresh, "fightsPlayed", 1);
+      const updatedDailyState =
+        incrementQuestCounter(
+          fresh,
+          "fightsPlayed",
+          1
+        );
 
       return {
         ...fresh,
-        cards: applyFightExpToFreshCards(fresh, boostedTeam, expResults),
+
+        cards:
+          applyFightExpToFreshCards(
+            fresh,
+            boostedTeam,
+            expResults
+          ),
+
+        goldenFoilCoins:
+          Number(
+            fresh.goldenFoilCoins || 0
+          ) +
+          Number(
+            goldenFoilCoinReward || 0
+          ),
+
         fightStreak: 0,
+
         quests: {
           ...(fresh.quests || {}),
-          dailyState: updatedDailyState,
+          dailyState:
+            updatedDailyState,
         },
       };
     },
@@ -1408,7 +1491,13 @@ if (interaction.user.id !== message.author.id) {
                 pirateExpBoost,
               },
             }));
-            const expResults = calculateFightExp(boostedTeam, true);
+            const expResults = calculateFightExp(
+              boostedTeam,
+              true
+            );
+
+            const goldenFoilCoinReward =
+              rollFightGoldenFoilCoins();
 
             updatePlayerAtomic(
               message.author.id,
@@ -1441,9 +1530,21 @@ if (interaction.user.id !== message.author.id) {
 
                   // Add base reward + pirate perk bonus explicitly.
                   berries: Number(fresh.berries || 0) + rewardTotals.totalBerries,
-                  gems: Number(fresh.gems || 0) + rewardTotals.totalGems,
+                  gems:
+                    Number(
+                      fresh.gems || 0
+                    ) +
+                    rewardTotals.totalGems,
 
-                  fightStreak: currentStreak,
+                  goldenFoilCoins:
+                    Number(
+                      fresh.goldenFoilCoins ||
+                        0
+                    ) +
+                    goldenFoilCoinReward,
+
+                  fightStreak:
+                    currentStreak,
                   achievements: bumpAchievement(fresh, "fightWon", 1),
                   quests: {
                     ...(fresh.quests || {}),
@@ -1454,8 +1555,31 @@ if (interaction.user.id !== message.author.id) {
               message.author.username
             );
 
-            const expLines = formatExpResults(playerTeam, expResults);
-            logs.push("🏆 You won the fight!");
+            const expLines =
+              formatExpResults(
+                playerTeam,
+                expResults
+              );
+
+            const rewardLines =
+              formatFightRewardLines(
+                reward
+              );
+
+            const goldenFoilCoinLine =
+              getGoldenFoilCoinRewardLine(
+                goldenFoilCoinReward
+              );
+
+            if (goldenFoilCoinLine) {
+              rewardLines.push(
+                goldenFoilCoinLine
+              );
+            }
+
+            logs.push(
+              "🏆 You won the fight!"
+            );
 
             await safeEditInteractionMessage(interaction, {
               embeds: [
@@ -1463,7 +1587,7 @@ if (interaction.user.id !== message.author.id) {
                   title: "🏆 Fight Victory",
                   color: 0x2ecc71,
                   result: "WIN",
-                  rewardLines: formatFightRewardLines(reward),
+                  rewardLines,
                   expLines,
                   logs,
                 }),
@@ -1478,10 +1602,30 @@ if (interaction.user.id !== message.author.id) {
           if (!getAliveUnits(playerTeam).length) {
             battleEnded = true;
 
-            const expResults = applyFightLoss(message, playerTeam);
-            const expLines = formatExpResults(playerTeam, expResults);
+            const goldenFoilCoinReward =
+              rollFightGoldenFoilCoins();
 
-            logs.push("💀 You lost the fight.");
+            const expResults =
+              applyFightLoss(
+                message,
+                playerTeam,
+                goldenFoilCoinReward
+              );
+
+            const expLines =
+              formatExpResults(
+                playerTeam,
+                expResults
+              );
+
+            const goldenFoilCoinLine =
+              getGoldenFoilCoinRewardLine(
+                goldenFoilCoinReward
+              );
+
+            logs.push(
+              "💀 You lost the fight."
+            );
 
             await safeEditInteractionMessage(interaction, {
               embeds: [
@@ -1489,6 +1633,14 @@ if (interaction.user.id !== message.author.id) {
                   title: "💀 Fight Defeat",
                   color: 0xe74c3c,
                   result: "LOSE",
+
+                  rewardLines:
+                    goldenFoilCoinLine
+                      ? [
+                          goldenFoilCoinLine,
+                        ]
+                      : [],
+
                   expLines,
                   logs,
                 }),

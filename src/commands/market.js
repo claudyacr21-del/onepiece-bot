@@ -15,6 +15,51 @@ const {
   applyDiscount,
 } = require("../utils/serverTagPerks");
 
+const MIDSUMMER_START_AT = Date.parse(
+  "2026-07-31T17:00:00.000Z"
+);
+
+const MIDSUMMER_END_AT = Date.parse(
+  "2026-08-31T17:00:00.000Z"
+);
+
+const CURRENCY_DISPLAY = {
+  berries: "<:berry:1532401337063702538>",
+  gems: "<:gems:1532392133611229304>",
+  goldenFoilCoins:
+    "<:GoldenFoilCoin:1532388575197270228>",
+};
+
+function getCurrencyDisplay(currency) {
+  return (
+    CURRENCY_DISPLAY[currency] ||
+    String(currency || "gems")
+  );
+}
+
+function getCurrencyName(currency) {
+  if (currency === "berries") {
+    return "Berries";
+  }
+
+  if (currency === "gems") {
+    return "Gems";
+  }
+
+  if (currency === "goldenFoilCoins") {
+    return "Golden Foil Coins";
+  }
+
+  return String(currency || "Currency");
+}
+
+function isMidsummerEventActive(now = Date.now()) {
+  return (
+    now >= MIDSUMMER_START_AT &&
+    now < MIDSUMMER_END_AT
+  );
+}
+
 function pickRandomUniversalFragment() {
   const pool = [
     ITEMS.universalCFragment,
@@ -27,6 +72,25 @@ function pickRandomUniversalFragment() {
 }
 
 const MARKET_ITEMS = [
+  {
+    code: "radiant_ticket",
+    aliases: [
+      "radiant",
+      "radiant ticket",
+    ],
+    name: "Radiant Ticket",
+    price: 25,
+    currency: "goldenFoilCoins",
+    inventory: "tickets",
+    item: ITEMS.radiantTicket,
+    disableDiscount: true,
+    eventOnly: "midsummer_2026",
+    description:
+      "Used to attack Nika during the Midsummer Event.",
+    usageText:
+      "Use `op solstice attack` to attack Nika.",
+  },
+
   {
     code: "random_universal_fragment",
     aliases: [
@@ -211,6 +275,14 @@ function getMarketPrice(entry, serverTagPerks) {
     Math.floor(Number(entry?.price || 0))
   );
 
+  if (entry?.disableDiscount) {
+    return {
+      originalPrice,
+      discountAmount: 0,
+      finalPrice: originalPrice,
+    };
+  }
+
   const discount = applyDiscount(
     originalPrice,
     serverTagPerks?.shopDiscountPercent || 0
@@ -224,7 +296,11 @@ function getMarketPrice(entry, serverTagPerks) {
     ),
     finalPrice: Math.max(
       0,
-      Math.floor(Number(discount.finalPrice || originalPrice))
+      Math.floor(
+        Number(
+          discount.finalPrice || originalPrice
+        )
+      )
     ),
   };
 }
@@ -240,6 +316,11 @@ function buildMarketEmbed(player, message) {
         serverTagPerks
       );
 
+      const currencyDisplay =
+        getCurrencyDisplay(
+          entry.currency || "gems"
+        );
+
       const priceText =
         serverTagPerks.active &&
         price.discountAmount > 0
@@ -247,10 +328,10 @@ function buildMarketEmbed(player, message) {
               "en-US"
             )}~~ **${price.finalPrice.toLocaleString(
               "en-US"
-            )}** ${entry.currency || "gems"}`
-          : `${price.finalPrice.toLocaleString(
+            )}** ${currencyDisplay}`
+          : `**${price.finalPrice.toLocaleString(
               "en-US"
-            )} ${entry.currency || "gems"}`;
+            )}** ${currencyDisplay}`;
 
       return [
         `**${index + 1}. ${entry.name}** • ${priceText}`,
@@ -267,6 +348,10 @@ function buildMarketEmbed(player, message) {
 
     `**Your Gems:** ${Number(
       player.gems || 0
+    ).toLocaleString("en-US")}`,
+
+    `**Your Golden Foil Coins:** ${Number(
+      player.goldenFoilCoins || 0
     ).toLocaleString("en-US")}`,
     "",
   ];
@@ -290,7 +375,8 @@ function buildMarketEmbed(player, message) {
     "`op buy royal 10`",
     "`op buy rum 5`",
     "`op buy fgems 2`",
-    "`op buy fberry 2`"
+    "`op buy fberry 2`",
+    "`op buy radiant`"
   );
 
   return new EmbedBuilder()
@@ -460,6 +546,21 @@ module.exports = {
       });
     }
 
+    if (
+      found.eventOnly === "midsummer_2026" &&
+      !isMidsummerEventActive()
+    ) {
+      return message.reply({
+        content:
+          Date.now() < MIDSUMMER_START_AT
+            ? "The Midsummer Event has not started yet."
+            : "The Midsummer Event has ended. Radiant Tickets are no longer available.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
     if (!Number.isInteger(amount) || amount <= 0) {
       return message.reply({
         content:
@@ -507,7 +608,9 @@ module.exports = {
             throw new Error(
               `You need **${totalPrice.toLocaleString(
                 "en-US"
-              )} ${currency}** to buy **${
+              )} ${getCurrencyDisplay(
+                currency
+              )}** to buy **${
                 found.name
               } x${amount}**.`
             );
@@ -604,24 +707,22 @@ module.exports = {
       purchaseLines.push(
         `Original Cost: ~~${originalTotalPrice.toLocaleString(
           "en-US"
-        )} ${currency}~~`,
+        )} ${getCurrencyDisplay(currency)}~~`,
 
         `🏷️ Server Tag Discount: **-${totalDiscount.toLocaleString(
           "en-US"
-        )} ${currency}**`
+        )} ${getCurrencyDisplay(currency)}**`
       );
     }
 
     purchaseLines.push(
       `Cost: **${totalPrice.toLocaleString(
         "en-US"
-      )} ${currency}**`,
+      )} ${getCurrencyDisplay(currency)}**`,
 
-      `Remaining ${
-        currency === "berries"
-          ? "Berries"
-          : "Gems"
-      }: **${remainingCurrency.toLocaleString(
+      `Remaining ${getCurrencyName(
+        currency
+      )}: **${remainingCurrency.toLocaleString(
         "en-US"
       )}**`,
       "",

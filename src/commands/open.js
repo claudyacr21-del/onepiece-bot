@@ -694,10 +694,26 @@ function grantBoxRewards(box, amount, state, rewardMap) {
 
     if (Math.random() < 0.75) {
       addRandomFragment(
-        [getUniversalAFragmentItem(), getUniversalSFragmentItem()],
+        [
+          getUniversalAFragmentItem(),
+          getUniversalSFragmentItem(),
+        ],
         Math.random() < 0.4 ? 3 : 2
       );
     }
+  } else if (box.code === "eternal_box") {
+    addBerries(20000);
+    addGems(100);
+
+    addReward(
+      getUniversalSFragmentItem(),
+      3 + Math.floor(Math.random() * 2)
+    );
+
+    addReward(
+      getPullResetTicketItem(),
+      1 + Math.floor(Math.random() * 4)
+    );
   } else if (box.code === "exclusive_event_chest") {
     addBerries(2000000);
     addGems(2000);
