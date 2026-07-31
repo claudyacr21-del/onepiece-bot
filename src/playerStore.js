@@ -2259,6 +2259,11 @@ function normalizePlayer(player = {}, username = "Unknown") {
     berries: typeof player.berries === "number" ? player.berries : 1000,
     gems: typeof player.gems === "number" ? player.gems : 100,
 
+    goldenFoilCoins: Math.max(
+      0,
+      Math.floor(Number(player.goldenFoilCoins || 0))
+    ),
+
     pirateTokens: Math.max(
       0,
       Math.floor(Number(player.pirateTokens || 0))
@@ -2346,6 +2351,7 @@ function getDefaultPlayer(username) {
       },
       berries: 1000,
       gems: 100,
+      goldenFoilCoins: 0,
       pirateTokens: 0,
       ryumaTokens: 0,
       events: {},

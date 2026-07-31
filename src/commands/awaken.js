@@ -1381,11 +1381,12 @@ function buildSuccessEmbed(result, player) {
   const targetStage = Number(card.evolutionStage || result.nextStage || 1);
 
   const targetImage =
-    isAwakenMergeCard(card, template)
-      ? card.image ||
-        card.stageImages?.[getStageKey(targetStage)] ||
-        getStageImage(card, targetStage)
-      : getStageImage(card, targetStage);
+    getStageImage(card, targetStage) ||
+    card.stageImages?.[
+      getStageKey(targetStage)
+    ] ||
+    card.image ||
+    "";
 
   const baseLines = [
     `**${card.displayName || card.name}** reached **M${targetStage}**`,

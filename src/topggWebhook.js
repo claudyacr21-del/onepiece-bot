@@ -3,7 +3,10 @@ const jwt = require("jsonwebtoken");
 const fs = require("fs");
 const path = require("path");
 const { EmbedBuilder } = require("discord.js");
-const { updatePlayerAtomic } = require("./playerStore");
+const {
+  updatePlayerAtomic,
+  flushPlayerNow,
+} = require("./playerStore");
 
 let serverStarted = false;
 
@@ -360,16 +363,57 @@ function verifyBotlistAuthorization(req) {
   );
 }
 
-function getBotlistUserId(payload) {
-  return String(
-    payload?.user ||
-      payload?.userId ||
-      payload?.user_id ||
-      payload?.data?.user ||
-      payload?.data?.userId ||
-      payload?.data?.user_id ||
-      ""
-  ).trim();
+function getBotlistUserId(
+  payload,
+  rawBody = ""
+) {
+  /*
+    Botlist.me may send Discord snowflakes as JSON numbers.
+    Discord IDs exceed JavaScript's safe integer limit, so
+    the exact ID must be extracted from the raw request body.
+  */
+  const rawText = String(rawBody || "");
+
+  const rawMatches = [
+    rawText.match(
+      /"user"\s*:\s*"?(\d{15,25})"?/i
+    ),
+    rawText.match(
+      /"userId"\s*:\s*"?(\d{15,25})"?/i
+    ),
+    rawText.match(
+      /"user_id"\s*:\s*"?(\d{15,25})"?/i
+    ),
+  ];
+
+  for (const match of rawMatches) {
+    const exactId = String(
+      match?.[1] || ""
+    ).trim();
+
+    if (/^\d{15,25}$/.test(exactId)) {
+      return exactId;
+    }
+  }
+
+  const candidates = [
+    payload?.user,
+    payload?.userId,
+    payload?.user_id,
+    payload?.data?.user,
+    payload?.data?.userId,
+    payload?.data?.user_id,
+  ];
+
+  const found = candidates.find((value) =>
+    /^\d{15,25}$/.test(
+      String(value || "").trim()
+    )
+  );
+
+  return found
+    ? String(found).trim()
+    : "";
 }
 
 function getBotlistEventId(
@@ -446,10 +490,14 @@ async function sendBotlistVoteDm(
 
 async function handleBotlistVote(
   client,
-  payload
+  payload,
+  rawBody = ""
 ) {
   const userId =
-    getBotlistUserId(payload);
+    getBotlistUserId(
+      payload,
+      rawBody
+    );
 
   if (!userId) {
     console.warn(
@@ -599,6 +647,26 @@ async function handleBotlistVote(
       ok: false,
       reason: "reward_not_generated",
     };
+  }
+
+  try {
+    await flushPlayerNow(
+      userId,
+      Number(
+        process.env.PLAYER_DB_COMMAND_FLUSH_MS ||
+          8000
+      )
+    );
+  } catch (error) {
+    console.error(
+      "[BOTLIST] Vote reward flush failed:",
+      {
+        userId,
+        eventId,
+        message:
+          error?.message || error,
+      }
+    );
   }
 
   await sendBotlistVoteDm(
@@ -984,6 +1052,11 @@ function startTopggWebhookServer(client) {
   app.use(
     express.json({
       limit: "2mb",
+
+      verify: (req, _res, buffer) => {
+        req.rawBody =
+          buffer?.toString("utf8") || "";
+      },
     })
   );
 
@@ -1216,7 +1289,8 @@ function startTopggWebhookServer(client) {
       const result =
         await handleBotlistVote(
           client,
-          payload
+          payload,
+          req.rawBody || ""
         );
 
       if (!result?.ok) {
