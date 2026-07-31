@@ -59,10 +59,6 @@ const PIRATE_BOSS_ACTIVITY_POINTS = Math.max(
 
 const activeBossSessions = new Map();
 
-const MIDSUMMER_START_AT = Date.parse(
-  "2026-07-31T17:00:00.000Z"
-);
-
 const MIDSUMMER_END_AT = Date.parse(
   "2026-08-31T17:00:00.000Z"
 );
@@ -75,11 +71,10 @@ const GOLDEN_FOIL_COIN_EMOJI =
 function getBossGoldenFoilCoinReward(
   now = Date.now()
 ) {
-  const active =
-    now >= MIDSUMMER_START_AT &&
+  const collectionActive =
     now < MIDSUMMER_END_AT;
 
-  return active
+  return collectionActive
     ? BOSS_GOLDEN_FOIL_COIN_REWARD
     : 0;
 }

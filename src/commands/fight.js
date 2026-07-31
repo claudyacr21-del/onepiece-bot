@@ -43,10 +43,6 @@ const activeFightSessions = new Map();
 
 const __fightSystem1ActionLocks = new Set();
 
-const MIDSUMMER_START_AT = Date.parse(
-  "2026-07-31T17:00:00.000Z"
-);
-
 const MIDSUMMER_END_AT = Date.parse(
   "2026-08-31T17:00:00.000Z"
 );
@@ -54,21 +50,22 @@ const MIDSUMMER_END_AT = Date.parse(
 const GOLDEN_FOIL_COIN_EMOJI =
   "<:GoldenFoilCoin:1532388575197270228>";
 
-function isMidsummerEventActive(
+function isMidsummerCoinCollectionActive(
   now = Date.now()
 ) {
-  return (
-    now >= MIDSUMMER_START_AT &&
-    now < MIDSUMMER_END_AT
-  );
+  return now < MIDSUMMER_END_AT;
 }
 
 function rollFightGoldenFoilCoins() {
-  if (!isMidsummerEventActive()) {
+  if (
+    !isMidsummerCoinCollectionActive()
+  ) {
     return 0;
   }
 
-  return 1 + Math.floor(Math.random() * 3);
+  return 1 + Math.floor(
+    Math.random() * 3
+  );
 }
 
 function getGoldenFoilCoinRewardLine(
