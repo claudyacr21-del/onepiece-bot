@@ -40,8 +40,10 @@ const EVENT_END_AT =
     : Date.parse("2026-08-31T17:00:00.000Z");
 
 const BOSS_NAME = "Nika";
-const BOSS_MAX_HP = 200_000_000;
-const BOSS_ATK = 6_000;
+const BOSS_MAX_HP = 1_000_000_000;
+const PHASE_TWO_HP = 500_000_000;
+const PHASE_ONE_ATK = 6_000;
+const PHASE_TWO_ATK = 6_500;
 const TURN_LIMIT = 20;
 const MANUAL_FIGHT_TIMEOUT_MS =
   3 * 60 * 1000;
@@ -107,6 +109,19 @@ function fmt(value) {
     0,
     Math.floor(Number(value || 0))
   ).toLocaleString("en-US");
+}
+
+function getBossPhase(bossHp) {
+  return Number(bossHp || 0) <=
+    PHASE_TWO_HP
+    ? 2
+    : 1;
+}
+
+function getBossAtk(bossHp) {
+  return getBossPhase(bossHp) === 2
+    ? PHASE_TWO_ATK
+    : PHASE_ONE_ATK;
 }
 
 function normalize(value) {
@@ -732,12 +747,16 @@ function buildManualFightEmbed({
       )
       .setDescription(
         [
+          `**Nika Phase:** ${getBossPhase(
+            bossHp
+          )}`,
+
           `**Nika HP:** ${fmt(
             bossHp
           )}/${fmt(BOSS_MAX_HP)}`,
 
           `**Nika ATK:** ${fmt(
-            BOSS_ATK
+            getBossAtk(bossHp)
           )}`,
 
           `**Turn:** ${fmt(
@@ -1086,11 +1105,14 @@ function buildPanel(
           EVENT_END_AT / 1000
         )}:F>`,
         "",
+        `**Nika Phase:** ${getBossPhase(
+          bossHp
+        )}`,
         `**Nika HP:** ${fmt(
           bossHp
         )}/${fmt(BOSS_MAX_HP)}`,
         `**Nika ATK:** ${fmt(
-          BOSS_ATK
+          getBossAtk(bossHp)
         )}`,
         `**Global Damage:** ${fmt(
           globalState.totalDamage
@@ -1763,6 +1785,9 @@ async function attackNika(message) {
         try {
           turnCount += 1;
 
+          const previousPhase =
+            getBossPhase(bossHp);
+
           const damage =
             Math.min(
               bossHp,
@@ -1786,14 +1811,30 @@ async function attackNika(message) {
             )}** damage.`
           );
 
+          const currentPhase =
+            getBossPhase(bossHp);
+
+          if (
+            previousPhase === 1 &&
+            currentPhase === 2 &&
+            bossHp > 0
+          ) {
+            battleLog.push(
+              "🔥 **Nika entered Phase 2! His ATK increased to 6,500.**"
+            );
+          }
+
           if (bossHp > 0) {
+            const bossAtk =
+              getBossAtk(bossHp);
+
             const counterDamage =
               Math.min(
                 Number(
                   selected.currentHp ||
                     0
                 ),
-                BOSS_ATK
+                bossAtk
               );
 
             selected.currentHp =
@@ -1807,7 +1848,7 @@ async function attackNika(message) {
               );
 
             battleLog.push(
-              `☀️ Nika countered ${selected.name} for **${fmt(
+              `☀️ Phase ${currentPhase} Nika countered ${selected.name} for **${fmt(
                 counterDamage
               )}** damage.`
             );
