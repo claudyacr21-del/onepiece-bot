@@ -1112,7 +1112,7 @@ function buildPanel(
         "`op buy radiant` — Buy 1 Radiant Ticket for 25 Golden Foil Coins",
         "`op solstice attack` — Use 1 Radiant Ticket to attack Nika",
         "`op solstice leaderboard` — View the damage ranking",
-        "`op solstice rewards` — View final ranking rewards",
+        "`op solstice reward` — View final ranking rewards",
       ].join("\n")
     )
     .setFooter({
