@@ -26,10 +26,6 @@ const {
   buildMergedCard,
 } = require("../utils/mergeCards");
 
-const {
-  applyCustomSkinToCard,
-} = require("../utils/customSkins");
-
 const EVENT_ID = "midsummer_2026";
 const GLOBAL_STORE_ID = "__midsummer_2026_global";
 
@@ -608,14 +604,8 @@ function getBattleTeam(player) {
             )
           : hydrateCard(ownedCard);
 
-      const displayCard =
-        applyCustomSkinToCard(
-          player,
-          syncedCard
-        );
-
       return applyTeamBoosts(
-        displayCard,
+        syncedCard,
         boosts
       );
     })
