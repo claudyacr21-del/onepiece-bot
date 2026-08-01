@@ -1293,3 +1293,9 @@ module.exports = {
     });
   },
 };
+
+module.exports.ensureFragmentEmojiCache =
+  ensureFragmentEmojiCache;
+
+module.exports.getFragmentIcon =
+  getFragmentIcon;

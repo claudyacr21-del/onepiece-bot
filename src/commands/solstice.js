@@ -20,6 +20,14 @@ const {
   buildMergedCard,
 } = require("../utils/mergeCards");
 
+const cardsData =
+  require("../data/cards");
+
+const {
+  ensureFragmentEmojiCache,
+  getFragmentIcon,
+} = require("./finv");
+
 const EVENT_ID = "midsummer_2026";
 const GLOBAL_STORE_ID = "__midsummer_2026_global";
 
@@ -37,6 +45,13 @@ const BOSS_NAME = "Nika";
 const BOSS_MAX_HP = 200_000_000;
 const BOSS_ATK = 6_000;
 const TURN_LIMIT = 20;
+const MIN_FINAL_REWARD_TICKETS = 20;
+
+const BERRY_EMOJI =
+  "<:berry:1532401337063702538>";
+
+const GEMS_EMOJI =
+  "<:gems:1532392133611229304>";
 
 const NIKA_BOSS_GIF =
   process.env.MIDSUMMER_NIKA_GIF || "";
@@ -90,6 +105,141 @@ function normalize(value) {
   return String(value || "")
     .toLowerCase()
     .trim();
+}
+
+function getRandomInt(
+  minimum,
+  maximum
+) {
+  const min = Math.ceil(
+    Number(minimum || 0)
+  );
+
+  const max = Math.floor(
+    Number(maximum || min)
+  );
+
+  return (
+    min +
+    Math.floor(
+      Math.random() *
+        (max - min + 1)
+    )
+  );
+}
+
+function getRandomFragmentCard(
+  rarity
+) {
+  const targetRarity =
+    String(rarity || "")
+      .toUpperCase()
+      .trim();
+
+  const uniqueCards =
+    new Map();
+
+  for (
+    const card
+    of Array.isArray(cardsData)
+      ? cardsData
+      : []
+  ) {
+    if (
+      !card ||
+      !card.code ||
+      card.canPull === false ||
+      card.mergeOnly === true ||
+      card.summonOnly === true
+    ) {
+      continue;
+    }
+
+    const cardRarity =
+      String(
+        card.baseTier ||
+        card.rarity ||
+        card.currentTier ||
+        ""
+      )
+        .toUpperCase()
+        .trim();
+
+    if (
+      cardRarity !==
+      targetRarity
+    ) {
+      continue;
+    }
+
+    if (
+      !uniqueCards.has(
+        String(card.code)
+      )
+    ) {
+      uniqueCards.set(
+        String(card.code),
+        card
+      );
+    }
+  }
+
+  const pool = [
+    ...uniqueCards.values(),
+  ];
+
+  if (!pool.length) {
+    return null;
+  }
+
+  return pool[
+    getRandomInt(
+      0,
+      pool.length - 1
+    )
+  ];
+}
+
+function createAttackFragmentReward(
+  rarity
+) {
+  const card =
+    getRandomFragmentCard(rarity);
+
+  if (!card) {
+    return null;
+  }
+
+  const amount =
+    getRandomInt(1, 2);
+
+  const cardName =
+    card.displayName ||
+    card.name ||
+    card.code;
+
+  return {
+    amount,
+
+    item: {
+      code: card.code,
+      cardCode: card.code,
+      name: `${cardName} Fragment`,
+      rarity:
+        String(rarity)
+          .toUpperCase(),
+
+      category:
+        normalize(
+          card.cardRole
+        ) === "boost"
+          ? "boost"
+          : "battle",
+
+      type: "Fragment",
+      image: card.image || "",
+    },
+  };
 }
 
 function applyNikaGif(embed) {
@@ -707,16 +857,28 @@ function getLeaderboard(players) {
       ([userId]) =>
         !String(userId).startsWith("__")
     )
-    .map(([userId, player]) => ({
-      userId: String(userId),
+    .map(([userId, player]) => {
+      const eventData =
+        getEventData(player);
 
-      username:
-        player?.username ||
-        `User ${userId}`,
+      return {
+        userId: String(userId),
 
-      damage:
-        getEventData(player).damage,
-    }))
+        username:
+          player?.username ||
+          `User ${userId}`,
+
+        damage:
+          eventData.damage,
+
+        ticketsUsed:
+          eventData.ticketsUsed,
+
+        rewardEligible:
+          eventData.ticketsUsed >=
+          MIN_FINAL_REWARD_TICKETS,
+      };
+    })
     .filter(
       (entry) =>
         entry.damage > 0
@@ -804,7 +966,11 @@ async function distributeFinalRewards(
   }
 
   const ranking =
-    getLeaderboard(players);
+    getLeaderboard(players)
+      .filter(
+        (entry) =>
+          entry.rewardEligible === true
+      );
 
   const manualRewards = [];
 
@@ -1001,43 +1167,90 @@ function buildLeaderboardEmbed(
   message,
   players
 ) {
-  const ranking =
+  const allRanking =
     getLeaderboard(players);
+
+  const eligibleRanking =
+    allRanking.filter(
+      (entry) =>
+        entry.rewardEligible === true
+    );
 
   const currentUserId =
     String(message.author.id);
 
-  const ownIndex =
-    ranking.findIndex(
+  const ownEntry =
+    allRanking.find(
+      (entry) =>
+        entry.userId ===
+        currentUserId
+    );
+
+  const ownEligibleIndex =
+    eligibleRanking.findIndex(
       (entry) =>
         entry.userId ===
         currentUserId
     );
 
   const lines =
-    ranking.length
-      ? ranking
+    allRanking.length
+      ? allRanking
           .slice(0, 15)
-          .map(
-            (entry, index) =>
-              `**${index + 1}.** <@${
-                entry.userId
-              }> — ${fmt(
+          .map((entry) => {
+            const eligibleIndex =
+              eligibleRanking.findIndex(
+                (eligibleEntry) =>
+                  eligibleEntry.userId ===
+                  entry.userId
+              );
+
+            const rankText =
+              entry.rewardEligible
+                ? `#${eligibleIndex + 1}`
+                : "Not Eligible";
+
+            return [
+              `**${rankText}** <@${entry.userId}>`,
+
+              `↪ ${fmt(
                 entry.damage
-              )} damage`
-          )
+              )} damage`,
+
+              `↪ ${fmt(
+                entry.ticketsUsed
+              )}/${MIN_FINAL_REWARD_TICKETS} Radiant Tickets used`,
+            ].join("\n");
+          })
       : [
           "No damage has been recorded yet.",
         ];
 
   lines.push(
     "",
-    ownIndex >= 0
-      ? `**Your Rank:** #${
-          ownIndex + 1
-        } — ${fmt(
-          ranking[ownIndex].damage
-        )} damage`
+    `**Reward Requirement:** Use at least ${MIN_FINAL_REWARD_TICKETS} Radiant Tickets.`,
+    "",
+
+    ownEntry
+      ? [
+          `**Your Damage:** ${fmt(
+            ownEntry.damage
+          )}`,
+
+          `**Your Radiant Tickets Used:** ${fmt(
+            ownEntry.ticketsUsed
+          )}/${MIN_FINAL_REWARD_TICKETS}`,
+
+          ownEntry.rewardEligible
+            ? `**Your Eligible Rank:** #${
+                ownEligibleIndex + 1
+              }`
+            : `**Your Status:** Not eligible — use ${Math.max(
+                0,
+                MIN_FINAL_REWARD_TICKETS -
+                  ownEntry.ticketsUsed
+              )} more Radiant Ticket(s).`,
+        ].join("\n")
       : "**Your Rank:** Unranked"
   );
 
@@ -1063,6 +1276,8 @@ function buildRewardsEmbed() {
     )
     .setDescription(
       [
+        `⚠️ Final rewards require at least **${MIN_FINAL_REWARD_TICKETS} Radiant Tickets used** in Solstice attacks.`,
+        "",
         "**#1**",
         "Event Skin + Mother Flame *(manual)*",
         "",
@@ -1189,6 +1404,42 @@ async function attackNika(message) {
     const eventData =
       getEventData(player);
 
+    await ensureFragmentEmojiCache(
+      message.client
+    );
+
+    const attackRewards = {
+      gems: 20,
+      berries: 15000,
+
+      fragments: [
+        createAttackFragmentReward(
+          "A"
+        ),
+
+        createAttackFragmentReward(
+          "S"
+        ),
+      ].filter(Boolean),
+    };
+
+    let rewardedFragments =
+      Array.isArray(player.fragments)
+        ? [...player.fragments]
+        : [];
+
+    for (
+      const fragmentReward
+      of attackRewards.fragments
+    ) {
+      rewardedFragments =
+        addStack(
+          rewardedFragments,
+          fragmentReward.item,
+          fragmentReward.amount
+        );
+    }
+
     const nextEventData = {
       ...eventData,
 
@@ -1213,7 +1464,23 @@ async function attackNika(message) {
     player = setEventData(
       {
         ...player,
+
         tickets,
+
+        gems:
+          Number(
+            player.gems || 0
+          ) +
+          attackRewards.gems,
+
+        berries:
+          Number(
+            player.berries || 0
+          ) +
+          attackRewards.berries,
+
+        fragments:
+          rewardedFragments,
       },
       nextEventData
     );
@@ -1298,6 +1565,27 @@ async function attackNika(message) {
               `**Radiant Tickets Left:** ${fmt(
                 ownedTickets - 1
               )}`,
+              "",
+              "## Attack Rewards",
+
+              `${GEMS_EMOJI} ${fmt(
+                attackRewards.gems
+              )} Gems`,
+
+              `${BERRY_EMOJI} ${fmt(
+                attackRewards.berries
+              )} Berries`,
+
+              ...attackRewards.fragments.map(
+                (reward) =>
+                  `${getFragmentIcon(
+                    reward.item,
+                    message.client
+                  )} ${reward.item.name} x${fmt(
+                    reward.amount
+                  )} [${reward.item.rarity}]`
+              ),
+
               "",
               ...result.logs,
             ].join("\n")
