@@ -210,8 +210,7 @@ function createAttackFragmentReward(
     return null;
   }
 
-  const amount =
-    getRandomInt(1, 2);
+  const amount = 1;
 
   const cardName =
     card.displayName ||
@@ -240,6 +239,12 @@ function createAttackFragmentReward(
       image: card.image || "",
     },
   };
+}
+
+function rollAttackFragmentRarity() {
+  return Math.random() < 0.5
+    ? "A"
+    : "S";
 }
 
 function applyNikaGif(embed) {
@@ -1414,11 +1419,11 @@ async function attackNika(message) {
 
       fragments: [
         createAttackFragmentReward(
-          "A"
+          rollAttackFragmentRarity()
         ),
 
         createAttackFragmentReward(
-          "S"
+          rollAttackFragmentRarity()
         ),
       ].filter(Boolean),
     };
