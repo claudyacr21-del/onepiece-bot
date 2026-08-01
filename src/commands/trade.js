@@ -7,6 +7,7 @@ const {
 } = require("discord.js");
 
 const { getPlayer, updateTwoPlayersAtomic } = require("../playerStore");
+const { incrementQuestPayload } = require("../utils/questProgress");
 const rawCards = require("../data/cards");
 
 const SESSION_MS = 10 * 60 * 1000;
@@ -1776,12 +1777,38 @@ module.exports = {
             ownerResolved = resolveOffer(ownerFresh, parsed.ownerOffer);
             targetResolved = resolveOffer(targetFresh, parsed.targetOffer);
 
-            const stepA = applyResolvedTrade(ownerFresh, targetFresh, ownerResolved);
-            const stepB = applyResolvedTrade(stepA.toNext, stepA.fromNext, targetResolved);
+            const stepA = applyResolvedTrade(
+              ownerFresh,
+              targetFresh,
+              ownerResolved
+            );
+
+            const stepB = applyResolvedTrade(
+              stepA.toNext,
+              stepA.fromNext,
+              targetResolved
+            );
+
+            const ownerNext = stepB.toNext;
+            const targetNext = stepB.fromNext;
 
             return {
-              playerA: stepB.toNext,
-              playerB: stepB.fromNext,
+              playerA: {
+                ...ownerNext,
+                quests: incrementQuestPayload(
+                  ownerNext,
+                  "tradesCompleted",
+                  1
+                ),
+              },
+              playerB: {
+                ...targetNext,
+                quests: incrementQuestPayload(
+                  targetNext,
+                  "tradesCompleted",
+                  1
+                ),
+              },
             };
           },
           message.author.username,

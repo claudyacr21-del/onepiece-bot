@@ -9,11 +9,11 @@ const QUEST_POOL = [
     target: 3,
   },
   {
-    id: "rum_beer_5",
-    key: "rumBeerUsed",
-    category: "rum",
-    title: "Use at least 5 Rum Beer on any character",
-    target: 5,
+    id: "trade_player_1",
+    key: "tradesCompleted",
+    category: "trade",
+    title: "Finish a trade with another player 1 time",
+    target: 1,
   },
   {
     id: "fight_played_3",
@@ -142,10 +142,16 @@ function sanitizeDailyState(state) {
   const current = normalizeDailyState(state);
   const questById = new Map(QUEST_POOL.map((quest) => [quest.id, quest]));
 
+  const legacyQuestIds = {
+    rum_beer_5: "trade_player_1",
+  };
+
   const quests = current.quests
-    .filter((quest) => questById.has(quest.id))
     .map((quest) => {
-      const fresh = questById.get(quest.id);
+      const questId = legacyQuestIds[quest.id] || quest.id;
+      const fresh = questById.get(questId);
+
+      if (!fresh) return null;
 
       return {
         id: fresh.id,
@@ -154,7 +160,8 @@ function sanitizeDailyState(state) {
         title: fresh.title,
         target: fresh.target,
       };
-    });
+    })
+    .filter(Boolean);
 
   const validQuestIds = new Set(quests.map((quest) => quest.id));
 
