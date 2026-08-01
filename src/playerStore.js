@@ -1828,6 +1828,7 @@ function normalizeQuests(quests) {
       arenaWins: Number(progress.arenaWins || 0),
       cardLevels: Number(progress.cardLevels || 0),
       rumBeerUsed: Number(progress.rumBeerUsed || 0),
+      tradesCompleted: Number(progress.tradesCompleted || 0),
     },
     counters: {
       dailyClaims: Number(progress.dailyClaims || 0),
@@ -1844,6 +1845,7 @@ function normalizeQuests(quests) {
       arenaWins: Number(progress.arenaWins || 0),
       cardLevels: Number(progress.cardLevels || 0),
       rumBeerUsed: Number(progress.rumBeerUsed || 0),
+      tradesCompleted: Number(progress.tradesCompleted || 0),
     },
   };
 
@@ -2442,6 +2444,7 @@ function getDefaultPlayer(username) {
             arenaWins: 0,
             cardLevels: 0,
             rumBeerUsed: 0,
+            tradesCompleted: 0,
           },
           progress: {
             dailyClaims: 0,
@@ -2458,6 +2461,7 @@ function getDefaultPlayer(username) {
             arenaWins: 0,
             cardLevels: 0,
             rumBeerUsed: 0,
+            tradesCompleted: 0,
           },
         },
         instantQuest: {
