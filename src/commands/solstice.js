@@ -1,4 +1,10 @@
-const { EmbedBuilder } = require("discord.js");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  MessageFlags,
+} = require("discord.js");
 
 const {
   readPlayers,
@@ -20,14 +26,6 @@ const {
   buildMergedCard,
 } = require("../utils/mergeCards");
 
-const cardsData =
-  require("../data/cards");
-
-const {
-  ensureFragmentEmojiCache,
-  getFragmentIcon,
-} = require("./finv");
-
 const EVENT_ID = "midsummer_2026";
 const GLOBAL_STORE_ID = "__midsummer_2026_global";
 
@@ -45,6 +43,8 @@ const BOSS_NAME = "Nika";
 const BOSS_MAX_HP = 200_000_000;
 const BOSS_ATK = 6_000;
 const TURN_LIMIT = 20;
+const MANUAL_FIGHT_TIMEOUT_MS =
+  3 * 60 * 1000;
 const MIN_FINAL_REWARD_TICKETS = 20;
 
 const BERRY_EMOJI =
@@ -78,6 +78,14 @@ const ETERNAL_BOX = {
     "A special UR box from the Midsummer Event.",
 };
 
+const ELITE_BOX = {
+  code: "elite_resource_box",
+  name: "Elite Resource Box",
+  amount: 1,
+  rarity: "A",
+  type: "Box",
+};
+
 const LEGEND_BOX = {
   code: "legend_resource_box",
   name: "Legend Resource Box",
@@ -107,144 +115,16 @@ function normalize(value) {
     .trim();
 }
 
-function getRandomInt(
-  minimum,
-  maximum
-) {
-  const min = Math.ceil(
-    Number(minimum || 0)
-  );
-
-  const max = Math.floor(
-    Number(maximum || min)
-  );
-
-  return (
-    min +
-    Math.floor(
-      Math.random() *
-        (max - min + 1)
-    )
-  );
-}
-
-function getRandomFragmentCard(
-  rarity
-) {
-  const targetRarity =
-    String(rarity || "")
-      .toUpperCase()
-      .trim();
-
-  const uniqueCards =
-    new Map();
-
-  for (
-    const card
-    of Array.isArray(cardsData)
-      ? cardsData
-      : []
-  ) {
-    if (
-      !card ||
-      !card.code ||
-      card.canPull === false ||
-      card.mergeOnly === true ||
-      card.summonOnly === true
-    ) {
-      continue;
-    }
-
-    const cardRarity =
-      String(
-        card.baseTier ||
-        card.rarity ||
-        card.currentTier ||
-        ""
-      )
-        .toUpperCase()
-        .trim();
-
-    if (
-      cardRarity !==
-      targetRarity
-    ) {
-      continue;
-    }
-
-    if (
-      !uniqueCards.has(
-        String(card.code)
-      )
-    ) {
-      uniqueCards.set(
-        String(card.code),
-        card
-      );
-    }
-  }
-
-  const pool = [
-    ...uniqueCards.values(),
-  ];
-
-  if (!pool.length) {
-    return null;
-  }
-
-  return pool[
-    getRandomInt(
-      0,
-      pool.length - 1
-    )
-  ];
-}
-
-function createAttackFragmentReward(
-  rarity
-) {
-  const card =
-    getRandomFragmentCard(rarity);
-
-  if (!card) {
-    return null;
-  }
-
-  const amount = 1;
-
-  const cardName =
-    card.displayName ||
-    card.name ||
-    card.code;
-
-  return {
-    amount,
-
-    item: {
-      code: card.code,
-      cardCode: card.code,
-      name: `${cardName} Fragment`,
-      rarity:
-        String(rarity)
-          .toUpperCase(),
-
-      category:
-        normalize(
-          card.cardRole
-        ) === "boost"
-          ? "boost"
-          : "battle",
-
-      type: "Fragment",
-      image: card.image || "",
-    },
-  };
-}
-
-function rollAttackFragmentRarity() {
-  return Math.random() < 0.5
-    ? "A"
-    : "S";
+function rollAttackChest() {
+  return Math.random() < 0.6
+    ? {
+        ...ELITE_BOX,
+        amount: 1,
+      }
+    : {
+        ...LEGEND_BOX,
+        amount: 1,
+      };
 }
 
 function applyNikaGif(embed) {
@@ -778,82 +658,156 @@ function rollDamage(atk) {
   );
 }
 
-function simulateFight(
-  team,
-  bossHp
-) {
-  const units = team.map(
-    (card) => ({
+function createManualFightUnits(team) {
+  return team.map((card) => {
+    const hp = getCardHp(card);
+    const atk = getCardAtk(card);
+
+    return {
       card,
       name: getCardName(card),
-      atk: getCardAtk(card),
-      hp: getCardHp(card),
-    })
+      atk,
+      currentHp: hp,
+      maxHp: hp,
+    };
+  });
+}
+
+function areAllManualCardsDead(units) {
+  return units.every(
+    (unit) =>
+      Number(unit.currentHp || 0) <= 0
+  );
+}
+
+function buildManualFightEmbed({
+  bossHp,
+  units,
+  turnCount,
+  totalDamage,
+  battleLog,
+  ended = false,
+}) {
+  const cardLines =
+    units.map((unit, index) => {
+      const dead =
+        Number(unit.currentHp || 0) <= 0;
+
+      const minAtk =
+        Math.max(
+          1,
+          Math.floor(
+            Number(unit.atk || 1) *
+              0.85
+          )
+        );
+
+      const maxAtk =
+        Math.max(
+          minAtk,
+          Math.floor(
+            Number(unit.atk || 1) *
+              1.15
+          )
+        );
+
+      return [
+        `${dead ? "💀" : "⚔️"} **${index + 1}. ${unit.name}**`,
+        `↪ ATK ${fmt(minAtk)}-${fmt(maxAtk)}`,
+        `↪ HP ${fmt(
+          unit.currentHp
+        )}/${fmt(unit.maxHp)}`,
+      ].join("\n");
+    });
+
+  return applyNikaGif(
+    new EmbedBuilder()
+      .setColor(
+        ended
+          ? 0x2ecc71
+          : 0xf39c12
+      )
+      .setTitle(
+        "☀️ Solstice Manual Fight — Nika"
+      )
+      .setDescription(
+        [
+          `**Nika HP:** ${fmt(
+            bossHp
+          )}/${fmt(BOSS_MAX_HP)}`,
+
+          `**Nika ATK:** ${fmt(
+            BOSS_ATK
+          )}`,
+
+          `**Turn:** ${fmt(
+            turnCount
+          )}/${TURN_LIMIT}`,
+
+          `**Total Damage:** ${fmt(
+            totalDamage
+          )}`,
+
+          "",
+          "## Your Active Team",
+          ...cardLines,
+
+          "",
+          "## Battle Log",
+
+          ...(battleLog.length
+            ? battleLog.slice(-4)
+            : [
+                "Choose a card to begin the attack.",
+              ]),
+        ].join("\n")
+      )
+      .setFooter({
+        text:
+          "Choose which card attacks this turn.",
+      })
+  );
+}
+
+function buildManualFightButtons(
+  sessionId,
+  units,
+  disabled = false
+) {
+  const row =
+    new ActionRowBuilder();
+
+  units.forEach(
+    (unit, index) => {
+      const dead =
+        Number(
+          unit.currentHp || 0
+        ) <= 0;
+
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(
+            `solstice:${sessionId}:atk:${index}`
+          )
+          .setLabel(
+            `${index + 1}. ${unit.name}`.slice(
+              0,
+              80
+            )
+          )
+          .setStyle(
+            dead
+              ? ButtonStyle.Secondary
+              : ButtonStyle.Primary
+          )
+          .setDisabled(
+            disabled || dead
+          )
+      );
+    }
   );
 
-  let activeIndex = 0;
-  let totalDamage = 0;
-  let turns = 0;
-
-  const logs = [];
-
-  while (
-    turns < TURN_LIMIT &&
-    activeIndex < units.length &&
-    totalDamage < bossHp
-  ) {
-    const unit =
-      units[activeIndex];
-
-    const damage = Math.min(
-      bossHp - totalDamage,
-      rollDamage(unit.atk)
-    );
-
-    totalDamage += damage;
-    turns += 1;
-
-    logs.push(
-      `⚔️ Turn ${turns}: ${unit.name} dealt **${fmt(
-        damage
-      )}** damage.`
-    );
-
-    if (totalDamage >= bossHp) {
-      break;
-    }
-
-    unit.hp = Math.max(
-      0,
-      unit.hp - BOSS_ATK
-    );
-
-    logs.push(
-      `☀️ ${BOSS_NAME} dealt **${fmt(
-        BOSS_ATK
-      )}** damage to ${unit.name}.`
-    );
-
-    if (unit.hp <= 0) {
-      logs.push(
-        `💀 ${unit.name} was defeated.`
-      );
-
-      activeIndex += 1;
-    }
-  }
-
-  return {
-    damage: totalDamage,
-    turns,
-    logs: logs.slice(-8),
-
-    bossDefeated:
-      totalDamage >= bossHp,
-
-    teamDefeated:
-      activeIndex >= units.length,
-  };
+  return [row];
 }
 
 function getLeaderboard(players) {
@@ -1345,13 +1299,16 @@ async function attackNika(message) {
     const globalState =
       getGlobalState(players);
 
-    const bossHp = Math.max(
-      0,
-      BOSS_MAX_HP -
-        globalState.totalDamage
-    );
+    let bossHp =
+      Math.max(
+        0,
+        BOSS_MAX_HP -
+          globalState.totalDamage
+      );
 
     if (bossHp <= 0) {
+      ACTIVE_ATTACKS.delete(userId);
+
       return message.reply(
         "Nika has already been defeated."
       );
@@ -1370,6 +1327,8 @@ async function attackNika(message) {
       );
 
     if (ownedTickets < 1) {
+      ACTIVE_ATTACKS.delete(userId);
+
       return message.reply(
         [
           "You do not have a Radiant Ticket.",
@@ -1382,8 +1341,10 @@ async function attackNika(message) {
       getBattleTeam(player);
 
     if (!team.length) {
+      ACTIVE_ATTACKS.delete(userId);
+
       return message.reply(
-        "You need at least one battle card in your team before attacking Nika."
+        "You need at least one battle card in your active team before attacking Nika."
       );
     }
 
@@ -1395,221 +1356,561 @@ async function attackNika(message) {
       );
 
     if (!tickets) {
+      ACTIVE_ATTACKS.delete(userId);
+
       return message.reply(
         "Your Radiant Ticket could not be consumed."
       );
     }
 
-    const result =
-      simulateFight(
-        team,
-        bossHp
-      );
-
     const eventData =
       getEventData(player);
-
-    await ensureFragmentEmojiCache(
-      message.client
-    );
-
-    const attackRewards = {
-      gems: 20,
-      berries: 15000,
-
-      fragments: [
-        createAttackFragmentReward(
-          rollAttackFragmentRarity()
-        ),
-
-        createAttackFragmentReward(
-          rollAttackFragmentRarity()
-        ),
-      ].filter(Boolean),
-    };
-
-    let rewardedFragments =
-      Array.isArray(player.fragments)
-        ? [...player.fragments]
-        : [];
-
-    for (
-      const fragmentReward
-      of attackRewards.fragments
-    ) {
-      rewardedFragments =
-        addStack(
-          rewardedFragments,
-          fragmentReward.item,
-          fragmentReward.amount
-        );
-    }
-
-    const nextEventData = {
-      ...eventData,
-
-      damage:
-        eventData.damage +
-        result.damage,
-
-      attacks:
-        eventData.attacks + 1,
-
-      ticketsUsed:
-        eventData.ticketsUsed + 1,
-
-      joinedAt:
-        eventData.joinedAt ||
-        now,
-
-      lastAttackAt:
-        now,
-    };
 
     player = setEventData(
       {
         ...player,
-
         tickets,
-
-        gems:
-          Number(
-            player.gems || 0
-          ) +
-          attackRewards.gems,
-
-        berries:
-          Number(
-            player.berries || 0
-          ) +
-          attackRewards.berries,
-
-        fragments:
-          rewardedFragments,
       },
-      nextEventData
+      {
+        ...eventData,
+
+        ticketsUsed:
+          eventData.ticketsUsed + 1,
+
+        joinedAt:
+          eventData.joinedAt ||
+          now,
+
+        lastAttackAt:
+          now,
+      }
     );
-
-    const nextGlobal = {
-      ...globalState,
-
-      totalDamage:
-        Math.min(
-          BOSS_MAX_HP,
-          globalState.totalDamage +
-            result.damage
-        ),
-    };
-
-    if (
-      nextGlobal.totalDamage >=
-        BOSS_MAX_HP &&
-      !nextGlobal.defeatedAt
-    ) {
-      nextGlobal.defeatedAt =
-        now;
-
-      nextGlobal.defeatedBy =
-        userId;
-    }
 
     players[userId] =
       player;
 
-    players[GLOBAL_STORE_ID] =
-      nextGlobal;
-
     writePlayers(players);
 
-    await Promise.allSettled([
-      flushPlayerNow(
-        userId,
-        15000
-      ),
+    await flushPlayerNow(
+      userId,
+      15000
+    );
 
-      flushPlayerNow(
-        GLOBAL_STORE_ID,
-        15000
-      ),
-    ]);
+    const units =
+      createManualFightUnits(team);
 
-    const resultText =
-      result.bossDefeated
-        ? "NIKA DEFEATED"
-        : result.teamDefeated
-          ? "TEAM DEFEATED"
-          : "20 TURNS COMPLETED";
+    const sessionId =
+      `${Date.now()}_${userId}`;
+
+    let turnCount = 0;
+    let totalDamage = 0;
+    let battleLog = [];
+    let finalized = false;
+    let actionProcessing = false;
+
+    const sent =
+      await message.reply({
+        embeds: [
+          buildManualFightEmbed({
+            bossHp,
+            units,
+            turnCount,
+            totalDamage,
+            battleLog,
+          }),
+        ],
+
+        components:
+          buildManualFightButtons(
+            sessionId,
+            units
+          ),
+
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+
+    const collector =
+      sent.createMessageComponentCollector({
+        time:
+          MANUAL_FIGHT_TIMEOUT_MS,
+      });
+
+    async function finalizeFight(
+      reason
+    ) {
+      if (finalized) {
+        return;
+      }
+
+      finalized = true;
+
+      try {
+        const latestPlayers =
+          readPlayers();
+
+        const latestGlobal =
+          getGlobalState(
+            latestPlayers
+          );
+
+        const latestPlayer =
+          getPlayerFromStore(
+            latestPlayers,
+            message
+          );
+
+        const latestEventData =
+          getEventData(
+            latestPlayer
+          );
+
+        const realBossHp =
+          Math.max(
+            0,
+            BOSS_MAX_HP -
+              latestGlobal.totalDamage
+          );
+
+        const savedDamage =
+          Math.min(
+            realBossHp,
+            totalDamage
+          );
+
+        const nextGlobal = {
+          ...latestGlobal,
+
+          totalDamage:
+            Math.min(
+              BOSS_MAX_HP,
+              latestGlobal.totalDamage +
+                savedDamage
+            ),
+        };
+
+        if (
+          nextGlobal.totalDamage >=
+            BOSS_MAX_HP &&
+          !nextGlobal.defeatedAt
+        ) {
+          nextGlobal.defeatedAt =
+            Date.now();
+
+          nextGlobal.defeatedBy =
+            userId;
+        }
+
+        const attackRewards = {
+          gems: 20,
+          berries: 15000,
+
+          chests: [
+            rollAttackChest(),
+            rollAttackChest(),
+          ],
+        };
+
+        let rewardedBoxes =
+          Array.isArray(
+            latestPlayer.boxes
+          )
+            ? [
+                ...latestPlayer.boxes,
+              ]
+            : [];
+
+        for (
+          const chest
+          of attackRewards.chests
+        ) {
+          rewardedBoxes =
+            addStack(
+              rewardedBoxes,
+              chest,
+              1
+            );
+        }
+
+        latestPlayers[userId] =
+          setEventData(
+            {
+              ...latestPlayer,
+
+              gems:
+                Number(
+                  latestPlayer.gems || 0
+                ) +
+                attackRewards.gems,
+
+              berries:
+                Number(
+                  latestPlayer.berries || 0
+                ) +
+                attackRewards.berries,
+
+              boxes:
+                rewardedBoxes,
+            },
+            {
+              ...latestEventData,
+
+              damage:
+                latestEventData.damage +
+                savedDamage,
+
+              attacks:
+                latestEventData.attacks +
+                1,
+
+              lastAttackAt:
+                Date.now(),
+            }
+          );
+
+        latestPlayers[
+          GLOBAL_STORE_ID
+        ] = nextGlobal;
+
+        writePlayers(
+          latestPlayers
+        );
+
+        await Promise.allSettled([
+          flushPlayerNow(
+            userId,
+            15000
+          ),
+
+          flushPlayerNow(
+            GLOBAL_STORE_ID,
+            15000
+          ),
+        ]);
+
+        const resultText =
+          nextGlobal.totalDamage >=
+          BOSS_MAX_HP
+            ? "NIKA DEFEATED"
+            : areAllManualCardsDead(
+                  units
+                )
+              ? "TEAM DEFEATED"
+              : reason === "timeout"
+                ? "SESSION TIMEOUT"
+                : "20 TURNS COMPLETED";
+
+        await sent.edit({
+          embeds: [
+            applyNikaGif(
+              new EmbedBuilder()
+                .setColor(
+                  nextGlobal.totalDamage >=
+                    BOSS_MAX_HP
+                    ? 0x2ecc71
+                    : 0xf39c12
+                )
+                .setTitle(
+                  "☀️ Nika Battle Result"
+                )
+                .setDescription(
+                  [
+                    `**Result:** ${resultText}`,
+
+                    `**Turns:** ${fmt(
+                      turnCount
+                    )}/${TURN_LIMIT}`,
+
+                    `**Damage Dealt:** ${fmt(
+                      savedDamage
+                    )}`,
+
+                    `**Nika HP:** ${fmt(
+                      BOSS_MAX_HP -
+                        nextGlobal.totalDamage
+                    )}/${fmt(
+                      BOSS_MAX_HP
+                    )}`,
+
+                    `**Radiant Tickets Left:** ${fmt(
+                      ownedTickets - 1
+                    )}`,
+
+                    "",
+                    "## Attack Rewards",
+
+                    `${GEMS_EMOJI} ${fmt(
+                      attackRewards.gems
+                    )} Gems`,
+
+                    `${BERRY_EMOJI} ${fmt(
+                      attackRewards.berries
+                    )} Berries`,
+
+                    ...attackRewards.chests.map(
+                      (chest) =>
+                        `📦 ${chest.name} x1 [${chest.rarity}]`
+                    ),
+
+                    "",
+                    "## Final Battle Log",
+
+                    ...(battleLog.length
+                      ? battleLog.slice(-8)
+                      : [
+                          "No attack was completed.",
+                        ]),
+                  ].join("\n")
+                )
+                .setFooter({
+                  text:
+                    "One Piece Bot • Midsummer Event",
+                })
+            ),
+          ],
+
+          components: [],
+        });
+      } finally {
+        ACTIVE_ATTACKS.delete(
+          userId
+        );
+      }
+    }
+
+    collector.on(
+      "collect",
+      async (interaction) => {
+        if (
+          interaction.user.id !==
+          message.author.id
+        ) {
+          return interaction.reply({
+            content:
+              "Only the Solstice attacker can use these buttons.",
+
+            flags:
+              MessageFlags.Ephemeral,
+          });
+        }
+
+        if (
+          finalized ||
+          actionProcessing
+        ) {
+          return interaction.reply({
+            content:
+              "The previous action is still being processed.",
+
+            flags:
+              MessageFlags.Ephemeral,
+          });
+        }
+
+        const parts =
+          String(
+            interaction.customId || ""
+          ).split(":");
+
+        const clickedSessionId =
+          parts[1];
+
+        const action =
+          parts[2];
+
+        const index =
+          Math.floor(
+            Number(parts[3])
+          );
+
+        if (
+          clickedSessionId !==
+            sessionId ||
+          action !== "atk" ||
+          !Number.isInteger(index) ||
+          index < 0 ||
+          index >= units.length
+        ) {
+          return interaction.reply({
+            content:
+              "Invalid Solstice battle button.",
+
+            flags:
+              MessageFlags.Ephemeral,
+          });
+        }
+
+        const selected =
+          units[index];
+
+        if (
+          Number(
+            selected.currentHp || 0
+          ) <= 0
+        ) {
+          return interaction.reply({
+            content:
+              "This card is already defeated.",
+
+            flags:
+              MessageFlags.Ephemeral,
+          });
+        }
+
+        actionProcessing = true;
+
+        try {
+          turnCount += 1;
+
+          const damage =
+            Math.min(
+              bossHp,
+              rollDamage(
+                selected.atk
+              )
+            );
+
+          bossHp =
+            Math.max(
+              0,
+              bossHp - damage
+            );
+
+          totalDamage +=
+            damage;
+
+          battleLog.push(
+            `⚔️ ${selected.name} dealt **${fmt(
+              damage
+            )}** damage.`
+          );
+
+          if (bossHp > 0) {
+            const counterDamage =
+              Math.min(
+                Number(
+                  selected.currentHp ||
+                    0
+                ),
+                BOSS_ATK
+              );
+
+            selected.currentHp =
+              Math.max(
+                0,
+                Number(
+                  selected.currentHp ||
+                    0
+                ) -
+                  counterDamage
+              );
+
+            battleLog.push(
+              `☀️ Nika countered ${selected.name} for **${fmt(
+                counterDamage
+              )}** damage.`
+            );
+
+            if (
+              selected.currentHp <= 0
+            ) {
+              battleLog.push(
+                `💀 ${selected.name} was defeated.`
+              );
+            }
+          }
+
+          const ended =
+            bossHp <= 0 ||
+            areAllManualCardsDead(
+              units
+            ) ||
+            turnCount >=
+              TURN_LIMIT;
+
+          await interaction.update({
+            embeds: [
+              buildManualFightEmbed({
+                bossHp,
+                units,
+                turnCount,
+                totalDamage,
+                battleLog,
+                ended,
+              }),
+            ],
+
+            components:
+              buildManualFightButtons(
+                sessionId,
+                units,
+                ended
+              ),
+          });
+
+          if (ended) {
+            collector.stop(
+              bossHp <= 0
+                ? "defeated"
+                : areAllManualCardsDead(
+                      units
+                    )
+                  ? "all_cards_dead"
+                  : "turn_limit"
+            );
+
+            await finalizeFight(
+              bossHp <= 0
+                ? "defeated"
+                : areAllManualCardsDead(
+                      units
+                    )
+                  ? "all_cards_dead"
+                  : "turn_limit"
+            );
+          }
+        } finally {
+          actionProcessing = false;
+        }
+      }
+    );
+
+    collector.on(
+      "end",
+      async (
+        _collected,
+        reason
+      ) => {
+        if (!finalized) {
+          await finalizeFight(
+            reason === "time"
+              ? "timeout"
+              : reason
+          );
+        }
+      }
+    );
+
+    return sent;
+  } catch (error) {
+    ACTIVE_ATTACKS.delete(
+      userId
+    );
+
+    console.error(
+      "[SOLSTICE MANUAL FIGHT ERROR]",
+      error
+    );
 
     return message.reply({
-      embeds: [
-        applyNikaGif(
-          new EmbedBuilder()
-          .setColor(
-            result.bossDefeated
-              ? 0x2ecc71
-              : 0xf39c12
-          )
-          .setTitle(
-            "☀️ Nika Battle Result"
-          )
-          .setDescription(
-            [
-              `**Result:** ${resultText}`,
-              `**Turns:** ${fmt(
-                result.turns
-              )}/${TURN_LIMIT}`,
-              `**Damage Dealt:** ${fmt(
-                result.damage
-              )}`,
-              `**Nika HP:** ${fmt(
-                BOSS_MAX_HP -
-                  nextGlobal.totalDamage
-              )}/${fmt(
-                BOSS_MAX_HP
-              )}`,
-              `**Radiant Tickets Left:** ${fmt(
-                ownedTickets - 1
-              )}`,
-              "",
-              "## Attack Rewards",
-
-              `${GEMS_EMOJI} ${fmt(
-                attackRewards.gems
-              )} Gems`,
-
-              `${BERRY_EMOJI} ${fmt(
-                attackRewards.berries
-              )} Berries`,
-
-              ...attackRewards.fragments.map(
-                (reward) =>
-                  `${getFragmentIcon(
-                    reward.item,
-                    message.client
-                  )} ${reward.item.name} x${fmt(
-                    reward.amount
-                  )} [${reward.item.rarity}]`
-              ),
-
-              "",
-              ...result.logs,
-            ].join("\n")
-          )
-          .setFooter({
-            text:
-              "One Piece Bot • Midsummer Event",
-          })
-        ),
-      ],
+      content:
+        "The Solstice attack could not be started.",
 
       allowedMentions: {
         repliedUser: false,
       },
     });
-  } finally {
-    ACTIVE_ATTACKS.delete(
-      userId
-    );
   }
 }
 
