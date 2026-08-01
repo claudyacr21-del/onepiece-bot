@@ -100,6 +100,9 @@ const ITEMS = {
     type: "Ticket",
     canPull: false,
     canPA: false,
+    tradeable: false,
+    untradeable: true,
+    tradeLocked: true,
     eventOnly: true,
     shopOnly: true,
     description:

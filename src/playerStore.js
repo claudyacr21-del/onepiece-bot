@@ -1871,12 +1871,16 @@ function normalizeCooldowns(cooldowns) {
   return {
     daily: cooldowns?.daily ?? null,
     fight: cooldowns?.fight ?? null,
-    fightMotherFlame: cooldowns?.fightMotherFlame ?? null,
-    fightVivreCard: cooldowns?.fightVivreCard ?? null,
+    fightMotherFlame:
+      cooldowns?.fightMotherFlame ?? null,
+    fightVivreCard:
+      cooldowns?.fightVivreCard ?? null,
     boss: cooldowns?.boss ?? null,
-    pullReset: cooldowns?.pullReset ?? null,
+    pullReset:
+      cooldowns?.pullReset ?? null,
     ship: cooldowns?.ship ?? null,
     vote: cooldowns?.vote ?? null,
+    botlist: cooldowns?.botlist ?? null,
     treasure: cooldowns?.treasure ?? null,
   };
 }

@@ -85,9 +85,14 @@ function getBotlistCooldownAt(player) {
       ? lastVoteAt + VOTE_COOLDOWN_MS
       : 0;
 
+  const genericCooldown = Number(
+    player?.cooldowns?.botlist || 0
+  );
+
   return Math.max(
     storedCooldown,
-    fallbackCooldown
+    fallbackCooldown,
+    genericCooldown
   );
 }
 

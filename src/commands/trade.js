@@ -157,6 +157,7 @@ function isBlockedTradeItemCode(code) {
     normalizedCode === "mythic_raid_ticket" ||
     normalizedCode === "empty_throne_raid_writ" ||
     normalizedCode === "pull_reset_ticket" ||
+    normalizedCode === "radiant_ticket" ||
     normalizedCode === "cola_engine_part" ||
 
     normalizedCode === "wooden_material_box" ||

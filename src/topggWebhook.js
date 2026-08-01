@@ -544,6 +544,9 @@ async function handleBotlistVote(
         0,
         Number(
           previous.cooldownUntil || 0
+        ),
+        Number(
+          fresh?.cooldowns?.botlist || 0
         )
       );
 
@@ -597,6 +600,12 @@ async function handleBotlistVote(
 
         boxes:
           nextBoxes,
+
+        cooldowns: {
+          ...(fresh.cooldowns || {}),
+          botlist:
+            now + VOTE_COOLDOWN_MS,
+        },
 
         botlistVote: {
           totalVotes:

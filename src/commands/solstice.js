@@ -8,8 +8,12 @@ const {
 } = require("../playerStore");
 
 const {
-  getPlayerCombatCards,
-} = require("../utils/combatStats");
+  hydrateCard,
+} = require("../utils/evolution");
+
+const {
+  getPassiveBoostSummary,
+} = require("../utils/passiveBoosts");
 
 const {
   isMergeCard,
@@ -396,56 +400,166 @@ function getPlayerFromStore(
   return player;
 }
 
-function getBattleTeam(player) {
-  const cards =
-    getPlayerCombatCards(player)
-      .filter(
-        (card) =>
-          normalize(card?.cardRole) !==
-          "boost"
+function applyTeamBoosts(
+  card,
+  boosts = {}
+) {
+  if (!card) return null;
+
+  const baseAtk = Math.max(
+    1,
+    Number(
+      card.finalAtk ||
+      card.combatAtk ||
+      card.displayAtk ||
+      card.atk ||
+      1
+    )
+  );
+
+  const baseHp = Math.max(
+    1,
+    Number(
+      card.finalHp ||
+      card.combatHp ||
+      card.displayHp ||
+      card.hp ||
+      1
+    )
+  );
+
+  const baseSpeed = Math.max(
+    1,
+    Number(
+      card.finalSpeed ||
+      card.combatSpeed ||
+      card.displaySpeed ||
+      card.speed ||
+      card.spd ||
+      1
+    )
+  );
+
+  const atk = Math.floor(
+    baseAtk *
+      (
+        1 +
+        Number(boosts.atk || 0) /
+          100
       )
-      .map((card) =>
-        isMergeCard(card)
+  );
+
+  const hp = Math.floor(
+    baseHp *
+      (
+        1 +
+        Number(boosts.hp || 0) /
+          100
+      )
+  );
+
+  const speed = Math.floor(
+    baseSpeed *
+      (
+        1 +
+        Number(boosts.spd || 0) /
+          100
+      )
+  );
+
+  return {
+    ...card,
+
+    atk,
+    hp,
+    speed,
+    spd: speed,
+
+    finalAtk: atk,
+    finalHp: hp,
+    finalSpeed: speed,
+
+    displayAtk: atk,
+    displayHp: hp,
+    displaySpeed: speed,
+
+    combatAtk: atk,
+    combatHp: hp,
+    combatSpeed: speed,
+
+    maxHp: hp,
+
+    passiveBoostsApplied: {
+      atk: Number(
+        boosts.atk || 0
+      ),
+      hp: Number(
+        boosts.hp || 0
+      ),
+      spd: Number(
+        boosts.spd || 0
+      ),
+      dmg: Number(
+        boosts.dmg || 0
+      ),
+    },
+  };
+}
+
+function getBattleTeam(player) {
+  const slots =
+    Array.isArray(player?.team?.slots)
+      ? player.team.slots.slice(0, 3)
+      : [];
+
+  const cards =
+    Array.isArray(player?.cards)
+      ? player.cards
+      : [];
+
+  const boosts =
+    getPassiveBoostSummary(player);
+
+  return slots
+    .map((instanceId) => {
+      if (!instanceId) {
+        return null;
+      }
+
+      const ownedCard =
+        cards.find(
+          (card) =>
+            String(
+              card?.instanceId || ""
+            ) === String(instanceId)
+        ) || null;
+
+      if (!ownedCard) {
+        return null;
+      }
+
+      if (
+        normalize(
+          ownedCard.cardRole
+        ) === "boost"
+      ) {
+        return null;
+      }
+
+      const syncedCard =
+        isMergeCard(ownedCard)
           ? buildMergedCard(
               player,
-              card
+              ownedCard
             )
-          : card
+          : hydrateCard(ownedCard);
+
+      return applyTeamBoosts(
+        syncedCard,
+        boosts
       );
-
-  const equipped = cards
-    .filter(
-      (card) =>
-        card?.inTeam === true ||
-        card?.equipped === true ||
-        card?.isTeam === true ||
-        card?.team === true ||
-        Number.isFinite(
-          Number(card?.teamSlot)
-        ) ||
-        Number.isFinite(
-          Number(card?.slot)
-        )
-    )
-    .sort(
-      (a, b) =>
-        Number(
-          a?.teamSlot ??
-            a?.slot ??
-            999
-        ) -
-        Number(
-          b?.teamSlot ??
-            b?.slot ??
-            999
-        )
-    );
-
-  return (
-    equipped.length
-      ? equipped
-      : cards
-  ).slice(0, 3);
+    })
+    .filter(Boolean);
 }
 
 function getCardName(card) {
@@ -654,11 +768,7 @@ function applyFinalReward(
       5
     );
   } else if (rank >= 4) {
-    const resets =
-      10 +
-      Math.floor(
-        Math.random() * 6
-      );
+    const resets = 15;
 
     next.boxes = addStack(
       next.boxes,
@@ -963,7 +1073,7 @@ function buildRewardsEmbed() {
         "Vivre Card *(manual)* + 5x Eternal Box *(automatic)*",
         "",
         "**#4 and below**",
-        "3x Eternal Box + 10x Legend Resource Box + 10–15x Pull Reset Ticket *(automatic)*",
+        "3x Eternal Box + 10x Legend Resource Box + 15x Pull Reset Ticket *(automatic)*",
         "",
         "**Eternal Box [UR]**",
         "3–4x Universal S Fragment",
