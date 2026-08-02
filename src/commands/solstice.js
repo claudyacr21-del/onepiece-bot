@@ -26,6 +26,10 @@ const {
   buildMergedCard,
 } = require("../utils/mergeCards");
 
+const {
+  applyCustomSkinToCard,
+} = require("../utils/customSkins");
+
 const EVENT_ID = "midsummer_2026";
 const GLOBAL_STORE_ID = "__midsummer_2026_global";
 
@@ -604,10 +608,58 @@ function getBattleTeam(player) {
             )
           : hydrateCard(ownedCard);
 
-      return applyTeamBoosts(
-        syncedCard,
-        boosts
-      );
+      const boostedCard =
+        applyTeamBoosts(
+          syncedCard,
+          boosts
+        );
+
+      const skinCard =
+        applyCustomSkinToCard(
+          player,
+          ownedCard
+        );
+
+      if (
+        !skinCard?.hasCustomSkin
+      ) {
+        return boostedCard;
+      }
+
+      return {
+        ...boostedCard,
+
+        displayName:
+          skinCard.displayName ||
+          boostedCard.displayName ||
+          boostedCard.name,
+
+        skinTitle:
+          skinCard.skinTitle || "",
+
+        skinImage:
+          skinCard.skinImage || "",
+
+        image:
+          skinCard.skinImage ||
+          skinCard.image ||
+          boostedCard.image ||
+          "",
+
+        originalDisplayName:
+          skinCard.originalDisplayName ||
+          boostedCard.displayName ||
+          boostedCard.name ||
+          "",
+
+        skinnedCharacter:
+          skinCard.skinnedCharacter ||
+          boostedCard.displayName ||
+          boostedCard.name ||
+          "",
+
+        hasCustomSkin: true,
+      };
     })
     .filter(Boolean);
 }
