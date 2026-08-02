@@ -20,6 +20,10 @@ const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { applyCustomSkinToCard } = require("../utils/customSkins");
+const {
+  ensureFragmentEmojiCache,
+  getFragmentIcon,
+} = require("./finv");
 const { bumpAchievement } = require("../utils/achievements");
 const {
   getPirateExpBoostPercent,
@@ -1460,9 +1464,22 @@ function buildBossJoinEmbed(
 
         const cards = Array.isArray(participant.units) ? participant.units : [];
 
-        const cardLines = cards.slice(0, 3).map((unit, cardIndex) => {
-          return `   ${cardIndex + 1}. ${unit.name || "Unknown"}`;
-        });
+        const cardLines = cards
+          .slice(0, 3)
+          .map((unit, cardIndex) => {
+            const icon =
+              getFragmentIcon({
+                ...unit,
+                category: "battle",
+                cardCode:
+                  unit?.code ||
+                  unit?.characterCode ||
+                  unit?.cardCode ||
+                  "",
+              });
+
+            return `   ${cardIndex + 1}. ${icon} ${unit.name || "Unknown"}`;
+          });
 
         return [
           `**${playerIndex + 1}. ${username}** <@${participant.userId}>`,
@@ -1524,7 +1541,18 @@ function buildBossJoinButtons(joinedCount = 0) {
 function formatTeamPreview(teamCards) {
   return teamCards
     .map((unit, index) => {
-      return `${index + 1}. ${unit.name} [${unit.rarity}]`;
+      const icon =
+        getFragmentIcon({
+          ...unit,
+          category: "battle",
+          cardCode:
+            unit?.code ||
+            unit?.characterCode ||
+            unit?.cardCode ||
+            "",
+        });
+
+      return `${index + 1}. ${icon} ${unit.name} [${unit.rarity}]`;
     })
     .join("\n");
 }
@@ -2916,6 +2944,10 @@ module.exports = {
   name: "boss",
 
   async execute(message, args = []) {
+    await ensureFragmentEmojiCache(
+      message.client
+    );
+
     const player = getPlayer(
       message.author.id,
       message.author.username

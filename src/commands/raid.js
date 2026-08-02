@@ -10,6 +10,10 @@ const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { hydrateCard, findCardTemplate } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard, getMergeSourceCodes } = require("../utils/mergeCards");
 const { applyCustomSkinToCard } = require("../utils/customSkins");
+const {
+  ensureFragmentEmojiCache,
+  getFragmentIcon,
+} = require("./finv");
 const { bumpAchievement } = require("../utils/achievements");
 const activeRaidReadyNotices = new Set();
 const {
@@ -1774,7 +1778,20 @@ function getThroneCardDisplayName(card) {
 
 function formatThroneTeamPreview(cards) {
   return cards
-    .map((card) => `🖼️ ${getThroneCardDisplayName(card)}`)
+    .map((card) => {
+      const icon =
+        getFragmentIcon({
+          ...card,
+          category: "battle",
+          cardCode:
+            card?.code ||
+            card?.characterCode ||
+            card?.cardCode ||
+            "",
+        });
+
+      return `${icon} ${getThroneCardDisplayName(card)}`;
+    })
     .join("\n");
 }
 
@@ -3771,6 +3788,10 @@ module.exports = {
   aliases: ["craid", "graid", "throne", "mraid", "raidcount"],
 
   async execute(message, args) {
+    await ensureFragmentEmojiCache(
+      message.client
+    );
+
     const raw = String(message.content || "").trim().split(/\s+/);
     const usedCommandRaw = String(raw[1] || "").toLowerCase();
     if (usedCommandRaw === "raidcount") {
