@@ -2,6 +2,7 @@ const DEFAULT_PERKS = Object.freeze({
   extraPullLimit: 3,
   bossCooldownReductionMs: 2 * 60 * 1000,
   fightCooldownReductionMs: 1 * 60 * 1000,
+  sailCooldownMs: 15 * 60 * 1000,
   shopDiscountPercent: 5,
   gemIncomeBonusPercent: 5,
   berryIncomeBonusPercent: 5,
@@ -114,6 +115,18 @@ function getServerTagPerks(user) {
             DEFAULT_PERKS.fightCooldownReductionMs,
             {
               minimum: 0,
+            }
+          )
+        )
+      : 0,
+
+    sailCooldownMs: active
+      ? Math.floor(
+          getSafeNumberEnv(
+            "SERVER_TAG_SAIL_COOLDOWN_MS",
+            DEFAULT_PERKS.sailCooldownMs,
+            {
+              minimum: 60 * 1000,
             }
           )
         )

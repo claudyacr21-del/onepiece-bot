@@ -6,7 +6,9 @@ const {
   getIslandByCode,
 } = require("../data/islands");
 const { getShipByCode } = require("../data/ships");
-
+const {
+  getServerTagPerksFromMessage,
+} = require("../utils/serverTagPerks");
 const BASE_TRAVEL_COOLDOWN_MS = 60 * 60 * 1000;
 
 function formatRemaining(ms) {
@@ -106,6 +108,13 @@ module.exports = {
     const player = getPlayer(message.author.id, message.author.username);
     const travel = ensureTravelState(player);
     const currentIsland = resolveCurrentIsland(player);
+    const serverTagPerks = getServerTagPerksFromMessage(message);
+
+    const travelCooldownMs =
+      serverTagPerks.active &&
+      Number(serverTagPerks.sailCooldownMs || 0) > 0
+        ? Number(serverTagPerks.sailCooldownMs)
+        : BASE_TRAVEL_COOLDOWN_MS;
 
     if (!currentIsland) {
       return message.reply({
@@ -202,7 +211,7 @@ module.exports = {
             freshNextIsland.code,
           ]);
 
-          const cooldownUntil = Date.now() + BASE_TRAVEL_COOLDOWN_MS;
+          const cooldownUntil = Date.now() + travelCooldownMs;
 
           finalCurrentIsland = freshCurrentIsland;
           finalNextIsland = freshNextIsland;
@@ -254,7 +263,10 @@ module.exports = {
               `**Ship Tier Used:** \`${finalShipTier}\``,
               "",
               `You have unlocked and arrived at **${finalNextIsland.name}**.`,
-              `Next travel cooldown: **${formatRemaining(BASE_TRAVEL_COOLDOWN_MS)}**`,
+              `Next travel cooldown: **${formatRemaining(travelCooldownMs)}**`,
+              ...(serverTagPerks.active
+                ? ["🏷️ Server Tag Sail Perk Applied"]
+                : []),
             ].join("\n")
           )
           .setImage(finalNextIsland.image || null)
