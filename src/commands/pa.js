@@ -1278,6 +1278,7 @@ function addDuplicateWeaponReward({
   player,
   reward,
   amount = 1,
+  updatedCards,
   updatedFragments,
 }) {
   const safeAmount = Math.max(
@@ -1288,9 +1289,17 @@ function addDuplicateWeaponReward({
   const weaponFragment =
     buildWeaponFragmentPayload(reward);
 
+  const storagePlayer = {
+    ...player,
+    cards: Array.isArray(updatedCards)
+      ? updatedCards
+      : player.cards,
+    fragments: updatedFragments,
+  };
+
   const sacResult =
     addFragmentWithAutoSac(
-      player,
+      storagePlayer,
       updatedFragments,
       weaponFragment,
       safeAmount
@@ -1769,6 +1778,7 @@ module.exports = {
                 reward,
                 amount:
                   duplicateAmount,
+                updatedCards,
                 updatedFragments,
               });
 
@@ -1925,9 +1935,15 @@ module.exports = {
           availableTotal
         );
 
+      const fragmentStoragePlayer = {
+        ...player,
+        cards: updatedCards,
+        fragments: updatedFragments,
+      };
+
       const fragmentStorageAudit =
         enforceFragmentStorageLimit(
-          player,
+          fragmentStoragePlayer,
           updatedFragments
         );
 
