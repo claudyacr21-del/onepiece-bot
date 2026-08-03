@@ -76,6 +76,55 @@ function addReward(rewards, reward) {
   });
 }
 
+function isPullResetTicketEntry(entry) {
+  const code = String(entry?.code || "")
+    .toLowerCase()
+    .trim();
+
+  const name = normalizeDailyText(
+    entry?.name ||
+    entry?.displayName ||
+    entry?.title
+  );
+
+  return (
+    code === "pull_reset_ticket" ||
+    code === "pull_reset" ||
+    code === "pull_reset_token" ||
+    code === "pull_reset_tickets" ||
+    code === "pullreset_ticket" ||
+    name === "pull reset ticket" ||
+    name === "pull reset tickets" ||
+    name === "pull reset token" ||
+    name === "pull reset tokens"
+  );
+}
+
+function getPullResetTicketAmount(list) {
+  return (Array.isArray(list) ? list : []).reduce(
+    (total, entry) => {
+      if (!isPullResetTicketEntry(entry)) {
+        return total;
+      }
+
+      return (
+        total +
+        Math.max(
+          0,
+          Math.floor(Number(entry?.amount || 0))
+        )
+      );
+    },
+    0
+  );
+}
+
+function removePullResetTicketEntries(list) {
+  return (Array.isArray(list) ? list : []).filter(
+    (entry) => !isPullResetTicketEntry(entry)
+  );
+}
+
 function normalizeDailyText(value) {
   return String(value || "")
     .toLowerCase()
@@ -697,44 +746,40 @@ module.exports = {
         const dailyPullResetTicket = makePullResetTicketReward(
           dailyPullResetTicketAmount
         );
-        const pullResetTicketCode = "pull_reset_ticket";
 
-        const existingPullResetTicketAmount = updatedTickets.reduce(
-          (total, ticket) => {
-            const ticketCode = String(ticket?.code || "")
-              .toLowerCase()
-              .trim();
-
-            if (ticketCode !== pullResetTicketCode) {
-              return total;
-            }
-
-            return total + Math.max(0, Number(ticket?.amount || 0));
-          },
-          0
-        );
-
-        updatedTickets = updatedTickets.filter((ticket) => {
-          return (
-            String(ticket?.code || "")
-              .toLowerCase()
-              .trim() !== pullResetTicketCode
+        const existingPullResetTicketAmount =
+          getPullResetTicketAmount(updatedTickets) +
+          getPullResetTicketAmount(updatedItems) +
+          getPullResetTicketAmount(updatedMaterials) +
+          Math.max(
+            0,
+            Math.floor(Number(fresh.pullResetTickets || 0))
+          ) +
+          Math.max(
+            0,
+            Math.floor(
+              Number(fresh.pull_reset_ticket_count || 0)
+            )
           );
-        });
+
+        const finalPullResetTicketAmount =
+          existingPullResetTicketAmount +
+          dailyPullResetTicketAmount;
+
+        updatedTickets =
+          removePullResetTicketEntries(updatedTickets);
+
+        updatedItems =
+          removePullResetTicketEntries(updatedItems);
+
+        updatedMaterials =
+          removePullResetTicketEntries(updatedMaterials);
 
         updatedTickets.push(
           makePullResetTicketReward(
-            existingPullResetTicketAmount + dailyPullResetTicketAmount
+            finalPullResetTicketAmount
           )
         );
-
-        updatedItems = updatedItems.filter((item) => {
-          return (
-            String(item?.code || "")
-              .toLowerCase()
-              .trim() !== pullResetTicketCode
-          );
-        });
 
         rewardsToApply.push(dailyPullResetTicket);
 
