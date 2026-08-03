@@ -283,6 +283,9 @@ module.exports = {
 
     // suggestions
     "1497542212148396223": [],
+
+    // pirate-ads
+    "1533828704998916146": ["pirate"],
   },
 
   blockedCommands: {
