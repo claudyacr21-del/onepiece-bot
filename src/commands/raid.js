@@ -2760,7 +2760,7 @@ function getRaidRandomBoxCount(state = {}) {
     ticketCode === "empty_throne_raid_writ" ||
     modeName.includes("throne")
   ) {
-    return 1;
+    return 2;
   }
 
   if (
@@ -3163,8 +3163,10 @@ function giveRaidWinRewards(state) {
       serverTagBonusGems;
 
     const fragments = isHost && !isMergeRaid ? Number(config.fragments || 0) : 0;
-    const universalS = isMergeRaid ? Number(config.universalS || 0) : 0;
-    const universalA = isThroneRaid ? 2 : 0;
+    const universalS = isMergeRaid
+      ? Number(config.universalS || 0)
+      : 0;
+
     let randomBoxes = [];
     const gotWeapon = Boolean(isHost && linkedWeapon && randomChance(config.weaponChance));
     const gotFruit = Boolean(isHost && linkedFruit && randomChance(config.fruitChance));
@@ -3180,10 +3182,6 @@ function giveRaidWinRewards(state) {
 
         if (isMergeRaid && universalS > 0) {
           nextItems = addUniversalSReward(nextItems, universalS);
-        }
-
-        if (isThroneRaid && universalA > 0) {
-          nextItems = addUniversalAReward(nextItems, universalA);
         }
 
         const randomBoxResult = addRandomRaidBoxes(
@@ -3248,7 +3246,6 @@ function giveRaidWinRewards(state) {
 
       fragments,
       universalS,
-      universalA,
       randomBoxes,
       bossName:
         linkedFragmentBoss.name ||

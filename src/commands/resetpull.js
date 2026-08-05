@@ -1,5 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
-const { getPlayer, updatePlayerAtomic } = require("../playerStore");
+const {
+  updatePlayerAtomicFast,
+} = require("../playerStore");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const {
   applyGlobalPullReset,
@@ -270,11 +272,23 @@ module.exports = {
     let payload = null;
 
     try {
-      await updatePlayerAtomic(message.author.id,
+      updatePlayerAtomicFast(
+        message.author.id,
         (fresh) => {
+          const preservedFragments = Array.isArray(
+            fresh?.fragments
+          )
+            ? fresh.fragments.map((fragment) => ({
+                ...fragment,
+              }))
+            : [];
+
           const basePlayer = {
             ...fresh,
-            username: fresh.username || message.author.username,
+            username:
+              fresh.username ||
+              message.author.username,
+            fragments: preservedFragments,
           };
 
           const freshSnapshot = syncPremiumSnapshot(
@@ -310,6 +324,7 @@ module.exports = {
 
             return {
               ...freshWithSnapshot,
+              fragments: preservedFragments,
               pulls: pullsAfterGlobal,
               pullAccessSnapshot: freshSnapshot,
             };
@@ -323,7 +338,10 @@ module.exports = {
               nextResetAt: freshGlobalReset.nextResetAt,
             };
 
-            return freshWithSnapshot;
+            return {
+              ...freshWithSnapshot,
+              fragments: preservedFragments,
+            };
           }
 
           const tickets = [...(Array.isArray(freshWithSnapshot.tickets) ? freshWithSnapshot.tickets : [])];
@@ -386,6 +404,7 @@ module.exports = {
 
           return {
             ...freshWithSnapshot,
+            fragments: preservedFragments,
             tickets: updatedTickets,
             items: updatedItems,
             pulls: resetResult.pulls,

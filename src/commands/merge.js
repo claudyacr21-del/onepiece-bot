@@ -17,6 +17,22 @@ const MERGE_RULES = {
   },
 };
 
+const RAID_TICKET_MERGE_RULES = {
+  raid: {
+    input: ITEMS.commonRaidTicket,
+    output: ITEMS.raidTicket,
+    inputAmount: 100,
+    outputAmount: 25,
+  },
+
+  graid: {
+    input: ITEMS.raidTicket,
+    output: ITEMS.goldRaidTicket,
+    inputAmount: 50,
+    outputAmount: 7,
+  },
+};
+
 const UNIVERSAL_ITEMS = {
   C: ITEMS.universalCFragment,
   B: ITEMS.universalBFragment,
@@ -43,25 +59,48 @@ function normalizeName(value) {
 }
 
 function getUniversalItem(rarity) {
-  return UNIVERSAL_ITEMS[String(rarity || "").toUpperCase()] || null;
+  return (
+    UNIVERSAL_ITEMS[
+      String(rarity || "").toUpperCase()
+    ] || null
+  );
 }
 
 function getUniversalCode(rarity) {
-  return getUniversalItem(rarity)?.code || `universal_${String(rarity || "").toLowerCase()}`;
+  return (
+    getUniversalItem(rarity)?.code ||
+    `universal_${String(
+      rarity || ""
+    ).toLowerCase()}`
+  );
 }
 
 function getUniversalName(rarity) {
-  return getUniversalItem(rarity)?.name || `Universal ${String(rarity || "").toUpperCase()} Fragment`;
+  return (
+    getUniversalItem(rarity)?.name ||
+    `Universal ${String(
+      rarity || ""
+    ).toUpperCase()} Fragment`
+  );
 }
 
 function safeItems(player) {
-  if (Array.isArray(player?.items)) return player.items;
-  if (Array.isArray(player?.inventory)) return player.inventory;
+  if (Array.isArray(player?.items)) {
+    return player.items;
+  }
+
+  if (Array.isArray(player?.inventory)) {
+    return player.inventory;
+  }
+
   return [];
 }
 
 function setItems(player, items) {
-  if (Array.isArray(player?.items) || !Array.isArray(player?.inventory)) {
+  if (
+    Array.isArray(player?.items) ||
+    !Array.isArray(player?.inventory)
+  ) {
     return {
       ...player,
       items,
@@ -74,12 +113,203 @@ function setItems(player, items) {
   };
 }
 
-function isUniversalItem(item, rarity) {
-  const target = String(rarity || "").toUpperCase();
-  const targetCode = getUniversalCode(target);
-  const targetName = getUniversalName(target);
+function safeTickets(player) {
+  return Array.isArray(player?.tickets)
+    ? player.tickets
+    : [];
+}
 
-  const code = normalizeCode(item?.code);
+function isExactRaidTicket(item, template) {
+  const itemCode = normalizeCode(
+    item?.code
+  );
+
+  const templateCode = normalizeCode(
+    template?.code
+  );
+
+  return Boolean(
+    itemCode &&
+    templateCode &&
+    itemCode === templateCode
+  );
+}
+
+function getRaidTicketIndex(
+  tickets,
+  template
+) {
+  return (
+    Array.isArray(tickets)
+      ? tickets
+      : []
+  ).findIndex((ticket) =>
+    isExactRaidTicket(ticket, template)
+  );
+}
+
+function getRaidTicketAmount(
+  tickets,
+  template
+) {
+  const index = getRaidTicketIndex(
+    tickets,
+    template
+  );
+
+  if (index === -1) return 0;
+
+  return Math.max(
+    0,
+    Math.floor(
+      Number(
+        tickets[index]?.amount || 0
+      )
+    )
+  );
+}
+
+function removeRaidTickets(
+  tickets,
+  template,
+  amount
+) {
+  const list = Array.isArray(tickets)
+    ? tickets.map((ticket) => ({
+        ...ticket,
+      }))
+    : [];
+
+  const index = getRaidTicketIndex(
+    list,
+    template
+  );
+
+  const removeAmount = Math.max(
+    1,
+    Math.floor(
+      Number(amount || 1)
+    )
+  );
+
+  if (index === -1) {
+    throw new Error(
+      `You do not have any ${template.name}.`
+    );
+  }
+
+  const owned = Math.max(
+    0,
+    Math.floor(
+      Number(
+        list[index]?.amount || 0
+      )
+    )
+  );
+
+  if (owned < removeAmount) {
+    throw new Error(
+      [
+        `Not enough ${template.name}.`,
+        "",
+        `Required: **${removeAmount}x ${template.name}**`,
+        `Owned: **${owned}x ${template.name}**`,
+      ].join("\n")
+    );
+  }
+
+  const left = owned - removeAmount;
+
+  if (left <= 0) {
+    list.splice(index, 1);
+  } else {
+    list[index] = {
+      ...list[index],
+      amount: left,
+    };
+  }
+
+  return {
+    tickets: list,
+    left,
+  };
+}
+
+function addRaidTickets(
+  tickets,
+  template,
+  amount
+) {
+  const list = Array.isArray(tickets)
+    ? tickets.map((ticket) => ({
+        ...ticket,
+      }))
+    : [];
+
+  const addAmount = Math.max(
+    1,
+    Math.floor(
+      Number(amount || 1)
+    )
+  );
+
+  const index = getRaidTicketIndex(
+    list,
+    template
+  );
+
+  if (index !== -1) {
+    list[index] = {
+      ...list[index],
+      code: template.code,
+      name: template.name,
+      rarity:
+        template.rarity ||
+        list[index].rarity,
+      type: "Ticket",
+      amount:
+        Math.max(
+          0,
+          Number(
+            list[index]?.amount || 0
+          )
+        ) + addAmount,
+    };
+
+    return list;
+  }
+
+  list.push({
+    ...template,
+    code: template.code,
+    name: template.name,
+    rarity: template.rarity,
+    type: "Ticket",
+    amount: addAmount,
+  });
+
+  return list;
+}
+
+function isUniversalItem(
+  item,
+  rarity
+) {
+  const target = String(
+    rarity || ""
+  )
+    .toUpperCase();
+
+  const targetCode =
+    getUniversalCode(target);
+
+  const targetName =
+    getUniversalName(target);
+
+  const code = normalizeCode(
+    item?.code
+  );
+
   const name = normalizeName(
     item?.name ||
       item?.displayName ||
@@ -93,40 +323,91 @@ function isUniversalItem(item, rarity) {
   );
 }
 
-function getUniversalItemIndex(items, rarity) {
-  return (Array.isArray(items) ? items : []).findIndex((item) =>
+function getUniversalItemIndex(
+  items,
+  rarity
+) {
+  return (
+    Array.isArray(items)
+      ? items
+      : []
+  ).findIndex((item) =>
     isUniversalItem(item, rarity)
   );
 }
 
-function getUniversalAmount(items, rarity) {
-  const index = getUniversalItemIndex(items, rarity);
+function getUniversalAmount(
+  items,
+  rarity
+) {
+  const index = getUniversalItemIndex(
+    items,
+    rarity
+  );
+
   if (index === -1) return 0;
 
-  return Math.max(0, Math.floor(Number(items[index]?.amount || 0)));
+  return Math.max(
+    0,
+    Math.floor(
+      Number(
+        items[index]?.amount || 0
+      )
+    )
+  );
 }
 
-function removeUniversalItems(items, rarity, amount) {
+function removeUniversalItems(
+  items,
+  rarity,
+  amount
+) {
   const list = Array.isArray(items)
-    ? items.map((item) => ({ ...item }))
+    ? items.map((item) => ({
+        ...item,
+      }))
     : [];
 
-  const index = getUniversalItemIndex(list, rarity);
+  const index =
+    getUniversalItemIndex(
+      list,
+      rarity
+    );
 
   if (index === -1) {
-    throw new Error(`You do not have ${getUniversalName(rarity)}.`);
-  }
-
-  const owned = Math.max(0, Math.floor(Number(list[index]?.amount || 0)));
-  const removeAmount = Math.max(1, Math.floor(Number(amount || 1)));
-
-  if (owned < removeAmount) {
     throw new Error(
-      `You need **${removeAmount}x ${getUniversalName(rarity)}**, but you only have **${owned}x**.`
+      `You do not have ${getUniversalName(
+        rarity
+      )}.`
     );
   }
 
-  const left = owned - removeAmount;
+  const owned = Math.max(
+    0,
+    Math.floor(
+      Number(
+        list[index]?.amount || 0
+      )
+    )
+  );
+
+  const removeAmount = Math.max(
+    1,
+    Math.floor(
+      Number(amount || 1)
+    )
+  );
+
+  if (owned < removeAmount) {
+    throw new Error(
+      `You need **${removeAmount}x ${getUniversalName(
+        rarity
+      )}**, but you only have **${owned}x**.`
+    );
+  }
+
+  const left =
+    owned - removeAmount;
 
   if (left <= 0) {
     list.splice(index, 1);
@@ -143,25 +424,67 @@ function removeUniversalItems(items, rarity, amount) {
   };
 }
 
-function addUniversalItems(items, rarity, amount) {
+function addUniversalItems(
+  items,
+  rarity,
+  amount
+) {
   const list = Array.isArray(items)
-    ? items.map((item) => ({ ...item }))
+    ? items.map((item) => ({
+        ...item,
+      }))
     : [];
 
-  const rarityKey = String(rarity || "").toUpperCase();
-  const template = getUniversalItem(rarityKey);
-  const addAmount = Math.max(1, Math.floor(Number(amount || 1)));
-  const index = getUniversalItemIndex(list, rarityKey);
+  const rarityKey = String(
+    rarity || ""
+  ).toUpperCase();
+
+  const template =
+    getUniversalItem(rarityKey);
+
+  const addAmount = Math.max(
+    1,
+    Math.floor(
+      Number(amount || 1)
+    )
+  );
+
+  const index =
+    getUniversalItemIndex(
+      list,
+      rarityKey
+    );
 
   if (index !== -1) {
     list[index] = {
       ...list[index],
-      amount: Math.max(0, Math.floor(Number(list[index]?.amount || 0))) + addAmount,
-      code: list[index].code || template?.code || getUniversalCode(rarityKey),
-      name: list[index].name || template?.name || getUniversalName(rarityKey),
-      displayName: list[index].displayName || template?.name || getUniversalName(rarityKey),
-      rarity: template?.rarity || rarityKey,
-      type: template?.type || "Fragment",
+      amount:
+        Math.max(
+          0,
+          Math.floor(
+            Number(
+              list[index]?.amount || 0
+            )
+          )
+        ) + addAmount,
+      code:
+        list[index].code ||
+        template?.code ||
+        getUniversalCode(rarityKey),
+      name:
+        list[index].name ||
+        template?.name ||
+        getUniversalName(rarityKey),
+      displayName:
+        list[index].displayName ||
+        template?.name ||
+        getUniversalName(rarityKey),
+      rarity:
+        template?.rarity ||
+        rarityKey,
+      type:
+        template?.type ||
+        "Fragment",
     };
 
     return list;
@@ -169,58 +492,277 @@ function addUniversalItems(items, rarity, amount) {
 
   list.push({
     ...(template || {}),
-    code: template?.code || getUniversalCode(rarityKey),
-    name: template?.name || getUniversalName(rarityKey),
-    displayName: template?.name || getUniversalName(rarityKey),
+    code:
+      template?.code ||
+      getUniversalCode(rarityKey),
+    name:
+      template?.name ||
+      getUniversalName(rarityKey),
+    displayName:
+      template?.name ||
+      getUniversalName(rarityKey),
     amount: addAmount,
-    rarity: template?.rarity || rarityKey,
-    type: template?.type || "Fragment",
+    rarity:
+      template?.rarity ||
+      rarityKey,
+    type:
+      template?.type ||
+      "Fragment",
   });
 
   return list;
 }
 
 function parseTargetRarity(value) {
-  const rarity = String(value || "").toUpperCase().trim();
+  const rarity = String(
+    value || ""
+  )
+    .toUpperCase()
+    .trim();
 
-  if (!MERGE_RULES[rarity]) return null;
+  if (!MERGE_RULES[rarity]) {
+    return null;
+  }
 
   return rarity;
 }
 
 function parseAmount(value) {
-  const amount = Math.floor(Number(value || 1));
+  const amount = Math.floor(
+    Number(value || 1)
+  );
 
-  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  if (
+    !Number.isFinite(amount) ||
+    amount <= 0
+  ) {
+    return 0;
+  }
 
   return amount;
 }
 
 function getUsageText() {
   return [
+    "## Universal Fragment Merge",
     "Usage: `op merge <rarity> <amount>`",
     "",
-    "Examples:",
     "`op merge b 1` → 5x Universal C Fragment = 1x Universal B Fragment",
     "`op merge a 2` → 30x Universal B Fragment = 2x Universal A Fragment",
     "`op merge s 1` → 30x Universal A Fragment = 1x Universal S Fragment",
     "",
-    "Merge Rules:",
+    "**Universal Merge Rules**",
     "C → B: 5x Universal C Fragment",
     "B → A: 15x Universal B Fragment",
     "A → S: 30x Universal A Fragment",
+    "",
+    "## Raid Ticket Merge",
+    "`op merge raid 1` → 100x Common Raid Ticket = 25x Raid Ticket",
+    "`op merge graid 1` → 50x Raid Ticket = 7x Gold Raid Ticket",
+    "",
+    "The amount represents the number of merge batches.",
   ].join("\n");
+}
+
+async function mergeRaidTickets(
+  message,
+  mergeType,
+  batches
+) {
+  const rule =
+    RAID_TICKET_MERGE_RULES[
+      mergeType
+    ];
+
+  if (!rule) {
+    return message.reply({
+      content: getUsageText(),
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
+
+  const batchAmount = Math.max(
+    1,
+    Math.floor(
+      Number(batches || 1)
+    )
+  );
+
+  const totalInput =
+    rule.inputAmount *
+    batchAmount;
+
+  const totalOutput =
+    rule.outputAmount *
+    batchAmount;
+
+  let result = null;
+
+  try {
+    updatePlayerAtomic(
+      message.author.id,
+      (fresh) => {
+        let tickets = safeTickets(
+          fresh
+        ).map((ticket) => ({
+          ...ticket,
+        }));
+
+        const ownedInput =
+          getRaidTicketAmount(
+            tickets,
+            rule.input
+          );
+
+        if (
+          ownedInput <
+          totalInput
+        ) {
+          throw new Error(
+            [
+              `Not enough ${rule.input.name}.`,
+              "",
+              `Required: **${totalInput}x ${rule.input.name}**`,
+              `Owned: **${ownedInput}x ${rule.input.name}**`,
+              "",
+              `Command: \`op merge ${mergeType} ${batchAmount}\``,
+            ].join("\n")
+          );
+        }
+
+        const removed =
+          removeRaidTickets(
+            tickets,
+            rule.input,
+            totalInput
+          );
+
+        tickets =
+          addRaidTickets(
+            removed.tickets,
+            rule.output,
+            totalOutput
+          );
+
+        result = {
+          input: rule.input,
+          output: rule.output,
+          batches: batchAmount,
+          totalInput,
+          totalOutput,
+          inputLeft:
+            removed.left,
+          outputOwned:
+            getRaidTicketAmount(
+              tickets,
+              rule.output
+            ),
+        };
+
+        return {
+          ...fresh,
+          tickets,
+        };
+      },
+      message.author.username
+    );
+  } catch (error) {
+    return message.reply({
+      content:
+        error.message ||
+        "Failed to merge raid tickets.",
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
+
+  const embed =
+    new EmbedBuilder()
+      .setColor(0xf1c40f)
+      .setTitle(
+        "Raid Tickets Merged"
+      )
+      .setDescription(
+        [
+          `**Created:** ${result.totalOutput}x ${result.output.name}`,
+          `**Used:** ${result.totalInput}x ${result.input.name}`,
+          `**Batches:** ${result.batches}`,
+          "",
+          "**Merge Rate**",
+          `${rule.inputAmount}x ${rule.input.name} → ${rule.outputAmount}x ${rule.output.name}`,
+          "",
+          "**Current Balance**",
+          `${result.input.name}: ${result.inputLeft}`,
+          `${result.output.name}: ${result.outputOwned}`,
+        ].join("\n")
+      )
+      .setFooter({
+        text:
+          "One Piece Bot • Raid Ticket Merge",
+      });
+
+  return message.reply({
+    embeds: [embed],
+    allowedMentions: {
+      repliedUser: false,
+    },
+  });
 }
 
 module.exports = {
   name: "merge",
-  aliases: ["umg", "unimerge"],
+  aliases: [
+    "umg",
+    "unimerge",
+  ],
 
-  async execute(message, args = []) {
-    const targetRarity = parseTargetRarity(args[0]);
-    const amount = parseAmount(args[1] || 1);
+  async execute(
+    message,
+    args = []
+  ) {
+    const mergeType = String(
+      args[0] || ""
+    )
+      .toLowerCase()
+      .trim();
 
-    if (!targetRarity || !amount) {
+    const amount = parseAmount(
+      args[1] || 1
+    );
+
+    if (
+      RAID_TICKET_MERGE_RULES[
+        mergeType
+      ]
+    ) {
+      if (!amount) {
+        return message.reply({
+          content: getUsageText(),
+          allowedMentions: {
+            repliedUser: false,
+          },
+        });
+      }
+
+      return mergeRaidTickets(
+        message,
+        mergeType,
+        amount
+      );
+    }
+
+    const targetRarity =
+      parseTargetRarity(
+        args[0]
+      );
+
+    if (
+      !targetRarity ||
+      !amount
+    ) {
       return message.reply({
         content: getUsageText(),
         allowedMentions: {
@@ -229,10 +771,20 @@ module.exports = {
       });
     }
 
-    const rule = MERGE_RULES[targetRarity];
-    const fromRarity = rule.from;
-    const costPerMerge = rule.cost;
-    const totalCost = costPerMerge * amount;
+    const rule =
+      MERGE_RULES[
+        targetRarity
+      ];
+
+    const fromRarity =
+      rule.from;
+
+    const costPerMerge =
+      rule.cost;
+
+    const totalCost =
+      costPerMerge *
+      amount;
 
     let result = null;
 
@@ -240,32 +792,59 @@ module.exports = {
       updatePlayerAtomic(
         message.author.id,
         (fresh) => {
-          let items = safeItems(fresh).map((item) => ({ ...item }));
+          let items = safeItems(
+            fresh
+          ).map((item) => ({
+            ...item,
+          }));
 
-          const ownedInput = getUniversalAmount(items, fromRarity);
+          const ownedInput =
+            getUniversalAmount(
+              items,
+              fromRarity
+            );
 
-          if (ownedInput < totalCost) {
+          if (
+            ownedInput <
+            totalCost
+          ) {
             throw new Error(
               [
-                `Not enough ${getUniversalName(fromRarity)}.`,
+                `Not enough ${getUniversalName(
+                  fromRarity
+                )}.`,
                 "",
-                `Required: **${totalCost}x ${getUniversalName(fromRarity)}**`,
-                `Owned: **${ownedInput}x ${getUniversalName(fromRarity)}**`,
+                `Required: **${totalCost}x ${getUniversalName(
+                  fromRarity
+                )}**`,
+                `Owned: **${ownedInput}x ${getUniversalName(
+                  fromRarity
+                )}**`,
                 "",
                 `Command: \`op merge ${targetRarity.toLowerCase()} ${amount}\``,
               ].join("\n")
             );
           }
 
-          const removed = removeUniversalItems(items, fromRarity, totalCost);
+          const removed =
+            removeUniversalItems(
+              items,
+              fromRarity,
+              totalCost
+            );
 
-          items = addUniversalItems(
-            removed.items,
-            targetRarity,
-            amount
-          );
+          items =
+            addUniversalItems(
+              removed.items,
+              targetRarity,
+              amount
+            );
 
-          const outputOwned = getUniversalAmount(items, targetRarity);
+          const outputOwned =
+            getUniversalAmount(
+              items,
+              targetRarity
+            );
 
           result = {
             fromRarity,
@@ -273,42 +852,64 @@ module.exports = {
             amount,
             costPerMerge,
             totalCost,
-            inputLeft: removed.left,
+            inputLeft:
+              removed.left,
             outputOwned,
           };
 
-          return setItems(fresh, items);
+          return setItems(
+            fresh,
+            items
+          );
         },
         message.author.username
       );
     } catch (error) {
       return message.reply({
-        content: error.message || "Failed to merge universal fragments.",
+        content:
+          error.message ||
+          "Failed to merge universal fragments.",
         allowedMentions: {
           repliedUser: false,
         },
       });
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(0x2ecc71)
-      .setTitle("Universal Fragment Merged")
-      .setDescription(
-        [
-          `**Created:** ${result.amount}x ${getUniversalName(result.targetRarity)}`,
-          `**Used:** ${result.totalCost}x ${getUniversalName(result.fromRarity)}`,
-          "",
-          "**Rate**",
-          `${result.costPerMerge}x ${getUniversalName(result.fromRarity)} → 1x ${getUniversalName(result.targetRarity)}`,
-          "",
-          "**Current Balance**",
-          `${getUniversalName(result.fromRarity)}: ${result.inputLeft}`,
-          `${getUniversalName(result.targetRarity)}: ${result.outputOwned}`,
-        ].join("\n")
-      )
-      .setFooter({
-        text: "One Piece Bot • Universal Merge",
-      });
+    const embed =
+      new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle(
+          "Universal Fragment Merged"
+        )
+        .setDescription(
+          [
+            `**Created:** ${result.amount}x ${getUniversalName(
+              result.targetRarity
+            )}`,
+            `**Used:** ${result.totalCost}x ${getUniversalName(
+              result.fromRarity
+            )}`,
+            "",
+            "**Rate**",
+            `${result.costPerMerge}x ${getUniversalName(
+              result.fromRarity
+            )} → 1x ${getUniversalName(
+              result.targetRarity
+            )}`,
+            "",
+            "**Current Balance**",
+            `${getUniversalName(
+              result.fromRarity
+            )}: ${result.inputLeft}`,
+            `${getUniversalName(
+              result.targetRarity
+            )}: ${result.outputOwned}`,
+          ].join("\n")
+        )
+        .setFooter({
+          text:
+            "One Piece Bot • Universal Merge",
+        });
 
     return message.reply({
       embeds: [embed],
