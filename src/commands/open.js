@@ -666,7 +666,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
       );
     }
 
-    if (Math.random() < 0.20) {
+    if (Math.random() < 0.15) {
       addReward(getPullResetTicketItem(), 1);
     }
   } else if (box.code === "legend_resource_box") {
