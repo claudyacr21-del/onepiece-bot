@@ -1,5 +1,10 @@
-const { EmbedBuilder } = require("discord.js");
-const { updatePlayerAtomic } = require("../playerStore");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} = require("discord.js");
+const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { getFragmentStorageInfo, getSacBerryValue } = require("../utils/autoSac");
 
 const VALID_RARITIES = new Set(["C", "B", "A", "S", "SS", "UR"]);
@@ -296,6 +301,154 @@ module.exports = {
     let storage = null;
     let multipleMatches = [];
 
+    const previewPlayer = getPlayer(
+      message.author.id,
+      message.author.username
+    );
+
+    const previewFragments = Array.isArray(previewPlayer.fragments)
+      ? previewPlayer.fragments
+      : [];
+
+    const previewFound = findFragmentMatch(previewFragments, query);
+
+    if (previewFound.status === "multiple") {
+      return message.reply({
+        content: [
+          "Multiple fragments matched that query. Use the exact code below.",
+          "",
+          ...previewFound.matches
+            .slice(0, 10)
+            .map((entry, index) =>
+              formatFragmentLine(entry.fragment, index)
+            ),
+        ].join("\n"),
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
+    if (
+      previewFound.status === "not_found" ||
+      previewFound.index === -1
+    ) {
+      return message.reply({
+        content: `Fragment matching \`${query}\` was not found in your fragment inventory.`,
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
+    const previewTarget = previewFragments[previewFound.index];
+    const previewOwnedAmount = getFragmentAmount(previewTarget);
+    const previewAmount = parseAmount(
+      amountText,
+      previewOwnedAmount
+    );
+
+    if (!previewAmount || previewAmount <= 0) {
+      return message.reply({
+        content: "Invalid amount. Use a number or `all`.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
+    if (previewOwnedAmount < previewAmount) {
+      return message.reply({
+        content: `You only have **${previewOwnedAmount}x ${getFragmentName(
+          previewTarget
+        )}**.`,
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
+    const previewRarity = formatRarity(previewTarget.rarity);
+    const previewBerries = getSacBerryValue(
+      previewRarity,
+      previewAmount
+    );
+
+    const confirmId = `sac_confirm_${message.author.id}`;
+    const cancelId = `sac_cancel_${message.author.id}`;
+
+    const confirmationEmbed = new EmbedBuilder()
+      .setColor(0xf1c40f)
+      .setTitle("⚠️ Confirm Fragment Sacrifice")
+      .setDescription(
+        [
+          `**Fragment:** ${getFragmentName(previewTarget)}`,
+          `**Code:** \`${previewTarget.code || "none"}\``,
+          `**Rarity:** ${previewRarity}`,
+          `**Amount:** ${previewAmount}`,
+          "",
+          `**Berries Received:** ${previewBerries.toLocaleString(
+            "en-US"
+          )}`,
+          "",
+          "This action cannot be undone.",
+        ].join("\n")
+      )
+      .setFooter({
+        text: "Confirmation expires in 30 seconds",
+      });
+
+    const confirmationRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(confirmId)
+        .setLabel("Yes")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(cancelId)
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    const confirmationMessage = await message.reply({
+      embeds: [confirmationEmbed],
+      components: [confirmationRow],
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+
+    let confirmationInteraction;
+
+    try {
+      confirmationInteraction =
+        await confirmationMessage.awaitMessageComponent({
+          filter: (interaction) =>
+            interaction.user.id === message.author.id &&
+            [confirmId, cancelId].includes(interaction.customId),
+          time: 30_000,
+        });
+    } catch {
+      return confirmationMessage.edit({
+        content: "Sacrifice confirmation expired.",
+        embeds: [],
+        components: [],
+      });
+    }
+
+    if (confirmationInteraction.customId === cancelId) {
+      return confirmationInteraction.update({
+        content: "Fragment sacrifice cancelled.",
+        embeds: [],
+        components: [],
+      });
+    }
+
+    await confirmationInteraction.update({
+      content: "Processing fragment sacrifice...",
+      embeds: [],
+      components: [],
+    });
+
     try {
       updatePlayerAtomic(
         message.author.id,
@@ -425,8 +578,10 @@ module.exports = {
         text: "One Piece Bot • Sacrifice",
       });
 
-    return message.reply({
+    return confirmationMessage.edit({
+      content: null,
       embeds: [embed],
+      components: [],
       allowedMentions: {
         repliedUser: false,
       },
