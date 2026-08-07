@@ -24,9 +24,9 @@ const MYTHIC_RAID_TICKET_STREAK_TARGET = 25;
 const BERRY_EMOJI = "<:berry:1532401337063702538>";
 const PULL_RESET_EMOJI = "<:pullreset:1534501021957750784>";
 const GOLD_RAID_TICKET_EMOJI =
-  "<:GoldenRaidTicket:1524049593913053447>";
+  "<:graid:1524049593913053447>";
 const MYTHIC_RAID_TICKET_EMOJI =
-  "<:MythicRaidTicket:1524049580239487168>";
+  "<:mraid:1524049580239487168>";
 
 function getTopggCooldownAt(player) {
   const cooldownVote = Number(

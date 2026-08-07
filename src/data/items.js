@@ -54,16 +54,6 @@ const ITEMS = {
       "A Midsummer Event box containing guaranteed Universal S Fragments, Pull Reset Tickets, Gems, and Berries.",
   },
 
-  exclusiveEventChest: {
-    name: "Exclusive Event Chest",
-    amount: 1,
-    rarity: "UR",
-    code: "exclusive_event_chest",
-    type: "Box",
-    description:
-      "A special Ryuma Global Boss Event chest. Not available in the shop.",
-  },
-
   ryumaPityCharm: {
     name: "Ryuma Pity Charm",
     amount: 1,
