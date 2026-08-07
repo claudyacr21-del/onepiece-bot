@@ -1,82 +1,38 @@
-const RARITY_EMOJI_NAMES = Object.freeze({
-  C: "rarity_C",
-  B: "rarity_B",
-  A: "rarity_A",
-  S: "rarity_S",
-  SS: "rarity_SS",
-  UR: "rarity_UR",
-  M: "rarity_M",
+const RARITY_EMOJI_IDS = Object.freeze({
+  C: "1535167273034186822",
+  B: "1535167270052176002",
+  A: "1535167267019689994",
+  S: "1535167264175685703",
+  SS: "1535167261084753920",
+  UR: "1535167257171329046",
+  M: "1535167254122078220",
 });
 
-// This map now stores CDN image URLs generated
-// from the new Discord rarity emojis.
-const RARITY_BADGES = {};
+const RARITY_EMOJI_NAMES = Object.freeze({
+  C: "rarity_c",
+  B: "rarity_b",
+  A: "rarity_a",
+  S: "rarity_s",
+  SS: "rarity_ss",
+  UR: "rarity_ur",
+  M: "rarity_m",
+});
 
-let rarityEmojiClient = null;
+const RARITY_BADGES = Object.freeze(
+  Object.fromEntries(
+    Object.entries(RARITY_EMOJI_IDS).map(
+      ([tier, emojiId]) => [
+        tier,
+        `https://cdn.discordapp.com/emojis/${emojiId}.png?size=256&quality=lossless`,
+      ]
+    )
+  )
+);
 
 function normalizeRarity(value) {
   return String(value || "C")
     .toUpperCase()
     .trim();
-}
-
-function findRarityEmoji(rarity) {
-  const tier = normalizeRarity(rarity);
-  const emojiName = RARITY_EMOJI_NAMES[tier];
-
-  if (
-    !emojiName ||
-    !rarityEmojiClient?.emojis?.cache
-  ) {
-    return null;
-  }
-
-  return (
-    rarityEmojiClient.emojis.cache.find(
-      (emoji) =>
-        String(emoji?.name || "")
-          .toLowerCase()
-          .trim() === emojiName
-    ) || null
-  );
-}
-
-function refreshRarityBadges() {
-  for (
-    const tier of Object.keys(
-      RARITY_EMOJI_NAMES
-    )
-  ) {
-    const emoji = findRarityEmoji(tier);
-
-    if (!emoji) {
-      delete RARITY_BADGES[tier];
-      continue;
-    }
-
-    RARITY_BADGES[tier] = emoji.imageURL({
-      extension: "png",
-      size: 256,
-    });
-  }
-}
-
-function setRarityEmojiClient(client) {
-  rarityEmojiClient = client || null;
-
-  refreshRarityBadges();
-
-  const loaded =
-    Object.keys(RARITY_BADGES).length;
-
-  const total =
-    Object.keys(
-      RARITY_EMOJI_NAMES
-    ).length;
-
-  console.log(
-    `[RARITY EMOJI CACHE] Loaded ${loaded}/${total} rarity emojis.`
-  );
 }
 
 const CARD_IMAGES = {
@@ -1328,26 +1284,20 @@ const ISLAND_IMAGES = {
 
 function getRarityBadge(rarity) {
   const tier = normalizeRarity(rarity);
-  const emoji = findRarityEmoji(tier);
 
-  if (!emoji) return "";
-
-  const imageUrl = emoji.imageURL({
-    extension: "png",
-    size: 256,
-  });
-
-  RARITY_BADGES[tier] = imageUrl;
-
-  return imageUrl;
+  return RARITY_BADGES[tier] || "";
 }
 
 function getRarityEmoji(rarity) {
-  const emoji = findRarityEmoji(rarity);
+  const tier = normalizeRarity(rarity);
+  const emojiId = RARITY_EMOJI_IDS[tier];
+  const emojiName = RARITY_EMOJI_NAMES[tier];
 
-  return emoji
-    ? emoji.toString()
-    : "";
+  if (!emojiId || !emojiName) {
+    return "";
+  }
+
+  return `<:${emojiName}:${emojiId}>`;
 }
 
 function getCardImage(code, stage = "M1", fallback = "") {
@@ -1380,13 +1330,13 @@ function getIslandImage(code, fallback = "") {
 
 module.exports = {
   RARITY_BADGES,
+  RARITY_EMOJI_IDS,
   RARITY_EMOJI_NAMES,
   CARD_IMAGES,
   WEAPON_IMAGES,
   DEVIL_FRUIT_IMAGES,
   SHIP_IMAGES,
   ISLAND_IMAGES,
-  setRarityEmojiClient,
   getRarityBadge,
   getRarityEmoji,
   getCardImage,

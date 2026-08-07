@@ -12,9 +12,6 @@ const {
 } = require("discord.js");
 
 const { startTopggWebhookServer } = require("./topggWebhook");
-const {
-  setRarityEmojiClient,
-} = require("./config/assetLinks");
 const { syncArenaRankRoles } = require("./utils/arenaRankRoles");
 const {
   startAllBattleCardMasterRoleSync,
@@ -889,8 +886,6 @@ client.once("clientReady", async () => {
   }
 
   readyStarted = true;
-
-  setRarityEmojiClient(client);
 
   console.log(
     `[READY] Logged in as ${client.user.tag} (${client.user.id})`
