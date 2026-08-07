@@ -605,7 +605,13 @@ function buildOwnedFruitEmbed(ownerName, player, fruit) {
   const fragments = getFragmentAmount(player, fruit);
 
   return new EmbedBuilder()
-    .setColor(0x9b59b6)
+    .setColor(
+      getRarityColor(
+        fruit.rarity ||
+          fruit.baseTier ||
+          "B"
+      )
+    )
     .setTitle(`${ownerName}'s Devil Fruit`)
     .setDescription(
       [
