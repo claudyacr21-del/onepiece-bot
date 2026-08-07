@@ -6,6 +6,9 @@ const {
 } = require("../playerStore");
 const { ITEMS } = require("../data/items");
 const { incrementQuestPayload } = require("../utils/questProgress");
+const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
 
 function normalize(text) {
   return String(text || "")
@@ -770,11 +773,25 @@ function formatRewardLines(rewardMap) {
 
   for (const [name, amount] of rewardMap.entries()) {
     if (name === "Berries") {
-      lines.push(` Berries +${Number(amount || 0).toLocaleString("en-US")}`);
+      lines.push(
+        ` Berries +${Number(
+          amount || 0
+        ).toLocaleString("en-US")}`
+      );
     } else if (name === "Gems") {
-      lines.push(` Gems +${Number(amount || 0).toLocaleString("en-US")}`);
+      lines.push(
+        ` Gems +${Number(
+          amount || 0
+        ).toLocaleString("en-US")}`
+      );
     } else {
-      lines.push(` ${name} x${Number(amount || 0).toLocaleString("en-US")}`);
+      const emoji = getItemEmoji(name);
+
+      lines.push(
+        ` ${emoji ? `${emoji} ` : ""}${name} x${Number(
+          amount || 0
+        ).toLocaleString("en-US")}`
+      );
     }
   }
 
@@ -928,7 +945,9 @@ module.exports = {
         embeds: [
           new EmbedBuilder()
             .setColor(0x3498db)
-            .setTitle(` Opened ${openableItem.name} x${openAmount}`)
+            .setTitle(
+              `${getItemEmoji(openableItem.code)} Opened ${openableItem.name} x${openAmount}`
+            )
             .setDescription(
               rewardLines.length ? rewardLines.join("\n") : "No rewards were generated."
             )
@@ -1041,7 +1060,9 @@ module.exports = {
       embeds: [
         new EmbedBuilder()
           .setColor(0x3498db)
-          .setTitle(` Opened ${box.name} x${openAmount}`)
+          .setTitle(
+            `${getItemEmoji(box.code)} Opened ${box.name} x${openAmount}`
+          )
           .setDescription(
             rewardLines.length ? rewardLines.join("\n") : "No rewards were generated."
           )

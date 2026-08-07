@@ -4,6 +4,9 @@ const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { ITEMS, cloneItem } = require("../data/items");
 const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
+const {
   getServerTagPerksFromMessage,
   applyPercentageBonus,
 } = require("../utils/serverTagPerks");
@@ -820,7 +823,15 @@ module.exports = {
     const displayRewards = appliedRewards.length ? appliedRewards : rewardBundle.rewards;
 
     const extraLines = displayRewards.length
-      ? displayRewards.map((reward) => `↪ ${reward.name} x${reward.amount}`)
+      ? displayRewards.map((reward) => {
+          const emoji = getItemEmoji(
+            reward.code || reward.name
+          );
+
+          return `↪ ${
+            emoji ? `${emoji} ` : ""
+          }${reward.name} x${reward.amount}`;
+        })
       : ["↪ No extra reward this time"];
 
     if (baccaratBonusApplied) {

@@ -5,6 +5,12 @@ const {
   flushPlayerNow,
 } = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
+const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
+
+const FRUIT_ESSENCE_EMOJI =
+  getItemEmoji("fruit_essence");
 
 const SHOP_ITEMS = {
   basic: {
@@ -161,7 +167,9 @@ module.exports = {
             for (const reward of shopItem.boxes) {
               const rewardAmount = Number(reward.amount || 1) * amount;
               boxes = addStack(boxes, cloneItem(reward.item, rewardAmount));
-              rewardLines.push(`${reward.item.name} x${rewardAmount}`);
+              rewardLines.push(
+                `${getItemEmoji(reward.item.code)} ${reward.item.name} x${rewardAmount}`
+              );
             }
           }
 
@@ -169,7 +177,9 @@ module.exports = {
             for (const reward of shopItem.tickets) {
               const rewardAmount = Number(reward.amount || 1) * amount;
               tickets = addStack(tickets, cloneItem(reward.item, rewardAmount));
-              rewardLines.push(`${reward.item.name} x${rewardAmount}`);
+              rewardLines.push(
+                `${getItemEmoji(reward.item.code)} ${reward.item.name} x${rewardAmount}`
+              );
             }
           }
 
@@ -200,16 +210,20 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(0x2ecc71)
-      .setTitle("🍈 Fruit Essence Purchase Complete")
+      .setTitle(
+        `${FRUIT_ESSENCE_EMOJI} Fruit Essence Purchase Complete`
+      )
       .setDescription(
         [
           `**Purchased:** ${shopItem.label}`,
           `**Amount:** x${amount}`,
-          `**Cost:** ${totalCost} Fruit Essence`,
-          `**Remaining Fruit Essence:** ${remainingEssence}`,
+          `**Cost:** ${totalCost} ${FRUIT_ESSENCE_EMOJI}`,
+          `**Remaining Fruit Essence:** ${remainingEssence} ${FRUIT_ESSENCE_EMOJI}`,
           "",
           "**Rewards**",
-          ...rewardLines.map((line) => `↪ ${line}`),
+          ...rewardLines.map(
+            (line) => `↪ ${line}`
+          ),
         ].join("\n")
       )
       .setFooter({

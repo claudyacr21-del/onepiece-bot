@@ -184,7 +184,7 @@ function rollThroneEquivalentCardTier(baseTier) {
   // Road Poneglyph special chance: 2.5%.
   // If it fails, keep the original rolled tier.
   const roll = Math.random() * 100;
-  if (roll < 0.32) return "THRONE";
+  if (roll < 0.35) return "THRONE";
   return baseTier;
 }
 
@@ -326,7 +326,7 @@ function getTicketPool(pullTier = "normal") {
       ? { common: 30, raid: 30, gold: 25, throne: 10, mythic: 5 }
       : tier === "vivreCard"
         ? { common: 44, raid: 34, gold: 13, throne: 6, mythic: 3 }
-        : { common: 52, raid: 35, gold: 8, throne: 4, mythic: 1.5 };
+        : { common: 49.5, raid: 34, gold: 10, throne: 5, mythic: 1.5 };
 
   return [
     { ...baseTickets.common, weight: weights.common },

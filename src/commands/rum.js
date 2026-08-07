@@ -6,8 +6,13 @@ const {
 } = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { incrementQuestPayload } = require("../utils/questProgress");
+const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
 
 const RUM_BEER_CODE = "rum_beer";
+const RUM_BEER_EMOJI =
+  getItemEmoji(RUM_BEER_CODE);
 const EXP_PER_RUM_BEER = 100;
 const EXP_PER_LEVEL = 1000;
 
@@ -411,16 +416,18 @@ module.exports = {
       embeds: [
         new EmbedBuilder()
           .setColor(0xf1c40f)
-          .setTitle("🍺 Rum Beer Used")
+          .setTitle(
+            `${RUM_BEER_EMOJI} Rum Beer Used`
+          )
           .setDescription(
             [
               `**Card:** ${finalCardName}`,
-              `**Used:** Rum Beer x${finalAmountToUse}`,
+              `**Used:** ${RUM_BEER_EMOJI} Rum Beer x${finalAmountToUse}`,
               `**EXP Added:** +${result.usedExp}`,
               `**EXP:** ${expText}`,
               `**Level:** ${finalBeforeLevel} → ${finalAfterLevel}`,
               `**Level Up:** +${result.levelsGained}`,
-              `**Remaining Rum Beer:** ${finalRemainingRum}`,
+              `**Remaining Rum Beer:** ${finalRemainingRum} ${RUM_BEER_EMOJI}`,
             ].join("\n")
           )
           .setFooter({
