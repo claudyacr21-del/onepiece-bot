@@ -13,6 +13,9 @@ const {
   removeFragmentAmount,
 } = require("../utils/autoSac");
 const {
+  getRarityColor,
+} = require("../utils/rarityColor");
+const {
   getNextAvailablePullKey,
   consumePullSlot,
   getTotalPullUsage,
@@ -320,10 +323,10 @@ function getTicketPool(pullTier = "normal") {
 
   const weights =
     tier === "motherFlame"
-      ? { common: 25, raid: 30, gold: 25, throne: 10, mythic: 5 }
+      ? { common: 30, raid: 30, gold: 25, throne: 10, mythic: 5 }
       : tier === "vivreCard"
         ? { common: 44, raid: 34, gold: 13, throne: 6, mythic: 3 }
-        : { common: 52, raid: 35, gold: 8, throne: 4, mythic: 1 };
+        : { common: 52, raid: 35, gold: 8, throne: 4, mythic: 1.5 };
 
   return [
     { ...baseTickets.common, weight: weights.common },
@@ -1611,7 +1614,9 @@ module.exports = {
     const badge = getRewardBadge(contentType, picked, ownedCard);
 
     const embed = new EmbedBuilder()
-      .setColor(0xf1c40f)
+      .setColor(
+        getRarityColor(rewardRarity)
+      )
       .setTitle(" Pull Result")
       .setDescription(
         [

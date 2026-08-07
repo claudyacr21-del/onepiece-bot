@@ -1,12 +1,83 @@
-const RARITY_BADGES = {
-  C: "https://cdn.discordapp.com/attachments/1493204525975076944/1494237259963301898/badge_C.png?ex=69e1e064&is=69e08ee4&hm=a2b237507f8524f0edffb83bd19708e4775a48049e2e37445c231bb2abd56665&",
-  B: "https://cdn.discordapp.com/attachments/1493204525975076944/1494237259631693994/badge_B.png?ex=69e1e064&is=69e08ee4&hm=40df7e7b3dc2f96f6792015bbc60f8d54461ead429df60a7552140f5f5fd3131&",
-  A: "https://cdn.discordapp.com/attachments/1493204525975076944/1494237259346477067/badge_A.png?ex=69e1e064&is=69e08ee4&hm=019224c7ebd6fe08c9f67f2fe4e5261d2c0502f1389cb80a000943a587a48aa6&",
-  S: "https://cdn.discordapp.com/attachments/1493204525975076944/1494237260273418410/badge_S.png?ex=69e1e064&is=69e08ee4&hm=99c0019d884c4bcb6eee4defdac9b851f130ca487c95680f8c70afb85db36f58&",
-  SS: "https://cdn.discordapp.com/attachments/1493204525975076944/1494237260596383755/badge_SS.png?ex=69e1e064&is=69e08ee4&hm=4b1d718f4cc3bd3cca43ae5f5a1a41b18320d5a814662313778b859b5a71b7dd&",
-  UR: "https://cdn.discordapp.com/attachments/1493204525975076944/1494237258910531736/badge_UR.png?ex=69e1e064&is=69e08ee4&hm=ff41f72431bcb6c2ea3acc190a98f536a491a11adbc11d9f6764ff79a0640a83&",
-  M: "https://cdn.discordapp.com/attachments/1493204525975076944/1509562253819646253/merge.png?ex=6a19a0e7&is=6a184f67&hm=0685852d2291f0e9805fcea5038af93b6f6a39ec97e2a52d193ccd39caabbe51",
-};
+const RARITY_EMOJI_NAMES = Object.freeze({
+  C: "rarity_C",
+  B: "rarity_B",
+  A: "rarity_A",
+  S: "rarity_S",
+  SS: "rarity_SS",
+  UR: "rarity_UR",
+  M: "rarity_M",
+});
+
+// This map now stores CDN image URLs generated
+// from the new Discord rarity emojis.
+const RARITY_BADGES = {};
+
+let rarityEmojiClient = null;
+
+function normalizeRarity(value) {
+  return String(value || "C")
+    .toUpperCase()
+    .trim();
+}
+
+function findRarityEmoji(rarity) {
+  const tier = normalizeRarity(rarity);
+  const emojiName = RARITY_EMOJI_NAMES[tier];
+
+  if (
+    !emojiName ||
+    !rarityEmojiClient?.emojis?.cache
+  ) {
+    return null;
+  }
+
+  return (
+    rarityEmojiClient.emojis.cache.find(
+      (emoji) =>
+        String(emoji?.name || "")
+          .toLowerCase()
+          .trim() === emojiName
+    ) || null
+  );
+}
+
+function refreshRarityBadges() {
+  for (
+    const tier of Object.keys(
+      RARITY_EMOJI_NAMES
+    )
+  ) {
+    const emoji = findRarityEmoji(tier);
+
+    if (!emoji) {
+      delete RARITY_BADGES[tier];
+      continue;
+    }
+
+    RARITY_BADGES[tier] = emoji.imageURL({
+      extension: "png",
+      size: 256,
+    });
+  }
+}
+
+function setRarityEmojiClient(client) {
+  rarityEmojiClient = client || null;
+
+  refreshRarityBadges();
+
+  const loaded =
+    Object.keys(RARITY_BADGES).length;
+
+  const total =
+    Object.keys(
+      RARITY_EMOJI_NAMES
+    ).length;
+
+  console.log(
+    `[RARITY EMOJI CACHE] Loaded ${loaded}/${total} rarity emojis.`
+  );
+}
 
 const CARD_IMAGES = {
   luffy_straw_hat: {
@@ -1256,7 +1327,27 @@ const ISLAND_IMAGES = {
 };
 
 function getRarityBadge(rarity) {
-  return RARITY_BADGES[String(rarity || "").toUpperCase()] || "";
+  const tier = normalizeRarity(rarity);
+  const emoji = findRarityEmoji(tier);
+
+  if (!emoji) return "";
+
+  const imageUrl = emoji.imageURL({
+    extension: "png",
+    size: 256,
+  });
+
+  RARITY_BADGES[tier] = imageUrl;
+
+  return imageUrl;
+}
+
+function getRarityEmoji(rarity) {
+  const emoji = findRarityEmoji(rarity);
+
+  return emoji
+    ? emoji.toString()
+    : "";
 }
 
 function getCardImage(code, stage = "M1", fallback = "") {
@@ -1289,12 +1380,15 @@ function getIslandImage(code, fallback = "") {
 
 module.exports = {
   RARITY_BADGES,
+  RARITY_EMOJI_NAMES,
   CARD_IMAGES,
   WEAPON_IMAGES,
   DEVIL_FRUIT_IMAGES,
   SHIP_IMAGES,
   ISLAND_IMAGES,
+  setRarityEmojiClient,
   getRarityBadge,
+  getRarityEmoji,
   getCardImage,
   getWeaponImage,
   getDevilFruitImage,

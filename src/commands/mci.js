@@ -26,7 +26,9 @@ const {
   getRarityBadge,
 } = require("../config/assetLinks");
 const { formatCardLevelLine } = require("../utils/cardExp");
-
+const {
+  getRarityColor,
+} = require("../utils/rarityColor");
 const devilFruitsDb = require("../data/devilFruits");
 const weaponsDb = require("../data/weapons");
 const cardsData = require("../data/cards");
@@ -881,11 +883,19 @@ function buildOwnedCardEmbed(ownerName, player, card) {
   ];
 
   return buildCardStyleEmbed({
-    color: 0x1abc9c,
+    color: getRarityColor(
+      card.currentTier ||
+        card.rarity ||
+        form?.tier
+    ),
     ownerName,
     card: displayCard,
     image: stageImage,
-    badgeImage: form?.badgeImage || card.badgeImage || "",
+    badgeImage: getRarityBadge(
+      card.currentTier ||
+        card.rarity ||
+        form?.tier
+    ),
     formName: displayCard.hasCustomSkin
       ? displayCard.skinTitle
       : form?.name || card.variant || "Unknown Form",

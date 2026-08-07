@@ -14,7 +14,9 @@ const {
 } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
-
+const {
+  getRarityColor,
+} = require("../utils/rarityColor");
 const cardsData = require("../data/cards");
 
 const SPECIAL_FORMS = cardsData.SPECIAL_FORMS || cardsData.specialForms || {
@@ -1141,7 +1143,14 @@ function buildRequiredForEmbed(card, stage) {
     : ["This card/form is not required by any other card yet."];
 
   return new EmbedBuilder()
-    .setColor(0xe91e63)
+    .setColor(
+      getRarityColor(
+        stageCard.currentTier ||
+          stageCard.rarity ||
+          card.currentTier ||
+          card.rarity
+      )
+    )
     .setTitle("⭐ Required For")
     .setDescription(
       [
@@ -1419,7 +1428,14 @@ function buildReqEmbed(card, stage, player) {
 
   if (!req) {
     return new EmbedBuilder()
-      .setColor(0x2ecc71)
+      .setColor(
+        getRarityColor(
+          stageCard.currentTier ||
+            stageCard.rarity ||
+            card.currentTier ||
+            card.rarity
+        )
+      )
       .setTitle(
         `ℹ️ Requirement • ${
           stageCard.displayName || card.displayName || card.name
@@ -1635,7 +1651,13 @@ function buildEmbed(card, owned, stage, player = null) {
         ];
 
   return buildCardStyleEmbed({
-    color: 0x5865f2,
+    color: getRarityColor(
+      form?.tier ||
+        stageCard.currentTier ||
+        stageCard.rarity ||
+        card.currentTier ||
+        card.rarity
+    ),
     header: "Global Card Viewer",
     card: stageCard,
     image: stageImage,

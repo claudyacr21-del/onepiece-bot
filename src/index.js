@@ -12,6 +12,9 @@ const {
 } = require("discord.js");
 
 const { startTopggWebhookServer } = require("./topggWebhook");
+const {
+  setRarityEmojiClient,
+} = require("./config/assetLinks");
 const { syncArenaRankRoles } = require("./utils/arenaRankRoles");
 const {
   startAllBattleCardMasterRoleSync,
@@ -887,7 +890,11 @@ client.once("clientReady", async () => {
 
   readyStarted = true;
 
-  console.log(`[READY] Logged in as ${client.user.tag} (${client.user.id})`);
+  setRarityEmojiClient(client);
+
+  console.log(
+    `[READY] Logged in as ${client.user.tag} (${client.user.id})`
+  );
 
   console.log("[BOT INSTANCE]", {
     pid: process.pid,

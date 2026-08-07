@@ -30,7 +30,12 @@ const {
   getWeaponImage,
   getDevilFruitImage,
   getRarityBadge,
+  getRarityEmoji: getCachedRarityEmoji,
 } = require("../config/assetLinks");
+
+const {
+  getRarityColor,
+} = require("../utils/rarityColor");
 
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
@@ -115,15 +120,7 @@ function isDiscordEmojiValue(value) {
 }
 
 function getRarityEmoji(rarity) {
-  const tier = String(rarity || "C").toUpperCase();
-
-  const badge = getRarityBadge(tier);
-  if (isDiscordEmojiValue(badge)) return badge;
-
-  const envEmoji = RARITY_EMOJIS[tier];
-  if (isDiscordEmojiValue(envEmoji)) return envEmoji;
-
-  return tier;
+  return getCachedRarityEmoji(rarity);
 }
 
 function normalize(text) {
@@ -458,10 +455,18 @@ function buildViewerEmbed(ownerName, player, card, index, total, label = "Collec
   ];
 
   return buildCardStyleEmbed({
-    color: card.cardRole === "boost" ? 0x9b59b6 : 0x3498db,
+    color: getRarityColor(
+      form.tier ||
+        card.currentTier ||
+        card.rarity
+    ),
     ownerName,
     card: displayCard,
-    badgeImage: form.badgeImage,
+    badgeImage: getRarityBadge(
+      form.tier ||
+        card.currentTier ||
+        card.rarity
+    ),
     image: stageImage,
     formName: displayCard.hasCustomSkin ? displayCard.skinTitle : form.name,
     tier: form.tier,
@@ -596,12 +601,55 @@ function buildTextLines(cards) {
   });
 }
 
-function buildTextPageEmbed(ownerName, lines, pageIndex, pageSize = 7) {
+function buildTextPageEmbed(
+  ownerName,
+  lines,
+  cards,
+  pageIndex,
+  pageSize = 7
+) {
   const start = pageIndex * pageSize;
-  const pageLines = lines.slice(start, start + pageSize);
+
+  const pageLines = lines.slice(
+    start,
+    start + pageSize
+  );
+
+  const pageCards = cards.slice(
+    start,
+    start + pageSize
+  );
+
+  const highestRarityCard =
+    pageCards.reduce(
+      (highest, card) => {
+        if (!highest) return card;
+
+        const cardRank = getTierRank(
+          card.currentTier ||
+            card.rarity
+        );
+
+        const highestRank = getTierRank(
+          highest.currentTier ||
+            highest.rarity
+        );
+
+        return cardRank > highestRank
+          ? card
+          : highest;
+      },
+      null
+    );
 
   return new EmbedBuilder()
-    .setColor(0x3498db)
+    .setColor(
+      getRarityColor(
+        highestRarityCard?.currentTier ||
+          highestRarityCard?.rarity ||
+          "C"
+      )
+    )
     .setTitle(`${ownerName}'s Card Collection`)
     .setDescription(pageLines.join("\n"))
     .setFooter({
@@ -1052,11 +1100,19 @@ module.exports = {
     let sub1 = String(args?.[0] || "").toLowerCase();
     let query = rawQuery;
 
-    const allowedSubCommands = ["text", "boost", "weapon", "m1", "m2", "m3"];
+    const allowedSubCommands = [
+      "text",
+      "m1",
+      "m2",
+      "m3",
+    ];
 
-    if (rawQuery && !allowedSubCommands.includes(sub1)) {
-      sub1 = "search";
-      query = rawQuery;
+    if (
+      rawQuery &&
+      !allowedSubCommands.includes(sub1)
+    ) {
+      sub1 = "";
+      query = "";
     }
 
     const cards = dedupeCollection(
@@ -1215,7 +1271,13 @@ module.exports = {
       let pageIndex = 0;
 
       const sent = await message.reply({
-        embeds: [buildTextPageEmbed(message.author.username, lines, pageIndex, pageSize)],
+        embeds: [buildTextPageEmbed(
+                  message.author.username,
+                  lines,
+                  working,
+                  pageIndex,
+                  pageSize
+                )],
         components: buildTextRows(pageIndex, totalPages),
       });
 
