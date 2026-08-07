@@ -22,21 +22,44 @@ let dbPool = null;
 let dbReady = false;
 let playerStoreFlushInterval = null;
 const playerSaveQueues = new Map();
-const fastPlayerSaveQueues = new Map();
+const playerSaveTimers = new Map();
+const playerSaveVersions = new Map();
+const playerSaveResolvers = new Map();
+const playerSaveRunning = new Set();
 let playerStoreShutdownDrainInstalled = false;
 let playerStoreFullFlushPromise = null;
 
 function getPendingPlayerSavePromises() {
-  return [
-    ...playerSaveQueues.values(),
-    ...fastPlayerSaveQueues.values(),
-  ].filter(Boolean);
+  return [...playerSaveQueues.values()].filter(Boolean);
+}
+
+function flushScheduledPlayerSaveTimers() {
+  for (const [userId, timer] of playerSaveTimers.entries()) {
+    clearTimeout(timer);
+    playerSaveTimers.delete(userId);
+
+    setImmediate(() => {
+      runCoalescedPlayerSave(userId).catch((error) => {
+        console.error("[PLAYER DB COALESCED SAVE ERROR]", {
+          userId,
+          message: error?.message || error,
+        });
+      });
+    });
+  }
 }
 
 async function drainPlayerStoreSaves(timeoutMs = 60000) {
-  const deadline = Date.now() + Math.max(1000, Number(timeoutMs || 60000));
+  const deadline =
+    Date.now() +
+    Math.max(1000, Number(timeoutMs || 60000));
 
-  while (getPendingPlayerSavePromises().length && Date.now() < deadline) {
+  flushScheduledPlayerSaveTimers();
+
+  while (
+    getPendingPlayerSavePromises().length &&
+    Date.now() < deadline
+  ) {
     const pending = getPendingPlayerSavePromises();
     const left = Math.max(1000, deadline - Date.now());
 
@@ -101,67 +124,225 @@ function normalizeStoreRecord(userId, data, username = "Unknown") {
   return normalizePlayer(data || {}, username || data?.username || "Unknown");
 }
 
-function enqueuePlayerSnapshotSave(userId, player) {
-  if (!PLAYER_DB_SNAPSHOT_SAVE_ENABLED) {
+function scheduleCoalescedPlayerSave(userId) {
+  const id = String(userId);
+
+  if (playerSaveRunning.has(id)) {
+    return;
+  }
+
+  const existingTimer =
+    playerSaveTimers.get(id);
+
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  const debounceMs = Math.max(
+    1000,
+    Number(
+      process.env.PLAYER_DB_SAVE_DEBOUNCE_MS ||
+        8000
+    )
+  );
+
+  const timer = setTimeout(() => {
+    playerSaveTimers.delete(id);
+
+    runCoalescedPlayerSave(id).catch(
+      (error) => {
+        console.error(
+          "[PLAYER DB COALESCED SAVE ERROR]",
+          {
+            userId: id,
+            message:
+              error?.message || error,
+          }
+        );
+      }
+    );
+  }, debounceMs);
+
+  if (typeof timer.unref === "function") {
+    timer.unref();
+  }
+
+  playerSaveTimers.set(id, timer);
+}
+
+async function runCoalescedPlayerSave(
+  userId
+) {
+  const id = String(userId);
+
+  if (
+    playerSaveRunning.has(id) ||
+    !playerSaveQueues.has(id)
+  ) {
+    return null;
+  }
+
+  playerSaveRunning.add(id);
+
+  const savingVersion =
+    Number(
+      playerSaveVersions.get(id) || 0
+    );
+
+  try {
+    if (!USE_POSTGRES || !dbReady) {
+      return null;
+    }
+
+    const latestPlayers =
+      playersCache || readPlayers();
+
+    const latestRaw =
+      latestPlayers?.[id];
+
+    if (
+      !latestRaw ||
+      typeof latestRaw !== "object"
+    ) {
+      return null;
+    }
+
+    const latestSnapshot =
+      normalizeStoreRecord(
+        id,
+        latestRaw,
+        latestRaw?.username || "Unknown"
+      );
+
+    const safeSnapshot =
+      isSystemStoreKey(id)
+        ? cloneJson(latestSnapshot || {})
+        : normalizePlayer(
+            latestSnapshot,
+            latestSnapshot?.username ||
+              "Unknown"
+          );
+
+    const before = JSON.stringify(
+      persistedCache?.[id] || null
+    );
+
+    const serializedSnapshot =
+      JSON.stringify(safeSnapshot || {});
+
+    if (before !== serializedSnapshot) {
+      const saved =
+        await upsertOnePlayerToPostgres(
+          id,
+          safeSnapshot
+        );
+
+      if (saved) {
+        persistedCache[id] =
+          cloneJson(safeSnapshot);
+      }
+    }
+
+    return safeSnapshot;
+  } catch (error) {
+    if (
+      PLAYER_DB_SNAPSHOT_ERROR_LOG_ENABLED
+    ) {
+      console.error(
+        "[PLAYER DB SNAPSHOT SAVE ERROR]",
+        {
+          userId: id,
+          message:
+            error?.message || error,
+        }
+      );
+    }
+
+    return null;
+  } finally {
+    playerSaveRunning.delete(id);
+
+    const latestVersion =
+      Number(
+        playerSaveVersions.get(id) || 0
+      );
+
+    if (latestVersion > savingVersion) {
+      scheduleCoalescedPlayerSave(id);
+    } else {
+      const resolve =
+        playerSaveResolvers.get(id);
+
+      if (typeof resolve === "function") {
+        resolve(
+          playersCache?.[id] || null
+        );
+      }
+
+      const timer =
+        playerSaveTimers.get(id);
+
+      if (timer) {
+        clearTimeout(timer);
+      }
+
+      playerSaveTimers.delete(id);
+      playerSaveVersions.delete(id);
+      playerSaveResolvers.delete(id);
+      playerSaveQueues.delete(id);
+    }
+  }
+}
+
+function enqueuePlayerSnapshotSave(
+  userId,
+  player
+) {
+  if (
+    !PLAYER_DB_SNAPSHOT_SAVE_ENABLED ||
+    !USE_POSTGRES ||
+    !dbReady
+  ) {
     return Promise.resolve(null);
   }
 
   const id = String(userId);
 
-  const initialSnapshot = normalizeStoreRecord(
+  if (
+    player &&
+    typeof player === "object"
+  ) {
+    if (!playersCache) {
+      playersCache = {};
+    }
+
+    playersCache[id] = player;
+  }
+
+  playerSaveVersions.set(
     id,
-    player,
-    player?.username || "Unknown"
+    Number(
+      playerSaveVersions.get(id) || 0
+    ) + 1
   );
 
-  const previous = playerSaveQueues.get(id) || Promise.resolve();
+  let pending =
+    playerSaveQueues.get(id);
 
-  const next = previous
-    .catch(() => {})
-    .then(async () => {
-      if (!USE_POSTGRES || !dbReady) return null;
-
-      const latestPlayers = playersCache || readPlayers();
-      const latestRaw = latestPlayers?.[id] || initialSnapshot;
-
-      const latestSnapshot = normalizeStoreRecord(
+  if (!pending) {
+    pending = new Promise((resolve) => {
+      playerSaveResolvers.set(
         id,
-        latestRaw,
-        latestRaw?.username || initialSnapshot?.username || "Unknown"
+        resolve
       );
-
-      const safeSnapshot = isSystemStoreKey(id)
-        ? cloneJson(latestSnapshot || {})
-        : normalizePlayer(
-            latestSnapshot,
-            latestSnapshot?.username || "Unknown"
-          );
-
-      const saved = await upsertOnePlayerToPostgres(id, safeSnapshot);
-
-      if (saved) {
-        persistedCache[id] = cloneJson(safeSnapshot);
-      }
-
-      return safeSnapshot;
-    })
-    .catch((error) => {
-      if (PLAYER_DB_SNAPSHOT_ERROR_LOG_ENABLED) {
-        console.error("[PLAYER DB SNAPSHOT SAVE ERROR]", {
-          userId: id,
-          message: error?.message || error,
-        });
-      }
-      return null;
-    })
-    .finally(() => {
-      if (playerSaveQueues.get(id) === next) {
-        playerSaveQueues.delete(id);
-      }
     });
 
-  playerSaveQueues.set(id, next);
-  return next;
+    playerSaveQueues.set(id, pending);
+  }
+
+  scheduleCoalescedPlayerSave(id);
+
+  return pending;
 }
 
 function cloneJson(value) {
@@ -964,68 +1145,20 @@ function enqueueFastPlayerSave(
     return Promise.resolve(null);
   }
 
-  const previous =
-    fastPlayerSaveQueues.get(id) ||
-    Promise.resolve();
+  const latest =
+    playersCache?.[id];
 
-  const next = previous
-    .catch(() => {})
-    .then(async () => {
-      /*
-        Read the latest cache only when this queued
-        save actually starts. This prevents an older
-        PA snapshot from overwriting a newer command.
-      */
-      const latest =
-        playersCache?.[id];
+  if (
+    !latest ||
+    typeof latest !== "object"
+  ) {
+    return Promise.resolve(null);
+  }
 
-      if (
-        !latest ||
-        typeof latest !== "object"
-      ) {
-        return null;
-      }
-
-      const saved =
-        await upsertOnePlayerRawToPostgres(
-          id,
-          latest
-        );
-
-      if (saved) {
-        /*
-          Do not normalize/clone the full player here.
-          The next DB comparison is not needed for the
-          PA fast path.
-        */
-        persistedCache[id] = latest;
-      }
-
-      return latest;
-    })
-    .catch((error) => {
-      console.error(
-        "[PLAYER FAST SAVE ERROR]",
-        {
-          userId: id,
-          message:
-            error?.message || error,
-        }
-      );
-
-      return null;
-    })
-    .finally(() => {
-      if (
-        fastPlayerSaveQueues.get(id) === next
-      ) {
-        fastPlayerSaveQueues.delete(id);
-      }
-    });
-
-  fastPlayerSaveQueues.set(id, next);
-
-  return next;
+  return enqueuePlayerSnapshotSave(
+    id,
+    latest
+  );
 }
 
 async function updateOnePlayerInPostgresAtomic(userId, username, mutator) {

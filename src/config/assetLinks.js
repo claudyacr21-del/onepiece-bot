@@ -432,9 +432,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1498626468710846485/content.png?ex=69f1d829&is=69f086a9&hm=7e2049fd8ee4b20ef7c2e76081287dc6ab52c18dabdbe59a44d87a86f6852741&",
   },
   crocodile_desert_king: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1498640798416375940/content.png?ex=69f1e581&is=69f09401&hm=a83a0efbd1b10109919f5cc27d7aafc4893060d1552421c412f885ef51434ce9&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1498640798961373286/content.png?ex=69f1e581&is=69f09401&hm=52a22c8197da147ddfa65ce4a216619f9f5c4e77758b17da5f8b116a9cf55f72&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1498640799456559184/content.png?ex=69f1e581&is=69f09401&hm=2b5924b8535368b37780383bffd7b2d4fab433c99be03c355591906ccad66082&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1535177196757581824/crocodile_1.jpg?ex=6a76d0ad&is=6a757f2d&hm=4dc340cac0171f8f654300407f20cf0d6fac31150e9afab0bd4a387723de2ce3&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1535177197147656282/crocodile_2.jpg?ex=6a76d0ae&is=6a757f2e&hm=549440cbead6d5a084acf46b7e9597ac4ab0e2bd79bd6c947bc66566c9535e7d&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1535177197596180571/crocodile_3.jpg?ex=6a76d0ae&is=6a757f2e&hm=9e077a00cb1f27f2cdfb741a1048607888b834ce823185dfc028a586b685cd62&",
   },
   nico_robin_devil_child: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1526616595751895202/robin_1.jpeg?ex=6a5854bf&is=6a57033f&hm=a244a8e9193188adca1a8a7c2b22776418f0f23787e97a4d57b0572347d46b12&",
