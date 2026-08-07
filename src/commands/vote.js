@@ -17,7 +17,16 @@ const BOTLIST_URL =
   "https://botlist.me/bots/1492759342972407869/vote";
 
 const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
-const RAID_TICKET_STREAK_TARGET = 25;
+
+const GOLD_RAID_TICKET_STREAK_TARGET = 14;
+const MYTHIC_RAID_TICKET_STREAK_TARGET = 25;
+
+const BERRY_EMOJI = "<:berry:1532401337063702538>";
+const PULL_RESET_EMOJI = "<:pullreset:1534501021957750784>";
+const GOLD_RAID_TICKET_EMOJI =
+  "<:GoldenRaidTicket:1524049593913053447>";
+const MYTHIC_RAID_TICKET_EMOJI =
+  "<:MythicRaidTicket:1524049580239487168>";
 
 function getTopggCooldownAt(player) {
   const cooldownVote = Number(
@@ -112,13 +121,24 @@ function formatCooldown(timestamp) {
   return `${seconds}s`;
 }
 
-function getNextRaidTicketIn(streak) {
-  const current = Number(streak || 0);
-  const mod = current % RAID_TICKET_STREAK_TARGET;
+function getNextStreakRewardIn(streak, target) {
+  const current = Math.max(
+    0,
+    Math.floor(Number(streak || 0))
+  );
 
-  if (mod === 0 && current > 0) return RAID_TICKET_STREAK_TARGET;
+  const required = Math.max(
+    1,
+    Math.floor(Number(target || 1))
+  );
 
-  return RAID_TICKET_STREAK_TARGET - mod;
+  const mod = current % required;
+
+  if (mod === 0 && current > 0) {
+    return required;
+  }
+
+  return required - mod;
 }
 
 function buildVoteEmbed(message, player) {
@@ -173,8 +193,17 @@ function buildVoteEmbed(message, player) {
   const botlistCooldownAt =
     getBotlistCooldownAt(player);
 
-  const nextRaidTicketIn =
-    getNextRaidTicketIn(topggStreak);
+  const nextGoldRaidTicketIn =
+    getNextStreakRewardIn(
+      topggStreak,
+      GOLD_RAID_TICKET_STREAK_TARGET
+    );
+
+  const nextMythicRaidTicketIn =
+    getNextStreakRewardIn(
+      topggStreak,
+      MYTHIC_RAID_TICKET_STREAK_TARGET
+    );
 
   return new EmbedBuilder()
     .setColor(0x8e44ad)
@@ -186,17 +215,19 @@ function buildVoteEmbed(message, player) {
 
         "## 🔵 Top.gg",
         "🎁 **Reward**",
-        "• Pull Reset Ticket x1",
-        "• 5,000 Berries",
+        `• ${PULL_RESET_EMOJI} Pull Reset Ticket x1`,
+        `• 5,000 ${BERRY_EMOJI}`,
         "",
         `⏳ **Cooldown:** ${formatCooldown(
           topggCooldownAt
         )}`,
         `🗳️ **Total Votes:** ${topggTotalVotes}`,
         `🔥 **Current Streak:** ${topggStreak}`,
-        `🎫 **Next Raid Ticket:** ${nextRaidTicketIn} vote(s)`,
+        `${GOLD_RAID_TICKET_EMOJI} **Next Gold Raid Ticket (TL):** ${nextGoldRaidTicketIn} vote(s)`,
+        `${MYTHIC_RAID_TICKET_EMOJI} **Next Mythic Raid Ticket (TL):** ${nextMythicRaidTicketIn} vote(s)`,
         "",
-        "Every **25 Top.gg vote streak** rewards **Raid Ticket x1**.",
+        `Every **14 Top.gg vote streak** rewards ${GOLD_RAID_TICKET_EMOJI} **Gold Raid Ticket (TL) x1**.`,
+        `Every **25 Top.gg vote streak** rewards ${MYTHIC_RAID_TICKET_EMOJI} **Mythic Raid Ticket (TL) x1**.`,
 
         "",
         "## 🟣 DiscordList.gg",

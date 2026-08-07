@@ -193,6 +193,19 @@ const ITEMS = {
       "A trade-locked ticket used to create an S Gold Raid room.",
   },
 
+  tlMythicRaidTicket: {
+    name: "Mythic Raid Ticket (TL)",
+    amount: 1,
+    rarity: "UR",
+    code: "tl_mythic_raid_ticket",
+    type: "Ticket",
+    tradeable: false,
+    untradeable: true,
+    tradeLocked: true,
+    description:
+      "A trade-locked ticket used to create a Mythic Merge Raid room.",
+  },
+
   royalMaterialBox: {
     name: "Royal Material Box",
     amount: 1,

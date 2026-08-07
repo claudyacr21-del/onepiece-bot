@@ -15,7 +15,16 @@ const VOTE_PULL_RESET_REWARD = 1;
 const DISCORDLIST_LEGEND_BOX_REWARD = 2;
 const BOTLIST_LEGEND_BOX_REWARD = 2;
 const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
-const RAID_TICKET_STREAK_TARGET = 25;
+
+const GOLD_RAID_TICKET_STREAK_TARGET = 14;
+const MYTHIC_RAID_TICKET_STREAK_TARGET = 25;
+
+const BERRY_EMOJI = "<:berry:1532401337063702538>";
+const PULL_RESET_EMOJI = "<:pullreset:1534501021957750784>";
+const GOLD_RAID_TICKET_EMOJI =
+  "<:GoldenRaidTicket:1524049593913053447>";
+const MYTHIC_RAID_TICKET_EMOJI =
+  "<:MythicRaidTicket:1524049580239487168>";
 
 function getDataDir() {
   return process.env.PLAYER_DATA_DIR || "/data";
@@ -903,15 +912,29 @@ async function sendVoteDm(client, userId, reward) {
         [
           "✅ Thanks for voting for One Piece Bot!",
           "",
-          `💰 Berries: +${reward.berries.toLocaleString("en-US")}`,
-          `🎟️ Pull Reset Ticket: +${reward.pullResetTickets}`,
-          ...(Number(reward.raidTickets || 0) > 0
-            ? [
-                "",
-                "🎉 **Vote Streak Bonus Unlocked!**",
-                `🎫 Raid Ticket: +${reward.raidTickets}`,
-              ]
-            : []),
+          `${BERRY_EMOJI} Berries: +${reward.berries.toLocaleString(
+            "en-US"
+          )}`,
+          `${PULL_RESET_EMOJI} Pull Reset Ticket: +${reward.pullResetTickets}`,
+          ...(
+            Number(reward.goldRaidTickets || 0) > 0 ||
+            Number(reward.mythicRaidTickets || 0) > 0
+              ? [
+                  "",
+                  "🎉 **Vote Streak Bonus Unlocked!**",
+                  ...(Number(reward.goldRaidTickets || 0) > 0
+                    ? [
+                        `${GOLD_RAID_TICKET_EMOJI} Gold Raid Ticket (TL): +${reward.goldRaidTickets}`,
+                      ]
+                    : []),
+                  ...(Number(reward.mythicRaidTickets || 0) > 0
+                    ? [
+                        `${MYTHIC_RAID_TICKET_EMOJI} Mythic Raid Ticket (TL): +${reward.mythicRaidTickets}`,
+                      ]
+                    : []),
+                ]
+              : []
+          ),
           "",
           `🔥 Vote Streak: ${reward.streak}`,
           `🗳️ Total Votes: ${reward.totalVotes}`,
@@ -971,15 +994,34 @@ async function handleVote(client, body) {
         type: "Ticket",
       });
 
-      const raidTicketReward =
-        nextStreak > 0 && nextStreak % RAID_TICKET_STREAK_TARGET === 0 ? 1 : 0;
+      const goldRaidTicketReward =
+        nextStreak > 0 &&
+        nextStreak % GOLD_RAID_TICKET_STREAK_TARGET === 0
+          ? 1
+          : 0;
 
-      if (raidTicketReward > 0) {
+      const mythicRaidTicketReward =
+        nextStreak > 0 &&
+        nextStreak % MYTHIC_RAID_TICKET_STREAK_TARGET === 0
+          ? 1
+          : 0;
+
+      if (goldRaidTicketReward > 0) {
         updatedTickets = addTicket(updatedTickets, {
-          code: "raid_ticket",
-          name: "Raid Ticket",
-          amount: raidTicketReward,
-          rarity: "A",
+          code: "tl_gold_raid_ticket",
+          name: "Gold Raid Ticket (TL)",
+          amount: goldRaidTicketReward,
+          rarity: "S",
+          type: "Ticket",
+        });
+      }
+
+      if (mythicRaidTicketReward > 0) {
+        updatedTickets = addTicket(updatedTickets, {
+          code: "tl_mythic_raid_ticket",
+          name: "Mythic Raid Ticket (TL)",
+          amount: mythicRaidTicketReward,
+          rarity: "UR",
           type: "Ticket",
         });
       }
@@ -991,7 +1033,8 @@ async function handleVote(client, body) {
       reward = {
         berries: VOTE_BERRY_REWARD,
         pullResetTickets: VOTE_PULL_RESET_REWARD,
-        raidTickets: raidTicketReward,
+        goldRaidTickets: goldRaidTicketReward,
+        mythicRaidTickets: mythicRaidTicketReward,
         streak: nextStreak,
         totalVotes: nextTotalVotes,
         cooldownUntil: now + VOTE_COOLDOWN_MS,
@@ -1035,7 +1078,8 @@ async function handleVote(client, body) {
     eventId,
     berries: VOTE_BERRY_REWARD,
     pullResetTickets: VOTE_PULL_RESET_REWARD,
-    raidTickets: reward.raidTickets,
+    goldRaidTickets: reward.goldRaidTickets,
+    mythicRaidTickets: reward.mythicRaidTickets,
     ignoredWeight: body?.data?.weight || body?.isWeekend || null,
     cooldownUntil: reward.cooldownUntil,
   });

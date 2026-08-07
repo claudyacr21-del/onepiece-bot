@@ -924,6 +924,7 @@ const TRADE_LOCKED_RAID_TICKET_CODES = Object.freeze({
   common_raid_ticket: "tl_common_raid_ticket",
   raid_ticket: "tl_raid_ticket",
   gold_raid_ticket: "tl_gold_raid_ticket",
+  mythic_raid_ticket: "tl_mythic_raid_ticket",
 });
 
 function getTradeLockedRaidTicketCode(raidMode) {
@@ -936,9 +937,10 @@ function getTradeLockedRaidTicketCode(raidMode) {
 
 function getTradeLockedRaidTicketName(raidMode) {
   const names = {
-    common_raid_ticket: "TL Common Raid Ticket",
-    raid_ticket: "TL Raid Ticket",
-    gold_raid_ticket: "TL Gold Raid Ticket",
+    common_raid_ticket: "Common Raid Ticket (TL)",
+    raid_ticket: "Raid Ticket (TL)",
+    gold_raid_ticket: "Gold Raid Ticket (TL)",
+    mythic_raid_ticket: "Mythic Raid Ticket (TL)",
   };
 
   return (
