@@ -28,10 +28,10 @@ const MIDSUMMER_END_AT = Date.parse(
 );
 
 const CURRENCY_DISPLAY = {
-  berries: "<:berry:1532401337063702538>",
-  gems: "<:gems:1532392133611229304>",
+  berries: getItemEmoji("berries"),
+  gems: getItemEmoji("gems"),
   goldenFoilCoins:
-    "<:GoldenFoilCoin:1532388575197270228>",
+    getItemEmoji("golden_foil_coin"),
 };
 
 function getCurrencyDisplay(currency) {

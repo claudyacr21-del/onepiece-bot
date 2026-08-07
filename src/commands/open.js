@@ -772,27 +772,29 @@ function formatRewardLines(rewardMap) {
   const lines = [];
 
   for (const [name, amount] of rewardMap.entries()) {
+    const formattedAmount = Number(
+      amount || 0
+    ).toLocaleString("en-US");
+
     if (name === "Berries") {
       lines.push(
-        ` Berries +${Number(
-          amount || 0
-        ).toLocaleString("en-US")}`
+        ` ${getItemEmoji("berries")} Berries +${formattedAmount}`
       );
-    } else if (name === "Gems") {
-      lines.push(
-        ` Gems +${Number(
-          amount || 0
-        ).toLocaleString("en-US")}`
-      );
-    } else {
-      const emoji = getItemEmoji(name);
-
-      lines.push(
-        ` ${emoji ? `${emoji} ` : ""}${name} x${Number(
-          amount || 0
-        ).toLocaleString("en-US")}`
-      );
+      continue;
     }
+
+    if (name === "Gems") {
+      lines.push(
+        ` ${getItemEmoji("gems")} Gems +${formattedAmount}`
+      );
+      continue;
+    }
+
+    const emoji = getItemEmoji(name);
+
+    lines.push(
+      ` ${emoji ? `${emoji} ` : ""}${name} x${formattedAmount}`
+    );
   }
 
   return lines;

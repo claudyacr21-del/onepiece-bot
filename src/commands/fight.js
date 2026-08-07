@@ -34,6 +34,10 @@ const {
   applyServerTagCurrencyBonus,
 } = require("../utils/serverTagPerks");
 
+const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
+
 const NORMAL_FIGHT_COOLDOWN_MS = 8 * 60 * 1000;
 const MOTHER_FLAME_FIGHT_COOLDOWN_MS = 5 * 60 * 1000;
 const VIVRE_CARD_FIGHT_COOLDOWN_MS = 6.5 * 60 * 1000;
@@ -48,7 +52,7 @@ const MIDSUMMER_END_AT = Date.parse(
 );
 
 const GOLDEN_FOIL_COIN_EMOJI =
-  "<:GoldenFoilCoin:1532388575197270228>";
+  getItemEmoji("golden_foil_coin");
 
 function isMidsummerCoinCollectionActive(
   now = Date.now()

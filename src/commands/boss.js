@@ -48,6 +48,10 @@ const {
   updatePirate,
 } = require("../utils/pirateStore");
 
+const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
+
 const BOSS_COOLDOWN_MS = 10 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
 const BOSS_PHASE_JOIN_MIN = 1;
@@ -70,7 +74,7 @@ const MIDSUMMER_END_AT = Date.parse(
 const BOSS_GOLDEN_FOIL_COIN_REWARD = 5;
 
 const GOLDEN_FOIL_COIN_EMOJI =
-  "<:GoldenFoilCoin:1532388575197270228>";
+  getItemEmoji("golden_foil_coin");
 
 function getBossGoldenFoilCoinReward(
   now = Date.now()
@@ -2600,8 +2604,12 @@ function formatRewardLines(reward) {
   const serverTagPerks = reward?.serverTagPerks || {};
 
   const lines = [
-    `💰 +${totals.baseBerries.toLocaleString("en-US")} berries`,
-    `💎 +${totals.baseGems.toLocaleString("en-US")} gems`,
+    `${getItemEmoji("berries")} +${totals.baseBerries.toLocaleString(
+      "en-US"
+    )} berries`,
+    `${getItemEmoji("gems")} +${totals.baseGems.toLocaleString(
+      "en-US"
+    )} gems`,
   ];
 
   if (totals.bonusBerries > 0) {
@@ -2660,10 +2668,14 @@ function formatRewardLines(reward) {
   }
 
   for (const box of reward.boxes || []) {
+    const boxEmoji = getItemEmoji(
+      box.code || box.name
+    );
+
     lines.push(
-      `📦 ${box.name || "Resource Box"} x${Number(
-        box.amount || 1
-      )}`
+      `${boxEmoji ? `${boxEmoji} ` : ""}${
+        box.name || "Resource Box"
+      } x${Number(box.amount || 1)}`
     );
   }
 

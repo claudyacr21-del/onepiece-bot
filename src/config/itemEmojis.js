@@ -1,4 +1,11 @@
 const ITEM_EMOJIS = Object.freeze({
+  berries:
+    "<:berry:1532401337063702538>",
+  gems:
+    "<:gems:1532392133611229304>",
+  golden_foil_coin:
+    "<:GoldenFoilCoin:1532388575197270228>",
+
   universal_c:
     "<:uni_c:1535244137056444446>",
   universal_b:
@@ -111,8 +118,33 @@ function normalizeItemCode(value) {
 }
 
 function getItemEmoji(itemOrCode) {
-  const code =
+  const normalizedCode =
     normalizeItemCode(itemOrCode);
+
+  const aliases = {
+    berry: "berries",
+    gem: "gems",
+    golden_foil_coins:
+      "golden_foil_coin",
+
+    universal_c_fragment:
+      "universal_c",
+    universal_b_fragment:
+      "universal_b",
+    universal_a_fragment:
+      "universal_a",
+    universal_s_fragment:
+      "universal_s",
+
+    universal_random:
+      "random_universal_fragment",
+    random_universal:
+      "random_universal_fragment",
+  };
+
+  const code =
+    aliases[normalizedCode] ||
+    normalizedCode;
 
   return ITEM_EMOJIS[code] || "";
 }

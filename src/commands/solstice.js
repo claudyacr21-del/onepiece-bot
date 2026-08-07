@@ -30,6 +30,10 @@ const {
   applyCustomSkinToCard,
 } = require("../utils/customSkins");
 
+const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
+
 const EVENT_ID = "midsummer_2026";
 const GLOBAL_STORE_ID = "__midsummer_2026_global";
 
@@ -54,10 +58,10 @@ const MANUAL_FIGHT_TIMEOUT_MS =
 const MIN_FINAL_REWARD_TICKETS = 20;
 
 const BERRY_EMOJI =
-  "<:berry:1532401337063702538>";
+  getItemEmoji("berries");
 
 const GEMS_EMOJI =
-  "<:gems:1532392133611229304>";
+  getItemEmoji("gems");
 
 const NIKA_BOSS_GIF =
   process.env.MIDSUMMER_NIKA_GIF || "";
@@ -1724,7 +1728,7 @@ async function attackNika(message) {
 
                     ...attackRewards.chests.map(
                       (chest) =>
-                        `📦 ${chest.name} x1 [${chest.rarity}]`
+                        `${getItemEmoji(chest.code)} ${chest.name} x1 [${chest.rarity}]`
                     ),
 
                     "",

@@ -2,6 +2,16 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { ITEMS, cloneItem } = require("../data/items");
 const devilFruitsDb = require("../data/devilFruits");
+const {
+  getItemEmoji,
+  getCategoryEmoji,
+} = require("../config/itemEmojis");
+
+const DEVIL_FRUIT_EMOJI =
+  getCategoryEmoji("fruit");
+
+const FRUIT_ESSENCE_EMOJI =
+  getItemEmoji("fruit_essence");
 
 const ESSENCE_BY_RARITY = {
   C: 5,
@@ -267,15 +277,17 @@ async function breakAllFruitsByRarity(message, targetRarity) {
 
   const embed = new EmbedBuilder()
     .setColor(0x9b59b6)
-    .setTitle("🍈 Devil Fruits Broken Down")
+    .setTitle(
+      `${DEVIL_FRUIT_EMOJI} Devil Fruits Broken Down`
+    )
     .setDescription(
       [
         `**Rarity:** ${targetRarity}`,
         `**Fruit Types Broken:** ${fruitTypesBroken}`,
-        `**Total Fruits Broken:** x${totalBroken}`,
-        `**Fruit Essence Gained:** +${totalEssence}`,
+        `**Total Fruits Broken:** x${totalBroken} ${DEVIL_FRUIT_EMOJI}`,
+        `**Fruit Essence Gained:** +${totalEssence} ${FRUIT_ESSENCE_EMOJI}`,
         "",
-        "Use `op fshop` to see what you can buy with Fruit Essence.",
+        `Use \`op fshop\` to spend your ${FRUIT_ESSENCE_EMOJI} Fruit Essence.`,
       ].join("\n")
     )
     .setFooter({
@@ -387,16 +399,18 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(0x9b59b6)
-      .setTitle("🍈 Devil Fruit Broken Down")
+      .setTitle(
+        `${DEVIL_FRUIT_EMOJI} Devil Fruit Broken Down`
+      )
       .setDescription(
         [
-          `**Fruit:** ${foundFruit.name}`,
+          `**Fruit:** ${DEVIL_FRUIT_EMOJI} ${foundFruit.name}`,
           `**Rarity:** ${rarity}`,
           `**Broken:** x${amountToBreak}`,
-          `**Fruit Essence Gained:** +${essenceAmount}`,
-          `**Remaining Fruit:** ${remaining}`,
+          `**Fruit Essence Gained:** +${essenceAmount} ${FRUIT_ESSENCE_EMOJI}`,
+          `**Remaining Fruit:** ${remaining} ${DEVIL_FRUIT_EMOJI}`,
           "",
-          "Use `op fshop` to see what you can buy with Fruit Essence.",
+          `Use \`op fshop\` to spend your ${FRUIT_ESSENCE_EMOJI} Fruit Essence.`,
         ].join("\n")
       )
       .setFooter({

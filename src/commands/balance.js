@@ -1,14 +1,17 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer } = require("../playerStore");
+const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
 
 const BERRY_EMOJI =
-  "<:berry:1532401337063702538>";
+  getItemEmoji("berries");
 
 const GEMS_EMOJI =
-  "<:gems:1532392133611229304>";
+  getItemEmoji("gems");
 
 const GOLDEN_FOIL_COIN_EMOJI =
-  "<:GoldenFoilCoin:1532388575197270228>";
+  getItemEmoji("golden_foil_coin");
 
 function getProfileImage(message) {
   return (

@@ -6,6 +6,9 @@ const {
 } = require("discord.js");
 
 const { getPlayer } = require("../playerStore");
+const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
 
 const TOPGG_URL =
   "https://top.gg/bot/1492759342972407869/vote";
@@ -21,12 +24,20 @@ const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const GOLD_RAID_TICKET_STREAK_TARGET = 14;
 const MYTHIC_RAID_TICKET_STREAK_TARGET = 25;
 
-const BERRY_EMOJI = "<:berry:1532401337063702538>";
-const PULL_RESET_EMOJI = "<:pullreset:1534501021957750784>";
+const BERRY_EMOJI =
+  getItemEmoji("berries");
+
+const PULL_RESET_EMOJI =
+  getItemEmoji("pull_reset_ticket");
+
 const GOLD_RAID_TICKET_EMOJI =
-  "<:graid:1524049593913053447>";
+  getItemEmoji("tl_gold_raid_ticket");
+
 const MYTHIC_RAID_TICKET_EMOJI =
-  "<:mraid:1524049580239487168>";
+  getItemEmoji("tl_mythic_raid_ticket");
+
+const LEGEND_BOX_EMOJI =
+  getItemEmoji("legend_resource_box");
 
 function getTopggCooldownAt(player) {
   const cooldownVote = Number(
@@ -232,7 +243,7 @@ function buildVoteEmbed(message, player) {
         "",
         "## 🟣 DiscordList.gg",
         "🎁 **Reward**",
-        "• Legend Resource Box x2",
+        `• ${LEGEND_BOX_EMOJI} Legend Resource Box x2`,
         "",
         `⏳ **Cooldown:** ${formatCooldown(
           discordListCooldownAt
@@ -242,7 +253,7 @@ function buildVoteEmbed(message, player) {
         "",
         "## 🟢 Botlist.me",
         "🎁 **Reward**",
-        "• Legend Resource Box x2",
+        `• ${LEGEND_BOX_EMOJI} Legend Resource Box x2`,
         "",
         `⏳ **Cooldown:** ${formatCooldown(
           botlistCooldownAt

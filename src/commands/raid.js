@@ -37,6 +37,10 @@ const {
   getServerTagPerks,
 } = require("../utils/serverTagPerks");
 
+const {
+  getCategoryEmoji,
+} = require("../config/itemEmojis");
+
 const RAID_ROOM_TIMEOUT_MS = 30 * 60 * 1000;
 const RAID_LOBBY_IDLE_REFUND_MS = 2 * 60 * 1000;
 const RAID_PICK_TIMEOUT_MS = 60 * 1000;
@@ -3328,7 +3332,9 @@ function formatRaidWinRewardLines(state) {
     }
 
     if (reward.fruit) {
-      extras.push(`🍈 ${reward.fruit}`);
+      extras.push(
+        `${getCategoryEmoji("fruit")} ${reward.fruit}`
+      );
     }
 
     if (reward.isHost && extras.length) {

@@ -8,6 +8,10 @@ const {
   flushPlayerNow,
 } = require("./playerStore");
 
+const {
+  getItemEmoji,
+} = require("./config/itemEmojis");
+
 let serverStarted = false;
 
 const VOTE_BERRY_REWARD = 5000;
@@ -19,12 +23,20 @@ const VOTE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const GOLD_RAID_TICKET_STREAK_TARGET = 14;
 const MYTHIC_RAID_TICKET_STREAK_TARGET = 25;
 
-const BERRY_EMOJI = "<:berry:1532401337063702538>";
-const PULL_RESET_EMOJI = "<:pullreset:1534501021957750784>";
+const BERRY_EMOJI =
+  getItemEmoji("berries");
+
+const PULL_RESET_EMOJI =
+  getItemEmoji("pull_reset_ticket");
+
 const GOLD_RAID_TICKET_EMOJI =
-  "<:GoldenRaidTicket:1524049593913053447>";
+  getItemEmoji("tl_gold_raid_ticket");
+
 const MYTHIC_RAID_TICKET_EMOJI =
-  "<:MythicRaidTicket:1524049580239487168>";
+  getItemEmoji("tl_mythic_raid_ticket");
+
+const LEGEND_BOX_EMOJI =
+  getItemEmoji("legend_resource_box");
 
 function getDataDir() {
   return process.env.PLAYER_DATA_DIR || "/data";
@@ -320,7 +332,7 @@ async function sendDiscordListVoteDm(
         [
           "✅ Thanks for voting for One Piece Bot on DiscordList.gg!",
           "",
-          `📦 Legend Resource Box: +${Number(
+          `${LEGEND_BOX_EMOJI} Legend Resource Box: +${Number(
             reward.legendBoxes || 0
           ).toLocaleString("en-US")}`,
           "",
@@ -473,7 +485,7 @@ async function sendBotlistVoteDm(
         [
           "✅ Thanks for voting for One Piece Bot on Botlist.me!",
           "",
-          `📦 Legend Resource Box: +${Number(
+          `${LEGEND_BOX_EMOJI} Legend Resource Box: +${Number(
             reward.legendBoxes || 0
           ).toLocaleString("en-US")}`,
           "",
