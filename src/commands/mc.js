@@ -1102,6 +1102,8 @@ module.exports = {
 
     const allowedSubCommands = [
       "text",
+      "boost",
+      "weapon",
       "m1",
       "m2",
       "m3",
