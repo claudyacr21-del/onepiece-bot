@@ -15,6 +15,10 @@ const {
   applyDiscount,
 } = require("../utils/serverTagPerks");
 
+const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
+
 const MIDSUMMER_START_AT = Date.parse(
   "2026-07-31T17:00:00.000Z"
 );
@@ -316,6 +320,9 @@ function buildMarketEmbed(player, message) {
         serverTagPerks
       );
 
+      const itemEmoji =
+        getItemEmoji(entry.code);
+
       const currencyDisplay =
         getCurrencyDisplay(
           entry.currency || "gems"
@@ -334,7 +341,7 @@ function buildMarketEmbed(player, message) {
             )}** ${currencyDisplay}`;
 
       return [
-        `**${index + 1}. ${entry.name}** • ${priceText}`,
+        `**${itemEmoji || `${index + 1}.`} ${entry.name}** • ${priceText}`,
         `↪ ${entry.description}`,
         `↪ Buy: \`op buy ${entry.aliases[0]}\``,
       ].join("\n");
@@ -447,7 +454,11 @@ function getPurchaseUsageText(found, inventoryKey) {
   return "Use `op inv` to check your inventory.";
 }
 
-function trackObtained(obtainedMap, item, qty = 1) {
+function trackObtained(
+  obtainedMap,
+  item,
+  qty = 1
+) {
   if (!item) {
     return;
   }
@@ -459,7 +470,9 @@ function trackObtained(obtainedMap, item, qty = 1) {
 
   const current =
     obtainedMap.get(key) || {
-      name: item.name || "Unknown Item",
+      code: item.code || key,
+      name:
+        item.name || "Unknown Item",
       amount: 0,
     };
 
@@ -468,8 +481,11 @@ function trackObtained(obtainedMap, item, qty = 1) {
   obtainedMap.set(key, current);
 }
 
-function formatObtainedItems(obtainedMap) {
-  const items = [...obtainedMap.values()];
+function formatObtainedItems(
+  obtainedMap
+) {
+  const items =
+    [...obtainedMap.values()];
 
   if (!items.length) {
     return null;
@@ -477,7 +493,12 @@ function formatObtainedItems(obtainedMap) {
 
   return `Obtained: **${items
     .map((item) => {
-      return `${item.name} x${Number(
+      const icon =
+        getItemEmoji(item.code);
+
+      return `${icon ? `${icon} ` : ""}${
+        item.name
+      } x${Number(
         item.amount || 0
       ).toLocaleString("en-US")}`;
     })
@@ -695,8 +716,15 @@ module.exports = {
       });
     }
 
+    const foundEmoji =
+      getItemEmoji(found.code);
+
     const purchaseLines = [
-      `Bought: **${found.name} x${amount}**`,
+      `Bought: **${
+        foundEmoji
+          ? `${foundEmoji} `
+          : ""
+      }${found.name} x${amount}**`,
       formatObtainedItems(obtainedMap),
     ];
 

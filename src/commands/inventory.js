@@ -8,6 +8,10 @@ const {
 } = require("discord.js");
 
 const { getPlayer } = require("../playerStore");
+const {
+  getItemEmoji,
+  getCategoryEmoji,
+} = require("../config/itemEmojis");
 
 const COLOR = 0x3498db;
 const PAGE_SIZE = 12;
@@ -133,44 +137,44 @@ const CATEGORY_CONFIG = {
   main: {
     label: "Overview",
     description: "Inventory category menu",
-    emoji: "🎒",
-    title: "🎒 Inventory Menu",
+    emoji: getCategoryEmoji("main"),
+    title: `${getCategoryEmoji("main")} Inventory Menu`,
   },
   fruit: {
     label: "Devil Fruits",
     description: "View all Devil Fruits",
-    emoji: "🍈",
-    title: "🍈 Devil Fruits",
+    emoji: getCategoryEmoji("fruit"),
+    title: `${getCategoryEmoji("fruit")} Devil Fruits`,
   },
   ticket: {
     label: "Tickets",
     description: "View all Tickets",
-    emoji: "🎟️",
-    title: "🎟️ Tickets",
+    emoji: getCategoryEmoji("ticket"),
+    title: `${getCategoryEmoji("ticket")} Tickets`,
   },
   box: {
     label: "Boxes",
     description: "View all Boxes",
-    emoji: "🎁",
-    title: "🎁 Boxes",
+    emoji: getCategoryEmoji("box"),
+    title: `${getCategoryEmoji("box")} Boxes`,
   },
   consum: {
     label: "Consumables",
     description: "View all Consumables",
-    emoji: "🍺",
-    title: "🍺 Consumables",
+    emoji: getCategoryEmoji("consum"),
+    title: `${getCategoryEmoji("consum")} Consumables`,
   },
   material: {
     label: "Materials",
     description: "View all Materials",
-    emoji: "🧱",
-    title: "🧱 Materials",
+    emoji: getCategoryEmoji("material"),
+    title: `${getCategoryEmoji("material")} Materials`,
   },
   item: {
     label: "Items",
     description: "View all other Items",
-    emoji: "📦",
-    title: "📦 Items",
+    emoji: getCategoryEmoji("item"),
+    title: `${getCategoryEmoji("item")} Items`,
   },
 };
 
@@ -418,8 +422,18 @@ function getInventoryLists(player) {
   };
 }
 
-function formatItemLine(item, index) {
-  return `**${index + 1}.** ${getItemName(item)} ${amountText(item)}${rarityText(item)}`;
+function formatItemLine(
+  item,
+  index,
+  category
+) {
+  const icon =
+    getItemEmoji(item) ||
+    getCategoryEmoji(category);
+
+  return `${icon || `**${index + 1}.**`} ${getItemName(
+    item
+  )} ${amountText(item)}${rarityText(item)}`;
 }
 
 function getTotalPages(list) {
@@ -489,12 +503,12 @@ function buildInventoryEmbed(message, player, category = "main", page = 0) {
           "Select an inventory category from the menu below.",
           "",
           "**Categories**",
-          `🍈 Devil Fruits: **${lists.fruit.length}**`,
-          `🎟️ Tickets: **${lists.ticket.length}**`,
-          `🎁 Boxes: **${lists.box.length}**`,
-          `🍺 Consumables: **${lists.consum.length}**`,
-          `🧱 Materials: **${lists.material.length}**`,
-          `📦 Items: **${lists.item.length}**`,
+          `${getCategoryEmoji("fruit")} Devil Fruits: **${lists.fruit.length}**`,
+          `${getCategoryEmoji("ticket")} Tickets: **${lists.ticket.length}**`,
+          `${getCategoryEmoji("box")} Boxes: **${lists.box.length}**`,
+          `${getCategoryEmoji("consum")} Consumables: **${lists.consum.length}**`,
+          `${getCategoryEmoji("material")} Materials: **${lists.material.length}**`,
+          `${getCategoryEmoji("item")} Items: **${lists.item.length}**`,
           "",
           `**Total Entries:** ${total}`,
           "",
@@ -520,7 +534,14 @@ function buildInventoryEmbed(message, player, category = "main", page = 0) {
   const safePage = clampPage(page, totalPages);
   const start = safePage * PAGE_SIZE;
   const shown = list.slice(start, start + PAGE_SIZE);
-  const lines = shown.map((item, index) => formatItemLine(item, start + index));
+  const lines = shown.map(
+    (item, index) =>
+      formatItemLine(
+        item,
+        start + index,
+        selected
+      )
+  );
 
   return new EmbedBuilder()
     .setColor(COLOR)
