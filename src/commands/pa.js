@@ -1453,6 +1453,9 @@ module.exports = {
       const premiumAccess =
         await premiumPromise;
 
+      const paPremiumFinishedAt =
+        Date.now();
+
       if (!premiumAccess) {
         return message.reply({
           content:
@@ -1482,6 +1485,9 @@ module.exports = {
           repliedUser: false,
         },
       });
+
+      const paLoadingSentAt =
+        Date.now();
 
       const pirateLuckBoost =
         getPirateLuckBoost(userId);
@@ -1555,6 +1561,9 @@ module.exports = {
           pityCounter = 0;
         }
       }
+
+      const paRollFinishedAt =
+        Date.now();
 
       /*
         Group identical results first.
@@ -1832,6 +1841,9 @@ module.exports = {
         }
       }
 
+      const paRewardsAppliedAt =
+        Date.now();
+
       const updatedPity = {
         ...(player.pity || {}),
         pullPity: pityCounter,
@@ -1943,6 +1955,9 @@ module.exports = {
             .convertedCount;
       }
 
+      const paStorageFinishedAt =
+        Date.now();
+
       const saveResult =
         savePullAllResultFresh(
           userId,
@@ -1986,6 +2001,9 @@ module.exports = {
           },
           username
         );
+
+      const paSaveFinishedAt =
+        Date.now();
 
       if (!saveResult.didSave) {
         return message.reply({
@@ -2110,12 +2128,44 @@ module.exports = {
         {
           userId,
           availableTotal,
+
           cards:
             player.cards?.length || 0,
+
           fragments:
             player.fragments?.length || 0,
+
           weapons:
             player.weapons?.length || 0,
+
+          premiumMs:
+            paPremiumFinishedAt -
+            paStartedAt,
+
+          loadingReplyMs:
+            paLoadingSentAt -
+            paPremiumFinishedAt,
+
+          rollMs:
+            paRollFinishedAt -
+            paLoadingSentAt,
+
+          applyRewardsMs:
+            paRewardsAppliedAt -
+            paRollFinishedAt,
+
+          storageAuditMs:
+            paStorageFinishedAt -
+            paRewardsAppliedAt,
+
+          saveMs:
+            paSaveFinishedAt -
+            paStorageFinishedAt,
+
+          buildResultMs:
+            paComputeFinishedAt -
+            paSaveFinishedAt,
+
           computeMs:
             paComputeFinishedAt -
             paStartedAt,
