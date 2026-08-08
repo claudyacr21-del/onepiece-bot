@@ -1456,6 +1456,47 @@ function ensureFile() {
   }
 }
 
+function writePlayersLocalBackupOnly(
+  data
+) {
+  ensureFile();
+
+  const safeData =
+    data &&
+    typeof data === "object" &&
+    !Array.isArray(data)
+      ? data
+      : {};
+
+  const serialized = JSON.stringify(
+    safeData,
+    null,
+    2
+  );
+
+  const temporaryPath =
+    `${filePath}.tmp`;
+
+  fs.writeFileSync(
+    temporaryPath,
+    serialized,
+    "utf8"
+  );
+
+  fs.renameSync(
+    temporaryPath,
+    filePath
+  );
+
+  fs.writeFileSync(
+    getLastGoodBackupPath(),
+    serialized,
+    "utf8"
+  );
+
+  return true;
+}
+
 function safeParseJson(raw) {
   if (!raw || !String(raw).trim()) return {};
   return JSON.parse(raw);
