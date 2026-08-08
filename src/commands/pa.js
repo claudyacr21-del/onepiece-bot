@@ -48,12 +48,6 @@ function normalizePaCode(value) {
   return String(value || "").toLowerCase().trim();
 }
 
-function yieldPaCommand() {
-  return new Promise((resolve) => {
-    setImmediate(resolve);
-  });
-}
-
 function getCachedRewardPool(contentType) {
   const key = String(contentType || "unknown");
 
@@ -1560,15 +1554,6 @@ module.exports = {
         if (triggeredPity) {
           pityCounter = 0;
         }
-
-        /*
-          This is not a timer delay.
-          It releases Discord's message event loop after
-          each roll, so op bal/op reset can run immediately.
-        */
-        await new Promise((resolve) => {
-          setImmediate(resolve);
-        });
       }
 
       /*
@@ -1845,14 +1830,6 @@ module.exports = {
             pityLabel
           );
         }
-
-        /*
-          Allow command messages between unique groups.
-          Normally there are only a few unique groups.
-        */
-        await new Promise((resolve) => {
-          setImmediate(resolve);
-        });
       }
 
       const updatedPity = {
