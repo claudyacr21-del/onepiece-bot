@@ -3027,6 +3027,129 @@ async function flushPlayerNow(userId, timeoutMs = 8000) {
   }
 }
 
+async function deletePlayerPermanent(
+  userId
+) {
+  const id = String(userId || "").trim();
+
+  if (!id || isSystemStoreKey(id)) {
+    return false;
+  }
+
+  if (
+    PLAYER_STORE_MODE === "postgres" &&
+    (!USE_POSTGRES || !dbReady)
+  ) {
+    console.error(
+      "[PLAYER STORE DELETE ERROR] PostgreSQL is not ready.",
+      {
+        userId: id,
+      }
+    );
+
+    return false;
+  }
+
+  const queuedSave =
+    playerSaveQueues.get(id);
+
+  if (
+    playerSaveRunning.has(id) &&
+    queuedSave
+  ) {
+    try {
+      await queuedSave;
+    } catch {}
+  }
+
+  const saveTimer =
+    playerSaveTimers.get(id);
+
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+  }
+
+  playerSaveTimers.delete(id);
+  playerSaveVersions.delete(id);
+
+  const pendingResolver =
+    playerSaveResolvers.get(id);
+
+  if (
+    typeof pendingResolver ===
+    "function"
+  ) {
+    pendingResolver(null);
+  }
+
+  playerSaveResolvers.delete(id);
+  playerSaveQueues.delete(id);
+
+  if (USE_POSTGRES && dbReady) {
+    const pool = getDbPool();
+
+    if (!pool) {
+      return false;
+    }
+
+    try {
+      await runDbWriteWithRetry(
+        async () => {
+          await ensurePlayersTable();
+
+          await pool.query(
+            "delete from players where user_id = $1",
+            [id]
+          );
+        },
+        `delete-player:${id}`
+      );
+    } catch (error) {
+      console.error(
+        "[PLAYER STORE DELETE ERROR]",
+        {
+          userId: id,
+          message:
+            error?.message || error,
+        }
+      );
+
+      return false;
+    }
+  }
+
+  if (
+    playersCache &&
+    typeof playersCache === "object"
+  ) {
+    delete playersCache[id];
+  }
+
+  if (
+    persistedCache &&
+    typeof persistedCache === "object"
+  ) {
+    delete persistedCache[id];
+  }
+
+  try {
+    writePlayersLocalBackupOnly(
+      playersCache || {}
+    );
+  } catch (error) {
+    console.error(
+      "[PLAYER STORE DELETE BACKUP ERROR]",
+      {
+        userId: id,
+        message:
+          error?.message || error,
+      }
+    );
+  }
+
+  return true;
+}
+
 module.exports = {
   readPlayers,
   writePlayers,
@@ -3040,5 +3163,6 @@ module.exports = {
   flushPlayerStoreNow,
   flushPlayerNow,
   drainPlayerStoreSaves,
+  deletePlayerPermanent,
   filePath,
 };

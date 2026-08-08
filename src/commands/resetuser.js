@@ -1,4 +1,7 @@
-const { readPlayers, writePlayers } = require("../playerStore");
+const {
+  readPlayers,
+  deletePlayerPermanent,
+} = require("../playerStore");
 
 function getAdminIds() {
   return String(
@@ -13,7 +16,9 @@ function getAdminIds() {
 }
 
 function isAdmin(userId) {
-  return getAdminIds().includes(String(userId));
+  return getAdminIds().includes(
+    String(userId)
+  );
 }
 
 function parseUserId(value) {
@@ -26,11 +31,16 @@ module.exports = {
   name: "resetuser",
   aliases: [],
 
-  async execute(message, args = []) {
+  async execute(
+    message,
+    args = []
+  ) {
     if (!isAdmin(message.author.id)) {
       return message.reply({
         content: "Owner only command.",
-        allowedMentions: { repliedUser: false },
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
@@ -40,15 +50,24 @@ module.exports = {
 
     if (!userId) {
       return message.reply({
-        content: "Usage: `op resetuser <@user/user_id>`",
-        allowedMentions: { repliedUser: false },
+        content:
+          "Usage: `op resetuser <@user/user_id>`",
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
-    if (String(userId) === String(message.author.id)) {
+    if (
+      String(userId) ===
+      String(message.author.id)
+    ) {
       return message.reply({
-        content: "You cannot reset your own data with this command.",
-        allowedMentions: { repliedUser: false },
+        content:
+          "You cannot reset your own data with this command.",
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
@@ -56,17 +75,35 @@ module.exports = {
 
     if (!players[String(userId)]) {
       return message.reply({
-        content: `User not found: \`${userId}\``,
-        allowedMentions: { repliedUser: false },
+        content:
+          `User not found: \`${userId}\``,
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
-    delete players[String(userId)];
-    writePlayers(players);
+    const deleted =
+      await deletePlayerPermanent(
+        userId
+      );
+
+    if (!deleted) {
+      return message.reply({
+        content:
+          "Failed to permanently delete the user data. PostgreSQL may not be ready.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
 
     return message.reply({
-      content: `Deleted user data: \`${userId}\``,
-      allowedMentions: { repliedUser: false },
+      content:
+        `Permanently deleted user data: \`${userId}\``,
+      allowedMentions: {
+        repliedUser: false,
+      },
     });
   },
 };
