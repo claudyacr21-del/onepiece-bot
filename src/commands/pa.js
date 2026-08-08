@@ -1477,6 +1477,15 @@ module.exports = {
         });
       }
       
+      const pullingMessage = await message.reply({
+        content: `Pulling all available slots... (${availableTotal} pull${
+          availableTotal === 1 ? "" : "s"
+        })`,
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+
       const pirateLuckBoost =
         getPirateLuckBoost(userId);
 
@@ -1548,6 +1557,15 @@ module.exports = {
         if (triggeredPity) {
           pityCounter = 0;
         }
+
+        /*
+          This is not a timer delay.
+          It releases Discord's message event loop after
+          each roll, so op bal/op reset can run immediately.
+        */
+        await new Promise((resolve) => {
+          setImmediate(resolve);
+        });
       }
 
       /*
@@ -1824,6 +1842,14 @@ module.exports = {
             pityLabel
           );
         }
+
+        /*
+          Allow command messages between unique groups.
+          Normally there are only a few unique groups.
+        */
+        await new Promise((resolve) => {
+          setImmediate(resolve);
+        });
       }
 
       const updatedPity = {
@@ -2096,7 +2122,8 @@ module.exports = {
             })
         );
 
-      return message.reply({
+      return pullingMessage.edit({
+        content: "",
         embeds,
         allowedMentions: {
           repliedUser: false,
