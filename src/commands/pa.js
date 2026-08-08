@@ -1367,6 +1367,9 @@ module.exports = {
     const username =
       message.author.username || "Unknown";
 
+    const paStartedAt =
+      Date.now();
+
     if (PULL_COMMAND_LOCKS.has(userId)) {
       return message.reply({
         content:
@@ -2122,13 +2125,52 @@ module.exports = {
             })
         );
 
-      return pullingMessage.edit({
-        content: "",
-        embeds,
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
+      const paComputeFinishedAt =
+        Date.now();
+
+      console.log(
+        "[PA PERFORMANCE]",
+        {
+          userId,
+          availableTotal,
+          cards:
+            player.cards?.length || 0,
+          fragments:
+            player.fragments?.length || 0,
+          weapons:
+            player.weapons?.length || 0,
+          computeMs:
+            paComputeFinishedAt -
+            paStartedAt,
+        }
+      );
+
+      const discordStartedAt =
+        Date.now();
+
+      const sentResult =
+        await pullingMessage.edit({
+          content: "",
+          embeds,
+          allowedMentions: {
+            repliedUser: false,
+          },
+        });
+
+      console.log(
+        "[PA DISCORD PERFORMANCE]",
+        {
+          userId,
+          discordMs:
+            Date.now() -
+            discordStartedAt,
+          totalMs:
+            Date.now() -
+            paStartedAt,
+        }
+      );
+
+      return sentResult;
     } finally {
       PULL_COMMAND_LOCKS.delete(
         userId
