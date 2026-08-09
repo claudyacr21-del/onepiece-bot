@@ -1155,6 +1155,7 @@ const WEAPON_IMAGES = {
   knight_form: "https://cdn.discordapp.com/attachments/1493204525975076944/1522817470061215784/content.png?ex=6a49d9c9&is=6a488849&hm=59b1703c898cb54df5f7f29a9084bd34b22a3d147dd7fe092ddecff5ce99774f",
   leister: "https://cdn.discordapp.com/attachments/1493204525975076944/1529031311573127168/content.png?ex=6a611da0&is=6a5fcc20&hm=0625d5b652c5e98db7596a3942367c92579b2d42194182a0a5d93844b1887d99&",
   tetsubo: "https://cdn.discordapp.com/attachments/1493204525975076944/1529031310759428246/content.png?ex=6a611da0&is=6a5fcc20&hm=bc6954cd7339c6a273057e58e574772a53dcf9c7c3a20efa727bf6328992f34f&",
+  ame_no_murakumo: "https://cdn.discordapp.com/attachments/1454000519684034580/1535664302344638614/content.png?ex=6a789654&is=6a7744d4&hm=b4bdede00d51fac61159bf262fdde5d2b6aecf322d95fdd3f8b0cb8ed2786692",
 };
 
 const DEVIL_FRUIT_IMAGES = {

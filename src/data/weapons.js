@@ -948,5 +948,16 @@ module.exports = [
     ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
     image: "",
     description: "Saint Shepherd Sommers' massive tetsubo, a brutal holy weapon built for crushing enemies with raw force."
+  },
+  {
+    code: "ame_no_murakumo",
+    name: "Ame no Murakumo",
+    rarity: "S",
+    owners: ["kizaru"],
+    type: "Light Sword",
+    statPercent: { atk: 7, hp: 4, speed: 3 },
+    ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
+    image: "",
+    description: "Kizaru's sword of light, formed through the power of the Pika Pika no Mi for devastating high-speed attacks.",
   }
 ];
