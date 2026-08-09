@@ -502,9 +502,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1526627373158629497/jinbe_3.jpeg?ex=6a585ec9&is=6a570d49&hm=f6daa1a4c4df8193da2b9cac07b4b34553287016a991065125c87e125d91762d&",
   },
   ace_fire_fist: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499415227912032370/content.png?ex=69f55f80&is=69f40e00&hm=e915d0bba33987d771fbdb28609d77ef023dfe78eb539031e17988709a0768b6&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1499415228448768133/content.png?ex=69f55f80&is=69f40e00&hm=bf2704c65265976118ee91eced8aa1dc4738ad96d619f52957e501fa14d001a9&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1499415229065461851/content.png?ex=69f55f80&is=69f40e00&hm=28952b6966b13d3ca72686e2704df164ec5d9f5d246977ffc9eb988d56d77bd5&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1535979948479750225/ace_1.jpeg?ex=6a79bc4c&is=6a786acc&hm=93f75f1699db4978d17d094b1ef47eadfab7874b2af2f2dde7f514c16dce32a1&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1535979948886462464/ace_2.jpeg?ex=6a79bc4c&is=6a786acc&hm=e4529f6982f9102e5fc3e742fc3ba77e0efb88be3cd9500c89a17a4848b6b0eb&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1535979949251633192/ace_3.jpeg?ex=6a79bc4d&is=6a786acd&hm=6c549a26c561ec0b0253d52587e77c2728b17a8c43ecb4503e038977f8a6cb03&",
   },
   whitebeard_strongest_man: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499669312766476339/content.png?ex=69f5a362&is=69f451e2&hm=2937d6ffeab051631d9620ad106f885d0e9e004310f4dc6cce790fa404e6f71b&",

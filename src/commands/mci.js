@@ -655,7 +655,13 @@ function buildOwnedWeaponEmbed(ownerName, player, weapon) {
   const fragments = getFragmentAmount(player, weapon);
 
   return new EmbedBuilder()
-    .setColor(0x3498db)
+    .setColor(
+      getRarityColor(
+        weapon.rarity ||
+          weapon.baseTier ||
+          "B"
+      )
+    )
     .setTitle(`${ownerName}'s Weapon`)
     .setDescription(
       [
