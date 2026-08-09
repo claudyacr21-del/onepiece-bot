@@ -507,9 +507,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1535979949251633192/ace_3.jpeg?ex=6a79bc4d&is=6a786acd&hm=6c549a26c561ec0b0253d52587e77c2728b17a8c43ecb4503e038977f8a6cb03&",
   },
   whitebeard_strongest_man: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499669312766476339/content.png?ex=69f5a362&is=69f451e2&hm=2937d6ffeab051631d9620ad106f885d0e9e004310f4dc6cce790fa404e6f71b&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1499669313223921724/content.png?ex=69f5a362&is=69f451e2&hm=39b0d340a2409efa600fdf21c7019b0c4a83f9dd1b681a22028f83ca2cd707da&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1499669313693679746/content.png?ex=69f5a362&is=69f451e2&hm=3b0e141ddc804f7cc493487649afb8912f2cb32e145f6e0140025bc8af6b944f&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1535995965893255259/newgate_1.jpeg?ex=6a79cb37&is=6a7879b7&hm=b87a1cdde98bb02732eeb0162b8005da352f49ffc0de25dc58ae47afec60544d&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1535995966232985663/newgate_2.jpeg?ex=6a79cb37&is=6a7879b7&hm=63915d6de062c14159a5c4ec088376cbb80082777a21a4aba0cf3d333089054b&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1536003347436412928/whitebeard.gif?ex=6a79d217&is=6a788097&hm=d74401b53ceab9c713211f44118667d4dac8ca0899377880e4e6b8858e344bad",
   },
   blackbeard_emperor_of_darkness: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499673550636847175/content.png?ex=69f5a755&is=69f455d5&hm=3f0a89901418819208e0bd73a1b99029115457dd06369488cdd10cafaf648816&",
@@ -552,9 +552,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1499772857889067029/content.png?ex=69f603d1&is=69f4b251&hm=f7e8cada45bc13c7b810fedfbbaf351390a9eb644f50dcbde9a24b1deb302902&",
   },
   roger_king_of_the_pirates: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499986340232696019/content.png?ex=69f6caa3&is=69f57923&hm=196afc4d9bd2f4c0a43c73580c288577a0f41567eeb47134382767a2a117b6a4&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1499986340673093794/content.png?ex=69f6caa4&is=69f57924&hm=da72e5cd851c7d4b3a42b4f071710c30f95555d2cced9edbb781812ff6ee428a&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1499986341218222210/content.png?ex=69f6caa4&is=69f57924&hm=57ae0e7a929ca023972a437d821f6a6b74c3cfbcbb6a4b484e935035ff27a52c&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1535995938160779334/gol_d_roger_1.jpeg?ex=6a79cb31&is=6a7879b1&hm=5455f5f349b2382f30be0cbaff48afdd48290414d5425f6ca64b293f31e83afb&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1535995938458308668/gol_d_roger_2.jpeg?ex=6a79cb31&is=6a7879b1&hm=d70c8fc7ad2102d1c82677aeb2b028d4cf4a7dab6573742aa7066c0eedc0e747&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1536003199884857384/gol-d-roger.gif?ex=6a79d1f4&is=6a788074&hm=74f7e570c08c5dd4222fa0f2c003fa3d2de717826eebf64343b5fdd3e551205a",
   },
   xebec_captain_of_rocks: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499993006000832583/content.png?ex=69f6d0d9&is=69f57f59&hm=d97e69d0d50b05fca9673ed559b523fddb9be8a9e4427833b128065ef2344520&",
@@ -1068,8 +1068,8 @@ const CARD_IMAGES = {
   },
   dk: {
     M1: "https://cdn.discordapp.com/attachments/1492807857207382090/1535945126982066267/shamrockxgunko_1.jpeg?ex=6a799bde&is=6a784a5e&hm=fead2d288dfca3f4f30912896b1796fb6a3d10949b3e1d5dd654ef214c9e30ee&",
-    M2: "https://cdn.discordapp.com/attachments/1492807857207382090/1535945127422333008/shamrockxgunko_2.jpeg?ex=6a799bde&is=6a784a5e&hm=f4145e6458b3b1b60d46422c3f0cf57516499971ada9219543dad1c81e5fd2bf&",
-    M3: "https://cdn.discordapp.com/attachments/1492807857207382090/1535945127703613440/shamrockxgunko_3.jpeg?ex=6a799bde&is=6a784a5e&hm=0b58823f3b3ddb560716b226da086f61c6a5c5cf8f3e6f891df26c1d558530e3&",
+    M2: "https://cdn.discordapp.com/attachments/1492807857207382090/1535945127703613440/shamrockxgunko_3.jpeg?ex=6a799bde&is=6a784a5e&hm=0b58823f3b3ddb560716b226da086f61c6a5c5cf8f3e6f891df26c1d558530e3&",
+    M3: "https://cdn.discordapp.com/attachments/1492807857207382090/1535945127422333008/shamrockxgunko_2.jpeg?ex=6a799bde&is=6a784a5e&hm=f4145e6458b3b1b60d46422c3f0cf57516499971ada9219543dad1c81e5fd2bf&",
   },
   ta: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1535942023893221376/3admiral_1.jpeg?ex=6a7998fa&is=6a78477a&hm=04fecbea2da95ed7f3d616ba12e0cd78685cc090dc7824c6052a6715f96d9394&",
