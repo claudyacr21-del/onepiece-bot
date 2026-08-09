@@ -120,4 +120,9 @@ module.exports = {
   wgs: "https://cdn.discordapp.com/attachments/1493204525975076944/1529359660254232736/VID-20260722-WA0015-ezgif.com-video-to-gif-converter.gif?ex=6a61a6ad&is=6a60552d&hm=c6feb6630bec6b454988763beda8e01d395bd3a0dcdc610e4b0e4d192b0909d5",
   ya: "https://cdn.discordapp.com/attachments/1493204525975076944/1529863597839224923/kaido-big-mom.gif?ex=6a637c01&is=6a622a81&hm=6a214f903d8ef31022e207ea0c8b597a13fb9f68fed03bcd18b585dc65d709dc",
   gvc: "https://cdn.discordapp.com/attachments/1493204525975076944/1529873041826254858/rocks-d-xebec.gif?ex=6a6384cc&is=6a62334c&hm=4190b50fd2f8a1a657eba4a371fccb1ad03d96fb4cce7093545e3eac526551da",
+  dk: "https://cdn.discordapp.com/attachments/1493204525975076944/1535968504044593152/one-piece-one-piece-anime.gif?ex=6a79b1a4&is=6a786024&hm=b92fa7d91fb7b65916e606eb9dacf27b3d5be690556d1adbe312e1d02f3bedf0&",
+  ta: "https://cdn.discordapp.com/attachments/1493204525975076944/1535968503666966538/lIrsRbOP3io2eGHajWw.gif?ex=6a79b1a4&is=6a786024&hm=6efbd00036b90e3d289575f7183c8558a17afbda3bc0f685453a2087a4c20407&",
+  lw: "https://cdn.discordapp.com/attachments/1493204525975076944/1535968505239838780/oden-and-whitebeard-one-piece.gif?ex=6a79b1a4&is=6a786024&hm=3a08c3cc63e1ae7e180d879e53634c0ca97c13e778065c10b403c5b744ff85d1&",
+  hw: "https://cdn.discordapp.com/attachments/1493204525975076944/1535968504430461029/soTCY4FPE6Lo76b1.gif?ex=6a79b1a4&is=6a786024&hm=bb59e9bcdc5f18268a1831d4bf9ae0925a856d38c307a86cdca8b859d53c8f06&",
+  pkw: "https://cdn.discordapp.com/attachments/1493204525975076944/1535968505596350484/rayleigh-gaban.gif?ex=6a79b1a4&is=6a786024&hm=1cbbd2449bae51b5c27ad6bfe7bdd36b22c80832f4d7c377ce2e31c4f9f8793d&",
 };

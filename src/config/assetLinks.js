@@ -1065,7 +1065,32 @@ const CARD_IMAGES = {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1529507525752393788/xebec__teach_1.jpeg?ex=6a623063&is=6a60dee3&hm=3b103bd7c10a2449989fd71be93f1c1480f69d0bdfe2c3b05ed4aaf796dbe429&",
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1529507526087934143/xebec__teach_new_2.jpeg?ex=6a623063&is=6a60dee3&hm=331e750cc616d4b76a1698cbdf1e077e357241ed35bf827361c254ff30125c26&",
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1529507526369087648/xebec__teach_3.jpeg?ex=6a623063&is=6a60dee3&hm=f82fe8205f4375f38469ee61d2046194c07c3cddd9cb02de489d91031b4761cb&",
-  }
+  },
+  dk: {
+    M1: "https://cdn.discordapp.com/attachments/1492807857207382090/1535945126982066267/shamrockxgunko_1.jpeg?ex=6a799bde&is=6a784a5e&hm=fead2d288dfca3f4f30912896b1796fb6a3d10949b3e1d5dd654ef214c9e30ee&",
+    M2: "https://cdn.discordapp.com/attachments/1492807857207382090/1535945127422333008/shamrockxgunko_2.jpeg?ex=6a799bde&is=6a784a5e&hm=f4145e6458b3b1b60d46422c3f0cf57516499971ada9219543dad1c81e5fd2bf&",
+    M3: "https://cdn.discordapp.com/attachments/1492807857207382090/1535945127703613440/shamrockxgunko_3.jpeg?ex=6a799bde&is=6a784a5e&hm=0b58823f3b3ddb560716b226da086f61c6a5c5cf8f3e6f891df26c1d558530e3&",
+  },
+  ta: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1535942023893221376/3admiral_1.jpeg?ex=6a7998fa&is=6a78477a&hm=04fecbea2da95ed7f3d616ba12e0cd78685cc090dc7824c6052a6715f96d9394&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1535942024174370837/3admiral_2.jpeg?ex=6a7998fa&is=6a78477a&hm=52acbe83ec090649e54c7de72c5c800db5251e30698c53e0ddd9ccccda69a9e7&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1535942024631681034/3admiral_3.jpeg?ex=6a7998fb&is=6a78477b&hm=fc1d8420d4efa5cb9fee7f881585e14722bea13ac8797300b22a31973beb51ae&",
+  },
+  lw: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1535942095959883786/whitebeardxoden_1.jpeg?ex=6a79990c&is=6a78478c&hm=c9a05f140d38be1b7784dcb7b909b66c2e172250791ce67a41194758b4c24a72&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1535942096207487036/whitebeardxoden_2.jpeg?ex=6a79990c&is=6a78478c&hm=e40f64c9100aec8037be18f3b89c631a94cb5d1bc7fe2524a4f257ac12bbb550&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1535942096484044910/whitebeardxoden_3.jpeg?ex=6a79990c&is=6a78478c&hm=2a8d23cf9397d24513cc04e6bc00feebcaaf4f89ef623410bedfba541a140921&",
+  },
+  hw: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1535958185058504734/yamatoxmomonosuke_1.jpeg?ex=6a79a808&is=6a785688&hm=7de03b35c6f334751784e199574e07250b66eec34e2437bf4ab4b8ffe0654a88&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1535958185641377872/yamatoxmomonosuke_2_new.jpeg?ex=6a79a808&is=6a785688&hm=3a622fd0f711b818df6b3706c78d89516576fec56b1d123f3b3b2219e8e7c0df&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1535958186127794206/yamatoxmomonosuke_3.jpeg?ex=6a79a808&is=6a785688&hm=1c468fb9b4b0dbf9a1de7b7f92ae1ec0dc0a729fb3658db75ff04794b4950ec4&",
+  },
+  pkw: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1535944968957464666/gaban_and_rayleigh_1.jpeg?ex=6a799bb9&is=6a784a39&hm=8d45ae30cb8df9f0acdf4e93b99a44b9d7e2d4b4c9a3ed9d8781be1af55f9792&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1535944969238618143/gaban_and_rayleigh_2.jpeg?ex=6a799bb9&is=6a784a39&hm=875762043fef0cf6e8cfd12b8d1140dbf56833dfa458d6391f8b56c3a9b4b865&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1535944969544671332/gaban_and_rayleigh_3.jpeg?ex=6a799bb9&is=6a784a39&hm=503be284d5f21334b33721d34fedabffc1703032e415012334116fb497aec645&",
+  },
 };
 
 const WEAPON_IMAGES = {
