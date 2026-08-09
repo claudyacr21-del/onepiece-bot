@@ -68,8 +68,8 @@ const CARD_IMAGES = {
   },
   alvida_iron_club: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1530075578210844682/alvida_1.jpg?ex=6a64416d&is=6a62efed&hm=3fae273d96cf40ef1f0ae21f39ddd75b5d236c676c5e287ee0fe886c488fa372&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1530075578529742928/alvida_2.jpg?ex=6a64416d&is=6a62efed&hm=3e8ad63dab4fe981be14afc1c4f1b2198ef5353ee03d5c02cbb468edb0a18a25&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1530075578957434921/alvida_3.jpg?ex=6a64416d&is=6a62efed&hm=a1d1d64019481c3769bd981ca9e6b7b88ea1a42685af7ad7689420b9af9d92d7&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1530075578957434921/alvida_3.jpg?ex=6a64416d&is=6a62efed&hm=a1d1d64019481c3769bd981ca9e6b7b88ea1a42685af7ad7689420b9af9d92d7&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1530075578529742928/alvida_2.jpg?ex=6a64416d&is=6a62efed&hm=3e8ad63dab4fe981be14afc1c4f1b2198ef5353ee03d5c02cbb468edb0a18a25&",
   },
   morgan_axe_hand: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1530077128446705775/morgan_1.jpg?ex=6a6442de&is=6a62f15e&hm=49fee70f657e3a406463fefc44d2e8e36e211c6e24dafcfe03fab0c0a36bb847&",
@@ -1071,7 +1071,8 @@ const CARD_IMAGES = {
 const WEAPON_IMAGES = {
   aces: "https://cdn.discordapp.com/attachments/1493204525975076944/1500811792534863972/content.png?ex=69f9cb67&is=69f879e7&hm=22db0cc74dfb24fc40c661fb0da169b16dfc1f14622d02ed93f9ab2d42a531df&",
   hat: "https://cdn.discordapp.com/attachments/1493204525975076944/1517885049876512839/content.png?ex=6a37e81c&is=6a36969c&hm=c17e4da3be99f8aa6715e1c2f3642c7cfe6215a3950ad1fee1b8cc24cc26823a",
-  ame_no_habakiri: "https://cdn.discordapp.com/attachments/1493204525975076944/1500811792979591248/content.png?ex=69f9cb67&is=69f879e7&hm=4719eb6a0f726ee3f89f7a9d175ef2668c3370461e572fe4f8b7c88d1afe1246&",
+  ame_no_habakiri: "https://cdn.discordapp.com/attachments/1529780996386328657/1535911049319026808/content.png?ex=6a797c22&is=6a782aa2&hm=a892cad3c0c6a07e405b856c5447182b1d8d84d05faa07cb39deea1154bb8d36",
+  ex_habakiri: "https://cdn.discordapp.com/attachments/1529780996386328657/1535911883930996786/content.png?ex=6a797ce8&is=6a782b68&hm=25da60c71ff0a1a67d005b6cb7f630be17a7c4ff00f34271c3eb70832a226fa8",
   basic_iron_club: "https://cdn.discordapp.com/attachments/1493204525975076944/1500811793436643418/content.png?ex=69f9cb67&is=69f879e7&hm=813a5773f7dac96c87449fdfd1ee1a2f648b325a6840679e297e4ec6d763690a&",
   basic_marine_saber: "https://cdn.discordapp.com/attachments/1493204525975076944/1500811793948479531/content.png?ex=69f9cb67&is=69f879e7&hm=4a53fa59123035436dd45b523deea9f43a173861e976a05b35a71fa0af4aca29&",
   basic_slingshot: "https://cdn.discordapp.com/attachments/1493204525975076944/1500811794372100107/content.png?ex=69f9cb67&is=69f879e7&hm=5813e57c5d90ccbd0ebbeca6ebdbee86f81eadbe5cc9efd51ce64865ec600d44&",
@@ -1090,6 +1091,7 @@ const WEAPON_IMAGES = {
   dual_daggers: "https://cdn.discordapp.com/attachments/1493204525975076944/1500858326882451568/content.png?ex=69f9f6bd&is=69f8a53d&hm=adb9a7fe06ef9d9fe6029835deab6504baae7e687e0785c987f0b9084e60b671&",
   eclipse: "https://cdn.discordapp.com/attachments/1493204525975076944/1501126970233192448/content.png?ex=69faf0ef&is=69f99f6f&hm=364a33c9b6a8507226b362b7d91aa8158de67d577ebd1e810ab4cd32942b3a57&",
   enma: "https://cdn.discordapp.com/attachments/1493204525975076944/1501126970958680145/content.png?ex=69faf0ef&is=69f99f6f&hm=8bf2299807e9c823dc294c52cf9c09c788caf41f7966a041c446727c43342919&",
+  ex_enma: "https://cdn.discordapp.com/attachments/1529780996386328657/1535907868509868063/content.png?ex=6a79792b&is=6a7827ab&hm=cceae862434413154c5d563f6b74e180dcd6c32807609c8b8112202f62cad2f7",
   nonosama_bo: "https://cdn.discordapp.com/attachments/1493204525975076944/1514606590404202526/content.png?ex=6a2bfacf&is=6a2aa94f&hm=6b162e7126ba514bb9099cebd225e6511b8abdf0a97103f292ffafc9d09692cb",
   fish_man_karate: "https://cdn.discordapp.com/attachments/1493204525975076944/1501126971986546748/content.png?ex=69faf0ef&is=69f99f6f&hm=95c1222c1d450f79cac870d982e4c554e2b0ff27dd14b0b69c82c48b4f2ea4cb&",
   fists: "https://cdn.discordapp.com/attachments/1493204525975076944/1501126972582002698/content.png?ex=69faf0ef&is=69f99f6f&hm=bcf06439e2e4fdf9d1bd79d34f81157c31a94f610c7617e3c541d96b746800f1&",

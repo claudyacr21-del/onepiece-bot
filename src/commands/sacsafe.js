@@ -12,56 +12,81 @@ function normalizeCode(value) {
     .replace(/^_+|_+$/g, "");
 }
 
-function getSearchWords(value) {
-  return normalize(value)
-    .split(" ")
-    .map((word) => word.trim())
+function normalizeNameOnly(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[’']/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function stripFragmentSuffix(value) {
+  return String(value || "")
+    .replace(/\s+fragment$/i, "")
+    .trim();
+}
+
+function getNameOnlyCandidates(item = {}) {
+  return [
+    item.name,
+    item.displayName,
+    item.title,
+    stripFragmentSuffix(item.name),
+    stripFragmentSuffix(item.displayName),
+    stripFragmentSuffix(item.title),
+  ]
+    .filter(Boolean)
+    .map((name) => normalizeNameOnly(name))
     .filter(Boolean);
 }
 
-function scoreQuery(query, candidates) {
-  const q = normalize(query);
+function scoreNameOnlyQuery(query, item = {}) {
+  const q = normalizeNameOnly(query);
   if (!q) return 0;
 
-  const queryWords = getSearchWords(q);
-  if (!queryWords.length) return 0;
-
+  const candidates = getNameOnlyCandidates(item);
   let best = 0;
 
-  for (const raw of candidates.filter(Boolean)) {
-    const value = normalize(raw);
-    if (!value) continue;
-
-    const valueWords = getSearchWords(value);
-    if (!valueWords.length) continue;
-
-    // Exact full name match: "fish karate" only matches "fish karate".
-    if (value === q) {
-      best = Math.max(best, 1000 + value.length);
+  for (const name of candidates) {
+    if (name === q) {
+      best = Math.max(best, 10000 + name.length);
       continue;
     }
 
-    // Single word must match a full word only.
-    // Example: "fish" can match names with word fish, but not partial text.
-    if (queryWords.length === 1) {
-      if (valueWords.includes(queryWords[0])) {
-        best = Math.max(best, 850 + queryWords[0].length);
-      }
-
+    if (name.startsWith(q)) {
+      best = Math.max(best, 7000 + q.length);
       continue;
     }
 
-    // Multiple words may match part of a valid canonical name.
-    // Example: "blade replica" matches "Black Blade Replica".
+    if (name.includes(q)) {
+      best = Math.max(best, 5000 + q.length);
+      continue;
+    }
+
+    const queryWords = q.split(" ").filter(Boolean);
+    const nameWords = name.split(" ").filter(Boolean);
+
     if (
       queryWords.length > 1 &&
-      queryWords.every((word) => valueWords.includes(word))
+      queryWords.every((word) => nameWords.includes(word))
     ) {
-      best = Math.max(best, 750 + queryWords.join("").length);
+      best = Math.max(best, 3000 + queryWords.join("").length);
     }
   }
 
   return best;
+}
+
+function findBestNameOnlyMatch(items = [], query) {
+  const scored = items
+    .map((item) => ({
+      item,
+      score: scoreNameOnlyQuery(query, item),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored.length ? scored[0].item : null;
 }
 
 function toTargetFromCard(card) {
@@ -86,48 +111,26 @@ function toTargetFromWeapon(weapon) {
 function findCardTemplate(query) {
   const cards = Array.isArray(rawCards) ? rawCards : [];
 
-  const scored = cards
-    .map((card) => ({
-      card,
-      score: scoreQuery(query, [
-        card.name,
-        card.displayName,
-      ]),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
+  const found = findBestNameOnlyMatch(
+    cards.filter(
+      (card) =>
+        String(card.code || "").toLowerCase() !== "imu"
+    ),
+    query
+  );
 
-      const aName = normalize(a.card.displayName || a.card.name || "");
-      const bName = normalize(b.card.displayName || b.card.name || "");
-
-      return aName.length - bName.length;
-    });
-
-  return scored.length ? toTargetFromCard(scored[0].card) : null;
+  return found ? toTargetFromCard(found) : null;
 }
 
 function findWeaponTemplate(query) {
   const weapons = Array.isArray(rawWeapons) ? rawWeapons : [];
 
-  const scored = weapons
-    .map((weapon) => ({
-      weapon,
-      score: scoreQuery(query, [
-        weapon.name,
-      ]),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
+  const found = findBestNameOnlyMatch(
+    weapons,
+    query
+  );
 
-      const aName = normalize(a.weapon.name || "");
-      const bName = normalize(b.weapon.name || "");
-
-      return aName.length - bName.length;
-    });
-
-  return scored.length ? toTargetFromWeapon(scored[0].weapon) : null;
+  return found ? toTargetFromWeapon(found) : null;
 }
 
 function findSafeTarget(query) {
