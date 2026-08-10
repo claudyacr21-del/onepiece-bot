@@ -702,6 +702,7 @@ const UNIVERSAL_ADMIN_COMMANDS = new Set([
   "addprestige",
   "removeprestige",
   "removepiratetoken",
+  "addpiratetoken",
   "mfr",
   "patreon30",
   "resetall",
