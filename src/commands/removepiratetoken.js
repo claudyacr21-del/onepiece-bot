@@ -1,4 +1,9 @@
-const { EmbedBuilder } = require("discord.js");
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} = require("discord.js");
 const {
   readPlayers,
   updatePlayerAtomic,
@@ -8,7 +13,7 @@ const {
   isUniversalAdmin,
 } = require("../utils/universalAdmin");
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const SAVE_BATCH_SIZE = 2;
 
 function parseUserId(value) {
@@ -68,28 +73,15 @@ function getTokenRows() {
     });
 }
 
-async function showTokenList(
-  message,
-  pageArg
+function buildTokenListEmbed(
+  rows,
+  page,
+  totalPages
 ) {
-  const rows = getTokenRows();
-
   const totalTokens = rows.reduce(
     (sum, row) =>
       sum + row.tokens,
     0
-  );
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(
-      rows.length / PAGE_SIZE
-    )
-  );
-
-  const page = clampPage(
-    pageArg,
-    totalPages
   );
 
   const start =
@@ -108,22 +100,22 @@ async function showTokenList(
               start + index + 1;
 
             return [
-              `**${rank}. ${row.username}**`,
-              `<@${row.userId}> • \`${row.userId}\` • **${row.tokens.toLocaleString("en-US")} tokens**`,
+              `\`${rank}.\` **${row.username}** — **${row.tokens.toLocaleString("en-US")} tokens**`,
+              `└ ID: \`${row.userId}\``,
             ].join("\n");
           })
           .join("\n\n")
       : "No players currently have Pirate Tokens.";
 
-  const embed = new EmbedBuilder()
+  return new EmbedBuilder()
     .setColor(0xf1c40f)
     .setTitle(
-      "Pirate Token Player List"
+      "🏴‍☠️ Pirate Token Player List"
     )
     .setDescription(description)
     .addFields(
       {
-        name: "Players With Tokens",
+        name: "Players",
         value:
           rows.length.toLocaleString(
             "en-US"
@@ -140,16 +132,196 @@ async function showTokenList(
       }
     )
     .setFooter({
-      text: `Page ${page}/${totalPages} • Use: op removepiratetoken list <page>`,
+      text: `Page ${page}/${totalPages} • Sorted by highest balance`,
+    });
+}
+
+function buildTokenNavigationRow(
+  navigationId,
+  page,
+  totalPages,
+  disableAll = false
+) {
+  return new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(
+          `${navigationId}_previous`
+        )
+        .setLabel("Previous")
+        .setStyle(
+          ButtonStyle.Secondary
+        )
+        .setDisabled(
+          disableAll || page <= 1
+        ),
+
+      new ButtonBuilder()
+        .setCustomId(
+          `${navigationId}_page`
+        )
+        .setLabel(
+          `${page} / ${totalPages}`
+        )
+        .setStyle(
+          ButtonStyle.Secondary
+        )
+        .setDisabled(true),
+
+      new ButtonBuilder()
+        .setCustomId(
+          `${navigationId}_next`
+        )
+        .setLabel("Next")
+        .setStyle(
+          ButtonStyle.Primary
+        )
+        .setDisabled(
+          disableAll ||
+            page >= totalPages
+        )
+    );
+}
+
+async function showTokenList(
+  message,
+  pageArg
+) {
+  const rows = getTokenRows();
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(
+      rows.length / PAGE_SIZE
+    )
+  );
+
+  let currentPage = clampPage(
+    pageArg,
+    totalPages
+  );
+
+  const navigationId = [
+    "pirate_token_list",
+    message.author.id,
+    Date.now(),
+  ].join("_");
+
+  const embed = buildTokenListEmbed(
+    rows,
+    currentPage,
+    totalPages
+  );
+
+  const components =
+    totalPages > 1
+      ? [
+          buildTokenNavigationRow(
+            navigationId,
+            currentPage,
+            totalPages
+          ),
+        ]
+      : [];
+
+  const listMessage =
+    await message.reply({
+      embeds: [embed],
+      components,
+      allowedMentions: {
+        parse: [],
+        repliedUser: false,
+      },
     });
 
-  return message.reply({
-    embeds: [embed],
-    allowedMentions: {
-      parse: [],
-      repliedUser: false,
-    },
+  if (totalPages <= 1) {
+    return listMessage;
+  }
+
+  const collector =
+    listMessage.createMessageComponentCollector(
+      {
+        time: 120000,
+      }
+    );
+
+  collector.on(
+    "collect",
+    async (interaction) => {
+      if (
+        !String(
+          interaction.customId || ""
+        ).startsWith(navigationId)
+      ) {
+        return;
+      }
+
+      if (
+        interaction.user.id !==
+        message.author.id
+      ) {
+        return interaction.reply({
+          content:
+            "Only the command user can use these buttons.",
+          ephemeral: true,
+        });
+      }
+
+      if (
+        interaction.customId ===
+        `${navigationId}_previous`
+      ) {
+        currentPage = Math.max(
+          1,
+          currentPage - 1
+        );
+      }
+
+      if (
+        interaction.customId ===
+        `${navigationId}_next`
+      ) {
+        currentPage = Math.min(
+          totalPages,
+          currentPage + 1
+        );
+      }
+
+      await interaction.update({
+        embeds: [
+          buildTokenListEmbed(
+            rows,
+            currentPage,
+            totalPages
+          ),
+        ],
+        components: [
+          buildTokenNavigationRow(
+            navigationId,
+            currentPage,
+            totalPages
+          ),
+        ],
+      });
+    }
+  );
+
+  collector.on("end", async () => {
+    await listMessage
+      .edit({
+        components: [
+          buildTokenNavigationRow(
+            navigationId,
+            currentPage,
+            totalPages,
+            true
+          ),
+        ],
+      })
+      .catch(() => null);
   });
+
+  return listMessage;
 }
 
 async function removeTokensFromAll(
