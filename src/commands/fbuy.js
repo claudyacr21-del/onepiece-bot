@@ -8,7 +8,9 @@ const { ITEMS, cloneItem } = require("../data/items");
 const {
   getItemEmoji,
 } = require("../config/itemEmojis");
-
+const {
+  sendShopLog,
+} = require("../utils/economyLogs");
 const FRUIT_ESSENCE_EMOJI =
   getItemEmoji("fruit_essence");
 
@@ -229,6 +231,27 @@ module.exports = {
       .setFooter({
         text: "One Piece Bot • Fruit Essence Shop",
       });
+
+    await sendShopLog({
+      message,
+      shopName:
+        "Fruit Essence Shop",
+      itemName:
+        shopItem.label,
+      itemCode:
+        shopItem.key,
+      amount,
+      cost:
+        `${totalCost.toLocaleString(
+          "en-US"
+        )} Fruit Essence`,
+      remaining:
+        `${remainingEssence.toLocaleString(
+          "en-US"
+        )} Fruit Essence`,
+      rewards:
+        rewardLines,
+    });
 
     return message.reply({
       embeds: [embed],

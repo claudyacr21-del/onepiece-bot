@@ -9,6 +9,9 @@ const { incrementQuestPayload } = require("../utils/questProgress");
 const {
   getItemEmoji,
 } = require("../config/itemEmojis");
+const {
+  sendChestLog,
+} = require("../utils/economyLogs");
 
 function normalize(text) {
   return String(text || "")
@@ -1054,9 +1057,24 @@ module.exports = {
         Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 8000)
       );
     } catch (error) {
-      console.error("[OPEN BOX FORCE FLUSH ERROR]", error);
+      console.error(
+        "[OPEN BOX FORCE FLUSH ERROR]",
+        error
+      );
     }
-    const rewardLines = formatRewardLines(rewardMap);
+
+    const rewardLines =
+      formatRewardLines(
+        rewardMap
+      );
+
+    await sendChestLog({
+      message,
+      chestName: box.name,
+      chestCode: box.code,
+      amount: openAmount,
+      rewards: rewardLines,
+    });
 
     return message.reply({
       embeds: [

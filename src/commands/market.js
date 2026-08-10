@@ -19,6 +19,10 @@ const {
   getItemEmoji,
 } = require("../config/itemEmojis");
 
+const {
+  sendShopLog,
+} = require("../utils/economyLogs");
+
 const MIDSUMMER_START_AT = Date.parse(
   "2026-07-31T17:00:00.000Z"
 );
@@ -719,13 +723,18 @@ module.exports = {
     const foundEmoji =
       getItemEmoji(found.code);
 
+    const obtainedText =
+      formatObtainedItems(
+        obtainedMap
+      );
+
     const purchaseLines = [
       `Bought: **${
         foundEmoji
           ? `${foundEmoji} `
           : ""
       }${found.name} x${amount}**`,
-      formatObtainedItems(obtainedMap),
+      obtainedText,
     ];
 
     if (
@@ -759,6 +768,39 @@ module.exports = {
         inventoryKey
       )
     );
+
+    await sendShopLog({
+      message,
+      shopName: "Market",
+      itemName: found.name,
+      itemCode: found.code,
+      amount,
+      cost:
+        `${totalPrice.toLocaleString(
+          "en-US"
+        )} ${getCurrencyName(
+          currency
+        )}`,
+      remaining:
+        `${remainingCurrency.toLocaleString(
+          "en-US"
+        )} ${getCurrencyName(
+          currency
+        )}`,
+      rewards: [
+        obtainedText,
+      ],
+      details:
+        totalDiscount > 0
+          ? [
+              `Discount: ${totalDiscount.toLocaleString(
+                "en-US"
+              )} ${getCurrencyName(
+                currency
+              )}`,
+            ]
+          : [],
+    });
 
     return message.reply({
       embeds: [

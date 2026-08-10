@@ -51,9 +51,8 @@ const {
   normalizePirateRaidTier,
 } = require("../data/pirateRaidBosses");
 const {
-  getPirateWeeklyRewardPreview,
-  runPirateWeeklyResetIfNeeded,
-} = require("../utils/pirateWeekly");
+  sendShopLog,
+} = require("../utils/economyLogs");
 const GOLD = 0xf1c40f;
 const RED = 0xe74c3c;
 const GREEN = 0x2ecc71;
@@ -1953,7 +1952,41 @@ async function handlePirateBuy(message, args) {
     const amountPerPurchase = Math.max(1, Math.floor(Number(item?.amount || 1)));
     const totalItemAmount = amountPerPurchase * buyAmount;
     const boughtName =
-      totalItemAmount > 1 ? `${item.name} x${fmt(totalItemAmount)}` : item.name;
+      totalItemAmount > 1
+        ? `${item.name} x${fmt(
+            totalItemAmount
+          )}`
+        : item.name;
+
+    await sendShopLog({
+      message,
+      shopName: "Pirate Shop",
+      itemName: item.name,
+      itemCode:
+        item.code || key,
+      amount:
+        totalItemAmount,
+      cost:
+        `${fmt(
+          totalPrice
+        )} Pirate Tokens`,
+      remaining:
+        `${fmt(
+          player.pirateTokens
+        )} Pirate Tokens`,
+      rewards: [
+        boughtName,
+      ],
+      details: [
+        `Pirate: ${pirate.name}`,
+        price.saved > 0
+          ? `Discount: ${fmt(
+              price.saved *
+                buyAmount
+            )} Pirate Tokens`
+          : null,
+      ].filter(Boolean),
+    });
 
     return message.reply(
       makeSuccess(
