@@ -1115,7 +1115,7 @@ const WEAPON_IMAGES = {
   dragon_claw_gloves: "https://cdn.discordapp.com/attachments/1493204525975076944/1500858326391455804/content.png?ex=69f9f6bd&is=69f8a53d&hm=ae7655b4f133c4399a83001997b1675f674795245708ee35637f346b589a7c48&",
   dual_daggers: "https://cdn.discordapp.com/attachments/1493204525975076944/1500858326882451568/content.png?ex=69f9f6bd&is=69f8a53d&hm=adb9a7fe06ef9d9fe6029835deab6504baae7e687e0785c987f0b9084e60b671&",
   eclipse: "https://cdn.discordapp.com/attachments/1493204525975076944/1501126970233192448/content.png?ex=69faf0ef&is=69f99f6f&hm=364a33c9b6a8507226b362b7d91aa8158de67d577ebd1e810ab4cd32942b3a57&",
-  enma: "https://cdn.discordapp.com/attachments/1493204525975076944/1501126970958680145/content.png?ex=69faf0ef&is=69f99f6f&hm=8bf2299807e9c823dc294c52cf9c09c788caf41f7966a041c446727c43342919&",
+  enma: "https://cdn.discordapp.com/attachments/1529780996386328657/1536011748954341457/content.png?ex=6a79d9ea&is=6a78886a&hm=c8fb4cace2a15be80f873edcb42eb56262621e3da6bee22c12d0897a1e7963fc",
   ex_enma: "https://cdn.discordapp.com/attachments/1529780996386328657/1535907868509868063/content.png?ex=6a79792b&is=6a7827ab&hm=cceae862434413154c5d563f6b74e180dcd6c32807609c8b8112202f62cad2f7",
   nonosama_bo: "https://cdn.discordapp.com/attachments/1493204525975076944/1514606590404202526/content.png?ex=6a2bfacf&is=6a2aa94f&hm=6b162e7126ba514bb9099cebd225e6511b8abdf0a97103f292ffafc9d09692cb",
   fish_man_karate: "https://cdn.discordapp.com/attachments/1493204525975076944/1501126971986546748/content.png?ex=69faf0ef&is=69f99f6f&hm=95c1222c1d450f79cac870d982e4c554e2b0ff27dd14b0b69c82c48b4f2ea4cb&",
