@@ -29,6 +29,7 @@ const {
 } = require("../utils/partyRooms");
 
 const raidBossImages = require("../config/raidBossImages");
+const rawCards = require("../data/cards");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 const { ITEMS } = require("../data/items");
@@ -1532,8 +1533,45 @@ function getRaidBossImage(code) {
   return raidBossImages[String(code || "").toLowerCase()] || "";
 }
 
+function isExactRaidBossMatch(field, query) {
+  if (field === query) return true;
+  if (field.length < 3 || query.length < 3) return false;
+
+  return (
+    (field.endsWith("s") && field.slice(0, -1) === query) ||
+    (query.endsWith("s") && query.slice(0, -1) === field)
+  );
+}
+
+function findExactRaidBossTemplate(query) {
+  const normalizedQuery = normalizeRaidText(query);
+  if (!normalizedQuery) return null;
+
+  return (
+    rawCards.find((card) => {
+      const aliases = [
+        card?.code,
+        String(card?.code || "").replace(/_/g, " "),
+        card?.baseCode,
+        card?.name,
+        card?.displayName,
+        card?.title,
+        card?.variant,
+      ]
+        .map(normalizeRaidText)
+        .filter(Boolean);
+
+      return aliases.some((alias) =>
+        isExactRaidBossMatch(alias, normalizedQuery)
+      );
+    }) || null
+  );
+}
+
 function resolveRaidBoss(query) {
-  const template = findCardTemplate(query);
+  const template =
+    findExactRaidBossTemplate(query) ||
+    findCardTemplate(query);
 
   if (!template || String(template.cardRole || "").toLowerCase() !== "battle") {
     return null;
@@ -3833,6 +3871,14 @@ module.exports = {
       );
     }
 
+    if (usedCommand === "mraid" && !isMergeCard(bossInfo.template)) {
+      return message.reply(
+        "mraid only supports M-tier merge card raid bosses."
+      );
+    }
+
+    raidMode = getEffectiveRaidMode(usedCommand, bossInfo, raidMode);
+
     raidMode = getEffectiveRaidMode(usedCommand, bossInfo, raidMode);
 
     const resolvedBossCode = String(
@@ -3867,10 +3913,20 @@ module.exports = {
       }
 
       if (usedCommand === "throne") {
-        return message.reply("throne only supports Imu raid with Empty Throne Raid Writ.");
+        return message.reply(
+          "throne only supports Imu raid with Empty Throne Raid Writ."
+        );
       }
 
-      return message.reply("raid only supports A battle card raid bosses. Luffy must use `op graid luffy`.");
+      if (usedCommand === "mraid") {
+        return message.reply(
+          "mraid only supports M-tier merge card raid bosses."
+        );
+      }
+
+      return message.reply(
+        "raid only supports A battle card raid bosses. Luffy must use `op graid luffy`."
+      );
     }
 
     const ticketEntry = findTicketEntry(host.tickets, raidMode);

@@ -53,6 +53,10 @@ const {
 const {
   sendShopLog,
 } = require("../utils/economyLogs");
+const {
+  getPirateWeeklyRewardPreview,
+  runPirateWeeklyResetIfNeeded,
+} = require("../utils/pirateWeekly");
 const GOLD = 0xf1c40f;
 const RED = 0xe74c3c;
 const GREEN = 0x2ecc71;

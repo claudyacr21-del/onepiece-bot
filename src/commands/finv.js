@@ -11,6 +11,7 @@ const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { getPirateFragmentStorageBonus } = require("../utils/pirateBoosts");
 const cardsData = require("../data/cards");
 const weaponsData = require("../data/weapons");
+const { lw } = require("../config/raidBossImages");
 const PAGE_SIZE = 8;
 const COLOR = 0x8e44ad;
 const BASE_FRAGMENT_STORAGE = 200;
@@ -223,6 +224,11 @@ const FRAGMENT_EMOJIS = {
   wgs: "<:wgs_f:1530902580639694918>",
   ya: "<:ya_f:1530902584313778318>",
   gvc: "<:gvc_f:1530902589892333699>",
+  dk: "<:dk_f:1536279159976894554>",
+  ta: "<:ta_f:1536279165316108298>",
+  lw: "<:lw_f:1536279171032944740>",
+  hw: "<:hw_f:1536279183137972254>",
+  pkw: "<:pkw_f:1536279178217918575>",
   aces: "<:asd:123456778>",
   hat: "<:asd:123456778>",
   ame_no_habakiri: "<:asd:123456778>",
