@@ -37,6 +37,9 @@ const {
 const { isMaintenanceActive } = require("./utils/maintenanceStore");
 const { createMaintenanceEmbed } = require("./commands/maintenance");
 const {
+  isUniversalAdmin,
+} = require("./utils/universalAdmin");
+const {
   isEligibleMilestoneChat,
   incrementMessageMilestone,
   applyMessageMilestoneRewards,
@@ -659,50 +662,60 @@ function parsePrefixedCommand(content) {
   return { commandName, args: parts };
 }
 
-function getOwnerIds() {
-  return String(
-    process.env.BOT_OWNER_IDS ||
-      process.env.OWNER_IDS ||
-      process.env.BOT_OWNER_ID ||
-      process.env.ADMIN_USER_IDS ||
-      ""
-  )
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
-}
-
 function isMaintenanceBypassUser(message) {
-  const ownerIds = getOwnerIds();
-
-  const isBotOwner = ownerIds.includes(String(message.author.id));
-  const guild = getCommandGuild(message);
-  const isServerOwner =
-    guild && String(guild.ownerId) === String(message.author.id);
-
-  return Boolean(isBotOwner || isServerOwner);
+  return isUniversalAdmin(message);
 }
 
 function isAdminBypassUser(message) {
-  const ownerIds = getOwnerIds();
-  const userId = String(message?.author?.id || "");
-  const guild = getCommandGuild(message);
-  const member = getCommandMember(message);
+  return isUniversalAdmin(message);
+}
 
-  const isBotOwner = ownerIds.includes(userId);
-  const isServerOwner = guild && String(guild.ownerId) === userId;
-  const isAdminPerm = member?.permissions?.has?.("Administrator");
+const UNIVERSAL_ADMIN_COMMANDS = new Set([
+  "enable",
+  "disable",
+  "maintenance",
+  "banuser",
+  "unbanuser",
+  "baninfo",
+  "arenastreak",
+  "luckyweek",
+  "importdata",
+  "exportdata",
+  "addskin",
+  "removeskin",
+  "givecard",
+  "removecard",
+  "giveboost",
+  "removeboost",
+  "giveitem",
+  "removeitem",
+  "removefrag",
+  "addprestige",
+  "removeprestige",
+  "mfr",
+  "patreon30",
+  "resetall",
+  "resetuser",
+  "setvote",
+  "essence",
+  "vcr",
+  "resetsolstice",
+]);
 
-  const roleIds = String(process.env.ADMIN_ROLE_IDS || "")
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
+function isUniversalAdminCommand(
+  commandName,
+  command
+) {
+  const typed =
+    normalizeCommandName(commandName);
 
-  const hasAdminRole = roleIds.length && member?.roles?.cache
-    ? roleIds.some((roleId) => member.roles.cache.has(roleId))
-    : false;
+  const real =
+    normalizeCommandName(command?.name);
 
-  return Boolean(isBotOwner || isServerOwner || isAdminPerm || hasAdminRole);
+  return (
+    UNIVERSAL_ADMIN_COMMANDS.has(typed) ||
+    UNIVERSAL_ADMIN_COMMANDS.has(real)
+  );
 }
 
 function getPlayerAdminBan(player) {
@@ -1070,6 +1083,24 @@ client.on("messageCreate", async (message) => {
       message.isDMCommand = !message.guild;
     } else {
       await attachMainServerContext(message);
+    }
+
+    if (
+      isUniversalAdminCommand(
+        commandName,
+        command
+      ) &&
+      !isUniversalAdmin(message)
+    ) {
+      await message.reply({
+        content:
+          "This command can only be used by authorized bot staff.",
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+
+      return;
     }
 
     const playersForBanCheck = readPlayers();

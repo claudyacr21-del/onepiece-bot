@@ -1,43 +1,12 @@
 const { EmbedBuilder } = require("discord.js");
 const { readPlayers, writePlayers } = require("../playerStore");
-
+const {
+  isUniversalAdmin,
+} = require("../utils/universalAdmin");
 const STORE_ID = "__disabled_commands";
 
 function normalizeCommand(value) {
   return String(value || "").toLowerCase().trim();
-}
-
-function getOwnerIds() {
-  return String(
-    process.env.BOT_OWNER_IDS ||
-      process.env.OWNER_IDS ||
-      process.env.BOT_OWNER_ID ||
-      process.env.DISCORD_OWNER_ID ||
-      process.env.ADMIN_USER_IDS ||
-      ""
-  )
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
-}
-
-function isAdmin(message) {
-  const userId = String(message.author.id);
-  const ownerIds = getOwnerIds();
-  const roleIds = String(process.env.ADMIN_ROLE_IDS || "")
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
-
-  const isBotOwner = ownerIds.includes(userId);
-  const isServerOwner = String(message.guild?.ownerId || "") === userId;
-  const isAdminPerm = message.member?.permissions?.has?.("Administrator");
-  const hasAdminRole =
-    roleIds.length && message.member?.roles?.cache
-      ? roleIds.some((roleId) => message.member.roles.cache.has(roleId))
-      : false;
-
-  return Boolean(isBotOwner || isServerOwner || isAdminPerm || hasAdminRole);
 }
 
 function getStore(players) {
@@ -63,9 +32,10 @@ module.exports = {
       });
     }
 
-    if (!isAdmin(message)) {
+    if (!isUniversalAdmin(message)) {
       return message.reply({
-        content: "Only admins can disable commands.",
+        content:
+          "This command can only be used by authorized bot staff.",
         allowedMentions: { repliedUser: false },
       });
     }

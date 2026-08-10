@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { getPlayer, readPlayers } = require("../playerStore");
 const { findPirateByUser, getRole } = require("../utils/pirateStore");
 const {
@@ -12,6 +12,9 @@ const {
 } = require("../data/profileBadges");
 const { hydrateCard } = require("../utils/evolution");
 const { getPlayerCombatCards } = require("../utils/combatStats");
+const {
+  isUniversalAdmin,
+} = require("../utils/universalAdmin");
 const { isMergeCard, getMergeFixedPower } = require("../utils/mergeCards");
 const { getShipByCode, SHIPS } = require("../data/ships");
 const weaponsDb = require("../data/weapons");
@@ -882,36 +885,8 @@ function safeLocaleNumber(value) {
   return Number(value || 0).toLocaleString("en-US");
 }
 
-function getEnvIdList(...keys) {
-  return keys
-    .flatMap((key) => String(process.env[key] || "").split(/[,\s]+/))
-    .map((id) => id.trim())
-    .filter(Boolean);
-}
-
 function isProfileAdmin(message) {
-  const ownerIds = getEnvIdList(
-    "BOT_OWNER_ID",
-    "BOT_OWNER_IDS"
-  );
-
-  if (ownerIds.includes(String(message.author.id))) return true;
-
-  const adminRoleIds = getEnvIdList(
-    "ADMIN_ROLE_IDS",
-    "ADMIN_ROLE_ID",
-    "BOT_ADMIN_ROLE_IDS"
-  );
-
-  const memberRoles = message.member?.roles?.cache;
-  if (memberRoles && adminRoleIds.some((roleId) => memberRoles.has(roleId))) {
-    return true;
-  }
-
-  return Boolean(
-    message.member?.permissions?.has?.(PermissionFlagsBits.Administrator) ||
-      message.member?.permissions?.has?.(PermissionFlagsBits.ManageGuild)
-  );
+  return isUniversalAdmin(message);
 }
 
 function extractProfileTargetId(message, args = []) {
