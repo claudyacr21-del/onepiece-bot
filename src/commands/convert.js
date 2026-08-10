@@ -1,5 +1,8 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayer } = require("../playerStore");
+const {
+  getFragmentStorageInfo,
+} = require("../utils/autoSac");
 const rawCards = require("../data/cards");
 
 const UNIVERSAL_FRAGMENT_BY_RARITY = {
@@ -180,7 +183,58 @@ module.exports = {
       );
     }
 
-    const updatedItems = removeUniversalFragment(player.items || [], universal.code, amount);
+    const fragmentStorage =
+      getFragmentStorageInfo(
+        player,
+        player.fragments || [],
+        message.author.id
+      );
+
+    const storageTotal = Math.max(
+      0,
+      Number(
+        fragmentStorage.total || 0
+      )
+    );
+
+    const storageMax = Math.max(
+      0,
+      Number(
+        fragmentStorage.max || 0
+      )
+    );
+
+    const requiredTotal =
+      storageTotal + amount;
+
+    if (
+      !storageMax ||
+      requiredTotal > storageMax
+    ) {
+      const freeSlots = Math.max(
+        0,
+        storageMax - storageTotal
+      );
+
+      return message.reply({
+        content: [
+          "Fragment storage is full. Universal Fragments cannot be used.",
+          `Storage: **${storageTotal.toLocaleString("en-US")}/${storageMax.toLocaleString("en-US")}**`,
+          `Required Space: **${amount.toLocaleString("en-US")}**`,
+          `Available Space: **${freeSlots.toLocaleString("en-US")}**`,
+        ].join("\n"),
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
+    const updatedItems =
+      removeUniversalFragment(
+        player.items || [],
+        universal.code,
+        amount
+      );
 
     if (!updatedItems) {
       return message.reply("Failed to consume universal fragments.");
