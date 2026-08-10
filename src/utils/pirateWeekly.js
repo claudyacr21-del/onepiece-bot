@@ -1,11 +1,27 @@
-const { readPirateState, writePirateState } = require("./pirateStore");
-const { updatePlayerAtomic, flushPlayerStoreNow } = require("../playerStore");
+const {
+  readPirateState,
+  writePirateState,
+} = require("./pirateStore");
+
+const {
+  updatePlayerAtomic,
+  flushPlayerStoreNow,
+} = require("../playerStore");
 
 const WEEKLY_RESET_TZ_OFFSET_HOURS = 7;
+const WEEKLY_REWARD_HISTORY_LIMIT = 16;
 
-function getJakartaDateParts(date = new Date()) {
+let weeklyResetPromise = null;
+
+function getJakartaDateParts(
+  date = new Date()
+) {
   const shifted = new Date(
-    date.getTime() + WEEKLY_RESET_TZ_OFFSET_HOURS * 60 * 60 * 1000
+    date.getTime() +
+      WEEKLY_RESET_TZ_OFFSET_HOURS *
+        60 *
+        60 *
+        1000
   );
 
   return {
@@ -16,42 +32,94 @@ function getJakartaDateParts(date = new Date()) {
   };
 }
 
-function getWeeklyResetBucket(date = new Date()) {
-  const parts = getJakartaDateParts(date);
+function getWeeklyResetBucket(
+  date = new Date()
+) {
+  const parts =
+    getJakartaDateParts(date);
 
   const shifted = new Date(
-    Date.UTC(parts.year, parts.month, parts.date, 0, 0, 0, 0)
+    Date.UTC(
+      parts.year,
+      parts.month,
+      parts.date,
+      0,
+      0,
+      0,
+      0
+    )
   );
 
   const day = shifted.getUTCDay();
-  const daysSinceMonday = day === 0 ? 6 : day - 1;
 
-  shifted.setUTCDate(shifted.getUTCDate() - daysSinceMonday);
+  const daysSinceMonday =
+    day === 0 ? 6 : day - 1;
 
-  const y = shifted.getUTCFullYear();
-  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(shifted.getUTCDate()).padStart(2, "0");
+  shifted.setUTCDate(
+    shifted.getUTCDate() -
+      daysSinceMonday
+  );
+
+  const y =
+    shifted.getUTCFullYear();
+
+  const m = String(
+    shifted.getUTCMonth() + 1
+  ).padStart(2, "0");
+
+  const d = String(
+    shifted.getUTCDate()
+  ).padStart(2, "0");
 
   return `${y}-${m}-${d}`;
 }
 
-function getRewardForRank(rank, role) {
-  const isLeader = role === "leader";
+function getRewardForRank(
+  rank,
+  role
+) {
+  const isLeader =
+    role === "leader";
 
-  if (rank === 1) return isLeader ? 30 : 30;
-  if (rank === 2) return isLeader ? 25: 25;
-  if (rank === 3) return isLeader ? 20 : 20;
+  if (rank === 1) {
+    return isLeader ? 30 : 30;
+  }
+
+  if (rank === 2) {
+    return isLeader ? 25 : 25;
+  }
+
+  if (rank === 3) {
+    return isLeader ? 20 : 20;
+  }
 
   return isLeader ? 15 : 15;
 }
 
-function getPirateMemberRole(pirate, userId) {
-  if (String(pirate.leaderId || "") === String(userId || "")) return "leader";
-  if (String(pirate.viceLeaderId || "") === String(userId || "")) return "vice";
+function getPirateMemberRole(
+  pirate,
+  userId
+) {
+  if (
+    String(pirate.leaderId || "") ===
+    String(userId || "")
+  ) {
+    return "leader";
+  }
+
+  if (
+    String(pirate.viceLeaderId || "") ===
+    String(userId || "")
+  ) {
+    return "vice";
+  }
+
   return "crew";
 }
 
-function resetPirateRaidState(pirate) {
+function resetPirateRaidState(
+  pirate
+) {
   return {
     ...pirate,
 
@@ -66,31 +134,90 @@ function resetPirateRaidState(pirate) {
   };
 }
 
-async function addPirateTokens(userId, amount) {
-  const safeAmount = Math.max(0, Math.floor(Number(amount || 0)));
-  if (!safeAmount) return;
+async function addPirateTokens(
+  userId,
+  amount,
+  rewardBucket
+) {
+  const safeAmount = Math.max(
+    0,
+    Math.floor(Number(amount || 0))
+  );
 
-  await updatePlayerAtomic(
+  const safeBucket = String(
+    rewardBucket || ""
+  ).trim();
+
+  if (!safeAmount || !safeBucket) {
+    return false;
+  }
+
+  let awarded = false;
+
+  updatePlayerAtomic(
     String(userId),
     (fresh) => {
       const player = fresh || {};
 
+      const rewardedBuckets =
+        Array.isArray(
+          player.pirateWeeklyRewardBuckets
+        )
+          ? player.pirateWeeklyRewardBuckets
+              .map(String)
+              .filter(Boolean)
+          : [];
+
+      if (
+        rewardedBuckets.includes(
+          safeBucket
+        )
+      ) {
+        return player;
+      }
+
+      awarded = true;
+
       return {
         ...player,
+
         pirateTokens:
-          Math.max(0, Math.floor(Number(player.pirateTokens || 0))) + safeAmount,
+          Math.max(
+            0,
+            Math.floor(
+              Number(
+                player.pirateTokens || 0
+              )
+            )
+          ) + safeAmount,
+
+        pirateWeeklyRewardBuckets: [
+          ...rewardedBuckets,
+          safeBucket,
+        ].slice(
+          -WEEKLY_REWARD_HISTORY_LIMIT
+        ),
       };
     },
     "Unknown"
   );
+
+  return awarded;
 }
 
-async function runPirateWeeklyResetIfNeeded() {
-  const state = readPirateState();
-  const currentBucket = getWeeklyResetBucket();
+async function runPirateWeeklyResetInternal() {
+  const state =
+    readPirateState();
 
-  if (!state.lastWeeklyResetBucket) {
-    state.lastWeeklyResetBucket = currentBucket;
+  const currentBucket =
+    getWeeklyResetBucket();
+
+  if (
+    !state.lastWeeklyResetBucket
+  ) {
+    state.lastWeeklyResetBucket =
+      currentBucket;
+
     writePirateState(state);
 
     return {
@@ -101,7 +228,10 @@ async function runPirateWeeklyResetIfNeeded() {
     };
   }
 
-  if (state.lastWeeklyResetBucket === currentBucket) {
+  if (
+    state.lastWeeklyResetBucket ===
+    currentBucket
+  ) {
     return {
       didReset: false,
       initialized: false,
@@ -110,22 +240,70 @@ async function runPirateWeeklyResetIfNeeded() {
     };
   }
 
-  const pirates = Object.values(state.pirates || {})
-    .filter((pirate) => Array.isArray(pirate.members) && pirate.members.length > 0)
-    .sort((a, b) => Number(b.weeklyPoints || 0) - Number(a.weeklyPoints || 0));
+  const pirates = Object.values(
+    state.pirates || {}
+  )
+    .filter(
+      (pirate) =>
+        Array.isArray(
+          pirate.members
+        ) &&
+        pirate.members.length > 0
+    )
+    .sort(
+      (a, b) =>
+        Number(
+          b.weeklyPoints || 0
+        ) -
+        Number(
+          a.weeklyPoints || 0
+        )
+    );
 
   const rewards = [];
 
-  for (let index = 0; index < pirates.length; index++) {
-    const pirate = pirates[index];
+  for (
+    let index = 0;
+    index < pirates.length;
+    index++
+  ) {
+    const pirate =
+      pirates[index];
+
     const rank = index + 1;
-    const members = Array.isArray(pirate.members) ? pirate.members : [];
 
-    for (const userId of members) {
-      const role = getPirateMemberRole(pirate, userId);
-      const tokens = getRewardForRank(rank, role);
+    const members =
+      Array.isArray(
+        pirate.members
+      )
+        ? pirate.members
+        : [];
 
-      await addPirateTokens(userId, tokens);
+    for (
+      const userId of members
+    ) {
+      const role =
+        getPirateMemberRole(
+          pirate,
+          userId
+        );
+
+      const tokens =
+        getRewardForRank(
+          rank,
+          role
+        );
+
+      const awarded =
+        await addPirateTokens(
+          userId,
+          tokens,
+          currentBucket
+        );
+
+      if (!awarded) {
+        continue;
+      }
 
       rewards.push({
         pirateId: pirate.id,
@@ -137,45 +315,80 @@ async function runPirateWeeklyResetIfNeeded() {
       });
     }
 
-    const current = state.pirates[pirate.id];
-    if (!current) continue;
+    const current =
+      state.pirates[pirate.id];
 
-    state.pirates[pirate.id] = resetPirateRaidState({
-      ...current,
-      weeklyPoints: 0,
-      updatedAt: Date.now(),
-      lastWeeklyReward: {
-        rank,
-        previousWeeklyPoints: Math.max(
-          0,
-          Math.floor(Number(pirate.weeklyPoints || 0))
-        ),
-        bucket: state.lastWeeklyResetBucket,
-        rewardedAt: Date.now(),
-      },
-      logs: [
-        ...(current.logs || []),
-        {
-          at: Date.now(),
-          type: "weekly_reset",
+    if (!current) {
+      continue;
+    }
+
+    state.pirates[pirate.id] =
+      resetPirateRaidState({
+        ...current,
+
+        weeklyPoints: 0,
+        updatedAt: Date.now(),
+
+        lastWeeklyReward: {
           rank,
-          previousWeeklyPoints: Math.max(
-            0,
-            Math.floor(Number(pirate.weeklyPoints || 0))
-          ),
-          resetRaidBosses: true,
+
+          previousWeeklyPoints:
+            Math.max(
+              0,
+              Math.floor(
+                Number(
+                  pirate.weeklyPoints ||
+                    0
+                )
+              )
+            ),
+
+          bucket: currentBucket,
+          rewardedAt: Date.now(),
         },
-      ].slice(-25),
-    });
+
+        logs: [
+          ...(current.logs || []),
+
+          {
+            at: Date.now(),
+            type: "weekly_reset",
+            rank,
+
+            previousWeeklyPoints:
+              Math.max(
+                0,
+                Math.floor(
+                  Number(
+                    pirate.weeklyPoints ||
+                      0
+                  )
+                )
+              ),
+
+            resetRaidBosses: true,
+          },
+        ].slice(-25),
+      });
   }
 
-  if (typeof flushPlayerStoreNow === "function") {
-    await flushPlayerStoreNow(30000);
+  if (
+    typeof flushPlayerStoreNow ===
+    "function"
+  ) {
+    await flushPlayerStoreNow(
+      30000
+    );
   }
 
-  state.lastWeeklyResetBucket = currentBucket;
-  state.lastWeeklyResetAt = Date.now();
-  state.lastWeeklyRewards = rewards.slice(-200);
+  state.lastWeeklyResetBucket =
+    currentBucket;
+
+  state.lastWeeklyResetAt =
+    Date.now();
+
+  state.lastWeeklyRewards =
+    rewards.slice(-200);
 
   writePirateState(state);
 
@@ -187,11 +400,38 @@ async function runPirateWeeklyResetIfNeeded() {
   };
 }
 
-function getPirateWeeklyRewardPreview(rank) {
+async function runPirateWeeklyResetIfNeeded() {
+  if (weeklyResetPromise) {
+    return weeklyResetPromise;
+  }
+
+  weeklyResetPromise =
+    runPirateWeeklyResetInternal();
+
+  try {
+    return await weeklyResetPromise;
+  } finally {
+    weeklyResetPromise = null;
+  }
+}
+
+function getPirateWeeklyRewardPreview(
+  rank
+) {
   return {
     rank,
-    leader: getRewardForRank(rank, "leader"),
-    member: getRewardForRank(rank, "crew"),
+
+    leader:
+      getRewardForRank(
+        rank,
+        "leader"
+      ),
+
+    member:
+      getRewardForRank(
+        rank,
+        "crew"
+      ),
   };
 }
 

@@ -83,7 +83,16 @@ const activeCommandExecutions = new Set();
 let pirateWeeklyResetRunning = false;
 
 async function checkPirateWeeklyReset(reason = "interval") {
-  if (pirateWeeklyResetRunning) return;
+  if (
+    isBotSingletonEnabled() &&
+    !isBotLeader
+  ) {
+    return;
+  }
+
+  if (pirateWeeklyResetRunning) {
+    return;
+  }
   pirateWeeklyResetRunning = true;
 
   try {
@@ -692,6 +701,7 @@ const UNIVERSAL_ADMIN_COMMANDS = new Set([
   "removefrag",
   "addprestige",
   "removeprestige",
+  "removepiratetoken",
   "mfr",
   "patreon30",
   "resetall",

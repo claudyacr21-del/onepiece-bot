@@ -783,11 +783,45 @@ function mergePlayerNoRollback(incomingPlayer, persistedPlayer, options = {}) {
       0,
       Math.floor(
         Math.max(
-          Number(incomingPlayer.pirateTokens || 0),
-          Number(persistedPlayer.pirateTokens || 0)
+          Number(
+            incomingPlayer.pirateTokens ||
+              0
+          ),
+          Number(
+            persistedPlayer.pirateTokens ||
+              0
+          )
         )
       )
     ),
+
+    pirateWeeklyRewardBuckets: [
+      ...new Set(
+        [
+          ...(
+            Array.isArray(
+              persistedPlayer.pirateWeeklyRewardBuckets
+            )
+              ? persistedPlayer.pirateWeeklyRewardBuckets
+              : []
+          ),
+
+          ...(
+            Array.isArray(
+              incomingPlayer.pirateWeeklyRewardBuckets
+            )
+              ? incomingPlayer.pirateWeeklyRewardBuckets
+              : []
+          ),
+        ]
+          .map((bucket) =>
+            String(
+              bucket || ""
+            ).trim()
+          )
+          .filter(Boolean)
+      ),
+    ].slice(-16),
 
     ryumaTokens: Math.max(
       0,
@@ -2446,8 +2480,30 @@ function normalizePlayer(player = {}, username = "Unknown") {
 
     pirateTokens: Math.max(
       0,
-      Math.floor(Number(player.pirateTokens || 0))
+      Math.floor(
+        Number(
+          player.pirateTokens || 0
+        )
+      )
     ),
+
+    pirateWeeklyRewardBuckets: [
+      ...new Set(
+        (
+          Array.isArray(
+            player.pirateWeeklyRewardBuckets
+          )
+            ? player.pirateWeeklyRewardBuckets
+            : []
+        )
+          .map((bucket) =>
+            String(
+              bucket || ""
+            ).trim()
+          )
+          .filter(Boolean)
+      ),
+    ].slice(-16),
 
     ryumaTokens: Math.max(
       0,
@@ -2533,6 +2589,7 @@ function getDefaultPlayer(username) {
       gems: 100,
       goldenFoilCoins: 0,
       pirateTokens: 0,
+      pirateWeeklyRewardBuckets: [],
       ryumaTokens: 0,
       events: {},
       currentIsland: "Foosha Village",
