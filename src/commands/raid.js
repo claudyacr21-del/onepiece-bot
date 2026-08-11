@@ -1596,7 +1596,7 @@ function getRaidBossModeMultiplier(raidMode = {}) {
     modeName.includes("throne")
   ) {
     return {
-      hp: 4,
+      hp: 2.5,
       speed: 2,
       atk: 3.5,
     };
@@ -1604,7 +1604,7 @@ function getRaidBossModeMultiplier(raidMode = {}) {
 
   if (ticketCode === "gold_raid_ticket" || modeName.includes("gold")) {
     return {
-      hp: 3.5,
+      hp: 2.0,
       speed: 1.5,
       atk: 3,
     };
@@ -1612,9 +1612,9 @@ function getRaidBossModeMultiplier(raidMode = {}) {
 
   if (ticketCode === "mythic_raid_ticket" || modeName.includes("mythic")) {
     return {
-      hp: 7.8,
+      hp: 5.2,
       speed: 2,
-      atk: 4.8,
+      atk: 8,
     };
   }
 
