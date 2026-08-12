@@ -4345,6 +4345,19 @@ module.exports = {
           });
         }
 
+        const joinedBeforeStart =
+          getSelectedParticipantCount(latestRoom);
+
+        if (
+          usedCommand === "mraid" &&
+          joinedBeforeStart < 2
+        ) {
+          return safeReplyOrEdit(interaction, {
+            content:
+              "Mythic Raid cannot be started solo. At least 2 players must join before starting.",
+          });
+        }
+
         let startedRoom;
 
         try {

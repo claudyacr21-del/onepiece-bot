@@ -1299,7 +1299,13 @@ module.exports = {
 
         return safeComponentUpdate(i, {
           embeds: [
-            buildTextPageEmbed(message.author.username, lines, pageIndex, pageSize),
+            buildTextPageEmbed(
+              message.author.username,
+              lines,
+              working,
+              pageIndex,
+              pageSize
+            ),
           ],
           components: buildTextRows(pageIndex, totalPages),
         });

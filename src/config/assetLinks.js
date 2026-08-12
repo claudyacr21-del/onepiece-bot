@@ -512,9 +512,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1536003347436412928/whitebeard.gif?ex=6a79d217&is=6a788097&hm=d74401b53ceab9c713211f44118667d4dac8ca0899377880e4e6b8858e344bad",
   },
   blackbeard_emperor_of_darkness: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499673550636847175/content.png?ex=69f5a755&is=69f455d5&hm=3f0a89901418819208e0bd73a1b99029115457dd06369488cdd10cafaf648816&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1499673551450669116/content.png?ex=69f5a755&is=69f455d5&hm=9a596a0c4b2211b24a4f307846903e66f0f6ec1e4036c38c0952da388a237259&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1499673552134209566/content.png?ex=69f5a755&is=69f455d5&hm=1f0c48ce7af42c8a3f6bcbea979147c9b2998f83d13cbcd0eccca5e29cb14c5a&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1537033348533190716/marshal_d_teach_1.jpg?ex=6a7d915a&is=6a7c3fda&hm=37e7c12424ef19c117c7c43fcf3e30a53f67d87e4ccc6b472f800be1be34d766&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1537033349355405362/marshal_d_teach_2.jpg?ex=6a7d915b&is=6a7c3fdb&hm=3c506bc12590f24e37e27b4f248bbdafbc55ab4d1811bee9a043cddc87820452&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1537033349963710576/marshal_d_teach_3.jpg?ex=6a7d915b&is=6a7c3fdb&hm=9c16e89d3989916827f1eab7ffd682f19a697d85ea7df0a5b9d39530cfe5cc03&",
   },
   garp_hero_of_the_marines: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499674943812796436/content.png?ex=69f5a8a1&is=69f45721&hm=a4b967be315fb293651201f4624fa750e7b4f6456be61cd68634a99ce0ea90b6&",
