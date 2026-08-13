@@ -66,6 +66,59 @@ function addTicket(list, ticket) {
   return arr;
 }
 
+function normalizeVoteItemText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function isPullResetTicketEntry(entry) {
+  const code = String(entry?.code || "")
+    .toLowerCase()
+    .trim();
+
+  const name = normalizeVoteItemText(
+    entry?.name ||
+      entry?.displayName ||
+      entry?.title
+  );
+
+  return (
+    code === "pull_reset_ticket" ||
+    code === "pull_reset" ||
+    code === "pull_reset_token" ||
+    code === "pull_reset_tickets" ||
+    code === "pullreset_ticket" ||
+    name === "pull reset ticket" ||
+    name === "pull reset tickets" ||
+    name === "pull reset token" ||
+    name === "pull reset tokens"
+  );
+}
+
+function getPullResetTicketAmount(list) {
+  return (Array.isArray(list) ? list : []).reduce(
+    (total, entry) =>
+      isPullResetTicketEntry(entry)
+        ? total +
+          Math.max(
+            0,
+            Math.floor(Number(entry?.amount || 0))
+          )
+        : total,
+    0
+  );
+}
+
+function removePullResetTicketEntries(list) {
+  return (Array.isArray(list) ? list : []).filter(
+    (entry) => !isPullResetTicketEntry(entry)
+  );
+}
+
 function getVoteUserId(body) {
   return (
     body?.data?.user?.platform_id ||
@@ -998,10 +1051,36 @@ async function handleVote(client, body) {
       const nextStreak = streakExpired ? 1 : Number(previousVote.streak || 0) + 1;
       const nextTotalVotes = Number(previousVote.totalVotes || 0) + 1;
 
-      let updatedTickets = addTicket(fresh.tickets || [], {
+      const existingPullResetTicketAmount =
+        getPullResetTicketAmount(fresh.tickets) +
+        getPullResetTicketAmount(fresh.items) +
+        getPullResetTicketAmount(fresh.materials) +
+        Math.max(
+          0,
+          Math.floor(Number(fresh.pullResetTickets || 0))
+        ) +
+        Math.max(
+          0,
+          Math.floor(
+            Number(fresh.pull_reset_ticket_count || 0)
+          )
+        );
+
+      let updatedTickets =
+        removePullResetTicketEntries(fresh.tickets);
+
+      const updatedItems =
+        removePullResetTicketEntries(fresh.items);
+
+      const updatedMaterials =
+        removePullResetTicketEntries(fresh.materials);
+
+      updatedTickets = addTicket(updatedTickets, {
         code: "pull_reset_ticket",
         name: "Pull Reset Ticket",
-        amount: VOTE_PULL_RESET_REWARD,
+        amount:
+          existingPullResetTicketAmount +
+          VOTE_PULL_RESET_REWARD,
         rarity: "A",
         type: "Ticket",
       });
@@ -1057,6 +1136,10 @@ async function handleVote(client, body) {
         username: fresh.username || username,
         berries: Number(fresh.berries || 0) + VOTE_BERRY_REWARD,
         tickets: updatedTickets,
+        items: updatedItems,
+        materials: updatedMaterials,
+        pullResetTickets: 0,
+        pull_reset_ticket_count: 0,
         cooldowns: {
           ...(fresh.cooldowns || {}),
           vote: now + VOTE_COOLDOWN_MS,
