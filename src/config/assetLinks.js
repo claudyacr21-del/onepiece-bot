@@ -509,7 +509,7 @@ const CARD_IMAGES = {
   whitebeard_strongest_man: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1535995965893255259/newgate_1.jpeg?ex=6a79cb37&is=6a7879b7&hm=b87a1cdde98bb02732eeb0162b8005da352f49ffc0de25dc58ae47afec60544d&",
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1535995966232985663/newgate_2.jpeg?ex=6a79cb37&is=6a7879b7&hm=63915d6de062c14159a5c4ec088376cbb80082777a21a4aba0cf3d333089054b&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1536003347436412928/whitebeard.gif?ex=6a79d217&is=6a788097&hm=d74401b53ceab9c713211f44118667d4dac8ca0899377880e4e6b8858e344bad",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1538059248209240145/whitebeard-one-piece.gif?ex=6a814ccc&is=6a7ffb4c&hm=8a5b8ab9e9fd7b92cd2db490775c1238f56c97e0852f9a800362d6acd8bffe28",
   },
   blackbeard_emperor_of_darkness: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1537033348533190716/marshal_d_teach_1.jpg?ex=6a7d915a&is=6a7c3fda&hm=37e7c12424ef19c117c7c43fcf3e30a53f67d87e4ccc6b472f800be1be34d766&",
