@@ -49,6 +49,33 @@ function flushScheduledPlayerSaveTimers() {
   }
 }
 
+function flushScheduledPlayerSaveTimer(userId) {
+  const id = String(userId);
+  const timer = playerSaveTimers.get(id);
+
+  if (timer) {
+    clearTimeout(timer);
+    playerSaveTimers.delete(id);
+  }
+
+  if (!playerSaveRunning.has(id)) {
+    setImmediate(() => {
+      runCoalescedPlayerSave(id).catch(
+        (error) => {
+          console.error(
+            "[PLAYER DB COALESCED SAVE ERROR]",
+            {
+              userId: id,
+              message:
+                error?.message || error,
+            }
+          );
+        }
+      );
+    });
+  }
+}
+
 async function drainPlayerStoreSaves(timeoutMs = 60000) {
   const deadline =
     Date.now() +
@@ -1874,10 +1901,163 @@ function makeStableInstanceId(card, index = 0) {
   return `${code}_legacy_${stage}_${level}_${index}`;
 }
 
+function getBoostCardCleanupScore(card) {
+  return (
+    getCardStageNumber(card) *
+      1_000_000_000_000 +
+
+    Math.max(
+      1,
+      Number(
+        card?.level ||
+        card?.currentLevel ||
+        card?.lvl ||
+        1
+      )
+    ) * 1_000_000_000 +
+
+    Math.max(
+      0,
+      Number(card?.raidPrestige || 0)
+    ) * 1_000_000 +
+
+    Math.max(
+      0,
+      Number(card?.exp ?? card?.xp ?? 0)
+    ) * 100 +
+
+    Math.max(
+      0,
+      Number(
+        card?.power ||
+        card?.currentPower ||
+        0
+      )
+    )
+  );
+}
+
+function dedupeBoostCardInstances(cards) {
+  const output = [];
+  const boostIndexes = new Map();
+
+  for (
+    const card of Array.isArray(cards)
+      ? cards
+      : []
+  ) {
+    const role = String(
+      card?.cardRole ||
+      card?.role ||
+      ""
+    )
+      .toLowerCase()
+      .trim();
+
+    const code = String(
+      card?.code ||
+      card?.baseCode ||
+      ""
+    )
+      .toLowerCase()
+      .trim();
+
+    if (role !== "boost" || !code) {
+      output.push(card);
+      continue;
+    }
+
+    const existingIndex =
+      boostIndexes.get(code);
+
+    if (existingIndex === undefined) {
+      boostIndexes.set(
+        code,
+        output.length
+      );
+
+      output.push(card);
+      continue;
+    }
+
+    const existing =
+      output[existingIndex];
+
+    const keepIncoming =
+      getBoostCardCleanupScore(card) >
+      getBoostCardCleanupScore(existing);
+
+    const kept = keepIncoming
+      ? card
+      : existing;
+
+    const duplicate = keepIncoming
+      ? existing
+      : card;
+
+    const finalStage = Math.max(
+      getCardStageNumber(existing),
+      getCardStageNumber(card)
+    );
+
+    output[existingIndex] = {
+      ...duplicate,
+      ...kept,
+
+      instanceId: kept.instanceId,
+
+      evolutionStage: finalStage,
+      evolutionKey: `M${finalStage}`,
+
+      level: Math.max(
+        Number(existing?.level || 1),
+        Number(card?.level || 1)
+      ),
+
+      exp: Math.max(
+        Number(existing?.exp || 0),
+        Number(card?.exp || 0)
+      ),
+
+      xp: Math.max(
+        Number(existing?.xp || 0),
+        Number(card?.xp || 0)
+      ),
+
+      raidPrestige: Math.max(
+        Number(
+          existing?.raidPrestige || 0
+        ),
+        Number(card?.raidPrestige || 0)
+      ),
+
+      equippedDevilFruit:
+        kept.equippedDevilFruit ||
+        duplicate.equippedDevilFruit ||
+        null,
+
+      equippedDevilFruitName:
+        kept.equippedDevilFruitName ||
+        duplicate.equippedDevilFruitName ||
+        null,
+
+      equippedDevilFruitCode:
+        kept.equippedDevilFruitCode ||
+        duplicate.equippedDevilFruitCode ||
+        null,
+
+      amount: 1,
+    };
+  }
+
+  return output;
+}
+
 function normalizeCards(value) {
   if (!Array.isArray(value)) return [];
 
-  return value.map((card, index) => {
+  const normalizedCards = value.map(
+    (card, index) => {
     const equippedWeapons = Array.isArray(card.equippedWeapons)
       ? card.equippedWeapons.map((w) => ({
           ...w,
@@ -1959,6 +2139,10 @@ function normalizeCards(value) {
       equippedDevilFruitName: card.equippedDevilFruitName || null,
     };
   });
+
+  return dedupeBoostCardInstances(
+    normalizedCards
+  );
 }
 
 function normalizePullSlot(slot, fallbackMax) {
@@ -3080,20 +3264,33 @@ async function flushPlayerStoreNow(timeoutMs = 30000) {
   return trackedFlush;
 }
 
-async function flushPlayerNow(userId, timeoutMs = 8000) {
+async function flushPlayerNow(
+  userId,
+  timeoutMs = 8000
+) {
   const id = String(userId || "");
+
   if (!id) return false;
 
   try {
     if (!USE_POSTGRES || !dbReady) {
-      if (PLAYER_STORE_MODE === "postgres") {
-        console.error("[PLAYER STORE] Refusing single-player flush without postgres readiness.", {
-          userId: id,
-        });
+      if (
+        PLAYER_STORE_MODE === "postgres"
+      ) {
+        console.error(
+          "[PLAYER STORE] Refusing single-player flush without postgres readiness.",
+          {
+            userId: id,
+          }
+        );
+
         return false;
       }
 
-      writePlayersLocalBackupOnly(readPlayers());
+      writePlayersLocalBackupOnly(
+        readPlayers()
+      );
+
       return true;
     }
 
@@ -3102,24 +3299,40 @@ async function flushPlayerNow(userId, timeoutMs = 8000) {
 
     if (!latestRaw) return true;
 
-    const latestNormalized = normalizeStoreRecord(
-      id,
-      latestRaw,
-      latestRaw?.username || "Unknown"
+    const pendingSave =
+      enqueuePlayerSnapshotSave(
+        id,
+        latestRaw
+      );
+
+    const safeTimeout = Math.max(
+      1000,
+      Number(timeoutMs || 8000)
     );
 
-    const saved = await upsertOnePlayerToPostgres(id, latestNormalized);
+    flushScheduledPlayerSaveTimer(id);
 
-    if (saved) {
-      persistedCache[id] = cloneJson(latestNormalized);
-    }
+    const result = await Promise.race([
+      pendingSave.then(() => true),
 
-    return saved;
+      new Promise((resolve) =>
+        setTimeout(
+          () => resolve(false),
+          safeTimeout
+        )
+      ),
+    ]);
+
+    return result === true;
   } catch (error) {
-    console.error("[PLAYER STORE FLUSH PLAYER ERROR]", {
-      userId: id,
-      message: error?.message || error,
-    });
+    console.error(
+      "[PLAYER STORE FLUSH PLAYER ERROR]",
+      {
+        userId: id,
+        message:
+          error?.message || error,
+      }
+    );
 
     return false;
   }

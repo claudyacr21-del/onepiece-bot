@@ -207,16 +207,22 @@ function hasEquippedBaccaratFruit(card) {
 }
 
 function getDailyBoostCards(player) {
-  return getBoostCards(player).filter((card) => {
-    if (normalizeBoostType(card.boostType) !== "daily") return false;
+  return getUniqueBoostCards(player).filter(
+    (card) => {
+      if (
+        normalizeBoostType(card.boostType) !==
+        "daily"
+      ) {
+        return false;
+      }
 
-    // Baccarat daily reward hanya aktif kalau Baccarat Fruit benar-benar equipped.
-    if (isBaccaratBoostCard(card)) {
-      return hasEquippedBaccaratFruit(card);
+      if (isBaccaratBoostCard(card)) {
+        return hasEquippedBaccaratFruit(card);
+      }
+
+      return true;
     }
-
-    return true;
-  });
+  );
 }
 
 function sumDailyBoost(player) {
@@ -363,6 +369,13 @@ function getHighestBoost(cards, boostType) {
 }
 
 function getBoostAmount(card) {
+  if (
+    String(card?.cardRole || "").toLowerCase() ===
+    "boost"
+  ) {
+    return 1;
+  }
+
   const rawAmount =
     card?.amount ??
     card?.count ??
@@ -371,8 +384,13 @@ function getBoostAmount(card) {
     card?.copies ??
     1;
 
-  const amount = Math.floor(Number(rawAmount || 1));
-  return Number.isFinite(amount) && amount > 0 ? amount : 1;
+  const amount = Math.floor(
+    Number(rawAmount || 1)
+  );
+
+  return Number.isFinite(amount) && amount > 0
+    ? amount
+    : 1;
 }
 
 function sumBoost(cards, boostType) {
@@ -398,7 +416,7 @@ function sumBoostWithAllStat(cards, boostType) {
 }
 
 function getFragmentStorageBonus(player) {
-  const boostCards = getBoostCards(player);
+  const boostCards = getUniqueBoostCards(player);
 
   const total = boostCards
     .filter((card) => normalizeBoostType(card.boostType) === "fragmentStorage")
@@ -429,11 +447,23 @@ function buildBoostEffectLines(boosts = {}) {
 }
 
 function getPassiveBoostSummary(player) {
-  const boostCards = getBoostCards(player);
-  const uniqueBoostCards = getUniqueBoostCards(player);
-  const highestPullChance = getHighestBoost(boostCards, "pullChance");
-  const dailyCards = getDailyBoostCards(player);
-  const fruitGlobalBoosts = sumBoostFruitGlobalBonuses(boostCards);
+  const uniqueBoostCards =
+    getUniqueBoostCards(player);
+
+  const boostCards = uniqueBoostCards;
+
+  const highestPullChance = getHighestBoost(
+    uniqueBoostCards,
+    "pullChance"
+  );
+
+  const dailyCards =
+    getDailyBoostCards(player);
+
+  const fruitGlobalBoosts =
+    sumBoostFruitGlobalBonuses(
+      uniqueBoostCards
+    );
 
   return {
     boostCards: boostCards.map((card) => ({

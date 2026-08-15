@@ -30,6 +30,7 @@ const channelRules = require("./config/channelRules");
 const {
   readPlayers,
   writePlayers,
+  updatePlayerAtomic,
   initPlayerStore,
   flushPlayerStoreNow,
   flushPlayerNow,
@@ -866,31 +867,49 @@ function createDefaultPlayerForMilestone(message) {
 async function trackMessageMilestone(message) {
   if (!isEligibleMilestoneChat(message, PREFIX)) return;
 
-  const players = readPlayers();
   const userId = String(message.author.id);
+  let rewards = [];
 
-  const player = players[userId] || createDefaultPlayerForMilestone(message);
-  const milestoneState = incrementMessageMilestone(player);
+  updatePlayerAtomic(
+    userId,
+    (currentPlayer) => {
+      const player =
+        currentPlayer && typeof currentPlayer === "object"
+          ? currentPlayer
+          : createDefaultPlayerForMilestone(message);
 
-  const result = applyMessageMilestoneRewards(
-    {
-      ...player,
-      username: message.author.username || player.username,
+      const milestoneState =
+        incrementMessageMilestone(player);
+
+      const result = applyMessageMilestoneRewards(
+        {
+          ...player,
+          username:
+            message.author.username ||
+            player.username,
+        },
+        milestoneState
+      );
+
+      rewards = Array.isArray(result.rewards)
+        ? result.rewards
+        : [];
+
+      return result.player;
     },
-    milestoneState
+    message.author.username
   );
 
-  players[userId] = result.player;
-  writePlayers(players);
-  await flushPlayerNow(userId, Number(process.env.PLAYER_DB_COMMAND_FLUSH_MS || 8000));
-
-  if (Array.isArray(result.rewards) && result.rewards.length) {
+  if (rewards.length) {
     await message.channel
       .send({
         content: [
           `🎉 <@${message.author.id}> reached a **Message Milestone**!`,
-          ...result.rewards.map((line) => `↪ ${line}`),
+          ...rewards.map(
+            (line) => `↪ ${line}`
+          ),
         ].join("\n"),
+
         allowedMentions: {
           users: [message.author.id],
           roles: [],
@@ -898,7 +917,10 @@ async function trackMessageMilestone(message) {
         },
       })
       .catch((error) => {
-        console.error("[MESSAGE MILESTONE NOTIFY ERROR]", error);
+        console.error(
+          "[MESSAGE MILESTONE NOTIFY ERROR]",
+          error
+        );
       });
   }
 }
