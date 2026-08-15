@@ -1,5 +1,8 @@
 const cards = require("../data/cards");
 const devilFruits = require("../data/devilFruits");
+const {
+  canCardUseDevilFruit,
+} = require("./devilFruitCompatibility");
 const { hydrateCard, findCardTemplate, getBoostStageValue } = require("./evolution");
 
 function normalize(value) {
@@ -169,12 +172,17 @@ function isBaccaratBoostCard(card) {
 }
 
 function getFruitDataForBoostCard(card) {
-  return (
+  const fruit =
     findBoostFruitByCode(card?.equippedDevilFruit) ||
     findBoostFruitByCode(card?.equippedDevilFruitCode) ||
     findBoostFruitByCode(card?.equippedDevilFruitName) ||
-    null
-  );
+    null;
+
+  if (!fruit || !canCardUseDevilFruit(card, fruit)) {
+    return null;
+  }
+
+  return fruit;
 }
 
 function isBaccaratFruitData(fruit) {

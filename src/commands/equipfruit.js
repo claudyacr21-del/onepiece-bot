@@ -8,6 +8,9 @@ const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const devilFruits = require("../data/devilFruits");
 const { hydrateCard } = require("../utils/evolution");
 const {
+  canCardUseDevilFruit,
+} = require("../utils/devilFruitCompatibility");
+const {
   getEffectiveBoostValue,
   findBoostFruitByCode,
   getPassiveBoostSummary,
@@ -56,87 +59,9 @@ function normalizeAssetKey(value) {
     .replace(/^_+|_+$/g, "");
 }
 
-function pushKey(keys, value) {
-  const raw = String(value || "").trim();
-  if (!raw) return;
-
-  keys.push(raw);
-  keys.push(normalizeCode(raw));
-  keys.push(normalizeCompare(raw));
-  keys.push(normalizeCompact(raw));
-  keys.push(normalizeAssetKey(raw));
-}
-
 function getCurrentForm(card) {
   const stage = Math.max(1, Math.min(3, Number(card?.evolutionStage || 1)));
   return Array.isArray(card?.evolutionForms) ? card.evolutionForms[stage - 1] : null;
-}
-
-function getCardOwnerKeys(card) {
-  const hydrated = hydrateCard(card) || card || {};
-  const form = getCurrentForm(hydrated);
-  const keys = [];
-
-  [
-    hydrated.code,
-    hydrated.id,
-    hydrated.baseCode,
-    hydrated.cardCode,
-    hydrated.characterCode,
-    hydrated.templateCode,
-    hydrated.name,
-    hydrated.displayName,
-    hydrated.title,
-    hydrated.variant,
-    hydrated.evolutionKey,
-    hydrated.specialForm,
-    hydrated.formName,
-    hydrated.currentForm,
-    form?.name,
-    form?.title,
-    form?.code,
-    form?.evolutionKey,
-  ].forEach((value) => pushKey(keys, value));
-
-  const joined = keys.map(normalizeCompare).filter(Boolean).join(" ");
-  const compactJoined = keys.map(normalizeCompact).filter(Boolean).join(" ");
-
-  const isLuffyLike =
-    joined.includes("luffy") ||
-    joined.includes("monkey d luffy") ||
-    joined.includes("nika") ||
-    joined.includes("gear 5") ||
-    joined.includes("gear fifth") ||
-    compactJoined.includes("monkeydluffy") ||
-    compactJoined.includes("gear5") ||
-    compactJoined.includes("gearfifth");
-
-  if (isLuffyLike) {
-    [
-      "luffy_straw_hat",
-      "monkey_d_luffy",
-      "monkey d luffy",
-      "luffy",
-      "luffy_nika",
-      "gear_5_luffy",
-      "gear 5 luffy",
-      "gear fifth luffy",
-      "sun god nika",
-      "nika",
-      "joy boy",
-    ].forEach((value) => pushKey(keys, value));
-  }
-
-  return new Set(keys.map(String).filter(Boolean));
-}
-
-function getFruitOwnerKeys(fruit) {
-  const keys = [];
-  const owners = Array.isArray(fruit?.owners) ? fruit.owners : [];
-
-  owners.forEach((owner) => pushKey(keys, owner));
-
-  return new Set(keys.map(String).filter(Boolean));
 }
 
 function findFruitTemplate(value) {
@@ -367,23 +292,6 @@ function resolveFruitData(ownedFruit) {
   resolved.image = getFruitImage(template) || getFruitImage(ownedFruit) || "";
 
   return resolved;
-}
-
-function canCardUseDevilFruit(card, fruit) {
-  const resolvedFruit = resolveFruitData(fruit);
-
-  if (!Array.isArray(resolvedFruit.owners) || resolvedFruit.owners.length === 0) {
-    return true;
-  }
-
-  const cardKeys = getCardOwnerKeys(card);
-  const fruitOwnerKeys = getFruitOwnerKeys(resolvedFruit);
-
-  for (const key of cardKeys) {
-    if (fruitOwnerKeys.has(key)) return true;
-  }
-
-  return false;
 }
 
 function normalize(text) {

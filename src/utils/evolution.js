@@ -1,6 +1,9 @@
 const cards = require("../data/cards");
 const weapons = require("../data/weapons");
 const devilFruits = require("../data/devilFruits");
+const {
+  canCardUseDevilFruit,
+} = require("./devilFruitCompatibility");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
 
 const RAID_PRESTIGE_CAP = 200;
@@ -473,7 +476,16 @@ function resolveEquippedFruit(card) {
     return null;
   }
 
-  return findByCodeOrName(devilFruits, card.equippedDevilFruit);
+  const fruit = findByCodeOrName(
+    devilFruits,
+    card.equippedDevilFruit
+  );
+
+  if (!fruit || !canCardUseDevilFruit(card, fruit)) {
+    return null;
+  }
+
+  return fruit;
 }
 
 function isWeaponOwnerBonusActive(card, weapon) {
