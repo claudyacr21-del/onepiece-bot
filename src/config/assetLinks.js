@@ -562,14 +562,14 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1499993007032631456/content.png?ex=69f6d0d9&is=69f57f59&hm=d1bc21224a0638619032d2ba41c6b2a08188497a082c957a2ad3f35d08f658bb&",
   },
   dragon_revolutionary_leader: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500007984976101519/content.png?ex=69f6decc&is=69f58d4c&hm=b3058086de688026add7cf6530498268e7790ecb0cd6736d73386ec56b62ea96&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1500007985832005684/content.png?ex=69f6decc&is=69f58d4c&hm=11e70091e5517d3f04509f244f828bb2613f17ddf2ec9a413367cd60bb9dfc3e&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500007986339254413/content.png?ex=69f6decc&is=69f58d4c&hm=925ad99c4be4f3add6a6cc7bc3bc466cd76ef62a8c80714896887ac97e67f377&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1537729446700777492/dragon_1.jpg?ex=6a80c265&is=6a7f70e5&hm=603702308dcea69b93f0bb7fcf64749e75055482f4f4ae60959edcd6bb69b8d7&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1537729447036190780/dragon_2.jpg?ex=6a80c265&is=6a7f70e5&hm=5c986f4941cd6b13bce7a37734fcc59c66bc4a679352255125ecb0e75e0d3cb3&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1537729447430459472/dragon_3.jpg?ex=6a80c265&is=6a7f70e5&hm=1fe9cd16424e411b7366cad58ece486ba8306077413179fe3d2c058338384be2&",
   },
   saturn: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500028884798804119/content.png?ex=69f6f243&is=69f5a0c3&hm=61d83c14a51e01410cf4c2f44bde7087889ff1a20148deb805156f705be80700&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1500028885192937482/content.png?ex=69f6f243&is=69f5a0c3&hm=3574baab72d9c26d3d226734d9268b246024fddafd3a30c062e9d85988e62a59&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500028885616824390/content.png?ex=69f6f243&is=69f5a0c3&hm=c30bb1dc0243adbbb91d5a11c8acfa21727de3bfb93fa8dc65190f2de12b3a64&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1537750613331410954/Saturn_1.jpg?ex=6a80d61c&is=6a7f849c&hm=78d289dee8030d534e24c37f2ae10daabe4afc0125c5f0f07746980abd2d688b&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1537750613734203434/Saturn_2.jpg?ex=6a80d61c&is=6a7f849c&hm=dfc1fed92aa4bee70821bb24b7f8bda87f6be5bd1b743987fea760c40771d034&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1537750614107230258/Saturn_3.jpg?ex=6a80d61c&is=6a7f849c&hm=1e6a468e76e3e9e750918a21e2184563a06f2bf47b4fe921082020fd6e073ffa&",
   },
   mars: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500033685443973225/content.png?ex=69f6f6bb&is=69f5a53b&hm=9c655738cfd5aae0ee3424f259f93cafa52ff36b9afd02ac155054027197d9e4&",
