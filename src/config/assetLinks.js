@@ -617,14 +617,14 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1538168201907806350/oden_3.jpeg?ex=6a81b245&is=6a8060c5&hm=b2dec50153138f049973691bfebc85a7bfbf995b45c13d9707371c16bb6f1a2a&",
   },
   perospero: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500101788009758750/content.png?ex=69f73628&is=69f5e4a8&hm=06ae54781085ed370843f14bd52542ac206a6b1122592b1483b92ebab965a7de&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1500101788446228480/content.png?ex=69f73628&is=69f5e4a8&hm=30cbbda9f4e4808d67e3c03c2e3edacdb0eb663bfb938b0ba7a874bafdd62e2d&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500101788920057958/content.png?ex=69f73629&is=69f5e4a9&hm=782934584a2c77f69e5e51044007a79ca8dd5dfb5f314aebeda2014926ff7bf6&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1538472456933740604/Perospero_1.jpeg?ex=6a82cda1&is=6a817c21&hm=35fda37864e0a8c7dec30170ef1bbbe5f069aad4bf3f27412e1b75f2f69e1fa8&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1538472457323683910/Perospero_2.jpeg?ex=6a82cda1&is=6a817c21&hm=9f9030a02d404c36c5e9bb609cb665e2b234c6b51e25737e8b5af64447bcdf55&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1538472457655296060/Perospero_3.jpeg?ex=6a82cda1&is=6a817c21&hm=f088f68a619ef5f0db72946d220343140a4635727542bf22f2c4f6cf5d078077&",
   },
   trebol_underworld_support: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500106585001955338/content.png?ex=69f73aa0&is=69f5e920&hm=6595f5da57ff8e9a13e8a10bbf80c5dc120cb6b0c7fc0b605fe3432f0b8ac9d5&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1500106585001955338/content.png?ex=69f73aa0&is=69f5e920&hm=6595f5da57ff8e9a13e8a10bbf80c5dc120cb6b0c7fc0b605fe3432f0b8ac9d5&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500106586226688163/content.png?ex=69f73aa0&is=69f5e920&hm=da453fad7e849ff1f112e154338f88daddbf83c109a0669874aeed90cfc71aef&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1538479587237822575/Trebol_1.jpeg?ex=6a82d445&is=6a8182c5&hm=2a45fdb67576089ff82134d562d13a3d44f520797ee1b54d72485a5db8253c58&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1538479587560914985/Trebol_2.jpeg?ex=6a82d445&is=6a8182c5&hm=299190120dd61a0b914e654dea491461e89a824e67e09d496f0974a233b5f121&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1538479587829358652/Trebol_3.jpeg?ex=6a82d445&is=6a8182c5&hm=3d74ae52877a5c918c209073da856ffe76b1c26094d3fa003c9503841d273a2c&",
   },
   queen_the_plague: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500107708479832145/content.png?ex=69f73bac&is=69f5ea2c&hm=369fe0de731c8f3692b0c07605a8023b76b1327c8a72d45e2365258619a3b8e3&",

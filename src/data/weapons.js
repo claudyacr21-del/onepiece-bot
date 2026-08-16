@@ -568,7 +568,7 @@ module.exports = [
     code: "rokushiki",
     name: "Rokushiki",
     rarity: "S",
-    owners: ["lucci_cp7"],
+    owners: ["lucci_cp9"],
     type: "Martial Art",
     statPercent: { atk: 6, hp: 4, speed: 3 },
     ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
