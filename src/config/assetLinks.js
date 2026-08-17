@@ -544,7 +544,7 @@ const CARD_IMAGES = {
   shanks_red_hair: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1537326668190846996/shanks_1.jpg?ex=6a7ea287&is=6a7d5107&hm=9731655bd36c7dbcdc74566175d4cd7327a593a9e1f5c0fbabe79aaeeebb4e6d&",
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1537326668484444180/shanks_2.jpg?ex=6a7ea287&is=6a7d5107&hm=7004d3c599774dec13b4f6d779af29446c93094e354fa2ade48355d82443911f&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1537326668799156244/shanks_3.jpg?ex=6a7ea287&is=6a7d5107&hm=288e298d09bfb272a4c39dc133f52216f97585d4c457410d96e93b002ac7e643&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1538887071647932416/shanks_3_new_.jpg?ex=6a844fc5&is=6a82fe45&hm=434867f2de6a4c931da9bdc376f8e6342c6a54025bd453f1397155bcaa33b0ca",
   },
   mihawk_hawk_eyes: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1537333460371378197/mihawk_1.jpg?ex=6a7ea8db&is=6a7d575b&hm=6edd88de15546ca594af447792afde691f54d493cdb0a9846a7ec5af3d49d1b1&",
@@ -557,9 +557,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1536003199884857384/gol-d-roger.gif?ex=6a79d1f4&is=6a788074&hm=74f7e570c08c5dd4222fa0f2c003fa3d2de717826eebf64343b5fdd3e551205a",
   },
   xebec_captain_of_rocks: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1499993006000832583/content.png?ex=69f6d0d9&is=69f57f59&hm=d97e69d0d50b05fca9673ed559b523fddb9be8a9e4427833b128065ef2344520&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1499993006500216984/content.png?ex=69f6d0d9&is=69f57f59&hm=1ad72cb0ee28e8a28617de6934d5396dcdd2b89a4b460b22983d39a63cd4160b&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1499993007032631456/content.png?ex=69f6d0d9&is=69f57f59&hm=d1bc21224a0638619032d2ba41c6b2a08188497a082c957a2ad3f35d08f658bb&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1537726848027594772/rocks_d_xebec_1.jpg?ex=6a840bba&is=6a82ba3a&hm=2af95657b95d2e95edeb55261a0c2034a7cfb94f6f61e41b04128088a26331d7&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1537726848388300880/rocks_d_xebec_2.jpg?ex=6a840bba&is=6a82ba3a&hm=d1d4707d936ad4d0c088bce249abc3c20e043b4765a67b318fb069cae1c070bb&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1537726848950206485/rocks_d_xebec_3.jpg?ex=6a840bba&is=6a82ba3a&hm=868d546907b62dd423bc631941d186158b2af1bf9c1120dc092a0982fd9f8da5&",
   },
   dragon_revolutionary_leader: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1537729446700777492/dragon_1.jpg?ex=6a80c265&is=6a7f70e5&hm=603702308dcea69b93f0bb7fcf64749e75055482f4f4ae60959edcd6bb69b8d7&",
@@ -697,14 +697,14 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1538793202885075034/s-hawk_3.jpg?ex=6a83f858&is=6a82a6d8&hm=aa33a36abac0283363d7871a95ead492b154360d5c281e2343c9ea803b52c399&",
   },
   germa_lineage_factor: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500390391701311600/content.png?ex=69f842f1&is=69f6f171&hm=0904a10adc9932e5c3c54694b9ca21eaac7308e3bf211506f325f8f7da27decd&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1500390392611344424/content.png?ex=69f842f1&is=69f6f171&hm=fd7b73ceee1b2f7fb813b2e2456b71dc2dfe17551bb0a156fbce66774466f9f7&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500390393668304977/content.png?ex=69f842f1&is=69f6f171&hm=5da932cad9ac3f409f7859c63ca706ce4550dd73b1e43900d50a6fc94b9e31ab&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1538881809234923520/Germa_Lineage_Factor_1.jpg?ex=6a844ade&is=6a82f95e&hm=ddb5ff476fb99951d40b15fa4420e4b53fc4d311b26c29945dce62dc4649eca2&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1538881809721589770/Germa_Lineage_Factor_2.jpg?ex=6a844ade&is=6a82f95e&hm=7ea354615bfd8c8aea5accb818cb82dae2a773dc4a966c19d6978f1498bb1cdd&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1538881810140762254/Germa_Lineage_Factor_3.jpg?ex=6a844ade&is=6a82f95e&hm=5da8893881b8c093d155160af61748d6dd4b47c65315c30925a4341888876a74&",
   },
   gravity_sheath: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500409555933200454/content.png?ex=69f854ca&is=69f7034a&hm=ac5b4a57958ea954314ea783516b19bcef9dae3410be082400a0e90acfc14126&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1500409556424200313/content.png?ex=69f854ca&is=69f7034a&hm=66504d7f98db142d35a239bad1a5d17ad70f39b4e74ba4d645ceca287f118c69&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500409556877049926/content.png?ex=69f854ca&is=69f7034a&hm=7f4f9fcaa430847ec1b9791ebd3ead2fcba1c4be1afd51c3af312084af09481a&",
+    M1: "",
+    M2: "",
+    M3: "",
   },
   holy_knight_standard: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500410573173555200/content.png?ex=69f855bc&is=69f7043c&hm=e88b29f19ae2a51b98af41172155924140b0577a0b3209fbe154ffbf6ecd7ff4&",
