@@ -702,9 +702,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1538881810140762254/Germa_Lineage_Factor_3.jpg?ex=6a844ade&is=6a82f95e&hm=5da8893881b8c093d155160af61748d6dd4b47c65315c30925a4341888876a74&",
   },
   gravity_sheath: {
-    M1: "",
-    M2: "",
-    M3: "",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500409555933200454/content.png?ex=69f854ca&is=69f7034a&hm=ac5b4a57958ea954314ea783516b19bcef9dae3410be082400a0e90acfc14126&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1500409556424200313/content.png?ex=69f854ca&is=69f7034a&hm=66504d7f98db142d35a239bad1a5d17ad70f39b4e74ba4d645ceca287f118c69&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500409556877049926/content.png?ex=69f854ca&is=69f7034a&hm=7f4f9fcaa430847ec1b9791ebd3ead2fcba1c4be1afd51c3af312084af09481a&",
   },
   holy_knight_standard: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500410573173555200/content.png?ex=69f855bc&is=69f7043c&hm=e88b29f19ae2a51b98af41172155924140b0577a0b3209fbe154ffbf6ecd7ff4&",
