@@ -849,7 +849,7 @@ const CARD_IMAGES = {
   lzs: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1529385587004407899/lzs_1.jpg?ex=6a61bed2&is=6a606d52&hm=e33c8c7f4363860ba880799c30dea43c8190bef240574799920ecbe9d0953b5a&",
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1529825699681275944/merge_card_lzs_2.jpg?ex=6a6358b5&is=6a620735&hm=405eaf93df8756d7a2b909ffcb7f9a7bf9a39d85a0db8f7d200ddcac6053c076&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1529825700121411705/merge_card_lzs_3.jpg?ex=6a6358b5&is=6a620735&hm=8b09d849eb1aa4b1c71cf0bed7d4dcfcab1b323966e988381db1d6c6e64ebc30&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1538852267598553128/lzs_3.jpg?ex=6a842f5b&is=6a82dddb&hm=b877ce33fd5f42de9a9585aeb5579ddd94704fd6a26972c406a6496d1fdde5f0",
   },
   mr2: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515693837560058070/content.png?ex=6a329263&is=6a3140e3&hm=27c6b1c65a02f871c82ccae30ad7c63b5f42035dc011cfcfaa152a7ab1db15c7&",
