@@ -2708,6 +2708,12 @@ function normalizePlayer(player = {}, username = "Unknown") {
     tickets: normalizeNamedList(player.tickets, { allowZeroAmount: true }),
     materials: normalizeNamedList(player.materials),
     events: normalizeEventStore(player.events),
+    expedition:
+      player.expedition &&
+      typeof player.expedition === "object" &&
+      !Array.isArray(player.expedition)
+        ? cloneJson(player.expedition)
+        : null,
     pity: {
       pullPity: Number(player?.pity?.pullPity) >= 0 ? Number(player.pity.pullPity) : 0,
       normalAPity:

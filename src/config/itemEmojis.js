@@ -26,7 +26,7 @@ const ITEM_EMOJIS = Object.freeze({
   hardwood:
     "<:hardwood:1535245933980164098>",
   sail_cloth:
-    "<:hardwood:1535245929391849542>",
+    "<:sailcloth:1535245929391849542>",
   fruit_essence:
     "<:fruitessence:1535249059412054088>",
 
