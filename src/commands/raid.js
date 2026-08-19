@@ -2133,7 +2133,7 @@ function buildBattleEmbed(state) {
           : "Raid Team — Continued",
       value: raidBlocks
         .slice(index, index + 3)
-        .join("\n\n")
+        .join("\n")
         .slice(0, 1024),
     });
   }

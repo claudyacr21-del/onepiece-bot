@@ -2218,7 +2218,7 @@ function buildBossEmbed(
         renderBossHpBar(bossHp, bossMaxHp),
         "",
         "## Your Team",
-        teamLines.join("\n\n"),
+        teamLines.join("\n"),
       ].join("\n")
     )
     .setFooter({
@@ -2867,7 +2867,7 @@ function buildRaidBossEmbed(
     renderBossHpBar(bossHp, bossMaxHp),
     "",
     "## Raid Team",
-    teamLines.join("\n\n"),
+    teamLines.join("\n"),
   ].join("\n");
 
   const embed = new EmbedBuilder()
