@@ -2133,32 +2133,84 @@ lobbyProcessing = false;
   };
 }
 
-function buildBossEmbed(playerName, island, phaseBoss, playerTeam, boss, logs, ended) {
+function buildBossEmbed(
+  playerName,
+  island,
+  phaseBoss,
+  playerTeam,
+  boss,
+  logs,
+  ended
+) {
   const teamLines = playerTeam.map((unit) => {
-    return `**${unit.slot}. ${unit.name}** ❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)}`;
+    const currentHp = Math.max(
+      0,
+      Number(unit.battleHp ?? unit.hp ?? 0)
+    );
+
+    const maxHp = Math.max(
+      1,
+      Number(unit.battleMaxHp ?? unit.maxHp ?? 1)
+    );
+
+    return [
+      `**${unit.slot}. ${unit.name}**`,
+      `PWR \`${Number(
+        unit.battlePower || unit.currentPower || 0
+      ).toLocaleString("en-US")}\` • SPD \`${
+        unit.battleSpeed || unit.speed || 0
+      }\` • ATK ${formatAtkRange(
+        unit.battleAtk || unit.atk
+      )}`,
+      `HP ${currentHp.toLocaleString("en-US")}/${maxHp.toLocaleString(
+        "en-US"
+      )}`,
+      renderBar(currentHp, maxHp, 8),
+    ].join("\n");
   });
 
   const recentLogs = logs.slice(-BOSS_MAX_LOG_LINES);
-  const phaseLabel = phaseBoss ? ` Phase ${phaseBoss.phase}` : "";
+  const phaseLabel = phaseBoss
+    ? ` Phase ${phaseBoss.phase}`
+    : "";
+
+  const bossHp = Math.max(
+    0,
+    Number(boss.battleHp ?? boss.hp ?? 0)
+  );
+
+  const bossMaxHp = Math.max(
+    1,
+    Number(boss.battleMaxHp ?? boss.maxHp ?? 1)
+  );
 
   const embed = new EmbedBuilder()
     .setColor(ended ? 0x2ecc71 : 0xe74c3c)
-    .setTitle(`${playerName}'s ${island.name}${phaseLabel} Boss Battle`)
+    .setTitle(
+      `${playerName}'s ${island.name}${phaseLabel} Boss Battle`
+    )
     .setDescription(
       [
         "**Selection Phase**",
         "Select a character to deploy for battle!",
         "",
         "## Battle Log",
-        ...(recentLogs.length ? recentLogs : ["Choose a card to attack the island boss."]),
+        ...(recentLogs.length
+          ? recentLogs
+          : ["Choose a card to attack the island boss."]),
         "",
         "## ☠️ Boss",
         `**${boss.name}** [${boss.rarity}]`,
-        renderBossHpBar(boss.battleHp ?? boss.hp, boss.battleMaxHp ?? boss.maxHp),
-        `❤️ ${Math.max(0, Number(boss.battleHp ?? boss.hp))}/${Number(boss.battleMaxHp ?? boss.maxHp)} | SPD \`${boss.battleSpeed || boss.speed}\` | ⚔️ ${formatAtkRange(boss.battleAtk || boss.atk)}`,
+        `SPD \`${boss.battleSpeed || boss.speed || 0}\` • ATK ${formatAtkRange(
+          boss.battleAtk || boss.atk
+        )}`,
+        `HP ${bossHp.toLocaleString(
+          "en-US"
+        )}/${bossMaxHp.toLocaleString("en-US")}`,
+        renderBossHpBar(bossHp, bossMaxHp),
         "",
         "## Your Team",
-        ...teamLines,
+        teamLines.join("\n\n"),
       ].join("\n")
     )
     .setFooter({
@@ -2690,46 +2742,120 @@ function applyBoxes(currentBoxes, rewardBoxes) {
   return updatedBoxes;
 }
 
-function buildRaidBossEmbed(island, phaseBoss, participants, boss, logs, ended, lastUsedUnitKey = "") {
-  const phaseLabel = phaseBoss ? `Phase ${phaseBoss.phase}` : "Boss";
-  const allUnits = participants.flatMap((p) => p.units || []);
+function buildRaidBossEmbed(
+  island,
+  phaseBoss,
+  participants,
+  boss,
+  logs,
+  ended,
+  lastUsedUnitKey = ""
+) {
+  const phaseLabel = phaseBoss
+    ? `Phase ${phaseBoss.phase}`
+    : "Boss";
+
+  const allUnits = participants.flatMap(
+    (participant) => participant.units || []
+  );
+
   const usedSet = getLastUsedKeySet(lastUsedUnitKey);
   const teamLines = [];
 
   for (const participant of participants) {
-    for (const unit of participant.units) {
+    for (const unit of participant.units || []) {
       const unitKey = getUnitActionKey(unit);
-      const isDead = Number(unit.battleHp ?? unit.hp) <= 0;
-      const alreadyUsed = usedSet.has(unitKey) && shouldDisableLastUsed(allUnits, lastUsedUnitKey, unit);
-      const status = isDead ? "DEFEATED" : alreadyUsed ? "WAIT" : "READY";
+
+      const currentHp = Math.max(
+        0,
+        Number(unit.battleHp ?? unit.hp ?? 0)
+      );
+
+      const maxHp = Math.max(
+        1,
+        Number(unit.battleMaxHp ?? unit.maxHp ?? 1)
+      );
+
+      const isDead = currentHp <= 0;
+
+      const alreadyUsed =
+        usedSet.has(unitKey) &&
+        shouldDisableLastUsed(
+          allUnits,
+          lastUsedUnitKey,
+          unit
+        );
+
+      const status = isDead
+        ? "DEFEATED"
+        : alreadyUsed
+          ? "WAIT"
+          : "READY";
 
       teamLines.push(
-        `**${unit.globalSlot + 1}. ${unit.name}**${alreadyUsed ? " ⏳" : ""} ❤️ ${Math.max(0, Number(unit.battleHp ?? unit.hp))}/${Number(unit.battleMaxHp ?? unit.maxHp)} | PWR \`${Number(unit.battlePower || unit.currentPower || 0).toLocaleString("en-US")}\` | SPD \`${unit.battleSpeed || unit.speed}\` | ⚔️ ${formatAtkRange(unit.battleAtk || unit.atk)} | ${status}`
+        [
+          `**${Number(unit.globalSlot || 0) + 1}. ${
+            unit.name
+          }**${alreadyUsed ? " ⏳" : ""}`,
+          `${participant.username || "Unknown"} • ${status}`,
+          `PWR \`${Number(
+            unit.battlePower || unit.currentPower || 0
+          ).toLocaleString("en-US")}\` • SPD \`${
+            unit.battleSpeed || unit.speed || 0
+          }\` • ATK ${formatAtkRange(
+            unit.battleAtk || unit.atk
+          )}`,
+          `HP ${currentHp.toLocaleString(
+            "en-US"
+          )}/${maxHp.toLocaleString("en-US")}`,
+          renderBar(currentHp, maxHp, 4),
+        ].join("\n")
       );
     }
   }
 
+  const bossHp = Math.max(
+    0,
+    Number(boss.battleHp ?? boss.hp ?? 0)
+  );
+
+  const bossMaxHp = Math.max(
+    1,
+    Number(boss.battleMaxHp ?? boss.maxHp ?? 1)
+  );
+
+  const description = [
+    "**Selection Phase**",
+    "Select a character to deploy for battle!",
+    "",
+    "## Battle Log",
+    ...(logs.length
+      ? logs.slice(-2)
+      : ["Choose a raid unit to attack."]),
+    "",
+    "## ☠️ Boss",
+    `**${boss.name}** [${boss.rarity}]`,
+    `SPD \`${boss.battleSpeed || boss.speed || 0}\` • ATK ${formatAtkRange(
+      boss.battleAtk || boss.atk
+    )}`,
+    `HP ${bossHp.toLocaleString(
+      "en-US"
+    )}/${bossMaxHp.toLocaleString("en-US")}`,
+    renderBossHpBar(bossHp, bossMaxHp),
+    "",
+    "## Raid Team",
+    teamLines.join("\n\n"),
+  ].join("\n");
+
   const embed = new EmbedBuilder()
     .setColor(ended ? 0x2ecc71 : 0xe74c3c)
-    .setTitle(`${island.name} ${phaseLabel} Boss Raid`)
-    .setDescription(
-      [
-        "**Selection Phase**",
-        "Select a character to deploy for battle!",
-        "",
-        "## Battle Log",
-        ...(logs.length ? logs.slice(-2) : ["Choose a raid unit to attack."]),
-        "",
-        "## ☠️ Boss",
-        `**${boss.name}** [${boss.rarity}]`,
-        renderBossHpBar(boss.battleHp ?? boss.hp, boss.battleMaxHp ?? boss.maxHp),
-        `❤️ ${Math.max(0, Number(boss.battleHp ?? boss.hp))}/${Number(boss.battleMaxHp ?? boss.maxHp)} | SPD \`${boss.battleSpeed || boss.speed}\` | ⚔️ ${formatAtkRange(boss.battleAtk || boss.atk)}`,
-        "",
-        "## Raid Team",
-        ...teamLines,
-      ].join("\n").slice(0, 4096)
+    .setTitle(
+      `${island.name} ${phaseLabel} Boss Raid`
     )
-    .setFooter({ text: "One Piece Bot • Boss Phase 2 Raid" });
+    .setDescription(description.slice(0, 4096))
+    .setFooter({
+      text: "One Piece Bot • Boss Phase 2 Raid",
+    });
 
   return applySafeEmbedImage(embed, boss.image);
 }

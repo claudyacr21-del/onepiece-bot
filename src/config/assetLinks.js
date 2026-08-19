@@ -639,7 +639,7 @@ const CARD_IMAGES = {
   jack_the_drought: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1538493419750690826/jack_1.jpeg?ex=6a82e127&is=6a818fa7&hm=d3575860ec3c4db1e4a5f91f60cb542642b7da84d8e2528b9d9b536c4fe97c95&",
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1538493420077588590/jack_2.jpeg?ex=6a82e127&is=6a818fa7&hm=cb481e1365070a442ff128b32ff3233b86beff1366b14e83f6646dfadd849caf&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1538493420425707520/jack_3.jpeg?ex=6a82e127&is=6a818fa7&hm=380133a9a3a4192a59cbfb1d841f7e98fc58f00101275e0c71c0ca91fcaf479e&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1539606584202895464/Jack_m3.jpg?ex=6a86edde&is=6a859c5e&hm=b229cde05c81b9c689c09003572e4e76615258ce479320b7605c5667ea716c0c",
   },
   yamato_oni_princess: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1538498713549414540/yamato_1.jpeg?ex=6a82e615&is=6a819495&hm=f4239db1a3fd533709ed4b89ad76cd2017991720bf1f5dbf52c18e6643641df2&",
