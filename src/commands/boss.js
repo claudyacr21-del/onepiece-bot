@@ -2776,12 +2776,20 @@ function buildRaidBossEmbed(
 
       const currentHp = Math.max(
         0,
-        Number(unit.battleHp ?? unit.hp ?? 0)
+        Number(
+          unit.battleHp ??
+            unit.hp ??
+            0
+        )
       );
 
       const maxHp = Math.max(
         1,
-        Number(unit.battleMaxHp ?? unit.maxHp ?? 1)
+        Number(
+          unit.battleMaxHp ??
+            unit.maxHp ??
+            1
+        )
       );
 
       const isDead = currentHp <= 0;
@@ -2799,24 +2807,6 @@ function buildRaidBossEmbed(
         : alreadyUsed
           ? "WAIT"
           : "READY";
-
-      const currentHp = Math.max(
-        0,
-        Number(
-          unit.battleHp ??
-            unit.hp ??
-            0
-        )
-      );
-
-      const maxHp = Math.max(
-        1,
-        Number(
-          unit.battleMaxHp ??
-            unit.maxHp ??
-            1
-        )
-      );
 
       teamLines.push(
         [
@@ -2847,6 +2837,7 @@ function buildRaidBossEmbed(
       );
     }
   }
+
 
   const bossHp = Math.max(
     0,
