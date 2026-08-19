@@ -2802,22 +2802,20 @@ function buildRaidBossEmbed(
           unit
         );
 
-      const status = isDead
-        ? "DEFEATED"
+      const statusText = isDead
+        ? " • DEFEATED"
         : alreadyUsed
-          ? "WAIT"
-          : "READY";
+          ? " • ⏳"
+          : "";
 
       teamLines.push(
         [
           `**${
             Number(unit.globalSlot || 0) + 1
-          }. ${unit.name}**${
-            alreadyUsed ? " ⏳" : ""
-          }`,
+          }. ${unit.name}**`,
           `${
             participant.username || "Unknown"
-          } • ${status}`,
+          }${statusText}`,
           `PWR \`${Number(
             unit.battlePower ||
               unit.currentPower ||
