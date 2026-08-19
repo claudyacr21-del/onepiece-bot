@@ -2074,42 +2074,100 @@ function buildBattleEmbed(state) {
   const boss = state.boss;
   const alive = getAliveMembers(state);
 
-  const raidLines = ensureArray(state.members).length
-    ? state.members.map((member, index) => {
-        const isDead = Number(member.hp || 0) <= 0;
-        const hpIcon = isDead ? "☠️" : "❤️";
-        const cooldown = getMemberActionCooldown(member);
-        const status = isDead ? "DEFEATED" : cooldown > 0 ? `⏳ CD ${cooldown}` : "READY";
+  const raidBlocks =
+    ensureArray(state.members).length
+      ? state.members.map(
+          (member, index) => {
+            const currentHp = Math.max(
+              0,
+              Number(member.hp || 0)
+            );
 
-        return [
-          `**${index + 1}. ${member.name}** • ${member.username}`,
-          `${hpIcon} ${Math.max(0, Number(member.hp || 0))}/${Number(
-            member.maxHp || 0
-          )} | SPD ${formatDisplayStat(member.speed)} | ATK ${formatAtkRange(
-            member.atk
-          )} | ${status}`,
-        ].join("\n");
-      })
-    : ["None"];
+            const maxHp = Math.max(
+              1,
+              Number(member.maxHp || 1)
+            );
+
+            const isDead = currentHp <= 0;
+            const cooldown =
+              getMemberActionCooldown(member);
+
+            const status = isDead
+              ? "DEFEATED"
+              : cooldown > 0
+                ? `CD ${cooldown}`
+                : "READY";
+
+            return [
+              `**${index + 1}. ${
+                member.name
+              }**`,
+              `${member.username} • ${status}`,
+              `SPD \`${formatDisplayStat(
+                member.speed
+              )}\` • ATK ${formatAtkRange(
+                member.atk
+              )}`,
+              `HP ${currentHp.toLocaleString(
+                "en-US"
+              )}/${maxHp.toLocaleString(
+                "en-US"
+              )}`,
+              renderBar(
+                currentHp,
+                maxHp,
+                4
+              ),
+            ].join("\n");
+          }
+        )
+      : ["None"];
+
+  const raidFields = [];
+
+  for (let index = 0; index < raidBlocks.length; index += 3) {
+    raidFields.push({
+      name:
+        index === 0
+          ? `Raid Team (${alive.length}/${state.members.length} alive)`
+          : "Raid Team — Continued",
+      value: raidBlocks
+        .slice(index, index + 3)
+        .join("\n\n")
+        .slice(0, 1024),
+    });
+  }
 
   return new EmbedBuilder()
     .setColor(0xe67e22)
     .setTitle(`${boss.name}'s Raid Battle`)
-    .setDescription("Selection Phase\nSelect a character to attack!")
+    .setDescription(
+      [
+        "**Selection Phase**",
+        "Select a character to attack!",
+      ].join("\n")
+    )
     .addFields(
       {
         name: "Boss",
         value: [
-          `${makeHpBar(boss.hp, boss.maxHp)}`,
-          `❤️ ${Math.max(0, boss.hp)}/${boss.maxHp} | SPD ${boss.speed} | ATK ${
-            boss.atkMin
-          }-${boss.atkMax}`,
+          `**${boss.name}**`,
+          `SPD \`${formatDisplayStat(
+            boss.speed
+          )}\` • ATK ${formatAtkRange({
+            min: boss.atkMin,
+            max: boss.atkMax,
+          })}`,
+          `HP ${Math.max(
+            0,
+            Number(boss.hp || 0)
+          ).toLocaleString("en-US")}/${Number(
+            boss.maxHp || 0
+          ).toLocaleString("en-US")}`,
+          makeHpBar(boss.hp, boss.maxHp),
         ].join("\n"),
       },
-      {
-        name: `Raid Team (${alive.length}/${state.members.length} alive)`,
-        value: raidLines.join("\n\n").slice(0, 1024),
-      },
+      ...raidFields,
       {
         name: "Battle Log",
         value: state.log.length

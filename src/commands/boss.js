@@ -2150,21 +2150,29 @@ function buildBossEmbed(
 
     const maxHp = Math.max(
       1,
-      Number(unit.battleMaxHp ?? unit.maxHp ?? 1)
+      Number(
+        unit.battleMaxHp ??
+          unit.maxHp ??
+          1
+      )
     );
 
     return [
       `**${unit.slot}. ${unit.name}**`,
       `PWR \`${Number(
-        unit.battlePower || unit.currentPower || 0
+        unit.battlePower ||
+          unit.currentPower ||
+          0
       ).toLocaleString("en-US")}\` • SPD \`${
-        unit.battleSpeed || unit.speed || 0
+        unit.battleSpeed ||
+        unit.speed ||
+        0
       }\` • ATK ${formatAtkRange(
         unit.battleAtk || unit.atk
       )}`,
-      `HP ${currentHp.toLocaleString("en-US")}/${maxHp.toLocaleString(
+      `HP ${currentHp.toLocaleString(
         "en-US"
-      )}`,
+      )}/${maxHp.toLocaleString("en-US")}`,
       renderBar(currentHp, maxHp, 8),
     ].join("\n");
   });
@@ -2792,16 +2800,42 @@ function buildRaidBossEmbed(
           ? "WAIT"
           : "READY";
 
+      const currentHp = Math.max(
+        0,
+        Number(
+          unit.battleHp ??
+            unit.hp ??
+            0
+        )
+      );
+
+      const maxHp = Math.max(
+        1,
+        Number(
+          unit.battleMaxHp ??
+            unit.maxHp ??
+            1
+        )
+      );
+
       teamLines.push(
         [
-          `**${Number(unit.globalSlot || 0) + 1}. ${
-            unit.name
-          }**${alreadyUsed ? " ⏳" : ""}`,
-          `${participant.username || "Unknown"} • ${status}`,
+          `**${
+            Number(unit.globalSlot || 0) + 1
+          }. ${unit.name}**${
+            alreadyUsed ? " ⏳" : ""
+          }`,
+          `${
+            participant.username || "Unknown"
+          } • ${status}`,
           `PWR \`${Number(
-            unit.battlePower || unit.currentPower || 0
+            unit.battlePower ||
+              unit.currentPower ||
+              0
           ).toLocaleString("en-US")}\` • SPD \`${
-            unit.battleSpeed || unit.speed || 0
+            unit.battleSpeed ||
+            unit.speed ||
+            0
           }\` • ATK ${formatAtkRange(
             unit.battleAtk || unit.atk
           )}`,

@@ -178,11 +178,30 @@ function findFruitTemplate(value) {
 }
 
 function getPlayerCollectionPower(player) {
-  const cards = (Array.isArray(player.cards) ? player.cards : [])
-    .map(hydrateCard)
-    .filter(Boolean);
+  const rawCards = Array.isArray(player?.cards)
+    ? player.cards
+    : [];
 
-  return cards.reduce((sum, card) => {
+  return rawCards.reduce((sum, rawCard) => {
+    let card = rawCard;
+
+    try {
+      card = hydrateCard(rawCard) || rawCard;
+    } catch (error) {
+      console.error("[LB POWER HYDRATE ERROR]", {
+        cardId: rawCard?.id,
+        cardCode:
+          rawCard?.code ||
+          rawCard?.cardCode ||
+          rawCard?.characterCode,
+        message: error?.message,
+      });
+    }
+
+    if (!card) {
+      return sum;
+    }
+
     const totalCardPower = Math.max(
       0,
       Number(getLeaderboardCardPower(card) || 0)
@@ -211,14 +230,20 @@ function getPlayerCollectionPower(player) {
       totalCardPower - equipmentPower
     );
 
-    return (
-      sum +
+    const finalPower =
       cardOnlyPower +
       weaponPower +
-      fruitPower
+      fruitPower;
+
+    return (
+      sum +
+      (Number.isFinite(finalPower)
+        ? finalPower
+        : 0)
     );
   }, 0);
 }
+
 
 function looksLikeGeneratedUserName(value, id = "") {
   const text = String(value || "").trim();
@@ -544,12 +569,46 @@ module.exports = {
         });
       }
 
-      selected = interaction.values?.[0] || null;
+      selected =
+        interaction.values?.[0] || null;
 
-      return interaction.update({
-        embeds: [buildLeaderboardEmbed(message, selected)],
-        components: buildLeaderboardMenu(selected),
-      });
+      await interaction.deferUpdate();
+
+      try {
+        const embed = buildLeaderboardEmbed(
+          message,
+          selected
+        );
+
+        return interaction.editReply({
+          embeds: [embed],
+          components:
+            buildLeaderboardMenu(selected),
+        });
+      } catch (error) {
+        console.error(
+          "[LEADERBOARD BUILD ERROR]",
+          {
+            selected,
+            userId: interaction.user.id,
+            message: error?.message,
+            stack: error?.stack,
+          }
+        );
+
+        return interaction.editReply({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("Leaderboard Error")
+              .setDescription(
+                "The leaderboard could not be loaded. Please try again."
+              ),
+          ],
+          components:
+            buildLeaderboardMenu(null),
+        });
+      }
     });
 
     collector.on("end", async () => {
