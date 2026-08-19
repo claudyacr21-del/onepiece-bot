@@ -27,6 +27,10 @@ const {
 } = require("../utils/mergeCards");
 
 const {
+  renderBar,
+} = require("../utils/battleUi");
+
+const {
   applyCustomSkinToCard,
 } = require("../utils/customSkins");
 
@@ -788,6 +792,12 @@ function buildManualFightEmbed({
         `↪ HP ${fmt(
           unit.currentHp
         )}/${fmt(unit.maxHp)}`,
+
+        renderBar(
+          unit.currentHp,
+          unit.maxHp,
+          8
+        ),
       ].join("\n");
     });
 

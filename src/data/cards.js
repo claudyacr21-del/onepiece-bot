@@ -408,7 +408,7 @@ const SPECIAL_FORMS = {
   void_century_fragment: ["Forbidden Record", "Lost Century Truth", "Ancient Secret"],
   relic_of_joy: ["Liberation Relic", "Drums of Freedom", "Sun God Legacy"],
   pirate_king_log: ["Great Voyage Record", "King's Journey", "Laugh Tale Path"],
-  corazon: ["Silent Heart", "Kind Marine", "Nagi Protector"],
+  corazon: ["Kind Marine", "Nagi Protector", "Silent Heart"],
   yasopp: ["Deadeye", "Red Hair Sniper", "Unmatched Aim"],
   sentomaru: ["Axe Guard", "Defense Captain", "Pacifista Shield"],
   gan_fall: ["Sky Knight", "God's Guardian", "Divine Protector"],

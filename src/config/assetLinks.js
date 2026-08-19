@@ -609,7 +609,7 @@ const CARD_IMAGES = {
   rayleigh_dark_king: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1538164278580879390/Silvers_Rayleigh_1.jpeg?ex=6a81ae9d&is=6a805d1d&hm=48145c208e7c2cdbe4515526d95a1c26b5247bbee107babba85456737288bfc9&",
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1538164278937522316/Silvers_Rayleigh_2.jpeg?ex=6a81ae9d&is=6a805d1d&hm=0aafd701b0497ac4819abd2dda25abc0400ff58f8f93924106bfd5bf0784c14a&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1538164279256293427/Silvers_Rayleigh_3.jpeg?ex=6a81ae9d&is=6a805d1d&hm=cd5fa87e7c17211115a9cbbaf11f60f9ea952dcf1fc82d22657e561174b7f196&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1539537091124396093/rayleigh_m3.jpg?ex=6a86ad25&is=6a855ba5&hm=b9a65a1e9efb41395b952beb2e96a70bd230c5902fdf82a7fe378fb77bf0c7b5",
   },
   oden: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1538168201320464404/oden_1.jpeg?ex=6a81b244&is=6a8060c4&hm=8f3250d5a9354c51cfa7269c9df6f28de98e7bb30d24b7fb2c859c8bdd55c03a&",
@@ -782,9 +782,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500473267394183300/content.png?ex=69f89020&is=69f73ea0&hm=6f2a8e3c33d04b0359bea956ad632208cc0d3f7b9091d244d4656f4127d7e1cb&",
   },
   corazon: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500479380542197832/content.png?ex=69f895d1&is=69f74451&hm=7628eef28525574c5848feca0da79821b94678c1bfdc24670d0576a47939b7b5&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1500479381364019364/content.png?ex=69f895d2&is=69f74452&hm=04ab376c272201e7121f61b876a1e32ed0d113949b768aa2a7cb521bc9e62fbd&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500479381951352944/content.png?ex=69f895d2&is=69f74452&hm=8afe58dab490490f35be9da47a840080d18a77c35624d93ae119b61bf874ec7d&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1539578734552682546/Donquixote_Rosinante_1.jpg?ex=6a86d3ee&is=6a85826e&hm=2c0fbd794b872cb5068aedda64449a829f5b28f42bc938adab77d13139451eae&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1539578734938562610/Donquixote_Rosinante_2.jpg?ex=6a86d3ee&is=6a85826e&hm=b4902e1e226acb1869bbc500c152249af93f406c353f2792dcdfb1359128324f&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1539578735248805898/Donquixote_Rosinante_3.jpg?ex=6a86d3ee&is=6a85826e&hm=7b65a2b01a4b498bb5a25e9fc530d5fb1349c0b2b4d5cc75ee86a31e5562191a&",
   },
   yasopp: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1539532393550192640/yasopp_1.jpg?ex=6a86a8c5&is=6a855745&hm=a78c9f71e7468e4cefea3e0be833717517e4d170d777840b60727ae94e48eaca&",
@@ -797,9 +797,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1539185947214618654/Sentomaru_3.jpg?ex=6a85661e&is=6a84149e&hm=6302a4ff0d8e6f8d2a7275a35be87808488f91d1b2611a3b6091f66507705c4d&",
   },
   gan_fall: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500492171650797628/content.png?ex=69f8a1bb&is=69f7503b&hm=72ce358eaf0d5e7f6c44584d88cfd6c48730ff4ee81e91b063d90c5a7b2f6e8c&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1500492172795973662/content.png?ex=69f8a1bb&is=69f7503b&hm=b0dc33f8b265493e146ea70d5150f669ce9896b8db12145fe1b6c8bfbdcc90b0&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500492173362073721/content.png?ex=69f8a1bb&is=69f7503b&hm=e528ae57828d47c221f603f9529109be788d94ae6165f53d027143ec00fa3bd3&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1539600590718500936/Gan_Fall_1.jpg?ex=6a86e849&is=6a8596c9&hm=c1d1ddf12e2fc733bffc30e280c0023660cce6ad46523ec9d221c347288a1228&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1539600591171354664/Gan_Fall_2.jpg?ex=6a86e849&is=6a8596c9&hm=2e452064ca511eb959813dcd6754099d5702b8810a50c9edd8340fa5ceb4383b&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1539600591557500968/Gan_Fall_3.jpg?ex=6a86e849&is=6a8596c9&hm=3a022a675347411c73535c2c776bfc26bf386ee476f1664eb5aab3fd3522fd41&",
   },
   saul: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1539240412143685642/Jaguar_D._Saul_1.jpg?ex=6a8598d7&is=6a844757&hm=d75239e05c4d4bff51d85f3b6e9ebee43f81c647f051c1a169648072f3a55d54&",

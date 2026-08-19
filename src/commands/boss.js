@@ -51,7 +51,9 @@ const {
 const {
   getItemEmoji,
 } = require("../config/itemEmojis");
-
+const {
+  renderBar,
+} = require("../utils/battleUi");
 const BOSS_COOLDOWN_MS = 10 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
 const BOSS_PHASE_JOIN_MIN = 1;
@@ -862,22 +864,20 @@ function pushBossLog(logs, line) {
   }
 }
 
-function renderHpBar(hp, maxHp, size = 12) {
-  const current = Math.max(0, Number(hp || 0));
-  const max = Math.max(1, Number(maxHp || 1));
-  const filled = Math.round((current / max) * size);
-  const safeFilled = Math.max(0, Math.min(size, filled));
-
-  return `${"█".repeat(safeFilled)}${"░".repeat(size - safeFilled)} ${current}/${max}`;
+function renderHpBar(hp, maxHp) {
+  return renderBar(
+    hp,
+    maxHp,
+    8
+  );
 }
 
-function renderBossHpBar(hp, maxHp, size = 18) {
-  const current = Math.max(0, Number(hp || 0));
-  const max = Math.max(1, Number(maxHp || 1));
-  const filled = Math.round((current / max) * size);
-  const safeFilled = Math.max(0, Math.min(size, filled));
-
-  return `${"🟩".repeat(safeFilled)}${"⬛".repeat(size - safeFilled)}`;
+function renderBossHpBar(hp, maxHp) {
+  return renderBar(
+    hp,
+    maxHp,
+    8
+  );
 }
 
 function getSafeEmbedImageUrl(url) {

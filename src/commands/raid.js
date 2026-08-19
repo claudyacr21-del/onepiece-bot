@@ -27,7 +27,9 @@ const {
   startRoom,
   deleteRoom,
 } = require("../utils/partyRooms");
-
+const {
+  renderBar,
+} = require("../utils/battleUi");
 const raidBossImages = require("../config/raidBossImages");
 const rawCards = require("../data/cards");
 const weaponsDb = require("../data/weapons");
@@ -514,13 +516,12 @@ function randomInt(min, max) {
   return Math.floor(Math.random() * (b - a + 1)) + a;
 }
 
-function makeHpBar(current, max, size = 16) {
-  const safeMax = Math.max(1, Number(max || 1));
-  const safeCur = Math.max(0, Math.min(safeMax, Number(current || 0)));
-  const filled = Math.round((safeCur / safeMax) * size);
-  const empty = Math.max(0, size - filled);
-
-  return `${"█".repeat(filled)}${"░".repeat(empty)}`;
+function makeHpBar(current, max) {
+  return renderBar(
+    current,
+    max,
+    8
+  );
 }
 
 function formatAtkRange(atk) {
