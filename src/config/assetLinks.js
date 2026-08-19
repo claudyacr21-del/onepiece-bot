@@ -787,9 +787,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500479381951352944/content.png?ex=69f895d2&is=69f74452&hm=8afe58dab490490f35be9da47a840080d18a77c35624d93ae119b61bf874ec7d&",
   },
   yasopp: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500480620474798260/content.png?ex=69f896f9&is=69f74579&hm=f82944cb8d727b8f0a430cded90e54fa7499508af14356d1c03e4f8d64afceee&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1500480621066190939/content.png?ex=69f896f9&is=69f74579&hm=856ecab93e150abfe10a062c23d7f676f93eaf6b5ec051031c53cef7fba44b1f&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500480621557059735/content.png?ex=69f896f9&is=69f74579&hm=470c6ee78241d279fedfe13a46e2482d5d773565bafe8a29d9588b4d03af5126&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1539532393550192640/yasopp_1.jpg?ex=6a86a8c5&is=6a855745&hm=a78c9f71e7468e4cefea3e0be833717517e4d170d777840b60727ae94e48eaca&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1539532393982066748/yasopp_2.jpg?ex=6a86a8c5&is=6a855745&hm=c649407bb787ec60dd6de43fecadeef69acdc0e13693f64921be453c544922a3&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1539532394342649876/yasopp_3.jpg?ex=6a86a8c5&is=6a855745&hm=eeeafee921be7ac5e87eb32840df0c1443e5041dd5780141965b7ebfb487273c&",
   },
   sentomaru: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1539185945734025257/Sentomaru_1.jpg?ex=6a85661e&is=6a84149e&hm=396bbe8f44f159871edd23b99143ea549689cff2554fe37ea9e41be31cc36eea&",
@@ -822,9 +822,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1539218870890528768/caeser_clown_3.jpg?ex=6a8584c8&is=6a843348&hm=738ee241dd7dc2d24e2c168f3e48421670d17321740fca506bc3c472f429d81f&",
   },
   gunko_holy_knight: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500735534455324692/content.png?ex=69f98461&is=69f832e1&hm=865d1a0db9857434d62954c782d41b8d836fb244b4994bbccd750e01ba9b9dcd&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1500735535201914880/content.png?ex=69f98461&is=69f832e1&hm=1ee77ec8bbbf673e11aa5739b5a72e93099aba7c52f46895e97ce1b58c46e82b&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500735535688192040/content.png?ex=69f98462&is=69f832e2&hm=352aaf8fed74d4ae8d7a0cc2411d7bb252eb58c003f9f06655cc92b783e322b9&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1539517739935211551/Gunko_1.jpg?ex=6a869b20&is=6a8549a0&hm=184d7ec236e1a108e56e0e83071a9bf95c01f02131bbf575066d746070b615e3&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1539517740304433162/Gunko_2.jpg?ex=6a869b20&is=6a8549a0&hm=7203e5b6218ad2131979a871a357531e22063d96f79117ce05629f91c090828d&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1539517740665147422/Gunko_3.jpg?ex=6a869b20&is=6a8549a0&hm=a7ede158f3e8fb3d9f2b01752b0e3641b6819b9ff1f2fab75100f6abe63f5559&",
   },
   hody_jones: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500760707451588668/content.png?ex=69f99bd3&is=69f84a53&hm=5f1ffd5302da352e4fea9c623797adbf1036ee4c45c60358b4b891ed286ada35&",
@@ -1028,8 +1028,8 @@ const CARD_IMAGES = {
   },
   wsr: {
     M1: "https://cdn.discordapp.com/attachments/1492807857207382090/1531654188394745906/3c70d698-610c-4bc9-9149-61f9ae575634.png?ex=6a69ff9f&is=6a68ae1f&hm=159cc5ef59e0399c6b6d9f237ea3591dc1883197d4e3609ec62e2fffbec3ea2c",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1529719271708561619/shanks_and_mihawk_2.jpg?ex=6a62f597&is=6a61a417&hm=51909b75f093c7688c78707f301e8250e12ad003790393a964ce9f6b8e3e585a&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1529719272027455548/shanks_and_mihawk_3.jpg?ex=6a62f597&is=6a61a417&hm=ec3a66191ae117295f6d347a9b164588b1f027eb584a952bcd65be08d835783a&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1539528718500765696/mihawk_and_shanks_m2.jpg?ex=6a86a559&is=6a8553d9&hm=530bb0d3743085924542afccb3f410bb6a4f86c61f7970e212e335fcc19a7502",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1539524358266028043/mihawk_and_shanks_m3_new.jpg?ex=6a86a149&is=6a854fc9&hm=40232a4851130165cabe141390649ddbd14f82dba9579f9f43c0990518d8e60b",
   },
   gm: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1529733623853350992/dorry_and_brogy_1.jpg?ex=6a6302f5&is=6a61b175&hm=e65f7e56df496cb58b0e3c3f59584743c39e20556a0b9794c677549ea85f1b27&",
