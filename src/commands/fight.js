@@ -37,7 +37,11 @@ const {
 const {
   getItemEmoji,
 } = require("../config/itemEmojis");
-
+const {
+  renderBar,
+  renderUnitBlock,
+  renderTeamBlock,
+} = require("../utils/battleUi");
 const NORMAL_FIGHT_COOLDOWN_MS = 8 * 60 * 1000;
 const MOTHER_FLAME_FIGHT_COOLDOWN_MS = 5 * 60 * 1000;
 const VIVRE_CARD_FIGHT_COOLDOWN_MS = 6.5 * 60 * 1000;
@@ -646,13 +650,30 @@ function resolveTurnOrder(playerUnit, enemyUnit) {
   ];
 }
 
-function renderHpBar(hp, maxHp, size = 10) {
-  const current = Math.max(0, Number(hp || 0));
-  const max = Math.max(1, Number(maxHp || 1));
-  const filled = Math.round((current / max) * size);
-  const safeFilled = Math.max(0, Math.min(size, filled));
+function renderHpBar(hp, maxHp) {
+  const current = Math.max(
+    0,
+    Number(hp || 0)
+  );
 
-  return `${"█".repeat(safeFilled)}${"░".repeat(size - safeFilled)} ${current}/${max}`;
+  const maximum = Math.max(
+    1,
+    Number(maxHp || 1)
+  );
+
+  return [
+    `${current.toLocaleString(
+      "en-US"
+    )}/${maximum.toLocaleString(
+      "en-US"
+    )}`,
+
+    renderBar(
+      current,
+      maximum,
+      8
+    ),
+  ].join("\n");
 }
 
 function buildFightDescription(playerTeam, enemyTeam, logs, streak, premiumMode, island) {

@@ -8,7 +8,11 @@ const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { applyCustomSkinToCard } = require("../utils/customSkins");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { applyDamageBoost } = require("../utils/combatStats");
-
+const {
+  renderBar,
+  renderUnitBlock,
+  renderTeamBlock,
+} = require("../utils/battleUi");
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 
 async function safeDeferUpdate(interaction) {
@@ -301,13 +305,30 @@ function resolveSpeedOrder(playerUnit, enemyUnit) {
   return [playerUnit, enemyUnit];
 }
 
-function renderHpBar(hp, maxHp, size = 10) {
-  const current = Math.max(0, Number(hp || 0));
-  const max = Math.max(1, Number(maxHp || 1));
-  const filled = Math.round((current / max) * size);
-  const safeFilled = Math.max(0, Math.min(size, filled));
+function renderHpBar(hp, maxHp) {
+  const current = Math.max(
+    0,
+    Number(hp || 0)
+  );
 
-  return `${"█".repeat(safeFilled)}${"░".repeat(size - safeFilled)} ${current}/${max}`;
+  const maximum = Math.max(
+    1,
+    Number(maxHp || 1)
+  );
+
+  return [
+    `${current.toLocaleString(
+      "en-US"
+    )}/${maximum.toLocaleString(
+      "en-US"
+    )}`,
+
+    renderBar(
+      current,
+      maximum,
+      8
+    ),
+  ].join("\n");
 }
 
 function formatAtkRange(atk) {

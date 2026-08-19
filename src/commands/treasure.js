@@ -2,7 +2,9 @@ const { EmbedBuilder } = require("discord.js");
 const { getPlayer, updatePlayerAtomic } = require("../playerStore");
 const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 const { ITEMS, cloneItem } = require("../data/items");
-
+const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
 const TREASURE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 function addOrIncrease(list, item) {
@@ -137,25 +139,59 @@ module.exports = {
     }
 
     const lines = [
-      `↪ Berries: +${Number(reward.berries).toLocaleString("en-US")}`,
-      `↪ Gems: +${Number(reward.gems).toLocaleString("en-US")}`,
+      `↪ ${getItemEmoji(
+        "berries"
+      )} Berries: +${Number(
+        reward.berries
+      ).toLocaleString("en-US")}`,
+
+      `↪ ${getItemEmoji(
+        "gems"
+      )} Gems: +${Number(
+        reward.gems
+      ).toLocaleString("en-US")}`,
     ];
 
     reward.boxes.forEach((item) => {
-      lines.push(`↪ ${item.name} x${item.amount}`);
+      const emoji =
+        getItemEmoji(item.code);
+
+      lines.push(
+        `↪ ${
+          emoji ? `${emoji} ` : ""
+        }${item.name} x${item.amount}`
+      );
     });
 
     reward.materials.forEach((item) => {
-      lines.push(`↪ ${item.name} x${item.amount}`);
+      const emoji =
+        getItemEmoji(item.code);
+
+      lines.push(
+        `↪ ${
+          emoji ? `${emoji} ` : ""
+        }${item.name} x${item.amount}`
+      );
     });
 
     reward.tickets.forEach((item) => {
-      lines.push(`↪ ${item.name} x${item.amount}`);
+      const emoji =
+        getItemEmoji(item.code);
+
+      lines.push(
+        `↪ ${
+          emoji ? `${emoji} ` : ""
+        }${item.name} x${item.amount}`
+      );
     });
 
     const embed = new EmbedBuilder()
       .setColor(0xe67e22)
-      .setTitle("Mother Flame Treasure Claimed")
+      .setTitle(
+        `${getItemEmoji(
+          "mother_flame_treasure_box"
+        )} Mother Flame Treasure Claimed`
+      )
       .setDescription(
         [
           "Here are your premium treasure rewards:",
