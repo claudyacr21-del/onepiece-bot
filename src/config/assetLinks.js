@@ -832,9 +832,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1539620485942214766/Hody_Jones_3.jpg?ex=6a86fad0&is=6a85a950&hm=238a269fde23148d204afa4551570dd822d1b41114f660870cb54c4d228a08d2&",
   },
   law_surgeon_of_death: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1500763799974711316/content.png?ex=69f99eb4&is=69f84d34&hm=99b772d27bdb2f4feb2235e06e0494e7d45edbeef254083dd6c1b28a9ad938bf&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1500763800742133850/content.png?ex=69f99eb4&is=69f84d34&hm=11a5f6c4a339f254597a0191ae44e0895f90e0e35c043e1ea53dd524e87c6a94&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1500763801652564029/content.png?ex=69f99eb5&is=69f84d35&hm=adc81a332f48cce1c0971959d7483f919fd04988f83ad8fded406abb18139c4a&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1539628654001258556/law_1.jpg?ex=6a87026c&is=6a85b0ec&hm=6b966ea8c11542decf0b1cf3bf186c8ea8ba83ced0df092920a2e363a1d48027&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1539628654668161075/law_2.jpg?ex=6a87026c&is=6a85b0ec&hm=6d1aede73074b5ba1cf942d42bba773c55846dca70b18ba467b0912ac4f7fe37&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1539628655133589645/law_3.jpg?ex=6a87026c&is=6a85b0ec&hm=15b608107e06e5f6e3c5a69a6864f7331699883d7a3552aeee783819a563a3ee&",
   },
   kid_captain: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1539623550615420928/Eustass_Kid_1.jpg?ex=6a86fdab&is=6a85ac2b&hm=d642ae62cf2bd9dba41a13d6c573488519d9ef8e0e2433add868ec571d7d8b7d&",
@@ -852,9 +852,9 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1538852267598553128/lzs_3.jpg?ex=6a842f5b&is=6a82dddb&hm=b877ce33fd5f42de9a9585aeb5579ddd94704fd6a26972c406a6496d1fdde5f0",
   },
   mr2: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515693837560058070/content.png?ex=6a329263&is=6a3140e3&hm=27c6b1c65a02f871c82ccae30ad7c63b5f42035dc011cfcfaa152a7ab1db15c7&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1515693838121959646/content.png?ex=6a329263&is=6a3140e3&hm=7b8fb262d909bf42f40bc369defa4573bc13e46a5d24e1c6d5cfa52f71d826b0&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1515693838784663743/content.png?ex=6a329263&is=6a3140e3&hm=34e7833e213a3e8fb8d8925109b5dfe27a36521550ae7d5bfe2c8ab2b1865034&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1539630706265948230/bon_clay_1.jpg?ex=6a870455&is=6a85b2d5&hm=ac7973df04a94136aa747a606607e45bc000cb6eced249dd090ad4800b94f36b&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1539630706844766268/bon_clay_2.jpg?ex=6a870455&is=6a85b2d5&hm=b93f9dc424e6f811e55deadae82645090ccb9090951fafb2f87903bfce3aa28f&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1539630707469455421/bon_clay_3.jpg?ex=6a870455&is=6a85b2d5&hm=374f0dbd36b291396672bd6ca02dba5cebf62bc89ac563cdcf5b51c91744ed30&",
   },
   higuma: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1539157733721513994/hipemo_1.jpg?ex=6a854bd7&is=6a83fa57&hm=4f06c02744893dc40fc2544959591fcf5a91139e6bdc2aebbebc591165d9f728&",

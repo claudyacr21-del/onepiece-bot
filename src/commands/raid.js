@@ -2092,17 +2092,18 @@ function buildBattleEmbed(state) {
             const cooldown =
               getMemberActionCooldown(member);
 
-            const status = isDead
-              ? "DEFEATED"
+            const statusText = isDead
+              ? " • DEFEATED"
               : cooldown > 0
-                ? `CD ${cooldown}`
-                : "READY";
+                ? " • ⏳"
+                : "";
 
             return [
               `**${index + 1}. ${
                 member.name
-              }**`,
-              `${member.username} • ${status}`,
+              }** • ${
+                member.username || "Unknown"
+              }${statusText}`,
               `SPD \`${formatDisplayStat(
                 member.speed
               )}\` • ATK ${formatAtkRange(
@@ -2154,10 +2155,11 @@ function buildBattleEmbed(state) {
           `**${boss.name}**`,
           `SPD \`${formatDisplayStat(
             boss.speed
-          )}\` • ATK ${formatAtkRange({
-            min: boss.atkMin,
-            max: boss.atkMax,
-          })}`,
+          )}\` • ATK ${formatDisplayStat(
+            boss.atkMin
+          )}-${formatDisplayStat(
+            boss.atkMax
+          )}`,
           `HP ${Math.max(
             0,
             Number(boss.hp || 0)

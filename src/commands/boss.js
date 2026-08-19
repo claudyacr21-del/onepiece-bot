@@ -2158,8 +2158,7 @@ function buildBossEmbed(
     );
 
     return [
-      `**${unit.slot}. ${unit.name}**`,
-      `PWR \`${Number(
+      `**${unit.slot}. ${unit.name}** • PWR \`${Number(
         unit.battlePower ||
           unit.currentPower ||
           0
@@ -2812,8 +2811,7 @@ function buildRaidBossEmbed(
         [
           `**${
             Number(unit.globalSlot || 0) + 1
-          }. ${unit.name}**`,
-          `${
+          }. ${unit.name}** • ${
             participant.username || "Unknown"
           }${statusText}`,
           `PWR \`${Number(
