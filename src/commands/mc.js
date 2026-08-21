@@ -1008,30 +1008,54 @@ function findOwnedCardOrSkinByQuery(player, cards, query) {
 
 function buildWeaponEmbed(ownerName, player, weapon, index = 0, total = 1) {
   const percent = getWeaponPercentAtLevel(
-    weapon.statPercent || weapon.statBonus || { atk: 0, hp: 0, speed: 0 },
+    weapon.statPercent || weapon.statBonus || {
+      atk: 0,
+      hp: 0,
+      speed: 0,
+    },
     weapon.bestUpgradeLevel || 0
   );
 
   const equippedNames = dedupeTextList(weapon.equippedOn);
-  const equippedText = equippedNames.length ? equippedNames.join(", ") : "Not equipped";
+  const equippedText = equippedNames.length
+    ? equippedNames.join(", ")
+    : "Not equipped";
 
   const fragments = getFragmentAmount(player, weapon);
 
   return new EmbedBuilder()
-    .setColor(0x3498db)
+    .setColor(
+      getRarityColor(
+        weapon.rarity ||
+          weapon.baseTier ||
+          "B"
+      )
+    )
     .setTitle(`${ownerName}'s Weapon`)
     .setDescription(
       [
         `**${weapon.name}**`,
         `${weapon.type || "Weapon"}`,
         "",
-        `Rarity: ${String(weapon.rarity || "B").toUpperCase()}`,
-        `Power: ${Number(getWeaponPower(weapon, weapon.bestUpgradeLevel || 0) || 0)}`,
+        `Rarity: ${String(
+          weapon.rarity ||
+            weapon.baseTier ||
+            "B"
+        ).toUpperCase()}`,
+        `Power: ${Number(
+          getWeaponPower(
+            weapon,
+            weapon.bestUpgradeLevel || 0
+          ) || 0
+        )}`,
         `ATK: +${Number(percent.atk || 0)}%`,
         `HP: +${Number(percent.hp || 0)}%`,
         `SPD: +${Number(percent.speed || 0)}%`,
         `Owner Signature: ${getOwnerSignature(weapon)}`,
-        `Best Upgrade: +${Math.max(0, Number(weapon.bestUpgradeLevel || 0))}`,
+        `Best Upgrade: +${Math.max(
+          0,
+          Number(weapon.bestUpgradeLevel || 0)
+        )}`,
         `Equipped On: ${equippedText}`,
         "",
         `${weapon.description || "No description."}`,
@@ -1039,8 +1063,19 @@ function buildWeaponEmbed(ownerName, player, weapon, index = 0, total = 1) {
         `Fragment: ${fragments}`,
       ].join("\n")
     )
-    .setThumbnail(getRarityBadge(weapon.rarity || "B") || null)
-    .setImage(getWeaponImage(weapon.code, weapon.image || "") || null)
+    .setThumbnail(
+      getRarityBadge(
+        weapon.rarity ||
+          weapon.baseTier ||
+          "B"
+      ) || null
+    )
+    .setImage(
+      getWeaponImage(
+        weapon.code,
+        weapon.image || ""
+      ) || null
+    )
     .setFooter({
       text: `Weapon Collection ${index + 1}/${total} • This weapon belongs to ${ownerName}`,
     });
