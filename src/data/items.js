@@ -274,6 +274,8 @@ const ITEMS = {
     rarity: "A",
     code: "fruit_essence",
     type: "Material",
+    tradeable: false,
+    untradeable: true,
     description: "A refined essence obtained by breaking down Devil Fruits. Used in the Fruit Essence Shop.",
   },
 

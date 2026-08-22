@@ -160,6 +160,7 @@ function isBlockedTradeItemCode(code) {
     normalizedCode === "pull_reset_ticket" ||
     normalizedCode === "radiant_ticket" ||
     normalizedCode === "cola_engine_part" ||
+    normalizedCode === "fruit_essence" ||
 
     normalizedCode === "wooden_material_box" ||
     normalizedCode === "iron_material_box" ||
