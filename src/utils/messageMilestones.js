@@ -1,7 +1,10 @@
+const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
 const MESSAGE_MILESTONE_REWARDS = [
   {
     key: "gems",
-    emoji: "💎",
+    emoji: getItemEmoji("gems") || "💎",
     label: "Gems",
     target: 75,
     reward: {
@@ -10,7 +13,7 @@ const MESSAGE_MILESTONE_REWARDS = [
   },
   {
     key: "resetToken",
-    emoji: "🎟️",
+    emoji: getItemEmoji("pull_reset_ticket") || "🎟️",
     label: "Pull Reset Ticket",
     target: 350,
     reward: {
@@ -27,7 +30,7 @@ const MESSAGE_MILESTONE_REWARDS = [
   },
   {
     key: "legendresourcebox",
-    emoji: "🎁",
+    emoji: getItemEmoji("legend_resource_box") || "🎁",
     label: "Legend Resource Box",
     target: 750,
     reward: {
@@ -44,7 +47,7 @@ const MESSAGE_MILESTONE_REWARDS = [
   },
   {
     key: "raidTicket",
-    emoji: "🎫",
+    emoji: getItemEmoji("raid_ticket") || "🎫",
     label: "Raid Ticket",
     target: 3500,
     reward: {
@@ -61,7 +64,7 @@ const MESSAGE_MILESTONE_REWARDS = [
   },
   {
     key: "goldRaidTicket",
-    emoji: "🎫",
+    emoji: getItemEmoji("gold_raid_ticket") || "🎫",
     label: "Gold Raid Ticket",
     target: 10000,
     reward: {
@@ -340,7 +343,39 @@ function applyMessageMilestoneRewards(player, milestoneState) {
 function formatMessageMilestoneLines(player) {
   return MESSAGE_MILESTONE_REWARDS.map((reward) => {
     const current = getMilestoneProgress(player, reward);
-    return `${reward.emoji} **${reward.label}**\n${current}/${reward.target}`;
+    const rewardData = reward.reward || {};
+
+    const rewardAmount =
+      Number(rewardData.gems || 0) ||
+      Number(rewardData.berries || 0) ||
+      [
+        ...(Array.isArray(rewardData.tickets)
+          ? rewardData.tickets
+          : []),
+        ...(Array.isArray(rewardData.boxes)
+          ? rewardData.boxes
+          : []),
+        ...(Array.isArray(rewardData.items)
+          ? rewardData.items
+          : []),
+      ].reduce(
+        (total, entry) =>
+          total + Math.max(0, Number(entry?.amount || 0)),
+        0
+      );
+
+    const amountText =
+      rewardAmount > 0
+        ? ` x${rewardAmount.toLocaleString("en-US")}`
+        : "";
+
+    return `${reward.emoji} **${
+      reward.label
+    }${amountText}**\n${current.toLocaleString(
+      "en-US"
+    )}/${Number(reward.target || 0).toLocaleString(
+      "en-US"
+    )}`;
   });
 }
 
