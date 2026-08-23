@@ -1,5 +1,7 @@
 require("dotenv").config();
-
+const {
+  AutoPoster,
+} = require("topgg-autoposter");
 const fs = require("fs");
 const path = require("path");
 const { Pool } = require("pg");
@@ -60,6 +62,34 @@ const client = new Client({
     repliedUser: false,
   },
 });
+
+const topggToken = String(
+  process.env.TOPGG_TOKEN || ""
+).trim();
+
+if (topggToken) {
+  const topggPoster = AutoPoster(
+    topggToken,
+    client
+  );
+
+  topggPoster.on("posted", () => {
+    console.log(
+      `[TOPGG STATS] Posted server count: ${client.guilds.cache.size}`
+    );
+  });
+
+  topggPoster.on("error", (error) => {
+    console.error(
+      "[TOPGG STATS ERROR]",
+      error?.message || error
+    );
+  });
+} else {
+  console.warn(
+    "[TOPGG STATS] TOPGG_TOKEN is not configured."
+  );
+}
 
 const PREFIX = String(process.env.PREFIX || "op").toLowerCase();
 const COMMAND_COOLDOWN_MS = 3000;
