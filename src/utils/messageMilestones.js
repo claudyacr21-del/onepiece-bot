@@ -21,7 +21,7 @@ const MESSAGE_MILESTONE_REWARDS = [
         {
           code: "pull_reset_ticket",
           name: "Pull Reset Ticket",
-          amount: 1,
+          amount: 5,
           rarity: "S",
           type: "Ticket",
         },
