@@ -73,18 +73,66 @@ const MIDSUMMER_END_AT = Date.parse(
   "2026-08-31T17:00:00.000Z"
 );
 
+const MIDSUMMER_GLOBAL_STORE_ID =
+  "__midsummer_2026_global";
+
+const MIDSUMMER_BOSS_MAX_HP =
+  1_000_000_000;
+
 const BOSS_GOLDEN_FOIL_COIN_REWARD = 5;
 
 const GOLDEN_FOIL_COIN_EMOJI =
   getItemEmoji("golden_foil_coin");
 
+function isMidsummerCoinCollectionActive(
+  now = Date.now()
+) {
+  if (now >= MIDSUMMER_END_AT) {
+    return false;
+  }
+
+  const players =
+    readPlayers();
+
+  const globalState =
+    players?.[
+      MIDSUMMER_GLOBAL_STORE_ID
+    ];
+
+  if (
+    !globalState ||
+    typeof globalState !==
+      "object"
+  ) {
+    return true;
+  }
+
+  const bossDefeated =
+    Number(
+      globalState.totalDamage || 0
+    ) >= MIDSUMMER_BOSS_MAX_HP ||
+    Number(
+      globalState.defeatedAt || 0
+    ) > 0;
+
+  const rewardsDistributed =
+    Boolean(
+      globalState
+        .finalRewardsDistributed
+    );
+
+  return (
+    !bossDefeated &&
+    !rewardsDistributed
+  );
+}
+
 function getBossGoldenFoilCoinReward(
   now = Date.now()
 ) {
-  const collectionActive =
-    now < MIDSUMMER_END_AT;
-
-  return collectionActive
+  return isMidsummerCoinCollectionActive(
+    now
+  )
     ? BOSS_GOLDEN_FOIL_COIN_REWARD
     : 0;
 }

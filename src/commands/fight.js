@@ -6,7 +6,12 @@ const {
   MessageFlags,
 } = require("discord.js");
 
-const { getPlayer, updatePlayer, updatePlayerAtomic } = require("../playerStore");
+const {
+  readPlayers,
+  getPlayer,
+  updatePlayer,
+  updatePlayerAtomic,
+} = require("../playerStore");
 const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { applyCustomSkinToCard } = require("../utils/customSkins");
@@ -55,13 +60,56 @@ const MIDSUMMER_END_AT = Date.parse(
   "2026-08-31T17:00:00.000Z"
 );
 
+const MIDSUMMER_GLOBAL_STORE_ID =
+  "__midsummer_2026_global";
+
+const MIDSUMMER_BOSS_MAX_HP =
+  1_000_000_000;
+
 const GOLDEN_FOIL_COIN_EMOJI =
   getItemEmoji("golden_foil_coin");
 
 function isMidsummerCoinCollectionActive(
   now = Date.now()
 ) {
-  return now < MIDSUMMER_END_AT;
+  if (now >= MIDSUMMER_END_AT) {
+    return false;
+  }
+
+  const players =
+    readPlayers();
+
+  const globalState =
+    players?.[
+      MIDSUMMER_GLOBAL_STORE_ID
+    ];
+
+  if (
+    !globalState ||
+    typeof globalState !==
+      "object"
+  ) {
+    return true;
+  }
+
+  const bossDefeated =
+    Number(
+      globalState.totalDamage || 0
+    ) >= MIDSUMMER_BOSS_MAX_HP ||
+    Number(
+      globalState.defeatedAt || 0
+    ) > 0;
+
+  const rewardsDistributed =
+    Boolean(
+      globalState
+        .finalRewardsDistributed
+    );
+
+  return (
+    !bossDefeated &&
+    !rewardsDistributed
+  );
 }
 
 function rollFightGoldenFoilCoins() {
