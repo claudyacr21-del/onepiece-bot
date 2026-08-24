@@ -1002,9 +1002,22 @@ async function distributeFinalRewards(
   players,
   globalState
 ) {
+  const bossDefeated =
+    globalState.totalDamage >=
+      BOSS_MAX_HP ||
+    Number(
+      globalState.defeatedAt || 0
+    ) > 0;
+
+  const eventEnded =
+    Date.now() >= EVENT_END_AT;
+
   if (
     globalState.finalRewardsDistributed ||
-    Date.now() < EVENT_END_AT
+    (
+      !bossDefeated &&
+      !eventEnded
+    )
   ) {
     return globalState;
   }
@@ -1677,6 +1690,18 @@ async function attackNika(message) {
           ),
         ]);
 
+        if (
+          nextGlobal.totalDamage >=
+            BOSS_MAX_HP &&
+          !nextGlobal
+            .finalRewardsDistributed
+        ) {
+          await distributeFinalRewards(
+            latestPlayers,
+            nextGlobal
+          );
+        }
+
         const resultText =
           nextGlobal.totalDamage >=
           BOSS_MAX_HP
@@ -2034,9 +2059,21 @@ module.exports = {
     let globalState =
       getGlobalState(players);
 
+    const bossDefeated =
+      globalState.totalDamage >=
+        BOSS_MAX_HP ||
+      Number(
+        globalState.defeatedAt || 0
+      ) > 0;
+
     if (
-      Date.now() >= EVENT_END_AT &&
-      !globalState.finalRewardsDistributed
+      (
+        bossDefeated ||
+        Date.now() >=
+          EVENT_END_AT
+      ) &&
+      !globalState
+        .finalRewardsDistributed
     ) {
       globalState =
         await distributeFinalRewards(
