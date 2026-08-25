@@ -173,8 +173,10 @@ module.exports = {
             ? [...currentSet.variants]
             : [];
 
-          if (variants.length >= 20) {
-            throw new Error("This card already has the maximum 20 skin slots.");
+          if (variants.length >= 5) {
+            throw new Error(
+              "This card already has the maximum 5 skin slots."
+            );
           }
 
           variants.push({
@@ -227,7 +229,7 @@ module.exports = {
               `**Skinned Character:** ${originalName}`,
               `**Skin Name:** ${parsed.skinName}`,
               `**Skin Title:** ${skinTitle}`,
-              `**Skin Slots:** ${totalVariants}/20`,
+              `**Skin Slots:** ${totalVariants}/5`,
               "",
               `View: \`op showskins ${parsed.skinName}\``,
               `Set: \`op setskin ${totalVariants} ${parsed.skinName}\``,
