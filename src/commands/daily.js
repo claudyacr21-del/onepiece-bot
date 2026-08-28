@@ -349,6 +349,104 @@ function getDailyTierRewards(dailyTier) {
     tier >= 5 ? 1 :
     0;
 
+  if (tier >= 60) {
+    const endgameStep =
+      Math.max(
+        0,
+        tier - 60
+      );
+
+    addReward(
+      rewards,
+      makeReward(
+        ITEMS.legendResourceBox,
+        6 +
+          Math.floor(
+            endgameStep / 2
+          )
+      )
+    );
+
+    addReward(
+      rewards,
+      makeReward(
+        ITEMS.royalMaterialBox,
+        4 +
+          Math.floor(
+            endgameStep / 3
+          )
+      )
+    );
+
+    addReward(
+      rewards,
+      makeReward(
+        ITEMS.goldRaidTicket,
+        2 +
+          Math.floor(
+            endgameStep / 5
+          )
+      )
+    );
+
+    addReward(
+      rewards,
+      randomPick([
+        makeReward(
+          ITEMS.legendResourceBox,
+          5 + endgameStep
+        ),
+        makeReward(
+          ITEMS.royalMaterialBox,
+          5 + endgameStep
+        ),
+        makeReward(
+          ITEMS.goldRaidTicket,
+          3
+        ),
+        makeReward(
+          ITEMS.pullResetTicket,
+          3 +
+            Math.floor(
+              endgameStep / 2
+            )
+        ),
+      ])
+    );
+
+    addReward(
+      rewards,
+      randomPick([
+        makeReward(
+          ITEMS.fruitEssence,
+          20 +
+            endgameStep * 5
+        ),
+        makeReward(
+          ITEMS.colaEnginePart,
+          15 +
+            endgameStep * 3
+        ),
+        makeReward(
+          ITEMS.ironPlating,
+          30 +
+            endgameStep * 5
+        ),
+        makeReward(
+          ITEMS.enhancementStone,
+          100 +
+            endgameStep * 10
+        ),
+      ])
+    );
+
+    return {
+      berries,
+      gems,
+      rewards,
+    };
+  }
+
   if (tier === 1) {
     addReward(
       rewards,
@@ -495,19 +593,6 @@ function getDailyTierRewards(dailyTier) {
         makeReward(ITEMS.enhancementStone, materialAmount + tier * 6),
         makeReward(ITEMS.rumBeer, rumAmount + tier * 5),
         ...getShipMaterialPool(shipMaterialAmount + milestone + highMilestone + rangeBonus + 4),
-      ])
-    );
-  }
-
-  if (tier >= 60) {
-    addReward(
-      rewards,
-      randomPick([
-        makeReward(ITEMS.legendResourceBox, legendAmount),
-        makeReward(ITEMS.eliteResourceBox, boxAmount + highMilestone + rangeBonus + 6),
-        makeReward(ITEMS.enhancementStone, materialAmount + tier * 8),
-        makeReward(ITEMS.rumBeer, rumAmount + tier * 6),
-        ...getShipMaterialPool(shipMaterialAmount + milestone + highMilestone + rangeBonus + 6),
       ])
     );
   }
