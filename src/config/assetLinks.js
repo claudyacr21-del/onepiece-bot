@@ -1089,7 +1089,7 @@ const CARD_IMAGES = {
   pkw: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1535944968957464666/gaban_and_rayleigh_1.jpeg?ex=6a799bb9&is=6a784a39&hm=8d45ae30cb8df9f0acdf4e93b99a44b9d7e2d4b4c9a3ed9d8781be1af55f9792&",
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1535944969238618143/gaban_and_rayleigh_2.jpeg?ex=6a799bb9&is=6a784a39&hm=875762043fef0cf6e8cfd12b8d1140dbf56833dfa458d6391f8b56c3a9b4b865&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1535944969544671332/gaban_and_rayleigh_3.jpeg?ex=6a799bb9&is=6a784a39&hm=503be284d5f21334b33721d34fedabffc1703032e415012334116fb497aec645&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1543118840249057330/pkw_3.jpg?ex=6a93b4e9&is=6a926369&hm=8b97dbc15748777ab30eda0b86d5bcc4f35f25886fe6ae98fd00e97365575ccd",
   },
 };
 
