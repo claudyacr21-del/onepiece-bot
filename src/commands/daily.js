@@ -381,11 +381,8 @@ function getDailyTierRewards(dailyTier) {
     addReward(
       rewards,
       makeReward(
-        ITEMS.goldRaidTicket,
-        2 +
-          Math.floor(
-            endgameStep / 5
-          )
+        ITEMS.raidTicket,
+        3
       )
     );
 
@@ -399,10 +396,6 @@ function getDailyTierRewards(dailyTier) {
         makeReward(
           ITEMS.royalMaterialBox,
           5 + endgameStep
-        ),
-        makeReward(
-          ITEMS.goldRaidTicket,
-          3
         ),
         makeReward(
           ITEMS.pullResetTicket,
