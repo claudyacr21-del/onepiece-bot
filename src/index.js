@@ -741,7 +741,6 @@ const UNIVERSAL_ADMIN_COMMANDS = new Set([
   "setvote",
   "essence",
   "vcr",
-  "resetsolstice",
 ]);
 
 function isUniversalAdminCommand(

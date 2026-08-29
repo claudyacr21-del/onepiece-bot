@@ -6,6 +6,7 @@ const RARITY_EMOJI_IDS = Object.freeze({
   SS: "1535167261084753920",
   UR: "1535167257171329046",
   M: "1535167254122078220",
+  EV: "1543177914584141895",
 });
 
 const RARITY_EMOJI_NAMES = Object.freeze({
@@ -16,6 +17,7 @@ const RARITY_EMOJI_NAMES = Object.freeze({
   SS: "rarity_ss",
   UR: "rarity_ur",
   M: "rarity_m",
+  EV: "rarity_ev"
 });
 
 const RARITY_BADGES = Object.freeze(
@@ -983,7 +985,7 @@ const CARD_IMAGES = {
   },
   tfb: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1529722258472435732/flame_bros_1.jpg?ex=6a62f85f&is=6a61a6df&hm=893e258a3bb95e9cdd4702a69b6637ea99c9accfb2a110dbcddc16c938e7a573&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1529722258820435988/flame_bros_2.jpg?ex=6a62f85f&is=6a61a6df&hm=f35209e470087b57a739a0ebc0bd7248c088737d8a6a8769552c5910b064dc48&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1543152850543058974/flame_brothers_m2.jpg?ex=6a93d495&is=6a928315&hm=38da62e10332deb9fd3d939e53b4ff00e81e002bc65999338afdca2997e395fd",
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1529722259181408406/flame_bros_3.jpg?ex=6a62f85f&is=6a61a6df&hm=7698329075957f8715f229f9a944df1d25e5aca1362b6c55bf7155a000c90308&",
   },
   wgd: {

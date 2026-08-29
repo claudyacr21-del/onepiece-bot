@@ -7,7 +7,6 @@ const {
 } = require("discord.js");
 
 const {
-  readPlayers,
   getPlayer,
   updatePlayer,
   updatePlayerAtomic,
@@ -68,87 +67,6 @@ const PIRATE_BOSS_ACTIVITY_POINTS = Math.max(
 );
 
 const activeBossSessions = new Map();
-
-const MIDSUMMER_END_AT = Date.parse(
-  "2026-08-31T17:00:00.000Z"
-);
-
-const MIDSUMMER_GLOBAL_STORE_ID =
-  "__midsummer_2026_global";
-
-const MIDSUMMER_BOSS_MAX_HP =
-  1_000_000_000;
-
-const BOSS_GOLDEN_FOIL_COIN_REWARD = 5;
-
-const GOLDEN_FOIL_COIN_EMOJI =
-  getItemEmoji("golden_foil_coin");
-
-function isMidsummerCoinCollectionActive(
-  now = Date.now()
-) {
-  if (now >= MIDSUMMER_END_AT) {
-    return false;
-  }
-
-  const players =
-    readPlayers();
-
-  const globalState =
-    players?.[
-      MIDSUMMER_GLOBAL_STORE_ID
-    ];
-
-  if (
-    !globalState ||
-    typeof globalState !==
-      "object"
-  ) {
-    return true;
-  }
-
-  const bossDefeated =
-    Number(
-      globalState.totalDamage || 0
-    ) >= MIDSUMMER_BOSS_MAX_HP ||
-    Number(
-      globalState.defeatedAt || 0
-    ) > 0;
-
-  const rewardsDistributed =
-    Boolean(
-      globalState
-        .finalRewardsDistributed
-    );
-
-  return (
-    !bossDefeated &&
-    !rewardsDistributed
-  );
-}
-
-function getBossGoldenFoilCoinReward(
-  now = Date.now()
-) {
-  return isMidsummerCoinCollectionActive(
-    now
-  )
-    ? BOSS_GOLDEN_FOIL_COIN_REWARD
-    : 0;
-}
-
-function getBossGoldenFoilCoinLine(
-  amount
-) {
-  const reward = Math.max(
-    0,
-    Math.floor(Number(amount || 0))
-  );
-
-  return reward > 0
-    ? `${GOLDEN_FOIL_COIN_EMOJI} Golden Foil Coin: +${reward}`
-    : null;
-}
 
 function getBossSessionKey(userId) {
   return String(userId || "");
@@ -3585,8 +3503,6 @@ if (interaction.customId === "boss_raid_run") {
             const baseReward = getBossReward(currentIsland, phaseBoss);
             const storyLines = [];
             const allExpLines = [];
-            const goldenFoilCoinReward =
-              getBossGoldenFoilCoinReward();
 
             for (const participant of participants) {
             const participantDiscordUser =
@@ -3724,22 +3640,6 @@ if (interaction.customId === "boss_raid_run") {
                     ) +
                     rewardTotals.totalGems,
 
-                  goldenFoilCoins:
-                    Number(
-                      fresh.goldenFoilCoins ||
-                        0
-                    ) +
-                    (
-                      String(
-                        participant.userId
-                      ) ===
-                      String(
-                        message.author.id
-                      )
-                        ? goldenFoilCoinReward
-                        : 0
-                    ),
-
                   story: freshStory,
                   quests: applyBossQuestProgress(fresh, ["bossFights", "bossesDefeated"]),
                   achievements:
@@ -3764,16 +3664,6 @@ if (interaction.customId === "boss_raid_run") {
           );
 
           const rewardLines = formatRewardLines(hostReward);
-          const goldenFoilCoinLine =
-            getBossGoldenFoilCoinLine(
-              goldenFoilCoinReward
-            );
-
-          if (goldenFoilCoinLine) {
-            rewardLines.push(
-              `${goldenFoilCoinLine} (Host Only)`
-            );
-          }
 
           const pirateBossResult = awardPirateBossActivity({
             userId: message.author.id,
@@ -3824,13 +3714,6 @@ if (interaction.customId === "boss_raid_run") {
 
         if (!getAliveUnits(allUnits).length) {
           ended = true;
-          const goldenFoilCoinReward =
-            getBossGoldenFoilCoinReward();
-
-          const goldenFoilCoinLine =
-            getBossGoldenFoilCoinLine(
-              goldenFoilCoinReward
-            );
 
           await safeEditInteractionMessage(interaction, {
             embeds: [
@@ -3881,22 +3764,6 @@ if (interaction.customId === "boss_raid_run") {
                       expResults
                     ),
 
-                  goldenFoilCoins:
-                    Number(
-                      fresh.goldenFoilCoins ||
-                        0
-                    ) +
-                    (
-                      String(
-                        participant.userId
-                      ) ===
-                      String(
-                        message.author.id
-                      )
-                        ? goldenFoilCoinReward
-                        : 0
-                    ),
-
                   quests:
                     applyBossQuestProgress(
                       fresh,
@@ -3917,13 +3784,7 @@ if (interaction.customId === "boss_raid_run") {
                 color: 0xe74c3c,
                 result: "LOSE",
 
-                rewardLines:
-                  goldenFoilCoinLine
-                    ? [
-                        `${goldenFoilCoinLine} (Host Only)`,
-                      ]
-                    : [],
-
+                rewardLines: [],
                 expLines: allExpLines,
                 logs,
               }),
@@ -4253,8 +4114,6 @@ if (interaction.customId === "boss_run") {
           "bossesDefeated",
         ]);
 
-        const goldenFoilCoinReward =
-          getBossGoldenFoilCoinReward();
 
         updatePlayerAtomic(
           message.author.id,
@@ -4311,12 +4170,6 @@ if (interaction.customId === "boss_run") {
                 Number(fresh.gems || 0) +
                 rewardTotals.totalGems,
 
-              goldenFoilCoins:
-                Number(
-                  fresh.goldenFoilCoins || 0
-                ) +
-                goldenFoilCoinReward,
-
               story: freshStory,
               quests: applyBossQuestProgress(fresh, ["bossFights", "bossesDefeated"]),
               achievements: bumpAchievement(fresh, "bossDefeated", 1),
@@ -4334,16 +4187,6 @@ if (interaction.customId === "boss_run") {
         });
 
         const rewardLines = formatRewardLines(reward);
-        const goldenFoilCoinLine =
-          getBossGoldenFoilCoinLine(
-            goldenFoilCoinReward
-          );
-
-        if (goldenFoilCoinLine) {
-          rewardLines.push(
-            goldenFoilCoinLine
-          );
-        }
 
         if (pirateBossResult.awarded) {
           rewardLines.push(
@@ -4378,13 +4221,6 @@ if (interaction.customId === "boss_run") {
 
       if (!getAliveUnits(playerTeam).length) {
           ended = true;
-          const goldenFoilCoinReward =
-            getBossGoldenFoilCoinReward();
-
-          const goldenFoilCoinLine =
-            getBossGoldenFoilCoinLine(
-              goldenFoilCoinReward
-            );
 
           await safeEditInteractionMessage(interaction, {
             embeds: [
@@ -4417,12 +4253,6 @@ if (interaction.customId === "boss_run") {
                   expResults
                 ),
 
-              goldenFoilCoins:
-                Number(
-                  fresh.goldenFoilCoins || 0
-                ) +
-                goldenFoilCoinReward,
-
               quests:
                 applyBossQuestProgress(
                   fresh,
@@ -4442,13 +4272,7 @@ if (interaction.customId === "boss_run") {
               color: 0xe74c3c,
               result: "LOSE",
 
-              rewardLines:
-                goldenFoilCoinLine
-                  ? [
-                      goldenFoilCoinLine,
-                    ]
-                  : [],
-
+              rewardLines: [],
               expLines,
               logs,
             }),

@@ -7,7 +7,6 @@ const {
 } = require("discord.js");
 
 const {
-  readPlayers,
   getPlayer,
   updatePlayer,
   updatePlayerAtomic,
@@ -40,9 +39,6 @@ const {
 } = require("../utils/serverTagPerks");
 
 const {
-  getItemEmoji,
-} = require("../config/itemEmojis");
-const {
   renderBar,
   renderUnitBlock,
   renderTeamBlock,
@@ -55,87 +51,6 @@ const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const activeFightSessions = new Map();
 
 const __fightSystem1ActionLocks = new Set();
-
-const MIDSUMMER_END_AT = Date.parse(
-  "2026-08-31T17:00:00.000Z"
-);
-
-const MIDSUMMER_GLOBAL_STORE_ID =
-  "__midsummer_2026_global";
-
-const MIDSUMMER_BOSS_MAX_HP =
-  1_000_000_000;
-
-const GOLDEN_FOIL_COIN_EMOJI =
-  getItemEmoji("golden_foil_coin");
-
-function isMidsummerCoinCollectionActive(
-  now = Date.now()
-) {
-  if (now >= MIDSUMMER_END_AT) {
-    return false;
-  }
-
-  const players =
-    readPlayers();
-
-  const globalState =
-    players?.[
-      MIDSUMMER_GLOBAL_STORE_ID
-    ];
-
-  if (
-    !globalState ||
-    typeof globalState !==
-      "object"
-  ) {
-    return true;
-  }
-
-  const bossDefeated =
-    Number(
-      globalState.totalDamage || 0
-    ) >= MIDSUMMER_BOSS_MAX_HP ||
-    Number(
-      globalState.defeatedAt || 0
-    ) > 0;
-
-  const rewardsDistributed =
-    Boolean(
-      globalState
-        .finalRewardsDistributed
-    );
-
-  return (
-    !bossDefeated &&
-    !rewardsDistributed
-  );
-}
-
-function rollFightGoldenFoilCoins() {
-  if (
-    !isMidsummerCoinCollectionActive()
-  ) {
-    return 0;
-  }
-
-  return 1 + Math.floor(
-    Math.random() * 3
-  );
-}
-
-function getGoldenFoilCoinRewardLine(
-  amount
-) {
-  const reward = Math.max(
-    0,
-    Math.floor(Number(amount || 0))
-  );
-
-  return reward > 0
-    ? `${GOLDEN_FOIL_COIN_EMOJI} Golden Foil Coin: +${reward}`
-    : null;
-}
 
 function __getActionLockKey(interaction) {
   return [
@@ -1159,8 +1074,7 @@ function getFightModeLabel(tier) {
 
 function applyFightLoss(
   message,
-  playerTeam,
-  goldenFoilCoinReward = 0
+  playerTeam
 ) {
   const pirateExpBoost =
     getPirateExpBoostPercent(
@@ -1208,14 +1122,6 @@ function applyFightLoss(
             fresh,
             boostedTeam,
             expResults
-          ),
-
-        goldenFoilCoins:
-          Number(
-            fresh.goldenFoilCoins || 0
-          ) +
-          Number(
-            goldenFoilCoinReward || 0
           ),
 
         fightStreak: 0,
@@ -1566,9 +1472,6 @@ if (interaction.user.id !== message.author.id) {
               true
             );
 
-            const goldenFoilCoinReward =
-              rollFightGoldenFoilCoins();
-
             updatePlayerAtomic(
               message.author.id,
               (fresh) => {
@@ -1606,13 +1509,6 @@ if (interaction.user.id !== message.author.id) {
                     ) +
                     rewardTotals.totalGems,
 
-                  goldenFoilCoins:
-                    Number(
-                      fresh.goldenFoilCoins ||
-                        0
-                    ) +
-                    goldenFoilCoinReward,
-
                   fightStreak:
                     currentStreak,
                   achievements: bumpAchievement(fresh, "fightWon", 1),
@@ -1635,17 +1531,6 @@ if (interaction.user.id !== message.author.id) {
               formatFightRewardLines(
                 reward
               );
-
-            const goldenFoilCoinLine =
-              getGoldenFoilCoinRewardLine(
-                goldenFoilCoinReward
-              );
-
-            if (goldenFoilCoinLine) {
-              rewardLines.push(
-                goldenFoilCoinLine
-              );
-            }
 
             logs.push(
               "🏆 You won the fight!"
@@ -1672,25 +1557,16 @@ if (interaction.user.id !== message.author.id) {
           if (!getAliveUnits(playerTeam).length) {
             battleEnded = true;
 
-            const goldenFoilCoinReward =
-              rollFightGoldenFoilCoins();
-
             const expResults =
               applyFightLoss(
                 message,
-                playerTeam,
-                goldenFoilCoinReward
+                playerTeam
               );
 
             const expLines =
               formatExpResults(
                 playerTeam,
                 expResults
-              );
-
-            const goldenFoilCoinLine =
-              getGoldenFoilCoinRewardLine(
-                goldenFoilCoinReward
               );
 
             logs.push(
@@ -1704,12 +1580,7 @@ if (interaction.user.id !== message.author.id) {
                   color: 0xe74c3c,
                   result: "LOSE",
 
-                  rewardLines:
-                    goldenFoilCoinLine
-                      ? [
-                          goldenFoilCoinLine,
-                        ]
-                      : [],
+                  rewardLines: [],
 
                   expLines,
                   logs,

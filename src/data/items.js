@@ -82,23 +82,6 @@ const ITEMS = {
     description: "A better random material box with improved material rewards.",
   },
 
-  radiantTicket: {
-    name: "Radiant Ticket",
-    amount: 1,
-    rarity: "UR",
-    code: "radiant_ticket",
-    type: "Ticket",
-    canPull: false,
-    canPA: false,
-    tradeable: false,
-    untradeable: true,
-    tradeLocked: true,
-    eventOnly: true,
-    shopOnly: true,
-    description:
-      "A Midsummer Event ticket used exclusively to attack Nika through op solstice attack.",
-  },
-
   mythicRaidTicket: {
   name: "Mythic Raid Ticket",
   amount: 1,

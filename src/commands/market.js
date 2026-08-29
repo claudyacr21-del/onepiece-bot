@@ -23,19 +23,9 @@ const {
   sendShopLog,
 } = require("../utils/economyLogs");
 
-const MIDSUMMER_START_AT = Date.parse(
-  "2026-07-31T17:00:00.000Z"
-);
-
-const MIDSUMMER_END_AT = Date.parse(
-  "2026-08-31T17:00:00.000Z"
-);
-
 const CURRENCY_DISPLAY = {
   berries: getItemEmoji("berries"),
   gems: getItemEmoji("gems"),
-  goldenFoilCoins:
-    getItemEmoji("golden_foil_coin"),
 };
 
 function getCurrencyDisplay(currency) {
@@ -54,18 +44,7 @@ function getCurrencyName(currency) {
     return "Gems";
   }
 
-  if (currency === "goldenFoilCoins") {
-    return "Golden Foil Coins";
-  }
-
   return String(currency || "Currency");
-}
-
-function isMidsummerEventActive(now = Date.now()) {
-  return (
-    now >= MIDSUMMER_START_AT &&
-    now < MIDSUMMER_END_AT
-  );
 }
 
 function pickRandomUniversalFragment() {
@@ -80,25 +59,6 @@ function pickRandomUniversalFragment() {
 }
 
 const MARKET_ITEMS = [
-  {
-    code: "radiant_ticket",
-    aliases: [
-      "radiant",
-      "radiant ticket",
-    ],
-    name: "Radiant Ticket",
-    price: 25,
-    currency: "goldenFoilCoins",
-    inventory: "tickets",
-    item: ITEMS.radiantTicket,
-    disableDiscount: true,
-    eventOnly: "midsummer_2026",
-    description:
-      "Used to attack Nika during the Midsummer Event.",
-    usageText:
-      "Use `op solstice attack` to attack Nika.",
-  },
-
   {
     code: "random_universal_fragment",
     aliases: [
@@ -360,10 +320,6 @@ function buildMarketEmbed(player, message) {
     `**Your Gems:** ${Number(
       player.gems || 0
     ).toLocaleString("en-US")}`,
-
-    `**Your Golden Foil Coins:** ${Number(
-      player.goldenFoilCoins || 0
-    ).toLocaleString("en-US")}`,
     "",
   ];
 
@@ -386,8 +342,7 @@ function buildMarketEmbed(player, message) {
     "`op buy royal 10`",
     "`op buy rum 5`",
     "`op buy fgems 2`",
-    "`op buy fberry 2`",
-    "`op buy radiant`"
+    "`op buy fberry 2`"
   );
 
   return new EmbedBuilder()
@@ -565,21 +520,6 @@ module.exports = {
     if (!found) {
       return message.reply({
         content: "That market item was not found.",
-        allowedMentions: {
-          repliedUser: false,
-        },
-      });
-    }
-
-    if (
-      found.eventOnly === "midsummer_2026" &&
-      !isMidsummerEventActive()
-    ) {
-      return message.reply({
-        content:
-          Date.now() < MIDSUMMER_START_AT
-            ? "The Midsummer Event has not started yet."
-            : "The Midsummer Event has ended. Radiant Tickets are no longer available.",
         allowedMentions: {
           repliedUser: false,
         },

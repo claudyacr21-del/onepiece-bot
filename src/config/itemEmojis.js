@@ -3,10 +3,8 @@ const ITEM_EMOJIS = Object.freeze({
     "<:berry:1532401337063702538>",
   gems:
     "<:gems:1532392133611229304>",
-  golden_foil_coin:
-    "<:GoldenFoilCoin:1532388575197270228>",
 
-  universal_c:
+    universal_c:
     "<:uni_c:1535244137056444446>",
   universal_b:
     "<:uni_b:1535244131188871239>",
@@ -62,8 +60,6 @@ const ITEM_EMOJIS = Object.freeze({
     "<:mraid:1524049580239487168>",
   pull_reset_ticket:
     "<:pullreset:1534501021957750784>",
-  radiant_ticket:
-    "<:radiant:1535218828244557844>",
 
   tl_common_raid_ticket:
     "<:craid:1535243666422243399>",
@@ -124,8 +120,6 @@ function getItemEmoji(itemOrCode) {
   const aliases = {
     berry: "berries",
     gem: "gems",
-    golden_foil_coins:
-      "golden_foil_coin",
 
     universal_c_fragment:
       "universal_c",

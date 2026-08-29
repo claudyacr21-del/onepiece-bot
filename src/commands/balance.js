@@ -10,9 +10,6 @@ const BERRY_EMOJI =
 const GEMS_EMOJI =
   getItemEmoji("gems");
 
-const GOLDEN_FOIL_COIN_EMOJI =
-  getItemEmoji("golden_foil_coin");
-
 function getProfileImage(message) {
   return (
     message.member?.displayAvatarURL?.({
@@ -51,9 +48,6 @@ module.exports = {
           `- Gems: \`${Number(
             player.gems || 0
           ).toLocaleString("en-US")}\` ${GEMS_EMOJI}`,
-          `- Golden Foil Coins: \`${Number(
-            player.goldenFoilCoins || 0
-          ).toLocaleString("en-US")}\` ${GOLDEN_FOIL_COIN_EMOJI}`,
         ].join("\n")
       )
       .setThumbnail(
