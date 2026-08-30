@@ -299,10 +299,15 @@ function getOwnedCards(player) {
 
 function findOwnedCardByNameOnly(player, query) {
   const cards = getOwnedCards(player);
-  const exactCode = findExactOwnedCardByRawCode(cards, query);
-  if (exactCode) return exactCode;
-  const direct = findOwnedCardByCodeOrName(cards, query);
-  if (direct) return direct;
+  const exactCode =
+    findExactOwnedCardByRawCode(
+      cards,
+      query
+    );
+
+  if (exactCode) {
+    return exactCode;
+  }
 
   const scored = cards
     .map((card) => ({
