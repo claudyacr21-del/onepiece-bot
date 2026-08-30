@@ -869,14 +869,14 @@ const CARD_IMAGES = {
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1539849380918460436/x_drake_3.jpg?ex=6a87cffd&is=6a867e7d&hm=5a476ee1c21a87ffc9fa747cdc06047c5f8e37b88e50207b6cae5351293bb497&",
   },
   scratchmen_apoo: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515696761585402006/content.png?ex=6a31ec5c&is=6a309adc&hm=74b23cea971d62d38cd96fe8582d55291e630483a0e16de50f1c08634041d0cb&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1515696762235392050/content.png?ex=6a31ec5c&is=6a309adc&hm=0bd5913b7f32890f1fe376e7f7a4c1928c418eefa09c7cf567bd8212cbccfd48&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1515696762789036072/content.png?ex=6a31ec5c&is=6a309adc&hm=46032542236dd9b18cf2d69db23507c558b762704ae61a8e1fe7eba90b72794d&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1543207353153884180/Scratchmen_Apoo_1.jpg?ex=6a94b018&is=6a935e98&hm=d187a81e8a18c0e3ab014d4d3ad584560f7fb4a941d8cae27b5bc520d5373178&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1543207353787093012/Scratchmen_Apoo_2.jpg?ex=6a94b018&is=6a935e98&hm=e017f20e09a4c04a34b16a87e537d708ef1889c9a80dde5ef6b01ac3a73ca4db&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1543207354122633237/Scratchmen_Apoo_3.jpg?ex=6a94b018&is=6a935e98&hm=8d56c7b1f0738ea8537accd4536aa05f2b3f23dacc9f7174fbb6c913b1c4eb4b&",
   },
   charlotte_daifuku: {
-    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515699540735557763/content.png?ex=6a31eef2&is=6a309d72&hm=64d137f20bc19daf727f47ed0c81e74d39e0798cb499625c44e5645a67179a50&",
-    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1515699541217771571/content.png?ex=6a31eef2&is=6a309d72&hm=8528e3bce4e1fff86a4a5184b47eed5faef3a3ed340e70f00d64c5e70c8803e8&",
-    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1515699541674823721/content.png?ex=6a31eef3&is=6a309d73&hm=15b4d46a2f803ae34eb91b3e649350a59d16dbaa520762b06d3e04545b8cc680&",
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1543210259018158270/Charlotte_Daifuku_1.jpg?ex=6a94b2cd&is=6a93614d&hm=d5a1abebfaff4e7c392a536f15d321bf3497ee103fac6cd2fce5e356283a92ae&",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1543210259424743505/Charlotte_Daifuku_2.jpg?ex=6a94b2cd&is=6a93614d&hm=acc02bda76c4a2414b85969e64ed37a7a6fee55cbe3cd749e284fe3d36d88a67&",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1543210259919937679/Charlotte_Daifuku_3.jpg?ex=6a94b2cd&is=6a93614d&hm=3dde14bdb596f78b2ac5db346e9e6dfb60f46645b1e56d27c8d972d91fae24cb&",
   },
   charlotte_oven: {
     M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1515701426553094244/content.png?ex=6a31f0b4&is=6a309f34&hm=97f2ec4b1b67134fab7030c9fe9eae6e91fe71a62d025cfa4b1155d781c64f19&",

@@ -4,7 +4,6 @@ const {
   isMergeCard,
   buildMergedCard,
   getMergeSourceCodes,
-  findOwnedCardByCodeOrName,
 } = require("../utils/mergeCards");
 const {
   hydrateCard,
@@ -197,23 +196,56 @@ function getCurrentStageImage(card) {
 
 function scoreQuery(query, candidates) {
   const q = normalize(query);
-  if (!q) return 0;
+
+  if (!q) {
+    return 0;
+  }
+
+  const queryWords =
+    q.split(" ")
+      .filter(Boolean);
 
   let best = 0;
 
   for (const raw of candidates) {
-    const candidate = normalize(raw);
-    if (!candidate) continue;
+    const candidate =
+      normalize(raw);
 
-    if (candidate === q) best = Math.max(best, 1000 + candidate.length);
-    else if (candidate.startsWith(q)) best = Math.max(best, 700 + q.length);
-    else if (candidate.includes(q)) best = Math.max(best, 400 + q.length);
-    else {
-      const qWords = q.split(" ").filter(Boolean);
+    if (!candidate) {
+      continue;
+    }
 
-      if (qWords.length && qWords.every((word) => candidate.includes(word))) {
-        best = Math.max(best, 250 + qWords.join("").length);
-      }
+    const candidateWords =
+      candidate
+        .split(" ")
+        .filter(Boolean);
+
+    if (candidate === q) {
+      best = Math.max(
+        best,
+        1000 + candidate.length
+      );
+
+      continue;
+    }
+
+    const matchesWholeWords =
+      queryWords.length > 0 &&
+      queryWords.every(
+        (word) =>
+          candidateWords.includes(
+            word
+          )
+      );
+
+    if (matchesWholeWords) {
+      best = Math.max(
+        best,
+        700 +
+          queryWords
+            .join("")
+            .length
+      );
     }
   }
 
