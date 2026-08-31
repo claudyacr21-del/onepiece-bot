@@ -54,16 +54,23 @@ function stripFragmentSuffix(value) {
 }
 
 function getNameOnlyCandidates(item = {}) {
+  const itemName =
+    String(item.name || "")
+      .trim();
+
+  if (!itemName) {
+    return [];
+  }
+
   return [
-    item.name,
-    item.displayName,
-    item.title,
-    stripFragmentSuffix(item.name),
-    stripFragmentSuffix(item.displayName),
-    stripFragmentSuffix(item.title),
+    itemName,
+    stripFragmentSuffix(
+      itemName
+    ),
   ]
-    .filter(Boolean)
-    .map((name) => normalizeNameOnly(name))
+    .map((name) =>
+      normalizeNameOnly(name)
+    )
     .filter(Boolean);
 }
 
