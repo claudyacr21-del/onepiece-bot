@@ -69,35 +69,49 @@ function getNameOnlyCandidates(item = {}) {
 
 function scoreNameOnlyQuery(query, item = {}) {
   const q = normalizeNameOnly(query);
-  if (!q) return 0;
 
-  const candidates = getNameOnlyCandidates(item);
+  if (!q) {
+    return 0;
+  }
+
+  const queryWords =
+    q.split(" ")
+      .filter(Boolean);
+
+  const candidates =
+    getNameOnlyCandidates(item);
+
   let best = 0;
 
   for (const name of candidates) {
     if (name === q) {
-      best = Math.max(best, 10000 + name.length);
+      best = Math.max(
+        best,
+        10000 + name.length
+      );
+
       continue;
     }
 
-    if (name.startsWith(q)) {
-      best = Math.max(best, 7000 + q.length);
-      continue;
-    }
+    const nameWords =
+      name.split(" ")
+        .filter(Boolean);
 
-    if (name.includes(q)) {
-      best = Math.max(best, 5000 + q.length);
-      continue;
-    }
+    const matchesWholeWords =
+      queryWords.length > 0 &&
+      queryWords.every(
+        (word) =>
+          nameWords.includes(word)
+      );
 
-    const queryWords = q.split(" ").filter(Boolean);
-    const nameWords = name.split(" ").filter(Boolean);
-
-    if (
-      queryWords.length > 1 &&
-      queryWords.every((word) => nameWords.includes(word))
-    ) {
-      best = Math.max(best, 3000 + queryWords.join("").length);
+    if (matchesWholeWords) {
+      best = Math.max(
+        best,
+        7000 +
+          queryWords
+            .join("")
+            .length
+      );
     }
   }
 
