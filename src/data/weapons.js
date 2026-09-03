@@ -566,7 +566,7 @@ module.exports = [
   },
   {
     code: "rokushiki",
-    name: "Rokushiki",
+    name: "Rokushiki Gauntlets",
     rarity: "S",
     owners: ["lucci_cp9"],
     type: "Martial Art",
