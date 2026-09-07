@@ -303,7 +303,7 @@ const SPECIAL_FORMS = {
   suna_suna_core: ["Alabasta", "Crocodile", "Sand Dominion"],
   ohara_will: ["Ohara Incident", "Robin Flashback", "Void Century"],
   goro_goro_core: ["Skypiea", "Enel", "Lightning God"],
-  cola_engine: ["Water 7", "Franky", "Pluton Energy"],
+  cola_engine: ["Water 7", "Franky", "Cola Robot"],
   rokushiki_manual: ["CP9 Training", "Enies Lobby", "CP0 Mastery"],
   soul_solid: ["Thriller Bark", "Brook", "Soul King"],
   shadow_core: ["Thriller Bark", "Moria", "Shadow Army"],

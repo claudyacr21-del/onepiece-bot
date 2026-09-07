@@ -5,6 +5,8 @@ const { readRedeemCodes, writeRedeemCodes } = require("../utils/redeemCodeStore"
 const {
   getServerTagPerksFromMessage,
 } = require("../utils/serverTagPerks");
+const MAIN_CHAT_CHANNEL_ID =
+  "1493177804337053716";
 
 function parseEnvIds(...values) {
   return values
@@ -582,6 +584,19 @@ module.exports = {
           "`op redeemcode list`",
         ].join("\n"),
         allowedMentions: { repliedUser: false },
+      });
+    }
+
+    if (
+      String(message.channel?.id || "") !==
+      MAIN_CHAT_CHANNEL_ID
+    ) {
+      return message.reply({
+        content:
+          `Redeem codes can only be claimed in <#${MAIN_CHAT_CHANNEL_ID}>.`,
+        allowedMentions: {
+          repliedUser: false,
+        },
       });
     }
 
