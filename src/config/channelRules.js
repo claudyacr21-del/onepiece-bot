@@ -315,6 +315,11 @@ module.exports = {
 
     //pangea castle
     "1504743963729330296": ["raid", "redeemcode"],
+
+    //show-off & show-shame
+    "1499991620672815217": ["fight", "boss", "raid", "pirate", "expedition"],
+    "1521061651145818243": ["fight", "boss", "raid", "pirate", "expedition"],
+
   },
 
   alwaysAllowedCommands: [],

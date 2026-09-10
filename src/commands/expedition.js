@@ -69,6 +69,9 @@ const ENTRY_COST = {
 
 const MAX_ROUNDS = 10;
 
+const BATTLE_HP_MULTIPLIER =
+  2;
+
 const PREMIUM_EXPEDITION_PERKS = {
   normal: {
     label: "Normal",
@@ -76,9 +79,10 @@ const PREMIUM_EXPEDITION_PERKS = {
     rewardMultiplier: 1,
     mythicBonus: 0,
 
-    // Stage 5 Dangerous enemy balancing
+    // Dangerous Stage 5 is intentionally
+    // difficult for non-premium players.
     dangerousFinalEnemyMultiplier:
-      0.96,
+      1.08,
   },
 
   vivreCard: {
@@ -87,10 +91,10 @@ const PREMIUM_EXPEDITION_PERKS = {
     rewardMultiplier: 1.25,
     mythicBonus: 0.05,
 
-    // Keeps the encounter difficult
-    // while preserving the premium advantage
+    // Vivre Card keeps a moderate
+    // advantage in the final encounter.
     dangerousFinalEnemyMultiplier:
-      0.98,
+      1.03,
   },
 
   motherFlame: {
@@ -99,10 +103,10 @@ const PREMIUM_EXPEDITION_PERKS = {
     rewardMultiplier: 1.5,
     mythicBonus: 0.1,
 
-    // Enemy scaling prevents an automatic win,
-    // but Mother Flame still has the best odds
+    // Mother Flame receives the strongest
+    // advantage in the final encounter.
     dangerousFinalEnemyMultiplier:
-      1.02,
+      1,
   },
 };
 
@@ -1694,7 +1698,8 @@ function createBattleState(
                 Number(
                   card.hp || 1
                 ) *
-                  statMultiplier
+                  statMultiplier *
+                  BATTLE_HP_MULTIPLIER
               )
             );
 
@@ -1775,7 +1780,8 @@ function createBattleState(
               Number(
                 card.hp || 1
               ) *
-                enemyStatMultiplier
+                enemyStatMultiplier *
+                BATTLE_HP_MULTIPLIER
             );
 
           const enemyBaseSpeed =
