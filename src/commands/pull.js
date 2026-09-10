@@ -53,6 +53,31 @@ const {
 
 const CURSED_ENERGY_PER_PULL = 2;
 
+const HALLOWEEN_START_AT =
+  Date.parse(
+    "2026-10-01T00:00:00+07:00"
+  );
+
+const HALLOWEEN_END_AT =
+  Date.parse(
+    "2026-11-01T00:00:00+07:00"
+  );
+
+function isHalloweenEventActive(
+  now = Date.now()
+) {
+  return (
+    Number.isFinite(
+      HALLOWEEN_START_AT
+    ) &&
+    Number.isFinite(
+      HALLOWEEN_END_AT
+    ) &&
+    now >= HALLOWEEN_START_AT &&
+    now < HALLOWEEN_END_AT
+  );
+}
+
 const CURSED_ENERGY_EMOJI =
   getItemEmoji(
     "cursed_energy"
@@ -1608,6 +1633,11 @@ module.exports = {
       premiumSPity: pityCounter,
     };
 
+    const cursedEnergyReward =
+      isHalloweenEventActive()
+        ? CURSED_ENERGY_PER_PULL
+        : 0;
+
     await savePullResultFresh(
       message.author.id,
       {
@@ -1620,7 +1650,7 @@ module.exports = {
           autoSacBerries,
 
         addCursedEnergy:
-          CURSED_ENERGY_PER_PULL,
+          cursedEnergyReward,
 
         pulls: updatedPulls,
         pity: updatedPity,
@@ -1655,7 +1685,9 @@ module.exports = {
       .setDescription(
         [
           `**Slot Used:** ${prettySlotName(pullKey)}`,
-          `${CURSED_ENERGY_EMOJI} **Event Bonus:** +${CURSED_ENERGY_PER_PULL} Cursed Energy`,
+          cursedEnergyReward > 0
+            ? `${CURSED_ENERGY_EMOJI} **Event Bonus:** +${cursedEnergyReward} Cursed Energy`
+            : null,
           `**Remaining Pulls:** ${Math.max(0, totalMax - totalUsed - 1)}/${totalMax}`,
           `**${pityText}**`,
           getLuckyWeekBonusLine(),

@@ -38,6 +38,31 @@ const {
 
 const CURSED_ENERGY_PER_PULL = 2;
 
+const HALLOWEEN_START_AT =
+  Date.parse(
+    "2026-10-01T00:00:00+07:00"
+  );
+
+const HALLOWEEN_END_AT =
+  Date.parse(
+    "2026-11-01T00:00:00+07:00"
+  );
+
+function isHalloweenEventActive(
+  now = Date.now()
+) {
+  return (
+    Number.isFinite(
+      HALLOWEEN_START_AT
+    ) &&
+    Number.isFinite(
+      HALLOWEEN_END_AT
+    ) &&
+    now >= HALLOWEEN_START_AT &&
+    now < HALLOWEEN_END_AT
+  );
+}
+
 const CURSED_ENERGY_EMOJI =
   getItemEmoji(
     "cursed_energy"
@@ -1836,13 +1861,16 @@ module.exports = {
         );
 
       const cursedEnergyReward =
-        Math.max(
-          0,
-          Number(
-            availableTotal || 0
-          )
-        ) *
-        CURSED_ENERGY_PER_PULL;
+        isHalloweenEventActive()
+          ? Math.max(
+              0,
+              Number(
+                availableTotal ||
+                0
+              )
+            ) *
+            CURSED_ENERGY_PER_PULL
+          : 0;
 
       const saveResult =
         savePullAllResultFresh(
@@ -1902,11 +1930,14 @@ module.exports = {
         });
       }
 
-      const groupedLines = [
-        "## Event Bonus",
-        `${CURSED_ENERGY_EMOJI} **+${cursedEnergyReward.toLocaleString("en-US")} Cursed Energy**`,
-        "",
-      ];
+      const groupedLines =
+        cursedEnergyReward > 0
+          ? [
+              "## Event Bonus",
+              `${CURSED_ENERGY_EMOJI} **+${cursedEnergyReward.toLocaleString("en-US")} Cursed Energy**`,
+              "",
+            ]
+          : [];
 
       const luckyWeekLine =
         getLuckyWeekBonusLine();
