@@ -17,6 +17,11 @@ const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { applyCustomSkinToCard } = require("../utils/customSkins");
 const { incrementQuestCounter } = require("../utils/questProgress");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const {
+  getEvCardEffects,
+  applyEvEnemyMaxHpEffect,
+  tryActivateEvEmergencyHeal,
+} = require("../utils/evAbilities");
 const { applyDamageBoost } = require("../utils/combatStats");
 const {
   getCardExp,
@@ -415,6 +420,7 @@ function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}, player = 
   const hydrated = hydrateCard(card) || card;
   const synced = applyBoostedBattleStats(hydrated, boosts);
   const displayCard = player ? applyCustomSkinToCard(player, synced) : synced;
+  const evCardEffects = getEvCardEffects(synced);
 
   const hasCustomSkin = Boolean(displayCard?.hasCustomSkin);
   const skinName = hasCustomSkin
@@ -426,6 +432,7 @@ function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}, player = 
     sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
     ownerTag,
     instanceId: synced.instanceId || `${ownerTag}-${slot}-${Date.now()}`,
+    code: String(synced.code || ""),
 
     name: hasCustomSkin
       ? skinName || displayCard.displayName || synced.displayName || synced.name || "Unknown"
@@ -451,11 +458,15 @@ function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}, player = 
     equippedWeapon: formatWeapons(synced),
     equippedDevilFruit: formatDevilFruit(synced),
 
+    evEffects: evCardEffects,
+
     passiveBoostsApplied: {
       atk: Number(boosts.atk || 0),
       hp: Number(boosts.hp || 0),
       spd: Number(boosts.spd || 0),
-      dmg: Number(boosts.dmg || 0),
+      dmg:
+        Number(boosts.dmg || 0) +
+        Number(evCardEffects.selfDamagePercent || 0),
       exp: Number(boosts.exp || 0),
     },
   };
@@ -719,6 +730,7 @@ function hydrateArenaOpponent(message, entry) {
     username: player.username,
     teamUnits,
     teamPower: getArenaTeamPower(teamUnits),
+    evEffects: getPassiveBoostSummary(player).evEffects || {},
     raw: undefined,
   };
 }
@@ -1660,6 +1672,27 @@ async function startArenaBattle({
   let ended = false;
   let result = null;
   let processing = false;
+
+  const myEvEffects =
+    getPassiveBoostSummary(player).evEffects || {};
+
+  const enemyEvEffects =
+    opponent?.evEffects ||
+    getPassiveBoostSummary(opponent).evEffects ||
+    {};
+
+  const myEvActivationState = new Map();
+  const enemyEvActivationState = new Map();
+
+  applyEvEnemyMaxHpEffect(
+    enemyTeam,
+    myEvEffects
+  );
+
+  applyEvEnemyMaxHpEffect(
+    myTeam,
+    enemyEvEffects
+  );
   let currentArena = {
     points: Number(player?.arena?.points || 0),
     wins: Number(player?.arena?.wins || 0),
@@ -1805,6 +1838,20 @@ async function startArenaBattle({
         `⚡ ${first.name} moved first by SPD and dealt **${firstDamage}** damage to ${firstTarget.name}${firstKilled ? " (defeated)" : ""}.`
       );
 
+      tryActivateEvEmergencyHeal(
+        myTeam,
+        myEvEffects,
+        myEvActivationState,
+        logs
+      );
+
+      tryActivateEvEmergencyHeal(
+        enemyTeam,
+        enemyEvEffects,
+        enemyEvActivationState,
+        logs
+      );
+
       if (!firstKilled && Number(second.hp || 0) > 0) {
         const secondTarget = firstIsPlayer ? playerAttacker : enemyTarget;
         const secondDamage = performAttack(second, secondTarget);
@@ -1812,6 +1859,20 @@ async function startArenaBattle({
 
         logs.push(
           `⚔️ ${second.name} countered and dealt **${secondDamage}** damage to ${secondTarget.name}${secondKilled ? " (defeated)" : ""}.`
+        );
+
+        tryActivateEvEmergencyHeal(
+          myTeam,
+          myEvEffects,
+          myEvActivationState,
+          logs
+        );
+
+        tryActivateEvEmergencyHeal(
+          enemyTeam,
+          enemyEvEffects,
+          enemyEvActivationState,
+          logs
         );
       } else {
         logs.push(`☠️ ${firstTarget.name} was defeated and could not counter.`);

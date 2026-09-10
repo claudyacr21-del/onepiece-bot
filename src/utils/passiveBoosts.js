@@ -1,9 +1,19 @@
 const cards = require("../data/cards");
 const devilFruits = require("../data/devilFruits");
+
 const {
   canCardUseDevilFruit,
 } = require("./devilFruitCompatibility");
-const { hydrateCard, findCardTemplate, getBoostStageValue } = require("./evolution");
+
+const {
+  getEvTeamEffects,
+} = require("./evAbilities");
+
+const {
+  hydrateCard,
+  findCardTemplate,
+  getBoostStageValue,
+} = require("./evolution");
 
 function normalize(value) {
   return String(value || "")
@@ -450,12 +460,14 @@ function getPassiveBoostSummary(player) {
   const uniqueBoostCards =
     getUniqueBoostCards(player);
 
-  const boostCards = uniqueBoostCards;
+  const boostCards =
+    uniqueBoostCards;
 
-  const highestPullChance = getHighestBoost(
-    uniqueBoostCards,
-    "pullChance"
-  );
+  const highestPullChance =
+    getHighestBoost(
+      uniqueBoostCards,
+      "pullChance"
+    );
 
   const dailyCards =
     getDailyBoostCards(player);
@@ -465,47 +477,174 @@ function getPassiveBoostSummary(player) {
       uniqueBoostCards
     );
 
+  const evEffects =
+    getEvTeamEffects(player);
+
   return {
-    boostCards: boostCards.map((card) => ({
-      ...card,
-      boostType: normalizeBoostType(card.boostType),
-      boostAmount: getBoostAmount(card),
-      fruitBonus: getFruitBonusForBoostCard(card),
-      fruitGlobalBonus: getBoostFruitGlobalBonus(card),
-      effectiveBoostValue: getEffectiveBoostValue(card),
-      totalBoostValue: getEffectiveBoostValue(card) * getBoostAmount(card),
-      equippedFruitData: getFruitDataForBoostCard(card),
-    })),
+    boostCards: boostCards.map(
+      (card) => ({
+        ...card,
+        boostType:
+          normalizeBoostType(
+            card.boostType
+          ),
+        boostAmount:
+          getBoostAmount(card),
+        fruitBonus:
+          getFruitBonusForBoostCard(
+            card
+          ),
+        fruitGlobalBonus:
+          getBoostFruitGlobalBonus(
+            card
+          ),
+        effectiveBoostValue:
+          getEffectiveBoostValue(
+            card
+          ),
+        totalBoostValue:
+          getEffectiveBoostValue(
+            card
+          ) *
+          getBoostAmount(card),
+        equippedFruitData:
+          getFruitDataForBoostCard(
+            card
+          ),
+      })
+    ),
 
-    uniqueBoostCards: uniqueBoostCards.map((card) => ({
-      ...card,
-      boostType: normalizeBoostType(card.boostType),
-      boostAmount: getBoostAmount(card),
-      fruitBonus: getFruitBonusForBoostCard(card),
-      fruitGlobalBonus: getBoostFruitGlobalBonus(card),
-      effectiveBoostValue: getEffectiveBoostValue(card),
-      totalBoostValue: getEffectiveBoostValue(card) * getBoostAmount(card),
-      equippedFruitData: getFruitDataForBoostCard(card),
-    })),
+    uniqueBoostCards:
+      uniqueBoostCards.map(
+        (card) => ({
+          ...card,
+          boostType:
+            normalizeBoostType(
+              card.boostType
+            ),
+          boostAmount:
+            getBoostAmount(card),
+          fruitBonus:
+            getFruitBonusForBoostCard(
+              card
+            ),
+          fruitGlobalBonus:
+            getBoostFruitGlobalBonus(
+              card
+            ),
+          effectiveBoostValue:
+            getEffectiveBoostValue(
+              card
+            ),
+          totalBoostValue:
+            getEffectiveBoostValue(
+              card
+            ) *
+            getBoostAmount(card),
+          equippedFruitData:
+            getFruitDataForBoostCard(
+              card
+            ),
+        })
+      ),
 
-    pullChance: highestPullChance ? getEffectiveBoostValue(highestPullChance) : 0,
-    pullChanceCard: highestPullChance || null,
+    pullChance:
+      highestPullChance
+        ? getEffectiveBoostValue(
+            highestPullChance
+          )
+        : 0,
 
-    daily: sumDailyBoost(player),
+    pullChanceCard:
+      highestPullChance || null,
+
+    daily:
+      sumDailyBoost(player),
+
     dailyCards,
-    dailyCard: dailyCards.length ? dailyCards[0] : null,
+
+    dailyCard:
+      dailyCards.length
+        ? dailyCards[0]
+        : null,
 
     fruitGlobalBoosts,
+    evEffects,
 
-    atk: sumBoostWithAllStat(boostCards, "atk") + Number(fruitGlobalBoosts.atk || 0),
-    hp: sumBoostWithAllStat(boostCards, "hp") + Number(fruitGlobalBoosts.hp || 0),
-    spd: sumBoostWithAllStat(boostCards, "spd") + Number(fruitGlobalBoosts.spd || 0),
-    exp: sumBoost(boostCards, "exp") + Number(fruitGlobalBoosts.exp || 0),
-    dmg: sumBoostWithAllStat(boostCards, "dmg") + Number(fruitGlobalBoosts.dmg || 0),
-    fragmentStorageBonus: Math.max(
-      0,
-      getFragmentStorageBonus(player) + Number(fruitGlobalBoosts.fragmentStorageBonus || 0)
-    ),
+    atk:
+      sumBoostWithAllStat(
+        boostCards,
+        "atk"
+      ) +
+      Number(
+        fruitGlobalBoosts.atk ||
+        0
+      ) +
+      Number(
+        evEffects.teamAtkPercent ||
+        0
+      ),
+
+    hp:
+      sumBoostWithAllStat(
+        boostCards,
+        "hp"
+      ) +
+      Number(
+        fruitGlobalBoosts.hp ||
+        0
+      ) +
+      Number(
+        evEffects.teamHpPercent ||
+        0
+      ),
+
+    spd:
+      sumBoostWithAllStat(
+        boostCards,
+        "spd"
+      ) +
+      Number(
+        fruitGlobalBoosts.spd ||
+        0
+      ) +
+      Number(
+        evEffects.teamSpdPercent ||
+        0
+      ),
+
+    exp:
+      sumBoost(
+        boostCards,
+        "exp"
+      ) +
+      Number(
+        fruitGlobalBoosts.exp ||
+        0
+      ),
+
+    dmg:
+      sumBoostWithAllStat(
+        boostCards,
+        "dmg"
+      ) +
+      Number(
+        fruitGlobalBoosts.dmg ||
+        0
+      ),
+
+    fragmentStorageBonus:
+      Math.max(
+        0,
+        getFragmentStorageBonus(
+          player
+        ) +
+        Number(
+          fruitGlobalBoosts
+            .fragmentStorageBonus ||
+          0
+        )
+      ),
   };
 }
 

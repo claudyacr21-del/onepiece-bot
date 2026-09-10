@@ -254,7 +254,8 @@ const EXTRA_CHARACTER_CARDS = [
   battleCard({ id: 211, code: "ta", name: "Three Admirals", title: "Three Admirals", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["akainu", "aokiji", "kizaru"], mergeStatRatio: 0.36, arc: "Marineford", faction: "Marines", variant: "Akainu, Aokiji & Kizaru", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "None", devilFruit: "None", equipType: "Devil Fruit / Weapon", image: "" }),
   battleCard({ id: 212, code: "lw", name: "Legends of Wano", title: "Legends of Wano", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["whitebeard_strongest_man", "oden"], arc: "Wano", faction: "Legends", variant: "Whitebeard & Oden", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "None", devilFruit: "None", equipType: "Devil Fruit / Weapon", image: "" }),
   battleCard({ id: 213, code: "hw", name: "Heirs of Wano", title: "Heirs of Wano", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["yamato_oni_princess", "momonosuke_shogun"], mergeStatRatio: 0.52, arc: "Wano", faction: "Kozuki Clan", variant: "Yamato & Momonosuke", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "None", devilFruit: "None", equipType: "Devil Fruit / Weapon", image: "" }),
-  battleCard({ id: 214, code: "pkw", name: "Pirate King's Wings", title: "Pirate King's Wings", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["scopper_gaban", "rayleigh_dark_king"], arc: "Roger Era", faction: "Roger Pirates", variant: "Gaban & Rayleigh", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "None", devilFruit: "None", equipType: "Devil Fruit / Weapon", image: "" })
+  battleCard({ id: 214, code: "pkw", name: "Pirate King's Wings", title: "Pirate King's Wings", rarity: "M", baseTier: "M", pullTier: "MERGE", canPull: false, canPA: false, summonOnly: true, mergeOnly: true, mergeSourceCodes: ["scopper_gaban", "rayleigh_dark_king"], arc: "Roger Era", faction: "Roger Pirates", variant: "Gaban & Rayleigh", type: "Merge", atk: 0, hp: 0, speed: 0, basePower: 0, weapon: "None", devilFruit: "None", equipType: "Devil Fruit / Weapon", image: "" }),
+  battleCard({ id: 215, code: "true_form_sukuna", name: "True Form Sukuna", title: "King of Curses", rarity: "EV", baseTier: "EV", pullTier: "EVENT", eventOnly: true, canPull: false, canPA: false, canSummon: true, summonOnly: false, mergeOnly: false, arc: "Halloween Event", faction: "Curses", variant: "True Form", type: "Event", atk: 200, hp: 1250, speed: 80, basePower: 2310, weapon: "Kamutoke", devilFruit: "Finger", equipType: "Fruit / Item / Event Weapon", evWeaponCode: "kamutoke", evFruitCode: "finger", abilities: [{ id: "dismantle", name: "Dismantle", description: "Increases this card's damage by 15%.", unlockedByDefault: true, effect: { type: "self_damage", percent: 15 } }, { id: "reverse_cursed", name: "Reverse Cursed", description: "Reduces Enemy Team Max HP by 10% when on team.", unlockedByDefault: true, effect: { type: "enemy_max_hp", percent: -10 } }, { id: "fuga", name: "Fuga", description: "Increases allied Team ATK by 5% when on team.", requiresEventWeapon: true, effect: { type: "team_atk", percent: 5 } }, { id: "malevolent_shrine", name: "Malevolent Shrine", description: "Restores 10% of this card's Max HP once when its HP falls below 50%.", requiresEventWeapon: true, effect: { type: "self_emergency_heal", percent: 10, thresholdPercent: 50, maxActivations: 1 } }], image: "" })
 ];
 
 const SPECIAL_FORMS = {
@@ -1018,11 +1019,11 @@ const CANON_LINKS = {
 };
 
 const STAGE_MULTIPLIERS = { 1: 1, 2: 1.2, 3: 1.45 };
-const TIER_PATHS = { C: ["C", "B", "A"], B: ["B", "A", "S"], A: ["A", "S", "SS"], S: ["S", "SS", "UR"] };
+const TIER_PATHS = { C: ["C", "B", "A"], B: ["B", "A", "S"], A: ["A", "S", "SS"], S: ["S", "SS", "UR"], EV: ["EV", "EV", "EV"] };
 
 function cleanBaseTier(card) {
   const raw = String(card.baseTier || card.rarity || "C").toUpperCase();
-  if (["C", "B", "A", "S"].includes(raw)) return raw;
+  if (["C", "B", "A", "S", "EV"].includes(raw)) return raw;
   if (raw === "SS") return "A";
   if (raw === "UR") return card.cardRole === "boost" ? "A" : "S";
   return "C";

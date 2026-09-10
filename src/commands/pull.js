@@ -47,7 +47,16 @@ const {
   getDevilFruitImage,
   getRarityBadge,
 } = require("../config/assetLinks");
+const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
 
+const CURSED_ENERGY_PER_PULL = 2;
+
+const CURSED_ENERGY_EMOJI =
+  getItemEmoji(
+    "cursed_energy"
+  ) || "🔮";
 const PREMIUM_PITY_TARGET = 100;
 const VIVRE_PITY_TARGET = 125;
 const NORMAL_PITY_TARGET = 150;
@@ -394,7 +403,10 @@ function getRewardPool(contentType, pullTier = "normal") {
   }
 
   return rawDevilFruits.filter(
-    (fruit) => fruit.canPull !== false
+    (fruit) =>
+      String(fruit.rarity || "").toUpperCase() !== "EV" &&
+      fruit.eventOnly !== true &&
+      fruit.canPull !== false
   );
 }
 
@@ -1328,7 +1340,24 @@ function savePullResultFresh(userId, payload, username = "Unknown") {
         fragments: mergeStackList(existing.fragments, payload.fragments),
         tickets: mergeStackList(existing.tickets, payload.tickets),
 
-        berries: Number(existing.berries || 0) + Number(payload.addBerries || 0),
+        berries:
+          Number(
+            existing.berries || 0
+          ) +
+          Number(
+            payload.addBerries || 0
+          ),
+
+        cursedEnergy:
+          Number(
+            existing.cursedEnergy ||
+            0
+          ) +
+          Number(
+            payload
+              .addCursedEnergy ||
+            0
+          ),
 
         pulls: mergePullUsageForSave(existing.pulls, payload.pulls),
         pity: payload.pity,
@@ -1587,7 +1616,12 @@ module.exports = {
         devilFruits: updatedDevilFruits,
         fragments: updatedFragments,
         tickets: updatedTickets,
-        addBerries: autoSacBerries,
+        addBerries:
+          autoSacBerries,
+
+        addCursedEnergy:
+          CURSED_ENERGY_PER_PULL,
+
         pulls: updatedPulls,
         pity: updatedPity,
         stats: {
@@ -1621,6 +1655,7 @@ module.exports = {
       .setDescription(
         [
           `**Slot Used:** ${prettySlotName(pullKey)}`,
+          `${CURSED_ENERGY_EMOJI} **Event Bonus:** +${CURSED_ENERGY_PER_PULL} Cursed Energy`,
           `**Remaining Pulls:** ${Math.max(0, totalMax - totalUsed - 1)}/${totalMax}`,
           `**${pityText}**`,
           getLuckyWeekBonusLine(),

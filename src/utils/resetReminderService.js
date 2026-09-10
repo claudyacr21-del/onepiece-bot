@@ -453,35 +453,74 @@ function formatDiscordTimestamp(timestampMs, style = "R") {
 }
 
 function getCooldownTargets(player) {
-  const cooldowns = player?.cooldowns || {};
+  const cooldowns =
+    player?.cooldowns || {};
+
+  const expeditionCooldown =
+    Number(
+      player?.expedition
+        ?.cooldownUntil ||
+      0
+    );
 
   return [
     {
       type: "daily",
-      readyAt: Number(cooldowns.daily || 0),
-      title: "🎁 Daily Reward Is Ready!",
+      readyAt:
+        Number(
+          cooldowns.daily || 0
+        ),
+      title:
+        "🎁 Daily Reward Is Ready!",
       description:
-        "Your daily reward cooldown is finished.\nUse `op daily` in the server to claim it.",
+        "Your daily reward cooldown is finished.\n" +
+        "Use `op daily` in the server to claim it.",
       color: 0x2ecc71,
-      footer: "One Piece Bot • Daily Reminder",
+      footer:
+        "One Piece Bot • Daily Reminder",
     },
     {
       type: "vote",
-      readyAt: Number(cooldowns.vote || 0),
-      title: "🗳️ Vote Is Ready!",
+      readyAt:
+        Number(
+          cooldowns.vote || 0
+        ),
+      title:
+        "🗳️ Vote Is Ready!",
       description:
-        "Your Top.gg vote cooldown is finished.\nUse `op vote` in the server, then vote again to claim the reward.",
+        "Your Top.gg vote cooldown is finished.\n" +
+        "Use `op vote` in the server, then vote again to claim the reward.",
       color: 0x8e44ad,
-      footer: "One Piece Bot • Vote Reminder",
+      footer:
+        "One Piece Bot • Vote Reminder",
     },
     {
       type: "treasure",
-      readyAt: Number(cooldowns.treasure || 0),
-      title: "🧰 Treasure Is Ready!",
+      readyAt:
+        Number(
+          cooldowns.treasure || 0
+        ),
+      title:
+        "🧰 Treasure Is Ready!",
       description:
-        "Your Mother Flame treasure cooldown is finished.\nUse `op treasure` in the server to claim it.",
+        "Your Mother Flame treasure cooldown is finished.\n" +
+        "Use `op treasure` in the server to claim it.",
       color: 0xe67e22,
-      footer: "One Piece Bot • Treasure Reminder",
+      footer:
+        "One Piece Bot • Treasure Reminder",
+    },
+    {
+      type: "expedition",
+      readyAt:
+        expeditionCooldown,
+      title:
+        "🧭 Expedition Is Ready!",
+      description:
+        "Your Expedition cooldown has finished.\n" +
+        "Use `op expedition` in the server to begin a new expedition.",
+      color: 0x3498db,
+      footer:
+        "One Piece Bot • Expedition Reminder",
     },
   ];
 }
@@ -872,7 +911,9 @@ function startResetReminderService(client) {
     });
   }, USER_REMINDER_CHECK_INTERVAL_MS);
 
-  console.log("[RESET REMINDER] User cooldown reminders enabled for daily/vote/treasure only.");
+  console.log(
+    "[RESET REMINDER] User cooldown reminders enabled for daily/vote/treasure/expedition."
+  );
   console.log("[RESET REMINDER] Reminder triggers only once after a tracked cooldown finishes.");
   console.log("[RESET REMINDER] Service started.");
   console.log(

@@ -183,17 +183,18 @@ function getUpgradedWeaponPercent(item, level = 5) {
 }
 
 function tierScore(tier) {
- return (
-  {
-   C: 1,
-   B: 2,
-   A: 3,
-   S: 4,
-   SS: 5,
-   UR: 6,
-   M: 7,
-  }[String(tier || "").toUpperCase()] || 0
- );
+  return (
+    {
+      C: 1,
+      B: 2,
+      A: 3,
+      S: 4,
+      SS: 5,
+      UR: 6,
+      EV: 7,
+      M: 8,
+    }[String(tier || "").toUpperCase()] || 0
+  );
 }
 
 function statEffectText(item) {
@@ -307,6 +308,13 @@ function buildCardEmbed(card, index, total, mode, player = null) {
 
   const power = getCardPower(displayCard, stageKey);
 
+  const isEvCard =
+    String(
+      displayCard.rarity ||
+      displayCard.baseTier ||
+      ""
+    ).toUpperCase() === "EV";
+
   const extraLines =
     mode === "boost"
       ? [
@@ -328,30 +336,70 @@ function buildCardEmbed(card, index, total, mode, player = null) {
           `ATK: ${formatAtkRange(baseStats.atk)}`,
           `HP: ${baseStats.hp}`,
           `SPD: ${baseStats.speed}`,
+          `Weapons: ${
+            displayCard.weaponSet ||
+            displayCard.weapon ||
+            "None"
+          }`,
+          `${
+            isEvCard
+              ? "Fruit / Item"
+              : "Devil Fruit"
+          }: ${
+            displayCard.devilFruit ||
+            displayCard.displayFruitName ||
+            "None"
+          }`,
           "",
           `Power: ${power}`,
         ];
+
+  if (
+    isEvCard &&
+    Array.isArray(displayCard.abilities)
+  ) {
+    const innateAbilities =
+      displayCard.abilities.filter(
+        (ability) =>
+          ability?.unlockedByDefault === true
+      );
+
+    extraLines.push(
+      "",
+      "Abilities:",
+      ...innateAbilities.map(
+        (ability, abilityIndex) =>
+          `Ability ${abilityIndex + 1} — ${ability.name}: ${ability.description}`
+      )
+    );
+  }
 
   const header =
     mode === "boost"
       ? "All Boost Cards"
       : mode === "merge"
         ? "All Merge Cards"
-        : "All Battle Cards";
+        : mode === "ev"
+          ? "All EV Cards"
+          : "All Battle Cards";
 
   const color =
     mode === "boost"
       ? 0x9b59b6
       : mode === "merge"
         ? 0xf1c40f
-        : 0xe67e22;
+        : mode === "ev"
+          ? 0x62e8ff
+          : 0xe67e22;
 
   const footerLabel =
     mode === "boost"
       ? "Boost"
       : mode === "merge"
         ? "Merge"
-        : "Battle";
+        : mode === "ev"
+          ? "EV"
+          : "Battle";
 
   return buildCardStyleEmbed({
     color,
@@ -562,7 +610,9 @@ module.exports = {
             ? "fruit"
             : rawMode === "missing"
               ? "missing"
-              : "battle";
+              : rawMode === "ev"
+                ? "ev"
+                : "battle";
 
     let list = [];
     let renderer = null;
@@ -572,7 +622,14 @@ module.exports = {
       const ownedCodes = getOwnedCardCodes(player);
 
       const allCards = getAllCards()
-        .filter((card) => card.cardRole === "battle" || card.cardRole === "boost")
+        .filter(
+          (card) =>
+            (
+              card.cardRole === "battle" ||
+              card.cardRole === "boost"
+            ) &&
+            card.eventOnly !== true
+        )
         .filter((card) => card?.code);
 
       const missingCards = allCards.filter((card) => {
@@ -611,27 +668,62 @@ module.exports = {
         buildMissingCardEmbed(item, index, total, progress, player);
     }
 
-    if (mode === "battle" || mode === "boost" || mode === "merge") {
-      const player = getPlayer(message.author.id, message.author.username);
+    if (
+      mode === "battle" ||
+      mode === "boost" ||
+      mode === "merge" ||
+      mode === "ev"
+    ) {
+      const player = getPlayer(
+        message.author.id,
+        message.author.username
+      );
 
       const normalCards = sortCardsForAll(
         getAllCards()
-          .filter((card) =>
-            mode === "merge"
-              ? isMergeCard(card)
-              : card.cardRole === mode
-          )
+          .filter((card) => {
+            if (mode === "merge") {
+              return isMergeCard(card);
+            }
+
+            if (mode === "ev") {
+              return (
+                String(
+                  card.rarity ||
+                  card.baseTier ||
+                  ""
+                ).toUpperCase() === "EV"
+              );
+            }
+
+            return card.cardRole === mode;
+          })
           .map((card) =>
             isMergeCard(card)
-              ? buildAllMergeDisplayCard(player, card, "M1")
+              ? buildAllMergeDisplayCard(
+                  player,
+                  card,
+                  "M1"
+                )
               : card
           ),
         mode
       );
 
       list = normalCards;
-      renderer = (item, index, total) =>
-        buildCardEmbed(item, index, total, mode, player);
+
+      renderer = (
+        item,
+        index,
+        total
+      ) =>
+        buildCardEmbed(
+          item,
+          index,
+          total,
+          mode,
+          player
+        );
     }
 
     if (mode === "weapon") {

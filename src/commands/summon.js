@@ -28,15 +28,23 @@ function getCardRole(card) {
 }
 
 function isSummonableCard(card) {
-  if (!card) return false;
-
-  const code = normalize(card.code);
-  if (card.canPull === false && card.canPA === false && card.summonOnly === true) {
-return true;
+  if (!card || card.canSummon === false) {
+    return false;
   }
 
-  return SUMMONABLE_CARD_ROLES.has(getCardRole(card));
+  if (
+    card.canPull === false &&
+    card.canPA === false &&
+    card.summonOnly === true
+  ) {
+    return true;
+  }
+
+  return SUMMONABLE_CARD_ROLES.has(
+    getCardRole(card)
+  );
 }
+
 
 function getSearchWords(value) {
   return normalize(value)

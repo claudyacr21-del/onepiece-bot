@@ -1093,6 +1093,11 @@ const CARD_IMAGES = {
     M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1535944969238618143/gaban_and_rayleigh_2.jpeg?ex=6a799bb9&is=6a784a39&hm=875762043fef0cf6e8cfd12b8d1140dbf56833dfa458d6391f8b56c3a9b4b865&",
     M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1543118840249057330/pkw_3.jpg?ex=6a93b4e9&is=6a926369&hm=8b97dbc15748777ab30eda0b86d5bcc4f35f25886fe6ae98fd00e97365575ccd",
   },
+  true_form_sukuna: {
+    M1: "https://cdn.discordapp.com/attachments/1493204525975076944/1544595307587706880/sukuna_m1.gif?ex=6aa24e7a&is=6aa0fcfa&hm=aed901d44186e7b59e4d24515d7143b0cdd311c64601612bf91315d5483ab700",
+    M2: "https://cdn.discordapp.com/attachments/1493204525975076944/1544595414928457728/sukuna_m3.gif?ex=6aa24e94&is=6aa0fd14&hm=4f2b07e3df3db6f618219b20b692d284b174db1ebff44e735b4f92b8c5f9465d",
+    M3: "https://cdn.discordapp.com/attachments/1493204525975076944/1544595385106956349/sukuna_m2.gif?ex=6aa24e8d&is=6aa0fd0d&hm=6ac7884efe9967d4708bb984c6f5a8b51c146f5635a734a85c16b753405d4ef1",
+  }
 };
 
 const WEAPON_IMAGES = {

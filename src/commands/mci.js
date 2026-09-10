@@ -4,6 +4,7 @@ const {
   isMergeCard,
   buildMergedCard,
   getMergeSourceCodes,
+  findOwnedCardByCodeOrName,
 } = require("../utils/mergeCards");
 const {
   hydrateCard,
@@ -25,12 +26,49 @@ const {
   getRarityBadge,
 } = require("../config/assetLinks");
 const { formatCardLevelLine } = require("../utils/cardExp");
-const {
-  getRarityColor,
-} = require("../utils/rarityColor");
+
 const devilFruitsDb = require("../data/devilFruits");
 const weaponsDb = require("../data/weapons");
 const cardsData = require("../data/cards");
+
+function getRaidPrestigeCap(card) {
+  const rarity =
+    String(
+      card?.rarity ||
+      card?.baseTier ||
+      card?.currentTier ||
+      ""
+    )
+      .toUpperCase()
+      .trim();
+
+  return rarity === "EV"
+    ? 150
+    : 200;
+}
+
+function formatRaidPrestigeLine(card) {
+  const prestigeCap =
+    getRaidPrestigeCap(card);
+
+  const raidPrestige =
+    Math.max(
+      0,
+      Math.min(
+        prestigeCap,
+        Number(
+          card?.raidPrestige ||
+          0
+        )
+      )
+    );
+
+  return (
+    `Raid Prestige: ` +
+    `${raidPrestige}/` +
+    `${prestigeCap}`
+  );
+}
 
 function normalize(text) {
   return String(text || "")
@@ -196,56 +234,23 @@ function getCurrentStageImage(card) {
 
 function scoreQuery(query, candidates) {
   const q = normalize(query);
-
-  if (!q) {
-    return 0;
-  }
-
-  const queryWords =
-    q.split(" ")
-      .filter(Boolean);
+  if (!q) return 0;
 
   let best = 0;
 
   for (const raw of candidates) {
-    const candidate =
-      normalize(raw);
+    const candidate = normalize(raw);
+    if (!candidate) continue;
 
-    if (!candidate) {
-      continue;
-    }
+    if (candidate === q) best = Math.max(best, 1000 + candidate.length);
+    else if (candidate.startsWith(q)) best = Math.max(best, 700 + q.length);
+    else if (candidate.includes(q)) best = Math.max(best, 400 + q.length);
+    else {
+      const qWords = q.split(" ").filter(Boolean);
 
-    const candidateWords =
-      candidate
-        .split(" ")
-        .filter(Boolean);
-
-    if (candidate === q) {
-      best = Math.max(
-        best,
-        1000 + candidate.length
-      );
-
-      continue;
-    }
-
-    const matchesWholeWords =
-      queryWords.length > 0 &&
-      queryWords.every(
-        (word) =>
-          candidateWords.includes(
-            word
-          )
-      );
-
-    if (matchesWholeWords) {
-      best = Math.max(
-        best,
-        700 +
-          queryWords
-            .join("")
-            .length
-      );
+      if (qWords.length && qWords.every((word) => candidate.includes(word))) {
+        best = Math.max(best, 250 + qWords.join("").length);
+      }
     }
   }
 
@@ -299,15 +304,10 @@ function getOwnedCards(player) {
 
 function findOwnedCardByNameOnly(player, query) {
   const cards = getOwnedCards(player);
-  const exactCode =
-    findExactOwnedCardByRawCode(
-      cards,
-      query
-    );
-
-  if (exactCode) {
-    return exactCode;
-  }
+  const exactCode = findExactOwnedCardByRawCode(cards, query);
+  if (exactCode) return exactCode;
+  const direct = findOwnedCardByCodeOrName(cards, query);
+  if (direct) return direct;
 
   const scored = cards
     .map((card) => ({
@@ -394,39 +394,25 @@ function getFragmentAmount(player, target) {
 
   const possibleCodes = [
     code,
-    code ? `${code}_fragment` : null,
-    code ? `fragment_${code}` : null,
-    code ? `${code} fragment` : null,
     code ? `weapon_fragment_${code}` : null,
     code ? `weapon fragment ${code}` : null,
-    name,
-    name ? `${name} fragment` : null,
   ]
     .filter(Boolean)
     .map(normalize);
 
   const found = fragments.find((entry) => {
-    const entryCode = normalize(entry?.code);
-    const entryCardCode = normalize(entry?.cardCode);
-    const entryName = normalize(entry?.name || entry?.displayName);
+    const entryCode = normalize(entry.code);
+    const entryName = normalize(entry.name || entry.displayName);
 
     return (
       possibleCodes.includes(entryCode) ||
-      possibleCodes.includes(entryCardCode) ||
-      possibleCodes.includes(entryName)
+      possibleCodes.includes(entryName) ||
+      (name && entryName === name) ||
+      (name && entryCode === name)
     );
   });
 
-  return Math.max(
-    0,
-    Number(
-      found?.amount ??
-        found?.count ??
-        found?.quantity ??
-        found?.qty ??
-        0
-    )
-  );
+  return Math.max(0, Number(found?.amount || 0));
 }
 
 function pushUnique(list, value) {
@@ -642,13 +628,7 @@ function buildOwnedFruitEmbed(ownerName, player, fruit) {
   const fragments = getFragmentAmount(player, fruit);
 
   return new EmbedBuilder()
-    .setColor(
-      getRarityColor(
-        fruit.rarity ||
-          fruit.baseTier ||
-          "B"
-      )
-    )
+    .setColor(0x9b59b6)
     .setTitle(`${ownerName}'s Devil Fruit`)
     .setDescription(
       [
@@ -692,13 +672,7 @@ function buildOwnedWeaponEmbed(ownerName, player, weapon) {
   const fragments = getFragmentAmount(player, weapon);
 
   return new EmbedBuilder()
-    .setColor(
-      getRarityColor(
-        weapon.rarity ||
-          weapon.baseTier ||
-          "B"
-      )
-    )
+    .setColor(0x3498db)
     .setTitle(`${ownerName}'s Weapon`)
     .setDescription(
       [
@@ -906,45 +880,147 @@ function buildOwnedCardEmbed(ownerName, player, card) {
   const atkRange = formatAtkRange(card.atk);
   const syncedFragments = getFragmentAmount(player, card);
 
-  const extraLines = card.cardRole === "boost" ? [
-    `Form: ${card.evolutionKey || `M${stage}`}`,
-    `Tier: ${card.currentTier || card.rarity}`,
-    `Power: ${Number(card.currentPower || 0)}`,
-    `Effect: ${getRoadPoneglyphDisplayEffect(card || form, stage || card?.evolutionStage || 1, card.effectText || "No effect text")}`,
-    `Target: ${card.boostTarget || "team"}`,
-    `Boost Type: ${card.boostType || "unknown"}`,
-    `Devil Fruit: ${card.displayFruitName || "None"}`,
-    `Fragments: ${syncedFragments}`,
-  ] : [
-    `Form: ${card.evolutionKey || `M${stage}`}`,
-    `Tier: ${card.currentTier || card.rarity}`,
-    formatCardLevelLine(card),
-    `Raid Prestige: ${Math.max(0, Math.min(200, Number(card.raidPrestige || 0)))}/200`,
-    `Power: ${Number(card.currentPower || 0)}`,
-    `Health: ${Number(card.hp || 0)}`,
-    `Speed: ${Number(card.speed || 0)}`,
-    `Attack: ${atkRange}`,
-    `Weapons: ${card.displayWeaponName || card.weaponSet || card.weapon || "None"}`,
-    `Devil Fruit: ${card.displayFruitName || card.devilFruit || "None"}`,
-    `Type: ${card.type || card.cardRole}`,
-    `Kills: ${Number(card.kills || 0)}`,
-    `Fragments: ${syncedFragments}`,
-  ];
+  const isEvCard =
+    String(
+      card.rarity ||
+      card.currentTier ||
+      ""
+    ).toUpperCase() === "EV";
+
+  const fruitLabel =
+    isEvCard
+      ? "Fruit / Item"
+      : "Devil Fruit";
+
+  const extraLines =
+    card.cardRole === "boost"
+      ? [
+          `Form: ${card.evolutionKey || `M${stage}`}`,
+          `Tier: ${card.currentTier || card.rarity}`,
+          `Power: ${Number(card.currentPower || 0)}`,
+          `Effect: ${getRoadPoneglyphDisplayEffect(
+            card || form,
+            stage || card?.evolutionStage || 1,
+            card.effectText || "No effect text"
+          )}`,
+          `Target: ${card.boostTarget || "team"}`,
+          `Boost Type: ${card.boostType || "unknown"}`,
+          `Devil Fruit: ${card.displayFruitName || "None"}`,
+          `Fragments: ${syncedFragments}`,
+        ]
+      : [
+          `Form: ${card.evolutionKey || `M${stage}`}`,
+          `Tier: ${card.currentTier || card.rarity}`,
+          formatCardLevelLine(card),
+          formatRaidPrestigeLine(
+            card
+          ),
+          `Power: ${Number(card.currentPower || 0)}`,
+          `Health: ${Number(card.hp || 0)}`,
+          `Speed: ${Number(card.speed || 0)}`,
+          `Attack: ${atkRange}`,
+          `Weapons: ${
+            card.displayWeaponName ||
+            card.weaponSet ||
+            card.weapon ||
+            "None"
+          }`,
+          `${fruitLabel}: ${
+            card.displayFruitName ||
+            card.devilFruit ||
+            "None"
+          }`,
+          `Type: ${card.type || card.cardRole}`,
+          `Kills: ${Number(card.kills || 0)}`,
+          `Fragments: ${syncedFragments}`,
+        ];
+
+  if (
+    isEvCard &&
+    Array.isArray(card.abilities)
+  ) {
+    const requiredWeaponCode =
+      String(card.evWeaponCode || "")
+        .toLowerCase()
+        .trim();
+
+    const equippedWeaponValues = [
+      ...(
+        Array.isArray(card.equippedWeapons)
+          ? card.equippedWeapons
+          : []
+      ),
+      card.equippedWeaponCode,
+      card.equippedWeapon,
+      card.equippedWeaponData,
+    ];
+
+    const equippedWeaponCodes =
+      equippedWeaponValues
+        .map((entry) => {
+          if (
+            entry &&
+            typeof entry === "object"
+          ) {
+            return String(
+              entry.code ||
+              entry.weaponCode ||
+              entry.name ||
+              ""
+            )
+              .toLowerCase()
+              .trim()
+              .replace(/\s+/g, "_");
+          }
+
+          return String(entry || "")
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, "_");
+        })
+        .filter(Boolean);
+
+    const eventWeaponEquipped =
+      Boolean(requiredWeaponCode) &&
+      equippedWeaponCodes.includes(
+        requiredWeaponCode
+      );
+
+    const visibleAbilities =
+      card.abilities.filter(
+        (ability) =>
+          ability?.unlockedByDefault === true ||
+          (
+            ability?.requiresEventWeapon === true &&
+            eventWeaponEquipped
+          )
+      );
+
+    extraLines.push(
+      "",
+      "Abilities:",
+      ...visibleAbilities.map(
+        (ability, index) =>
+          `Ability ${index + 1} — ${ability.name}: ${ability.description}`
+      )
+    );
+
+    if (
+      !eventWeaponEquipped
+    ) {
+      extraLines.push(
+        "",
+        "Equip Kamutoke to unlock Ability 3 and Ability 4."
+      );
+    }
+  }
 
   return buildCardStyleEmbed({
-    color: getRarityColor(
-      card.currentTier ||
-        card.rarity ||
-        form?.tier
-    ),
+    color: 0x1abc9c,
     ownerName,
     card: displayCard,
     image: stageImage,
-    badgeImage: getRarityBadge(
-      card.currentTier ||
-        card.rarity ||
-        form?.tier
-    ),
+    badgeImage: form?.badgeImage || card.badgeImage || "",
     formName: displayCard.hasCustomSkin
       ? displayCard.skinTitle
       : form?.name || card.variant || "Unknown Form",

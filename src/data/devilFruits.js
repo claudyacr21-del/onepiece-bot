@@ -802,12 +802,27 @@ module.exports = [
   },
   {
     code: "iba_iba_no_mi",
-    name: "Iba Iba no Mi",
+    name: "Iba Iba No Mi",
     rarity: "UR",
     owners: ["sommers"],
     type: "Paramecia Fruit",
     statPercent: { atk: 10, hp: 8, speed: 5 },
     image: "",
     description: "A devil fruit that grants Saint Shepherd Sommers thorn-like offensive power, allowing brutal piercing and constricting attacks."
+  },
+  {
+    code: "finger",
+    name: "Finger",
+    rarity: "EV",
+    owners: ["true_form_sukuna"],
+    type: "Event Item",
+    category: "Fruit / Item",
+    statPercent: { atk: 10, hp: 8, speed: 5 },
+    image: "",
+    eventOnly: true,
+    canPull: false,
+    canPA: false,
+    source: "halloween2026",
+    description: "A sealed cursed object containing a fragment of Sukuna's overwhelming power."
   }
 ];

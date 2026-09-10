@@ -125,4 +125,5 @@ module.exports = {
   lw: "https://cdn.discordapp.com/attachments/1493204525975076944/1535968505239838780/oden-and-whitebeard-one-piece.gif?ex=6a79b1a4&is=6a786024&hm=3a08c3cc63e1ae7e180d879e53634c0ca97c13e778065c10b403c5b744ff85d1&",
   hw: "https://cdn.discordapp.com/attachments/1493204525975076944/1535968504430461029/soTCY4FPE6Lo76b1.gif?ex=6a79b1a4&is=6a786024&hm=bb59e9bcdc5f18268a1831d4bf9ae0925a856d38c307a86cdca8b859d53c8f06&",
   pkw: "https://cdn.discordapp.com/attachments/1493204525975076944/1535968505596350484/rayleigh-gaban.gif?ex=6a79b1a4&is=6a786024&hm=1cbbd2449bae51b5c27ad6bfe7bdd36b22c80832f4d7c377ce2e31c4f9f8793d&",
+  true_form_sukuna: "https://cdn.discordapp.com/attachments/1493204525975076944/1547214573537337424/ryomen-sukuna-heian-form.gif?ex=6aa29b5c&is=6aa149dc&hm=70d5479a8385e486a035011eb958c31ee8aa309e76c19f74071ef4779c0fbcbe",
 };

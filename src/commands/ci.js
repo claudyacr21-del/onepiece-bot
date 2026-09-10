@@ -14,9 +14,7 @@ const {
 } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const { getCardImage, getRarityBadge } = require("../config/assetLinks");
-const {
-  getRarityColor,
-} = require("../utils/rarityColor");
+
 const cardsData = require("../data/cards");
 
 const SPECIAL_FORMS = cardsData.SPECIAL_FORMS || cardsData.specialForms || {
@@ -170,21 +168,10 @@ function getAllGlobalCard(card) {
 }
 
 function getStageCard(card, stage) {
-  const safeStage = Math.max(1, Math.min(3, Number(stage || 1)));
-  const previewLevelByStage = {
-    1: 50,
-    2: 85,
-    3: 100,
-  };
-  const previewLevel = previewLevelByStage[safeStage];
-
   return hydrateCard({
     ...card,
-    level: previewLevel,
-    currentLevel: previewLevel,
-    lvl: previewLevel,
-    evolutionStage: safeStage,
-    evolutionKey: `M${safeStage}`,
+    evolutionStage: stage,
+    evolutionKey: `M${stage}`,
   });
 }
 
@@ -1143,14 +1130,7 @@ function buildRequiredForEmbed(card, stage) {
     : ["This card/form is not required by any other card yet."];
 
   return new EmbedBuilder()
-    .setColor(
-      getRarityColor(
-        stageCard.currentTier ||
-          stageCard.rarity ||
-          card.currentTier ||
-          card.rarity
-      )
-    )
+    .setColor(0xe91e63)
     .setTitle("⭐ Required For")
     .setDescription(
       [
@@ -1428,14 +1408,7 @@ function buildReqEmbed(card, stage, player) {
 
   if (!req) {
     return new EmbedBuilder()
-      .setColor(
-        getRarityColor(
-          stageCard.currentTier ||
-            stageCard.rarity ||
-            card.currentTier ||
-            card.rarity
-        )
-      )
+      .setColor(0x2ecc71)
       .setTitle(
         `ℹ️ Requirement • ${
           stageCard.displayName || card.displayName || card.name
@@ -1619,6 +1592,18 @@ function buildEmbed(card, owned, stage, player = null) {
     }
   }
 
+  const isEvCard =
+    String(
+      stageCard.rarity ||
+      card.rarity ||
+      ""
+    ).toUpperCase() === "EV";
+
+  const fruitLabel =
+    isEvCard
+      ? "Fruit / Item"
+      : "Devil Fruit";
+
   const extraLines =
     stageCard.cardRole === "boost"
       ? [
@@ -1646,18 +1631,44 @@ function buildEmbed(card, owned, stage, player = null) {
           `ATK: ${formatAtkRange(displayStats.atk)}`,
           `HP: ${Number(displayStats.hp || 0)}`,
           `SPD: ${Number(displayStats.speed || 0)}`,
-          `Weapon Set: ${mergeCard ? mergeWeaponSet : (statSource.weaponSet || statSource.weapon || "None")}`,
-          `Devil Fruit: ${mergeCard ? mergeDevilFruit : (statSource.devilFruit || statSource.displayFruitName || "None")}`,
+          `Weapon Set: ${
+            mergeCard
+              ? mergeWeaponSet
+              : statSource.weaponSet ||
+                statSource.weapon ||
+                "None"
+          }`,
+          `${fruitLabel}: ${
+            mergeCard
+              ? mergeDevilFruit
+              : statSource.devilFruit ||
+                statSource.displayFruitName ||
+                "None"
+          }`,
         ];
 
+  if (
+    isEvCard &&
+    Array.isArray(card.abilities)
+  ) {
+    const innateAbilities =
+      card.abilities.filter(
+        (ability) =>
+          ability?.unlockedByDefault === true
+      );
+
+    extraLines.push(
+      "",
+      "Abilities:",
+      ...innateAbilities.map(
+        (ability, index) =>
+          `Ability ${index + 1} — ${ability.name}: ${ability.description}`
+      )
+    );
+  }
+
   return buildCardStyleEmbed({
-    color: getRarityColor(
-      form?.tier ||
-        stageCard.currentTier ||
-        stageCard.rarity ||
-        card.currentTier ||
-        card.rarity
-    ),
+    color: 0x5865f2,
     header: "Global Card Viewer",
     card: stageCard,
     image: stageImage,

@@ -5,6 +5,7 @@ const {
   flushPlayerNow,
 } = require("../playerStore");
 const { ITEMS } = require("../data/items");
+const devilFruitsDb = require("../data/devilFruits");
 const { incrementQuestPayload } = require("../utils/questProgress");
 const {
   getItemEmoji,
@@ -158,6 +159,20 @@ function moveMisplacedConsumablesToItems(state) {
 
   nextState.materials = remainingMaterials;
   return nextState;
+}
+
+function getDevilFruitByCode(code) {
+  const target =
+    String(code || "")
+      .toLowerCase()
+      .trim();
+
+  return devilFruitsDb.find(
+    (fruit) =>
+      String(fruit?.code || "")
+        .toLowerCase()
+        .trim() === target
+  ) || null;
 }
 
 function addRewardLine(rewardMap, label, amount) {
@@ -554,6 +569,7 @@ function grantBoxRewardsIndividually(box, amount, state, rewardMap) {
     items: [...(state.items || [])],
     tickets: [...(state.tickets || [])],
     fragments: [...(state.fragments || [])],
+    devilFruits: [...(state.devilFruits || [])],
     boxes: [...(state.boxes || [])],
     berries: Number(state.berries || 0),
     gems: Number(state.gems || 0),
@@ -581,6 +597,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     items: [...(state.items || [])],
     tickets: [...(state.tickets || [])],
     fragments: [...(state.fragments || [])],
+    devilFruits: [...(state.devilFruits || [])],
     boxes: [...(state.boxes || [])],
     berries: Number(state.berries || 0),
     gems: Number(state.gems || 0),
@@ -605,6 +622,34 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     const totalAmount = Number(qty || 0) * Number(amount || 1);
     nextState.gems += totalAmount;
     addRewardLine(rewardMap, "Gems", totalAmount);
+  }
+
+  function addFinger() {
+    const finger =
+      getDevilFruitByCode(
+        "finger"
+      );
+
+    if (!finger) {
+      throw new Error(
+        "Finger is missing from devilFruits.js."
+      );
+    }
+
+    nextState.devilFruits =
+      addOrIncrease(
+        nextState.devilFruits,
+        {
+          ...finger,
+          amount: 1,
+        }
+      );
+
+    addRewardLine(
+      rewardMap,
+      finger.name || "Finger",
+      1
+    );
   }
 
   function addRyumaTokens(qty) {
@@ -730,6 +775,57 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     addRyumaTokens(100);
     addReward(getGoldRaidTicketItem(), 5);
     addReward(getPullResetTicketItem(), 10);
+  } else if (box.code === "sukuna_box") {
+    const roll =
+      Math.random() * 100;
+
+    if (roll < 45) {
+      addReward(
+        ITEMS.fukumaMizushi,
+        1
+      );
+    } else if (roll < 70) {
+      addReward(
+        getPullResetTicketItem(),
+        1 +
+          Math.floor(
+            Math.random() * 3
+          )
+      );
+    } else if (roll < 85) {
+      addReward(
+        {
+          code:
+            "weapon_fragment_kamutoke",
+          name:
+            "Kamutoke Fragment",
+          rarity: "EV",
+          type: "Fragment",
+          category: "weapon",
+          weaponCode: "kamutoke",
+        },
+        1
+      );
+    } else if (roll < 95) {
+      addReward(
+        {
+          code:
+            "true_form_sukuna",
+          cardCode:
+            "true_form_sukuna",
+          sourceCode:
+            "true_form_sukuna",
+          name:
+            "True Form Sukuna",
+          rarity: "EV",
+          type: "Fragment",
+          category: "battle",
+        },
+        1
+      );
+    } else {
+      addFinger();
+    }
   } else {
     return null;
   }
@@ -1019,6 +1115,7 @@ module.exports = {
               items: [...(fixedFresh.items || [])],
               tickets: [...(fixedFresh.tickets || [])],
               fragments: [...(fixedFresh.fragments || [])],
+              devilFruits: [...(fixedFresh.devilFruits || [])],
               boxes: updatedBoxes,
               berries: Number(fixedFresh.berries || 0),
               gems: Number(fixedFresh.gems || 0),
@@ -1040,6 +1137,7 @@ module.exports = {
             items: rewardState.items,
             tickets: rewardState.tickets,
             fragments: rewardState.fragments,
+            devilFruits: rewardState.devilFruits,
             berries: rewardState.berries,
             gems: rewardState.gems,
             ryumaTokens: rewardState.ryumaTokens,

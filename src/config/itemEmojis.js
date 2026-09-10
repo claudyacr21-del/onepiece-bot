@@ -4,7 +4,18 @@ const ITEM_EMOJIS = Object.freeze({
   gems:
     "<:gems:1532392133611229304>",
 
-    universal_c:
+  cursed_energy:
+    "<a:cursedenergy:1547176649974620230>",
+  premium_box:
+    "<a:premiumbox:1547183758774636583>",
+  sukuna_box:
+    "<:sukunabox:1546851218083553331>",
+  fukuma_mizushi:
+    "<:fukumamizushi:1546847502471401543>",
+  finger:
+    "<:finger:1547101553175953469>",
+
+  universal_c:
     "<:uni_c:1535244137056444446>",
   universal_b:
     "<:uni_b:1535244131188871239>",

@@ -32,7 +32,16 @@ const {
   getLuckyWeekBonusLine,
 } = require("../utils/luckyWeekStore");
 const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
+const {
+  getItemEmoji,
+} = require("../config/itemEmojis");
 
+const CURSED_ENERGY_PER_PULL = 2;
+
+const CURSED_ENERGY_EMOJI =
+  getItemEmoji(
+    "cursed_energy"
+  ) || "🔮";
 const PREMIUM_PITY_TARGET = 100;
 const PULL_COMMAND_LOCKS =
   global.__ONEPIECE_PULL_COMMAND_LOCKS ||
@@ -329,7 +338,10 @@ function getRewardPool(contentType) {
   }
 
   return rawDevilFruits.filter(
-    (fruit) => fruit.canPA !== false
+    (fruit) =>
+      String(fruit.rarity || "").toUpperCase() !== "EV" &&
+      fruit.eventOnly !== true &&
+      fruit.canPA !== false
   );
 }
 
@@ -1007,6 +1019,17 @@ function savePullAllResultFresh(
         berries:
           Number(existing.berries || 0) +
           Number(payload.addBerries || 0),
+
+        cursedEnergy:
+          Number(
+            existing.cursedEnergy ||
+            0
+          ) +
+          Number(
+            payload
+              .addCursedEnergy ||
+            0
+          ),
 
         pulls:
           payload.finalPulls ||
@@ -1812,6 +1835,15 @@ module.exports = {
           availableTotal
         );
 
+      const cursedEnergyReward =
+        Math.max(
+          0,
+          Number(
+            availableTotal || 0
+          )
+        ) *
+        CURSED_ENERGY_PER_PULL;
+
       const saveResult =
         savePullAllResultFresh(
           userId,
@@ -1825,6 +1857,10 @@ module.exports = {
             tickets: updatedTickets,
             addBerries:
               convertedBerries,
+
+            addCursedEnergy:
+              cursedEnergyReward,
+
             pity: updatedPity,
             pullAccessSnapshot:
               snapshot,
@@ -1866,7 +1902,12 @@ module.exports = {
         });
       }
 
-      const groupedLines = [];
+      const groupedLines = [
+        "## Event Bonus",
+        `${CURSED_ENERGY_EMOJI} **+${cursedEnergyReward.toLocaleString("en-US")} Cursed Energy**`,
+        "",
+      ];
+
       const luckyWeekLine =
         getLuckyWeekBonusLine();
 

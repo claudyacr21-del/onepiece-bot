@@ -981,5 +981,21 @@ module.exports = [
     ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
     image: "",
     description: "Kizaru's sword of light, formed through the power of the Pika Pika no Mi for devastating high-speed attacks.",
+  },
+  {
+    code: "kamutoke",
+    name: "Kamutoke",
+    rarity: "EV",
+    owners: ["true_form_sukuna"],
+    type: "Cursed Tool",
+    statPercent: { atk: 10, hp: 8, speed: 5 },
+    ownerBonusPercent: { atk: 1, hp: 1, speed: 1 },
+    image: "",
+    eventOnly: true,
+    canPull: false,
+    canPA: false,
+    source: "halloween2026",
+    unlocksEvAbilities: ["fuga", "malevolent_shrine"],
+    description: "Sukuna's event-exclusive cursed tool. Equipping it unlocks Fuga and Malevolent Shrine.",
   }
 ];

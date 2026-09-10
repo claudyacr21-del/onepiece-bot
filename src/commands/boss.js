@@ -18,6 +18,11 @@ const cardsDb = require("../data/cards");
 const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const {
+  getEvCardEffects,
+  applyEvEnemyMaxHpEffect,
+  tryActivateEvEmergencyHeal,
+} = require("../utils/evAbilities");
 const { applyCustomSkinToCard } = require("../utils/customSkins");
 const {
   ensureFragmentEmojiCache,
@@ -640,6 +645,7 @@ function formatExpResults(playerTeam, expResults) {
 function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
   const boosted = applyBoostedDisplayStats(card, combatBoosts);
   const displayCard = player ? applyCustomSkinToCard(player, boosted) : boosted;
+  const evCardEffects = getEvCardEffects(boosted);
 
   const displayAtk = getBossCardAtk(boosted);
   const displayHp = getBossCardHp(boosted);
@@ -659,9 +665,8 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
     slot: slotIndex + 1,
     sourceIndex: Number.isInteger(boosted.sourceIndex) ? boosted.sourceIndex : null,
     instanceId: boosted.instanceId,
-    code: boosted.code,
+    code: String(boosted.code || ""),
 
-    // Display only.
     name: displayCard.displayName || boosted.displayName || boosted.name || "Unknown",
     rarity: boosted.currentTier || boosted.rarity || "C",
     image: hasCustomSkin ? skinImage : boosted.image || "",
@@ -673,7 +678,6 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
     originalDisplayName: String(displayCard.originalDisplayName || boosted.displayName || boosted.name || ""),
     skinnedCharacter: String(displayCard.skinnedCharacter || displayCard.originalDisplayName || boosted.displayName || boosted.name || ""),
 
-    // Stats tetap dari boosted/original card, bukan dari skin.
     atk: displayAtk,
     hp: displayHp,
     maxHp: displayHp,
@@ -691,11 +695,15 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
     exp: getCardExp(boosted),
     kills: Number(boosted.kills || 0),
 
+    evEffects: evCardEffects,
+
     passiveBoostsApplied: {
       atk: Number(combatBoosts.atk || 0),
       hp: Number(combatBoosts.hp || 0),
       spd: Number(combatBoosts.spd || 0),
-      dmg: Number(combatBoosts.dmg || 0),
+      dmg:
+        Number(combatBoosts.dmg || 0) +
+        Number(evCardEffects.selfDamagePercent || 0),
       exp: Number(combatBoosts.exp || 0),
     },
   };
@@ -3268,7 +3276,36 @@ module.exports = {
       const logs = [];
       let ended = false;
       let lastUsedUnitKey = "";
-      const allUnits = participants.flatMap((participant) => participant.units);
+
+      const allUnits = participants.flatMap(
+        (participant) => participant.units
+      );
+
+      const raidEnemyMaxHpPercent = Math.max(
+        -90,
+        participants.reduce(
+          (total, participant) =>
+            total +
+            Number(
+              participant
+                .combatBoosts
+                ?.evEffects
+                ?.enemyMaxHpPercent ||
+                0
+            ),
+          0
+        )
+      );
+
+      applyEvEnemyMaxHpEffect(
+        [boss],
+        {
+          enemyMaxHpPercent:
+            raidEnemyMaxHpPercent,
+        }
+      );
+
+      const raidEvActivationState = new Map();
 
       let raidStartPayload;
 
@@ -3451,30 +3488,84 @@ if (interaction.customId === "boss_raid_run") {
           );
         }
 
-        const owner = participants.find((p) => p.userId === attacker.ownerId);
+        const owner = participants.find(
+          (participant) =>
+            participant.userId ===
+            attacker.ownerId
+        );
+
         const combatLogs = [];
-        const turns = resolveTurnOrder(attacker, boss);
+        const turns = resolveTurnOrder(
+          attacker,
+          boss
+        );
 
         for (const turn of turns) {
           const actor = turn.actor;
           const target = turn.target;
 
-          if (Number(actor.battleHp ?? actor.hp) <= 0) continue;
-          if (Number(target.battleHp ?? target.hp) <= 0) continue;
+          if (
+            Number(
+              actor.battleHp ??
+              actor.hp
+            ) <= 0
+          ) {
+            continue;
+          }
+
+          if (
+            Number(
+              target.battleHp ??
+              target.hp
+            ) <= 0
+          ) {
+            continue;
+          }
 
           const damage = performAttack(
             actor,
             target,
-            turn.isPlayer ? attacker.passiveBoostsApplied || owner?.combatBoosts || {} : {}
+            turn.isPlayer
+              ? attacker
+                  .passiveBoostsApplied ||
+                owner?.combatBoosts ||
+                {}
+              : {}
           );
 
           combatLogs.push(
             `${turn.isPlayer ? "⚔️" : "💢"} ${actor.name} dealt **${damage}** damage to ${target.name}.`
           );
 
-          if (Number(target.battleHp ?? target.hp) <= 0) {
-            if (turn.isPlayer) attacker.kills += 1;
-            combatLogs.push(`☠️ ${target.name} was defeated.`);
+          for (
+            const participant
+            of participants
+          ) {
+            tryActivateEvEmergencyHeal(
+              participant.units,
+              participant
+                .combatBoosts
+                ?.evEffects ||
+                {},
+              raidEvActivationState,
+              combatLogs
+            );
+          }
+
+          if (
+            Number(
+              target.battleHp ??
+              target.hp
+            ) <= 0
+          ) {
+            if (turn.isPlayer) {
+              attacker.kills += 1;
+            }
+
+            combatLogs.push(
+              `☠️ ${target.name} was defeated.`
+            );
+
             break;
           }
         }
@@ -3874,10 +3965,26 @@ if (interaction.customId === "boss_raid_run") {
       effectiveBossCooldownMs
     );
 
-    const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
-    const boss = toBossBattleUnit(getBossTemplate(currentIsland, phaseBoss));
+    const playerTeam = [...teamCards].sort(
+      (a, b) => a.slot - b.slot
+    );
+
+    const boss = toBossBattleUnit(
+      getBossTemplate(
+        currentIsland,
+        phaseBoss
+      )
+    );
+
+    applyEvEnemyMaxHpEffect(
+      [boss],
+      combatBoosts.evEffects || {}
+    );
+
     const logs = [];
     let ended = false;
+
+    const evActivationState = new Map();
 
     const reply = await message.reply({
       embeds: [
@@ -3997,28 +4104,70 @@ if (interaction.customId === "boss_run") {
       }
 
       const combatLogs = [];
-      const turns = resolveTurnOrder(attacker, boss);
+
+      const turns = resolveTurnOrder(
+        attacker,
+        boss
+      );
 
       for (const turn of turns) {
         const actor = turn.actor;
         const target = turn.target;
 
-        if (Number(actor.battleHp ?? actor.hp) <= 0) continue;
-        if (Number(target.battleHp ?? target.hp) <= 0) continue;
+        if (
+          Number(
+            actor.battleHp ??
+            actor.hp
+          ) <= 0
+        ) {
+          continue;
+        }
+
+        if (
+          Number(
+            target.battleHp ??
+            target.hp
+          ) <= 0
+        ) {
+          continue;
+        }
 
         const damage = performAttack(
           actor,
           target,
-          turn.isPlayer ? actor.passiveBoostsApplied || combatBoosts : {}
+          turn.isPlayer
+            ? actor
+                .passiveBoostsApplied ||
+              combatBoosts
+            : {}
         );
 
         combatLogs.push(
           `${turn.isPlayer ? "⚔️" : "💢"} ${actor.name} dealt **${damage}** damage to ${target.name}.`
         );
 
-        if (Number(target.battleHp ?? target.hp) <= 0) {
-          if (turn.isPlayer) attacker.kills += 1;
-          combatLogs.push(`☠️ ${target.name} was defeated.`);
+        tryActivateEvEmergencyHeal(
+          playerTeam,
+          combatBoosts.evEffects ||
+            {},
+          evActivationState,
+          combatLogs
+        );
+
+        if (
+          Number(
+            target.battleHp ??
+            target.hp
+          ) <= 0
+        ) {
+          if (turn.isPlayer) {
+            attacker.kills += 1;
+          }
+
+          combatLogs.push(
+            `☠️ ${target.name} was defeated.`
+          );
+
           break;
         }
       }

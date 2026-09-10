@@ -29,6 +29,11 @@ const {
   applyExpBoost,
 } = require("../utils/combatStats");
 const {
+  getEvCardEffects,
+  applyEvEnemyMaxHpEffect,
+  tryActivateEvEmergencyHeal,
+} = require("../utils/evAbilities");
+const {
   getCardExp,
   getCardLevelCap,
   applyExpToCard,
@@ -334,6 +339,7 @@ function mergeOwnedCardWithLatestTemplate(rawCard, player = null) {
 
 function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
   const displayCard = player ? applyCustomSkinToCard(player, card) : card;
+  const evCardEffects = getEvCardEffects(card);
 
   const displayAtk = getFightCardAtk(card);
   const displayHp = getFightCardHp(card);
@@ -356,6 +362,7 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
     slot: slotIndex + 1,
     sourceIndex: Number.isInteger(card.sourceIndex) ? card.sourceIndex : null,
     instanceId: card.instanceId,
+    code: String(card.code || ""),
 
     name: hasCustomSkin
       ? skinName || displayCard.displayName || card.displayName || card.name || "Unknown"
@@ -386,11 +393,15 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
     kills: Number(card.kills || 0),
     image: hasCustomSkin ? skinImage || card.image || "" : card.image || "",
 
+    evEffects: evCardEffects,
+
     passiveBoostsApplied: {
       atk: Number(combatBoosts.atk || 0),
       hp: Number(combatBoosts.hp || 0),
       spd: Number(combatBoosts.spd || 0),
-      dmg: Number(combatBoosts.dmg || 0),
+      dmg:
+        Number(combatBoosts.dmg || 0) +
+        Number(evCardEffects.selfDamagePercent || 0),
       exp: Number(combatBoosts.exp || 0),
     },
   };
@@ -1246,14 +1257,35 @@ module.exports = {
         },
       });
 
-      const playerTeam = [...teamCards].sort((a, b) => a.slot - b.slot);
-      const enemyTeam = generateEnemyTeam(currentIsland, playerTeam);
+      const playerTeam =
+        [...teamCards].sort(
+          (a, b) =>
+            a.slot - b.slot
+        );
+
+      const enemyTeam =
+        generateEnemyTeam(
+          currentIsland,
+          playerTeam
+        );
+
+      const evEffects =
+        combatBoosts.evEffects ||
+        {};
+
+      applyEvEnemyMaxHpEffect(
+        enemyTeam,
+        evEffects
+      );
+
       const logs = [];
 
       let battleEnded = false;
       let confirmingRunAway = false;
       let currentStreak = Number(player.fightStreak || 0);
       let actionProcessing = false;
+      const evActivationState =
+        new Map();
 
       const reply = await message.reply({
         embeds: [
@@ -1439,6 +1471,13 @@ if (interaction.user.id !== message.author.id) {
               logs.push(`☠️ ${target.name} was defeated.`);
             }
           }
+
+          tryActivateEvEmergencyHeal(
+            playerTeam,
+            evEffects,
+            evActivationState,
+            logs
+          );
 
           if (!getAliveUnits(enemyTeam).length) {
             battleEnded = true;

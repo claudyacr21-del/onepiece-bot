@@ -48,6 +48,10 @@ const {
   applyMessageMilestoneRewards,
 } = require("./utils/messageMilestones");
 
+const {
+  handleCursedEnergyPhrase,
+} = require("./utils/cursedEnergyPhrase");
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -1056,6 +1060,17 @@ client.on("messageCreate", async (message) => {
     }
 
     if (!parsed) {
+      const cursedEnergyPhraseHandled =
+        await handleCursedEnergyPhrase(
+          message
+        );
+
+      if (
+        cursedEnergyPhraseHandled
+      ) {
+        return;
+      }
+
       if (message.guild) {
         setImmediate(() => {
           trackMessageMilestone(message).catch((error) => {

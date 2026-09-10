@@ -42,8 +42,10 @@ const {
 
 const {
   getCategoryEmoji,
+  getItemEmoji,
 } = require("../config/itemEmojis");
 
+const SUPREME_RAID_ENABLED = true;
 const RAID_ROOM_TIMEOUT_MS = 30 * 60 * 1000;
 const RAID_LOBBY_IDLE_REFUND_MS = 2 * 60 * 1000;
 const RAID_PICK_TIMEOUT_MS = 60 * 1000;
@@ -834,6 +836,19 @@ function applyBoostedRaidDisplayStats(card, boosts = {}) {
 function getRaidModeConfig(commandName) {
   const cmd = String(commandName || "").toLowerCase();
 
+  if (cmd === "cursed") {
+    return {
+      allowed: new Set(["EV"]),
+      ticketCode: "fukuma_mizushi",
+      ticketName: "Fukuma Mizushi",
+      label: "Fukuma Mizushi",
+      modeName: "Cursed Raid",
+      fixedBossCode: "true_form_sukuna",
+      rewardTier: "EV",
+      supremeRaid: true,
+    };
+  }
+
   if (cmd === "mraid") {
   return {
     allowed: new Set(["M"]),
@@ -1256,10 +1271,37 @@ function getRaidBaseBattleCards(player) {
         ? buildMergedCard(safePlayer, card)
         : card;
 
-      const boostedCard = applyBoostedRaidDisplayStats(syncedCard, combatBoosts);
+      const boostedCard =
+        applyBoostedRaidDisplayStats(
+          syncedCard,
+          combatBoosts
+        );
+
+      const evEffects =
+        combatBoosts.evEffects ||
+        {};
+
+      const isTrueFormSukuna =
+        String(
+          syncedCard.code || ""
+        ).toLowerCase() ===
+        "true_form_sukuna";
+
+      const sukunaDamagePercent =
+        isTrueFormSukuna
+          ? Number(
+              evEffects
+                .sukunaDamagePercent ||
+                0
+            )
+          : 0;
 
       // Skin only changes display. Stats must stay from the boosted owned card.
-      const displayCard = applyCustomSkinToCard(safePlayer, boostedCard);
+      const displayCard =
+        applyCustomSkinToCard(
+          safePlayer,
+          boostedCard
+        );
 
       return {
         ...displayCard,
@@ -1285,11 +1327,38 @@ function getRaidBaseBattleCards(player) {
         teamPower: getRaidDisplayPower(boostedCard),
 
         passiveBoostsApplied: {
-          atk: Number(combatBoosts.atk || 0),
-          hp: Number(combatBoosts.hp || 0),
-          spd: Number(combatBoosts.spd || 0),
-          dmg: Number(combatBoosts.dmg || 0),
-          exp: Number(combatBoosts.exp || 0),
+          atk:
+            Number(
+              combatBoosts.atk ||
+              0
+            ),
+
+          hp:
+            Number(
+              combatBoosts.hp ||
+              0
+            ),
+
+          spd:
+            Number(
+              combatBoosts.spd ||
+              0
+            ),
+
+          dmg:
+            Number(
+              combatBoosts.dmg ||
+              0
+            ) +
+            sukunaDamagePercent,
+
+          exp:
+            Number(
+              combatBoosts.exp ||
+              0
+            ),
+
+          evEffects,
         },
       };
     })
@@ -1392,6 +1461,10 @@ function toRoomCard(card) {
       spd: Number(synced.passiveBoostsApplied?.spd || 0),
       dmg: Number(synced.passiveBoostsApplied?.dmg || 0),
       exp: Number(synced.passiveBoostsApplied?.exp || 0),
+
+      evEffects: {
+        ...(synced.passiveBoostsApplied?.evEffects || {}),
+      },
     },
 
     hasCustomSkin,
@@ -1519,6 +1592,10 @@ function buildBattleRoster(room) {
           spd: Number(displayed.passiveBoostsApplied?.spd || 0),
           dmg: Number(displayed.passiveBoostsApplied?.dmg || 0),
           exp: Number(displayed.passiveBoostsApplied?.exp || 0),
+
+          evEffects: {
+            ...(displayed.passiveBoostsApplied?.evEffects || {}),
+          },
         },
         alive: true,
       });
@@ -1590,6 +1667,18 @@ function getRaidBossModeMultiplier(raidMode = {}) {
   const ticketCode = String(raidMode?.ticketCode || "").toLowerCase();
   const fixedBossCode = String(raidMode?.fixedBossCode || "").toLowerCase();
   const modeName = String(raidMode?.modeName || "").toLowerCase();
+
+  if (
+    ticketCode === "fukuma_mizushi" ||
+    fixedBossCode === "true_form_sukuna" ||
+    modeName.includes("supreme")
+  ) {
+    return {
+      hp: 3,
+      speed: 3.8,
+      atk: 5,
+    };
+  }
 
   if (
     ticketCode === "empty_throne_raid_writ" ||
@@ -1841,7 +1930,15 @@ function formatThroneTeamPreview(cards) {
 }
 
 function isThroneRoom(room) {
-  return String(room?.bossCode || "").toLowerCase() === "imu";
+  const bossCode =
+    String(
+      room?.bossCode || ""
+    ).toLowerCase();
+
+  return (
+    bossCode === "imu" ||
+    bossCode === "true_form_sukuna"
+  );
 }
 
 function getMaxRaidUsers(room) {
@@ -1968,40 +2065,155 @@ function buildBattleState(
   raidMode = {},
   client = null
 ) {
-  const members = buildBattleRoster(room).map((member) => ({
-    ...member,
-    actionCooldown: 0,
-  }));
+  const members =
+    buildBattleRoster(room).map(
+      (member) => ({
+        ...member,
+        actionCooldown: 0,
+      })
+    );
+
+  const bossStats =
+    deriveRaidBossStats(
+      bossTemplate,
+      raidMode
+    );
+
+  const enemyHpReduction =
+    members.reduce(
+      (highest, member) =>
+        Math.max(
+          highest,
+          Number(
+            member
+              ?.passiveBoostsApplied
+              ?.evEffects
+              ?.enemyMaxHpReductionPercent ||
+              0
+          )
+        ),
+      0
+    );
+
+  const emergencyHealPercent =
+    members.reduce(
+      (highest, member) =>
+        Math.max(
+          highest,
+          Number(
+            member
+              ?.passiveBoostsApplied
+              ?.evEffects
+              ?.emergencyHealPercent ||
+              0
+          )
+        ),
+      0
+    );
+
+  const reducedBossHp =
+    Math.max(
+      1,
+      Math.floor(
+        Number(
+          bossStats.maxHp ||
+          bossStats.hp ||
+          1
+        ) *
+        (
+          1 -
+          Math.min(
+            90,
+            Math.max(
+              0,
+              enemyHpReduction
+            )
+          ) /
+          100
+        )
+      )
+    );
 
   return {
     roomId: room.roomId,
     client,
     hostId: room.hostId,
     hostName: room.hostName,
+
     raidMode: {
-      ticketCode: raidMode.ticketCode,
-      ticketName: raidMode.ticketName,
-      label: raidMode.label,
-      modeName: raidMode.modeName,
-      rewardTier: raidMode.rewardTier || null,
-      specialGoldRaidBoss: raidMode.specialGoldRaidBoss || null,
+      ticketCode:
+        raidMode.ticketCode,
+
+      ticketName:
+        raidMode.ticketName,
+
+      label:
+        raidMode.label,
+
+      modeName:
+        raidMode.modeName,
+
+      rewardTier:
+        raidMode.rewardTier ||
+        null,
+
+      specialGoldRaidBoss:
+        raidMode
+          .specialGoldRaidBoss ||
+        null,
     },
+
     members,
+
     boss: {
-      ...deriveRaidBossStats(bossTemplate, raidMode),
-      bossCode: bossTemplate.code,
-      bossName: bossTemplate.displayName || bossTemplate.name,
-      rarity: bossTemplate.rarity || bossTemplate.currentTier || bossTemplate.baseTier || "C",
-      currentTier: bossTemplate.currentTier || bossTemplate.rarity || bossTemplate.baseTier || "C",
-      mergeSourceCodes: getMergeSourceCodes(bossTemplate),
+      ...bossStats,
+      hp: reducedBossHp,
+      maxHp: reducedBossHp,
+      bossCode:
+        bossTemplate.code,
+      bossName:
+        bossTemplate.displayName ||
+        bossTemplate.name,
+      rarity:
+        bossTemplate.rarity ||
+        bossTemplate.currentTier ||
+        bossTemplate.baseTier ||
+        "C",
+      currentTier:
+        bossTemplate.currentTier ||
+        bossTemplate.rarity ||
+        bossTemplate.baseTier ||
+        "C",
+      mergeSourceCodes:
+        getMergeSourceCodes(
+          bossTemplate
+        ),
     },
+
+    evEmergencyHealPercent:
+      Math.max(
+        0,
+        Math.min(
+          100,
+          emergencyHealPercent
+        )
+      ),
+
+    evEmergencyHealUsed:
+      false,
+
     round: 1,
     turnCount: 0,
-    log: ["Raid battle started."],
+    log: [
+      enemyHpReduction > 0
+        ? `Reverse Cursed reduced Boss Max HP by ${enemyHpReduction}%.`
+        : "Raid battle started.",
+    ],
     finished: false,
     winner: null,
   };
 }
+
 
 function pushBattleLog(state, line) {
   state.log.push(line);
@@ -3170,8 +3382,400 @@ function pickMythicRaidFruitDrop(state, boss) {
   );
 }
 
+function isSupremeRaid(state, boss = null) {
+  const raidMode =
+    state?.raidMode || {};
+
+  const targetBoss =
+    boss ||
+    state?.boss ||
+    {};
+
+  const bossCode =
+    String(
+      targetBoss.code ||
+      targetBoss.bossCode ||
+      ""
+    )
+      .toLowerCase()
+      .trim();
+
+  const ticketCode =
+    String(
+      raidMode.ticketCode || ""
+    )
+      .toLowerCase()
+      .trim();
+
+  const fixedBossCode =
+    String(
+      raidMode.fixedBossCode || ""
+    )
+      .toLowerCase()
+      .trim();
+
+  const modeName =
+    String(
+      raidMode.modeName || ""
+    )
+      .toLowerCase()
+      .trim();
+
+  return (
+    bossCode ===
+      "true_form_sukuna" ||
+    fixedBossCode ===
+      "true_form_sukuna" ||
+    ticketCode ===
+      "fukuma_mizushi" ||
+    modeName.includes(
+      "supreme"
+    )
+  );
+}
+
+function giveSupremeRaidWinRewards(
+  state
+) {
+  const boss =
+    state.boss || {};
+
+  const hostId =
+    String(
+      state.hostId || ""
+    );
+
+  const kamutoke =
+    weaponsDb.find(
+      (weapon) =>
+        String(
+          weapon?.code || ""
+        )
+          .toLowerCase()
+          .trim() ===
+        "kamutoke"
+    ) || null;
+
+  const finger =
+    devilFruitsDb.find(
+      (fruit) =>
+        String(
+          fruit?.code || ""
+        )
+          .toLowerCase()
+          .trim() ===
+        "finger"
+    ) || null;
+
+  const rewards = [];
+  const rewardedUsers =
+    new Set();
+
+  for (
+    const member
+    of ensureArray(
+      state.members
+    )
+  ) {
+    const userId =
+      String(
+        member.userId ||
+        ""
+      );
+
+    if (
+      !userId ||
+      rewardedUsers.has(
+        userId
+      )
+    ) {
+      continue;
+    }
+
+    rewardedUsers.add(
+      userId
+    );
+
+    const isHost =
+      hostId &&
+      userId === hostId;
+
+    const baseBerries =
+      45000;
+
+    const baseGems =
+      70;
+
+    const boostedRewards =
+      applyPirateRewardBonuses(
+        userId,
+        {
+          berries:
+            baseBerries,
+
+          gems:
+            baseGems,
+        }
+      );
+
+    const discordUser =
+      state.client
+        ?.users
+        ?.cache
+        ?.get(userId) ||
+      null;
+
+    const serverTagPerks =
+      getServerTagPerks(
+        discordUser
+      );
+
+    const serverTagBonusBerries =
+      serverTagPerks.active
+        ? Math.floor(
+            baseBerries *
+              (
+                Number(
+                  serverTagPerks
+                    .berryIncomeBonusPercent ||
+                  0
+                ) /
+                100
+              )
+          )
+        : 0;
+
+    const serverTagBonusGems =
+      serverTagPerks.active
+        ? Math.floor(
+            baseGems *
+              (
+                Number(
+                  serverTagPerks
+                    .gemIncomeBonusPercent ||
+                  0
+                ) /
+                100
+              )
+          )
+        : 0;
+
+    const berries =
+      Number(
+        boostedRewards
+          .berries || 0
+      ) +
+      serverTagBonusBerries;
+
+    const gems =
+      Number(
+        boostedRewards
+          .gems || 0
+      ) +
+      serverTagBonusGems;
+
+    const cursedEnergy =
+      isHost
+        ? randomInt(
+            100,
+            150
+          )
+        : randomInt(
+            50,
+            100
+          );
+
+    const cardFragments =
+      isHost &&
+      randomChance(20)
+        ? 1
+        : 0;
+
+    const weaponFragments =
+      isHost
+        ? 1
+        : 0;
+
+    const gotFinger =
+      Boolean(
+        isHost &&
+        finger &&
+        randomChance(3)
+      );
+
+    let username =
+      member.username ||
+      "Unknown";
+
+    updatePlayerAtomic(
+      userId,
+
+      (fresh) => {
+        username =
+          member.username ||
+          fresh.username ||
+          "Unknown";
+
+        let nextFragments =
+          Array.isArray(
+            fresh.fragments
+          )
+            ? [
+                ...fresh.fragments,
+              ]
+            : [];
+
+        if (
+          cardFragments > 0
+        ) {
+          nextFragments =
+            addRaidBossFragment(
+              nextFragments,
+              {
+                ...boss,
+
+                code:
+                  "true_form_sukuna",
+
+                bossCode:
+                  "true_form_sukuna",
+
+                name:
+                  "True Form Sukuna",
+
+                bossName:
+                  "True Form Sukuna",
+
+                rarity:
+                  "EV",
+              },
+              cardFragments
+            );
+        }
+
+        if (
+          weaponFragments > 0 &&
+          kamutoke
+        ) {
+          nextFragments =
+            addRaidWeaponFragment(
+              nextFragments,
+              kamutoke,
+              weaponFragments
+            );
+        }
+
+        return {
+          ...fresh,
+
+          berries:
+            Number(
+              fresh.berries ||
+              0
+            ) +
+            berries,
+
+          gems:
+            Number(
+              fresh.gems ||
+              0
+            ) +
+            gems,
+
+          cursedEnergy:
+            Math.max(
+              0,
+              Math.floor(
+                Number(
+                  fresh.cursedEnergy ||
+                  0
+                )
+              )
+            ) +
+            cursedEnergy,
+
+          fragments:
+            nextFragments,
+
+          devilFruits:
+            gotFinger
+              ? addRaidFruit(
+                  fresh.devilFruits,
+                  finger
+                )
+              : fresh.devilFruits,
+        };
+      },
+
+      member.username ||
+      "Unknown"
+    );
+
+    rewards.push({
+      userId,
+      username,
+      isHost,
+      berries,
+      gems,
+      cursedEnergy,
+
+      serverTagBonusBerries,
+      serverTagBonusGems,
+
+      serverTagBerryBonusPercent:
+        Number(
+          serverTagPerks
+            .berryIncomeBonusPercent ||
+          0
+        ),
+
+      serverTagGemBonusPercent:
+        Number(
+          serverTagPerks
+            .gemIncomeBonusPercent ||
+          0
+        ),
+
+      fragments:
+        cardFragments,
+
+      universalS: 0,
+      universalA: 0,
+      randomBoxes: [],
+
+      bossName:
+        "True Form Sukuna",
+
+      weapon:
+        weaponFragments > 0 &&
+        kamutoke
+          ? kamutoke.name
+          : null,
+
+      fruit:
+        gotFinger &&
+        finger
+          ? finger.name
+          : null,
+    });
+  }
+
+  return rewards;
+}
+
 function giveRaidWinRewards(state) {
   const boss = state.boss || {};
+
+  if (
+    isSupremeRaid(
+      state,
+      boss
+    )
+  ) {
+    return giveSupremeRaidWinRewards(
+      state
+    );
+  }
   const bossTier = String(
     boss.rarity || boss.currentTier || boss.tier || "C"
   ).toUpperCase();
@@ -3378,6 +3982,25 @@ function formatRaidWinRewardLines(state) {
       `• **${reward.username}**${reward.isHost ? " 👑 Host" : ""}`,
       `+${Number(reward.berries || 0).toLocaleString("en-US")} berries`,
       `+${Number(reward.gems || 0).toLocaleString("en-US")} gems`,
+      ...(
+        Number(
+          reward.cursedEnergy ||
+          0
+        ) > 0
+          ? [
+              `+${Number(
+                reward.cursedEnergy ||
+                0
+              ).toLocaleString(
+                "en-US"
+              )} ${
+                getItemEmoji(
+                  "cursed_energy"
+                ) || "🌀"
+              } Cursed Energy`,
+            ]
+          : []
+      ),
     ];
 
     if (Number(reward.serverTagBonusBerries || 0) > 0) {
@@ -3627,18 +4250,53 @@ function addRaidPrestigeToWinnerCards(state) {
         };
       }
 
-      const ownedBefore = Math.max(
-        0,
-        Math.min(200, Number(cards[index].raidPrestige || 0))
-      );
+      const cardRarity =
+        String(
+          cards[index].rarity ||
+          cards[index].baseTier ||
+          boss.rarity ||
+          ""
+        )
+          .toUpperCase()
+          .trim();
 
-      const before = allowBankedPrestige
-        ? Math.max(ownedBefore, bankPrestige)
-        : ownedBefore;
+      const prestigeCap =
+        cardRarity === "EV"
+          ? 150
+          : 200;
 
-      const after = Math.min(200, before + 1);
+      const ownedBefore =
+        Math.max(
+          0,
+          Math.min(
+            prestigeCap,
+            Number(
+              cards[index]
+                .raidPrestige ||
+              0
+            )
+          )
+        );
 
-      cards[index].raidPrestige = after;
+      const before =
+        allowBankedPrestige
+          ? Math.min(
+              prestigeCap,
+              Math.max(
+                ownedBefore,
+                bankPrestige
+              )
+            )
+          : ownedBefore;
+
+      const after =
+        Math.min(
+          prestigeCap,
+          before + 1
+        );
+
+      cards[index].raidPrestige =
+        after;
 
       if (allowBankedPrestige && bankCode) {
         bank[bankCode] = {
@@ -3736,24 +4394,67 @@ function finalizeRaidBattle(state) {
   }
 }
 
-function performRaidMemberAttack(state, actor, combatLogs) {
-  const boss = state.boss;
+function performRaidMemberAttack(
+  state,
+  actor,
+  combatLogs
+) {
+  const boss =
+    state.boss;
 
-  const baseDamage = randomInt(
-    Math.floor(Number(actor.atk || 1) * 0.85),
-    Math.floor(Number(actor.atk || 1) * 1.15)
-  );
+  const baseDamage =
+    randomInt(
+      Math.floor(
+        Number(
+          actor.atk || 1
+        ) *
+        0.85
+      ),
+      Math.floor(
+        Number(
+          actor.atk || 1
+        ) *
+        1.15
+      )
+    );
 
-  const damage = baseDamage;
+  const damageBoost =
+    Math.max(
+      0,
+      Number(
+        actor
+          ?.passiveBoostsApplied
+          ?.dmg ||
+        0
+      )
+    );
 
-  boss.hp = Math.max(0, Number(boss.hp || 0) - damage);
+  const damage =
+    Math.max(
+      1,
+      Math.floor(
+        baseDamage *
+        (
+          1 +
+          damageBoost / 100
+        )
+      )
+    );
+
+  boss.hp =
+    Math.max(
+      0,
+      Number(
+        boss.hp || 0
+      ) -
+      damage
+    );
 
   combatLogs.push(
-    `⚔️ ${actor.name} dealt ${damage.toLocaleString("en-US")} damage to ${
-      boss.name
-    }.`
+    `⚔️ ${actor.name} dealt ${damage.toLocaleString("en-US")} damage to ${boss.name}.`
   );
 }
+
 
 function performRaidBossAttack(state, target, combatLogs) {
   const boss = state.boss;
@@ -3769,6 +4470,110 @@ function performRaidBossAttack(state, target, combatLogs) {
       "en-US"
     )}${Number(target.hp || 0) <= 0 ? " and defeated them" : ""}.`
   );
+}
+
+function tryActivateRaidMalevolentShrine(
+  state,
+  combatLogs
+) {
+  if (
+    state.evEmergencyHealUsed ||
+    Number(
+      state
+        .evEmergencyHealPercent ||
+        0
+    ) <= 0
+  ) {
+    return false;
+  }
+
+  const sukunaMember =
+    ensureArray(
+      state.members
+    ).find(
+      (member) =>
+        String(
+          member.code || ""
+        ).toLowerCase() ===
+          "true_form_sukuna" &&
+        Number(
+          member.hp || 0
+        ) > 0
+    );
+
+  if (!sukunaMember) {
+    return false;
+  }
+
+  const maxHp =
+    Math.max(
+      1,
+      Number(
+        sukunaMember.maxHp ||
+        sukunaMember
+          .battleMaxHp ||
+        1
+      )
+    );
+
+  const currentHp =
+    Math.max(
+      0,
+      Number(
+        sukunaMember.hp || 0
+      )
+    );
+
+  if (
+    currentHp /
+      maxHp >=
+      0.5
+  ) {
+    return false;
+  }
+
+  const healPercent =
+    Math.max(
+      0,
+      Math.min(
+        100,
+        Number(
+          state
+            .evEmergencyHealPercent
+        )
+      )
+    );
+
+  const healedHp =
+    Math.min(
+      maxHp,
+      currentHp +
+        Math.max(
+          1,
+          Math.floor(
+            maxHp *
+            (
+              healPercent /
+              100
+            )
+          )
+        )
+    );
+
+  sukunaMember.hp =
+    healedHp;
+
+  sukunaMember.battleHp =
+    healedHp;
+
+  state.evEmergencyHealUsed =
+    true;
+
+  combatLogs.push(
+    `Malevolent Shrine restored ${healPercent}% HP to ${sukunaMember.name}.`
+  );
+
+  return true;
 }
 
 function handleRaidAttack(state, actor) {
@@ -3796,10 +4601,22 @@ function handleRaidAttack(state, actor) {
   const target = chooseBossTarget(state);
 
   if (target) {
-    performRaidBossAttack(state, target, combatLogs);
+    performRaidBossAttack(
+      state,
+      target,
+      combatLogs
+    );
   }
 
-  tickActionCooldownsAfterAttack(state, actor);
+  tryActivateRaidMalevolentShrine(
+    state,
+    combatLogs
+  );
+
+  tickActionCooldownsAfterAttack(
+    state,
+    actor
+  );
 
   state.log = combatLogs.slice(-MAX_BATTLE_LOG_LINES);
 
@@ -3889,7 +4706,7 @@ async function handleRaidCountCommand(message, args) {
 
 module.exports = {
   name: "raid",
-  aliases: ["craid", "graid", "throne", "mraid", "raidcount"],
+  aliases: ["craid", "graid", "throne", "mraid", "cursed", "raidcount"],
 
   async execute(message, args) {
     await ensureFragmentEmojiCache(
@@ -3901,12 +4718,36 @@ module.exports = {
     if (usedCommandRaw === "raidcount") {
       return handleRaidCountCommand(message, args);
     }
-    const usedCommand = ["craid", "raid", "graid", "throne", "mraid"].includes(usedCommandRaw)
+    const usedCommand = [
+      "craid",
+      "raid",
+      "graid",
+      "throne",
+      "mraid",
+      "cursed",
+    ].includes(usedCommandRaw)
       ? usedCommandRaw
       : "raid";
 
+    if (
+      usedCommand === "cursed" &&
+      !SUPREME_RAID_ENABLED
+    ) {
+      return message.reply({
+        content:
+          "Cursed Raid is currently disabled.",
+
+        allowedMentions: {
+          repliedUser: false,
+        },
+      });
+    }
+
     let raidMode = getRaidModeConfig(usedCommand);
-    const query = raidMode.fixedBossCode || args.join(" ").trim();
+
+    const query =
+      raidMode.fixedBossCode ||
+      args.join(" ").trim();
 
     if (!query) {
       return message.reply(
@@ -4026,7 +4867,10 @@ module.exports = {
     host.tickets = consumedTickets;
 
     const whitelist = getSavedRaidTeam(host);
-    const isThroneRaid = usedCommand === "throne";
+
+    const isThroneRaid =
+      usedCommand === "throne" ||
+      usedCommand === "cursed";
 
     const room = createRaidRoom({
       hostId,
@@ -4122,7 +4966,7 @@ module.exports = {
         if (joinedCount >= maxRaidUsers || !hasReservedHostSlotAvailable(activeRoom, userId)) {
           return safeReplyOrEdit(interaction, {
             content: isThroneRoom(activeRoom)
-              ? "This Throne Raid is already full for non-host players. The last slot is reserved for the host."
+              ? "This raid is already full for non-host players. The last slot is reserved for the host."
               : "This raid room is already full.",
           });
         }
@@ -4133,7 +4977,7 @@ module.exports = {
           if (throneCards.length < 3) {
             return safeReplyOrEdit(interaction, {
               content:
-                "Throne Raid requires **3 battle cards** in your current team slots.",
+                "This raid requires **3 battle cards** in your current team slots.",
             });
           }
 
@@ -4152,7 +4996,7 @@ module.exports = {
               "this card";
 
             return safeReplyOrEdit(interaction, {
-              content: `**${conflictName}** is already used in this Throne Raid room. Please change your team first.`,
+              content: `**${conflictName}** is already used in this raid room. Please change your team first.`,
             });
           }
 
@@ -4183,7 +5027,7 @@ module.exports = {
 
           if (confirmInteraction.customId === `raid_throne_cancel_${room.roomId}_${userId}`) {
             return safeInteractionUpdate(confirmInteraction, {
-              content: "Throne Raid join cancelled.",
+              content: "Raid join cancelled.",
               components: [],
             });
           }
@@ -4213,7 +5057,7 @@ module.exports = {
               !hasReservedHostSlotAvailable(latestRoom, userId)
             ) {
               return safeInteractionUpdate(confirmInteraction, {
-                content: "This Throne Raid is already full for non-host players. The last slot is reserved for the host.",
+                content: "This raid is already full for non-host players. The last slot is reserved for the host.",
                 components: [],
               });
             }
@@ -4222,7 +5066,7 @@ module.exports = {
 
             if (latestThroneCards.length < 3) {
               return safeInteractionUpdate(confirmInteraction, {
-                content: "Throne Raid requires **3 battle cards** in your current team slots.",
+                content: "This raid requires **3 battle cards** in your current team slots.",
                 components: [],
               });
             }
@@ -4242,7 +5086,7 @@ module.exports = {
                 "this card";
 
               return safeInteractionUpdate(confirmInteraction, {
-                content: `**${conflictName}** is already used in this Throne Raid room. Please change your team first.`,
+                content: `**${conflictName}** is already used in this raid room. Please change your team first.`,
                 components: [],
               });
             }
@@ -4441,7 +5285,7 @@ module.exports = {
         if (joinedCount > maxRaidUsers) {
           return safeReplyOrEdit(interaction, {
             content: isThroneRoom(startedRoom)
-              ? "Throne Raid can only have max 4 users."
+              ? "This raid can only have max 4 users."
               : "This raid has too many participants.",
           });
         }

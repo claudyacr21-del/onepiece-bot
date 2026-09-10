@@ -1,4 +1,34 @@
 const ITEMS = {
+  sukunaBox: {
+    name: "Sukuna Box",
+    amount: 1,
+    rarity: "EV",
+    code: "sukuna_box",
+    type: "Box",
+    canPull: false,
+    canPA: false,
+    tradeable: false,
+    untradeable: true,
+    tradeLocked: true,
+    eventOnly: true,
+    description: "A sealed Halloween event box containing rewards connected to True Form Sukuna.",
+  },
+
+  fukumaMizushi: {
+    name: "Fukuma Mizushi",
+    amount: 1,
+    rarity: "EV",
+    code: "fukuma_mizushi",
+    type: "Ticket",
+    canPull: false,
+    canPA: false,
+    tradeable: false,
+    untradeable: true,
+    tradeLocked: true,
+    eventOnly: true,
+    description: "An event-exclusive ticket used to create a True Form Sukuna raid through op supreme.",
+  },
+
   basicResourceBox: {
     name: "Basic Resource Box",
     amount: 1,

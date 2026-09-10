@@ -30,18 +30,52 @@ const {
   getWeaponImage,
   getDevilFruitImage,
   getRarityBadge,
-  getRarityEmoji: getCachedRarityEmoji,
 } = require("../config/assetLinks");
-
-const {
-  getRarityColor,
-} = require("../utils/rarityColor");
 
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 const cardsData = require("../data/cards");
 
 const FLAT_EXP_CAP = 1000;
+
+function getRaidPrestigeCap(card) {
+  const rarity =
+    String(
+      card?.rarity ||
+      card?.baseTier ||
+      card?.currentTier ||
+      ""
+    )
+      .toUpperCase()
+      .trim();
+
+  return rarity === "EV"
+    ? 150
+    : 200;
+}
+
+function formatRaidPrestigeLine(card) {
+  const prestigeCap =
+    getRaidPrestigeCap(card);
+
+  const raidPrestige =
+    Math.max(
+      0,
+      Math.min(
+        prestigeCap,
+        Number(
+          card?.raidPrestige ||
+          0
+        )
+      )
+    );
+
+  return (
+    `Raid Prestige: ` +
+    `${raidPrestige}/` +
+    `${prestigeCap}`
+  );
+}
 
 function cleanEmoji(value, fallback) {
   const raw = String(value || "").trim();
@@ -62,6 +96,7 @@ const RARITY_EMOJIS = {
   SS: cleanEmoji(process.env.RARITY_EMOJI_SS, "SS"),
   UR: cleanEmoji(process.env.RARITY_EMOJI_UR, "UR"),
   M: cleanEmoji(process.env.RARITY_EMOJI_M, "M"),
+  EV: cleanEmoji(process.env.RARITY_EMOJI_EV, "EV"),
 };
 
 async function safeComponentReply(interaction, content) {
@@ -120,7 +155,15 @@ function isDiscordEmojiValue(value) {
 }
 
 function getRarityEmoji(rarity) {
-  return getCachedRarityEmoji(rarity);
+  const tier = String(rarity || "C").toUpperCase();
+
+  const badge = getRarityBadge(tier);
+  if (isDiscordEmojiValue(badge)) return badge;
+
+  const envEmoji = RARITY_EMOJIS[tier];
+  if (isDiscordEmojiValue(envEmoji)) return envEmoji;
+
+  return tier;
 }
 
 function normalize(text) {
@@ -430,43 +473,146 @@ function buildViewerEmbed(ownerName, player, card, index, total, label = "Collec
   const atkRange = formatAtkRange(card.atk);
   const syncedFragments = getFragmentAmount(player, card);
 
-  const extraLines = card.cardRole === "boost" ? [
-    `Form: ${card.evolutionKey || `M${form.stage}`}`,
-    `Tier: ${card.currentTier || card.rarity || "C"}`,
-    `Power: ${getPower(card)}`,
-    `Effect: ${getRoadPoneglyphDisplayEffect(card, form.stage || card?.evolutionStage || 1, card.effectText || "No effect text")}`,
-    `Target: ${card.boostTarget || "team"}`,
-    `Boost Type: ${card.boostType || "unknown"}`,
-    `Devil Fruit: ${card.displayFruitName || "None"}`,
-    `Fragments: ${syncedFragments}`,
-  ] : [
-    `Form: ${card.evolutionKey || `M${form.stage}`}`,
-    `Tier: ${card.currentTier || card.rarity || "C"}`,
-    formatLevelExpLine(card),
-    `Power: ${getPower(card)}`,
-    `Health: ${card.hp || 0}`,
-    `Speed: ${card.speed || 0}`,
-    `Attack: ${atkRange}`,
-    `Weapons: ${card.displayWeaponName || card.weaponSet || card.weapon || "None"}`,
-    `Devil Fruit: ${card.displayFruitName || card.devilFruit || "None"}`,
-    `Type: ${card.type || card.cardRole || "Unknown"}`,
-    `Kills: ${card.kills || 0}`,
-    `Fragments: ${syncedFragments}`,
-  ];
+  const isEvCard =
+    String(
+      card.rarity ||
+      card.currentTier ||
+      ""
+    ).toUpperCase() === "EV";
+
+  const fruitLabel =
+    isEvCard
+      ? "Fruit / Item"
+      : "Devil Fruit";
+
+  const extraLines =
+    card.cardRole === "boost"
+      ? [
+          `Form: ${card.evolutionKey || `M${form.stage}`}`,
+          `Tier: ${card.currentTier || card.rarity || "C"}`,
+          `Power: ${getPower(card)}`,
+          `Effect: ${getRoadPoneglyphDisplayEffect(
+            card,
+            form.stage || card?.evolutionStage || 1,
+            card.effectText || "No effect text"
+          )}`,
+          `Target: ${card.boostTarget || "team"}`,
+          `Boost Type: ${card.boostType || "unknown"}`,
+          `Devil Fruit: ${card.displayFruitName || "None"}`,
+          `Fragments: ${syncedFragments}`,
+        ]
+      : [
+          `Form: ${card.evolutionKey || `M${form.stage}`}`,
+          `Tier: ${card.currentTier || card.rarity || "C"}`,
+          formatLevelExpLine(card),
+          formatRaidPrestigeLine(
+            card
+          ),
+          `Power: ${getPower(card)}`,
+          `Health: ${card.hp || 0}`,
+          `Speed: ${card.speed || 0}`,
+          `Attack: ${atkRange}`,
+          `Weapons: ${
+            card.displayWeaponName ||
+            card.weaponSet ||
+            card.weapon ||
+            "None"
+          }`,
+          `${fruitLabel}: ${
+            card.displayFruitName ||
+            card.devilFruit ||
+            "None"
+          }`,
+          `Type: ${card.type || card.cardRole || "Unknown"}`,
+          `Kills: ${card.kills || 0}`,
+          `Fragments: ${syncedFragments}`,
+        ];
+
+  if (
+    isEvCard &&
+    Array.isArray(card.abilities)
+  ) {
+    const requiredWeaponCode =
+      String(card.evWeaponCode || "")
+        .toLowerCase()
+        .trim();
+
+    const equippedWeaponValues = [
+      ...(
+        Array.isArray(card.equippedWeapons)
+          ? card.equippedWeapons
+          : []
+      ),
+      card.equippedWeaponCode,
+      card.equippedWeapon,
+      card.equippedWeaponData,
+    ];
+
+    const equippedWeaponCodes =
+      equippedWeaponValues
+        .map((entry) => {
+          if (
+            entry &&
+            typeof entry === "object"
+          ) {
+            return String(
+              entry.code ||
+              entry.weaponCode ||
+              entry.name ||
+              ""
+            )
+              .toLowerCase()
+              .trim()
+              .replace(/\s+/g, "_");
+          }
+
+          return String(entry || "")
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, "_");
+        })
+        .filter(Boolean);
+
+    const eventWeaponEquipped =
+      Boolean(requiredWeaponCode) &&
+      equippedWeaponCodes.includes(
+        requiredWeaponCode
+      );
+
+    const visibleAbilities =
+      card.abilities.filter(
+        (ability) =>
+          ability?.unlockedByDefault === true ||
+          (
+            ability?.requiresEventWeapon === true &&
+            eventWeaponEquipped
+          )
+      );
+
+    extraLines.push(
+      "",
+      "Abilities:",
+      ...visibleAbilities.map(
+        (ability, abilityIndex) =>
+          `Ability ${abilityIndex + 1} — ${ability.name}: ${ability.description}`
+      )
+    );
+
+    if (
+      !eventWeaponEquipped
+    ) {
+      extraLines.push(
+        "",
+        "Equip Kamutoke to unlock Ability 3 and Ability 4."
+      );
+    }
+  }
 
   return buildCardStyleEmbed({
-    color: getRarityColor(
-      form.tier ||
-        card.currentTier ||
-        card.rarity
-    ),
+    color: card.cardRole === "boost" ? 0x9b59b6 : 0x3498db,
     ownerName,
     card: displayCard,
-    badgeImage: getRarityBadge(
-      form.tier ||
-        card.currentTier ||
-        card.rarity
-    ),
+    badgeImage: form.badgeImage,
     image: stageImage,
     formName: displayCard.hasCustomSkin ? displayCard.skinTitle : form.name,
     tier: form.tier,
@@ -500,7 +646,8 @@ function getTierRank(tier) {
     S: 4,
     SS: 5,
     UR: 6,
-    M: 7,
+    EV: 7,
+    M: 8,
   };
 
   return order[String(tier || "C").toUpperCase()] || 0;
@@ -601,55 +748,12 @@ function buildTextLines(cards) {
   });
 }
 
-function buildTextPageEmbed(
-  ownerName,
-  lines,
-  cards,
-  pageIndex,
-  pageSize = 7
-) {
+function buildTextPageEmbed(ownerName, lines, pageIndex, pageSize = 7) {
   const start = pageIndex * pageSize;
-
-  const pageLines = lines.slice(
-    start,
-    start + pageSize
-  );
-
-  const pageCards = cards.slice(
-    start,
-    start + pageSize
-  );
-
-  const highestRarityCard =
-    pageCards.reduce(
-      (highest, card) => {
-        if (!highest) return card;
-
-        const cardRank = getTierRank(
-          card.currentTier ||
-            card.rarity
-        );
-
-        const highestRank = getTierRank(
-          highest.currentTier ||
-            highest.rarity
-        );
-
-        return cardRank > highestRank
-          ? card
-          : highest;
-      },
-      null
-    );
+  const pageLines = lines.slice(start, start + pageSize);
 
   return new EmbedBuilder()
-    .setColor(
-      getRarityColor(
-        highestRarityCard?.currentTier ||
-          highestRarityCard?.rarity ||
-          "C"
-      )
-    )
+    .setColor(0x3498db)
     .setTitle(`${ownerName}'s Card Collection`)
     .setDescription(pageLines.join("\n"))
     .setFooter({
@@ -1008,54 +1112,30 @@ function findOwnedCardOrSkinByQuery(player, cards, query) {
 
 function buildWeaponEmbed(ownerName, player, weapon, index = 0, total = 1) {
   const percent = getWeaponPercentAtLevel(
-    weapon.statPercent || weapon.statBonus || {
-      atk: 0,
-      hp: 0,
-      speed: 0,
-    },
+    weapon.statPercent || weapon.statBonus || { atk: 0, hp: 0, speed: 0 },
     weapon.bestUpgradeLevel || 0
   );
 
   const equippedNames = dedupeTextList(weapon.equippedOn);
-  const equippedText = equippedNames.length
-    ? equippedNames.join(", ")
-    : "Not equipped";
+  const equippedText = equippedNames.length ? equippedNames.join(", ") : "Not equipped";
 
   const fragments = getFragmentAmount(player, weapon);
 
   return new EmbedBuilder()
-    .setColor(
-      getRarityColor(
-        weapon.rarity ||
-          weapon.baseTier ||
-          "B"
-      )
-    )
+    .setColor(0x3498db)
     .setTitle(`${ownerName}'s Weapon`)
     .setDescription(
       [
         `**${weapon.name}**`,
         `${weapon.type || "Weapon"}`,
         "",
-        `Rarity: ${String(
-          weapon.rarity ||
-            weapon.baseTier ||
-            "B"
-        ).toUpperCase()}`,
-        `Power: ${Number(
-          getWeaponPower(
-            weapon,
-            weapon.bestUpgradeLevel || 0
-          ) || 0
-        )}`,
+        `Rarity: ${String(weapon.rarity || "B").toUpperCase()}`,
+        `Power: ${Number(getWeaponPower(weapon, weapon.bestUpgradeLevel || 0) || 0)}`,
         `ATK: +${Number(percent.atk || 0)}%`,
         `HP: +${Number(percent.hp || 0)}%`,
         `SPD: +${Number(percent.speed || 0)}%`,
         `Owner Signature: ${getOwnerSignature(weapon)}`,
-        `Best Upgrade: +${Math.max(
-          0,
-          Number(weapon.bestUpgradeLevel || 0)
-        )}`,
+        `Best Upgrade: +${Math.max(0, Number(weapon.bestUpgradeLevel || 0))}`,
         `Equipped On: ${equippedText}`,
         "",
         `${weapon.description || "No description."}`,
@@ -1063,19 +1143,8 @@ function buildWeaponEmbed(ownerName, player, weapon, index = 0, total = 1) {
         `Fragment: ${fragments}`,
       ].join("\n")
     )
-    .setThumbnail(
-      getRarityBadge(
-        weapon.rarity ||
-          weapon.baseTier ||
-          "B"
-      ) || null
-    )
-    .setImage(
-      getWeaponImage(
-        weapon.code,
-        weapon.image || ""
-      ) || null
-    )
+    .setThumbnail(getRarityBadge(weapon.rarity || "B") || null)
+    .setImage(getWeaponImage(weapon.code, weapon.image || "") || null)
     .setFooter({
       text: `Weapon Collection ${index + 1}/${total} • This weapon belongs to ${ownerName}`,
     });
@@ -1130,10 +1199,17 @@ module.exports = {
       getPlayer(message.author.id, message.author.username)
     );
 
-    const boosts = getPassiveBoostSummary(player);
-    const rawQuery = args.join(" ").trim();
-    let sub1 = String(args?.[0] || "").toLowerCase();
-    let query = rawQuery;
+    const boosts =
+      getPassiveBoostSummary(
+        player
+      );
+
+    let sub1 =
+      String(
+        args?.[0] || ""
+      )
+        .toLowerCase()
+        .trim();
 
     const allowedSubCommands = [
       "text",
@@ -1145,11 +1221,11 @@ module.exports = {
     ];
 
     if (
-      rawQuery &&
-      !allowedSubCommands.includes(sub1)
+      !allowedSubCommands.includes(
+        sub1
+      )
     ) {
       sub1 = "";
-      query = "";
     }
 
     const cards = dedupeCollection(
@@ -1251,16 +1327,7 @@ module.exports = {
     let working = [...cards];
     let title = "Card Collection";
 
-    if (sub1 === "search") {
-      const foundCard = findOwnedCardOrSkinByQuery(player, cards, query);
-
-      if (!foundCard) {
-        return message.reply(`Card not found in your collection: \`${query}\`.`);
-      }
-
-      working = [foundCard];
-      title = "Card Search";
-    } else if (sub1 === "boost") {
+    if (sub1 === "boost") {
       working = working.filter((card) => card.cardRole === "boost");
       title = "Boost Collection";
     } else if (sub1 === "text") {
@@ -1308,13 +1375,7 @@ module.exports = {
       let pageIndex = 0;
 
       const sent = await message.reply({
-        embeds: [buildTextPageEmbed(
-                  message.author.username,
-                  lines,
-                  working,
-                  pageIndex,
-                  pageSize
-                )],
+        embeds: [buildTextPageEmbed(message.author.username, lines, pageIndex, pageSize)],
         components: buildTextRows(pageIndex, totalPages),
       });
 
@@ -1334,13 +1395,7 @@ module.exports = {
 
         return safeComponentUpdate(i, {
           embeds: [
-            buildTextPageEmbed(
-              message.author.username,
-              lines,
-              working,
-              pageIndex,
-              pageSize
-            ),
+            buildTextPageEmbed(message.author.username, lines, pageIndex, pageSize),
           ],
           components: buildTextRows(pageIndex, totalPages),
         });

@@ -7,6 +7,11 @@ const { hydrateCard } = require("../utils/evolution");
 const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { applyCustomSkinToCard } = require("../utils/customSkins");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
+const {
+  getEvCardEffects,
+  applyEvEnemyMaxHpEffect,
+  tryActivateEvEmergencyHeal,
+} = require("../utils/evAbilities");
 const { applyDamageBoost } = require("../utils/combatStats");
 const {
   renderBar,
@@ -195,6 +200,7 @@ function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}, player = 
   const synced = hydrateCard(card) || card;
   const boosted = applyBoostedDisplayStats(synced, boosts);
   const displayCard = player ? applyCustomSkinToCard(player, boosted) : boosted;
+  const evCardEffects = getEvCardEffects(boosted);
 
   const hasCustomSkin = Boolean(displayCard?.hasCustomSkin);
   const skinName = hasCustomSkin
@@ -205,6 +211,7 @@ function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}, player = 
     slot: slot + 1,
     ownerTag,
     instanceId: boosted.instanceId,
+    code: String(boosted.code || ""),
 
     name: hasCustomSkin
       ? skinName || displayCard.displayName || boosted.displayName || boosted.name || "Unknown"
@@ -226,11 +233,15 @@ function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}, player = 
     level: Number(boosted.level || 1),
     power: getPower(boosted),
 
+    evEffects: evCardEffects,
+
     passiveBoostsApplied: {
       atk: Number(boosts.atk || 0),
       hp: Number(boosts.hp || 0),
       spd: Number(boosts.spd || 0),
-      dmg: Number(boosts.dmg || 0),
+      dmg:
+        Number(boosts.dmg || 0) +
+        Number(evCardEffects.selfDamagePercent || 0),
       exp: Number(boosts.exp || 0),
     },
   };
@@ -484,8 +495,15 @@ module.exports = {
 
     const player = getPlayer(message.author.id, message.author.username);
     const targetPlayer = getPlayer(targetUser.id, targetUser.username);
+
+    const myCombatBoosts = getPassiveBoostSummary(player);
+    const enemyCombatBoosts = getPassiveBoostSummary(targetPlayer);
+
     const myTeam = getTeamUnits(player, "player");
     const enemyTeam = getTeamUnits(targetPlayer, "opponent");
+
+    const myEvEffects = myCombatBoosts.evEffects || {};
+    const enemyEvEffects = enemyCombatBoosts.evEffects || {};
 
     if (myTeam.length < 1) {
       return message.reply("You need at least 1 battle card in your team to use `op challenge`.");
@@ -495,9 +513,22 @@ module.exports = {
       return message.reply("That user does not have any battle card in their team.");
     }
 
+    applyEvEnemyMaxHpEffect(
+      enemyTeam,
+      myEvEffects
+    );
+
+    applyEvEnemyMaxHpEffect(
+      myTeam,
+      enemyEvEffects
+    );
+
     const logs = [];
     let ended = false;
     let result = null;
+
+    const myEvActivationState = new Map();
+    const enemyEvActivationState = new Map();
 
     const sent = await message.reply({
       embeds: [
@@ -585,6 +616,20 @@ if (interaction.user.id !== message.author.id) {
       logs.push(`⚡ ${first.name} moved first by SPD.`);
       logs.push(`${firstIsPlayer ? "➡️" : "⬅️"} ${first.name} dealt **${firstDamage}** damage to ${firstTarget.name}.`);
 
+      tryActivateEvEmergencyHeal(
+        myTeam,
+        myEvEffects,
+        myEvActivationState,
+        logs
+      );
+
+      tryActivateEvEmergencyHeal(
+        enemyTeam,
+        enemyEvEffects,
+        enemyEvActivationState,
+        logs
+      );
+
       if (Number(firstTarget.hp || 0) <= 0) {
         logs.push(`☠️ ${firstTarget.name} was defeated and cannot counter.`);
       }
@@ -641,6 +686,20 @@ if (interaction.user.id !== message.author.id) {
         if (Number(secondTarget.hp || 0) <= 0) {
           logs.push(`☠️ ${secondTarget.name} was defeated.`);
         }
+
+        tryActivateEvEmergencyHeal(
+          myTeam,
+          myEvEffects,
+          myEvActivationState,
+          logs
+        );
+
+        tryActivateEvEmergencyHeal(
+          enemyTeam,
+          enemyEvEffects,
+          enemyEvActivationState,
+          logs
+        );
       }
 
       if (aliveCount(enemyTeam) <= 0) {

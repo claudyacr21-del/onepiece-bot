@@ -16,7 +16,7 @@ const PAGE_SIZE = 8;
 const COLOR = 0x8e44ad;
 const BASE_FRAGMENT_STORAGE = 200;
 const MAX_FRAGMENT_STORAGE = 5000;
-const VALID_RARITIES = new Set(["C", "B", "A", "S", "SS", "UR"]);
+const VALID_RARITIES = new Set(["C", "B", "A", "S", "SS", "UR", "EV"]);
 const FRAGMENT_EMOJIS = {
   luffy_straw_hat: "<:luffy_f:1530195021834490036>",
   zoro_pirate_hunter: "<:zoro_f:1529865240261562569>",
@@ -229,6 +229,8 @@ const FRAGMENT_EMOJIS = {
   lw: "<:lw_f:1536279171032944740>",
   hw: "<:hw_f:1536279183137972254>",
   pkw: "<:pkw_f:1536279178217918575>",
+  true_form_sukuna: "<a:SukunaThumbsUp:1546903957983596615>",
+  kamutoke: "<:asd:123456778>",
   aces: "<:asd:123456778>",
   hat: "<:asd:123456778>",
   ame_no_habakiri: "<:asd:123456778>",
