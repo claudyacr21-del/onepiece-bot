@@ -1,4 +1,10 @@
-const { EmbedBuilder } = require("discord.js");
+const {
+  EmbedBuilder,
+} = require("discord.js");
+
+const {
+  getRarityColor,
+} = require("./rarityColor");
 
 function buildCardStyleEmbed({
   color = 0x5865f2,
@@ -12,29 +18,61 @@ function buildCardStyleEmbed({
   extraLines = [],
   footerText = "",
 }) {
-  const title = ownerName ? `${ownerName}'s Card` : header;
+  const title =
+    ownerName
+      ? `${ownerName}'s Card`
+      : header;
 
   const finalImage =
-    card?.hasCustomSkin && card?.skinImage
+    card?.hasCustomSkin &&
+    card?.skinImage
       ? card.skinImage
-      : image || card?.image || null;
+      : image ||
+        card?.image ||
+        null;
 
-  const finalBadge = badgeImage || card?.badgeImage || null;
+  const finalBadge =
+    badgeImage ||
+    card?.badgeImage ||
+    null;
 
   const subtitle =
-    card?.hasCustomSkin && card?.skinTitle
+    card?.hasCustomSkin &&
+    card?.skinTitle
       ? card.skinTitle
-      : formName || card?.title || card?.variant || "";
+      : formName ||
+        card?.title ||
+        card?.variant ||
+        "";
+
+  const displayedTier =
+    tier ||
+    card?.currentTier ||
+    card?.rarity ||
+    card?.baseTier ||
+    "";
+
+  const borderColor =
+    displayedTier
+      ? getRarityColor(
+          displayedTier
+        )
+      : color;
 
   return new EmbedBuilder()
-    .setColor(color)
+    .setColor(borderColor)
     .setTitle(title)
     .setDescription(
       [
-        `**${card.displayName || card.name}**`,
+        `**${
+          card.displayName ||
+          card.name
+        }**`,
         subtitle,
         "",
-        ...extraLines.filter(Boolean),
+        ...extraLines.filter(
+          Boolean
+        ),
       ].join("\n")
     )
     .setThumbnail(finalBadge)
@@ -42,7 +80,11 @@ function buildCardStyleEmbed({
     .setFooter({
       text:
         footerText ||
-        (ownerName ? `This card belongs to ${ownerName}` : `Tier ${tier}`),
+        (
+          ownerName
+            ? `This card belongs to ${ownerName}`
+            : `Tier ${displayedTier}`
+        ),
     });
 }
 
