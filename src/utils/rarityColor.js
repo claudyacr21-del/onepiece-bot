@@ -6,7 +6,7 @@ const RARITY_COLORS = Object.freeze({
   SS: 0x9b59b6,
   UR: 0xe74c3c,
   M: 0x050505,
-  EV: 0x62e8ff,
+  EV: 0x8b0000,
 });
 
 function getRarityColor(rarity) {
