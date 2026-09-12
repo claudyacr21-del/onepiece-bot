@@ -83,7 +83,15 @@ module.exports = {
           }
 
           newBerries = Number(fresh.berries || 0) + totalBerries;
-          storage = getFragmentStorageInfo({ ...fresh, fragments }, fragments);
+          storage =
+            getFragmentStorageInfo(
+              {
+                ...fresh,
+                fragments,
+              },
+              fragments,
+              message.author.id
+            );
 
           return {
             ...fresh,
