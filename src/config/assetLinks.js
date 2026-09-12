@@ -1190,6 +1190,7 @@ const WEAPON_IMAGES = {
   leister: "https://cdn.discordapp.com/attachments/1539985332806619258/1539986914575253594/weapon_Killingham.jpg?ex=6a885014&is=6a86fe94&hm=4e9de49175829b0e9c56f9dd76a7864ff8af98d559e02ec17681561df9a87d62&",
   tetsubo: "https://cdn.discordapp.com/attachments/1539985332806619258/1539991819704602716/weapon_Sommers.jpg?ex=6a8854a5&is=6a870325&hm=1941a99352be230ae375f9e6fbe66353399c727c21f667d5556d2356c500f519&",
   ame_no_murakumo: "https://cdn.discordapp.com/attachments/1539985332806619258/1539988148124393472/weapon_kizaru.jpg?ex=6a88513a&is=6a86ffba&hm=0b3489525b74c07f8d3ca4506955a5bd04bfc44b7725322ee190c8c0f41eeb1b&",
+  kamutoke: "https://cdn.discordapp.com/attachments/1539985332806619258/1548241577766424596/kamutoke.jpg?ex=6aa657d5&is=6aa50655&hm=72f8b8090589fb009b62fc30d1fb366f458c9cc32332df5dac6d0da2579f4a9a",
 };
 
 const DEVIL_FRUIT_IMAGES = {
@@ -1274,6 +1275,7 @@ const DEVIL_FRUIT_IMAGES = {
   uo_replica: "https://cdn.discordapp.com/attachments/1539985378998493325/1543985339503345664/Uo_Replica_-_Kozuki_Momonosuke.jpg?ex=6a96dbe6&is=6a958a66&hm=c1110cc2f3167680b7c9ab6d3822697b711ec4ad560b7b48566bd46e87156c34&",
   ryu_ryu_no_mi_model_kirin: "https://cdn.discordapp.com/attachments/1539985378998493325/1543967087096107130/Ryu_Ryu_no_Mi_Saint_Rimoshifu_Killingham.jpg?ex=6a96cae7&is=6a957967&hm=d13c8ef7be36c6896939f0c226b8a4a16f1f87fb725bbed220f8791f5ac7cf11&",
   iba_iba_no_mi: "https://cdn.discordapp.com/attachments/1539985378998493325/1543987495815876728/Iba_Iba_no_Mi_-_Saint_Shepherd_Sommers.jpg?ex=6a96dde8&is=6a958c68&hm=2e37c8365dd88e9a4916e7c333a48d695ea54bdbd3bfc2c517918a06da6a58d8&",
+  finger: "https://cdn.discordapp.com/attachments/1539985378998493325/1548241604693721188/finger.jpg?ex=6aa657db&is=6aa5065b&hm=c560c964302d1f07dba02b014bed84ffeed2a4d871891a09ccd625e74bcb45ab",
 };
 
 const SHIP_IMAGES = {
