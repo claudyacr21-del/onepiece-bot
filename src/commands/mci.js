@@ -14,6 +14,9 @@ const {
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const { buildCardStyleEmbed } = require("../utils/cardView");
 const {
+  getRarityColor,
+} = require("../utils/rarityColor");
+const {
   applyCustomSkinToCard,
   findSkinSetByQuery,
   normalizeCode: normalizeSkinCode,
@@ -628,7 +631,11 @@ function buildOwnedFruitEmbed(ownerName, player, fruit) {
   const fragments = getFragmentAmount(player, fruit);
 
   return new EmbedBuilder()
-    .setColor(0x9b59b6)
+    .setColor(
+      getRarityColor(
+        fruit.rarity || "B"
+      )
+    )
     .setTitle(`${ownerName}'s Devil Fruit`)
     .setDescription(
       [
@@ -672,7 +679,11 @@ function buildOwnedWeaponEmbed(ownerName, player, weapon) {
   const fragments = getFragmentAmount(player, weapon);
 
   return new EmbedBuilder()
-    .setColor(0x3498db)
+    .setColor(
+      getRarityColor(
+        weapon.rarity || "B"
+      )
+    )
     .setTitle(`${ownerName}'s Weapon`)
     .setDescription(
       [

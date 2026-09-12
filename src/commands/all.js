@@ -15,6 +15,9 @@ const {
   getFruitPower,
 } = require("../utils/evolution");
 const { buildCardStyleEmbed } = require("../utils/cardView");
+const {
+  getRarityColor,
+} = require("../utils/rarityColor");
 const weapons = require("../data/weapons");
 const devilFruits = require("../data/devilFruits");
 const {
@@ -507,7 +510,11 @@ function buildWeaponEmbed(item, index, total) {
       .join(" / ") || "No stat bonus";
 
   return new EmbedBuilder()
-    .setColor(0x3498db)
+    .setColor(
+      getRarityColor(
+        item.rarity || "B"
+      )
+    )
     .setTitle("All Weapons")
     .setDescription(
       [
@@ -531,7 +538,11 @@ function buildFruitEmbed(item, index, total) {
   const effectText = statEffectText(item);
 
   return new EmbedBuilder()
-    .setColor(0x9b59b6)
+    .setColor(
+      getRarityColor(
+        item.rarity || "B"
+      )
+    )
     .setTitle("All Devil Fruits")
     .setDescription(
       [
