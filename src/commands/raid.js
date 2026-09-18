@@ -2448,7 +2448,7 @@ function buildResultEmbed(state) {
               ? ensureArray(state.prestigeRewards).map((reward) =>
                   reward.missing
                     ? `• Host ${reward.username}: **${reward.cardName}** prestige not added${reward.reason ? ` (${reward.reason})` : "."}`
-                    : `• Host ${reward.username}'s **${reward.cardName}**: ${reward.before}/200 → ${reward.after}/200`
+                    : `• Host ${reward.username}'s **${reward.cardName}**: ${reward.before}/${reward.prestigeCap || 200} → ${reward.after}/${reward.prestigeCap || 200}`
                 )
               : ["• Prestige reward data was not found."]
             : ["• No prestige reward because raid was lost."]),
@@ -4321,6 +4321,7 @@ function addRaidPrestigeToWinnerCards(state) {
         cardName: cards[index].displayName || cards[index].name || boss.name || "Raid Boss",
         before,
         after,
+        prestigeCap,
         missing: false,
         banked: false,
       };
