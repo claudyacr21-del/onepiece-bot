@@ -9,6 +9,25 @@ const {
 const PHRASE_ENABLED = true;
 const PHRASE = "ryoiki tenkai";
 
+const HALLOWEEN_START_AT =
+  Date.parse(
+    "2026-09-21T00:00:00+07:00"
+  );
+
+const HALLOWEEN_END_AT =
+  Date.parse(
+    "2026-10-21T00:00:00+07:00"
+  );
+
+function isHalloweenEventActive() {
+  const now = Date.now();
+
+  return (
+    now >= HALLOWEEN_START_AT &&
+    now < HALLOWEEN_END_AT
+  );
+}
+
 const PHRASE_COOLDOWN_MS =
   15 * 60 * 1000;
 
@@ -101,7 +120,10 @@ function getRemainingText(ms) {
 async function handleCursedEnergyPhrase(
   message
 ) {
-  if (!PHRASE_ENABLED) {
+  if (
+    !PHRASE_ENABLED ||
+    !isHalloweenEventActive()
+  ) {
     return false;
   }
 

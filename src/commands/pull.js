@@ -55,12 +55,12 @@ const CURSED_ENERGY_PER_PULL = 2;
 
 const HALLOWEEN_START_AT =
   Date.parse(
-    "2026-10-01T00:00:00+07:00"
+    "2026-09-21T00:00:00+07:00"
   );
 
 const HALLOWEEN_END_AT =
   Date.parse(
-    "2026-11-01T00:00:00+07:00"
+    "2026-10-21T00:00:00+07:00"
   );
 
 function isHalloweenEventActive(
