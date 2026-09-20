@@ -30,6 +30,8 @@ const {
   getWeaponImage,
   getDevilFruitImage,
   getRarityBadge,
+  getRarityEmoji:
+    getAssetRarityEmoji,
 } = require("../config/assetLinks");
 
 const weaponsDb = require("../data/weapons");
@@ -155,15 +157,36 @@ function isDiscordEmojiValue(value) {
 }
 
 function getRarityEmoji(rarity) {
-  const tier = String(rarity || "C").toUpperCase();
+  const tier =
+    String(rarity || "C")
+      .toUpperCase()
+      .trim();
 
-  const badge = getRarityBadge(tier);
-  if (isDiscordEmojiValue(badge)) return badge;
+  const assetEmoji =
+    getAssetRarityEmoji(
+      tier
+    );
 
-  const envEmoji = RARITY_EMOJIS[tier];
-  if (isDiscordEmojiValue(envEmoji)) return envEmoji;
+  if (
+    isDiscordEmojiValue(
+      assetEmoji
+    )
+  ) {
+    return assetEmoji;
+  }
 
-  return tier;
+  const envEmoji =
+    RARITY_EMOJIS[tier];
+
+  if (
+    isDiscordEmojiValue(
+      envEmoji
+    )
+  ) {
+    return envEmoji;
+  }
+
+  return `**${tier}**`;
 }
 
 function normalize(text) {
