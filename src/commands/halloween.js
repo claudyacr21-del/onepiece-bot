@@ -363,6 +363,9 @@ function getEventState(player) {
     premium:
       raw.premium === true,
 
+    premiumPlus:
+      raw.premiumPlus === true,
+
     freeClaims:
       Array.isArray(raw.freeClaims)
         ? raw.freeClaims
@@ -435,7 +438,8 @@ async function resetExpiredPremium(
         getEventState(fresh);
 
       wasPremium =
-        state.premium === true;
+        state.premium === true ||
+        state.premiumPlus === true;
 
       if (!wasPremium) {
         return fresh;
@@ -450,6 +454,7 @@ async function resetExpiredPremium(
           [EVENT_KEY]: {
             ...state,
             premium: false,
+            premiumPlus: false,
             premiumExpiredAt:
               Date.now(),
           },
@@ -1047,7 +1052,10 @@ function buildDayField(
 
   const unlocked =
     EVENT_ENABLED &&
-    day <= currentDay;
+    (
+      day <= currentDay ||
+      state.premiumPlus
+    );
 
   const freeClaimed =
     state.freeClaims.includes(
@@ -1118,9 +1126,11 @@ function buildEmbed(
     .setDescription(
       [
         "Check in daily to claim Halloween rewards and unlock exclusive Event content!",
-        state.premium
-          ? `${SUKUNA_BOX_EMOJI} **Premium Pass Active**`
-          : `${SUKUNA_BOX_EMOJI} **Premium Pass Not Active**`,
+        state.premiumPlus
+          ? `${SUKUNA_BOX_EMOJI} **Premium Pass Plus Active — All Dates Unlocked**`
+          : state.premium
+            ? `${SUKUNA_BOX_EMOJI} **Premium Pass Active**`
+            : `${SUKUNA_BOX_EMOJI} **Premium Pass Not Active**`,
         note
           ? `\n${note}`
           : "",
@@ -1147,7 +1157,10 @@ function buildEmbed(
     });
 }
 
-function canClaimPage(player, selectedPage) {
+function canClaimPage(
+  player,
+  selectedPage
+) {
   if (!isEventActive()) {
     return false;
   }
@@ -1163,7 +1176,8 @@ function canClaimPage(player, selectedPage) {
   ).some(
     ({ day }) => {
       if (
-        day > currentDay
+        day > currentDay &&
+        !state.premiumPlus
       ) {
         return false;
       }
@@ -1261,7 +1275,8 @@ function parseTargetId(
 
 async function updatePremium(
   message,
-  enabled
+  enabled,
+  plus = false
 ) {
   if (
     !isUniversalAdmin(message)
@@ -1299,11 +1314,18 @@ async function updatePremium(
     );
 
   if (!targetId) {
+    const commandName =
+      plus
+        ? enabled
+          ? "premiumplus"
+          : "unpremiumplus"
+        : enabled
+          ? "premium"
+          : "unpremium";
+
     return message.reply({
       content:
-        enabled
-          ? "Usage: `op premium <@user/userId>`"
-          : "Usage: `op unpremium <@user/userId>`",
+        `Usage: \`op ${commandName} <@user/userId>\``,
 
       allowedMentions: {
         repliedUser: false,
@@ -1317,6 +1339,14 @@ async function updatePremium(
       const state =
         getEventState(fresh);
 
+      const premiumPlus =
+        enabled
+          ? (
+              plus ||
+              state.premiumPlus
+            )
+          : false;
+
       return {
         ...fresh,
 
@@ -1325,7 +1355,9 @@ async function updatePremium(
 
           [EVENT_KEY]: {
             ...state,
+
             premium: enabled,
+            premiumPlus,
 
             premiumUpdatedAt:
               Date.now(),
@@ -1338,11 +1370,24 @@ async function updatePremium(
                   premiumActivatedAt:
                     Date.now(),
 
+                  premiumPlusActivatedAt:
+                    premiumPlus
+                      ? Date.now()
+                      : state
+                          .premiumPlusActivatedAt ||
+                        null,
+
                   premiumExpiredAt:
+                    null,
+
+                  premiumDisabledAt:
                     null,
                 }
               : {
                   premiumDisabledAt:
+                    Date.now(),
+
+                  premiumPlusDisabledAt:
                     Date.now(),
                 }),
           },
@@ -1352,9 +1397,14 @@ async function updatePremium(
     "Unknown"
   );
 
+  const passName =
+    plus
+      ? "Premium Pass Plus"
+      : "Premium";
+
   return message.reply({
     content:
-      `${EVENT_NAME} Premium has been ` +
+      `${EVENT_NAME} ${passName} has been ` +
       `${enabled
         ? "activated"
         : "disabled"} ` +
@@ -1365,7 +1415,6 @@ async function updatePremium(
     },
   });
 }
-
 
 function parseBoxAmount(value) {
   if (
@@ -1567,7 +1616,10 @@ async function claimAvailableRewards(
         );
       }
 
-      if (currentDay < 1) {
+      if (
+        currentDay < 1 &&
+        !state.premiumPlus
+      ) {
         throw new Error(
           "The first reward date has not arrived."
         );
@@ -1578,7 +1630,8 @@ async function claimAvailableRewards(
           selectedPage
         ).filter(
           ({ day }) =>
-            day <= currentDay
+            day <= currentDay ||
+            state.premiumPlus
         );
 
       const rewards = [];
@@ -1692,6 +1745,8 @@ module.exports = {
   aliases: [
     "premium",
     "unpremium",
+    "premiumplus",
+    "unpremiumplus",
   ],
 
   async execute(
@@ -1771,10 +1826,54 @@ module.exports = {
     }
 
     if (
+      subcommand ===
+      "premiumplus"
+    ) {
+      return updatePremium(
+        message,
+        true,
+        true
+      );
+    }
+
+    if (
+      subcommand ===
+      "unpremiumplus"
+    ) {
+      return updatePremium(
+        message,
+        false,
+        true
+      );
+    }
+
+    if (
       subcommand === "premium"
     ) {
       return updatePremium(
         message,
+        true
+      );
+    }
+
+    if (
+      usedCommand ===
+      "unpremiumplus"
+    ) {
+      return updatePremium(
+        message,
+        false,
+        true
+      );
+    }
+
+    if (
+      usedCommand ===
+      "premiumplus"
+    ) {
+      return updatePremium(
+        message,
+        true,
         true
       );
     }
