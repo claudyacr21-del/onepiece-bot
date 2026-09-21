@@ -14,6 +14,10 @@ const ITEM_EMOJIS = Object.freeze({
     "<:fukumamizushi:1546847502471401543>",
   finger:
     "<:finger:1547101553175953469>",
+  kamutoke:
+    "<:kamutoke:1550463437086134302>",
+  true_form_sukuna:
+    "<a:SukunaThumbsUp:1546903957983596615>",
 
   universal_c:
     "<:uni_c:1535244137056444446>",
