@@ -1671,10 +1671,11 @@ function getRaidBossModeMultiplier(raidMode = {}) {
   if (
     ticketCode === "fukuma_mizushi" ||
     fixedBossCode === "true_form_sukuna" ||
-    modeName.includes("supreme")
+    modeName.includes("supreme") ||
+    modeName.includes("cursed")
   ) {
     return {
-      hp: 3,
+      hp: 4,
       speed: 3.8,
       atk: 5,
     };
