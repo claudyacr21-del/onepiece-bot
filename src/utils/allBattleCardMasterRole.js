@@ -25,21 +25,42 @@ function getCardCode(card) {
 }
 
 function isBattleCard(card) {
-  if (!card) return false;
+  if (!card) {
+    return false;
+  }
 
   if (isMergeCard(card)) {
     return false;
   }
 
-  const role = String(
-    card?.cardRole ||
+  const role =
+    String(
+      card?.cardRole ||
       card?.role ||
       "battle"
-  )
-    .toLowerCase()
-    .trim();
+    )
+      .toLowerCase()
+      .trim();
 
-  return role !== "boost";
+  if (role === "boost") {
+    return false;
+  }
+
+  const rarity =
+    String(
+      card?.baseTier ||
+      card?.rarity ||
+      card?.currentTier ||
+      ""
+    )
+      .toUpperCase()
+      .trim();
+
+  if (rarity === "EV") {
+    return false;
+  }
+
+  return true;
 }
 
 function getRequiredBattleCardCodes() {
