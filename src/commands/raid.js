@@ -4025,9 +4025,43 @@ function formatRaidWinRewardLines(state) {
       );
     }
 
-    if (reward.isHost && Number(reward.fragments || 0) > 0) {
+    if (
+      reward.isHost &&
+      Number(
+        reward.fragments || 0
+      ) > 0
+    ) {
+      const fragmentIcon =
+        getItemEmoji(
+          reward.bossName
+        ) ||
+        getFragmentIcon({
+          name:
+            reward.bossName,
+          bossName:
+            reward.bossName,
+          cardCode:
+            String(
+              reward.bossName || ""
+            )
+              .toLowerCase()
+              .trim()
+              .replace(
+                /[^a-z0-9]+/g,
+                "_"
+              )
+              .replace(
+                /^_+|_+$/g,
+                ""
+              ),
+          category:
+            "battle",
+        });
+
       lines.push(
-        `+${Number(reward.fragments || 0)} ${reward.bossName} fragment`
+        `${fragmentIcon} +${Number(
+          reward.fragments || 0
+        )} ${reward.bossName} Fragment`
       );
     }
 
@@ -4052,12 +4086,47 @@ function formatRaidWinRewardLines(state) {
     const extras = [];
 
     if (reward.weapon) {
-      extras.push(`⚔️ ${reward.weapon} Fragment x1`);
+      const weaponIcon =
+        getItemEmoji(
+          reward.weapon
+        ) ||
+        getFragmentIcon({
+          name:
+            `${reward.weapon} Fragment`,
+          weaponCode:
+            String(
+              reward.weapon || ""
+            )
+              .toLowerCase()
+              .trim()
+              .replace(
+                /[^a-z0-9]+/g,
+                "_"
+              )
+              .replace(
+                /^_+|_+$/g,
+                ""
+              ),
+          category:
+            "weapon",
+        });
+
+      extras.push(
+        `${weaponIcon} ${reward.weapon} Fragment x1`
+      );
     }
 
     if (reward.fruit) {
+      const fruitIcon =
+        getItemEmoji(
+          reward.fruit
+        ) ||
+        getCategoryEmoji(
+          "fruit"
+        );
+
       extras.push(
-        `${getCategoryEmoji("fruit")} ${reward.fruit}`
+        `${fruitIcon} ${reward.fruit}`
       );
     }
 
