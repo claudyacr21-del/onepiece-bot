@@ -1796,7 +1796,12 @@ function buildLobbyEmbed(hostName, room, ended = false, bossStats = null) {
   const joinedLines = participants.length
     ? participants.map((participant, index) => {
         const picked = ensureArray(participant.selectedCards)
-          .map((card) => card.skinName || card.name || card.code)
+          .map(
+            (card) =>
+              card.skinName ||
+              card.name ||
+              card.code
+          )
           .join(", ");
 
         return `${index + 1}. ${participant.username} • ${
@@ -1806,12 +1811,47 @@ function buildLobbyEmbed(hostName, room, ended = false, bossStats = null) {
     : ["None"];
 
   const bossStatLine = bossStats
-    ? `❤️ ${Number(bossStats.maxHp || bossStats.hp || 0)}/${Number(
-        bossStats.maxHp || bossStats.hp || 0
-      )} | SPD ${Number(bossStats.speed || 0)} | ATK ${Number(
+    ? `❤️ ${Number(
+        bossStats.maxHp ||
+        bossStats.hp ||
+        0
+      )}/${Number(
+        bossStats.maxHp ||
+        bossStats.hp ||
+        0
+      )} | SPD ${Number(
+        bossStats.speed || 0
+      )} | ATK ${Number(
         bossStats.atkMin || 0
-      )}-${Number(bossStats.atkMax || 0)}`
+      )}-${Number(
+        bossStats.atkMax || 0
+      )}`
     : "Not loaded";
+
+  const raidRuleLines =
+    isEvRaidRoom(room)
+      ? [
+          "**EV Raid Rules**",
+          "• EV Raid max 4 users total: 1 host + 3 crew",
+          "• Each user deploys 3 battle cards from their current team",
+          "• Total maximum 12 cards in EV Raid",
+          "• The same character cannot be deployed twice",
+          "• Special EV rewards are only given to the raid host",
+        ]
+      : isThroneRoom(room)
+        ? [
+            "**Throne Raid Rules**",
+            "• Throne Raid max 4 users total: 1 host + 3 crew",
+            "• Each user deploys 3 battle cards from their current team",
+            "• Total maximum 12 cards in Throne Raid",
+            "• The same character cannot be deployed twice",
+          ]
+        : [
+            "**Raid Rules**",
+            "• Max 10 users total including host",
+            "• Each user joins with 1 battle card",
+            "• The same character code cannot be used twice in the same raid",
+          ];
 
   return new EmbedBuilder()
     .setColor(0x8e44ad)
@@ -1820,8 +1860,14 @@ function buildLobbyEmbed(hostName, room, ended = false, bossStats = null) {
       [
         `**Host:** ${hostName}`,
         `**Boss:** ${room.bossName}`,
-        `**Status:** ${room.status || "waiting"}`,
-        `**Ticket Used:** ${room.ticketConsumed ? "Yes" : "No"}`,
+        `**Status:** ${
+          room.status || "waiting"
+        }`,
+        `**Ticket Used:** ${
+          room.ticketConsumed
+            ? "Yes"
+            : "No"
+        }`,
         "",
         "**Boss Stats**",
         bossStatLine,
@@ -1829,16 +1875,7 @@ function buildLobbyEmbed(hostName, room, ended = false, bossStats = null) {
         "**Joined Participants**",
         ...joinedLines,
         "",
-        "**Rules**",
-        isThroneRoom(room)
-          ? "• Throne Raid max 4 users total: 1 host + 3 crew"
-          : "• Max 10 users total including host",
-        isThroneRoom(room)
-          ? "• Each user joins directly with 3 battle cards from team slots"
-          : "• Each user joins with 1 battle card",
-        isThroneRoom(room)
-          ? "• Total max 12 cards in Throne Raid"
-          : "• The same character code cannot be used twice in the same raid",
+        ...raidRuleLines,
       ].join("\n")
     )
     .setImage(room.bossImage || null)
@@ -1930,20 +1967,69 @@ function formatThroneTeamPreview(cards) {
     .join("\n");
 }
 
+function getRaidRoomBossTemplate(room) {
+  const bossCode =
+    String(
+      room?.bossCode || ""
+    )
+      .toLowerCase()
+      .trim();
+
+  if (!bossCode) {
+    return null;
+  }
+
+  return (
+    rawCards.find(
+      (card) =>
+        String(
+          card?.code || ""
+        )
+          .toLowerCase()
+          .trim() === bossCode
+    ) || null
+  );
+}
+
+function isEvRaidRoom(room) {
+  const bossTemplate =
+    getRaidRoomBossTemplate(room);
+
+  const rarity =
+    String(
+      bossTemplate?.baseTier ||
+      bossTemplate?.rarity ||
+      bossTemplate?.currentTier ||
+      ""
+    )
+      .toUpperCase()
+      .trim();
+
+  return rarity === "EV";
+}
+
 function isThroneRoom(room) {
   const bossCode =
     String(
       room?.bossCode || ""
-    ).toLowerCase();
+    )
+      .toLowerCase()
+      .trim();
 
+  return bossCode === "imu";
+}
+
+function isThreeCardRaidRoom(room) {
   return (
-    bossCode === "imu" ||
-    bossCode === "true_form_sukuna"
+    isThroneRoom(room) ||
+    isEvRaidRoom(room)
   );
 }
 
 function getMaxRaidUsers(room) {
-  return isThroneRoom(room) ? 4 : 10;
+  return isThreeCardRaidRoom(room)
+    ? 4
+    : 10;
 }
 
 function getThroneNonHostJoinedCount(room) {
@@ -1957,7 +2043,9 @@ function getThroneNonHostJoinedCount(room) {
 }
 
 function hasReservedHostSlotAvailable(room, userId) {
-  if (!isThroneRoom(room)) return true;
+  if (!isThreeCardRaidRoom(room)) {
+    return true;
+  }
 
   const hostId = String(room?.hostId || "");
   const isHost = String(userId || "") === hostId;
@@ -4940,9 +5028,19 @@ module.exports = {
 
     const whitelist = getSavedRaidTeam(host);
 
-    const isThroneRaid =
+    const bossRarity =
+      String(
+        bossInfo?.template?.baseTier ||
+        bossInfo?.template?.rarity ||
+        bossInfo?.template?.currentTier ||
+        ""
+      )
+        .toUpperCase()
+        .trim();
+
+    const isThreeCardRaid =
       usedCommand === "throne" ||
-      usedCommand === "cursed";
+      bossRarity === "EV";
 
     const room = createRaidRoom({
       hostId,
@@ -4955,9 +5053,16 @@ module.exports = {
       ticketConsumed: true,
       consumedTicket,
       whitelist,
-      cardsPerUser: isThroneRaid ? 3 : 1,
-      maxParticipants: isThroneRaid ? 4 : 10,
-      uniqueCardCodesOnly: !isThroneRaid,
+      cardsPerUser: isThreeCardRaid
+        ? 3
+        : 1,
+
+      maxParticipants: isThreeCardRaid
+        ? 4
+        : 10,
+
+      uniqueCardCodesOnly:
+        !isThreeCardRaid,
     });
 
     const raidCountResult = consumeRaidCountForUser(
@@ -5037,13 +5142,13 @@ module.exports = {
 
         if (joinedCount >= maxRaidUsers || !hasReservedHostSlotAvailable(activeRoom, userId)) {
           return safeReplyOrEdit(interaction, {
-            content: isThroneRoom(activeRoom)
+            content: isThreeCardRaidRoom(activeRoom)
               ? "This raid is already full for non-host players. The last slot is reserved for the host."
               : "This raid room is already full.",
           });
         }
 
-        if (isThroneRoom(activeRoom)) {
+        if (isThreeCardRaidRoom(activeRoom)) {
           const throneCards = getThroneTeamCards(joiningPlayer);
 
           if (throneCards.length < 3) {
@@ -5201,7 +5306,13 @@ module.exports = {
             await notifyHostIfRaidReady(message, updatedRoom);
           } catch (error) {
             return safeInteractionUpdate(confirmInteraction, {
-              content: error.message || "Failed to join Throne Raid.",
+              content:
+                error.message ||
+                (
+                  isEvRaidRoom(activeRoom)
+                    ? "Failed to join EV Raid."
+                    : "Failed to join Throne Raid."
+                ),
               components: [],
             });
           }
@@ -5356,7 +5467,7 @@ module.exports = {
 
         if (joinedCount > maxRaidUsers) {
           return safeReplyOrEdit(interaction, {
-            content: isThroneRoom(startedRoom)
+            content: isThreeCardRaidRoom(startedRoom)
               ? "This raid can only have max 4 users."
               : "This raid has too many participants.",
           });
