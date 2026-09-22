@@ -3602,7 +3602,7 @@ function giveSupremeRaidWinRewards(
       Boolean(
         isHost &&
         finger &&
-        randomChance(3)
+        randomChance(1)
       );
 
     let username =
