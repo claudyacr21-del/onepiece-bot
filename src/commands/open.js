@@ -779,12 +779,12 @@ function grantBoxRewards(box, amount, state, rewardMap) {
     const roll =
       Math.random() * 100;
 
-    if (roll < 45) {
+    if (roll < 49) {
       addReward(
         ITEMS.fukumaMizushi,
         1
       );
-    } else if (roll < 70) {
+    } else if (roll < 74) {
       addReward(
         getPullResetTicketItem(),
         1 +
@@ -792,7 +792,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
             Math.random() * 3
           )
       );
-    } else if (roll < 85) {
+    } else if (roll < 89) {
       addReward(
         {
           code:
@@ -806,7 +806,7 @@ function grantBoxRewards(box, amount, state, rewardMap) {
         },
         1
       );
-    } else if (roll < 95) {
+    } else if (roll < 99) {
       addReward(
         {
           code:

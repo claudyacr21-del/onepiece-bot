@@ -3594,7 +3594,7 @@ function giveSupremeRaidWinRewards(
 
     const weaponFragments =
       isHost &&
-      randomChance(80)
+      randomChance(65)
         ? 1
         : 0;
 
