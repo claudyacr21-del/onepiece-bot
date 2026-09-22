@@ -1039,7 +1039,7 @@ function buildRewardLines(rewards) {
     )
     .join("\n");
 }
-function buildDayField(
+function buildDayFields(
   player,
   day,
   config
@@ -1082,27 +1082,84 @@ function buildDayField(
       ? ""
       : "\n*Available on its scheduled date.*";
 
-  return {
-    name:
-      getRewardDateLabel(day),
+  const dateLabel =
+    getRewardDateLabel(day);
 
-    value: [
-      `${CURSED_ENERGY_EMOJI} **FREE Halloween Rewards**${freeStatus}`,
-      buildRewardLines(
-        config.free
-      ),
-      "",
-      `${PREMIUM_BOX_EMOJI} **Premium Halloween Rewards**${premiumStatus}`,
-      buildRewardLines(
-        config.premium
-      ),
-      lockedText,
-    ]
-      .filter(Boolean)
-      .join("\n"),
+  const freeValue = [
+    `${CURSED_ENERGY_EMOJI} **FREE Halloween Rewards**${freeStatus}`,
+    buildRewardLines(
+      config.free
+    ),
+  ]
+    .filter(Boolean)
+    .join("\n");
 
-    inline: true,
-  };
+  const premiumValue = [
+    `${PREMIUM_BOX_EMOJI} **Premium Halloween Rewards**${premiumStatus}`,
+    buildRewardLines(
+      config.premium
+    ),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const combinedValue = [
+    freeValue,
+    "",
+    premiumValue,
+    lockedText,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  if (
+    combinedValue.length <= 1024
+  ) {
+    return [
+      {
+        name:
+          dateLabel,
+
+        value:
+          combinedValue,
+
+        inline:
+          true,
+      },
+    ];
+  }
+
+  return [
+    {
+      name:
+        `${dateLabel} — Free`,
+
+      value: [
+        freeValue,
+        lockedText,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+
+      inline:
+        true,
+    },
+
+    {
+      name:
+        `${dateLabel} — Premium`,
+
+      value: [
+        premiumValue,
+        lockedText,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+
+      inline:
+        true,
+    },
+  ];
 }
 
 function buildEmbed(
@@ -1139,12 +1196,12 @@ function buildEmbed(
         .join("\n")
     )
     .addFields(
-      ...pageDays.map(
+      ...pageDays.flatMap(
         ({
           day,
           config,
         }) =>
-          buildDayField(
+          buildDayFields(
             player,
             day,
             config
