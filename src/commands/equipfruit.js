@@ -16,6 +16,13 @@ const {
   getPassiveBoostSummary,
 } = require("../utils/passiveBoosts");
 
+const {
+  getCategoryEmoji,
+} = require("../config/itemEmojis");
+
+const DEVIL_FRUIT_EMOJI =
+  getCategoryEmoji("fruit");
+
 let assetLinks = {};
 try {
   assetLinks = require("../config/assetLinks") || {};
@@ -701,7 +708,9 @@ async function equipFruitToCard(message, player, card, fruit) {
 
   const embed = new EmbedBuilder()
     .setColor(isBoost ? 0x9b59b6 : 0x2ecc71)
-    .setTitle("🍎 Devil Fruit Equipped")
+    .setTitle(
+      `${DEVIL_FRUIT_EMOJI} Devil Fruit Equipped`
+    )
     .setDescription(
       [
         `**Card:** ${syncedCard.displayName || syncedCard.name}`,

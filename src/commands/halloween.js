@@ -18,6 +18,7 @@ const { createOwnedCard } = require("../utils/evolution");
 const { isUniversalAdmin } = require("../utils/universalAdmin");
 const {
   getItemEmoji,
+  getCategoryEmoji,
 } = require("../config/itemEmojis");
 
 const {
@@ -604,7 +605,9 @@ function getRewardEmoji(reward) {
       getItemEmoji(
         reward.code
       ) ||
-      "🍎"
+      getCategoryEmoji(
+        "fruit"
+      )
     );
   }
 
