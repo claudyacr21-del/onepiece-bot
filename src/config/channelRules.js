@@ -18,6 +18,7 @@ module.exports = {
       "balance",
       "pirate",
       "ach",
+      "rum",
       "inv",
       "vote",
       "setvote",
