@@ -178,72 +178,157 @@ function findFruitTemplate(value) {
 }
 
 function getPlayerCollectionPower(player) {
-  const rawCards = Array.isArray(player?.cards)
+  const rawCards = Array.isArray(
+    player?.cards
+  )
     ? player.cards
     : [];
 
-  return rawCards.reduce((sum, rawCard) => {
-    let card = rawCard;
+  const bestPowerByCardCode =
+    new Map();
 
-    try {
-      card = hydrateCard(rawCard) || rawCard;
-    } catch (error) {
-      console.error("[LB POWER HYDRATE ERROR]", {
-        cardId: rawCard?.id,
-        cardCode:
-          rawCard?.code ||
-          rawCard?.cardCode ||
-          rawCard?.characterCode,
-        message: error?.message,
-      });
+  rawCards.forEach(
+    (rawCard, index) => {
+      let card = rawCard;
+
+      try {
+        card =
+          hydrateCard(rawCard) ||
+          rawCard;
+      } catch (error) {
+        console.error(
+          "[LB POWER HYDRATE ERROR]",
+          {
+            cardId:
+              rawCard?.id,
+
+            cardCode:
+              rawCard?.code ||
+              rawCard?.cardCode ||
+              rawCard?.characterCode,
+
+            message:
+              error?.message,
+          }
+        );
+      }
+
+      if (!card) {
+        return;
+      }
+
+      const totalCardPower =
+        Math.max(
+          0,
+          Number(
+            getLeaderboardCardPower(
+              card
+            ) || 0
+          )
+        );
+
+      const weaponPower =
+        Math.max(
+          0,
+          Number(
+            card.weaponPowerBonus ||
+            0
+          )
+        );
+
+      const fruitPower =
+        Math.max(
+          0,
+          Number(
+            card.fruitPowerBonus ||
+            0
+          )
+        );
+
+      const equipmentPower =
+        Math.max(
+          0,
+          Number(
+            card.totalEquipmentPowerBonus ??
+            (
+              weaponPower +
+              fruitPower
+            )
+          )
+        );
+
+      const cardOnlyPower =
+        Math.max(
+          0,
+          totalCardPower -
+          equipmentPower
+        );
+
+      const finalPower =
+        cardOnlyPower +
+        weaponPower +
+        fruitPower;
+
+      if (
+        !Number.isFinite(finalPower)
+      ) {
+        return;
+      }
+
+      const cardCode =
+        normalize(
+          card.code ||
+          card.cardCode ||
+          card.characterCode ||
+          card.baseCode ||
+          card.name ||
+          card.displayName ||
+          ""
+        )
+          .replace(
+            /\s+/g,
+            "_"
+          );
+
+      const uniqueKey =
+        cardCode ||
+        String(
+          card.instanceId ||
+          card.id ||
+          `unknown_card_${index}`
+        );
+
+      const currentBest =
+        Number(
+          bestPowerByCardCode.get(
+            uniqueKey
+          ) || 0
+        );
+
+      if (
+        finalPower >
+        currentBest
+      ) {
+        bestPowerByCardCode.set(
+          uniqueKey,
+          finalPower
+        );
+      }
     }
+  );
 
-    if (!card) {
-      return sum;
-    }
-
-    const totalCardPower = Math.max(
-      0,
-      Number(getLeaderboardCardPower(card) || 0)
-    );
-
-    const weaponPower = Math.max(
-      0,
-      Number(card.weaponPowerBonus || 0)
-    );
-
-    const fruitPower = Math.max(
-      0,
-      Number(card.fruitPowerBonus || 0)
-    );
-
-    const equipmentPower = Math.max(
-      0,
-      Number(
-        card.totalEquipmentPowerBonus ??
-          weaponPower + fruitPower
-      )
-    );
-
-    const cardOnlyPower = Math.max(
-      0,
-      totalCardPower - equipmentPower
-    );
-
-    const finalPower =
-      cardOnlyPower +
-      weaponPower +
-      fruitPower;
-
-    return (
-      sum +
-      (Number.isFinite(finalPower)
-        ? finalPower
-        : 0)
-    );
-  }, 0);
+  return Array.from(
+    bestPowerByCardCode.values()
+  ).reduce(
+    (
+      total,
+      cardPower
+    ) =>
+      total +
+      Number(cardPower || 0),
+    0
+  );
 }
-
 
 function looksLikeGeneratedUserName(value, id = "") {
   const text = String(value || "").trim();
