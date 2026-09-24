@@ -3168,6 +3168,7 @@ async function handlePirateAttack(message, args) {
           "• hard",
           "• extreme",
           "• legendary",
+          "• mythic",
         ].join("\n")
       )
     );
