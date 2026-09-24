@@ -1259,8 +1259,56 @@ function isSameRaidCard(a, b) {
 }
 
 function getRaidBaseBattleCards(player) {
-  const safePlayer = player || { cards: [] };
-  const combatBoosts = getPlayerCombatBoosts(safePlayer);
+  const safePlayer =
+    player || {
+      cards: [],
+    };
+
+  const playerCombatBoosts =
+    getPlayerCombatBoosts(
+      safePlayer
+    );
+
+  const evEffects =
+    playerCombatBoosts
+      .evEffects ||
+    {};
+
+  const combatBoosts = {
+    ...playerCombatBoosts,
+
+    atk:
+      Number(
+        playerCombatBoosts.atk ||
+        0
+      ) -
+      Number(
+        evEffects.teamAtkPercent ||
+        0
+      ),
+
+    hp:
+      Number(
+        playerCombatBoosts.hp ||
+        0
+      ) -
+      Number(
+        evEffects.teamHpPercent ||
+        0
+      ),
+
+    spd:
+      Number(
+        playerCombatBoosts.spd ||
+        0
+      ) -
+      Number(
+        evEffects.teamSpdPercent ||
+        0
+      ),
+
+    evEffects: {},
+  };
 
   const cards = (Array.isArray(safePlayer?.cards) ? safePlayer.cards : [])
     .map((rawCard) => {
@@ -1276,25 +1324,6 @@ function getRaidBaseBattleCards(player) {
           syncedCard,
           combatBoosts
         );
-
-      const evEffects =
-        combatBoosts.evEffects ||
-        {};
-
-      const isTrueFormSukuna =
-        String(
-          syncedCard.code || ""
-        ).toLowerCase() ===
-        "true_form_sukuna";
-
-      const sukunaDamagePercent =
-        isTrueFormSukuna
-          ? Number(
-              evEffects
-                .sukunaDamagePercent ||
-                0
-            )
-          : 0;
 
       // Skin only changes display. Stats must stay from the boosted owned card.
       const displayCard =
@@ -1349,16 +1378,13 @@ function getRaidBaseBattleCards(player) {
             Number(
               combatBoosts.dmg ||
               0
-            ) +
-            sukunaDamagePercent,
+            ),
 
           exp:
             Number(
               combatBoosts.exp ||
               0
             ),
-
-          evEffects,
         },
       };
     })
@@ -1456,15 +1482,45 @@ function toRoomCard(card) {
     teamPower: power,
 
     passiveBoostsApplied: {
-      atk: Number(synced.passiveBoostsApplied?.atk || 0),
-      hp: Number(synced.passiveBoostsApplied?.hp || 0),
-      spd: Number(synced.passiveBoostsApplied?.spd || 0),
-      dmg: Number(synced.passiveBoostsApplied?.dmg || 0),
-      exp: Number(synced.passiveBoostsApplied?.exp || 0),
+      atk:
+        Number(
+          synced
+            .passiveBoostsApplied
+            ?.atk ||
+          0
+        ),
 
-      evEffects: {
-        ...(synced.passiveBoostsApplied?.evEffects || {}),
-      },
+      hp:
+        Number(
+          synced
+            .passiveBoostsApplied
+            ?.hp ||
+          0
+        ),
+
+      spd:
+        Number(
+          synced
+            .passiveBoostsApplied
+            ?.spd ||
+          0
+        ),
+
+      dmg:
+        Number(
+          synced
+            .passiveBoostsApplied
+            ?.dmg ||
+          0
+        ),
+
+      exp:
+        Number(
+          synced
+            .passiveBoostsApplied
+            ?.exp ||
+          0
+        ),
     },
 
     hasCustomSkin,
@@ -1587,15 +1643,45 @@ function buildBattleRoster(room) {
         ),
         cardConflictKey: getRoomCardConflictKey(displayed.hasCustomSkin ? displayed : picked),
         passiveBoostsApplied: {
-          atk: Number(displayed.passiveBoostsApplied?.atk || 0),
-          hp: Number(displayed.passiveBoostsApplied?.hp || 0),
-          spd: Number(displayed.passiveBoostsApplied?.spd || 0),
-          dmg: Number(displayed.passiveBoostsApplied?.dmg || 0),
-          exp: Number(displayed.passiveBoostsApplied?.exp || 0),
+          atk:
+            Number(
+              displayed
+                .passiveBoostsApplied
+                ?.atk ||
+              0
+            ),
 
-          evEffects: {
-            ...(displayed.passiveBoostsApplied?.evEffects || {}),
-          },
+          hp:
+            Number(
+              displayed
+                .passiveBoostsApplied
+                ?.hp ||
+              0
+            ),
+
+          spd:
+            Number(
+              displayed
+                .passiveBoostsApplied
+                ?.spd ||
+              0
+            ),
+
+          dmg:
+            Number(
+              displayed
+                .passiveBoostsApplied
+                ?.dmg ||
+              0
+            ),
+
+          exp:
+            Number(
+              displayed
+                .passiveBoostsApplied
+                ?.exp ||
+              0
+            ),
         },
         alive: true,
       });
@@ -2155,7 +2241,9 @@ function buildBattleState(
   client = null
 ) {
   const members =
-    buildBattleRoster(room).map(
+    buildBattleRoster(
+      room
+    ).map(
       (member) => ({
         ...member,
         actionCooldown: 0,
@@ -2166,61 +2254,6 @@ function buildBattleState(
     deriveRaidBossStats(
       bossTemplate,
       raidMode
-    );
-
-  const enemyHpReduction =
-    members.reduce(
-      (highest, member) =>
-        Math.max(
-          highest,
-          Number(
-            member
-              ?.passiveBoostsApplied
-              ?.evEffects
-              ?.enemyMaxHpReductionPercent ||
-              0
-          )
-        ),
-      0
-    );
-
-  const emergencyHealPercent =
-    members.reduce(
-      (highest, member) =>
-        Math.max(
-          highest,
-          Number(
-            member
-              ?.passiveBoostsApplied
-              ?.evEffects
-              ?.emergencyHealPercent ||
-              0
-          )
-        ),
-      0
-    );
-
-  const reducedBossHp =
-    Math.max(
-      1,
-      Math.floor(
-        Number(
-          bossStats.maxHp ||
-          bossStats.hp ||
-          1
-        ) *
-        (
-          1 -
-          Math.min(
-            90,
-            Math.max(
-              0,
-              enemyHpReduction
-            )
-          ) /
-          100
-        )
-      )
     );
 
   return {
@@ -2256,53 +2289,57 @@ function buildBattleState(
 
     boss: {
       ...bossStats,
-      hp: reducedBossHp,
-      maxHp: reducedBossHp,
+
+      hp:
+        Number(
+          bossStats.hp ||
+          bossStats.maxHp ||
+          1
+        ),
+
+      maxHp:
+        Number(
+          bossStats.maxHp ||
+          bossStats.hp ||
+          1
+        ),
+
       bossCode:
         bossTemplate.code,
+
       bossName:
         bossTemplate.displayName ||
         bossTemplate.name,
+
       rarity:
         bossTemplate.rarity ||
         bossTemplate.currentTier ||
         bossTemplate.baseTier ||
         "C",
+
       currentTier:
         bossTemplate.currentTier ||
         bossTemplate.rarity ||
         bossTemplate.baseTier ||
         "C",
+
       mergeSourceCodes:
         getMergeSourceCodes(
           bossTemplate
         ),
     },
 
-    evEmergencyHealPercent:
-      Math.max(
-        0,
-        Math.min(
-          100,
-          emergencyHealPercent
-        )
-      ),
-
-    evEmergencyHealUsed:
-      false,
-
     round: 1,
     turnCount: 0,
+
     log: [
-      enemyHpReduction > 0
-        ? `Reverse Cursed reduced Boss Max HP by ${enemyHpReduction}%.`
-        : "Raid battle started.",
+      "Raid battle started.",
     ],
+
     finished: false,
     winner: null,
   };
 }
-
 
 function pushBattleLog(state, line) {
   state.log.push(line);
@@ -4632,110 +4669,6 @@ function performRaidBossAttack(state, target, combatLogs) {
   );
 }
 
-function tryActivateRaidMalevolentShrine(
-  state,
-  combatLogs
-) {
-  if (
-    state.evEmergencyHealUsed ||
-    Number(
-      state
-        .evEmergencyHealPercent ||
-        0
-    ) <= 0
-  ) {
-    return false;
-  }
-
-  const sukunaMember =
-    ensureArray(
-      state.members
-    ).find(
-      (member) =>
-        String(
-          member.code || ""
-        ).toLowerCase() ===
-          "true_form_sukuna" &&
-        Number(
-          member.hp || 0
-        ) > 0
-    );
-
-  if (!sukunaMember) {
-    return false;
-  }
-
-  const maxHp =
-    Math.max(
-      1,
-      Number(
-        sukunaMember.maxHp ||
-        sukunaMember
-          .battleMaxHp ||
-        1
-      )
-    );
-
-  const currentHp =
-    Math.max(
-      0,
-      Number(
-        sukunaMember.hp || 0
-      )
-    );
-
-  if (
-    currentHp /
-      maxHp >=
-      0.5
-  ) {
-    return false;
-  }
-
-  const healPercent =
-    Math.max(
-      0,
-      Math.min(
-        100,
-        Number(
-          state
-            .evEmergencyHealPercent
-        )
-      )
-    );
-
-  const healedHp =
-    Math.min(
-      maxHp,
-      currentHp +
-        Math.max(
-          1,
-          Math.floor(
-            maxHp *
-            (
-              healPercent /
-              100
-            )
-          )
-        )
-    );
-
-  sukunaMember.hp =
-    healedHp;
-
-  sukunaMember.battleHp =
-    healedHp;
-
-  state.evEmergencyHealUsed =
-    true;
-
-  combatLogs.push(
-    `Malevolent Shrine restored ${healPercent}% HP to ${sukunaMember.name}.`
-  );
-
-  return true;
-}
-
 function handleRaidAttack(state, actor) {
   const combatLogs = [];
 
@@ -4767,11 +4700,6 @@ function handleRaidAttack(state, actor) {
       combatLogs
     );
   }
-
-  tryActivateRaidMalevolentShrine(
-    state,
-    combatLogs
-  );
 
   tickActionCooldownsAfterAttack(
     state,
