@@ -14,7 +14,10 @@ const cardsDb = require("../data/cards");
 const weaponsDb = require("../data/weapons");
 const devilFruitsDb = require("../data/devilFruits");
 const { ITEMS, cloneItem } = require("../data/items");
-const { createOwnedCard } = require("../utils/evolution");
+const {
+  createOwnedCard,
+  hydrateCard,
+} = require("../utils/evolution");
 const { isUniversalAdmin } = require("../utils/universalAdmin");
 const {
   getItemEmoji,
@@ -802,14 +805,188 @@ function applyWeaponReward(
     );
   }
 
-  player.weapons = addOrIncrease(
-    player.weapons,
-    {
-      ...clone(template),
-      upgradeLevel: 0,
-    },
-    reward.amount
-  );
+  const amount =
+    Math.max(
+      1,
+      Math.floor(
+        Number(
+          reward.amount ||
+          1
+        )
+      )
+    );
+
+  const cards =
+    Array.isArray(
+      player.cards
+    )
+      ? [...player.cards]
+      : [];
+
+  const sukunaIndex =
+    cards.findIndex(
+      (entry) =>
+        normalizeCode(
+          entry?.code
+        ) ===
+        "true_form_sukuna"
+    );
+
+  const isKamutoke =
+    normalizeCode(
+      template.code
+    ) ===
+    "kamutoke";
+
+  if (
+    isKamutoke &&
+    sukunaIndex >= 0
+  ) {
+    const rawCard =
+      cards[sukunaIndex];
+
+    const equippedWeapons =
+      Array.isArray(
+        rawCard
+          ?.equippedWeapons
+      )
+        ? rawCard
+            .equippedWeapons
+            .filter(Boolean)
+        : [];
+
+    const legacyWeapon =
+      normalizeCode(
+        rawCard
+          ?.equippedWeaponCode ||
+        rawCard
+          ?.equippedWeapon ||
+        ""
+      );
+
+    const hasKamutoke =
+      equippedWeapons.some(
+        (weaponEntry) =>
+          normalizeCode(
+            weaponEntry?.code ||
+            weaponEntry?.name
+          ) ===
+          "kamutoke"
+      ) ||
+      legacyWeapon ===
+        "kamutoke";
+
+    const hasAnyWeapon =
+      equippedWeapons.length >
+        0 ||
+      (
+        legacyWeapon &&
+        legacyWeapon !== "none"
+      );
+
+    if (
+      !hasKamutoke &&
+      !hasAnyWeapon
+    ) {
+      const equippedPayload = {
+        ...clone(template),
+
+        baseStatPercent:
+          clone(
+            template.statPercent ||
+            {
+              atk: 0,
+              hp: 0,
+              speed: 0,
+            }
+          ),
+
+        ownerBonusPercent:
+          clone(
+            template
+              .ownerBonusPercent ||
+            {
+              atk: 0,
+              hp: 0,
+              speed: 0,
+            }
+          ),
+
+        upgradeLevel: 0,
+      };
+
+      cards[sukunaIndex] =
+        hydrateCard({
+          ...rawCard,
+
+          equippedWeapons: [
+            equippedPayload,
+          ],
+
+          equippedWeapon:
+            template.name,
+
+          equippedWeaponName:
+            template.name,
+
+          equippedWeaponCode:
+            template.code,
+
+          equippedWeaponLevel:
+            0,
+        }) ||
+        {
+          ...rawCard,
+
+          equippedWeapons: [
+            equippedPayload,
+          ],
+
+          equippedWeapon:
+            template.name,
+
+          equippedWeaponName:
+            template.name,
+
+          equippedWeaponCode:
+            template.code,
+
+          equippedWeaponLevel:
+            0,
+        };
+
+      player.cards = cards;
+
+      const remainingAmount =
+        amount - 1;
+
+      if (
+        remainingAmount > 0
+      ) {
+        player.weapons =
+          addOrIncrease(
+            player.weapons,
+            {
+              ...clone(template),
+              upgradeLevel: 0,
+            },
+            remainingAmount
+          );
+      }
+
+      return;
+    }
+  }
+
+  player.weapons =
+    addOrIncrease(
+      player.weapons,
+      {
+        ...clone(template),
+        upgradeLevel: 0,
+      },
+      amount
+    );
 }
 
 function applyMasteryReward(player,reward) {
@@ -887,13 +1064,120 @@ function applyFruitReward(
     );
   }
 
+  const amount =
+    Math.max(
+      1,
+      Math.floor(
+        Number(
+          reward.amount ||
+          1
+        )
+      )
+    );
+
+  const cards =
+    Array.isArray(
+      player.cards
+    )
+      ? [...player.cards]
+      : [];
+
+  const sukunaIndex =
+    cards.findIndex(
+      (entry) =>
+        normalizeCode(
+          entry?.code
+        ) ===
+        "true_form_sukuna"
+    );
+
+  const isFinger =
+    normalizeCode(
+      template.code
+    ) ===
+    "finger";
+
+  if (
+    isFinger &&
+    sukunaIndex >= 0
+  ) {
+    const rawCard =
+      cards[sukunaIndex];
+
+    const equippedFruitCode =
+      normalizeCode(
+        rawCard
+          ?.equippedDevilFruit ||
+        rawCard
+          ?.equippedDevilFruitCode ||
+        rawCard
+          ?.equippedDevilFruitName ||
+        ""
+      );
+
+    const hasAnyFruit =
+      Boolean(
+        equippedFruitCode &&
+        equippedFruitCode !==
+          "none"
+      );
+
+    if (!hasAnyFruit) {
+      cards[sukunaIndex] =
+        hydrateCard({
+          ...rawCard,
+
+          equippedDevilFruit:
+            template.code,
+
+          equippedDevilFruitCode:
+            template.code,
+
+          equippedDevilFruitName:
+            template.name,
+        }) ||
+        {
+          ...rawCard,
+
+          equippedDevilFruit:
+            template.code,
+
+          equippedDevilFruitCode:
+            template.code,
+
+          equippedDevilFruitName:
+            template.name,
+        };
+
+      player.cards = cards;
+
+      const remainingAmount =
+        amount - 1;
+
+      if (
+        remainingAmount > 0
+      ) {
+        player.devilFruits =
+          addOrIncrease(
+            player.devilFruits,
+            {
+              ...clone(template),
+            },
+            remainingAmount
+          );
+      }
+
+      return;
+    }
+  }
+
   player.devilFruits =
     addOrIncrease(
       player.devilFruits,
       {
         ...clone(template),
       },
-      reward.amount
+      amount
     );
 }
 
