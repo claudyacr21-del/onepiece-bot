@@ -17,6 +17,7 @@ const COLOR = 0x3498db;
 const PAGE_SIZE = 12;
 
 const RARITY_ORDER = {
+  EV: 7,
   UR: 6,
   SS: 5,
   S: 4,
