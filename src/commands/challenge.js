@@ -9,6 +9,7 @@ const { applyCustomSkinToCard } = require("../utils/customSkins");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
   getEvCardEffects,
+  applyEvCardStatEffects,
   applyEvEnemyMaxHpEffect,
   tryActivateEvEmergencyHeal,
 } = require("../utils/evAbilities");
@@ -239,9 +240,7 @@ function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}, player = 
       atk: Number(boosts.atk || 0),
       hp: Number(boosts.hp || 0),
       spd: Number(boosts.spd || 0),
-      dmg:
-        Number(boosts.dmg || 0) +
-        Number(evCardEffects.selfDamagePercent || 0),
+      dmg: Number(boosts.dmg || 0),
       exp: Number(boosts.exp || 0),
     },
   };

@@ -1001,6 +1001,87 @@ function tryActivateEvEmergencyHeal(
   return activated;
 }
 
+function applyEvCardStatEffects(
+  stats,
+  cardEffects = {}
+) {
+  const baseAtk = Math.max(
+    1,
+    Number(stats?.atk || 1)
+  );
+
+  const baseHp = Math.max(
+    1,
+    Number(stats?.hp || 1)
+  );
+
+  const baseSpeed = Math.max(
+    1,
+    Number(stats?.speed || 1)
+  );
+
+  const atkPercent =
+    Number(
+      cardEffects.selfAttackPercent ||
+      0
+    ) +
+    Number(
+      cardEffects.selfDamagePercent ||
+      0
+    );
+
+  const hpPercent = Number(
+    cardEffects.selfHealthPercent ||
+    0
+  );
+
+  const speedPercent = Number(
+    cardEffects.selfSpeedPercent ||
+    0
+  );
+
+  return {
+    atk: Math.max(
+      1,
+      Math.floor(
+        baseAtk *
+        (
+          1 +
+          atkPercent / 100
+        )
+      )
+    ),
+
+    hp: Math.max(
+      1,
+      Math.floor(
+        baseHp *
+        (
+          1 +
+          hpPercent / 100
+        )
+      )
+    ),
+
+    speed: Math.max(
+      1,
+      Math.floor(
+        baseSpeed *
+        (
+          1 +
+          speedPercent / 100
+        )
+      )
+    ),
+
+    applied: {
+      atk: atkPercent,
+      hp: hpPercent,
+      speed: speedPercent,
+    },
+  };
+}
+
 module.exports = {
   normalizeCode,
   getCardCode,
@@ -1024,6 +1105,7 @@ module.exports = {
   hasMalevolentShrine,
   getMalevolentShrineHeal,
   getUnitEffectKey,
+  applyEvCardStatEffects,
   applyEvEnemyMaxHpEffect,
   tryActivateEvEmergencyHeal,
 };
