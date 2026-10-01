@@ -1001,6 +1001,52 @@ function tryActivateEvEmergencyHeal(
   return activated;
 }
 
+function getEvBattleStatBoosts(
+  card,
+  teamEffects = {}
+) {
+  const cardEffects =
+    getEvCardEffects(card);
+
+  return {
+    atk:
+      Number(
+        teamEffects.teamAtkPercent ||
+        0
+      ) +
+      Number(
+        cardEffects.selfAttackPercent ||
+        0
+      ) +
+      Number(
+        cardEffects.selfDamagePercent ||
+        0
+      ),
+
+    hp:
+      Number(
+        teamEffects.teamHpPercent ||
+        0
+      ) +
+      Number(
+        cardEffects.selfHealthPercent ||
+        0
+      ),
+
+    spd:
+      Number(
+        teamEffects.teamSpdPercent ||
+        0
+      ) +
+      Number(
+        cardEffects.selfSpeedPercent ||
+        0
+      ),
+
+    cardEffects,
+  };
+}
+
 module.exports = {
   normalizeCode,
   getCardCode,
@@ -1024,6 +1070,7 @@ module.exports = {
   hasMalevolentShrine,
   getMalevolentShrineHeal,
   getUnitEffectKey,
+  getEvBattleStatBoosts,
   applyEvEnemyMaxHpEffect,
   tryActivateEvEmergencyHeal,
 };

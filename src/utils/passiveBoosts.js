@@ -579,10 +579,6 @@ function getPassiveBoostSummary(player) {
       Number(
         fruitGlobalBoosts.atk ||
         0
-      ) +
-      Number(
-        evEffects.teamAtkPercent ||
-        0
       ),
 
     hp:
@@ -593,10 +589,6 @@ function getPassiveBoostSummary(player) {
       Number(
         fruitGlobalBoosts.hp ||
         0
-      ) +
-      Number(
-        evEffects.teamHpPercent ||
-        0
       ),
 
     spd:
@@ -606,10 +598,6 @@ function getPassiveBoostSummary(player) {
       ) +
       Number(
         fruitGlobalBoosts.spd ||
-        0
-      ) +
-      Number(
-        evEffects.teamSpdPercent ||
         0
       ),
 

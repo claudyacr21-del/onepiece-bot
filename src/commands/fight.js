@@ -30,6 +30,7 @@ const {
 } = require("../utils/combatStats");
 const {
   getEvCardEffects,
+  getEvBattleStatBoosts,
   applyEvEnemyMaxHpEffect,
   tryActivateEvEmergencyHeal,
 } = require("../utils/evAbilities");
@@ -345,20 +346,39 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
   const displayHp = getFightCardHp(card);
   const displaySpeed = getFightCardSpeed(card);
 
+  const evStatBoosts =
+    getEvBattleStatBoosts(
+      card,
+      combatBoosts.evEffects ||
+      {}
+    );
+
   const totalAtkBoost =
     Number(combatBoosts.atk || 0) +
-    Number(
-      evCardEffects.selfDamagePercent ||
-      0
-    );
+    Number(evStatBoosts.atk || 0);
+
+  const totalHpBoost =
+    Number(combatBoosts.hp || 0) +
+    Number(evStatBoosts.hp || 0);
+
+  const totalSpdBoost =
+    Number(combatBoosts.spd || 0) +
+    Number(evStatBoosts.spd || 0);
 
   const battleAtk = applyBoostToNumber(
     displayAtk,
     totalAtkBoost
   );
 
-  const battleMaxHp = applyBoostToNumber(displayHp, combatBoosts.hp);
-  const battleSpeed = applyBoostToNumber(displaySpeed, combatBoosts.spd);
+  const battleMaxHp = applyBoostToNumber(
+    displayHp,
+    totalHpBoost
+  );
+
+  const battleSpeed = applyBoostToNumber(
+    displaySpeed,
+    totalSpdBoost
+  );
 
   const hasCustomSkin = Boolean(displayCard?.hasCustomSkin);
   const skinName = hasCustomSkin
@@ -408,8 +428,8 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
 
     passiveBoostsApplied: {
       atk: totalAtkBoost,
-      hp: Number(combatBoosts.hp || 0),
-      spd: Number(combatBoosts.spd || 0),
+      hp: totalHpBoost,
+      spd: totalSpdBoost,
       dmg: Number(combatBoosts.dmg || 0),
       exp: Number(combatBoosts.exp || 0),
     },
