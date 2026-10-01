@@ -28,12 +28,14 @@ function getCardDefinition(card) {
     getCardCode(card);
 
   const template =
-    (Array.isArray(cardsDb)
-      ? cardsDb
-      : []
+    (
+      Array.isArray(cardsDb)
+        ? cardsDb
+        : []
     ).find(
       (entry) =>
-        getCardCode(entry) === code
+        getCardCode(entry) ===
+        code
     );
 
   if (!template) {
@@ -45,13 +47,33 @@ function getCardDefinition(card) {
     ...card,
 
     abilities:
-      Array.isArray(card.abilities)
-        ? card.abilities
-        : Array.isArray(
-              template.abilities
-            )
-          ? template.abilities
-          : [],
+      Array.isArray(
+        template.abilities
+      )
+        ? template.abilities.map(
+            (ability) => ({
+              ...ability,
+
+              effect:
+                ability?.effect
+                  ? {
+                      ...ability.effect,
+                    }
+                  : undefined,
+
+              effects:
+                Array.isArray(
+                  ability?.effects
+                )
+                  ? ability.effects.map(
+                      (effect) => ({
+                        ...effect,
+                      })
+                    )
+                  : undefined,
+            })
+          )
+        : [],
   };
 }
 
