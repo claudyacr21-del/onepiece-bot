@@ -9,7 +9,6 @@ const { applyCustomSkinToCard } = require("../utils/customSkins");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
   getEvCardEffects,
-  applyEvCardStatEffects,
   applyEvEnemyMaxHpEffect,
   tryActivateEvEmergencyHeal,
 } = require("../utils/evAbilities");
@@ -199,9 +198,27 @@ function applyBoostedDisplayStats(card, boosts = {}) {
 
 function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}, player = null) {
   const synced = hydrateCard(card) || card;
-  const boosted = applyBoostedDisplayStats(synced, boosts);
+
+  const evCardEffects =
+    getEvCardEffects(synced);
+
+  const evBoosts = {
+    ...boosts,
+
+    atk:
+      Number(boosts.atk || 0) +
+      Number(
+        evCardEffects.selfDamagePercent ||
+        0
+      ),
+  };
+
+  const boosted = applyBoostedDisplayStats(
+    synced,
+    evBoosts
+  );
+
   const displayCard = player ? applyCustomSkinToCard(player, boosted) : boosted;
-  const evCardEffects = getEvCardEffects(boosted);
 
   const hasCustomSkin = Boolean(displayCard?.hasCustomSkin);
   const skinName = hasCustomSkin
@@ -237,11 +254,11 @@ function buildBattleUnit(card, slot, ownerTag = "player", boosts = {}, player = 
     evEffects: evCardEffects,
 
     passiveBoostsApplied: {
-      atk: Number(boosts.atk || 0),
-      hp: Number(boosts.hp || 0),
-      spd: Number(boosts.spd || 0),
-      dmg: Number(boosts.dmg || 0),
-      exp: Number(boosts.exp || 0),
+      atk: Number(evBoosts.atk || 0),
+      hp: Number(evBoosts.hp || 0),
+      spd: Number(evBoosts.spd || 0),
+      dmg: Number(evBoosts.dmg || 0),
+      exp: Number(evBoosts.exp || 0),
     },
   };
 }

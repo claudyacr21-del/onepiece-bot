@@ -30,7 +30,6 @@ const {
 } = require("../utils/combatStats");
 const {
   getEvCardEffects,
-  applyEvCardStatEffects,
   applyEvEnemyMaxHpEffect,
   tryActivateEvEmergencyHeal,
 } = require("../utils/evAbilities");
@@ -346,7 +345,18 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
   const displayHp = getFightCardHp(card);
   const displaySpeed = getFightCardSpeed(card);
 
-  const battleAtk = applyBoostToNumber(displayAtk, combatBoosts.atk);
+  const totalAtkBoost =
+    Number(combatBoosts.atk || 0) +
+    Number(
+      evCardEffects.selfDamagePercent ||
+      0
+    );
+
+  const battleAtk = applyBoostToNumber(
+    displayAtk,
+    totalAtkBoost
+  );
+
   const battleMaxHp = applyBoostToNumber(displayHp, combatBoosts.hp);
   const battleSpeed = applyBoostToNumber(displaySpeed, combatBoosts.spd);
 
@@ -397,7 +407,7 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
     evEffects: evCardEffects,
 
     passiveBoostsApplied: {
-      atk: Number(combatBoosts.atk || 0),
+      atk: totalAtkBoost,
       hp: Number(combatBoosts.hp || 0),
       spd: Number(combatBoosts.spd || 0),
       dmg: Number(combatBoosts.dmg || 0),

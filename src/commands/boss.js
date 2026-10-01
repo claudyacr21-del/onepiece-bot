@@ -20,7 +20,6 @@ const { isMergeCard, buildMergedCard } = require("../utils/mergeCards");
 const { getPassiveBoostSummary } = require("../utils/passiveBoosts");
 const {
   getEvCardEffects,
-  applyEvCardStatEffects,
   applyEvEnemyMaxHpEffect,
   tryActivateEvEmergencyHeal,
 } = require("../utils/evAbilities");
@@ -644,9 +643,26 @@ function formatExpResults(playerTeam, expResults) {
 }
 
 function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
-  const boosted = applyBoostedDisplayStats(card, combatBoosts);
+  const evCardEffects =
+    getEvCardEffects(card);
+
+  const evCombatBoosts = {
+    ...combatBoosts,
+
+    atk:
+      Number(combatBoosts.atk || 0) +
+      Number(
+        evCardEffects.selfDamagePercent ||
+        0
+      ),
+  };
+
+  const boosted = applyBoostedDisplayStats(
+    card,
+    evCombatBoosts
+  );
+
   const displayCard = player ? applyCustomSkinToCard(player, boosted) : boosted;
-  const evCardEffects = getEvCardEffects(boosted);
 
   const displayAtk = getBossCardAtk(boosted);
   const displayHp = getBossCardHp(boosted);
@@ -699,11 +715,11 @@ function toBattleUnit(card, slotIndex, combatBoosts = {}, player = null) {
     evEffects: evCardEffects,
 
     passiveBoostsApplied: {
-      atk: Number(combatBoosts.atk || 0),
-      hp: Number(combatBoosts.hp || 0),
-      spd: Number(combatBoosts.spd || 0),
-      dmg: Number(combatBoosts.dmg || 0),
-      exp: Number(combatBoosts.exp || 0),
+      atk: Number(evCombatBoosts.atk || 0),
+      hp: Number(evCombatBoosts.hp || 0),
+      spd: Number(evCombatBoosts.spd || 0),
+      dmg: Number(evCombatBoosts.dmg || 0),
+      exp: Number(evCombatBoosts.exp || 0),
     },
   };
 }
