@@ -1068,6 +1068,14 @@ client.on("messageCreate", async (message) => {
       if (
         cursedEnergyPhraseHandled
       ) {
+        if (message.guild) {
+          setImmediate(() => {
+            trackMessageMilestone(message).catch((error) => {
+              console.error("[MESSAGE MILESTONE ERROR]", error);
+            });
+          });
+        }
+
         return;
       }
 
