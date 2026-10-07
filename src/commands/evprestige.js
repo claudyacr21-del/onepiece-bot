@@ -20,10 +20,13 @@ function normalize(value) {
 }
 
 function normalizeCode(value) {
-  return normalize(value).replace(/\s+/g, "_");
+  return normalize(value).replace(
+    /\s+/g,
+    "_"
+  );
 }
 
-function getFragmentAmount(entry) {
+function getAmount(entry) {
   return Math.max(
     0,
     Math.floor(
@@ -37,7 +40,7 @@ function getFragmentAmount(entry) {
   );
 }
 
-function setFragmentAmount(entry, amount) {
+function setAmount(entry, amount) {
   const next = {
     ...entry,
     amount,
@@ -81,12 +84,16 @@ function scoreQuery(query, values) {
         best,
         1000 + value.length
       );
-    } else if (value.startsWith(q)) {
+    } else if (
+      value.startsWith(q)
+    ) {
       best = Math.max(
         best,
         700 + q.length
       );
-    } else if (value.includes(q)) {
+    } else if (
+      value.includes(q)
+    ) {
       best = Math.max(
         best,
         400 + q.length
@@ -138,40 +145,39 @@ function cardMatchesTemplate(
   ownedCard,
   template
 ) {
-  const targetCode = normalizeCode(
-    template.code
-  );
+  const targetCode =
+    normalizeCode(template.code);
 
-  const ownedCodes = [
+  const codes = [
     ownedCard?.code,
     ownedCard?.baseCode,
     ownedCard?.cardCode,
     ownedCard?.sourceCode,
   ].map(normalizeCode);
 
-  return ownedCodes.includes(targetCode);
+  return codes.includes(targetCode);
 }
 
 function findEvWeapon(card) {
-  const requiredCode = normalizeCode(
-    card.evWeaponCode
-  );
-
-  if (requiredCode) {
-    const exactWeapon = weaponsDb.find(
-      (weapon) =>
-        normalizeCode(weapon.code) ===
-        requiredCode
+  const requiredCode =
+    normalizeCode(
+      card.evWeaponCode
     );
 
-    if (exactWeapon) {
-      return exactWeapon;
-    }
+  if (requiredCode) {
+    const exact =
+      weaponsDb.find(
+        (weapon) =>
+          normalizeCode(
+            weapon.code
+          ) === requiredCode
+      );
+
+    if (exact) return exact;
   }
 
-  const cardCode = normalizeCode(
-    card.code
-  );
+  const cardCode =
+    normalizeCode(card.code);
 
   return (
     weaponsDb.find((weapon) => {
@@ -179,11 +185,12 @@ function findEvWeapon(card) {
         weapon.rarity || ""
       ).toUpperCase();
 
-      const owners = Array.isArray(
-        weapon.owners
-      )
-        ? weapon.owners
-        : [];
+      const owners =
+        Array.isArray(
+          weapon.owners
+        )
+          ? weapon.owners
+          : [];
 
       return (
         rarity === "EV" &&
@@ -197,7 +204,10 @@ function findEvWeapon(card) {
   );
 }
 
-function isCardFragment(entry, card) {
+function isCardFragment(
+  entry,
+  card
+) {
   if (
     String(
       entry?.category || ""
@@ -206,41 +216,38 @@ function isCardFragment(entry, card) {
     return false;
   }
 
-  const targetCode = normalizeCode(
-    card.code
-  );
+  const target =
+    normalizeCode(card.code);
 
-  const entryCodes = [
+  const codes = [
     entry?.code,
     entry?.cardCode,
     entry?.sourceCode,
   ].map(normalizeCode);
 
-  return entryCodes.includes(
-    targetCode
-  );
+  return codes.includes(target);
 }
 
 function isWeaponFragment(
   entry,
   weapon
 ) {
-  const weaponCode = normalizeCode(
-    weapon.code
-  );
+  const weaponCode =
+    normalizeCode(weapon.code);
 
-  const fragmentCode = normalizeCode(
-    `weapon_fragment_${weapon.code}`
-  );
+  const fragmentCode =
+    normalizeCode(
+      `weapon_fragment_${weapon.code}`
+    );
 
-  const entryCode = normalizeCode(
-    entry?.code
-  );
+  const entryCode =
+    normalizeCode(entry?.code);
 
-  const linkedWeapon = normalizeCode(
-    entry?.weaponCode ||
-      entry?.sourceWeaponCode
-  );
+  const linkedWeapon =
+    normalizeCode(
+      entry?.weaponCode ||
+        entry?.sourceWeaponCode
+    );
 
   return (
     entryCode === fragmentCode ||
@@ -257,7 +264,9 @@ function consumeFragments(
   const updated = [];
 
   for (
-    const entry of Array.isArray(fragments)
+    const entry of Array.isArray(
+      fragments
+    )
       ? fragments
       : []
   ) {
@@ -270,7 +279,7 @@ function consumeFragments(
     }
 
     const owned =
-      getFragmentAmount(entry);
+      getAmount(entry);
 
     const used = Math.min(
       owned,
@@ -283,10 +292,7 @@ function consumeFragments(
 
     if (left > 0) {
       updated.push(
-        setFragmentAmount(
-          entry,
-          left
-        )
+        setAmount(entry, left)
       );
     }
   }
@@ -314,10 +320,13 @@ module.exports = {
       .trim();
 
     if (
-      !["card", "weapon"].includes(
-        source
+      ![
+        "card",
+        "weapon",
+      ].includes(source) ||
+      !Number.isFinite(
+        requested
       ) ||
-      !Number.isFinite(requested) ||
       requested <= 0 ||
       !query
     ) {
@@ -410,8 +419,15 @@ module.exports = {
               weapon
             );
 
+    const prestigePerFragment =
+      source === "card"
+        ? 2
+        : 1;
+
     const playerFragments =
-      Array.isArray(player.fragments)
+      Array.isArray(
+        player.fragments
+      )
         ? player.fragments
         : [];
 
@@ -421,7 +437,7 @@ module.exports = {
         .reduce(
           (total, entry) =>
             total +
-            getFragmentAmount(entry),
+            getAmount(entry),
           0
         );
 
@@ -432,8 +448,10 @@ module.exports = {
           EV_MAX_PRESTIGE,
           Math.floor(
             Number(
-              playerCards[ownedIndex]
-                ?.raidPrestige || 0
+              playerCards[
+                ownedIndex
+              ]?.raidPrestige ||
+                0
             )
           )
         )
@@ -454,10 +472,14 @@ module.exports = {
       });
     }
 
-    const usedAmount = Math.min(
-      requested,
-      neededForCap
-    );
+    const usedAmount =
+      Math.min(
+        requested,
+        Math.ceil(
+          neededForCap /
+            prestigePerFragment
+        )
+      );
 
     if (
       ownedFragments <
@@ -487,12 +509,15 @@ module.exports = {
       currentPrestige;
     let remainingFragments =
       ownedFragments;
+    let consumedFragments = 0;
 
     updatePlayerAtomic(
       message.author.id,
       (fresh) => {
         const cards =
-          Array.isArray(fresh.cards)
+          Array.isArray(
+            fresh.cards
+          )
             ? fresh.cards.map(
                 (card) => ({
                   ...card,
@@ -528,7 +553,7 @@ module.exports = {
             .reduce(
               (total, entry) =>
                 total +
-                getFragmentAmount(
+                getAmount(
                   entry
                 ),
               0
@@ -549,11 +574,17 @@ module.exports = {
           )
         );
 
+        const prestigeRoom =
+          EV_MAX_PRESTIGE -
+          oldPrestige;
+
         const actualUsed =
           Math.min(
             usedAmount,
-            EV_MAX_PRESTIGE -
-              oldPrestige
+            Math.ceil(
+              prestigeRoom /
+                prestigePerFragment
+            )
           );
 
         if (
@@ -575,9 +606,19 @@ module.exports = {
           return fresh;
         }
 
+        consumedFragments =
+          actualUsed;
+
+        const prestigeAdded =
+          Math.min(
+            prestigeRoom,
+            actualUsed *
+              prestigePerFragment
+          );
+
         newPrestige =
           oldPrestige +
-          actualUsed;
+          prestigeAdded;
 
         remainingFragments =
           freshOwned -
@@ -627,7 +668,8 @@ module.exports = {
           .setDescription(
             [
               `**Card:** ${template.name}`,
-              `**Sacrificed:** ${fragmentName} x${newPrestige - oldPrestige}`,
+              `**Sacrificed:** ${fragmentName} x${consumedFragments}`,
+              `**Prestige Added:** +${newPrestige - oldPrestige}`,
               `**Prestige:** ${oldPrestige}/${EV_MAX_PRESTIGE} → ${newPrestige}/${EV_MAX_PRESTIGE}`,
               `**Remaining Fragments:** ${remainingFragments}`,
             ].join("\n")
