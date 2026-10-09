@@ -1269,44 +1269,11 @@ function getRaidBaseBattleCards(player) {
       safePlayer
     );
 
-  const evEffects =
-    playerCombatBoosts
-      .evEffects ||
-    {};
-
+  // EV abilities are disabled in every raid mode.
+  // Keep normal passive boosts unchanged and remove
+  // EV combat effects without subtracting any stats.
   const combatBoosts = {
     ...playerCombatBoosts,
-
-    atk:
-      Number(
-        playerCombatBoosts.atk ||
-        0
-      ) -
-      Number(
-        evEffects.teamAtkPercent ||
-        0
-      ),
-
-    hp:
-      Number(
-        playerCombatBoosts.hp ||
-        0
-      ) -
-      Number(
-        evEffects.teamHpPercent ||
-        0
-      ),
-
-    spd:
-      Number(
-        playerCombatBoosts.spd ||
-        0
-      ) -
-      Number(
-        evEffects.teamSpdPercent ||
-        0
-      ),
-
     evEffects: {},
   };
 
