@@ -49,6 +49,7 @@ module.exports = {
       "all",
       "marines",
       "level",
+      "swap",
       "open",
       "daily",
       "treasure",
