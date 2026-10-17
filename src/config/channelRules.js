@@ -69,6 +69,7 @@ module.exports = {
     "1497584870812291294": [
       "trade",
       "convert",
+      "summon",
       "ping",
       "rum",
       "mci",
@@ -104,6 +105,7 @@ module.exports = {
     "1502220117331804250": [
       "trade",
       "convert",
+      "summon",
       "ping",
       "rum",
       "mci",
