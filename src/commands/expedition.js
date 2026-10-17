@@ -62,7 +62,7 @@ const EXPEDITION_COOLDOWN =
 const ENTRY_COST = {
   cola_engine_part: 200,
   iron_plating: 200,
-  enhancement_stone: 3000,
+  enhancement_stone: 1500,
   hardwood: 200,
   sail_cloth: 30,
 };
