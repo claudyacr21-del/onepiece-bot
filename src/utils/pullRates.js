@@ -210,14 +210,21 @@ function rollContentTypeWithLucky(
     Number(rates.ticket || 0)
   );
 
+  const reducedLuckyMultiplier =
+    multi > 1
+      ? 1.25
+      : 1;
+
   const boostedWeaponRate =
     weaponRate * multi;
 
   const boostedDevilFruitRate =
-    devilFruitRate * multi;
+    devilFruitRate *
+    reducedLuckyMultiplier;
 
   const boostedTicketRate =
-    ticketRate * multi;
+    ticketRate *
+    reducedLuckyMultiplier;
 
   const originalRareTotal =
     weaponRate +
