@@ -201,12 +201,41 @@ async function syncAllBattleCardMasterRole(client, reason = "manual") {
 
       if (qualifies) eligible += 1;
 
+      let memberFetchError = null;
+
       const member =
         guild.members.cache.get(userId) ||
-        (await guild.members.fetch(userId).catch(() => null));
+        (await guild.members
+          .fetch(userId)
+          .catch((error) => {
+            memberFetchError = error;
+            return null;
+          }));
 
       if (!member) {
-        if (qualifies) missingMember += 1;
+        if (qualifies) {
+          missingMember += 1;
+
+          console.warn(
+            "[ALL BATTLECARD MASTER ROLE] Eligible member not found:",
+            {
+              userId,
+              username:
+                player?.username ||
+                player?.name ||
+                "Unknown",
+              guildId: guild.id,
+              guildName: guild.name,
+              errorCode:
+                memberFetchError?.code ||
+                "UNKNOWN",
+              errorMessage:
+                memberFetchError?.message ||
+                "Member is not available in this guild.",
+            }
+          );
+        }
+
         continue;
       }
 
