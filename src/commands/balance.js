@@ -10,9 +10,6 @@ const BERRY_EMOJI =
 const GEMS_EMOJI =
   getItemEmoji("gems");
 
-const CURSED_ENERGY_EMOJI =
-  getItemEmoji("cursed_energy");
-
 function getProfileImage(message) {
   return (
     message.member?.displayAvatarURL?.({
@@ -51,9 +48,6 @@ module.exports = {
           `- Gems: \`${Number(
             player.gems || 0
           ).toLocaleString("en-US")}\` ${GEMS_EMOJI}`,
-          `- Cursed Energy: \`${Number(
-            player.cursedEnergy || 0
-          ).toLocaleString("en-US")}\` ${CURSED_ENERGY_EMOJI}`,
         ].join("\n")
       )
       .setThumbnail(
