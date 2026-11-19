@@ -35,38 +35,12 @@ const { PREMIUM_ROLE_NAME, isPremiumUser } = require("../utils/premiumAccess");
 const {
   getItemEmoji,
 } = require("../config/itemEmojis");
-
-const CURSED_ENERGY_PER_PULL = 2;
-
-const HALLOWEEN_START_AT =
-  Date.parse(
-    "2026-09-21T00:00:00+07:00"
-  );
-
-const HALLOWEEN_END_AT =
-  Date.parse(
-    "2026-11-01T00:00:00+07:00"
-  );
-
-function isHalloweenEventActive(
-  now = Date.now()
-) {
-  return (
-    Number.isFinite(
-      HALLOWEEN_START_AT
-    ) &&
-    Number.isFinite(
-      HALLOWEEN_END_AT
-    ) &&
-    now >= HALLOWEEN_START_AT &&
-    now < HALLOWEEN_END_AT
-  );
-}
-
-const CURSED_ENERGY_EMOJI =
-  getItemEmoji(
-    "cursed_energy"
-  ) || "🔮";
+const {
+  getActiveEvent,
+} = require("../config/eventConfig");
+const {
+  addEventCurrency,
+} = require("../utils/eventCurrency");
 const PREMIUM_PITY_TARGET = 100;
 const PULL_COMMAND_LOCKS =
   global.__ONEPIECE_PULL_COMMAND_LOCKS ||
@@ -1001,6 +975,23 @@ function savePullAllResultFresh(
 
       didSave = true;
 
+      if (
+        payload.event &&
+        Number(
+          payload.addEventCurrency ||
+          0
+        ) > 0
+      ) {
+        addEventCurrency(
+          existing,
+          Number(
+            payload.addEventCurrency ||
+            0
+          ),
+          payload.event
+        );
+      }
+
       /*
         Payload PA was built from this player's current
         inventories. Replace only PA-owned fields and keep
@@ -1044,17 +1035,6 @@ function savePullAllResultFresh(
         berries:
           Number(existing.berries || 0) +
           Number(payload.addBerries || 0),
-
-        cursedEnergy:
-          Number(
-            existing.cursedEnergy ||
-            0
-          ) +
-          Number(
-            payload
-              .addCursedEnergy ||
-            0
-          ),
 
         pulls:
           payload.finalPulls ||
@@ -1860,17 +1840,38 @@ module.exports = {
           availableTotal
         );
 
-      const cursedEnergyReward =
-        isHalloweenEventActive()
+      const activeEvent =
+        getActiveEvent();
+
+      const eventCurrencyPerPull =
+        activeEvent
           ? Math.max(
               0,
               Number(
-                availableTotal ||
-                0
+                activeEvent.currency
+                  ?.pullReward || 0
               )
-            ) *
-            CURSED_ENERGY_PER_PULL
+            )
           : 0;
+
+      const eventCurrencyReward =
+        Math.max(
+          0,
+          Number(
+            availableTotal || 0
+          )
+        ) *
+        eventCurrencyPerPull;
+
+      const eventCurrencyEmoji =
+        activeEvent
+          ? getItemEmoji(
+              activeEvent.currency
+                ?.emojiCode ||
+                activeEvent.currency
+                  ?.code
+            )
+          : "";
 
       const saveResult =
         savePullAllResultFresh(
@@ -1886,8 +1887,11 @@ module.exports = {
             addBerries:
               convertedBerries,
 
-            addCursedEnergy:
-              cursedEnergyReward,
+            event:
+              activeEvent,
+
+            addEventCurrency:
+              eventCurrencyReward,
 
             pity: updatedPity,
             pullAccessSnapshot:
@@ -1931,10 +1935,10 @@ module.exports = {
       }
 
       const groupedLines =
-        cursedEnergyReward > 0
+        eventCurrencyReward > 0
           ? [
               "## Event Bonus",
-              `${CURSED_ENERGY_EMOJI} **+${cursedEnergyReward.toLocaleString("en-US")} Cursed Energy**`,
+              `${eventCurrencyEmoji ? `${eventCurrencyEmoji} ` : ""}**+${eventCurrencyReward.toLocaleString("en-US")} ${activeEvent.currency.name}**`,
               "",
             ]
           : [];
