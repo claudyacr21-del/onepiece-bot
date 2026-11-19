@@ -50,38 +50,12 @@ const {
 const {
   getItemEmoji,
 } = require("../config/itemEmojis");
-
-const CURSED_ENERGY_PER_PULL = 2;
-
-const HALLOWEEN_START_AT =
-  Date.parse(
-    "2026-09-21T00:00:00+07:00"
-  );
-
-const HALLOWEEN_END_AT =
-  Date.parse(
-    "2026-11-01T00:00:00+07:00"
-  );
-
-function isHalloweenEventActive(
-  now = Date.now()
-) {
-  return (
-    Number.isFinite(
-      HALLOWEEN_START_AT
-    ) &&
-    Number.isFinite(
-      HALLOWEEN_END_AT
-    ) &&
-    now >= HALLOWEEN_START_AT &&
-    now < HALLOWEEN_END_AT
-  );
-}
-
-const CURSED_ENERGY_EMOJI =
-  getItemEmoji(
-    "cursed_energy"
-  ) || "🔮";
+const {
+  getActiveEvent,
+} = require("../config/eventConfig");
+const {
+  addEventCurrency,
+} = require("../utils/eventCurrency");
 const PREMIUM_PITY_TARGET = 100;
 const VIVRE_PITY_TARGET = 125;
 const NORMAL_PITY_TARGET = 150;
@@ -1355,6 +1329,23 @@ function savePullResultFresh(userId, payload, username = "Unknown") {
     (fresh) => {
       const existing = fresh || {};
 
+      if (
+        payload.event &&
+        Number(
+          payload.addEventCurrency ||
+          0
+        ) > 0
+      ) {
+        addEventCurrency(
+          existing,
+          Number(
+            payload.addEventCurrency ||
+            0
+          ),
+          payload.event
+        );
+      }
+
       return {
         ...existing,
 
@@ -1371,17 +1362,6 @@ function savePullResultFresh(userId, payload, username = "Unknown") {
           ) +
           Number(
             payload.addBerries || 0
-          ),
-
-        cursedEnergy:
-          Number(
-            existing.cursedEnergy ||
-            0
-          ) +
-          Number(
-            payload
-              .addCursedEnergy ||
-            0
           ),
 
         pulls: mergePullUsageForSave(existing.pulls, payload.pulls),
@@ -1633,10 +1613,29 @@ module.exports = {
       premiumSPity: pityCounter,
     };
 
-    const cursedEnergyReward =
-      isHalloweenEventActive()
-        ? CURSED_ENERGY_PER_PULL
+    const activeEvent =
+      getActiveEvent();
+
+    const eventCurrencyReward =
+      activeEvent
+        ? Math.max(
+            0,
+            Number(
+              activeEvent.currency
+                ?.pullReward || 0
+            )
+          )
         : 0;
+
+    const eventCurrencyEmoji =
+      activeEvent
+        ? getItemEmoji(
+            activeEvent.currency
+              ?.emojiCode ||
+              activeEvent.currency
+                ?.code
+          )
+        : "";
 
     await savePullResultFresh(
       message.author.id,
@@ -1649,8 +1648,11 @@ module.exports = {
         addBerries:
           autoSacBerries,
 
-        addCursedEnergy:
-          cursedEnergyReward,
+        event:
+          activeEvent,
+
+        addEventCurrency:
+          eventCurrencyReward,
 
         pulls: updatedPulls,
         pity: updatedPity,
@@ -1685,8 +1687,8 @@ module.exports = {
       .setDescription(
         [
           `**Slot Used:** ${prettySlotName(pullKey)}`,
-          cursedEnergyReward > 0
-            ? `${CURSED_ENERGY_EMOJI} **Event Bonus:** +${cursedEnergyReward} Cursed Energy`
+          eventCurrencyReward > 0
+            ? `${eventCurrencyEmoji ? `${eventCurrencyEmoji} ` : ""}**Event Bonus:** +${eventCurrencyReward} ${activeEvent.currency.name}`
             : null,
           `**Remaining Pulls:** ${Math.max(0, totalMax - totalUsed - 1)}/${totalMax}`,
           `**${pityText}**`,

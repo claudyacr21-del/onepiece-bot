@@ -11,6 +11,7 @@ const EVENT_CONFIG = {
     code: "",
     name: "",
     emojiCode: "",
+    pullReward: 2,
   },
 };
 
