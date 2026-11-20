@@ -3667,17 +3667,6 @@ function giveSupremeRaidWinRewards(
       ) +
       serverTagBonusGems;
 
-    const cursedEnergy =
-      isHost
-        ? randomInt(
-            100,
-            150
-          )
-        : randomInt(
-            50,
-            100
-          );
-
     const cardFragments =
       isHost &&
       randomChance(20)
@@ -3776,18 +3765,6 @@ function giveSupremeRaidWinRewards(
             ) +
             gems,
 
-          cursedEnergy:
-            Math.max(
-              0,
-              Math.floor(
-                Number(
-                  fresh.cursedEnergy ||
-                  0
-                )
-              )
-            ) +
-            cursedEnergy,
-
           fragments:
             nextFragments,
 
@@ -3811,7 +3788,6 @@ function giveSupremeRaidWinRewards(
       isHost,
       berries,
       gems,
-      cursedEnergy,
 
       serverTagBonusBerries,
       serverTagBonusGems,
@@ -4076,25 +4052,6 @@ function formatRaidWinRewardLines(state) {
       `• **${reward.username}**${reward.isHost ? " 👑 Host" : ""}`,
       `+${Number(reward.berries || 0).toLocaleString("en-US")} berries`,
       `+${Number(reward.gems || 0).toLocaleString("en-US")} gems`,
-      ...(
-        Number(
-          reward.cursedEnergy ||
-          0
-        ) > 0
-          ? [
-              `+${Number(
-                reward.cursedEnergy ||
-                0
-              ).toLocaleString(
-                "en-US"
-              )} ${
-                getItemEmoji(
-                  "cursed_energy"
-                ) || "🌀"
-              } Cursed Energy`,
-            ]
-          : []
-      ),
     ];
 
     if (Number(reward.serverTagBonusBerries || 0) > 0) {

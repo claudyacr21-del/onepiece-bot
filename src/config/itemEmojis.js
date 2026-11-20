@@ -4,8 +4,6 @@ const ITEM_EMOJIS = Object.freeze({
   gems:
     "<:gems:1532392133611229304>",
 
-  cursed_energy:
-    "<a:cursedenergy:1547176649974620230>",
   premium_box:
     "<a:premiumbox:1547183758774636583>",
   sukuna_box:
