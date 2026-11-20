@@ -657,7 +657,14 @@ function getRewardEmoji(reward) {
         "battle",
 
       name:
-        "True Form Sukuna Fragment",
+        `${
+          CARD_BY_CODE.get(
+            normalizeCode(
+              reward.code
+            )
+          )?.name ||
+          reward.code
+        } Fragment`,
     });
   }
 
@@ -678,7 +685,14 @@ function getRewardEmoji(reward) {
         "weapon",
 
       name:
-        "Kamutoke Weapon Fragment",
+        `${
+          WEAPON_BY_CODE.get(
+            normalizeCode(
+              reward.code
+            )
+          )?.name ||
+          reward.code
+        } Weapon Fragment`,
     });
   }
 
@@ -848,27 +862,43 @@ function applyWeaponReward(
       ? [...player.cards]
       : [];
 
-  const sukunaIndex =
-    cards.findIndex(
-      (entry) =>
-        normalizeCode(
-          entry?.code
-        ) ===
-        "true_form_sukuna"
+  const eventCardCode =
+    normalizeCode(
+      EVENT_CONFIG.content
+        ?.cardCode
     );
 
-  const isKamutoke =
+  const eventWeaponCode =
     normalizeCode(
-      template.code
-    ) ===
-    "kamutoke";
+      EVENT_CONFIG.content
+        ?.weaponCode
+    );
+
+  const eventCardIndex =
+    eventCardCode
+      ? cards.findIndex(
+          (entry) =>
+            normalizeCode(
+              entry?.code
+            ) ===
+            eventCardCode
+        )
+      : -1;
+
+  const isEventWeapon =
+    Boolean(
+      eventWeaponCode &&
+      normalizeCode(
+        template.code
+      ) === eventWeaponCode
+    );
 
   if (
-    isKamutoke &&
-    sukunaIndex >= 0
+    isEventWeapon &&
+    eventCardIndex >= 0
   ) {
     const rawCard =
-      cards[sukunaIndex];
+      cards[eventCardIndex];
 
     const equippedWeapons =
       Array.isArray(
@@ -889,17 +919,17 @@ function applyWeaponReward(
         ""
       );
 
-    const hasKamutoke =
+    const hasEventWeapon =
       equippedWeapons.some(
         (weaponEntry) =>
           normalizeCode(
             weaponEntry?.code ||
             weaponEntry?.name
           ) ===
-          "kamutoke"
+          eventWeaponCode
       ) ||
       legacyWeapon ===
-        "kamutoke";
+        eventWeaponCode;
 
     const hasAnyWeapon =
       equippedWeapons.length >
@@ -910,7 +940,7 @@ function applyWeaponReward(
       );
 
     if (
-      !hasKamutoke &&
+      !hasEventWeapon &&
       !hasAnyWeapon
     ) {
       const equippedPayload = {
@@ -940,7 +970,7 @@ function applyWeaponReward(
         upgradeLevel: 0,
       };
 
-      cards[sukunaIndex] =
+      cards[eventCardIndex] =
         hydrateCard({
           ...rawCard,
 
@@ -1107,27 +1137,43 @@ function applyFruitReward(
       ? [...player.cards]
       : [];
 
-  const sukunaIndex =
-    cards.findIndex(
-      (entry) =>
-        normalizeCode(
-          entry?.code
-        ) ===
-        "true_form_sukuna"
+  const eventCardCode =
+    normalizeCode(
+      EVENT_CONFIG.content
+        ?.cardCode
     );
 
-  const isFinger =
+  const eventFruitCode =
     normalizeCode(
-      template.code
-    ) ===
-    "finger";
+      EVENT_CONFIG.content
+        ?.fruitCode
+    );
+
+  const eventCardIndex =
+    eventCardCode
+      ? cards.findIndex(
+          (entry) =>
+            normalizeCode(
+              entry?.code
+            ) ===
+            eventCardCode
+        )
+      : -1;
+
+  const isEventFruit =
+    Boolean(
+      eventFruitCode &&
+      normalizeCode(
+        template.code
+      ) === eventFruitCode
+    );
 
   if (
-    isFinger &&
-    sukunaIndex >= 0
+    isEventFruit &&
+    eventCardIndex >= 0
   ) {
     const rawCard =
-      cards[sukunaIndex];
+      cards[eventCardIndex];
 
     const equippedFruitCode =
       normalizeCode(
@@ -1148,7 +1194,7 @@ function applyFruitReward(
       );
 
     if (!hasAnyFruit) {
-      cards[sukunaIndex] =
+      cards[eventCardIndex] =
         hydrateCard({
           ...rawCard,
 
@@ -1662,14 +1708,44 @@ async function updatePremium(
   }
 
   if (
+    EVENT_CONFIG.premium
+      ?.enabled !== true
+  ) {
+    return message.reply({
+      content:
+        "The Event Premium Pass is currently unavailable.",
+
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
+
+  if (
+    plus &&
+    EVENT_CONFIG.premium
+      ?.premiumPlusEnabled !==
+      true
+  ) {
+    return message.reply({
+      content:
+        "The Event Premium Plus Pass is currently unavailable.",
+
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
+
+  if (
     enabled &&
     !isEventActive()
   ) {
     return message.reply({
       content:
         hasEventEnded()
-          ? "The Halloween Event has ended. Premium can no longer be activated."
-          : "The Halloween Event has not started.",
+          ? `The ${EVENT_NAME} has ended. Premium can no longer be activated.`
+          : `The ${EVENT_NAME} has not started.`,
 
       allowedMentions: {
         repliedUser: false,
