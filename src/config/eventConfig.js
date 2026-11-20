@@ -13,6 +13,20 @@ const EVENT_CONFIG = {
     emojiCode: "",
     pullReward: 2,
   },
+
+  phrase: {
+    enabled: false,
+    text: "",
+    cooldownMinutes: 15,
+    minReward: 50,
+    maxReward: 100,
+
+    channelIds: [
+      "1493177804337053716",
+    ],
+
+    successText: "",
+  },
 };
 
 function getActiveEvent(now = new Date()) {

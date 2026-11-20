@@ -49,8 +49,8 @@ const {
 } = require("./utils/messageMilestones");
 
 const {
-  handleCursedEnergyPhrase,
-} = require("./utils/cursedEnergyPhrase");
+  handleEventCurrencyPhrase,
+} = require("./utils/eventCurrencyPhrase");
 
 const client = new Client({
   intents: [
@@ -1060,13 +1060,13 @@ client.on("messageCreate", async (message) => {
     }
 
     if (!parsed) {
-      const cursedEnergyPhraseHandled =
-        await handleCursedEnergyPhrase(
+      const eventCurrencyPhraseHandled =
+        await handleEventCurrencyPhrase(
           message
         );
 
       if (
-        cursedEnergyPhraseHandled
+        eventCurrencyPhraseHandled
       ) {
         if (message.guild) {
           setImmediate(() => {
