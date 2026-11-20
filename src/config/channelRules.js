@@ -56,8 +56,8 @@ module.exports = {
       "imu",
       "redeemcode",
       "quest",
-      "halloween",
-      "halloweenevent",
+      "event",
+      "ev",
     ],
 
     "1502525406161666058": [
