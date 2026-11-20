@@ -29,6 +29,12 @@ const {
 } = require("../config/eventConfig");
 
 const {
+  addEventCurrency,
+  getEventCurrencyAmount,
+  spendEventCurrency,
+} = require("../utils/eventCurrency");
+
+const {
   ensureFragmentEmojiCache,
   getFragmentIcon,
 } = require("./finv");
@@ -218,10 +224,12 @@ function fragment(code, amount) {
   };
 }
 
-function cursedEnergy(amount) {
+function eventCurrency(amount) {
   return {
-    type: "cursed_energy",
-    code: "cursed_energy",
+    type: "event_currency",
+    code:
+      EVENT_CONFIG.currency
+        ?.code || "",
     amount,
   };
 }
@@ -365,6 +373,8 @@ function getEventState(player) {
     {};
 
   return {
+    ...raw,
+
     premium:
       raw.premium === true,
 
@@ -525,9 +535,20 @@ function getRewardDateLabel(day) {
 function getRewardLabel(reward) {
   if (
     reward.type ===
-      "cursed_energy"
+      "event_currency"
   ) {
-    return `${Number(reward.amount || 0).toLocaleString("en-US")}x Cursed Energy`;
+    const currencyName =
+      String(
+        EVENT_CONFIG.currency
+          ?.name ||
+        "Event Currency"
+      ).trim();
+
+    return `${Number(
+      reward.amount || 0
+    ).toLocaleString(
+      "en-US"
+    )}x ${currencyName}`;
   }
 
   if (
@@ -592,13 +613,16 @@ function getRewardLabel(reward) {
 function getRewardEmoji(reward) {
   if (
     reward.type ===
-      "cursed_energy"
+      "event_currency"
   ) {
     return (
       getItemEmoji(
-        "cursed_energy"
+        EVENT_CONFIG.currency
+          ?.emojiCode ||
+        EVENT_CONFIG.currency
+          ?.code
       ) ||
-      "🔮"
+      EVENT_CURRENCY_EMOJI
     );
   }
 
@@ -1232,16 +1256,10 @@ function applyRewards(
   for (const reward of rewards) {
     if (
       reward.type ===
-        "cursed_energy"
+        "event_currency"
     ) {
-      next.cursedEnergy =
-        Math.max(
-          0,
-          Number(
-            next.cursedEnergy ||
-            0
-          )
-        ) +
+      addEventCurrency(
+        next,
         Math.max(
           0,
           Math.floor(
@@ -1250,7 +1268,9 @@ function applyRewards(
               0
             )
           )
-        );
+        ),
+        EVENT_CONFIG
+      );
     } else if (
       reward.type === "item"
     ) {
@@ -1374,7 +1394,7 @@ function buildDayFields(
     getRewardDateLabel(day);
 
   const freeValue = [
-    `${CURSED_ENERGY_EMOJI} **FREE Halloween Rewards**${freeStatus}`,
+    `${EVENT_CURRENCY_EMOJI} **FREE ${EVENT_NAME} Rewards**${freeStatus}`,
     buildRewardLines(
       config.free
     ),
@@ -1383,7 +1403,7 @@ function buildDayFields(
     .join("\n");
 
   const premiumValue = [
-    `${PREMIUM_BOX_EMOJI} **Premium Halloween Rewards**${premiumStatus}`,
+    `${PREMIUM_BOX_EMOJI} **Premium ${EVENT_NAME} Rewards**${premiumStatus}`,
     buildRewardLines(
       config.premium
     ),
@@ -1464,18 +1484,20 @@ function buildEmbed(
     );
 
   return new EmbedBuilder()
-    .setColor(0xf47c20)
+    .setColor(EVENT_COLOR)
     .setTitle(
-      `${HALLOWEEN_EMOJI} Halloween Rewards`
+      `${EVENT_EMOJI} ${EVENT_TITLE}`
     )
     .setDescription(
       [
-        "Check in daily to claim Halloween rewards and unlock exclusive Event content!",
+        EVENT_DESCRIPTION,
+
         state.premiumPlus
-          ? `${SUKUNA_BOX_EMOJI} **Premium Pass Plus Active — All Dates Unlocked**`
+          ? `${PREMIUM_BOX_EMOJI} **Premium Pass Plus Active — All Dates Unlocked**`
           : state.premium
-            ? `${SUKUNA_BOX_EMOJI} **Premium Pass Active**`
-            : `${SUKUNA_BOX_EMOJI} **Premium Pass Not Active**`,
+            ? `${PREMIUM_BOX_EMOJI} **Premium Pass Active**`
+            : `${PREMIUM_BOX_EMOJI} **Premium Pass Not Active**`,
+
         note
           ? `\n${note}`
           : "",
@@ -1498,7 +1520,10 @@ function buildEmbed(
     )
     .setFooter({
       text:
-        `Halloween Rewards • Page ${selectedPage + 1}/${TOTAL_PAGES}`,
+        `${EVENT_TITLE} • Page ${selectedPage + 1}/${Math.max(
+          1,
+          TOTAL_PAGES
+        )}`,
     });
 }
 
@@ -1554,7 +1579,7 @@ function buildButtons(
     .addComponents(
       new ButtonBuilder()
         .setCustomId(
-          "halloween_previous"
+          "event_previous"
         )
         .setLabel("Previous")
         .setStyle(
@@ -1566,7 +1591,7 @@ function buildButtons(
 
       new ButtonBuilder()
         .setCustomId(
-          "halloween_claim"
+          "event_claim"
         )
         .setLabel(
           claimable
@@ -1582,7 +1607,7 @@ function buildButtons(
 
       new ButtonBuilder()
         .setCustomId(
-          "halloween_next"
+          "event_next"
         )
         .setLabel("Next")
         .setStyle(
@@ -1795,8 +1820,22 @@ async function buyEventBoxes(
     return message.reply({
       content:
         hasEventEnded()
-          ? "The Halloween Event has ended."
-          : "The Halloween Event has not started.",
+          ? `The ${EVENT_NAME} has ended.`
+          : `The ${EVENT_NAME} has not started.`,
+
+      allowedMentions: {
+        repliedUser: false,
+      },
+    });
+  }
+
+  if (
+    EVENT_CONFIG.box?.enabled !==
+      true
+  ) {
+    return message.reply({
+      content:
+        "The Event Box exchange is currently unavailable.",
 
       allowedMentions: {
         repliedUser: false,
@@ -1812,7 +1851,10 @@ async function buyEventBoxes(
   if (amount < 1) {
     return message.reply({
       content:
-        "Usage: `op halloween box [amount]`",
+        `Usage: \`op ${
+          EVENT_CONFIG.command
+            ?.name || "event"
+        } box [amount]\``,
 
       allowedMentions: {
         repliedUser: false,
@@ -1822,13 +1864,15 @@ async function buyEventBoxes(
 
   const template =
     ITEM_BY_CODE.get(
-      EVENT_BOX_CODE
+      normalizeCode(
+        EVENT_BOX_CODE
+      )
     );
 
   if (!template) {
     return message.reply({
       content:
-        "Sukuna Box is missing from items.js.",
+        `${EVENT_CONFIG.box?.name || "Event Box"} is missing from items.js.`,
 
       allowedMentions: {
         repliedUser: false,
@@ -1840,38 +1884,62 @@ async function buyEventBoxes(
     EVENT_BOX_PRICE *
     amount;
 
-  let remainingEnergy = 0;
+  const currencyName =
+    String(
+      EVENT_CONFIG.currency
+        ?.name ||
+      "Event Currency"
+    ).trim();
+
+  const boxName =
+    String(
+      EVENT_CONFIG.box?.name ||
+      template.name ||
+      "Event Box"
+    ).trim();
+
+  let remainingCurrency = 0;
 
   try {
     await updatePlayerAtomic(
       message.author.id,
 
       (fresh) => {
-        const currentEnergy =
-          Math.max(
-            0,
-            Math.floor(
-              Number(
-                fresh.cursedEnergy ||
-                0
-              )
-            )
+        const currentCurrency =
+          getEventCurrencyAmount(
+            fresh,
+            EVENT_CONFIG
           );
 
         if (
-          currentEnergy <
+          currentCurrency <
           totalPrice
         ) {
           throw new Error(
             `You need ${totalPrice.toLocaleString(
               "en-US"
-            )} Cursed Energy to buy ${amount} Sukuna Box.`
+            )} ${currencyName} to buy ${amount} ${boxName}.`
           );
         }
 
-        remainingEnergy =
-          currentEnergy -
-          totalPrice;
+        const spent =
+          spendEventCurrency(
+            fresh,
+            totalPrice,
+            EVENT_CONFIG
+          );
+
+        if (!spent) {
+          throw new Error(
+            `Failed to spend ${currencyName}.`
+          );
+        }
+
+        remainingCurrency =
+          getEventCurrencyAmount(
+            fresh,
+            EVENT_CONFIG
+          );
 
         const boxReward =
           cloneItem(
@@ -1881,9 +1949,6 @@ async function buyEventBoxes(
 
         return {
           ...fresh,
-
-          cursedEnergy:
-            remainingEnergy,
 
           boxes:
             addOrIncrease(
@@ -1901,7 +1966,7 @@ async function buyEventBoxes(
       content:
         `⚠️ ${
           error.message ||
-          "Failed to exchange Cursed Energy."
+          `Failed to exchange ${currencyName}.`
         }`,
 
       allowedMentions: {
@@ -1910,27 +1975,32 @@ async function buyEventBoxes(
     });
   }
 
-  const energyEmoji =
+  const currencyEmoji =
     getItemEmoji(
-      "cursed_energy"
-    ) || "🌀";
+      EVENT_CONFIG.currency
+        ?.emojiCode ||
+      EVENT_CONFIG.currency
+        ?.code
+    ) || "✨";
 
   const boxEmoji =
     getItemEmoji(
+      EVENT_CONFIG.box
+        ?.emojiCode ||
       EVENT_BOX_CODE
-    ) || "🎁";
+    ) || EVENT_BOX_EMOJI;
 
   return message.reply({
     content:
       `${boxEmoji} You exchanged ` +
       `**${totalPrice.toLocaleString(
         "en-US"
-      )}** ${energyEmoji} Cursed Energy ` +
-      `for **${amount}x Sukuna Box**.\n` +
-      `Remaining Cursed Energy: ` +
-      `**${remainingEnergy.toLocaleString(
+      )}** ${currencyEmoji} ${currencyName} ` +
+      `for **${amount}x ${boxName}**.\n` +
+      `Remaining ${currencyName}: ` +
+      `**${remainingCurrency.toLocaleString(
         "en-US"
-      )}** ${energyEmoji}`,
+      )}** ${currencyEmoji}`,
 
     allowedMentions: {
       repliedUser: false,
@@ -1956,8 +2026,8 @@ async function claimAvailableRewards(
       if (!isEventActive()) {
         throw new Error(
           hasEventEnded()
-            ? "The Halloween Event has ended."
-            : "The Halloween Event has not started."
+            ? `The ${EVENT_NAME} has ended.`
+            : `The ${EVENT_NAME} has not started.`
         );
       }
 
@@ -2064,6 +2134,12 @@ async function claimAvailableRewards(
           ...(rewarded.events || {}),
 
           [EVENT_KEY]: {
+            ...(
+              rewarded.events?.[
+                EVENT_KEY
+              ] || {}
+            ),
+
             ...state,
 
             freeClaims:
