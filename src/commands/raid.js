@@ -3390,18 +3390,55 @@ function pickMythicRaidWeaponDrop(state, boss) {
       ""
   );
 
+  const mergeSourceCodes =
+    new Set(
+      ensureArray(
+        boss?.mergeSourceCodes
+      ).map((code) =>
+        normalizeRaidCode(code)
+      )
+    );
+
+  const isThreeAdmirals =
+    bossCode === "ta" ||
+    bossCode ===
+      "three_admirals" ||
+    (
+      mergeSourceCodes.has(
+        "akainu"
+      ) &&
+      mergeSourceCodes.has(
+        "aokiji"
+      ) &&
+      mergeSourceCodes.has(
+        "kizaru"
+      )
+    );
+
   const fixedWeaponPools = {
     wgd: [
       "metal_arm",
       "kikoku",
     ],
+
     gvc: [
       "eclipse",
       "kagi",
     ],
+
+    ta: [
+      "magma_fist",
+      "ice_saber",
+      "ame_no_murakumo",
+    ],
   };
 
-  const allowedCodes = fixedWeaponPools[bossCode];
+  const allowedCodes =
+    isThreeAdmirals
+      ? fixedWeaponPools.ta
+      : fixedWeaponPools[
+          bossCode
+        ];
 
   if (allowedCodes) {
     const allowedWeaponCodes = new Set(
